@@ -172,13 +172,14 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   await select(1, 0);
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
   await click(MORE);
-  await waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.textContent.startsWith('记下灵光'))");
+  // On the bar or under 更多, wherever the rules put it.
+  await waitFor(`[...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].some(button => button.textContent.startsWith('拆成目标步骤'))`);
   const placed = await evaluate<{ status: number; work_id?: string }>(`new Promise(resolve => { const original = window.fetch;
     window.fetch = async (url, options) => { const response = await original(url, options); if (String(url).includes('/api/assistant/cards')) { const copy = response.clone(); resolve({ status: response.status, ...(await copy.json().catch(() => ({}))) }); } return response; };
-    [...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.startsWith('记下灵光')).click(); })`);
+    [...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].find(button => button.textContent.startsWith('拆成目标步骤')).click(); })`);
   assert.equal(placed.status, 200);
   assert.ok(placed.work_id);
-  await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '记下灵光'", 8000);
+  await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '拆成目标步骤'", 8000);
 
   // A Goal's own text: the frame names the Goal, so what is selected in it can become steps under it.
   const goalId = await evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/board', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(board => board.goals[0].goal.goal_id)`);

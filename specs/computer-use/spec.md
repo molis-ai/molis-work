@@ -1,6 +1,6 @@
 # 个人助理的完整 Computer Use
 
-状态：进行中（2026-10-11）。最小真机切片已在用户的 Mac 上证明（§5）。桌面步骤措辞、跨项目确认、没选项目的操作记录和确认卡，以及四条威胁的代表性拒绝，已由发出去的函数测通（§4、§7）：终端与系统设置的输入记成 refused，被挡住的落点和显示着 Molis Work 的窗口在注入前拒绝，与请求矩形相交的密码框不让截图离开助手。真实模型 MiniMax-M3 在隔离 Home 上走过 TextEdit 和计算器，操作记录有 29 步；锁屏、用户在场、驱动不可用三种拒绝都在真机上出现过。那次走查里模型没有调用终端打字、系统设置、被挡住的落点和自批，所以这些拒绝还没有真机记录。全量回归已对干净基线 `72137e89a` 跑完，没有新的产品失败（§7、§8）。对 `db9cbddca` 的又一次全量已经跑完：基线失败文件 1 个，Computer Use 多出 5 个。重新构建后 `tests/install.test.ts`、`tests/npm-package.test.ts`、`tests/runtime-payload.test.ts`、`tests/uninstall.test.ts` 共 30 项通过（先前是 `source.build_stale`）。`tests/goals-document.e2e.test.ts` 单独重跑 4 项通过（全量里是页面脚本执行超时）。带截图的 Shelf 放入还没有真机记录。这次准备再走真机时屏幕是锁着的，没有启动走查，也没有改先前的记录。接到当前 origin/main `a28d7584b` 之后的全量：基线 5560 项、失败 5、失败文件 2 个；Computer Use 5571 项、失败 5、失败文件还是 `tests/immersive-directory.e2e.test.ts` 和 `tests/touch-targets.e2e.test.ts`，没有新的失败文件。二十步整格和带截图的 Shelf 仍未勾。再接到 origin/main `4fb2db83f` 之后的全量：基线 5569 项、失败 7、失败文件 4 个（`tests/agent-action-selection.e2e.test.ts`、`tests/functions-authoring-actions.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/touch-targets.e2e.test.ts`）；Computer Use 5580 项、失败 5、失败文件是 `tests/immersive-directory.e2e.test.ts` 和 `tests/touch-targets.e2e.test.ts`，没有新的失败文件。合入之后屏幕会话仍打印 `locked`，没有启动走查，没有发 Ctrl+Cmd+Q。再接到 origin/main `02ceba8c9` 之后的全量：基线 5606 项、失败 5、失败文件 3 个（`tests/alchemist-mcp.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/touch-targets.e2e.test.ts`）；Computer Use 5618 项、失败 7、失败文件 4 个。两边共同的失败文件是 immersive-directory 和 touch-targets。基线独有 Alchemist MCP 超时，Computer Use 全量里这条通过，不把它写成产品修复。Computer Use 全量多出 `tests/goals-document.e2e.test.ts`（选中后 `goalView === 'RELEASE'` 超时）和 `tests/model-first-setup.e2e.test.ts`（清理 Chrome profile 时 `ENOTEMPTY`）。这两个文件在基线树和 Computer Use 树上各单独重跑，都是 8 项通过、0 失败，所以不是这条线的产品回归。挂上的桌面驱动会记下这一轮的项目，并在无参 `release()` 时结束记录、放开电脑。二十步整格和带截图的 Shelf 仍未勾。2026-10-12 复查时屏幕没有锁（`cu-session` 打印 `unlocked`），人在控制台。同一时刻另一会话的全量还在跑，走查脚本因此停在启动前，没有新的 transcript，没有发 Ctrl+Cmd+Q。2026-10-12 18:05Z 前台是 ChatGPT，鼠标和滚轮刚动过，`browser.lock` 空着，走查没有启动。二十步整格和带截图的 Shelf 仍未勾。目标原文见 [goal-prompt.md](goal-prompt.md)。
+状态：进行中（2026-10-11）。最小真机切片已在用户的 Mac 上证明（§5）。桌面步骤措辞、跨项目确认、没选项目的操作记录和确认卡，以及四条威胁的代表性拒绝，已由发出去的函数测通（§4、§7）：终端与系统设置的输入记成 refused，被挡住的落点和显示着 Molis Work 的窗口在注入前拒绝，与请求矩形相交的密码框不让截图离开助手。真实模型 MiniMax-M3 在隔离 Home 上走过 TextEdit 和计算器，操作记录有 29 步；锁屏、用户在场、驱动不可用三种拒绝都在真机上出现过。那次走查里模型没有调用终端打字、系统设置、被挡住的落点和自批，所以这些拒绝还没有真机记录。全量回归已对干净基线 `72137e89a` 跑完，没有新的产品失败（§7、§8）。对 `db9cbddca` 的又一次全量已经跑完：基线失败文件 1 个，Computer Use 多出 5 个。重新构建后 `tests/install.test.ts`、`tests/npm-package.test.ts`、`tests/runtime-payload.test.ts`、`tests/uninstall.test.ts` 共 30 项通过（先前是 `source.build_stale`）。`tests/goals-document.e2e.test.ts` 单独重跑 4 项通过（全量里是页面脚本执行超时）。带截图的 Shelf 放入还没有真机记录。这次准备再走真机时屏幕是锁着的，没有启动走查，也没有改先前的记录。接到当前 origin/main `a28d7584b` 之后的全量：基线 5560 项、失败 5、失败文件 2 个；Computer Use 5571 项、失败 5、失败文件还是 `tests/immersive-directory.e2e.test.ts` 和 `tests/touch-targets.e2e.test.ts`，没有新的失败文件。二十步整格和带截图的 Shelf 仍未勾。再接到 origin/main `4fb2db83f` 之后的全量：基线 5569 项、失败 7、失败文件 4 个（`tests/agent-action-selection.e2e.test.ts`、`tests/functions-authoring-actions.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/touch-targets.e2e.test.ts`）；Computer Use 5580 项、失败 5、失败文件是 `tests/immersive-directory.e2e.test.ts` 和 `tests/touch-targets.e2e.test.ts`，没有新的失败文件。合入之后屏幕会话仍打印 `locked`，没有启动走查，没有发 Ctrl+Cmd+Q。再接到 origin/main `02ceba8c9` 之后的全量：基线 5606 项、失败 5、失败文件 3 个（`tests/alchemist-mcp.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/touch-targets.e2e.test.ts`）；Computer Use 5618 项、失败 7、失败文件 4 个。两边共同的失败文件是 immersive-directory 和 touch-targets。基线独有 Alchemist MCP 超时，Computer Use 全量里这条通过，不把它写成产品修复。Computer Use 全量多出 `tests/goals-document.e2e.test.ts`（选中后 `goalView === 'RELEASE'` 超时）和 `tests/model-first-setup.e2e.test.ts`（清理 Chrome profile 时 `ENOTEMPTY`）。这两个文件在基线树和 Computer Use 树上各单独重跑，都是 8 项通过、0 失败，所以不是这条线的产品回归。挂上的桌面驱动会记下这一轮的项目，并在无参 `release()` 时结束记录、放开电脑。二十步整格和带截图的 Shelf 仍未勾。2026-10-12 复查时屏幕没有锁（`cu-session` 打印 `unlocked`），人在控制台。同一时刻另一会话的全量还在跑，走查脚本因此停在启动前，没有新的 transcript，没有发 Ctrl+Cmd+Q。2026-10-12 18:05Z 前台是 ChatGPT，鼠标和滚轮刚动过，`browser.lock` 空着，走查没有启动。二十步整格和带截图的 Shelf 仍未勾。目标原文见 [goal-prompt.md](goal-prompt.md)。2026-10-18 起按 [goal-prompt-wrapup.md](goal-prompt-wrapup.md) 收尾并补能力，见 §9。
 
 ## 1. 要解决的事
 
@@ -105,3 +105,46 @@
 - 记录的 `goal` 取自 attach 时的 `input.task`；`run_id` 在 attach 时还没有，记为 null。
 - 没选项目时的确认卡走个人工作的 owner（`home`），由 `tests/computer-use-gaps.test.ts` 覆盖。浏览器里的空 Home 画面没有另拍。
 - 右栏 Shelf、多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）未做或未验证。现有 `POST /api/shelf/items` 在走查里对文字返回过 200；截图那次 POST 还没有真机记录。
+
+## 9. 收尾与能力补强（2026-10-18）
+
+状态：进行中。按 [goal-prompt-wrapup.md](goal-prompt-wrapup.md) 执行：先收尾 §7 的两项未完成验收，再按 P0→P1 补长任务可靠性、多窗口/对话框、视觉兜底与评测骨架。代码在独立工作树与分支上做，每个切片先复现再改，合同最小变更，门禁数字只许变小。
+
+- 收尾（仍未勾）：真实模型跨应用二十步；Shelf 带截图真机放入；终端打字、系统设置、被挡落点、自批、密码截图五类拒绝的真机记录。
+- P0：桌面轮次预算、观察压缩、效果校验与卡住检测、zoom/裁剪；多窗口/sheet/对话框与打开保存面板；语义定位/树搜索。
+- P1：本地 Vision OCR 兜底；10 场景评测骨架（成功率、步数、耗时、token、拒绝率、接管次数）。
+- 不做（后续切片）：剪贴板、应用配方/长期记忆、专用 GUI 模型、MCP、签名/公证。
+- 真机不可用时不伪造：屏幕锁着、人在用或模型没配时记下时间与原因，继续不依赖真机的切片，标 blocked。
+- 2026-10-18 阶段 0：独立工作树 `feat/computer-use-wrapup-20261018` 从 origin/main `aceffff86` 起；目标用例 `tests/computer-use-act-loop.test.ts`、`tests/computer-use-reliability.test.ts`、`tests/computer-use-gaps.test.ts`、`tests/computer-use-task-done.test.ts`、`tests/assistant-tool-words.test.ts` 共 5 个文件、25 项通过。屏幕未锁，但控制台前有人（前台 Claude，刚有输入），没有启动真机走查；不锁屏、不猜密码。
+- 2026-10-18 第一个切片（CU-G07）：`apps/local-host/src/computer/computer-progress.ts` 的 `StepProgress` 记住模型看到的树与上一步；树未变化时回执附一句说明，同一 pointer/scroll/drag 连续三次无变化后第四次拒绝并记 `failed`。`ComputerDriver` 仍 288 行（阈值 300），逻辑放在新模块；未改合同。`tests/computer-use-reliability.test.ts` 4 项通过。
+- 2026-10-18 第二个切片（CU-G05）：`ROUND_TURNS` 从 24 提到 60，一轮约能容纳二十步「看 + 做」；逐工作的 token 上限照旧，轮次仍是有限值。业务网关的步数上限用例改为 60 并延长脚本，`stopInWords` 的文案用例补 60。
+- 2026-10-18 第三个切片（CU-G09，部分）：sheet 在观察里叫「表单」；应用有不止一个窗口时，观察会读它的「窗口」菜单，只列与窗口标题匹配的项，并提示用已有的 `menu` 动作切换——不新增动作、不改合同。系统打开/保存面板常由另一个进程承载，现有落点校验会拒绝；这一条要先做策略决定，留待后续切片和真机记录。`tests/computer-use-reliability.test.ts` 两个 CU-G09 用例通过（共 6 项）。窗口列表与「窗口」菜单提示都不列出显示 Molis Work 的窗口；菜单路径指向它时在注入前拒绝并记 refused。
+- 真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 执行；2026-10-18 复查时屏幕没锁，但前台有人在用（Chrome / DeepSeek Harness，刚有输入），没有启动二十步，也没有锁屏或猜密码；CU-G02–G04 仍未勾。
+- 2026-10-18 第四个切片（CU-G10，部分）：helper 的 `observe.ocr` 用 Vision 识别目标窗口截图（2 倍图），返回文本与窗口内坐标；driver 只在树被截断、可点节点少于 3 个、且树里没有密码框时调用，把文本并入观察，标为不可信。不新增合同；OCR 与截图走同一条密码框拒绝，AX 看不到的密码框仍是 D15 的已知限度。密集 UI、Electron/canvas、游戏与远程桌面的真实 OCR 质量待机器空闲时验证；裁剪图交给模型（CU-G08 的合同入口）仍未做。
+- 2026-10-18 第五个切片（CU-G06，部分）：观察省略没有名字、值或密码的无名容器（组、滚动区、窗口、工具栏、列表、表格、大纲、网页区域），缩进仍表示层级；方括号编号改成原始树下标，靠编号点击仍落在同一个节点。只改 render 层，不改合同。合成 100 个无名组 + 工具栏 + 密码框 + 按钮的树在 1,500 字以内（节点编号 `[103]` 仍可点中），真实大树/滚动/弹窗的 token 对比待真机。
+- 2026-10-18 第六个切片（CU-G12，部分）：`tests/computer-use-evaluation.test.ts` 用真实 driver + fake helper 跑 10 个场景（TextEdit、计算器、Mail 附件、Excel 导出、Finder 多窗口、Electron、画布、终端、系统设置、密码），一条命令（`node scripts/run-tests.mjs tests/computer-use-evaluation.test.ts`）输出成功率、步数、耗时、按文本长度估算的 token、拒绝数与拒绝率、接管次数。它是回归与成本仪表，不是对外基准；三项真机场景（二十步、Shelf 带截图、五类拒绝）在结果里单列，不声称已完成。
+- 2026-10-18 第七个切片（CU-G11，部分）：pointer 的 `node` 除 `[n]` 外支持 `名称`、`角色:名称`（AX 角色或树里显示的中文角色）、`/正则/`；注入前按当时的树解析，同名多个拒绝并提示用角色或坐标，没有匹配或坏正则也拒绝。只改字符串语义与说明（contracts 注释、DESKTOP_GUIDANCE、树头），不改合同形状，不需要 `api:update`；测试覆盖名称、角色、正则、歧义、无匹配、坏正则。
+- 2026-10-18 第八个切片（CU-G08，部分）：树不够（截断或没有可点节点）时，交给模型的图从整窗 1x 改成动作落点周围 400×300 点的 2 倍裁剪（窗口更小就用整窗）；没有落点的动作仍给整窗；密码框/别的应用仍拒绝，裁剪失败就不附图。人看到的记录截图仍是整窗。不新增合同；密集 UI 的真实点击质量待机器空闲时验证。
+- 2026-10-18 用户决定：真机验收晚点，先完成开发任务并开 draft PR。CU-G02–G04 保持未勾，runbook 留待机器空闲；本分支的 PR 是工作草稿，不是完成声明。
+
+### 9.1 验收状态（2026-10-18）
+
+| 验收 | 状态 | 证据 / 缺口 |
+| --- | --- | --- |
+| CU-G01 基线 | 已完成 | 独立工作树；5 个文件 25 项；屏幕未锁但有人在用，未启动真机走查 |
+| CU-G02 二十步 | 未开始 | 用户决定晚点；按 [acceptance-runbook.md](acceptance-runbook.md) 执行 |
+| CU-G03 Shelf 带截图 | 未开始 | 同上；代码和单测已有，真机只见过文字一次 200 |
+| CU-G04 五类拒绝真机 | 未开始 | 同上；锁屏/在场/驱动不可用沿用旧记录 |
+| CU-G05 预算 | 已完成（真机 token 待走查） | `ROUND_TURNS` 60；业务网关/文案用例通过 |
+| CU-G06 观察压缩 | 部分 | 无名容器省略、原始节点编号；合成大树 1,500 字以内；真实大树/滚动/弹窗 token 待走查 |
+| CU-G07 效果/卡住 | 已完成 | 树未变化说明、三次重复后拒绝；`computer-use-reliability` 覆盖 |
+| CU-G08 zoom | 部分 | 树不够时自动给落点 2x 裁剪；模型主动请求的 dense UI zoom 需要合同入口 |
+| CU-G09 多窗口/对话框 | 部分 | 窗口菜单切换、sheet/对话框/浮层命名；系统打开/保存面板待策略决定 |
+| CU-G10 OCR | 部分 | Vision OCR + 稀疏树条件；真实 Electron/canvas/游戏/远程桌面质量待走查 |
+| CU-G11 语义定位 | 已完成 | 名称/角色:名称/正则，歧义与无匹配拒绝 |
+| CU-G12 评测骨架 | 部分 | 10 场景 fake helper；真机场景单列，未声称 |
+| CU-G13 门禁 | 部分 | build、boundary、health、secrets、CI Verify、S-25 通过；全量非浏览器与 `test:security` 全量待跑 |
+| CU-G14 文档 | 部分 | spec/runbook 已更新；索引与归档未做 |
+| CU-G15 文件/延迟/多显示器 | 未做 | 可选阶段 5 |
+
+draft PR：[#721](https://github.com/molis-ai/molis-work/pull/721)。打开/保存面板与模型主动 zoom 的选项、验证矩阵见 [open-decisions.md](open-decisions.md)。

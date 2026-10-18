@@ -6,6 +6,20 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+W5-01 Alchemist 生命周期前置（ALC-LIFE，2026-10-18，Codex 已接受、待实施）：目标为现行架构下功能可用，关闭/删项目先阻止接纳与迟到业务写，再等待真实前台、worker 和搜索工作退出，最后关闭数据库/删除目录；失败后仍能找到未释放资源并重试。源码证据是 local-runtime 只等 worker 而未等前台动作，Host eviction 在失败 finally 遗忘 studio，关闭期 alive 错落离线 purge，四层关闭函数缓存失败或遗忘资源。先修这条完整调用链，不引入分区数据库、borrowedSql、持久授权平台或重复 Store，不把本片称为 Runtime 迁移完成。
+
+插件在现有 actor-actions/helper 统一追踪原始 invoke Promise，覆盖 actions、actionsFor 与内置 HTTP app；传合并 signal 和 studio 自己的同步/异步 effect fence，原 caller 权限仍由原控制决定。关闭同步撤销本实例前台和 worker，等待所有原始工作 settlement 后才关 DB；动作本身的正常拒绝不算关资源失败。并发 close 共用当前 Promise，关库失败保留句柄和禁止接纳状态，下次只重试未成功步骤。Host 共享 studio 同样分开“不再接纳”“关闭中”“已释放”，保留失败 entry/owner，get 不得绕过 draining；runtime、search、目录按依赖收尾。两个 Host 的既有共享语义保持：第一 owner 退出不取消另一 owner，最后 owner 才关闭。idle 清理失败必须被观察且可重试，不吞为成功或紧循环。
+
+Host 关闭开始至资源真正释放期间，项目删除 hook 继续等待同一 live drain；失败不得改走静态 purge。公共 MolisWorkLocalHost.close 对 Alchemist 收尾保留单独重试路径，不重新执行已完成的其它 Host 关闭。搜索组合及 intelligence adapter 保留失败子资源/已 bootstrap 的 foundation，成功的子资源不重复关闭；不在 finally 丢引用或提前关搜索库。任何底层 SDK 无法重试的真实证据须先报告并重新诊断，不能用外层 stub 证明实际资源已释放。
+
+允许修改 Alchemist bootstrap 的 actor-actions/local-runtime（必要时一个同职责内部 helper）；Host 的 alchemist-service-host、alchemist-search、search-evidence-runtime、search-intelligence-client、project-host；对应既有 lifecycle/idle/runtime/search 测试和 README。只有实际回归证明某前台服务缺 effect fence 才补该点。共享 spec、安全表和快照由 root 串行维护；不动 HomePluginExecutor/PluginBackgroundClient/PluginDatabase、SQL schema、动作合同、恢复队列、模型 vendor、UI 或资源门禁。新单元和既有巨大单元都遵守当前阈值，不为修复增长巨大函数。
+
+验收：`W5-01-ALC-LIFE-01` 正式前台模型/metadata 等待中关闭或删除，立即取消和拒绝新工作，原始 Promise 未退出时不关库；迟到成功/失败零新业务写，已合法保存输入保留。`W5-01-ALC-LIFE-02` worker 忽略 abort 的等待同样 drain，现有业务/恢复回归保持。`W5-01-ALC-LIFE-03` 真实 DB.close 一次失败后仍拒绝动作、第二次关闭成功且之后幂等。`W5-01-ALC-LIFE-04` ProjectDeletionService 的关闭/搜索收尾一次失败保留目录与唯一 studio，重试才清理，其他 Host 不另开同项目。`W5-01-ALC-LIFE-05` 公共 Host.close 真实再次进入未完成 Alchemist 步骤，其它成功资源不重复关闭。`W5-01-ALC-LIFE-06` 关闭/删除交错和关闭失败后 clear 始终等待 live owner，成功后才允许离线清理。`W5-01-ALC-LIFE-07` 多 Host owner 和 idle/get 交错保持，idle 失败无 unhandled rejection。`W5-01-ALC-LIFE-08` 实际搜索组合的一项收尾失败仅重试失败项，foundation 和 DB 引用保留到成功。
+
+验证先整体 build，再 `tests/alchemist-host-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/alchemist-runtime.test.ts`、`tests/search-evidence-runtime.test.ts` 及改动包 README 必跑；用 deferred 制造真实交错，可经已有 wrapStudio/测试 mock 注入一次资源关闭失败，但不能替换整个生产清理链。同步 effect 拒绝需要接入安全不变量验证。root 核实际 diff、boundary、API、merge-base health/资源与 Host/search 相关回归，独立复查后记录证据。本机全量不运行，两个在途 PR 上限保持。
+
+Alchemist 后续恢复裁定（用户 2026-10-18 选择，尚未实施）：重启保留任务与进度，由用户点“继续”重新授权；禁止自动续跑，不把 actor/job/lease 当授权。沿用 interrupted 与当前实例执行登记派生等待继续视图，query 不写 actor/seed，首次有权 command 再初始化。继续固定原 job/input/方向快照；Exploration 明确展示并在本次等待前冻结当前模型/taste，不承诺缺失的历史上下文逐字相同，不新造 JSON 兼容。Lens 保留原 plan/model/budget/callsUsed，未知调用从最近可恢复 checkpoint 重做，只花原剩余额度，提示可能重复计费；耗尽保留待审阅，并明确需另发新研究，不自行增加预算。安全 checkpoint 不二次调用，继续 A 不消费 B，同一 job 并发点击只能受理一次。此决定写入后续分库/恢复实施合同，本生命周期前置仍保持现行队列行为，不能用本片通过宣称此决定已经实现。
+
 W5-01 Jelly / Images 并行前置（2026-10-18，本地定向通过，待队列与 CI）：用户要求每个插件迁移独立 worktree，plan 与已明确的实现并行、主会话 review。当前工具最多主会话加三个运行中的子代理，四个子任务负责人按依赖接续；不增加在途 PR 数、不合并、不加标签、不碰真实 Home。此候选包含模型选择前置 `e8925f8ea`、#661 `0fbc0c89e` 与已验证的后台、材料、灵光、Cognia 前置，不宣称这些候选或 #661 已合入。材料已按用户 10-18 决定顺延 S-38，主线常开插件 S-34 保留。已有 Todo +28 B、灵光 +2231 B 的许可重定至实际 main 的 workbench.js 1,110,187 B；保留组合中减少的 71 B，实测 1,112,375 B，净增 2,188 B，无新增增长授权，前序合入后只可重定仍未使用的额度。
 
 - Jelly 模型配置采用 `services.model.configuration.selection/read/save`，可信 Home 条目声明唯一 preference 文件、固定 custom provider、设置 read/save 动作引用；不接受调用方路径、身份、凭据或任意 service map。Host 消费者模型配置服务独占解释与读写模型选择，仍用原 `jelly/preferences.json` v1 和现有 ModelProvider/Connector owner；Jelly 拥有日历、笔记、设置动作/UI和消费入口。53 动作全部由 Runtime 唯一提供，受众/权限/schema不缩小；显式模型选择不回退。通用配置实现替换原 Jelly 专属 Host 实现，不留第二份设置逻辑；原 provider+preference 同步补偿保留，Connector 首次 origin pin 不随之后文件失败回滚的现有边界明确保留。配置 read/save 绑定原执行动作，所有持久效果前复核 beforeEffect、当前安装/权限/同步授权；selection 只给当前安装自身模型名字供 availability。`W5-01-JMC-01`：真实 Runtime 保原53动作/模型选择/配置格式且保存不联网。`W5-01-JMC-02`：设置专属调用、伪声明、跨安装、停用/换代/撤权/过期回调拒绝，原文件/provider/连接零迟到写。`W5-01-JMC-03`：输入等待前复制，失效选择不回退，文件失败后按现有 provider/preference/pin 各自边界断言。

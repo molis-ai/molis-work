@@ -232,11 +232,13 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | `logs/action-calls.jsonl` | `apps/local-host/src/action-call-log.ts`：诊断记录，不存输入输出。每个命令一行，读取只在失败时一行，处理器之前就被拒的调用一行（标「未执行」）；被拒的行与失败的读取只存谁、什么动作、结果与错误码，执行过又失败的命令另存前 200 字的错误信息；每行带这次操作的编号 `call_id`；连续相同的结果合并成一行（另存最近 20 个编号）；超过 2000 行时重写，执行过的命令留最近 1000 条、其余留最近 200 条；没有编号的旧行不读，重写时去掉 | JSON Lines | 日志 | purge（`installer/uninstall.ts:48`） |
 | `bin/molis-work`、`molis-work-mcp`、`molis-work-web` | 安装器；`installer/home.ts:24`，名字 `installer/home-contract.ts:26` | 启动脚本 | 程序 | 普通（`installer/uninstall-files.ts:31`，改过的启动脚本算冲突并停止） |
 | `releases/molis-work-<version>/` | 安装器；`installer/home.ts:21`，清单 `release.json` 的 `schema_version` = 4（`installer/home-release.ts:112`）；暂存目录 `.staging-*` | 目录 | 程序 | 普通（`installer/uninstall-files.ts:38-48`，不带当前安装器标记的 release 算冲突并停止） |
-| `runtime/connectors/` | `apps/local-host/src/connector-tool-download.ts` 声明整个 `runtime/` 目录；`connector-tool-install.ts` 管理安装、锁文件和所有权，运行时与缓存同归该 owner | 安装专有目录、共享运行时与缓存；不存连接凭据 | 备份安装所有权与固定版本记录；包与运行时可重建，缓存可删 | purge（`runtime` 已登记）；移除连接仅清理未引用的专有安装，保留共享运行时与业务文件 |
+| `runtime/connectors/` | Local Host 的受管连接工具安装器；`apps/local-host/src/connector-tool-download.ts` 的 `CONNECTOR_TOOLS_HOME_STORE` 声明整个 `runtime/`，由 `home-stores.ts` 登记；`connector-tool-install.ts` 拥有安装及所有权记录，`connector-tool-runtime.ts` 拥有共享运行时 | 安装专有目录、共享运行时与缓存；不存连接凭据 | 备份安装所有权与固定版本记录；包与运行时可重建，缓存可删；恢复边界见下段 | 普通卸载保留，purge 随登记的 `runtime` 清除；移除连接只清理未引用的专有安装 |
 | `runtime-integrations/<runtime>.json` | `installer/runtime-integration.ts:315`：Molis Work 往用户 Runtime 配置里写了哪些条目的所有权收据 | JSON · `schema_version` = 1 | 必备份（很小；没有它，卸载无法证明条目是自己写的） | purge（`installer/uninstall.ts:55`）；移除接入时单独删（`installer/runtime-integration.ts:177`） |
 | `runtime-config-backups/<runtime>/<plan>.bak` | `installer/runtime-integration.ts:319`：改动前的 Runtime 配置副本，可能含那个 Runtime 自己的密钥 | 文本 | 必备份，按密钥对待 | purge（`installer/uninstall.ts:54`） |
 | `runtime-integration-attempts/<plan>-<uuid>.json` | `installer/runtime-integration.ts:342`：回滚记录 | JSON · `schema_version` = 1 | 日志 | purge；真实 Home 里还没有 |
 | `backups/` | 没有任何代码写它；只出现在卸载的清除与保留清单里（`installer/uninstall.ts:47`、`:81`） | 保留名，没有内容可分类 | 无 | purge |
+
+受管工具的维护边界：`runtime/connectors/installs/<id>/installation.json` 记录安装 id、固定来源和版本、命令路径、运行时路径及完成状态，npm 的锁文件与 Python 的 `requirements.lock` 记录依赖。它们与 `connectors/connectors.db` 中的 `installation_id` 引用应在停止宿主后一起备份；连接凭据仍归现有加密凭据存储，按第 7 节 D 组配对。路径是本机绝对路径，直接恢复限原 Home 路径；换机器或路径应重新准备、安装和验证连接，不能只复制清单并改成完成。`runtimes/` 是多个安装可共享的运行时，`cache/` 是可重建缓存；停止安装及连接进程后才做缓存清理。连接移除经安装器重新核对引用、真实路径与所有权记录，只删除已无连接引用的那一份 `installs/<id>`，保留共享运行时和业务工作目录。当前不提供自动清除孤立安装或共享运行时的维护任务；维护真实 Home 仍须随发布取得授权，不由本 PR 提前操作。
 
 `config/casebook.json`（从前由 Casebook 通道读取）自 2026-10-10 起不再被任何代码读取；Home 里留着的这个文件是残留，含服务端凭据，按密钥对待，处置见 `specs/repository-anti-corruption/spec.md` §4.1 的维护六。
 

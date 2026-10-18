@@ -559,9 +559,11 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
-    assert.equal(await again.attachSchedule(), true);
-    await new Promise(resolve => setTimeout(resolve, 300));
-    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    try {
+      assert.equal(await again.attachSchedule(), true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    } finally { again.continuations.close(); }
   } finally { await f.close(); }
 });
 test("W2-18-JOB-04: a work that 500 newer works have passed still answers for the job it follows: the job is looked at to its end and the person told", { timeout: 60_000 }, async t => {

@@ -1092,3 +1092,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：用户改决定 #17——页面资源字节数不是硬要求，必要时可增大、尽量控制。PR #705（docs-only，merge-only 入队）写进 AGENTS.md、PR 模板、cli-and-development、防腐 spec 与门禁头注释。统筹审过即在 APPROVED_CEILINGS 一次性放行，不再弹窗；一个资源一次 >10 KB 或新增资源才问用户。#702 已合（b3499cda5）。
 - 10-18：#701 全量（run 39090219376）只红 workflows-action-steps.e2e（Shelf 改右栏后结果链接的选中断言），main 上不红，交情境线分清产品回归还是预期变化；只改用例则 merge main（b3499cda5）、重新量 page-assets、merge-only。#704（W2'-3）叠在 #701 上，#701 合入后审。cargo test 进 native-checks：统筹 10-18 定，作为情境线 #701 后的下一片。#684 新键 [1109918, 1109946]（PR 评论已写）。
 - 10-18：#706（回执 3d-4，485dec756，键 [1109918, 1110807]）审过，chain42 跑全量。交互线 AC-08 浏览器用例（只改测试与 spec，merge-only）已批。
+- 10-18：#701 新 head 282789bd6（只改 workflows-action-steps 两条等待进 Shelf 右栏 iframe + 合 main b3499cda5 + 降 page-assets）走 merge-only（#700 先例）。采用线 AC-05 修复 10/10 绿，接着跑相关 17 个文件与突变。

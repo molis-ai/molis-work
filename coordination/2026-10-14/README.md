@@ -1113,3 +1113,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#713（回执 3e-0，1681b00cc）统筹审过，动了合同要跑全量；等 #661 的全量开跑后再加 full-suite，合并排在 #661 之后。Coding 角色补 acknowledge-inputs 记为 3e-0b，归回执线，等 #713 合入后再开。W3-C2 的计划已批准（`pointed` 不可信，S-30 检查放前面；改合同就跑 api:update），叠在 #712 上做。手册线负责看 #713 的工具描述。
 - 10-18：手册线复查 #713，结论是工具说明够用，照原样合。统筹定：app-ref 和 board-node 走 Prologue 改法，说明只写校验收的（没注入 appRefs 解析器、没有能读步骤板的工具，就不列这两项），由手册线开 Prologue PR，换包交采用线。Molis 注入解析器记 BL，先不做。
 - 10-18：#661 新 head 1ab2f29f3（合了 main a19524f58）统筹复核过：增量正好是审查修订（HubSpot 移除、loader 环境变量、§4.1 凭据维护、改名说明、S-36/S-37、错误码），workbench.js 1,110,116（比 main 少 71）。加了 full-suite（chain51）。#713 的标签链等 #661 入队后再起，好让它排在 #661 后面合并。
+- 10-18：#714（回执 3e-1，f0b18422c，叠在 #713 上）统筹审过，workbench.js +1,413 一次性放行，按合入时的 merge-base 取键；顺序 #661 → #713 → #714。3e-0b（Coding 的 roles.ts 自己列 acknowledge-inputs）计划批准，#713 合入后再开。

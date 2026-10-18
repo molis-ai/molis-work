@@ -276,10 +276,11 @@ export function pluginTabGlyphs(): Record<string, string> {
   ]);
 }
 
-/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface. */
+/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
 export function pluginStageSummaries(): Record<string, string> {
+  const side = sideOpenedPlugins();
   return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => Boolean(entry.summary))
+    .filter((entry) => Boolean(entry.summary) && !Object.hasOwn(side, entry.project_plugin_id))
     .map((entry) => [entry.project_plugin_id, entry.summary as string]));
 }
 

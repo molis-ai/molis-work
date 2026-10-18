@@ -524,6 +524,12 @@
       "datasets"
     ]
   },
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "dataset.not_found",
+    "error": "找不到这张表"
+  },
   "GET <project>/api/images": {
     "status": 404,
     "type": "application/json",

@@ -1118,3 +1118,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-18：#712 在 4f7ace6e7 上全量绿，合并要等 #661 合入后（再 merge main、重新取键，ba5635b5c 走 merge-only）。#713 和 main 有冲突，已请回执线现在 merge main，好用上空出来的全量位置；合并仍排在 #661 后面。
 - 10-18：prologue#48（手册线）统筹严格审过、合入 prologue main 72866036：app-ref 只在注入了解析器时提，board-node 只在名单里有任务图工具时提；schema 和校验用同一份 targets。本机非 live 2855/2860，5 条跨进程恢复用例在并行负载下失败，单独跑 26/26。todo 照旧提（校验确实会收）。换包交采用线，和 feef0443 合成一次。
 - 10-18：#661 的 chain51 在分片 3 失败，原因是 runner 上没有 uv（真实 Python 安装用例 spawn uv ENOENT）。CI 修复 #715（只改 full-suite.yml，setup-uv 固定 SHA，对应 v10.3.0，uv 0.12.19）统筹审过，按 merge-only 排在 #661 前面合（gate-715）。#715 合入后给 #661 重加 full-suite。#713（2410e9a8e，逐行同 1681b00cc）手动加了 full-suite，没用标签链，免得它抢在 #661 前面自动入队。
+- 10-18：#715 已合入（aceffff86）。#661 第一次全量只有缺 uv 那一条失败。GitHub 没按新 main 重算 #661 的合并预览（还停在 a19524f58），所以统筹按 pid 停了 chain52（标签链在合并预览过期时会退回去照常加标签，那样跑的是没有 uv 的旧工作流），已请 Codex 只 merge main aceffff86 后推上来，新 head 核过就加 full-suite。#713 的全量在跑。

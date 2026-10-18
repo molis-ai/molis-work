@@ -47,7 +47,7 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ac
 }
 
 export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
-  return !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
+  return (!c.query_only || d.operation === "query") && !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
     && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
     && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
     && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version

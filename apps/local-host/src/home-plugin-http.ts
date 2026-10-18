@@ -94,13 +94,16 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const disconnected = () => { if (!response.writableEnded) stop(); };
   request.once("aborted", disconnected); response.once("close", disconnected);
   const plain = { ...pluginRouteControl(abort.signal, () => { if (host.lifecycle() !== "running" || platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件或宿主已停止"); }), page_context: homePageContext(request, url) };
-  // Before each write the project must still be there and still show the plugin; the project lasts only as long as this request.
-  const routed = project && prefixed ? projectRouteControl(plain, project.project_id, host.actionClient(project), async () => {
-    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
-    if (found instanceof ActionError) throw found;
-  }) : undefined;
+  let routed: ReturnType<typeof projectRouteControl> | undefined;
   try {
+    abort.signal.throwIfAborted();
     const caller = await localWebActionContext(host, project, []);
+    abort.signal.throwIfAborted();
+    routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
+      if (!project || !prefixed) return;
+      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
+      if (found instanceof ActionError) throw found;
+    }, caller);
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
       granted: caller.permissions,
       execution: routed?.control ?? plain,

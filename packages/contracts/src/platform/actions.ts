@@ -89,6 +89,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly plugin_install_id?: string;
   /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /** Restrict this call and its descendants to registered query operations; never grants authority. */
+  readonly query_only?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -435,14 +437,14 @@ export interface ActionInvokeTransport { readonly on_progress?: (event: ActionPr
 
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority">, transport?: ActionInvokeTransport) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
-      return await client.invoke(control ? { ...caller, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+      return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
         retain_background_authority: control.retainBackgroundAuthority ? references => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!()) : undefined,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {

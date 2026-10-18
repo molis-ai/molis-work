@@ -1,3 +1,4 @@
+import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
 export type { PluginBackgroundClient, PluginBackgroundExecution } from "./plugin-background.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
@@ -78,11 +79,16 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
+export interface PluginActionClient extends BoundActionClient {
+  invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+}
+
 export interface PluginHostServices {
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
   readonly background?: import("./plugin-background.js").PluginBackgroundClient;
   /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
-  readonly actions?: import("./actions.js").BoundActionClient;
+  readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
   /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
@@ -340,7 +346,7 @@ export type PluginRouteStreamLine =
   | { type: "result"; result: unknown }
   | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority"> & {
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
   /**
    * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
    * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action

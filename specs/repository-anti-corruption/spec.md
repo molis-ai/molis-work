@@ -6,6 +6,9 @@
 
 本 spec 是第二步唯一的进度与证据记录，每完成一片就更新。
 
+W5-01 Todo 最新主线整合（2026-10-18，merge `576b98556`，准备推送）：固定 main `7faaa027c`，保留 #712 的侧栏上下文、#699 正式 SDK 与 #719 文档。冲突仅资源许可/测试/派生表，Todo 业务源码保持原迁移。原 +28 B 重定为 workbench.js 1,110,329→1,110,357，todo.js 62,081→62,036（−45）；25 项 7,475,698 B，相对该 main 少17 B。整体 build、offline install、boundary、API/merge-base health、资源检查通过；36 个非浏览器文件 418/418，覆盖 Todo、Home Runtime、SDK/授权、侧栏消息安全和资源旧额度失效。真实 Chrome 的 todo-app、side-shelf-in-hand、context-toolbar-panes 三文件仍在机器公共窗口排队，尚无该组合结果；此前5f03的11文件29条仅是对应版本证据。推送前 fetch 确认 main 未变，secrets 扫描933行通过。先更新 PR 候选以启动正式 CI/源码复核，不称浏览器补验、全量或整线完成；不自行合并/加标签。
+
+
 W5-01 Todo 合入 #661 后验证（2026-10-18，本地 merge `c07e47e96`，未推）：merge main `5f03d1e4`，两份派生表重新生成，Todo 生产源码与原 `3272c36df` 相同。原 +28 B 许可重定为 workbench.js 1,110,056→1,110,084；todo.js 62,081→62,036（−45），25 项共 7,475,425 B，比该 main 少17 B。整体/workspace build、boundary、API/完整 merge-base health、资源实测通过；17 非浏览器文件222条、11真实Chrome文件29条，去重28文件251条最终通过。Goal刷新与对话框初跑导航超时，原源码/断言/时限不改后串行复跑7条通过，失败日志保留；未声称已查明时序根因。`prologue-origin-withdraw-race` 两条也通过。日志 `/tmp/molis-todo-main-661-{nonbrowser,browser,browser-rerun}.log`。推送前 main 又合入 #712/#719/#699，仍需合入并重测实际资源与受影响路径，本段仅记录5f03切点，不代表最终远端CI或整线完成。
 
 W5-01 Todo 同步（2026-10-17，PR #684，仍待合入）：按交接的 merge-only 顺序纳入 main `8fcff0442`。冲突仅为单次资源许可、对应测试及两份派生表；主线的交互、回执、SDK 与 S-32/S-33 保留。Todo 的 +28 B 已按既有批准重定为 workbench.js 1,109,302→1,109,330，Todo 客户端 62,081→62,036 B（−45）；25 项资源总计 7,479,372 B，整体与 workspace 构建、资源实测及 boundary 已通过。#688 已用的 Coding 373,784 与 workbench.js 1,108,502 两个起点补进拒绝回归。合并后定向 10 文件 / 162 条、真实 Chrome 2 文件 / 7 条、安全清单 63 文件全部通过；sandbox 文件保留 1 个环境条件跳过项。merge-base health 与快查下调通过。共享核心全量交统筹在 CI 排；不把已做好的后续本地切片算作已合入。

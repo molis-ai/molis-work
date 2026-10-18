@@ -113,7 +113,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
           if (!receiving) throw new ActionError("actions.expired", "这次模型请求已结束，不能继续发送文字");
           signal.throwIfAborted();
           gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
-          validateCall();
+          requireSynchronous(caller.assert_authority_current?.(), "模型进度授权检查必须同步完成");
           onText(delta);
         } } : {}),
         ...(request.system ? { system: request.system } : {}) };

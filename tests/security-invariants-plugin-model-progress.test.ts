@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import type { PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostCompleteText, HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -33,7 +34,14 @@ for (const outcome of ["answer", "failure"] as const) {
       assert.throws(() => progress!({ type: "text-delta", text: "late" }), { code: "actions.expired" });
       assert.deepEqual(chunks, ["第一句，", "第二句。"]);
       assert.equal(result, outcome === "answer" ? "第一句，第二句。" : undefined);
-      assert.equal(refusal, outcome === "failure" ? failure : undefined);
+      // W5-01-SHM-01: non-ActionError failures now have a safe owner code and no invented execution facts.
+      if (outcome === "failure") {
+        assert.ok(refusal instanceof ActionError);
+        assert.equal(refusal.code, "plugin.model_failed");
+        assert.equal(refusal.message, "模型请求失败，请重试");
+        assert.equal((refusal as PluginModelFailure).execution, undefined);
+        assert.equal(typeof (refusal as PluginModelFailure).validateResult, "function");
+      } else assert.equal(refusal, undefined);
     } finally { release.resolve(); }
     assert.equal(await pending, "action finished");
   });

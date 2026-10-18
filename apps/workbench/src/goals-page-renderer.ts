@@ -88,13 +88,10 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
     entries?: TFeedEntry[], active?: boolean): string;
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
-  renderImagesNativePluginSurface(): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -118,7 +115,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -292,14 +289,11 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${projectOperations.surfaces}
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
-            ${defer(renderImagesNativePluginSurface())}
             ${defer(renderPagesNativePluginSurface("workbench"))}
             ${defer(renderFormNativePluginSurface("workbench"))}
             ${defer(renderDatasetNativePluginSurface("workbench"))}
             ${defer(renderPptNativePluginSurface("workbench"))}
             ${defer(renderLingguangNativePluginSurface("workbench"))}
-            ${defer(renderJellyNativePluginSurface("workbench"))}
-            ${defer(renderCogniaNativePluginSurface("workbench"))}
             ${defer(renderAlchemistNativePluginSurface("workbench"))}
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}

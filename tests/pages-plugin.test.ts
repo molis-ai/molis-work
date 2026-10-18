@@ -2481,7 +2481,7 @@ test("按住 Shift 粘贴只留下文字，标题记号和网址都不会变块"
   assert.equal(coded.doc.child(0).type.name, "code_block");
   assert.equal(coded.doc.child(0).textContent, "ax\nyb");
   assert.equal(pastePlain(empty, ""), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-paste.ts", import.meta.url), "utf8");
   const gate = editor.indexOf("const plainPaste");
   const plain = editor.indexOf("pastePlain(current.state, text)");
   const url = editor.indexOf("pasteUrl(current.state, text)");
@@ -4253,8 +4253,10 @@ test("选中几块再粘贴，换成贴进来的块", () => {
   assert.equal(literal?.[0].textContent, "# 标题");
   assert.equal(nodesForSpanPaste("", false), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const paste = editor.indexOf("handlePaste(current, event)");
+  // W5-10-PGP-01: paste order belongs to the shared clipboard implementation.
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-paste.ts", import.meta.url), "utf8");
+  const paste = editor.indexOf("handlePaste(current: EditorView, event: ClipboardEvent)");
+  assert.ok(paste >= 0);
   const markdown = editor.indexOf("pasteMarkdown(current.state, text)", paste);
   assert.ok(editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste) > paste);
   assert.ok(markdown > editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste));

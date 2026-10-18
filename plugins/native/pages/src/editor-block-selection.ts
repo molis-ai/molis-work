@@ -1,7 +1,7 @@
-import { PluginKey, NodeSelection, type EditorState, type Command } from "prosemirror-state";
+import { PluginKey, NodeSelection, type EditorState, type Command, type Transaction } from "prosemirror-state";
 import type { Node as ProseMirrorNode } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
-import { spanIsGroup, deleteSpan, duplicateSpan } from "./commands.js";
+import { spanIsGroup, deleteSelectedBlock, deleteSpan, duplicateSpan } from "./commands.js";
 import { dragRows, nudgeSpan } from "./reorder.js";
 import { tableHit, moveTableRow } from "./table-edit.js";
 
@@ -74,5 +74,12 @@ export function nudgeEditor(view: EditorView, direction: -1 | 1): boolean {
   }
   view.dispatch(tr.scrollIntoView());
   view.focus();
+  return true;
+}
+
+export function dropSelectedBlock(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
+  const tr = deleteSelectedBlock(state);
+  if (!tr) return false;
+  if (dispatch) dispatch(tr.scrollIntoView());
   return true;
 }

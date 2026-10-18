@@ -1,4 +1,4 @@
-import { hoverKey, runBlockCommand, hoveredGroup, dropHoveredGroup, duplicateHoveredGroup, nudgeEditor } from "./editor-block-selection.js";
+import { hoverKey, dropSelectedBlock, runBlockCommand, hoveredGroup, dropHoveredGroup, duplicateHoveredGroup, nudgeEditor } from "./editor-block-selection.js";
 import { openEditorComment } from "./editor-comments.js";
 import { baseKeymap, chainCommands, setBlockType } from "prosemirror-commands";
 import { dropCursor } from "prosemirror-dropcursor";
@@ -7,25 +7,22 @@ import { history, redo, undo } from "prosemirror-history";
 import { undoInputRule } from "prosemirror-inputrules";
 import { confirmCodeFence, pagesInputRules } from "./input-rules.js";
 import { keymap } from "prosemirror-keymap";
-import { DOMSerializer, Fragment, Node, Slice } from "prosemirror-model";
+import { DOMSerializer, Fragment, Node } from "prosemirror-model";
 import { splitListItem } from "prosemirror-schema-list";
 import { Command, EditorState, NodeSelection, Plugin, TextSelection, Transaction } from "prosemirror-state";
 import { EditorView } from "prosemirror-view";
-import { applyPagesActions, endPagesTransients, ownPagesTransient, readPagesImage } from "./editor-transient.js";
+import { applyPagesActions, endPagesTransients, ownPagesTransient } from "./editor-transient.js";
 import { fillStaticIndexes } from "./card-content.js";
-import { blockPos, deleteSpan, duplicateEnclosingRow, enterHeading, enterInToggle, exitWrappedBlock, indentListItem, indentUnderPrevious, insertCodeIndent, insertHardBreak, leaveCodeDown, leaveEmptyCodeLine, leaveCodeUp, continuePastEnd, continueBeforeStart, focusBelowContent, selectNeighborAtom, linkAt, moveColumnEdge, outdentListItem, outdentFromContainer, removeCodeIndent, revealHeading, headingIndexAt, listKindAt, headingLevelAt, applyListSelection, applyHeading, selectBlockThenAll, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, replaceSpanWithNodes, deleteSelectedBlock, docStart, tripleClickSelection, moveSelectedBlock, collapseSelectedBlock, insertAfterSelectedBlock, insertAfterSpan, hardBreakAtSpanEnd, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toggleInlineMark, toggleSpanMark, markCovers, toneAt, turnRowInto, turnGroup, clearSpanMarks, clearInlineMarks, collapseEmptyColumn, commentAt, setComment, unwrapAtStart } from "./commands.js";
-import { acceptedImageFile, bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
+import { blockPos, duplicateEnclosingRow, enterHeading, enterInToggle, exitWrappedBlock, indentListItem, indentUnderPrevious, insertCodeIndent, insertHardBreak, leaveCodeDown, leaveEmptyCodeLine, leaveCodeUp, continuePastEnd, continueBeforeStart, focusBelowContent, selectNeighborAtom, linkAt, moveColumnEdge, outdentListItem, outdentFromContainer, removeCodeIndent, revealHeading, headingIndexAt, listKindAt, headingLevelAt, applyListSelection, applyHeading, selectBlockThenAll, selectEnclosingBlock, replaceSelectedBlock, replaceSpan, docStart, tripleClickSelection, moveSelectedBlock, collapseSelectedBlock, insertAfterSelectedBlock, insertAfterSpan, hardBreakAtSpanEnd, popEscape, blockSpanToRow, splitTaskItem, setCalloutStyle, toggleTaskChecked, toggleTaskGroup, setLink, setTone, toggleInlineMark, toggleSpanMark, markCovers, toneAt, turnRowInto, turnGroup, clearSpanMarks, clearInlineMarks, collapseEmptyColumn, commentAt, setComment, unwrapAtStart } from "./commands.js";
+import { bookmarkLabel, linkClickOpens, safePagesHref } from "./link.js";
 import { calloutIconFor, PAGES_CALLOUT_ICONS, safePagesCalloutTone } from "./callout.js";
 import { findPlugin, openFind } from "./editor-find.js";
 import { slashPlugin, mentionPlugin, paragraphNode } from "./editor-insert-menu.js";
 import { chromePlugin } from "./editor-gap.js";
-import { CLIP_IMAGE, clipboardImage, leafFromDom } from "./editor-paste.js";
+import { handlePaste, handleDrop, handleDragOver, writeSpanClipboard } from "./editor-paste.js";
 import { followScroll, placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
-import { markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 import { nodesToMarkdown } from "./to-markdown.js";
-import { pasteHtml, type PasteLeaf } from "./paste-html.js";
 import { addTableRow, atLastTableCell, moveTableColumn, moveTableEdge, tableHit } from "./table-edit.js";
-import { nodesInSpan } from "./reorder.js";
 import { PAGES_TONES } from "./tone.js";
 import { emptyDoc, nodeFromUnknown, pagesSchema } from "./schema.js";
 import { applyToPagesFrozen, freezePagesFocus, pagesFocusPlugin, readPagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
@@ -35,7 +32,6 @@ import { codeHighlightPlugin, imageNodeView, bookmarkNodeView, codeNodeView } fr
 import { columnNodeView, cellNodeView, taskNodeView, toggleNodeView, calloutNodeView, mentionNodeView, calendarNodeView, tocNodeView } from "./editor-node-layout.js";
 import { cardNodeView } from "./editor-node-cards.js";
 import { hoverHandlePlugin } from "./editor-block-plugin.js";
-
 
 export { mountComments } from "./comment-side-client.js";
 export { bindComments } from "./comment-editor-client.js";
@@ -87,41 +83,9 @@ function headingCommand(level: 1 | 2 | 3): Command {
   };
 }
 
-function dropSelectedBlock(state: EditorState, dispatch?: (tr: Transaction) => void): boolean {
-  const tr = deleteSelectedBlock(state);
-  if (!tr) return false;
-  if (dispatch) dispatch(tr.scrollIntoView());
-  return true;
-}
-
 function applySelected(tr: Transaction | null, dispatch?: (tr: Transaction) => void): boolean {
   if (!tr) return false;
   if (dispatch && (tr.docChanged || tr.selectionSet)) dispatch(tr.scrollIntoView());
-  return true;
-}
-
-function writeSpanClipboard(view: EditorView, event: ClipboardEvent, cut: boolean): boolean {
-  if (!event.clipboardData) return false;
-  const hover = hoverKey.getState(view.state);
-  const spanned = hover && hover.anchor >= 0 && hover.head >= 0
-    ? nodesInSpan(view.state.doc, hover.anchor, hover.head)
-    : null;
-  const single = view.state.selection instanceof NodeSelection ? view.state.selection.node : null;
-  const nodes = spanned ?? (single ? [single] : null);
-  if (!nodes) return false;
-  const copied = view.serializeForClipboard(new Slice(Fragment.from(nodes), 0, 0));
-  event.clipboardData.clearData();
-  event.clipboardData.setData("text/html", copied.dom.innerHTML);
-  event.clipboardData.setData("text/plain", nodesToMarkdown(nodes));
-  event.preventDefault();
-  if (!cut) return true;
-  if (spanned && hover) {
-    deleteSpan(hover.anchor, hover.head)(view.state, (tr) => {
-      view.dispatch(tr.setMeta(hoverKey, { span: null, pos: -1 }));
-    });
-    return true;
-  }
-  dropSelectedBlock(view.state, view.dispatch.bind(view));
   return true;
 }
 
@@ -998,74 +962,8 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       window.open(href, "_blank", "noopener,noreferrer");
       return true;
     },
-    handlePaste(current, event) {
-      const file = clipboardImage(event.clipboardData);
-      if (file) {
-        event.preventDefault();
-        readPagesImage(current, file);
-        return true;
-      }
-      const text = event.clipboardData?.getData("text/plain") ?? "";
-      const plainPaste = "shiftKey" in event && Boolean((event as { shiftKey?: boolean }).shiftKey);
-      const group = hoveredGroup(current);
-      if (group && text) {
-        const nodes = nodesForSpanPaste(text, plainPaste);
-        const replaced = nodes ? replaceSpanWithNodes(current.state, group.anchor, group.head, nodes) : null;
-        if (replaced) {
-          event.preventDefault();
-          current.dispatch(replaced.setMeta(hoverKey, { span: null, pos: -1 }));
-          return true;
-        }
-      }
-      if (plainPaste) {
-        const plain = pastePlain(current.state, text);
-        if (!plain) return false;
-        event.preventDefault();
-        current.dispatch(plain.scrollIntoView());
-        return true;
-      }
-      const linked = pasteUrl(current.state, text);
-      if (linked) {
-        event.preventDefault();
-        current.dispatch(linked.scrollIntoView());
-        return true;
-      }
-      const html = event.clipboardData?.getData("text/html") ?? "";
-      const marks = /data-pages-ink|data-pages-wash|<\s*u[\s>]|<\s*mark[\s>]/i.test(html);
-      if (html && typeof DOMParser !== "undefined" && (!markdownLooksStructured(text) || marks)) {
-        const body = new DOMParser().parseFromString(html, "text/html").body;
-        const nodes: Array<PasteLeaf | string> = [];
-        body.childNodes.forEach((child) => {
-          const next = leafFromDom(child);
-          if (typeof next === "string") nodes.push(next);
-          else if (next) nodes.push(next);
-        });
-        const rich = nodes.length ? pasteHtml(current.state, nodes) : null;
-        if (rich) {
-          event.preventDefault();
-          current.dispatch(rich.scrollIntoView());
-          return true;
-        }
-      }
-      const pasted = pasteMarkdown(current.state, text);
-      if (!pasted) return false;
-      event.preventDefault();
-      current.dispatch(pasted.scrollIntoView());
-      return true;
-    },
-    handleDrop(current, event) {
-      const file = clipboardImage(event.dataTransfer);
-      if (!file) return false;
-      event.preventDefault();
-      if (!acceptedImageFile(file)) return true;
-      const point = current.posAtCoords({ left: event.clientX, top: event.clientY });
-      if (point) {
-        const selection = TextSelection.near(current.state.doc.resolve(point.pos));
-        current.dispatch(current.state.tr.setSelection(selection));
-      }
-      readPagesImage(current, file);
-      return true;
-    },
+    handlePaste,
+    handleDrop,
     handleDOMEvents: {
       mousedown(current, event) {
         if (event.shiftKey && event.button === 0 && !event.altKey && !event.metaKey && !event.ctrlKey) {
@@ -1102,17 +1000,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
       cut(current, event) {
         return writeSpanClipboard(current, event, true);
       },
-      dragover(_current, event) {
-        const data = event.dataTransfer;
-        if (!data) return false;
-        for (const item of data.items) {
-          if (item.kind === "file" && CLIP_IMAGE.test(item.type)) {
-            event.preventDefault();
-            return true;
-          }
-        }
-        return false;
-      },
+      dragover: handleDragOver,
       blur: () => {
         window.setTimeout(() => {
           if (!linkPreview.contains(document.activeElement) && !commentPreview.contains(document.activeElement) && !pop.contains(document.activeElement) && document.activeElement !== view.dom) {

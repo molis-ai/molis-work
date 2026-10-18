@@ -22,7 +22,7 @@ ARCH="$(uname -m)"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 swiftc -O -swift-version 5 -target "$ARCH-apple-macos14.0" \
-  -framework Cocoa -framework ApplicationServices -framework ScreenCaptureKit -framework Carbon \
+  -framework Cocoa -framework ApplicationServices -framework ScreenCaptureKit -framework Carbon -framework Vision \
   "$HERE"/Sources/*.swift -o "$APP/Contents/MacOS/computer-helper"
 
 cat > "$APP/Contents/Info.plist" <<PLIST

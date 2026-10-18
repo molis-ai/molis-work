@@ -80,8 +80,13 @@ export async function handleScheduleTaskWakeup(
     return { detail: important ? "important" : "ok" };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    // A lost lease writes nothing; it is asked inside the write, so it cannot be lost between the check and the write. A pause
+    // or archive writes nothing. A task that is still on, even if its words changed while the round ran, keeps the sentence
+    // that the round did not finish.
     db.transaction(() => {
-      assertCurrent();
+      try { control?.beforeEffect(); } catch { return; }
+      const latest = getScheduleConversationTask(db, objectRef);
+      if (!latest?.enabled || latest.archived) return;
       appendScheduleConversationTurn(db, {
         task_id: task.task_id,
         kind: "system",

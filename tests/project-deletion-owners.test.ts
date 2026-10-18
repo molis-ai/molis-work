@@ -16,7 +16,7 @@ import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
 import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import { IMAGES_STORE_BASELINE } from "@molis-ai/molis-work-plugin-images";
+import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { FUNCTIONS_STORE_BASELINE, openFunctionsStore } from "@molis-ai/molis-work-module-functions";
 import { createSessionContentStore } from "@molis-ai/molis-work-module-private-work-context";
 
@@ -74,7 +74,7 @@ function seed(home: string, projectId: string): { image: string } {
   mkdirSync(join(home, "images", "assets"), { recursive: true });
   writeFileSync(join(home, "images", "assets", image), "png");
   const images = openHomeSqliteDatabase(home, "images");
-  applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_STORE_BASELINE);
+  applySqliteBaseline(images, homeSqlitePath(home, "images"), IMAGES_DATABASE);
   images.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(`job-${projectId}`, projectId, "request-1", "hash", "c", "c", "openai-images", "m", "私密提示词", "", "", "succeeded",
     JSON.stringify([{ id: "i", filename: image, mime_type: "image/png", byte_length: 3 }]), "", new Date().toISOString(), new Date().toISOString(), null);

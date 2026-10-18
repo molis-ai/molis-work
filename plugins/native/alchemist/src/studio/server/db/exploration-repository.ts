@@ -107,7 +107,7 @@ export class SqliteExplorationRepository {
       .prepare(
         `UPDATE exploration_runs
          SET status = 'running', error_code = NULL, updated_at = ?
-         WHERE id = ? AND status IN ('queued', 'interrupted', 'running')`,
+         WHERE id = ? AND status IN ('queued', 'interrupted', 'running', 'failed')`,
       )
       .run(updatedAt, id);
     if (update.changes !== 1) throw new Error("alchemist.exploration_not_runnable");

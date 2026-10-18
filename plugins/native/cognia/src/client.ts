@@ -5,7 +5,8 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tx = value => esc(L(value)), button = (label, action, extra='') => '<button type="button" class="mw-btn mw-btn--ghost cognia-relation" data-cognia-action="'+action+'" '+extra+'>'+esc(label)+'</button>';
   let state = {materials:[],domains:[],sources:[],drafts:[]}, selected = new Set(), cur = null, preview = null, receipt = null, draft = null, flow = '', busy = false, seq = 0, timer, returnFocus = null, listScroll = 0, listFocus = null;
-  const api = async (path, body) => { const response = await fetch('/api/plugins/cognia'+path,{method:body===undefined?'GET':'POST',headers:typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}); const payload=await response.json().catch(()=>({})); if(!response.ok)throw new Error(payload.error||L('Cognia 请求失败')); return payload; };
+  const route = path => host.route('/api/plugins/io.molis.work.cognia/library'+path);
+  const api = (path, body) => molisWorkRequest(route(path), {method:body===undefined?'GET':'POST',body});
   const notice = error => { const el=$('[data-cognia-notice]'); el.hidden=!error; el.querySelector('span').textContent=error?L(error):''; };
   const fail = error => { const el=$('[data-cognia-error]'); el.hidden=!error; el.textContent=error?L(error):''; };
   const options = (values, first) => '<option value="">'+tx(first)+'</option>'+values.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.name)+'</option>').join('');
@@ -68,7 +69,7 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const fold = () => { const id=cur?.id; cur=null;publishContext();root.dataset.expanded='false';$('[data-cognia-workspace]').hidden=true;$('[data-cognia=directory]').scrollTop=listScroll;if(listFocus?.isConnected&&$('[data-cognia=directory]').contains(listFocus))listFocus.focus();else root.querySelector('[data-cognia-id="'+id+'"]')?.focus(); };
   async function openMaterial(id,revision) {
     const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); cur=data.material; publishContext(); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=cur.title;
-    $('[data-cognia-download]').href='/api/plugins/cognia/materials/'+encodeURIComponent(id)+'/download?revision='+cur.revision;
+    $('[data-cognia-download]').href=route('/materials/'+encodeURIComponent(id)+'/download?revision='+cur.revision);
     $('[data-cognia-action="edit-material"]').hidden=!!revision||!['manual','knowledge'].includes(cur.source_id);
     $('[data-cognia-action="delete-material"]').hidden=!!revision||!state.materials.some(m=>m.id===id);
     const links=data.outgoing.map(link=>link.status==='resolved'?button(link.label,'link','data-id="'+esc(link.material_id)+'"'):link.status==='external'?'<p>'+esc(link.label)+' · <a href="'+esc(link.target)+'" target="_blank" rel="noopener noreferrer">'+esc(link.target)+'</a></p>':'<p>'+esc(link.label)+' · '+tx(link.status==='ambiguous'?'同名链接有歧义':link.status==='unsafe'?'不安全的链接':'未找到链接目标')+'</p>').join('');

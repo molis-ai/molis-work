@@ -1,4 +1,4 @@
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
 import {
   TODO_STATUSES,
@@ -15,7 +15,8 @@ import {
   type TodoStatus,
   type TodoWaiting,
 } from "@molis-ai/molis-work-contracts/modules/todo";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { addDays, isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
 
@@ -86,21 +87,45 @@ export function todoRequestKey(access: Pick<TodoAccess, "actorId" | "projectId">
   return id ? JSON.stringify([access.actorId, access.projectId, id]) : null;
 }
 
+/**
+ * The SQL the store runs: its own connection to `todo/todo.db`, or the library the Runtime gives the plugin, inside one write
+ * transaction or read-only. Reads are SELECT; writes are INSERT, UPDATE and DELETE.
+ */
+export interface TodoSql {
+  get(sql: string, parameters?: readonly TodoSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly TodoSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly TodoSqlValue[]): { changes: number | bigint };
+}
+export type TodoSqlValue = string | number | null;
+
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority and is one transaction. */
+export interface TodoStores {
+  read<T>(run: (store: TodoStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: TodoStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run (`withStore`), by a process with its own connection: tests, maintenance. */
+export function ownTodoStores(withStore: <T>(run: (store: TodoStore) => T) => T): TodoStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
 export class TodoStore {
-  constructor(private readonly db: DatabaseSync, private readonly now: () => Date = () => new Date()) {}
+  /** `atomically` runs a write that takes several statements as one: a transaction of its own, or nothing more inside one. */
+  constructor(private readonly db: TodoSql, private readonly atomically: <T>(run: () => T) => T = run => run(),
+    private readonly release: () => void = () => {}, private readonly now: () => Date = () => new Date()) {}
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   /** Every todo this caller may see; views and search filter from here. */
   list(access: TodoAccess): TodoItem[] {
-    const rows = this.db.prepare("SELECT * FROM todo_items ORDER BY created_at").all() as unknown as ItemRow[];
+    const rows = this.db.all("SELECT * FROM todo_items ORDER BY created_at") as unknown as ItemRow[];
     return rows.map(fromRow).filter(item => visible(item, access));
   }
 
   get(id: string, access: TodoAccess): TodoItem {
-    const row = this.db.prepare("SELECT * FROM todo_items WHERE id = ?").get(id) as ItemRow | undefined;
+    const row = this.db.get("SELECT * FROM todo_items WHERE id = ?", [id]) as ItemRow | undefined;
     const item = row ? fromRow(row) : null;
     if (!item || !visible(item, access)) throw todoErrors.not_found("找不到这件待办，可能已被删除");
     return item;
@@ -115,16 +140,16 @@ export class TodoStore {
 
   history(id: string, access: TodoAccess): TodoChange[] {
     this.get(id, access);
-    const rows = this.db.prepare("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 100").all(id) as unknown as ChangeRow[];
+    const rows = this.db.all("SELECT * FROM todo_changes WHERE item_id = ? ORDER BY at DESC, rowid DESC LIMIT 100", [id]) as unknown as ChangeRow[];
     return rows.map(changeFromRow);
   }
 
   create(input: TodoCreateInput, access: TodoAccess, batchId: string | null = null): { item: TodoItem; change_id: string; replayed: boolean } {
     const requestKey = todoRequestKey(access, input.request_id);
     if (requestKey) {
-      const seen = this.db.prepare("SELECT item_id FROM todo_requests WHERE request_id = ?").get(requestKey) as { item_id: string } | undefined;
+      const seen = this.db.get("SELECT item_id FROM todo_requests WHERE request_id = ?", [requestKey]) as { item_id: string } | undefined;
       if (seen) {
-        const change = this.db.prepare("SELECT change_id FROM todo_changes WHERE item_id = ? AND kind = 'create'").get(seen.item_id) as { change_id: string } | undefined;
+        const change = this.db.get("SELECT change_id FROM todo_changes WHERE item_id = ? AND kind = 'create'", [seen.item_id]) as { change_id: string } | undefined;
         return { item: this.get(seen.item_id, access), change_id: change?.change_id ?? "", replayed: true };
       }
     }
@@ -163,7 +188,7 @@ export class TodoStore {
       this.insert(item);
       this.record({ change_id: changeId, item_id: item.id, batch_id: batchId, kind: "create", actor: access.actor, at, before: null,
         after: { title: item.title }, revision_after: 1 });
-      if (requestKey) this.db.prepare("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)").run(requestKey, item.id, at);
+      if (requestKey) this.db.run("INSERT INTO todo_requests (request_id, item_id, created_at) VALUES (?, ?, ?)", [requestKey, item.id, at]);
     });
     return { item, change_id: changeId, replayed: false };
   }
@@ -217,7 +242,7 @@ export class TodoStore {
     if (!current.remind_at) throw todoErrors.invalid("这件待办没有提醒");
     if (current.reminder_acknowledged_at) return current;
     const at = this.now().toISOString();
-    this.db.prepare("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?").run(at, id, current.revision);
+    this.db.run("UPDATE todo_items SET reminder_acknowledged_at = ? WHERE id = ? AND revision = ?", [at, id, current.revision]);
     return { ...current, reminder_acknowledged_at: at };
   }
 
@@ -226,9 +251,9 @@ export class TodoStore {
     const current = this.get(id, access);
     assertRevision(current, expectedRevision);
     this.transaction(() => {
-      this.db.prepare("DELETE FROM todo_changes WHERE item_id = ?").run(id);
-      this.db.prepare("DELETE FROM todo_requests WHERE item_id = ?").run(id);
-      const removed = this.db.prepare("DELETE FROM todo_items WHERE id = ? AND revision = ?").run(id, current.revision);
+      this.db.run("DELETE FROM todo_changes WHERE item_id = ?", [id]);
+      this.db.run("DELETE FROM todo_requests WHERE item_id = ?", [id]);
+      const removed = this.db.run("DELETE FROM todo_items WHERE id = ? AND revision = ?", [id, current.revision]);
       if (removed.changes !== 1) throw conflict();
     });
   }
@@ -281,13 +306,11 @@ export class TodoStore {
 
   /** Run several store operations as one transaction (organizing applies a person's choices this way). */
   inTransaction<T>(run: () => T): T {
-    let result!: T;
-    this.transaction(() => { result = run(); });
-    return result;
+    return this.atomically(run);
   }
 
   /** The same database, for the organizing records that live beside the todos. */
-  database(): DatabaseSync {
+  database(): TodoSql {
     return this.db;
   }
 
@@ -326,8 +349,8 @@ export class TodoStore {
    */
   revert(target: { change_id?: string; batch_id?: string }, access: TodoAccess): { items: TodoItem[]; removed_ids: string[] } {
     const rows = target.batch_id
-      ? this.db.prepare("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid").all(target.batch_id) as unknown as ChangeRow[]
-      : this.db.prepare("SELECT * FROM todo_changes WHERE change_id = ?").all(target.change_id ?? "") as unknown as ChangeRow[];
+      ? this.db.all("SELECT * FROM todo_changes WHERE batch_id = ? ORDER BY rowid", [target.batch_id]) as unknown as ChangeRow[]
+      : this.db.all("SELECT * FROM todo_changes WHERE change_id = ?", [target.change_id ?? ""]) as unknown as ChangeRow[];
     if (!rows.length) throw todoErrors.not_found("找不到要撤销的修改");
     const changes = rows.map(changeFromRow);
     if (changes.some(change => change.reverted_by)) throw todoErrors.conflict("这次修改已经撤销过了");
@@ -343,9 +366,9 @@ export class TodoStore {
         const latest = Math.max(...group.map(change => change.revision_after));
         if (current.revision !== latest) throw todoErrors.conflict(`「${current.title}」之后又被改过，不能撤销这次修改`);
         if (group.some(change => change.kind === "create")) {
-          this.db.prepare("DELETE FROM todo_changes WHERE item_id = ?").run(current.id);
-          this.db.prepare("DELETE FROM todo_requests WHERE item_id = ?").run(current.id);
-          this.db.prepare("DELETE FROM todo_items WHERE id = ?").run(current.id);
+          this.db.run("DELETE FROM todo_changes WHERE item_id = ?", [current.id]);
+          this.db.run("DELETE FROM todo_requests WHERE item_id = ?", [current.id]);
+          this.db.run("DELETE FROM todo_items WHERE id = ?", [current.id]);
           removed.push(current.id);
           continue;
         }
@@ -356,7 +379,7 @@ export class TodoStore {
         const revertId = crypto.randomUUID();
         this.record({ change_id: revertId, item_id: current.id, batch_id: null, kind: "revert", actor: access.actor, at,
           before: Object.assign({}, ...group.map(change => change.after)), after: Object.assign({}, ...[...group].reverse().map(change => change.before ?? {})), revision_after: next.revision });
-        for (const change of group) this.db.prepare("UPDATE todo_changes SET reverted_by = ? WHERE change_id = ?").run(revertId, change.change_id);
+        for (const change of group) this.db.run("UPDATE todo_changes SET reverted_by = ? WHERE change_id = ?", [revertId, change.change_id]);
         items.push(next);
       }
     });
@@ -441,38 +464,36 @@ export class TodoStore {
   }
 
   private insert(item: TodoItem): void {
-    this.db.prepare(`INSERT INTO todo_items (id, title, notes, status, placement, project_id, due_date, due_time, planned_date, remind_at, important,
+    this.db.run(`INSERT INTO todo_items (id, title, notes, status, placement, project_id, due_date, due_time, planned_date, remind_at, important,
       waiting_json, sources_json, links_json, edited_fields_json, archived_at, completed_at, created_at, updated_at, revision, reminder_acknowledged_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(...toRow(item));
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, toRow(item));
   }
 
   private write(current: TodoItem, next: TodoItem): void {
     const values = toRow(next);
-    const result = this.db.prepare(`UPDATE todo_items SET id = ?, title = ?, notes = ?, status = ?, placement = ?, project_id = ?, due_date = ?, due_time = ?,
+    const result = this.db.run(`UPDATE todo_items SET id = ?, title = ?, notes = ?, status = ?, placement = ?, project_id = ?, due_date = ?, due_time = ?,
       planned_date = ?, remind_at = ?, important = ?, waiting_json = ?, sources_json = ?, links_json = ?, edited_fields_json = ?, archived_at = ?,
-      completed_at = ?, created_at = ?, updated_at = ?, revision = ?, reminder_acknowledged_at = ? WHERE id = ? AND revision = ?`).run(...values, current.id, current.revision);
+      completed_at = ?, created_at = ?, updated_at = ?, revision = ?, reminder_acknowledged_at = ? WHERE id = ? AND revision = ?`, [...values, current.id, current.revision]);
     if (result.changes !== 1) throw conflict();
   }
 
   private record(change: Omit<TodoChange, "reverted_by">): void {
-    this.db.prepare(`INSERT INTO todo_changes (change_id, item_id, batch_id, kind, actor, at, before_json, after_json, revision_after)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(change.change_id, change.item_id, change.batch_id, change.kind, change.actor, change.at,
-      change.before === null ? null : JSON.stringify(change.before), JSON.stringify(change.after), change.revision_after);
+    this.db.run(`INSERT INTO todo_changes (change_id, item_id, batch_id, kind, actor, at, before_json, after_json, revision_after)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [change.change_id, change.item_id, change.batch_id, change.kind, change.actor, change.at,
+      change.before === null ? null : JSON.stringify(change.before), JSON.stringify(change.after), change.revision_after]);
   }
 
   private transaction(run: () => void): void {
-    if (this.db.isTransaction) { run(); return; }
-    this.db.exec("BEGIN IMMEDIATE");
-    try { run(); this.db.exec("COMMIT"); }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+    this.atomically(run);
   }
 }
 
 /**
- * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
- * created from it, existing ones must already be at its version.
+ * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
+ * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
+ * deletion open the same file with their own connection.
  */
-export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const TODO_DATABASE: PluginDatabaseDeclaration = { store_name: "todo", version: 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -530,10 +551,21 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
 ` };
 
 export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
-  const db = openHomeSqliteDatabase(homeDirectory, TODO_HOME_STORE.path);
+  const db = openBaselineHomeSqlite(homeDirectory, TODO_HOME_STORE.path, TODO_DATABASE);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, TODO_HOME_STORE.path), TODO_STORE_BASELINE);
-  return new TodoStore(db, now);
+  const sql: TodoSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
+  return new TodoStore(sql, run => immediate(db, run), () => db.close(), now);
+}
+
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  if (db.isTransaction) return run();
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 function visible(item: TodoItem, access: TodoAccess): boolean {
@@ -689,4 +721,4 @@ function changeFromRow(row: ChangeRow): TodoChange {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `todo/todo.db` at its one baseline. */
-export const TODO_HOME_STORE: HomeStoreDeclaration = { path: "todo", library: { baseline: TODO_STORE_BASELINE } };
+export const TODO_HOME_STORE: HomeStoreDeclaration = { path: TODO_DATABASE.store_name, library: { baseline: TODO_DATABASE } };

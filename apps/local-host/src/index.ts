@@ -94,6 +94,16 @@ export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-sour
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
+export { connectLocalMcp } from "./connector-local-mcp-setup.js";
+export { installManagedConnectorTool, removeManagedConnectorTool } from "./connector-tool-install.js";
+export { retainConnectorSetupsForSession } from "./connector-setup-retain.js";
+export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
+export { connectorUsagesAction } from "./connector-usage-actions.js";
+export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
+export { connectorSetupAction } from "./connector-setup.js";
+export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
+export { connectorSetupIntentAction } from "./connector-setup-intent.js";
+export { holdConnectorAuthorizationsForSession } from "./connector-authorization-status.js";
 export { alchemistPulseGithub } from "./alchemist-pulse-github.js";
 export { larkMcpLaunch, type LarkMcpLaunch, type LarkMcpLaunchInput } from "./lark-mcp-launch.js";
 export * from "./github-oauth.js";
@@ -118,15 +128,8 @@ export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
-export { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
-export { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
-export { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-export { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-export { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-export { handleLingguangNativePluginHttp } from "./lingguang-native-plugin-http.js";
-export { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
 export { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 export { workflowsActionProvider } from "./workflows-actions.js";
 
@@ -204,7 +207,8 @@ export {
   type AgentHostComposition,
   type AgentHostCompositionOptions,
 } from "./agent-host-composition.js";
-export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds } from "./agent-question-surfaces.js";
+export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
+export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
@@ -228,6 +232,7 @@ export { CONTEXT_ONBOARDING_BASELINE } from "./context-onboarding-store.js";
 export { AGENT_DEFINITIONS_BASELINE } from "./agent-definitions/agent-definitions.js";
 export { homeAgentDefinitions } from "./agent-definitions/builtin-registrations.js";
 export { PLACEMENT_BASELINE } from "./placement-actions.js";
+export { placementCallPorts } from "./placement-call.js";
 export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
@@ -268,4 +273,11 @@ export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";
+export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+
+export { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
+
+export { connectorLocalActions } from "./connector-local-actions.js";
+
+export { connectorCliActions } from "./connector-cli-actions.js";

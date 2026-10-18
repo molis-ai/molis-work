@@ -92,7 +92,17 @@ function ledgerDatabase(db: DatabaseSync): ContextLedgerDatabase {
 
 const owner = (project_id: string | null): ActionCallContext => ({ actor_id: "web-user", project_id, audience: "user", permissions: ["notes:read", "notes:write", "goals:read", "goals:write"] });
 
-function fixture(projects = ["personal", "q4", "interview"]) {
+function fixture(projects = ["personal", "q4", "interview"], hooks?: {
+  beforeEffect?: () => void | Promise<void>;
+  /** Throw from the nth ledger put of this service (1-based). */
+  failPut?: number;
+  /** Throw from the nth action invoke (1-based). */
+  failInvoke?: number;
+  /** Home actions are listed only at Home, as the Host's home client does. A project catalog does not see them. */
+  homeCatalog?: boolean;
+  /** Once the lease throws, opening a partition throws too, as the Host's call ports do. Undo uses `revert`, which does not. */
+  deadLease?: boolean;
+}) {
   const actions = new ActionService();
   const notes = new Map<string, Note>();
   notesPlugin(actions, notes, projects);
@@ -102,12 +112,42 @@ function fixture(projects = ["personal", "q4", "interview"]) {
       if (!title) throw new ActionError("clips.not_found", "已删除"); return subjectContext({ subject: { kind: "clip", id }, revision: "1", title, content: title, goal_ids: [], session_id: null, open: { surface: "clips", id } }); } }] });
   const db = new DatabaseSync(":memory:");
   const ledger = createContextLedger(ledgerDatabase(db), { authorize: access => access.actor_id === PLACEMENT_LEDGER_ACCESS.actor_id });
+  if (hooks?.failPut) {
+    const put = ledger.commands.put.bind(ledger.commands);
+    let puts = 0;
+    ledger.commands.put = ((...args: Parameters<typeof put>) => {
+      puts += 1;
+      if (puts === hooks.failPut) throw new Error("位置边写不进去");
+      return put(...args);
+    }) as typeof ledger.commands.put;
+  }
+  if (hooks?.failInvoke) {
+    const invoke = actions.invoke.bind(actions);
+    let invokes = 0;
+    actions.invoke = (async (...args: Parameters<typeof invoke>) => {
+      invokes += 1;
+      if (invokes === hooks.failInvoke) throw new Error("移不回去");
+      return invoke(...args);
+    }) as typeof actions.invoke;
+  }
   const titles = new Map<string, string>();
   const removed = new Set<string>();
+  let dead = false;
+  const open = async (projectId: string | null) => {
+    if (projectId && removed.has(projectId)) throw new ActionError("placement.project_missing", "找不到这个项目");
+    const caller = owner(projectId);
+    // The Host keeps Home actions on the home client. A project catalog must not be able to undo a todo move.
+    const client = hooks?.homeCatalog && projectId !== null
+      ? { discover: (context: ActionCallContext) => Promise.resolve(actions.discover(context)).then(views => views.filter(view => view.action.scope !== "home")), invoke: actions.invoke.bind(actions) }
+      : actions;
+    return { client, caller };
+  };
   const service = new PlacementService({
     ledger,
+    beforeEffect: async () => { try { await hooks?.beforeEffect?.(); } catch (error) { dead = true; throw error; } },
     spaces: async () => projects.filter(id => !removed.has(id)).map(id => ({ project_id: id, title: id === "personal" ? "个人空间" : id === "q4" ? "Q4 新版发布" : "客户访谈计划", kind: id === "personal" ? "personal" as const : "project" as const })),
-    scope: async projectId => { if (projectId && removed.has(projectId)) throw new ActionError("placement.project_missing", "找不到这个项目"); return { client: actions, caller: owner(projectId) }; },
+    scope: async projectId => { if (hooks?.deadLease && dead) throw new Error("这一轮被取消"); return open(projectId); },
+    ...(hooks?.deadLease ? { revert: (projectId: string | null) => open(projectId) } : {}),
     titles: { get: (kind, id) => titles.get(kind + ":" + id) ?? null, set: (kind, id, title) => { titles.set(kind + ":" + id, title); } },
   });
   return { actions, notes, service, removeProject: (id: string) => removed.add(id), deleteClip: (id: string) => { clips = new Map([...clips].filter(([key]) => key !== id)); } };
@@ -183,6 +223,45 @@ test("moving keeps the identity: old references find the new place, relations st
   assert.deepEqual((await f.service.related("interview")).map(item => item.location?.title), ["项目「Q4 新版发布」"]);
   await assert.rejects(f.service.move(old, "q4"), /已经在这个位置/);
   await assert.rejects(f.service.move({ kind: "clip", id: "clip-1", project_id: null }, "q4"), /只放在个人空间/);
+});
+
+test("LOGIC-06 a cancelled move puts the note back and leaves no location edge", async () => {
+  const f = fixture(undefined, { beforeEffect: () => { throw new Error("这一轮被取消"); }, deadLease: true });
+  f.notes.set("n1", { id: "n1", project: "personal", title: "检查清单", body: "灰度", version: 1 });
+  const old = { kind: "note", id: "n1", project_id: "personal" };
+  await assert.rejects(f.service.move(old, "q4"), /这一轮被取消/);
+  assert.equal(f.notes.get("n1")!.project, "personal");
+  assert.deepEqual(f.service.locate(old), { object: old, moved: false });
+});
+
+test("LOGIC-06 a cancelled move of a Home-kept object is undone by the Home mover, which a project catalog does not list", async () => {
+  // The first lease writes the title while reading. The next one is the move itself, after the plugin has changed where the todo belongs.
+  let leased = 0;
+  const f = fixture(undefined, { beforeEffect: () => { leased += 1; if (leased > 1) throw new Error("这一轮被取消"); }, homeCatalog: true, deadLease: true });
+  const homeMover = defineObjectMoveAction("todos.placement.move", ["todo_item"], "待办", ["notes:write"], "home");
+  const todoReader = defineSubjectContextAction("todos.subject.read", "todo_item", "待办", ["notes:read"], "home");
+  const todos = new Map([["t1", { belongs: "personal" }]]);
+  f.actions.registerProvider({ provider: { provider_id: "todos", plugin_id: "todos", title: "待办", kind: "plugin" }, definitions: [todoReader, homeMover],
+    handlers: [{ ...todoReader, handle: (_caller, input) => { const id = (input as { subject_id: string }).subject_id; const todo = todos.get(id);
+      if (!todo) throw new ActionError("todos.not_found", "待办不存在");
+      return subjectContext({ subject: { kind: "todo_item", id }, revision: todo.belongs, title: "回访", content: "", goal_ids: [], session_id: null, open: { surface: "todo", id },
+        project_id: todo.belongs === "personal" ? null : todo.belongs }); } },
+      // The person's own Home call can move a todo wherever it belongs, as Todo's handler does.
+      bindHomeObjectMoveHandler(homeMover, input => { const found = todos.get(input.subject.id)!; found.belongs = input.to_project_id;
+        return { subject: input.subject, project_id: input.to_project_id, revision: input.to_project_id }; })] });
+  const todo = { kind: "todo_item", id: "t1", project_id: null };
+  await assert.rejects(f.service.move(todo, "q4"), /这一轮被取消/);
+  assert.equal(todos.get("t1")!.belongs, "personal");
+  assert.deepEqual(f.service.locate(todo), { object: todo, moved: false });
+});
+
+test("LOGIC-06 when the note cannot move back, a later lookup finds the place the plugin kept", async () => {
+  const f = fixture(undefined, { failPut: 1, failInvoke: 2 });
+  f.notes.set("n1", { id: "n1", project: "personal", title: "检查清单", body: "灰度", version: 1 });
+  const old = { kind: "note", id: "n1", project_id: "personal" };
+  await assert.rejects(f.service.move(old, "q4"), /位置边写不进去/);
+  assert.equal(f.notes.get("n1")!.project, "q4", "the undo did not run, so the plugin still has it in the new project");
+  assert.deepEqual(f.service.locate(old), { object: { kind: "note", id: "n1", project_id: "q4" }, moved: true });
 });
 
 test("copying makes an independent object that remembers where it came from; converting records its source both ways", async () => {

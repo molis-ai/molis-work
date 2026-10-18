@@ -14,7 +14,7 @@ type Translate = (text: string, values?: Record<string, string | number>) => str
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
   const home = homePluginSideTabs();
   return [...home, ...sideEntries(enabled).filter(side => !home.some(tab => tab.key === `${side.project_plugin_id}/${side.view_id}`))
-    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon,
+    .map(side => ({ key: `${side.project_plugin_id}/${side.view_id}`, title: side.title, ...(side.context_binding ? { contextOwner: side.plugin_id, contextSurface: side.project_plugin_id } : {}), icon: (side.icon ?? "package") as PageIcon, order: side.order,
       src: `${routePrefix}/side/${encodeURIComponent(side.project_plugin_id)}/${encodeURIComponent(side.view_id)}` }))];
 }
 type FeedPageSurface = "workbench" | "source-workbench" | "directory" | "source-directory" | "overlays";
@@ -88,7 +88,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
     entries?: TFeedEntry[], active?: boolean): string;
   renderInboxNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
   renderScheduleNativePluginSurface(view: TView, surface: "directory" | "workbench"): string;
-  renderShelfNativePluginSurface(surface: "directory" | "workbench"): string;
   renderImagesNativePluginSurface(): string;
   renderPagesNativePluginSurface(surface: "directory" | "workbench"): string;
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
@@ -97,7 +96,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string;
   renderJellyNativePluginSurface(surface: "directory" | "workbench"): string;
   renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderTodoNativePluginSurface(surface: "directory" | "workbench"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -120,7 +118,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -267,7 +265,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           feed: pluginEnabled("feed")
             ? renderFeedNativePluginSurface(view, "source-directory", initialFeedPreset)
             : "",
-          shelf: "",
           lingguang: "",
           todo: "",
           alchemist: "",
@@ -295,14 +292,12 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${projectOperations.surfaces}
             ${renderInboxNativePluginSurface(view, "workbench")}
             ${defer(renderScheduleNativePluginSurface(view, "workbench"))}
-            ${defer(renderShelfNativePluginSurface("workbench"))}
             ${defer(renderImagesNativePluginSurface())}
             ${defer(renderPagesNativePluginSurface("workbench"))}
             ${defer(renderFormNativePluginSurface("workbench"))}
             ${defer(renderDatasetNativePluginSurface("workbench"))}
             ${defer(renderPptNativePluginSurface("workbench"))}
             ${defer(renderLingguangNativePluginSurface("workbench"))}
-            ${defer(renderTodoNativePluginSurface("workbench"))}
             ${defer(renderJellyNativePluginSurface("workbench"))}
             ${defer(renderCogniaNativePluginSurface("workbench"))}
             ${defer(renderAlchemistNativePluginSurface("workbench"))}

@@ -70,7 +70,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 名单 | `packages/design-system/src/icons.ts`、`packages/design-system/src/primitives/catalog.ts` | `PLUGIN_ICON`、`PLUGIN_NAMES`，只进 `/__ui/catalog` 的图标清单 |
 | 外加 | `tests/builtin-plugin-assembly-gate.test.ts` | `RUNTIME_ASSEMBLED` 加一行 |
 | 外加 | `docs/SSOT-MATRIX.md` | 一行 owner |
-| 按需 | `apps/workbench/src/immersive-shell.ts` | `RAIL_TOOL_GROUPS` 分组、`BAR_RESIDENT_IDS` 常驻；不改则落在插件切换器的「更多」 |
+| 按需 | `apps/workbench/src/immersive-shell.ts` | `RAIL_TOOL_GROUPS` 分组；不改则落在插件切换器的「更多」（底栏右侧只有侧栏按钮，侧栏的格见 `apps/workbench/src/side-panel.ts`） |
 | 按需 | `apps/workbench/src/scripts/client/global-search.ts` | `SEARCH_ITEM_TAB_SURFACES`，命中结果按标签打开某个对象时才需要 |
 
 Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 个 `package.json`、`project-plugins.ts`、`builtin-plugins.ts`、`palette.ts`、`icons.ts`、`catalog.ts`，加 `coding-surface.ts`（宿主里写死的伙伴页渲染分支）、`demo-plugin-seed.ts`。原来还有 `workspace-plugin-bindings.ts`（13 行的默认连线表），W4-03 改为各输入口在 Manifest 里声明 `default_source`，宿主的 `plugin-default-bindings.ts` 只读声明。另有 `plugins/native/coding`、`plugins/native/files` 两个包点名了它（嵌入声明和客户端），属于它与 Coding 的伙伴关系，不计。
@@ -114,15 +114,15 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 场景 | 现在 | 位置 |
 | --- | --- | --- |
 | 已有插件里再加一个 AI 动作 | 0 | 包内 `actions.ts`、`prompts.ts`；指令追加到包导出的 `X_INSTRUCTIONS`，目录条目已引用它 |
-| 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期插件的 5 个适配文件随各自迁移删掉（W5-11） |
+| 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期适配随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
 | 内置 Agent 的角色提示词与方法 | 0 | 目录条目的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
 | Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
 | 用户自定义角色 | 0 | 运行时数据（Characters），不改代码 |
 
-宿主里还有 5 个按插件写的 AI 适配文件：`alchemist-prologue.ts`、`cognia-prologue.ts`、`jelly-model.ts`、`shelf-ai.ts`、`typesafe-prologue.ts`。
+模型服务负责真实调用；消费者独立模型选择与设置由 `model-configuration.ts` 按可信声明提供，Images 的有限生图端口由 `plugin-image-generation-service.ts` 对接 Connector 和 agent-host。剩余构建期调用随各自迁移收回。
 
-**目标：0 / 0 / 2。** W3-06 E 已把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 5 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
+**目标：0 / 0 / 2。** W3-06 E 已把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 继续收回构建期插件的模型接线。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
 
 ### 3.5 动作与消费场景
 
@@ -151,8 +151,10 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 入口 | 现在 | 说明 |
 | --- | --- | --- |
 | 底栏插件切换器 | 0 | `navigator` 视图加目录条目的 `summary`（`pluginMarketCards()` 只收有 `summary` 且有 `navigator`/`island` 视图的条目）；没有分组的插件落在「更多」（`immersive-shell.ts` 注释：adding a Plugin never edits the shell） |
-| 分组、常驻、默认固定 | 1 | `apps/workbench/src/immersive-shell.ts` 的 `RAIL_TOOL_GROUPS`、`BAR_RESIDENT_IDS`；`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
+| 分组、默认固定 | 1 | `apps/workbench/src/immersive-shell.ts` 的 `RAIL_TOOL_GROUPS`；`DOCK_DEFAULT_PINS` 在 `plugin-catalog.ts`，只有 4 个核心插件 |
 | 侧栏标签 | 0 | `side` 视图，贡献的目标槽是 `workbench.side`；插件启用才出现 |
+
+**打开插件时落在哪里由声明决定**（W2'-2）：`?openPlugin=`、搜索命中的 `open.surface`、助理通知与放置卡片的 `open`、页面里各处的「打开某插件」都只说是哪个插件（和可选的条目 id），不说位置。工作台在一处（`apps/workbench/src/plugin-catalog.ts` 的 `sideOpenedPlugins`，页面一侧 `apps/workbench/src/scripts/client/plugin-place.ts`）按声明决定：界面有工作区界面（`workbench.main` 或 `workbench.directory`）的在工作区打开，和以前一样，即使它也有 `side` 视图；只有 `side` 视图的打开它的侧栏格，条目 id 原样交给那个视图（`molis-work:select-item`），工作台不解释。所以加一个只住在侧栏的插件不用改任何打开它的地方，存着的链接与 `open` 也不用迁移。
 | 标题栏 | 插件没有入口 | 标题栏的状态项（后台任务、插件通知铃铛）是宿主的。插件通过 `background_job` 声明（后台任务）或到期提醒、插件事件间接出现，不是自己的槽。新增一种宿主状态项要改 4–6 个文件：`immersive-shell.ts`、一个客户端脚本（如 `scripts/client/background-tasks.ts`）、`scripts/client/initialization.ts`、`styles/immersive-navigation.ts`；进入流程页也要显示时再加 `arrival/chooser.ts`、`styles/arrival.ts` |
 
 **目标：0 / 0 / 0 / 2。** 分组、常驻、默认固定作为 Manifest 或目录的放置提示（W5-02 已把「shell placement hints」列入范围）；标题栏状态项做成声明加一个渲染入口。标题栏这一项无切片。

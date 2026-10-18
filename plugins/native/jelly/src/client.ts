@@ -11,6 +11,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   if (!root) return;
   if(root.dataset.jellyInitialized==='true')return;
   root.dataset.jellyInitialized='true';
+  const API='/api/plugins/io.molis.work.jelly';
   const L = host.translate || ((s) => s);
   const $ = (selector, scope = root) => scope.querySelector(selector);
   const $$ = (selector, scope = root) => [...scope.querySelectorAll(selector)];
@@ -71,16 +72,16 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const operation = mutationQueue.catch(() => {}).then(async () => {
       if (!state) throw new Error(L('Jelly 尚未加载完成'));
       try {
-        const result = await request('POST', '/api/jelly/commands', {expected_revision:state.revision,command:value});
+        const result = await request('POST', API+'/commands', {expected_revision:state.revision,command:value});
         state = result.state; await renderView(); return state;
       } catch (error) {
-        if (error.status === 409) { const fresh = await request('GET','/api/jelly'); state = fresh.state; await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
+        if (error.status === 409) { const fresh = await request('GET',API); state = fresh.state; await renderView(); showNote(L('其他窗口已更新。你的编辑仍保留，请核对后重新保存。'), true); }
         throw error;
       }
     });
     mutationQueue = operation; return operation;
   };
-  const loadList = async () => { const result = await request('GET','/api/jelly'); state = result.state; await renderView(); };
+  const loadList = async () => { const result = await request('GET',API); state = result.state; await renderView(); };
   const matches = (record, body = '') => (!filterCategory || record.category_id === filterCategory) && (!query || (record.title + ' ' + body).toLowerCase().includes(query.toLowerCase()));
   const empty = (title, message, label) => '<div class="jelly-empty">' + glyph(view === 'calendar' ? 'calendar' : view === 'notes' ? 'note' : 'idea') + '<h2>' + tx(title) + '</h2><p>' + tx(message) + '</p>' + (label ? btn(label,'data-jelly-new','plus') : '') + '</div>';
   const download = (filename, body, type) => { const url=URL.createObjectURL(new Blob([body],{type})); const a=document.createElement('a'); a.href=url; a.download=filename; a.click(); setTimeout(()=>URL.revokeObjectURL(url),1000); };
@@ -142,7 +143,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(target.matches('[data-jelly-undo],[data-jelly-redo]'))return void run(async()=>{await flushEditor();await command({type:target.hasAttribute('data-jelly-undo')?'undo':'redo'});if(selected)openRecord(selected.kind,selected.id);showNote(L('工作区已更新'));});
     if(target.matches('[data-jelly-categories]')){ $('[data-jelly-menu]').hidden=true;return void run(openCategories); }
     if(target.matches('[data-jelly-model]')){ $('[data-jelly-menu]').hidden=true;return void run(openModelSettings); }
-    if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET','/api/jelly/export');download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
+    if(target.matches('[data-jelly-export]'))return void run(async()=>{await flushEditor();const result=await request('GET',API+'/export');download('Jelly-'+civil()+'.json',JSON.stringify(result.workspace,null,2),'application/json');showNote(L('工作区已导出'));});
     if(target.matches('[data-jelly-import]')){$('[data-jelly-menu]').hidden=true;$('[data-jelly-import-file]').click();return;}
     if(target.matches('[data-jelly-back]'))return void run(async()=>{await flushEditor();closeWorkspace();await loadList();});
     if(target.matches('[data-jelly-record]'))return void run(async()=>{await flushEditor();openRecord('note',target.dataset.jellyRecord);});
@@ -152,7 +153,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   document.addEventListener('click',(event)=>{if(!event.target.closest('[data-jelly-more],[data-jelly-menu]')){$('[data-jelly-menu]').hidden=true;$('[data-jelly-more]').setAttribute('aria-expanded','false');}if(!event.target.closest('[data-jelly-editor-more],[data-jelly-editor-menu]'))$('[data-jelly-editor-menu]').hidden=true;});
   $('[data-jelly-import-file]').addEventListener('change',(event)=>void run(async()=>{
     const file=event.target.files?.[0];event.target.value='';if(!file)return;
-    await flushEditor();const source=JSON.parse(await file.text());const {preview}=await request('POST','/api/jelly/preview',{kind:'import',source});
+    await flushEditor();const source=JSON.parse(await file.text());const {preview}=await request('POST',API+'/preview',{kind:'import',source});
     openGeneric('导入工作区','<p class="jelly-muted">'+tx('合并导入前先检查数量与影响。原工作区会保留备份；重复导入不会重复创建。')+'</p><pre class="jelly-muted">'+esc(JSON.stringify(preview.counts,null,2))+'</pre>'+(preview.warnings||[]).map((line)=>'<p class="jelly-muted">'+esc(line)+'</p>').join(''),'确认导入',async()=>{await command({type:'workspace.import',source,confirmation_token:preview.confirmation_token});closeWorkspace();await loadList();showNote(L('导入完成'));});
   }));
   window.addEventListener('molis:assistant-effect',(event)=>{
@@ -170,7 +171,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     if(typeof id!=='string'||!id)return;
     void run(async()=>{
       await flushEditor();await mutationQueue.catch(()=>{});
-      state=(await request('GET','/api/jelly')).state;
+      state=(await request('GET',API)).state;
       const item=state.items.find((entry)=>entry.id===id),series=state.series.find((entry)=>entry.id===id);
       const kind=item||series?null:recordFor('note',id)?'note':null;
       if(!item&&!series&&!kind){await renderView();showNote(L('这条内容已不存在'),true);return;}

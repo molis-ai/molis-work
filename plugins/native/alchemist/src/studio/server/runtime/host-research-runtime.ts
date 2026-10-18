@@ -40,7 +40,9 @@ export class HostResearchRuntimeAdapter implements ResearchExecutionRuntimePort 
     const purpose = input.plan.key.lens === "market_space"
       ? (chinese ? "工具 软件 用户评价" : "software tools user reviews")
       : (chinese ? "官方文档 实现" : "implementation official documentation");
-    const sources = await this.options.ai.search({ query: `${shortSubject} ${purpose}`, lens: input.plan.key.lens, signal: input.signal });
+    await input.beforeModelDispatch?.();
+    const sources = await this.options.ai.search({ query: `${shortSubject} ${purpose}`, lens: input.plan.key.lens, signal: input.signal, beforeDispatch: input.beforeModelDispatch, assertCurrent: input.assertCurrent });
+    await input.beforeModelDispatch?.();
     input.signal?.throwIfAborted();
     const evidence: Evidence[] = [];
     const seen = new Set<string>();

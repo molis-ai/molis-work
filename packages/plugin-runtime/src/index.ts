@@ -6,7 +6,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { assertContributionMatchesManifest } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
-import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow } from "./install-rules.js";
+import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
@@ -29,7 +29,14 @@ export type {
 } from "./release-artifacts.js";
 
 export { currentPluginAction } from "./action-scope.js";
+export { createPluginOwnerFilesClient } from "./owner-files-service.js";
+export type { PluginOwnerFilesGate } from "./owner-files-service.js";
+export { createPluginBackgroundClient } from "./background-service.js";
 export { createPluginModelClient, pluginModelErrors } from "./model-service.js";
+export { createPluginModelConfigurationClient } from "./model-configuration.js";
+export type { PluginModelConfigurationPort } from "./model-configuration.js";
+export { createPluginImageGenerationClient } from "./image-generation.js";
+export type { PluginImageGenerationPort, PluginImageGenerationGate, PluginImageGenerationDispatch } from "./image-generation.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
@@ -44,6 +51,7 @@ export type { PluginEventContract, PluginEventSubscription } from "./event-contr
 export { MemoryPluginEventsRepository, SqlitePluginEventsRepository, PLUGIN_EVENTS_SCHEMA_SQL } from "./event-repository.js";
 export type { PluginEventsDatabase } from "./event-repository.js";
 export { PLUGIN_ROUTE_PREFIX, PluginRouteRouter } from "./routes.js";
+export { INSTANCE_WATCH_INTERVAL_MS, type InstanceWatchTimers } from "./instance-watch.js";
 export type { PluginRouteDispatchInput, PluginRouteMatch } from "./routes.js";
 export { createPluginCapabilityClient, createPluginInputsClient, createPluginOutputsClient, pluginRequiredPorts, portArtifactId } from "./services.js";
 export type { PluginCapabilityPort, PluginWiringServicesInput } from "./services.js";
@@ -131,7 +139,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     discard_kept_data?: boolean;
   }): PluginLifecycleReceipt {
     const manifest = input.definition.manifest;
-    validateManifest(manifest);
+    validateInstalledManifest(manifest, input.bundled === true && input.definition.execution !== "sandbox");
     const entrypoint = manifest.entrypoints.find((candidate) => candidate.deployment === input.deployment);
     if (!entrypoint) {
       throw pluginErrors.entrypoint_missing("Plugin 没有当前部署环境的 entrypoint");
@@ -242,7 +250,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   private async changeVersion(input: { install_id: string; definition: PluginDefinition; deployment?: PluginDeployment; grants?: string[] }, rollbackCode: boolean): Promise<PluginLifecycleReceipt> {
     return this.runLocked(input.install_id, async () => {
       const target = input.definition.manifest;
-      validateManifest(target);
+      validateInstalledManifest(target, false);
       const current = this.requireInstall(input.install_id);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
@@ -387,6 +395,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** A user stop disables; Host shutdown retains an enabled install in the startable installed state. */
   stop(installId: string, options: { preserve_enabled?: boolean } = {}): Promise<PluginLifecycleReceipt> {
+    this.revokeContext(installId, true); // Withdraw authority now; retain the context for the queued cleanup hook.
     return this.runLocked(installId, () => this.stopOnce(installId, options.preserve_enabled === true));
   }
 
@@ -470,7 +479,6 @@ export class PluginRuntime implements PluginRuntimeApi {
     try {
       if (live) await this.executor.stop(definition, live);
     } catch (error) {
-      this.revokeContext(installId);
       this.contributions.delete(installId);
       const crashed = {
         ...current,
@@ -481,7 +489,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(crashed);
       throw pluginErrors.executor_failed("Plugin 停止失败，已记录为 crashed");
     }
-    this.revokeContext(installId);
     this.contributions.delete(installId);
     const updated = {
       ...current,
@@ -699,11 +706,11 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.contexts.get(installId)?.context ?? null;
   }
 
-  private revokeContext(installId: string): void {
+  private revokeContext(installId: string, retainForCleanup = false): void {
     this.actionDisposers.get(installId)?.();
     this.actionDisposers.delete(installId);
     this.contexts.get(installId)?.revoke();
-    this.contexts.delete(installId);
+    if (!retainForCleanup) this.contexts.delete(installId);
   }
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
@@ -752,3 +759,5 @@ const runtimeFailureCodes = {
   "plugin.upgrade_validation_failed": true,
   "plugin.upgrade_rollback_failed": true
 } as const;
+
+export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate } from "./materials-service.js";

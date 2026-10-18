@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-15：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-17：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680（§6.0q）；A2 写后诊断的合同在 §6.0p，按四步走：这份 spec 的 PR → Prologue 一刀（写后诊断的缝交回一条命令，SDK 用同一份 `workspace-command` 审查、Effect 链和回执去跑，不在执行器里起进程）→ 换包 → Molis 实现（那时在 `docs/system/SECURITY-INVARIANTS.md` 取下一个空号加一行，带四条拒绝用例）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -170,7 +170,7 @@ SDK 的 `completed{yielded}` 表示本次 Run 让出，不能显示「工作完�
 
 已提交的逐轮变更从 SDK 写入回执投影，重放同轮不重复；节点引用原 Run/变更/检查点。Coding 保留 Diff、检查点和整合审查，不把节点成功当成已合入主工作区。
 
-写后诊断仍待实现：按已授权项目的可用检查工具显式配置，受同一命令/目录审查和预算约束，记录实际命令、退出状态和诊断结果引用；无检查器显示「未检查」，失败不掩盖文件已经写入。不得静默安装工具、启动任意语言服务或把一次完整构建叫作按文件诊断。独立诊断切片 A2 必须给真实语言项目的有界样本与取消路径；未满足就保持未完成，不悄悄删出采用范围。
+写后诊断仍待实现（合同、预算与验收见 §6.0p）：按已授权项目的可用检查工具显式配置，受同一命令/目录审查和预算约束，记录实际命令、退出状态和诊断结果引用；无检查器显示「未检查」，失败不掩盖文件已经写入。不得静默安装工具、启动任意语言服务或把一次完整构建叫作按文件诊断。独立诊断切片 A2 必须给真实语言项目的有界样本与取消路径；未满足就保持未完成，不悄悄删出采用范围。
 
 ### 4.5 流式、结构化与变化等待（第 10–12 项）
 
@@ -366,7 +366,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 | `boards.attemptOf(run)` | 视图投影用，不另暴露 | 操作卡、待答问题、动作调用编号挂回节点都经它推出（跨线 X2、X3） |
 | 错误码 `TASKBOARD_NOT_BOUND`、`TASKBOARD_STALE_GENERATION`、`TASKBOARD_CONTINUATION_CONFLICT`、`WAIT_ALREADY_ARMED`、`WAIT_CHECKER_UNKNOWN`、`WAIT_CONDITION_INVALID` | `agent.collaboration_not_bound`、`agent.collaboration_stale`、`agent.collaboration_conflict`、`agent.collaboration_wait_armed`、`agent.collaboration_checker_unknown`、`agent.collaboration_condition_invalid`（以主人名开头，W3-02；在 `tooling/gates/error-owners.json` 的 `agent` 名下登记） | 给人的原因文字由 Host 写 |
 
-**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。
+**动作（不新增 typed capability，防腐决定 #1）**：`agent.collaboration.read.v1`（`kind: query`、`operation: query`、`effect: read`：按 `board_id` 或 `run_id` 读视图）；`agent.collaboration.revise.v1`（`kind: operation`、`operation: command`、`effect: write`：人修订计划，带 `expected_version`，沿用现有修订种类并加取消节点、重试节点；P4 替换 `agent.run.step-board.amend.v1`）；`agent.collaboration.control.v1`（`kind: operation`、`operation: command`、`effect: write`：`kind: "cancel-wait" | "continue-now" | "retry" | "resolve-reconciliation"`，带 `expected_version` 与节点 / 等待 / 接续引用；`continue-now` 带 `on_early_continue: keep | cancel`）。actor、项目、安装都从调用上下文取。旧的 `agent.waits.read/await/resume/cancel.v1`、`agent.run.step-board.amend.v1` 在 P4 没有调用方后同一批删除（阶段一不留兼容）；以后这几个动作的形状变了就升 `version`，同一个 PR 里先 `pnpm build` 再 `pnpm actions:update`；MCP 不改已有工具名。revise 现行是 `agent.collaboration.revise.v2`（回执 3d-3 加 insert 的 `origin`，#700）。
 
 **输入、待答问题、操作卡挂到同一张图（跨线 X1–X3）**：
 
@@ -379,7 +379,7 @@ Coding 步骤板和助理工作/委派视图都读同一图，仍挂在现有工
 **P4 产品接入与旧路径退出（按 X5 的顺序先 Coding 后助理）**：
 
 - Coding：`plans.ts` 的确认计划照旧冻结为节点；`step-verdict:*` / `subagent-verdict:*`（人的验收）保留为业务事实、引用节点；`last-start:*`、`wake-note:*`、内存 `busy` / `held` / `waking` / `wakeLoop` 删除，改读等待与接续视图；`prologue-taskboard.ts` 的 `following` 去抖 steer 改成 SDK 接续在边界交结果，2 小时认领过期改成代次与等待期限。
-- 助理：每个 Work 一块常驻板；`delegation(parent)` 改成派子节点（子 Work 仍是专业工作内容容器，只记节点引用）；1500 ms 轮询的 `status` 改成等待视图；`watchJob` / `scheduleJobCheck` / `checkJob` 的私有退避与结束判定改成 `external` 条件 + `molis.action-query` 检查器，删 `assistant.job-check` 排程，保留通知 / 卡片关联与 `told`；委派上限 6 / 3 / 2 搬进协作配置，数值不变。硬约束（防腐 HUGE-CLASS-MIGRATION 决定 #3）：`delegated_by`、`follow_ups`、委派轮询、`StoredJob` 检查做成 W5-10 形状的协作者——协作者只经端口依赖宿主，样板照 W4-05 拆出的提醒与跟进——算作 W5-10 的一部分，`assistant-service.ts` 不增长；助理这一半开工前由统筹请用户转告防腐线负责人确认先后，在那之前只做 Coding 一半。
+- 助理：每个 Work 一块常驻板；`delegation(parent)` 改成派子节点（子 Work 仍是专业工作内容容器，只记节点引用）；1500 ms 轮询的 `status` 改成等待视图；`watchJob` / `scheduleJobCheck` / `checkJob` 的私有退避与结束判定改成 `external` 条件 + `molis.action-query` 检查器，删 `assistant.job-check` 排程，保留通知 / 卡片关联与 `told`；委派上限 6 / 3 / 2 数值不变，是助理的产品规则，只定义在 `AssistantDelegations` 的 `DELEGATION_LIMITS`（统筹 10-17 定，§6.0q；原写的「协作配置」SDK 里没有）。硬约束（防腐 HUGE-CLASS-MIGRATION 决定 #3）：`delegated_by`、`follow_ups`、委派轮询、`StoredJob` 检查做成 W5-10 形状的协作者——协作者只经端口依赖宿主，样板照 W4-05 拆出的提醒与跟进——算作 W5-10 的一部分，`assistant-service.ts` 不增长；助理这一半开工前由统筹请用户转告防腐线负责人确认先后，在那之前只做 Coding 一半。
 - Agent Host：`prologue-messages.ts` 的「子任务一律不能发信」改成 SDK 的 scope 检查；`subagentYieldGuard`（PA-23 的正式拒绝）在 P3 换成「让出 = 登记等待 + 接续」的正式路径时一并删除，PA-23 的「不开放私有自动续做」改由 PA-08 / PA-11 证明；`prologue-waits.ts` 的私有 `listeners` 与自动 resume 删除。
 - 合同：新子路径 `services/agent-collaboration` 在 P3 与第一个消费者同批建（空子路径被门禁拒）；`services/agent-host.ts` 不增长（巨大单元），W5-09 拆分时它就是协作这一块的落点。插件开跑的请求（`AgentStartRequest`）不加字段：板与节点由 Host 按业务对象解析后填进 SDK 的 `collaboration`。
 - 落点与前置：Host 侧新增 `prologue-collaboration.ts`（协作口、视图投影）与 `prologue-checkers.ts`（检查器登记表）；接线要改 `startAgentRun`，而 `prologue-node.ts`（1550 行，巨大单元）不能增长，所以防腐 W4-06（拆 `initializePrologueNodeAdapter`、`startAgentRun` 搬进 `prologue-run.ts`）是 P3 的硬前置；W4-06 未落时，P3 自己先做这一步拆分并让行数下降，不在原文件里加接线。
@@ -488,7 +488,7 @@ P0 文档交付已完成，当前执行 A0。原采用项沿 A0–A5 接续；P1
 | P0 方案修订 | 本文、现状/去向、跨仓边界、索引 | PA-01 |
 | A0 基础采用 | 当前主线上单一 SDK 包与必要适配；独立于统一协作实施，见 §5.5 | PA-22、PA-23 |
 | A1 模型控制与逐轮展示（6–8、18/23 展示补验） | 依赖 A0 可消费包与现行模型配置；来源/允许范围/验收见 §5.6，不依赖 TaskBoard | PA-12、PA-24 |
-| A2 写后诊断（9） | 依赖现有写入回执、受审命令与项目检查器；真实语言项目样本与取消，未配置明确未检查；不依赖 P1/P4 | PA-12；实现前在同一 spec 补检查器输入/输出和定向用例 |
+| A2 写后诊断（9） | 依赖现有写入回执、受审命令与项目检查器；真实语言项目样本与取消，未配置明确未检查；不依赖 P1/P4 | PA-12；实现前在同一 spec 补检查器输入/输出和定向用例；合同与验收（PA-25～PA-39）见 §6.0p |
 | A3 单次生成（10–11） | 灵光先取 `65d6c3e13`；结构化按共享生成器与领域 schema 单独接入。依赖 A0/该插件授权复核，不依赖协作 | PA-12；流式停止/断连零迟到保存、错误结构零入库 |
 | A4 变化观察（12） | 取 `b3235bb1b`、`8c0b60fb3` 的观察传输与必要拆分，消费现行 Work/Run 事实；不取私有接续。协作状态部分届时依赖 P3 | PA-12；无丢事件、无持续全量轮询、关闭释放 |
 | A5 其余采用核验（15–23、存储/预算） | 15/17/18/23 和存储/预算随 A0/A1 补验；16 的输入消费归输入回执线，仅 Board 引用依赖 P3；19–22 沿现行边界回归、不新增产品入口 | PA-12；逐项标采用/验证/按已定边界不做，不把未做入口报成功能 |
@@ -1476,9 +1476,9 @@ Molis 这边：
 4. **每个助理 Work 都有图**，回帖用的 Work 也有。Coding 执行的 Work 没有：它的轮在 Coding 会话里。「助理把工作交给编码角色时，那个会话绑在助理 Work 的子节点上」不在 A1。
 5. **存量**：
    - A1 起只认现行形状。没有 `graph_id` 的旧 Work，在它下一轮开跑前开图。
-   - 旧形状的子 Work（`delegated_by.work_id`）不读，由 A4 合入前的一次性脚本改（用户 10-17 第 4 条）。
+   - 旧形状的子 Work（`delegated_by.work_id`）不读，由 A4 合入前的一次性脚本改（用户 10-17 第 4 条）。A4 定了改法：去掉它们的 `delegated_by`，各自成为独立的工作，正文、轮次和结果都留着（用户 10-17 弹窗定，§6.0q）。
    - 在那之前，跑新代码的 Home 上，旧的子任务不出现在父工作的看板上，也不会触发交回；Work 本身和成果都还在。
-   - 真实 Home 在用户同意前不碰。
+   - 真实 Home 在用户同意前不碰。用户 10-17 同意在助理库的只读拷贝上演练，结果见 §6.0q：一项 Work 也没有。
 
 **验收**（`tests/assistant-delegation.test.ts`，夹具模型，真实 Prologue 节点适配器）：
 
@@ -1514,7 +1514,7 @@ Molis 这边：
 
 ### 6.0l App-tools 只读外部等待的统一 SDK（2026-10-17）
 
-状态：实现及本地验证完成。用户已授权 Prologue 的等待修复推送、开 PR、检查通过后合入并更新 Molis；上游 #35 已合入。原 mcp-refresh 包的 App-tools 名单拒绝 `board-wait`；统一连接功能需要同一个 Runtime 在本人操作期间停止模型调用，并由持久接续继续原任务。本次只采用上游已合入的 SDK，包含原有 MCP refresh 与对象引用题能力；不改 Molis 的 Agent 角色、提示词、业务等待存储或真实 Home。
+状态：本节实现与验证完成，Prologue #35 和 Molis #644 均已合入；Molis 的合并提交为 `447bec2e039aacd8b8a64438b1353c72071b87e4`，PR CI 与合并队列必需检查通过。用户已授权这份等待修复推送、开 PR、检查通过后合入并更新 Molis。原 mcp-refresh 包的 App-tools 名单拒绝 `board-wait`；统一连接功能需要同一个 Runtime 在本人操作期间停止模型调用，并由持久接续继续原任务。本次只采用上游已合入的 SDK，包含原有 MCP refresh 与对象引用题能力；不改 Molis 的 Agent 角色、提示词、业务等待存储或真实 Home。
 
 上游合同见 [Prologue #35](https://github.com/molis-ai/prologue/pull/35) 的 `docs/slices/app-tools-waits.md`：仅绑定当前持有节点的顶层 App-tools Run 可等待 App 的只读外部检查器；命令、信封、节点和待答问题条件拒绝。沿用已有任务图、取消、权限复核与接续。公开常量新增一个工具名，参数与持久化形状不变。换包范围是 agent-host 的依赖、工作区登记、锁文件、vendor 来源与历史、来源测试及 S-13 的当前包指向；仅保留这一份 SDK。回退可由 Git 恢复上一份包及其同一组依赖文件，不引入读取兼容。
 
@@ -1524,11 +1524,11 @@ Molis 这边：
 
 新增开放的 board-wait 是持久等待的登记操作；助理工作状态已有等候投影，活动列表不再把这个工具原名显示给人。沿用现有内部控制事件的省略规则，不隐藏等待状态或失败诊断；`tests/assistant-tool-words.test.ts` 验证活动呈现，完整业务回归验证工作确实处于 waiting-input。
 
-本地验证：统一包构建、冻结离线安装、204 个相关非浏览器文件通过；补齐工作图请求键后重新整体构建，PA-23 与委派/交回三文件 18 项通过，同一修复在连接功能分支的 77 个 Agent/Prologue 及相关文件通过。merge-base health、包边界、资源预算、版本及密钥扫描随 [Molis #644](https://github.com/molis-ai/molis-work/pull/644) 核对。真实 MiniMax 只读任务仍按原诊断保留失败，不计入这些工程证据。
+本地验证：统一包构建、冻结离线安装、204 个相关非浏览器文件通过；补齐工作图请求键后重新整体构建，PA-23 与委派/交回三文件 18 项通过，同一修复在连接功能分支的 77 个 Agent/Prologue 及相关文件通过。merge-base health、包边界、资源预算、版本及密钥扫描通过。[Molis #644](https://github.com/molis-ai/molis-work/pull/644) 的 PR CI 全部通过，含两份安全检查与 Linux 产品子集 376/376 文件，无失败、重试后通过、跳过或隔离文件。连接功能分支随后用同一 MiniMax 跑三项全新完整只读任务，首项参数错误失败、后两项各自动接续一次并真实读取一次，零 Pages 写入；累计 235/240，本轮复验结束。原失败不改判，也不据此宣称整个连接功能已达到内部完整。
 
 ### 6.0m MCP 参数注解与派出校验的统一 SDK（2026-10-17）
 
-状态：本地实现与验证通过，待 PR CI 与合入。一骏已授权提交、合入上游修复并更新 Molis；[Prologue #36](https://github.com/molis-ai/prologue/pull/36) 已合入 `d2b3daa3de0744504b3098a17604f5f66019a29e`。真实 GitHub MCP 的 46 个工具原先因 `default` 与 `x-mcp-header` 被筛成 6 个，阻塞同一连接跨入口读取。本节更新统一 SDK、来源及历史记录、对应依赖锁，并把连接功能分支已有的 MCP 动作 schema 注解处理与生产派出回归纳入主线，不发布整个连接功能分支，不改真实 Home。
+状态：已合入，工程验证通过；连接功能的真实模型与体验验收另记。一骏已授权提交、合入上游修复并更新 Molis；[Prologue #36](https://github.com/molis-ai/prologue/pull/36) 已合入 `d2b3daa3de0744504b3098a17604f5f66019a29e`。真实 GitHub MCP 的 46 个工具原先因 `default` 与 `x-mcp-header` 被筛成 6 个，阻塞同一连接跨入口读取。本节更新统一 SDK、来源及历史记录、对应依赖锁，并把连接功能分支已有的 MCP 动作 schema 注解处理与生产派出回归纳入主线，不发布整个连接功能分支，不改真实 Home。
 
 SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持的非校验注解；不补默认参数、不新增协议头映射、不放宽模型结构输出。调用前执行原有 schema 值约束，非法输入不发到远端；未知约束与畸形注解仍拒绝。公开类型与依赖不变，回退通过 Git 恢复上一份包和同组依赖文件，不增加读取兼容。
 
@@ -1539,6 +1539,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 
 首次 Molis 回归发现 SDK 已保留带注解的工具，但主线动作 schema 编译器仍拒绝 `x-mcp-header`，生产派出用例在可用性断言失败。沿用连接功能分支已有的 `mcpInputContract` 处理：仅从动作参数副本移除合法一级 header 注解，保留原始快照、字段值约束、重复/嵌套/畸形和未知关键字拒绝；Home MCP 与项目 MCP 共用这一处，模型 schema 不变。`tests/connector-mcp.test.ts` 验证实际业务派出为零的拒绝与成功调用；前述派出用例验证 SDK 消费路径。包边界另检出工作区登记仍指向旧包，一并更新同一依赖记录。初轮相关 58 个非浏览器文件中 57 个通过，301 项通过、1 项失败；保留首次派出用例失败。补齐动作 schema 处理后整体重建，相关三文件 29 项通过（含新增拒绝路径），工作区登记修正后的包边界及 merge-base 健康门禁通过。页面资源仍为 25 项、7,598,359 字节，版本核对通过。浏览器 MCP 冒烟及完整集成交由 CI；没有在本机启动全量。
 
+Molis [#650](https://github.com/molis-ai/molis-work/pull/650) 于 2026-10-17 11:05 UTC 合入 `2dd7a258389fc8cdf5fb352c0d9d534984977c04`。[PR CI](https://github.com/molis-ai/molis-work/actions/runs/39026338214) 全部通过，产品子集 377/377 文件通过，无失败、重跑后通过、跳过或隔离；两份安全检查通过。[合并队列检查](https://github.com/molis-ai/molis-work/actions/runs/39027103146) 通过。合入后逐项核对主线包、依赖与 MCP 处理源码，同已验证版本一致。
 ### 6.0n P4 助理一半 A2：交回改用 SDK 的等待与接续（2026-10-17）
 
 §7.5 第 5 条的第 2、3 项：子任务交回、交回后自动接着做。A1 之后，「子任务都结束了没有」读图；这一片把「等它们」和「接着做」也交给 SDK：父 Work 的根挂一个等待，等根下所有没结束的步骤，SDK 管等待和根上唯一的接续。助理自己记的那份交回状态全删：
@@ -1594,7 +1595,7 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
 7. **已知的两处副作用**：
    - 上一轮里用 `status` 看过的结果，下一轮的材料里还会再出现一次。
    - 宿主在子那一轮结束和报告之间停掉时，SDK 先把那一步交还父会话，`reconcile()` 再按 succeeded 结束它。所以 SDK 写进父会话的那句提示可能说等待「失败、交回了没做完的」；Molis 自己的材料写的是对的（「开头」：已完成）。
-8. **存量**：老 Home 里存的 Work 正文还带 `handed_back_run`、`hand_back_held` 两个键，`publicWork` 不再剥它们。A4 的一次性脚本要把它们删掉。在那之前，这两个键会出现在助理的 Work 视图里，没有代码读它们。
+8. **存量**：老 Home 里存的 Work 正文还带 `handed_back_run`、`hand_back_held` 两个键，`publicWork` 不再剥它们。A4 的一次性脚本要把它们删掉。在那之前，这两个键会出现在助理的 Work 视图里，没有代码读它们。A4（§6.0q）起视图按合同逐项取，这两个键不再出现；存量里的由脚本删。
 9. **一个步骤只有一个接续**（统筹 10-17 定）。宿主只改自己挂的等待（`by: app`）：重挂前取消的、`hold` 取消的都只有它，`hold` 挂起给人的也只是它的接续。模型自己登记的等待（`board-wait`），宿主一概不碰。
    - 根上开着这一轮自己登记的等待时，交出新的子任务被拒（可重试），图上什么都不变：不加步骤，也不碰那个等待。等那件事有了结果、这项工作的下一轮跑起来，再交出就能成。
    - 反过来，宿主的等待开着时，模型的 `board-wait` 由 SDK 拒绝（`WAIT_ALREADY_ARMED`），宿主的等待照旧。
@@ -1760,6 +1761,215 @@ SDK 保留原始 schema 与形状指纹，只在 MCP 校验副本移除已支持
   - 浏览器用例和全量：改了共同合同和三个包，由统筹排。
   - 真实模型没走：这一片不改提示词，也不改工具说明。
 
+### 6.0p A2 写后诊断：合同（2026-10-17，只写 spec，未实现）
+
+第 9 项。§4.4 定了边界：检查器按已授权项目显式配置，受同一命令审查和预算约束，记录实际命令、退出状态和结果引用；没有检查器显示「未检查」，失败不掩盖文件已经写入；不静默安装工具，不起任意语言服务，不把一次完整构建叫作按文件诊断。这一节把它写成能实现、能验收的合同。统筹 10-17 认可第一刀只写 spec，也认可先做 Prologue 一刀。
+
+#### 6.0p.1 结论：两刀，先 Prologue
+
+- **Prologue 一刀**：写后诊断的缝不再自己跑东西，改成交回一条命令（`executable`、`argv`、`cwd`、`timeoutMs`）。SDK 用这一轮自己的命令路径去跑：同一份 `workspace-command` v1 审查资源，同一道 Effect 链，同一份命令回执。跑完把有界的结果拼进这次写入的观察。
+- **Molis 一刀**：换包；检查器配置；Coding 的包声明这一样，执行器只按配置拼出命令；Coding 的时间线显示「未检查」或检查结果。
+
+为什么 Molis 自己做不到：
+- SDK 现有的缝（`coding.diagnose-after-write`，Prologue `docs/slices/coding-diagnose-after-write.md`）是 `safe-read`，执行器拿到的只有这次调用（工具登记、参数、取消信号），没有命令路径。执行器要跑 `tsc` 或 `eslint`，只能自己起进程。
+- Molis 自己不替 Agent 起进程：Agent 的每一条命令都由 SDK 的 Node Host 跑，`horizontal/agent-host` 里没有 `child_process`。
+- 在执行器里起进程，就是一条不经命令审查、不留命令回执的新路径。这正是本节要排除的。
+
+Prologue 一刀另外要做到：
+- 审查等待不计入写入的时限。写入的时限只管写盘；检查自己的时限见 §6.0p.3。
+- 这个开关跟着会话走：会话的包没有声明这一样，就零调用，写入的观察里也不加字。现在的开关是全局的 `config.workspace.diagnoseAfterWrite`，打开后没声明的会话每次写入都多一句「diagnostics unavailable」。
+- 取消跟随写入（§6.0p.5）。
+- 检查的命令回执挂在这次写入的调用上（同一个 `call_id`），Molis 从回执读结构化的事实，不从观察的文字读。
+
+#### 6.0p.2 检查器从哪来
+
+- **只认人保存的项目配置。** 每个项目、每个已授权的工作区，一份检查器清单，带版本号。每个检查器写：
+  - `checker_id`、显示名；
+  - `executable` 与 `args`（数组，不经 shell）；
+  - `applies_to`：扩展名清单，例如 `[".js", ".mjs"]`；
+  - `cwd`：相对工作区根，默认 `.`；
+  - `timeout_ms`（§6.0p.3）；
+  - `env_allowlist`：默认空。
+- **文件怎样进命令**：`args` 里至多一个元素整个写成 `{file}`，执行时换成这次写入的、相对工作区根的路径，作为一个完整参数。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
+- **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。两个动作：`agent.checkers.list@1`（query）与 `agent.checkers.save@1`（command，带 `expected_version`）。按「新能力注册成动作」，不加 typed 条目。设置页放在 Coding 的设置里（`CODING_SETTINGS_UI_CONTRIBUTION_ID`），和方法、MCP 并列。
+- **谁能改**：
+  - 只有人，在 Coding 设置页里改。`agent.checkers.save@1` 的受众只有 `user`，权限 `projects:settings`，和项目设置的动作一样（`packages/contracts/src/modules/projects.ts`）。页面直接调这个动作，不经 Coding 的插件路由转调（转调的受众是 `plugin`）。
+  - 不登记 `agent`、`mcp`、`workflow`、`plugin`：模型、MCP 客户端、工作流和别的插件都改不了。
+  - 操作者从调用上下文来（S-17），不从输入读。
+- **只给已授权的工作区**：保存时工作区必须是这个项目此刻已授权、`realpath_verified` 的（`projectSettingsCapabilities.workspaces`，和 MCP 的 stdio 工作区同一处）。
+- **改了要不要重新授权**：
+  - 工作区授权与检查器配置是两件事。改检查器不放宽工作区，不要求重新授权工作区。
+  - 每一次检查都过命令审查（§6.0p.3）。「本会话不再询问」的规则按完整命令精确匹配，所以配置一改，命令变了，旧规则自然对不上，要重新批准，不另写一套失效逻辑。
+  - 工作区授权被撤回后，它的检查器不再运行：写入的观察写「未检查：工作区授权已撤回」，不起审查。配置本身留着，授权回来后照用。
+  - 审查卡和给模型的那一行都写出用的是配置的哪个版本（SDK 的命令回执里没有这一项，Molis 不往回执里加字段）。
+- **不从模型和文件里读命令**：
+  - 不读 `package.json` 的 scripts、`Makefile`、`.editorconfig`、仓库里的任何配置文件来推出命令，也不自动「发现」检查器。
+  - 模型的写入调用只给路径和内容，执行器拿到的路径来自 SDK 的写入回执，不是模型的文字。模型调用里多写的字段（如 `checker`、`command`）由写入工具的合同拒（SDK 的 `write` 参数是 `additionalProperties: false`）。
+  - 要从项目文件里推荐检查器，以后另开一片：只在设置页里列出候选，由人确认后保存。
+
+#### 6.0p.3 执行与预算
+
+- **走现有的命令审查，不新开免审路径。**
+  - 每一次检查是一笔命令 Effect，审查卡就是现在的命令卡（`prologue-review-documents.ts` 的 `workspaceCard`）：完整的 executable、argv、cwd、时限、环境名单、所属工作区。卡上多一行「写后检查：<显示名>（配置 v<n>）」，由宿主按 `checker_id` 和版本读配置写出，不来自模型。
+  - 人批准才跑。拒绝、过期都不跑。
+  - 「本会话不再询问」照现有规则（`reviews.ts` 的 `standingKey`）：同一会话、同一命令、同一 cwd、环境、时限，才不再问。`{file}` 换成不同的文件，就是不同的命令，要再问。
+  - 不新增按检查器的本会话规则（见 §6.0p.8 Q2）。
+  - 点名额外路径或联网的检查器，照 S-22 只能一次一批。第一刀不允许检查器配置 `grants`，保存时拒。
+- **预算**：
+
+  | 项 | 取值 | 超了怎样 |
+  | --- | --- | --- |
+  | 一次检查的时长 | 默认 30,000 毫秒（SDK 的 `DEFAULT_COMMAND_TIMEOUT_MS`），可配 1,000–60,000（SDK 工具时限上限 `maxTimeoutMs` 60,000）；超出范围保存时拒 | 进程照命令路径停掉，结果写「超时（<n> 秒）」；文件已经写入，照常 |
+  | 给模型的输出 | 至多 4,000 字（UTF-16 长度）：前 2,000 与后 2,000 | 中间换成一行「[已截断：共 <N> 字]」；完整输出留在 SDK 的命令回执里，页面从回执读 |
+  | 一轮的检查次数 | 至多 10 次（一次写入可匹配几个检查器，每个算一次） | 第 11 次起不审查、不起进程，观察写「未检查：这一轮已检查 10 次」；下一轮从 0 计 |
+  | 同时进行 | 一轮里一次一个，按配置的顺序 | 不并行；前一个没完，后一个排着 |
+  | 审查等待 | 不计入上面的时长，也不计入写入的时限 | 按审查自己的期限；过期写「未检查：检查命令没有获批（过期）」 |
+
+#### 6.0p.4 给模型的结果：只写事实
+
+- 拼进这次写入的观察，在写入自己的结果之后。写入成功与否先说，检查失败不掩盖文件已经写入。
+- 只有这几行，没有「请修复」「通过」「失败」一类的话。退出码就写退出码。
+
+  ```text
+  检查器：<显示名>（配置 v<n>；<executable> <argv…>）
+  结果：退出码 <n> | 超时（<n> 秒） | 被拒 | 没有获批（过期） | 启动失败（<码>）
+  输出：
+  <截断后的输出>
+  ```
+
+- 输出是外部数据，和 `run-command` 的输出一样作为工具结果交给模型，不进系统提示，也不当成指令。
+- **未检查**：
+  - 项目没有任何检查器：这一样不声明，零调用、零审查，写入的观察不变。时间线上这次写入标「未检查」。
+  - 有检查器、但没有适用于这个文件的：观察写一行「未检查：没有适用于 <扩展名> 的检查器」，时间线标「未检查」。
+  - 工作区授权已撤回、次数已满、检查器启动失败：观察写对应的那一行，时间线标「未检查」。
+- **页面的事实从回执来**：Coding 时间线从这次写入调用上的命令回执读检查器、退出码、是否超时；没有回执就是「未检查」。不从观察的文字推。
+
+#### 6.0p.5 取消与撤权
+
+- 这一轮被停、被取消、被撤权：
+  - 检查还在等审查，审查撤回，不起进程；
+  - 已经在跑，进程照命令路径停掉；
+  - 之后什么业务记录都不写：Coding 的时间线不添检查项，Molis 的任何存储都不写检查结果，审查队列不留待审（AGENTS.md 硬约束：被取消、撤权、停用的调用不再写任何业务记录）。
+  - SDK 自己的 Effect 与命令回执归 Runtime，不是 Molis 的业务记录。
+- 写入和检查之间配置改了：执行器在检查那一刻按当时的版本读配置。检查器被删了，就是「未检查：没有适用于 <扩展名> 的检查器」。
+- 检查在取消之前已经跑完的，回执留着，时间线照常显示。那是已经发生的事实。
+
+#### 6.0p.6 安全边界：加一行安全不变量（随 Molis 那一刀取下一个空号）
+
+判定：要加。这是宿主替模型拼命令的第一个地方：命令的来源从「模型写的」换成「人存的配置加一个文件路径」，配置的写入受众就成了新的边界。审查卡仍显示完整命令，但只靠审查挡不住「模型或文件改了配置、人照常批准」的那一类。
+
+这一行随 Molis 那一刀加进 `docs/system/SECURITY-INVARIANTS.md`，取那时的下一个空号，不在这里写死（S-33 已给交互线 BL-156 的 Molis 半边）。测试 `tests/security-invariants-checkers.test.ts`。内容：
+
+> 写后检查器的命令只来自人在 Coding 设置里保存的配置：模型、MCP 客户端、工作流和别的插件都存不了（受众只有 `user`）；文件路径只作为一个完整参数，以 `-` 开头的写成 `./…`，不经 shell；没有命令审查的批准就不起进程；配置改了，旧的「本会话不再询问」规则对不上新命令。
+
+四条拒绝各有一个用例（PA-25、PA-28、PA-29、PA-30）。
+
+#### 6.0p.7 验收（PA-25～PA-39）
+
+每一条都带一个拒绝或反例。用例名是 Molis 那一刀要建的文件；真实进程的几条用 Node Host 加脚本模型（不调付费模型）。
+
+| 编号 | 标准 | 拒绝或反例 | 用例 |
+| --- | --- | --- | --- |
+| PA-25 | 人在 Coding 设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、别的插件调 `agent.checkers.save@1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
+| PA-26 | 只能给此刻已授权、`realpath_verified` 的工作区存；撤回授权后写入观察写「未检查：工作区授权已撤回」，不起审查 | 给没授权的工作区存被拒；撤回后零审查、零进程 | `tests/coding-checkers-settings.test.ts` |
+| PA-27 | 检查用的 argv 与配置逐项相同，只把 `{file}` 换成写入回执里的路径 | 写入的文件里写着 `// checker: rm -rf .`、`package.json` 里有 scripts，argv 照旧；写入调用多带 `command` 字段被写入工具的合同拒 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-28 | `{file}` 作为一个完整参数；`-rf.js` 写成 `./-rf.js`；带空格、`;` 的路径原样是一个参数 | `--file={file}`、`{file}` 出现两次、配置带 `grants`、时长超出 1,000–60,000 的保存都被拒 | `tests/coding-checkers-settings.test.ts`、`tests/security-invariants-checkers.test.ts` |
+| PA-29 | 每次检查恰好一张命令审查卡，内容与配置相同，带「写后检查：<名>（配置 v<n>）」；批准后才跑 | 拒绝或过期：进程没起（夹具检查器会写一个标记文件，断言它不存在），观察写「被拒」「没有获批（过期）」 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
+| PA-30 | 选「本会话不再询问」后，同一文件再写，经同一决定路径自动批准 | 换一个文件（argv 不同）要再审；改了配置（argv 不同）要再审 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
+| PA-31 | 超过时长的检查被停，观察写「超时（2 秒）」，文件内容是新的 | 审查等了 3 秒才批，时长 2 秒的检查照样跑完（审查等待不计入） | `tests/coding-diagnose-after-write.test.ts` |
+| PA-32 | 10,000 字的输出给模型的是前 2,000、后 2,000 与「[已截断：共 10,000 字]」；完整输出在命令回执里 | 3,999 字的输出原样，没有截断行 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-33 | 一轮第 11 次检查不审查、不起进程，观察写「未检查：这一轮已检查 10 次」 | 下一轮第 1 次照常审查、照常跑 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-34 | 观察只有 §6.0p.4 的那几行，退出码 0 和 1 的全文与快照逐字相同 | 退出码 1 不写成「失败」，0 不写成「通过」；没有模板以外的行 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-35 | 没有检查器的项目：零调用、零审查，观察不变，时间线标「未检查」；没有适用检查器的文件：观察写「未检查：没有适用于 .md 的检查器」 | 检查过的写入在时间线上显示检查器和退出码，不显示「未检查」；时间线的结果从回执读，把观察文字改掉不影响它 | `tests/coding-diagnose-after-write.test.ts`、`tests/coding-diagnose-timeline.e2e.test.ts` |
+| PA-36 | 停下这一轮：等审查的检查撤回审查、不起进程；在跑的被停；之后 Coding 时间线没有检查项、Molis 存储没有检查结果、审查队列没有待审 | 停下之前已经跑完的检查，回执和时间线项都在 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-37 | 检查器启动失败（`executable` 不存在）：写入的结果在前，后面一行「未检查：检查器启动失败（ENOENT）」，盘上是新内容 | 写入本身失败时不起检查，观察只有写入的失败 | `tests/coding-diagnose-after-write.test.ts` |
+| PA-38 | 真实语言样本：JS 项目配 `node --check {file}`，Python 项目配 `python3 -m py_compile {file}`；写进语法错，原样的报错行到观察里；改对后退出码 0 | 本来就对的文件退出码 0、输出为空；不装任何东西，不起语言服务 | `tests/coding-diagnose-after-write.test.ts`（真实 Node Host） |
+| PA-39 | §6.0p.6 那一行安全不变量的四条拒绝各有断言，表里点名这个文件 | 去掉受众检查、`./` 前缀、审查、或让规则只比检查器编号，对应断言变红 | `tests/security-invariants-checkers.test.ts` |
+
+Prologue 那一刀的验收写进它自己的切片：缝交回命令后经同一审查资源与回执、审查等待不计入写入时限、没声明的会话零调用不加字、取消跟随写入。每条带变异，像原切片那样。
+
+#### 6.0p.8 统筹定了的（2026-10-17，三项都按推荐）
+
+- **Q1 配置的主人是 `horizontal/agent-host`**，和 MCP 服务器配置放在一起。依据：检查器挂在已授权的工作区上，工作区授权是平台的事实，执行的缝也在 agent-host；Coding 只是第一个用的。`docs/SSOT-MATRIX.md` 加一行（主人 agent-host），随 Molis 实现那一刀加，那时这项事实才在代码里。
+- **Q2 第一刀不做按检查器的本会话规则**，只用现有的按完整命令匹配。代价见下面「已知代价」；后续是 BL-160，等真实用量再定。
+- **Q3 只做 Coding 的轮**，含子任务的独立目录（cwd 相对子目录）。助理不写工作区文件，不在范围里。
+
+**已知代价（Q2）**：「本会话不再询问」按完整命令匹配，`{file}` 换成不同的文件就是不同的命令。所以：
+- 一轮写了几个不同的文件，就要批几次（受每轮 10 次的上限）；
+- 同一个文件在本会话里批过「不再询问」，再写就不再问；
+- 改了配置，命令变了，之前批过的都要重批。
+
+这会让人多点几次批准，换来的是每一条真正跑的命令都在卡上看过一遍。要不要加「本会话允许这个检查器」一类的规则（按检查器编号与配置版本，不按文件），等有了真实用量（一轮平均批几次、人是否觉得烦）再定。那要改 S-22 旁边的审查语义，由用户拍板。
+
+#### 6.0p.9 不做的
+
+- 不自动发现检查器，不读仓库里的配置文件推命令。
+- 不装工具，不起 LSP 或别的常驻语言服务。
+- 不把整项目构建当成按文件诊断：配置里没有 `{file}` 的检查器保存时拒，第一刀只有按文件的。
+- 不给检查器联网或额外路径（不带 `grants`）。
+- 不改 SDK 官方编码包；Molis 不用官方包。
+
+### 6.0q P4 助理一半 A4：Work 视图按合同取，委派上限是一张表，存量用一次性脚本（2026-10-17）
+
+§7.5 第 5 条的第 7、8 项，加上 A1、A2 留给这一片的存量。统筹 10-17 定了四条：Q1、Q4 统筹定，Q2、Q3 用户在弹窗里定。
+
+1. **Work 视图按合同逐项取。**
+   - 以前 `publicWork` 从存的正文里剥掉宿主自己的几项，剩下的全放进视图（`...rest`），正文里多一个键，视图就多一个。
+   - 现在由 `assistant-work-view.ts` 的 `workView` 按 `AssistantWork` 的字段一项项取，选填的只在有值时出现。
+   - 合同以后加字段，漏取的编译不过（统筹审 #680 提）：必填的一半写成 `AssistantWork`，选填的一半写成「合同的每个选填字段都必须给、可以是 `undefined`」的类型，再只放进有值的。试过在合同上临时加一个选填字段、一个必填字段，构建都在 `workView` 报错；以前选填的那种会悄悄漏掉。
+   - 子任务的 `delegated_by` 也这样取（`AssistantDelegations.shown`）：只取标题、验收标准和收回时刻。派它的工作从图上读，正文里留着的旧 `work_id` 盖不住它。
+2. **委派上限是助理的产品规则**（Q1，统筹定 A）。
+   - 6/3/2 放在 `assistant-delegation.ts` 的 `DELEGATION_LIMITS`（`parts`、`active`、`followUps`），只在这一处定义；告诉模型的话一字不改。
+   - 原来写的是「搬进协作配置」，可 SDK 没有这个东西。它只有板的上限（`maxNodes`、`maxDepth` 等），那是 Runtime 的保护，不是助理的规则。
+3. **存量用一次性脚本，不进仓库**（Q2，用户定 A）。
+   - 删每项 Work 正文里的 `handed_back_run`、`hand_back_held`（§6.0n 第 8 条）。
+   - 旧形状的子 Work（有 `delegated_by`，没有 `graph_id`/`node_id`）去掉 `delegated_by`，各自成为独立的工作，正文、轮次和结果都留着。不在 Prologue 的库里给它们补步骤。
+   - 其余不在现行 `StoredWork` 里的键只列出来，不改。
+   - 只改 `assistant_works.body`，在一个事务里；不动 `revision`、`updated_at`、`user_version`。只打印编号和个数，不打印标题和正文。
+   - 脚本拒绝在真实 Home 的路径上跑。真实的库只在装下一个版本时写，和维护八同一步，那时再问用户。
+   - **脚本在哪、怎么跑**：不进仓库，放在统筹的共享笔记目录（`~/Library/Application Support/Claude/side-session-notes/local_7207c245-d21c-46be-b897-b5267cf14585/adoption-a4-stored-works.mjs`）。`node adoption-a4-stored-works.mjs count <assistant.db>` 只列出会改的编号和个数，什么都不写；`apply <assistant.db>` 在一个事务里改完，再数一遍。
+   - **跑之前先问用户**：对真实 Home 的任何一次 `count` 或 `apply` 都要用户先同意。写真实的库时，Home 先停，先备份，在拷贝上 `apply` 过，再对真实的库跑（脚本现在拒绝真实 Home 的路径，到那一步由维护八的流程决定怎么放行，也要用户同意）。
+4. **演练**（Q3，用户同意）。
+   - 用 `sqlite3` 以只读方式（`mode=ro`）把真实 Home 的 `assistant/assistant.db` 备份到草稿目录。只拷了这一个库：脚本不读 Prologue 的库。没读密钥，没碰钥匙串。
+   - 列出的结果：13 张表，`user_version` 2；`assistant_works` 0 行（`assistant_rounds`、`assistant_jobs` 也是 0）。所以要改的是 0 项：两个旧键 0 项、旧形状子 Work 0 项、其余键 0 种。
+   - **这是 10-17 只读拷贝上的数。** 装下一个版本时（和维护八同一步），写之前先再 `count` 一次：在那之前，已装的 10-11 构建还可能写出旧形状的行。
+   - 在拷贝上执行了一遍：改了 0 项，`integrity_check` 为 ok，`user_version` 仍是 2。
+   - 拷贝随即删掉。真实的库没被写，修改时间仍是 10-07 19:23；当时也没有进程打开它。
+   - 另在一个合成库上试过一遍：两个旧键、一个旧形状子 Work、一个现行子 Work、一个陌生键。改了 2 项，现行子 Work 和陌生键原样，真实 Home 的路径被拒。
+5. **复查已废的读写**：核过，没有别的。
+   - `AssistantStore` 的方法都有调用方。
+   - `handed_back_run`、`hand_back_held` 只在本文里出现。
+   - `delegated_by` 的读法都按现行形状（`graph_id`、`node_id`）。
+   - `assistant_jobs` 不再写，只在删工作时删行；删表另做（第 6 条）。
+6. **不改基线**（Q4，统筹定）。A4 只改代码和脚本。3 号基线（删 `assistant_jobs`）另做一片，节奏跟维护八和 BL-157 的门禁走。
+
+**验收**：
+
+| 编号 | 证明 |
+| --- | --- |
+| W2-18-A4-VIEW-01 | 存的正文带两个旧键、一个陌生键和宿主自己的几项：视图正好是合同的 12 个必填字段，没有值的选填字段不出现。带齐选填字段的子任务：视图多出那 5 项，`delegated_by` 是派它的工作，加上它的标题和验收标准；正文的 `delegated_by` 里留着的 `work_id` 和别的键都不出现（`tests/assistant-work-view.test.ts`） |
+| W2-18-A4-LIMITS-01 | 第七个子任务、第三次跟进、已有三个还在进行时的下一个都被拒，错误的原话照旧，被拒的那次不留下工作（`tests/assistant-delegation.test.ts` 里的三处；第三处在图上加三个没结束的步骤） |
+
+**变异**（每条改回去重建、单跑对应的用例）：
+
+| 变异 | 变红的用例 |
+| --- | --- |
+| M1 `publicWork` 改回 `...rest` | VIEW-01 |
+| M2 `shown` 改回 `...rest` | VIEW-01 |
+| M3 视图漏掉 `budget_tokens` | VIEW-01 |
+| M4 `followUps` 改成 3，`parts` 那句话改一个字 | LIMITS-01 的前两处 |
+| M5 `active` 改成 4 | LIMITS-01 的第三处 |
+| M6 合同临时加一个选填字段（和一个必填字段） | 构建失败在 `workView`，不用等用例 |
+
+同时进行的上限（3）以前没有用例，这一片补上了（第三处，统筹审 A4 时提）。
+
+- 验证（叠在 #675 的 `fc2f7538d` 上）：
+  - `pnpm build` 通过。全部非浏览器的 `assistant-*`、`prologue-work-*` 用例（36 个文件；补了第三处之后 `assistant-delegation` 又单跑一遍），加上 `project-deletion-assistant`、`security-invariants-assistant-html`、`agent-collaboration-revise`、`coding-delegation-waits`、`doc-reference-gates`、`health-gates-api-snapshot`，都一次过。
+  - `pnpm test:security` 59/59，`pnpm test:contracts` 44/44。
+  - `check-health-gates --base origin/main`、`boundary:check`、`page-assets --base origin/main` 都过。`AssistantService` 1555→1553 行，方法数 94 不变；本地快查跟着降。
+  - 这一片没有改公开 API、动作和页面资源；门禁列出的两份 API 变化都是 #675 的。
+- 未验证：浏览器用例和全量，由统筹排；真实的库没有写，等装下一个版本时和维护八一起。
+
 ### 6.1 当前记录
 
 A0 执行记录（下列历史方案记录之后继续）：
@@ -1903,7 +2113,7 @@ A0 执行记录（下列历史方案记录之后继续）：
 - X2 操作卡：不进图，经卡的 `run` → `attemptOf` → 节点推出；人要做决定一律用待答问题，卡不是等待条件；交互线 H2 必须保住每张卡的产生 session 与 `run_id`，以及助理与 Coding 共用的卡片键空间。依据：卡的主人是 Molis 卡片协作者。
 - X3 待答问题：只由 Effect-policy 结算；图只读状态、只登记等待；P1 不依赖 S4 的问题事件。
 - X4 合同落点：`services/agent-collaboration` 在 P3 与使用方同批建；三个动作 actor 取上下文、输入带 `expected_version`；旧 `agent.waits.*`、`step-board.amend` 在 P4 删；节点来源只显示 `input_id`。依据：W5-09 拆分方向、不建占位子路径、不加 typed 能力、不留兼容。
-- X5 常驻板：先 Coding、后助理（回执线 D9）；6 / 3 / 2 原值搬进协作配置；助理一半按 W5-10 协作者形状做，开工前请防腐线负责人确认先后。
+- X5 常驻板：先 Coding、后助理（回执线 D9）；6 / 3 / 2 原值不变，放在助理自己的 `DELEGATION_LIMITS`（§6.0q）；助理一半按 W5-10 协作者形状做，开工前请防腐线负责人确认先后。
 - X6 删除无板的 Agent 协作，不留兼容；Prologue 合同列出对所有消费方的公共行为变化，删掉的名字在 public-surface 快照里体现；自动建子节点对人无感。依据：用户否决「简单协作可以绕过 TaskBoard」；唯一消费方。
 
 **实施前仍需核对/决定**：
@@ -1985,7 +2195,7 @@ A0 执行记录（下列历史方案记录之后继续）：
    4. `takeBack` → 改图交回父节点（代次 +1）；
    5. `status`（`waitForWorkChange`/`watchWorks`）→ 读协作等待视图；
    6. 交回材料与通知的文字保留为内容；
-   7. 上限 6/3/2 改成协作配置，数值不变；
+   7. 上限 6/3/2 数值不变，放在 `AssistantDelegations` 的 `DELEGATION_LIMITS`：助理的产品规则，只在这一处定义（统筹 10-17 定，§6.0q；原写的「协作配置」SDK 里没有）；
    8. 存量数据由维护改成现行形状，不加读取兜底；
    9. `AssistantDelegations` 已是按端口依赖宿主的协作者，就地改，`assistant-service.ts` 不许变长；
    10. 五个用例（`assistant-delegation-handback`、`assistant-delegation`、`assistant-work-wait`、`assistant-handback.e2e`、`assistant-follow-live.e2e`）换成协作合同的用例。
@@ -2049,6 +2259,10 @@ A0 执行记录（下列历史方案记录之后继续）：
 | 用户 10-17 · `assistant_jobs` 以后单开一片删（§6.0o 第 5 条） | A3 不写表、不改基线；那一片加 3 号基线，维护和维护八同一次安装里跑：先把还挂在表里作业上、仍是 `running` 的卡片结掉（「升级后不再跟进，请到原处查看」），再删表 | 基线只比 `user_version`，改了表的文字不升版会漂；维护会动真实 Home，用户在统筹的弹窗里选了「以后的一片」 |
 | 统筹审 #675 · 主人说的状态不记（§6.0o 第 6 条） | 去掉 `said` 与 `AssistantBackgroundJob.last_state`；通知、卡片、材料只说完成了还是没完成 | 原来从观察记录的说明里按措辞取状态，和 D2（#592）相反，还会被长度和「，」截断；要显示得有结构化的来源，先报统筹 |
 | 统筹审 #675 · 找跟进作业的工作、不编开始时刻（§6.0o） | 从步骤 id 取 `work_id` 再 `store.get`；没有宿主等待的步骤不是作业，不给 `job` | 只在最近 500 项里找，排在后面的工作会被当成不在、作业以 unchecked 结束；`?? 0` 会写出 1970 年 |
+| 统筹 10-17 · Q1 选 A（§6.0q 第 2 条） | 上限 6/3/2 放在 `AssistantDelegations` 的 `DELEGATION_LIMITS`，措辞不变；spec 写明它是助理的产品规则，只在这一处定义 | SDK 没有「协作配置」；板的上限是 Runtime 的保护，不是助理的规则 |
+| 用户 10-17 · Q2 选 A（§6.0q 第 3 条） | 一次性脚本去掉旧形状子 Work 的 `delegated_by`，它们成为独立的工作，正文、轮次和结果都留着；不在 Prologue 的库里补步骤 | 旧子任务在图上没有步骤可指；合同只认现行形状 |
+| 用户 10-17 · Q3 同意（§6.0q 第 4 条） | 在真实 Home 助理数据的只读拷贝上演练：只拷助理库和 Prologue 的库文件，先列出会改多少项，再在拷贝上跑一遍；不读密钥，不碰 Home 主密钥的钥匙串条目；跑完删拷贝。真实的库只在装下一个版本时、和维护八同一步写，那时再问用户 | 演练不写真实数据；真正的写入和维护在同一次安装里 |
+| 统筹 10-17 · Q4 不是（§6.0q 第 6 条） | A4 只改代码和脚本；3 号基线（删 `assistant_jobs`）另做一片，节奏跟维护八和 BL-157 的门禁走 | 改基线要带维护，会动真实 Home |
 
 ### 7.8 工作规则
 

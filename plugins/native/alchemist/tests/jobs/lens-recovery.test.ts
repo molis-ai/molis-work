@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { expect, it } from "vitest";
@@ -50,13 +51,14 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
       lens: "market_space",
       planId: "plan-market",
     });
-    expect(before.claimNext()?.id).toBe(run.jobId);
+    expect(before.claim(run.jobId)?.id).toBe(run.jobId);
     const ideaVersion = new SqliteIdeaRepository(database).getVersion("idea-01", 1);
     const plan = research.getPlan("plan-market");
     if (!ideaVersion || !plan) throw new Error("TEST_FIXTURE_INCOMPLETE");
     const executionRuntime = new FixtureResearchRuntimeAdapter();
     const evidence = await executionRuntime.collect({ plan, ideaVersion, idFactory, now: clock.now() });
     const checkpoint: LensExecutionCheckpoint = { stage: "collecting_complete", evidence };
+    before.saveCheckpoint(run.jobId, { stage: "call_dispatched", operation: "collecting", callsUsed: 1, previous: { stage: "planning_complete" } }, { type: "call_started", payload: { operation: "collecting", callsUsed: 1, limit: 8 } });
     before.saveCheckpoint(run.jobId, checkpoint, {
       type: "stage_completed",
       payload: { stage: "collecting" },
@@ -74,7 +76,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
       idFactory,
       leaseMs: 1_000,
     });
-    expect(after.recoverExpired()).toBe(1);
+    expect(after.get(run.jobId)?.status).toBe("running");
     const worker = new LocalWorker(
       after,
       createJobHandlers({
@@ -90,6 +92,8 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
       }),
     );
 
+    expect(await worker.runNext()).toBe(false);
+    acceptTestJob(worker, run.jobId);
     await worker.runNext();
 
     expect(research.getRun(run.id)?.status).toBe("completed");

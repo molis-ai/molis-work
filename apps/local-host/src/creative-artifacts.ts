@@ -1,13 +1,8 @@
 import {
-  DATASET_ARTIFACT_SCHEMA_VERSION,
-  DATASET_ARTIFACT_TYPE_ID,
-} from "@molis-ai/molis-work-contracts/modules/dataset";
-import {
   PPT_ARTIFACT_SCHEMA_VERSION,
   PPT_ARTIFACT_TYPE_ID,
   PPT_SUBJECT_KIND,
 } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { datasetErrors, datasetManifest, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort, type DatasetPublicationSnapshot } from "@molis-ai/molis-work-plugin-dataset";
 import { pptErrors, pptManifest, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort, type PptPublicationSnapshot } from "@molis-ai/molis-work-plugin-ppt";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalProjectApplication } from "./goal-project-application.js";
@@ -23,61 +18,10 @@ function producerOf(manifest: { plugin_id: string; version: string; publisher: {
   };
 }
 
-export function datasetArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): DatasetLineHeadPort {
-  return input => {
-    if (input.project_id !== expectedProjectId) throw datasetErrors.invalid("数据表项目与当前项目不一致");
-    return artifactLineHead(coordinator, projectId, "dataset-" + input.record_id);
-  };
-}
-
 export function pptArtifactLineHead(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): PptLineHeadPort {
   return input => {
     if (input.project_id !== expectedProjectId) throw pptErrors.invalid("演示稿项目与当前项目不一致");
     return artifactLineHead(coordinator, projectId, "ppt-" + input.record_id);
-  };
-}
-
-export function registerDatasetArtifactVersion(
-  coordinator: GoalProjectApplication,
-  projectId: string,
-  expectedProjectId: string,
-  actorId: string,
-): DatasetPublishArtifactPort {
-  return (input) => {
-    if (input.project_id !== expectedProjectId) throw datasetErrors.invalid("数据表项目与当前项目不一致");
-    const result = coordinator.artifacts.commands.registerVersion({
-      project_id: projectId,
-      actor_id: actorId,
-      owner_actor_id: LOCAL_PERSON_ACTOR_ID,
-      artifact_id: "dataset-" + input.record_id,
-      version: input.version,
-      artifact_type_id: DATASET_ARTIFACT_TYPE_ID,
-      schema_version: DATASET_ARTIFACT_SCHEMA_VERSION,
-      producer: producerOf(datasetManifest),
-      content: { kind: "inline", payload: JSON.parse(JSON.stringify(input.content)) },
-      metadata: { dataset_id: input.record_id, title: input.title },
-      // A pinned revision of the dataset (artifact-positioning A1); the content is the dataset's JSON snapshot.
-      origin: { kind: "pinned", subject: { kind: "dataset", id: input.record_id }, revision: String(input.source_version) },
-      title: input.title, media_type: "application/json",
-      scope: "personal",
-      supersedes_version: input.version > 1 ? input.version - 1 : null,
-    });
-    return { artifact_id: result.artifact.artifact_id, version: result.artifact.version };
-  };
-}
-
-export function readDatasetArtifactVersion(coordinator: GoalProjectApplication, projectId: string, expectedProjectId: string): DatasetReadArtifactPort {
-  return input => {
-    if (input.project_id !== expectedProjectId) throw datasetErrors.invalid("数据表项目与当前项目不一致");
-    const artifact = coordinator.artifacts.query.getArtifactVersion(projectId, { artifact_id: "dataset-" + input.record_id, version: input.version });
-    if (!artifact) return null;
-    if (artifact.artifact_type_id !== DATASET_ARTIFACT_TYPE_ID || artifact.schema_version !== DATASET_ARTIFACT_SCHEMA_VERSION
-      || artifact.producer_plugin_id !== datasetManifest.plugin_id || artifact.producer_binding_signature !== datasetManifest.publisher.signature || artifact.content_kind !== "inline")
-      throw datasetErrors.publication_conflict("成果来源或类型不一致，原记录已保留");
-    const payload = artifact.payload as DatasetPublicationSnapshot | null;
-    if (!payload || typeof payload.title !== "string" || typeof payload.description !== "string" || !Array.isArray(payload.columns) || !Array.isArray(payload.rows))
-      throw datasetErrors.publication_conflict("成果数据表内容不完整，原记录已保留");
-    return payload;
   };
 }
 

@@ -2,7 +2,7 @@
 export const SIDE_PANEL_EN: Record<string, string> = {
   "侧栏": "Side panel",
   "侧栏内容": "Side panel content",
-  "侧栏：讨论、浏览器与文件": "Side panel: discussion, browser and files",
+  "侧栏：Shelf、灵光、文件、浏览器、电脑与讨论": "Side panel: Shelf, Lingguang, files, browser, computer and discussion",
   "收起侧栏": "Close side panel",
   "浏览器": "Browser",
   "文件": "Files",

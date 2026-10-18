@@ -37,6 +37,15 @@ export class ConnectorProtocolStore {
     this.db.prepare("INSERT INTO connector_protocols(connection_id,configuration_json) VALUES (?,?) ON CONFLICT(connection_id) DO UPDATE SET configuration_json=excluded.configuration_json")
       .run(configuration.connectionId, JSON.stringify(configuration));
   }
+  discardConnectionSessions(connectionId: string): void {
+    const rows = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE json_extract(configuration_json, '$.connectionId')=? RETURNING configuration_json")
+      .all(connectionId) as Array<{ configuration_json: string }>;
+    for (const row of rows) this.clearStage(row.configuration_json);
+  }
+  remove(connectionId: string): void {
+    this.discardConnectionSessions(connectionId);
+    this.db.prepare("DELETE FROM connector_protocols WHERE connection_id=?").run(connectionId);
+  }
   begin<T extends ConnectorProtocolConfiguration>(origin: string, configuration: T, now = Date.now()): string {
     const expired = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE created_at<? OR created_at>? RETURNING configuration_json")
       .all(now - CONNECTOR_AUTH_TTL_MS, now) as Array<{ configuration_json: string }>;
@@ -49,7 +58,18 @@ export class ConnectorProtocolStore {
   update(state: string, configuration: ConnectorProtocolConfiguration): void {
     this.db.prepare("UPDATE connector_authorization_sessions SET configuration_json=? WHERE state=?").run(JSON.stringify(configuration), state);
   }
-  discard(state: string): void { this.db.prepare("DELETE FROM connector_authorization_sessions WHERE state=?").run(state); }
+  discard(state: string): void {
+    const row = this.db.prepare("DELETE FROM connector_authorization_sessions WHERE state=? RETURNING configuration_json").get(state) as { configuration_json: string } | undefined;
+    if (row) this.clearStage(row.configuration_json);
+  }
+  /** A device authorization may be polled; only its final commit consumes the session. */
+  read<T extends ConnectorProtocolConfiguration>(state: string, origin: string, now = Date.now()): ConnectorAuthorizationSession<T> {
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(state)) throw new Error("授权状态无效，请重新连接");
+    const row = this.db.prepare("SELECT created_at,configuration_json FROM connector_authorization_sessions WHERE state=? AND origin=?")
+      .get(state, origin) as { created_at: number; configuration_json: string } | undefined;
+    if (!row || now < row.created_at || now - row.created_at > CONNECTOR_AUTH_TTL_MS) throw new Error("授权会话不存在或已过期，请重新连接");
+    return { state, origin, createdAt: row.created_at, configuration: JSON.parse(row.configuration_json) as T };
+  }
   /** Atomic removal before exchanging a code makes callbacks one-use, including after a restart. */
   consume<T extends ConnectorProtocolConfiguration>(state: string, origin: string, now = Date.now()): ConnectorAuthorizationSession<T> {
     if (!/^[A-Za-z0-9_-]{43}$/u.test(state)) throw new Error("授权状态无效，请重新连接");

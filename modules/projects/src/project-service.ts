@@ -115,6 +115,7 @@ export class ProjectService {
   removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
+    if (this.plugins.isAlwaysOn?.(input.plugin_id) === true) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");

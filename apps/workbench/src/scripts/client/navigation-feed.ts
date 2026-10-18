@@ -119,11 +119,11 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
     };
 
-    const setPluginSectionExpanded = (id, expanded, persist = true) => {
+    const setPluginSectionExpanded = (id) => {
       const sectionId = id === "sources" ? "feed" : id;
-      if (!LIST_PLUGIN_SECTIONS.includes(sectionId) || !expanded) return;
+      if (!LIST_PLUGIN_SECTIONS.includes(sectionId)) return;
       setDirectoryCollapsed?.(false, false);
-      setDesktopDirectory(id === "sources" ? "sources" : sectionId, persist, false);
+      setDesktopDirectory(sectionId, true, false);
     };
 
     const setDesktopDirectory = (directory, persist = true, focusTarget = true, origin = null) => {

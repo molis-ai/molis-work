@@ -10,6 +10,7 @@ import type { MaterialExtraction, MaterialLimits } from "@molis-ai/molis-work-co
  */
 export const materialErrors = defineErrorCodes("material", {
   audio_extraction_failed: "invalid",
+  cancelled: "cancelled",
   empty: "invalid",
   empty_pdf: "invalid",
   encoding: "invalid",
@@ -20,6 +21,7 @@ export const materialErrors = defineErrorCodes("material", {
   insufficient_content: "invalid",
   invalid_arguments: "invalid",
   invalid_data: "invalid",
+  invalid_download_choice: "invalid",
   invalid_document: "invalid",
   invalid_file: "invalid",
   invalid_image: "invalid",
@@ -36,6 +38,7 @@ export const materialErrors = defineErrorCodes("material", {
   timeout: "upstream",
   too_large: "too_large",
   transcription_failed: "invalid",
+  unsafe_storage: "internal",
   unsupported: "invalid",
   unsupported_language: "invalid",
   url: "invalid",

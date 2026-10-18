@@ -1563,13 +1563,10 @@ function hoverHandlePlugin(translate: Translate | undefined, onNote: (index: num
       const onMove = (event: MouseEvent) => {
         if (event.buttons || drag) return;
         const target = event.target as HTMLElement | null;
-        if (target?.closest(".pages-slash, .mw-ctx, .mw-ctx-menu, .mw-ctx-panel, .pages-link-preview, .pages-comment-preview, .pages-pop, .pages-more-menu, .pages-create-menu")) {
-          if (menu.hidden) setHover(-1, false);
-          return;
-        }
         if (target && (handle.contains(target) || menu.contains(target))) return;
+        // Over a menu or the bar, or outside the editor: no row is hovered, unless the block menu is open.
         const host = editorView.dom.closest(".pages-editor-host") ?? editorView.dom;
-        if (!host.contains(target)) {
+        if (target?.closest(".pages-slash, .mw-ctx, .mw-ctx-menu, .mw-ctx-panel, .pages-link-preview, .pages-comment-preview, .pages-pop, .pages-more-menu, .pages-create-menu") || !host.contains(target)) {
           if (menu.hidden) setHover(-1, false);
           return;
         }
@@ -2283,29 +2280,18 @@ function mentionNodeView(node: Node, options: PagesEditorMountOptions) {
   };
 }
 
+const CARD_LOOK = { ref: ["link", "选择文档"], task: ["clipboard", "任务"], event: ["calendar", "日程"] } as const;
+
 function cardNodeView(kind: "ref" | "task" | "event", node: Node, view: EditorView, getPos: () => number | undefined, options: PagesEditorMountOptions) {
   const translate = options.translate;
   const dom = document.createElement("article");
   const paint = (current: Node) => {
     node = current;
-    if (kind === "ref") {
-      dom.className = "pages-card pages-card--ref";
-      const title = String(current.attrs.title || "");
-      const empty = !title;
-      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("link")}</span><span class="pages-card-body"><strong class="${empty ? "is-placeholder" : ""}">${escapeHtml(title || t(translate, "选择文档"))}</strong><span>${escapeHtml(t(translate, "文档引用"))}</span></span>`;
-    } else if (kind === "task") {
-      const title = String(current.attrs.title || "");
-      const description = String(current.attrs.description || "");
-      dom.className = "pages-card pages-card--task is-" + String(current.attrs.status || "todo");
-      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("clipboard")}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(title || t(translate, "任务"))}</strong>
-        <span>${escapeHtml(statusLabel(String(current.attrs.status), translate))}${current.attrs.due ? " · " + escapeHtml(String(current.attrs.due)) : ""}</span>
-        ${description ? `<p>${escapeHtml(description)}</p>` : ""}</span>`;
-    } else {
-      const title = String(current.attrs.title || "");
-      dom.className = "pages-card pages-card--event";
-      dom.innerHTML = `<span class="pages-card-mark">${dsIcon("calendar")}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(title || t(translate, "日程"))}</strong>
-        <span>${escapeHtml(String(current.attrs.at || t(translate, "没有日期")))}</span></span>`;
-    }
+    const { title, status, due, description, at } = current.attrs;
+    // One card for all three: the mark, the title (or what to fill in), and one line under it; a task adds its note.
+    const sub = kind === "ref" ? t(translate, "文档引用") : kind === "task" ? statusLabel(String(status), translate) + (due ? " · " + due : "") : String(at || t(translate, "没有日期"));
+    dom.className = "pages-card pages-card--" + kind + (kind === "task" ? " is-" + String(status || "todo") : "");
+    dom.innerHTML = `<span class="pages-card-mark">${dsIcon(CARD_LOOK[kind][0])}</span><span class="pages-card-body"><strong class="${title ? "" : "is-placeholder"}">${escapeHtml(String(title || t(translate, CARD_LOOK[kind][1])))}</strong><span>${escapeHtml(sub)}</span>${kind === "task" && description ? `<p>${escapeHtml(String(description))}</p>` : ""}</span>`;
   };
   paint(node);
   dom.addEventListener("mousedown", (event) => {
@@ -2376,6 +2362,8 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
   const scope = pagesPopoverAnchor(view, pop, pos, pos + node.nodeSize);
   const title = field(options.translate, "标题", String(node.attrs.title || ""), "text");
   pop.append(title.label);
+  // What the card's own fields say, written with its title when confirmed.
+  let read: () => Record<string, string>;
   if (kind === "task") {
     const description = field(options.translate, "描述", String(node.attrs.description || ""), "text");
     const status = document.createElement("label");
@@ -2391,30 +2379,17 @@ function editCard(kind: "task" | "event", view: EditorView, pos: number, node: N
     status.append(select);
     const due = field(options.translate, "截止日期", String(node.attrs.due || ""), "date");
     pop.append(description.label, status, due.label);
-    pop.append(actions(options.translate, () => {
-      const at = scope.at(); if (!at?.intact) return;
-      view.dispatch(view.state.tr.setNodeMarkup(at.from, undefined, {
-        ...view.state.doc.nodeAt(at.from)?.attrs,
-        title: title.input.value,
-        description: description.input.value,
-        status: select.value,
-        due: due.input.value,
-      }));
-      scope.close();
-    }, scope.close));
+    read = () => ({ description: description.input.value, status: select.value, due: due.input.value });
   } else {
-    const at = field(options.translate, "日期", String(node.attrs.at || ""), "date");
-    pop.append(at.label);
-    pop.append(actions(options.translate, () => {
-      const anchor = scope.at(); if (!anchor?.intact) return;
-      view.dispatch(view.state.tr.setNodeMarkup(anchor.from, undefined, {
-        ...view.state.doc.nodeAt(anchor.from)?.attrs,
-        title: title.input.value,
-        at: at.input.value,
-      }));
-      scope.close();
-    }, scope.close));
+    const date = field(options.translate, "日期", String(node.attrs.at || ""), "date");
+    pop.append(date.label);
+    read = () => ({ at: date.input.value });
   }
+  pop.append(actions(options.translate, () => {
+    const at = scope.at(); if (!at?.intact) return;
+    view.dispatch(view.state.tr.setNodeMarkup(at.from, undefined, { ...view.state.doc.nodeAt(at.from)?.attrs, title: title.input.value, ...read() }));
+    scope.close();
+  }, scope.close));
   overlayRoot().append(pop);
   placeOverlay(pop, view.coordsAtPos(pos), "below");
   title.input.focus();

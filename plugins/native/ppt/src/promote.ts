@@ -1,6 +1,6 @@
 import type { PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pptErrors } from "./error.js";
-import type { PptStore } from "./store.js";
+
 import { isDeepStrictEqual } from "node:util";
 import { nextPinnedVersion, type ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -9,6 +9,13 @@ export interface PptPublicationIntent { content: PptPublicationSnapshot; version
 export type PptReadArtifactPort = (input: { project_id: string; record_id: string; version: number }) => PptPublicationSnapshot | null;
 /** The newest fixed version of this record in the project's 成果库, whatever the record counted. */
 export type PptLineHeadPort = (input: { project_id: string; record_id: string }) => ArtifactLineHead | null;
+
+/** The store operations publication needs, each its own transaction (the begin must commit before the artifact is written). */
+export interface PptPromoteStore {
+  get(id: string, projectId?: string): PptRecord;
+  beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot, version?: number): PptPublicationIntent | Promise<PptPublicationIntent>;
+  completePublication(id: string, projectId: string, intent: PptPublicationIntent, artifact: { artifact_id: string; version: number }): PptRecord | Promise<PptRecord>;
+}
 
 export interface PptPublishArtifactPort {
   (input: {
@@ -29,13 +36,13 @@ export interface PptPublishArtifactPort {
   }): { artifact_id: string; version: number };
 }
 
-export function promotePpt(
-  store: PptStore,
+export async function promotePpt(
+  store: PptPromoteStore,
   id: string,
   projectId: string,
   publishArtifact: PptPublishArtifactPort,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: PptReadArtifactPort; lineHead?: PptLineHeadPort },
-): { presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean } {
+  options: { actorId: string; expectedVersion?: number; readArtifact?: PptReadArtifactPort; lineHead?: PptLineHeadPort; beforePublish?: () => Promise<void> },
+): Promise<{ presentation: PptRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   const current = store.get(id, projectId);
   const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
   const version = nextPinnedVersion({ recorded: current.artifact_version, pending: current.publication_pending?.version ?? null, head });
@@ -44,8 +51,9 @@ export function promotePpt(
   // back the record counts none, and a version that cannot be continued must be refused before an intent is recorded.
   const written = Math.max(current.artifact_version, head?.version ?? 0);
   if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
-  const intent = store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version);
+  const intent = await store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version);
   if (existing && !isDeepStrictEqual(existing, intent.content)) throw pptErrors.publication_conflict("成果与原发布快照不同，演示稿及快照已保留");
+  if (!existing) await options.beforePublish?.();
   const published = existing ? { artifact_id: "ppt-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,
@@ -56,7 +64,7 @@ export function promotePpt(
   });
   if (published.artifact_id !== "ppt-" + id || published.version !== intent.version) throw pptErrors.publication_conflict("成果返回身份与发布意图不一致，原快照已保留");
   return {
-    presentation: store.completePublication(current.id, projectId, intent, published),
+    presentation: await store.completePublication(current.id, projectId, intent, published),
     artifact: published,
     recovered: !!existing || !!current.publication_pending,
   };

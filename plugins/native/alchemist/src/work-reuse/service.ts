@@ -203,16 +203,17 @@ export class WorkReuseService {
     return { ...receipt, artifacts: projected.artifacts, methods: projected.methods,
       feedback: projected.artifacts.some(item => item.contentUnavailable) ? null : receipt.feedback };
   }
-  async reconcile(planId: string, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<ReuseReceipt | null> {
+  async reconcile(planId: string, signal?: AbortSignal, control?: AlchemistEffectControl & { commit?<T>(write: () => T): Promise<T> }): Promise<ReuseReceipt | null> {
     const receipt = this.rawReceipt(planId);
     if (!receipt || receipt.relationState !== "pending") return this.receipt(planId, signal);
     // Recover a missing edge without repeating model calls. A revoked source remains pending.
     for (const selected of receipt.artifacts) await this.read(selected.reference, signal);
     const caller = await this.caller(signal, ["alchemist:read", "alchemist:write"]);
     await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
-    await this.d.host!.linkConsumption(caller, { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
+    await this.d.host!.linkConsumption(guardedReuseCaller(caller, control), { planId, runId: receipt.runId, references: receipt.artifacts.map(a => a.reference) });
     await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
-    this.d.database.prepare("UPDATE work_reuse_receipts SET relation_state = 'recorded' WHERE plan_id = ? AND actor_id = ?").run(planId, this.d.actorId());
+    const write = () => this.d.database.prepare("UPDATE work_reuse_receipts SET relation_state = 'recorded' WHERE plan_id = ? AND actor_id = ?").run(planId, this.d.actorId());
+    if (control?.commit) await control.commit(write); else write();
     return this.receipt(planId, signal);
   }
   async feedback(input: z.infer<typeof reuseFeedbackSchema>, signal?: AbortSignal) {
@@ -235,4 +236,16 @@ export class WorkReuseService {
     await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
     return this.d.host!.publishReport(caller, { report, evidence, title: report.summary.slice(0, 100) });
   }
+}
+
+/** The receiver rechecks this same originating authority immediately before each external effect. */
+function guardedReuseCaller(caller: ActionCallContext, control?: AlchemistEffectControl): ActionCallContext {
+  if (!control) return caller;
+  return { ...caller,
+    validate_authority: async reference => { await caller.validate_authority?.(reference); await control.beforeEffect(); },
+    validate_permissions: async permissions => { await caller.validate_permissions?.(permissions); await control.beforeEffect(); },
+    assert_authority_current: (reference, permissions) => {
+      caller.assert_authority_current?.(reference, permissions); control.assert_authority_current?.();
+    },
+  };
 }

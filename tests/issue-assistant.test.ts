@@ -12,12 +12,12 @@ import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-wor
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import { endingReviewReply } from "./fixtures/ending-review.js";
 
-function reply(tool?: { name: string; input: unknown }): string {
+function reply(tool?: { name: string; input: unknown }, text = "已按操作回执完成这一轮。"): string {
   const events: string[] = [];
   const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: randomUUID(), type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
   emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: randomUUID(), name: tool.name, input: {} } : { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text: "已按操作回执完成这一轮。" } });
+  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text } });
   emit("content_block_stop", { index: 0 });
   emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
@@ -33,8 +33,9 @@ async function assistantHome(t: TestContext) {
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8");
-    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    if (endingReviewReply(raw)) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply()); return; }
+    // Ending reviews and background memory extraction share this model, but must not consume the next business turn.
+    const ancillary = endingReviewReply(raw) ?? (raw.includes("你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西") ? '{"candidates":[]}' : undefined);
+    if (ancillary) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, ancillary)); return; }
     requests.push(JSON.parse(raw));
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(replies.shift() ?? reply());
   });

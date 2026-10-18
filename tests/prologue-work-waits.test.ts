@@ -64,6 +64,9 @@ test("W2-18-HANDBACK-ONE-CONTINUATION-01: while the root waits on a wait its rou
       async () => { holding.resolve(); await second.promise; return reply(undefined, "接着做完了。"); }];
   });
   graph = w.graph_id;
+  // ASC-19 ASC-34: only Host-owned waits reach the hand-back listener; Agent waits have their own continuation owner.
+  const handbacks: string[] = [];
+  t.after(w.works.onReady(ready => { handbacks.push(ready.request_key); }));
   const refused = (error: unknown) => (error as { code?: string }).code === "agent.collaboration_conflict" && /自己登记的事/.test(String((error as Error).message));
   await w.works.add({ graph_id: w.graph_id, node_id: "p-1", session_id: w.part.session_id, title: "p-1" });
   const first = await w.start("等 p-1 做完再接着做。");
@@ -86,6 +89,7 @@ test("W2-18-HANDBACK-ONE-CONTINUATION-01: while the root waits on a wait its rou
   await until("the round's wait is over", async () => (await w.rootStep()).continuation?.state === "eligible");
   await w.works.hold({ graph_id: w.graph_id, note: "用户停止了这项工作" });
   assert.equal((await w.rootStep()).continuation?.state, "eligible", "nor its continuation the Host's to hold");
+  assert.deepEqual(handbacks, [], "an Agent wait must not trigger the Host's child hand-back round");
   const next = await w.start("接着做。");
   await holding.promise;
   await w.handOut("p-2");

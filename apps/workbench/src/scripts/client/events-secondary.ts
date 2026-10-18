@@ -103,7 +103,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         makeTodo.setAttribute("aria-busy", "true");
         if (status) status.hidden = true;
         try {
-          const result = await api("/api/todo","POST",{
+          const result = await api("/api/plugins/io.molis.work.todo/items","POST",{
               title,
               placement: state.project?.project_id || document.body.dataset.projectId ? "project" : "personal",
               request_id: kind + ":" + id,
@@ -231,14 +231,6 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
           if (!openDirectorySurface(surface, undefined, undefined, event)) setDesktopWorkSurface(surface, true, true);
           if (surface === "feed" && selectedFeedItem) selectFeedItem(selectedFeedItem, false, true, false);
         }
-        return;
-      }
-      const expandToggle = target.closest("[data-plugin-expand]");
-      if (expandToggle) {
-        event.preventDefault();
-        const section = expandToggle.closest("[data-plugin-section]");
-        const expanded = section?.dataset.pluginExpanded === "true";
-        setPluginSectionExpanded(expandToggle.dataset.pluginExpand, !expanded, true);
         return;
       }
       const surfaceOpen = target.closest("[data-work-surface-open]");

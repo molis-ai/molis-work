@@ -101,8 +101,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const draftKey = (id) => 'molis-coding-draft:' + root.dataset.codingPrefix + ':' + id;
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
-  let runtimeSessionId = null, queuedInputs = [];
-  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '';
+  let runtimeSessionId = null, queuedInputs;
+  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '', creating = false;
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
@@ -120,7 +120,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
-  const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason)});
+  const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent(),prepareRework:reason=>plans.prepareStepRework(reason),receipts:host.receipts});
   let planEntries=[],subagentGroups=[];
   // A long session is read as a window: the latest rounds in full, earlier ones as summaries until scrolled back to.
   let lastData=null;
@@ -138,8 +138,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
-  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
-  const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId)});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
@@ -166,7 +165,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // directory on a narrow screen does not end it: the faces there describe the session the person just left.
   let sessionOnShow=false;
   const onShow=()=>sessionOnShow&&Boolean(current);
-  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board:q('[data-coding-board]'),outline:directory.querySelector('[data-coding-board-outline]'),current:()=>current,onShow,status,ownTask,roleName:id=>ROLE_NAMES[id]||id||'Agent',
+  const taskboard = (${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board:q('[data-coding-board]'),outline:directory.querySelector('[data-coding-board-outline]'),current:()=>current,onShow,status,ownTask,from:node=>inputReceipts.from(node,()=>showBoard(false)),roleName:id=>ROLE_NAMES[id]||id||'Agent',
     progress:text=>{const count=q('[data-coding-view-board-count]');count.textContent=text?' '+text:'';count.hidden=!text;},
     amend:async(runId,version,amendment,live=true)=>{
       const id=current;
@@ -193,6 +192,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(target.kind==='child')node.open=true;
     node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
   }});
+  const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api,current:()=>current,status,refresh:()=>readCurrent(),openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:state=>host.receipts.step(state)});
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,status,openIntegration:integrations.open,usageSummary:codingUsageSummary,refresh:()=>readCurrent(),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）准备返工，保留原结果和评价。原目录：'+child.workspace_path+'。需要写入时请先明确选择该独立工作树与并行写入方式。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
@@ -303,7 +303,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
-  // Only a box that holds this session's draft is saved: while a session is still loading, the box holds nothing of it.
+  // The box is a session's once its first read put its draft in (draftOwner): only then is it saved. Typing and sending also wait for a new session.
   const flushDraft = () => { lifetime.clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); };
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
@@ -342,8 +342,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const controls = () => {
     if(!lifetime.alive)return;
     const active = lastRun && !terminal(lastRun.phase);
-    input.disabled = !current || sending;
-    q('[data-coding-send]').disabled = !current || sending || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
+    const off = !current || sending, unread = creating || draftOwner!==current, shut = off || unread;
+    input.disabled = shut;
+    q('[data-coding-send]').disabled = shut || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
     q('[data-coding-send]').textContent = sending ? '正在提交…' : '发送';q('[data-coding-mode]').hidden=!active;
     q('[data-coding-stop]').hidden = !active;
     q('[data-coding-stop]').disabled = sending;
@@ -351,19 +352,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const pause=q('[data-coding-pause]'),paused=lastRun && ['paused','pausing'].includes(lastRun.phase),pausable=lastRun && ['starting','running','compacting'].includes(lastRun.phase);
     pause.hidden=!(paused || pausable);pause.dataset.action=paused?'resume':'pause';
     pause.textContent=lastRun?.phase==='pausing'?'正在暂停…':paused?'恢复':'暂停';pause.disabled=sending || lastRun?.phase==='pausing';
-    q('[data-coding-intent]').disabled = Boolean(active || sending);
-    composerModels.controls({active,sending,run:lastRun});
+    q('[data-coding-intent]').disabled = Boolean(active || sending || unread);
+    composerModels.controls({active,sending:sending || unread,run:lastRun});
     q('[data-coding-rename]').hidden = !current;
     q('[data-coding-archive]').hidden = !current;
-    q('[data-coding-goal-open]').disabled = !current || sending;
-    q('[data-coding-material-open]').disabled = !current || sending;
+    for(const name of ['goal','material','method','mcp','actions'])q('[data-coding-'+name+'-open]').disabled=off;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
     const character=characterSelections.get(current),characterButton=q('[data-coding-character-open]');
-    characterButton.disabled=!current || sending;contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
+    characterButton.disabled=off;contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
     characterButton.title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
-    q('[data-coding-method-open]').disabled = !current || sending;
-    q('[data-coding-mcp-open]').disabled=!current || sending;
-    q('[data-coding-actions-open]').disabled=!current || sending;
     const actionCount=(actionSelections.get(current) || []).length;contextLabel('[data-coding-actions-open]','能力'+(actionCount?' · '+actionCount:''),actionCount);
     const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
     const writable=['edit','execute'].includes(q('[data-coding-intent]').value);
@@ -685,11 +682,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             remember();
             card.dataset.busy='true';card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=true);note.textContent='正在提交原问题的回答…';
             try {
-              await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
+              const {message}=await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
               answeredQuestions.add(key);
               const drafts=questionDrafts.get(id);if(drafts)delete drafts[key];
               try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts || {}));}catch{}
-              client.destroy();const receipt=make('p');receipt.textContent='回答已交给原执行者，继续这一轮任务。';card.replaceChildren(receipt);
+              client.destroy();const receipt=make('p');receipt.textContent=message;card.replaceChildren(receipt);
               void saveDraft(id,localDraft(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
@@ -699,7 +696,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         });
         const saved=questionDrafts.get(id)?.[key];if(saved && typeof saved==='object') client.write(saved);
       }
-      const canAnswer=!terminal(run.phase) && question.answerable!==false;
+      const canAnswer=(question.parked || !terminal(run.phase)) && question.answerable!==false;
       form.dataset.answerable=String(canAnswer);
       const ring=form.querySelector('.mw-ix-kicker .mw-state-ring');if(ring)ring.dataset.mwState=canAnswer?'answer':'unavailable';
       if(form.dataset.busy!=='true') form.querySelectorAll('fieldset,button:not([data-ix-action=reask])').forEach(node=>node.disabled=!canAnswer);
@@ -878,7 +875,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             }
             renderedText.set(node,renderKey); enrichCode(node);
           }
-          const receipt=host.receipts.line(turn,{run_id:run.ref.run_id,awaiting_input:run.awaiting_input},inputReceipts.act(current,run.ref.run_id));if(receipt&&receipt.parentNode!==node)node.append(receipt);ordered.push(node);
+          const receipt=host.receipts.line(turns,turn,{run_id:run.ref.run_id,awaiting_input:run.awaiting_input,step_board:run.step_board},inputReceipts.act(current,run.ref.run_id));if(receipt&&receipt.parentNode!==node)node.append(receipt);ordered.push(node);
         } else if(entry.kind==='activity') {
           const activities=entry.values,key=activities[0].call_id;
           let detail=[...block.querySelectorAll('[data-coding-activity]')].find(node=>node.dataset.codingActivity===key);
@@ -909,7 +906,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       ordered.forEach((node,at)=>{if(node.classList?.contains('coding-turn'))node.classList.toggle('is-writing',writing && at===ordered.length-1);});
       for(const detail of block.querySelectorAll(':scope > [data-coding-activity]')) if(!ordered.includes(detail)) detail.remove();
       // The supplement on its way shows after the round it goes to, until the round's own record has it; after that, the tray of what is still open (the queue, and the round's ledger).
-      const last=run===all.at(-1),sending=last&&inputReceipts.bubble(current,run),waiting=last&&host.receipts.tray(queuedInputs,{run_id:run.ref.run_id},inputReceipts.act(current,run.ref.run_id));for(const node of [sending,waiting])if(node)ordered.push(node);for(const node of block.querySelectorAll(':scope > .is-sending,:scope > .mw-tray'))if(node!==sending&&node!==waiting)node.remove();
+      const last=run===all.at(-1),sending=last&&inputReceipts.bubble(current,run),waiting=last&&host.receipts.tray(turns,queuedInputs,{run_id:run.ref.run_id},inputReceipts.act(current,run.ref.run_id));for(const node of [sending,waiting])if(node)ordered.push(node);for(const node of block.querySelectorAll(':scope > .is-sending,:scope > .mw-tray'))if(node!==sending&&node!==waiting)node.remove();
       // Insert only missing/misplaced entries: polling keeps open tools and a
       // focused question form intact. Live and replay use the same ordering.
       let cursor=block.firstElementChild;
@@ -1137,8 +1134,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
       // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-      if(fresh) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;queuedInputs=data.session.queued_inputs||[];planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      if(fresh || draftOwner!==id) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
+      runtimeSessionId=data.session.runtime_session_id;queuedInputs=data.session.queued_inputs;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
       renderPriority(id,data.session.priority===true);
@@ -1205,7 +1202,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const reuse=await untouched();
     const session=reuse || (await api('/sessions','POST',{title:'新编码会话'})).session;
     if(!reuse)await refreshState();
-    host.openItem('coding',session.session_id,session.title);await select(session.session_id);input.focus();
+    host.openItem('coding',session.session_id,session.title);await select(session.session_id);
   };
   // Tells the bottom Assistant this session changed here (its mode, a new round), so a work it shows reads it again.
   const surfaceChanged=id=>{if(lifetime.alive && id)window.dispatchEvent(new CustomEvent('molis:assistant-surface-changed',{detail:{plugin_id:'coding',object:{kind:'coding-session',id}}}));};
@@ -1348,7 +1345,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-results-close]')) {root.dataset.codingResults='false';q('[data-coding-results-open]').focus({preventScroll:true});}
       if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
       if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
-      if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=true; try { await create(); } finally { target.disabled=false; } }
+      if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=creating=true;controls(); try { await create(); } finally { target.disabled=creating=false;controls(); } input.focus(); }
       // The first list is drawn by the server, so a row can be clicked before the directory read has arrived.
       // ⌘/Ctrl-click opens the session in the pane beside this one; this pane keeps the session it shows.
       if(target.matches('[data-coding-session]')) { event.preventDefault(); const id=target.dataset.codingSession,session=state.sessions.find(item=>item.session_id===id),title=session?.title || (target.querySelector('.coding-session-title,strong,.mw-dir-row__title')?.textContent || '').trim();
@@ -1595,7 +1592,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}
   };
   lifetime.listen(q('[data-coding-composer]'),'submit',async(event)=>{
-    event.preventDefault();if(sending || recovery || checkpointBusy || !current || !input.value.trim()) return;
+    event.preventDefault();if(sending || recovery || checkpointBusy || !current || input.disabled || !input.value.trim()) return;
     const id=current,task=input.value,action_tools=structuredClone(actionSelections.get(current)||[]),character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
     try {
       rememberConfiguration();await flushDraft();

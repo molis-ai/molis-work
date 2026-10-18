@@ -98,15 +98,15 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   const result = await evaluate<{
     first: boolean | null; second: boolean | null; newer: boolean | null; failed: boolean | null; retry: boolean | null;
     aGoal: string; bGoal: string; failedGoal: string; aBusy: boolean; bBusy: boolean;
-    heldBusy: boolean; aAborted: boolean; bAborted: boolean; headerKept: boolean; siblingKept: boolean;
+    heldBusy: boolean; aAborted: boolean; bAborted: boolean; bareReplaced: boolean; siblingKept: boolean;
     calls: string[]; errors: string[]; caches: string[];
   }>(`(async () => {
     const createClient = (${GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT});
     const aPane = document.createElement('section');
     aPane.innerHTML = '<aside>Host sibling</aside><div data-work-surface="goal"><article data-goal-view="initial-a"></article></div>';
     const bPane = document.createElement('section');
-    bPane.innerHTML = '<header class="desktop-pane-header">Host header</header><article data-goal-view="initial-b"></article>';
-    const header = bPane.firstElementChild;
+    // A pane without the Goal surface holds only the document (its host header left the markup in bc79f8a49).
+    bPane.innerHTML = '<article data-goal-view="initial-b"></article>';
     const sibling = aPane.firstElementChild;
     const calls = [], errors = [], caches = [];
     const ports = (name, documentPane) => ({
@@ -156,7 +156,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
         bGoal:bPane.querySelector('[data-goal-view]').dataset.goalView,
         aBusy:aPane.hasAttribute('aria-busy'),bBusy:bPane.hasAttribute('aria-busy'),
         aAborted:aSignal.aborted,bAborted:bSignal.aborted,
-        headerKept:bPane.firstElementChild === header,siblingKept:aPane.firstElementChild === sibling,
+        bareReplaced:bPane.children.length === 1,siblingKept:aPane.firstElementChild === sibling,
         calls,errors,caches};
     } finally { releaseBody(); globalThis.fetch = originalFetch; }
   })()`);
@@ -173,7 +173,7 @@ test("public document clients isolate requests and keep Host callbacks, failure 
   assert.equal(result.heldBusy, true);
   assert.equal(result.aAborted, true);
   assert.equal(result.bAborted, false);
-  assert.equal(result.headerKept, true);
+  assert.equal(result.bareReplaced, true);
   assert.equal(result.siblingKept, true);
   assert.deepEqual(result.calls, ["b:before:initial-b", "b:after:V1", "a:before:initial-a", "a:after:CORE", "a:before:CORE", "a:after:RELEASE"]);
   assert.deepEqual(result.errors, ["无法读取这条 Goal 正文"]);

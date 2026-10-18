@@ -89,6 +89,7 @@ export interface ProjectPluginRegistry {
     has(pluginId: ProjectPluginId): boolean;
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
     isPersonal?(pluginId: ProjectPluginId): boolean;
+    isAlwaysOn?(pluginId: ProjectPluginId): boolean;
 }
 
 export interface ProjectRecord {
@@ -183,6 +184,7 @@ export declare const projectCatalogErrors: {
     workspace_membership_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     workspace_required: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     invalid_name: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    plugin_always_on: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     plugin_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;

@@ -200,6 +200,11 @@ export interface UiRequestInit {
   readonly fallback?: string;
 }
 
+/** A POST to a declared NDJSON route. Progress is a preview; only its final result confirms completion. */
+export interface UiStreamRequestInit extends Omit<UiRequestInit, "method" | "as" | "accept"> {
+  readonly onProgress?: (event: import("./actions.js").ActionProgressEvent) => void;
+}
+
 /**
  * A failed request: a plain `Error` carrying these fields, never a subclass of `Error`. The server's `code` is kept as it
  * is. The ones the browser decides itself start with `ui_host.`: `cross_origin` (the address is not this page's origin; no
@@ -219,6 +224,8 @@ export interface UiRequestFailure extends Error {
 /** The request half: what `createUiRequest` returns. */
 export interface UiRequestCall {
   <T = unknown>(url: string, init?: UiRequestInit): Promise<T>;
+  /** Uses the same origin/control headers and refuses an incomplete or malformed stream. */
+  stream<T = unknown>(url: string, init?: UiStreamRequestInit): Promise<T>;
   /** The headers of a change (control token, one-time key, JSON type), for callers that build their own request. */
   headers(key?: string): Record<string, string>;
   /** This page's control token, read from the page; for authenticating a socket. */

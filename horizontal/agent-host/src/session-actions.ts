@@ -1,5 +1,6 @@
 import { actionDigest } from "./action-digest.js";
 import { agentErrors } from "./errors.js";
+import { checkOrigin } from "./input-origin.js";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -52,7 +53,9 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const view = await ports.requireRun(call, { runtime_id, session_id }, run);
       const adapter = ports.adapter(call, runtime_id);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
+      // Checked once the call is current, so a supplement taken back while it waited is not a step's source (3d-5).
       await fresh(call);
+      if (amendment.kind === "insert" && amendment.origin !== undefined) checkOrigin(amendment.origin, (await adapter.read(run)).turns);
       // The person deciding: the calling plugin's actor, else the session's owner.
       return { board: await adapter.collaboration.revise(run, amendment, expected_version, ports.pluginFor(call)?.actor_id ?? view.owner.actor_id) };
     }),

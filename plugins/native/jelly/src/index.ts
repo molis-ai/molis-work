@@ -16,7 +16,7 @@ export * from "./content.js";
 export * from "./markdown.js";
 export * from "./import.js";
 export * from "./error.js";
-export * from "./routes.js";
+export * from "./plugin.js";
 export * from "./ai.js";
 export * from "./actions.js";
 export * from "./command-actions.js";

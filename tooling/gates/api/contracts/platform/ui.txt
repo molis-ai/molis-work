@@ -85,6 +85,7 @@ export type UiRequest = UiRequestCall & UiFailureView;
 
 export interface UiRequestCall {
     <T = unknown>(url: string, init?: UiRequestInit): Promise<T>;
+    stream<T = unknown>(url: string, init?: UiStreamRequestInit): Promise<T>;
     headers(key?: string): Record<string, string>;
     token(): string;
 }
@@ -138,6 +139,10 @@ export interface UiSlotDescriptor {
     readonly slot_id: string;
     readonly version: number;
     readonly accepts: readonly string[];
+}
+
+export interface UiStreamRequestInit extends Omit<UiRequestInit, "method" | "as" | "accept"> {
+    readonly onProgress?: (event: import("@molis-ai/molis-work-contracts/platform/actions").ActionProgressEvent) => void;
 }
 
 export interface UiSurfaceDescriptor {

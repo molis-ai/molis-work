@@ -92,7 +92,7 @@ async function openImport(t: TestContext) {
 }
 
 for (const phase of ['Read', 'Response']) {
-  test(`W2-18-DATASET-01/02: file ${phase} barrier keeps confirmed A target and rejects competing B selection`, { timeout: 45_000 }, async t => {
+  test(`W5-01-DATASET-04 / W2-18-DATASET-01/02: file ${phase} barrier keeps confirmed A target and rejects competing B selection`, { timeout: 45_000 }, async t => {
     const f = await openImport(t); if (!f) return;
     const { evaluate, waitFor, a, b, read, idle, attemptSwitch, values } = f;
     const confirmed = await f.hold(phase);
@@ -112,7 +112,7 @@ for (const phase of ['Read', 'Response']) {
     assert.equal(titleWhilePending, '表 A', 'selection cannot change while the confirmed import is pending');
     assert.deepEqual(values(a.id), [['导入行', '来自真实文件']]);
     assert.equal(requests.length, 1);
-    assert.equal(requests[0]!.path, `/api/plugins/dataset/${a.id}/import-csv`);
+    assert.ok(requests[0]!.path.endsWith(`/api/plugins/io.molis.work.dataset/datasets/${a.id}/import-csv`), requests[0]!.path);
     assert.equal(requests[0]!.body.expected_version, confirmed.version);
     assert.equal(requests[0]!.body.csv, csv);
     assert.equal(requests[0]!.status, 200);
@@ -124,7 +124,7 @@ for (const phase of ['Read', 'Response']) {
 }
 
 for (const phase of ['Read', 'Response']) {
-  test(`W2-18-DATASET-02: editor invalidation during file ${phase} does not reopen a stale table`, { timeout: 45_000 }, async t => {
+  test(`W5-01-DATASET-04 / W2-18-DATASET-02: editor invalidation during file ${phase} does not reopen a stale table`, { timeout: 45_000 }, async t => {
     const f = await openImport(t); if (!f) return;
     const { evaluate, waitFor, idle, a, b, read, values } = f;
     const confirmed = await f.hold(phase);

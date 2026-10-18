@@ -56,11 +56,14 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
     await waitFor(`document.body.dataset.desktopSurface === '${plugin}'`, 15_000);
   };
   const visible = (selector: string, label?: string) => `[...document.querySelectorAll(${text(selector)})].find(node => node.getClientRects().length${label ? ` && node.textContent.trim() === ${text(label)}` : ""})`;
-  // A real pointer click on the first visible match (several plugins render hidden copies of the same control).
+  // A list may repaint after marking its visible target. Only retry a target lost before any pointer event was sent.
   const press = async (selector: string, label?: string) => {
-    await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
-    await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);
-    await click("[data-e2e-target]");
+    for (let attempt = 0; ; attempt++) {
+      await waitFor(`Boolean(${visible(selector, label)})`, 15_000);
+      await evaluate(`(() => { document.querySelectorAll('[data-e2e-target]').forEach(node => node.removeAttribute('data-e2e-target')); ${visible(selector, label)}.setAttribute('data-e2e-target', ''); })()`);
+      try { await click("[data-e2e-target]"); return; }
+      catch (error) { if (attempt >= 2 || !/Click target disappeared|Missing click target/u.test(String((error as Error).message))) throw error; }
+    }
   };
   const card = (words: string) => waitFor(`[...document.querySelectorAll('.placement-toast')].some(node => node.innerText.includes(${text(words)}))`, 15_000);
   const cardButton = async (words: string, label: string) => {

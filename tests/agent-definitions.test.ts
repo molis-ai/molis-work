@@ -236,7 +236,7 @@ test("a run starts with the person's version of a registered prompt, and its rec
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     const frozen = (session as any).latest_run.frozen.prompts.find((prompt: { prompt_id: string }) => prompt.prompt_id === "assistant-base");
     assert.deepEqual([frozen.version, frozen.user_revision], [BASE_VERSION, 1]);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 // ADH-16: the ending review is a registered prompt of the round's owner: listed for the person, run in their version, frozen with its version.
@@ -273,5 +273,5 @@ test("the ending review runs with the person's version of its instructions, and 
     assert.doesNotMatch(JSON.stringify(requests[0].system), /测试用的收尾核对/, "it is never composed into the round's own role");
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 1, user_revision: 1 });
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

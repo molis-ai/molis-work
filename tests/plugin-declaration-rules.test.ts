@@ -306,8 +306,9 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method with a name over 80 characters", manifest: declarationManifest({ methods: [method({ name: "n".repeat(81) })] }), expected: "方法 summarize 需要名称（80 字以内）" },
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
-  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
+  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait" },
+  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait" },
+  { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
   // views and commands
   { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
   { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {}, commands: undefined }) }), expected: "ui.views 必须为数组" },
@@ -365,7 +366,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining";
+const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */
@@ -396,6 +397,7 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a business role that dispatches sub-tasks", agent: withChild({}, { roles: [{ ...reader, workspace: "business" }] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a conforming operating business role", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["ask-user"] }), expected: "" },
+  { rule: "ASC-19: a business role can declare persistent waiting", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["board-wait"] }), expected: "" },
   { rule: "operate outside a business role", agent: roleOf({ execution: "operate" }), expected: "Agent 角色 reader 的 operate 执行方式只用于业务角色" },
   { rule: "a no-workspace role that writes", agent: roleOf({ workspace: "none", execution: "text-edit" }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },
   { rule: "a no-workspace role with tools", agent: roleOf({ workspace: "none", host_tools: ["read-file"] }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },

@@ -128,7 +128,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
   const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')
     && ![...document.querySelectorAll('[data-deferred-surface]')].some(surface => !surface.closest('[hidden]') && surface.dataset.uiClientState !== 'failed')`;
-  async function click(selector: string): Promise<void> {
+  async function click(selector: string, options: { allowDisabled?: boolean } = {}): Promise<void> {
+    // Negative interaction tests may deliberately press a disabled control; visibility and hit checks still apply.
     // A person waits while a plugin surface they opened is still loading its client (#150): it is inert until then.
     await waitFor(SURFACES_SETTLED, 10_000);
     const point = await evaluate<{ x: number; y: number; covered: boolean }>(`(async () => { let element = document.querySelector(${JSON.stringify(selector)});
@@ -153,23 +154,27 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       };
       reveal(element);
       await new Promise(resolve => requestAnimationFrame(resolve));
-      // A list may still be closing from the previous choice, or take a few frames to open on a busy machine (up to 5 s: the
-      // Linux CI runner).
-      for (let tries = 0; tries < 150; tries++) {
-        const current = document.querySelector(${JSON.stringify(selector)}) || element;
-        if (current.getClientRects().length) break;
-        reveal(current);
+      // A background refresh can disable and replace a button after the caller's ready check. Wait at most 5 s,
+      // reacquiring the current node after layout, before sending any pointer event (ASC-38, ASC-39).
+      const deadline = performance.now() + 5_000;
+      while (true) {
+        element = document.querySelector(${JSON.stringify(selector)});
+        if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
+        reveal(element);
+        if (element.getClientRects().length) {
+          element.scrollIntoView({block:'nearest',behavior:'instant'});
+          await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+          element = document.querySelector(${JSON.stringify(selector)});
+          if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
+          const rect = element.getBoundingClientRect();
+          if (rect.width && rect.height && (${options.allowDisabled === true} || !element.matches(':disabled'))) {
+            const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
+            return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,covered:!element.contains(hit)};
+          }
+        }
+        if (performance.now() >= deadline) throw new Error((element.matches(':disabled') ? 'Disabled' : 'Hidden') + ' click target: ' + ${JSON.stringify(selector)});
         await new Promise(resolve => setTimeout(resolve, 33));
-      }
-      element = document.querySelector(${JSON.stringify(selector)}) || element;
-      element.scrollIntoView({block:'nearest',behavior:'instant'});
-      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      // A completed request may repaint the list during the two layout frames.
-      element = document.querySelector(${JSON.stringify(selector)});
-      if (!element) throw new Error('Click target disappeared: ' + ${JSON.stringify(selector)});
-      const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) throw new Error('Hidden click target: ' + ${JSON.stringify(selector)});
-      const hit = document.elementFromPoint(rect.x+rect.width/2,rect.y+rect.height/2);
-      return {x:rect.x+rect.width/2,y:rect.y+rect.height/2,covered:!element.contains(hit)}; })()`);
+      } })()`);
     if (point.covered) {
       // What shows only while the pointer is on its row (a row's own buttons) shows once the pointer is there, as for a person;
       // what is still covered then really is.

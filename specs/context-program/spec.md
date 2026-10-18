@@ -163,7 +163,7 @@ interface ItemAttach {
 | 内容站幂等键 | 泛化为请求号（只认现行形状，不新增读取兼容） | quick-create |
 | 插件 SDK 页面端 | 一个 `contextual` 模块：报告手上的东西或落点、发布工具、开面板槽、接收放进与工具调用 | 合并 side-shelf 4.4 与 context-toolbar §11 |
 | 平台自带的格 | 讨论、浏览器、文件按 side 视图的形状登记；`browser_page`、`discussion_message` 的读取动作 | side-shelf |
-| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-34）；Shelf 只有 side 视图 | side-shelf §7、§11 |
+| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-34；2026-10-18 用户改成按声明与授权，实现前仍如此）；Shelf 只有 side 视图 | side-shelf §7、§11 |
 | 页面自己陈列动作 | 对象声明里的一个通用字段，表示「本提供方的动作由我自己陈列」；浮条在这个表面上不重复列出这个提供方的动作（Shelf 格用它） | 本文 §7 |
 
 目录检查合并为一组（side-shelf 4.3 与 context-toolbar §11.5 的覆盖率门禁放在一起）：

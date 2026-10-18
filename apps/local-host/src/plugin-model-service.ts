@@ -1,7 +1,8 @@
 import type { ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt, InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPluginModelClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDefinition, PluginModelClient, PluginModelSelection, PluginModelConfigurationDeclaration, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createPluginModelClient, createPluginModelConfigurationClient, pluginModelErrors, type PluginModelPort } from "@molis-ai/molis-work-plugin-runtime";
+import { createConsumerModelConfiguration } from "./model-configuration.js";
 import { decodePrologueJsonOutput, reportedTokenTotal } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -17,10 +18,12 @@ import type { PluginPlatformHome } from "./home-side.js";
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
-  assertActive: () => void): PluginModelClient | undefined {
+  assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
   if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => item.permission === "model:invoke")) return undefined;
-  return createPluginModelClient(definition.manifest, createPluginModelPort(home),
-    { install_id: context.install_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
+  const gate = { install_id: context.install_id, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
+  return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
+    ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
+  });
 }
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });

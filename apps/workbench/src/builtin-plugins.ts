@@ -72,6 +72,8 @@ export interface BuiltinPluginEntry {
   readonly developer?: boolean;
   /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
   readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
+    readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
+    readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
     readonly package_name: string; readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string };

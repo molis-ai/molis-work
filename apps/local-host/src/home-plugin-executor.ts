@@ -10,6 +10,8 @@ import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
+import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -18,6 +20,9 @@ export class HomePluginExecutor implements PluginExecutor {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
     files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
+    modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
+    imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
+    projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
     qualifyCaller(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
     storage: SqlitePluginPrivateStorage;
@@ -72,17 +77,21 @@ export class HomePluginExecutor implements PluginExecutor {
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
       withdrawCaller = this.options.qualifyCaller(definition, caller);
       const authorized = { ...context, requireGrant: authorize };
-      const model = pluginModelFor(home, definition, authorized, assertActive);
+      const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
+      const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
       background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
       const contribution = await definition.start(hosted);
+      if (contribution.kind === "app" && contribution.onProjectDeleted && !this.options.projectData(definition)) {
+        throw new ActionError("actions.forbidden", "项目清理回调缺少可信 Home 数据主人声明");
+      }
       this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose });
       return { contribution };
     } catch (error) {

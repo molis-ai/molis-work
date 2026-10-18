@@ -46,6 +46,7 @@ export * from "./actions.js";
 export * from "./plugin-database.js";
 export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
 export * from "./plugin-model.js";
+export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -90,6 +91,8 @@ export interface PluginHostServices {
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
+  /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. */
+  readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
   /** Host material readers, independently declared as materials:read and materials:fetch. */
   readonly materials?: PluginMaterialsClient;
   /** Project artifact services are absent from Home activations. */
@@ -370,6 +373,8 @@ export interface PluginRouteBinding {
  */
 export interface PluginAppContribution {
   kind: "app";
+  /** Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. */
+  onProjectDeleted?(projectId: string): void;
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -418,7 +423,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "materials" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "model" | "imageGeneration" | "materials" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

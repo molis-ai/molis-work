@@ -481,4 +481,9 @@ test("RCPT-359, 3e-1: only the rounds the surface shows now count; a later corre
   const receipt = ui.line(here, { turn_id: "a-mail", kind: "user", text: "别直接发邮件给客户，我自己发", steer: { id: "a-mail", state: "read", model_claim: said("constraint", ["approach"]) } }, { run_id: "run-1" }, act)!;
   assert.equal(receipt.open, true, "RCPT-359 it opens its receipt, where 更正… is");
   assert.ok(receipt.buttons().some(node => node.text === "更正…"));
+  // A list that reads the same is not drawn again; its button still opens the latest drawing, here in the round it was carried into (D28).
+  const carried = ui.line(here, { turn_id: "a-time", kind: "user", text: "改到周五下午", steer: { id: "a-time", state: "read", model_claim: said("correction", ["objective", "acceptance"]) } }, { run_id: "run-2" }, act)!;
+  receipt.open = false;
+  kept.all("mw-tray__list")[0]!.children[1]!.button("改到周五下午").click();
+  assert.equal(carried.open, true, "RCPT-359 an item kept from an earlier drawing opens the input's latest receipt, not the one it was drawn from");
 });

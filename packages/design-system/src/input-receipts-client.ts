@@ -214,10 +214,11 @@ export function createInputReceipts(L: (text: string) => string, tray: (parts: I
     }
     entry.said = key;
   };
-  /** The latest drawing of each input on the surface `owner`, each with a way to open it (the tray's items). */
+  /** The latest drawing of each input on the surface `owner`, each with a way to open it (the tray's items). It opens the
+   * latest drawing at the click: a list kept because it reads the same still opens a supplement carried into a later round. */
   const latest = (owner: Element) => {
     const at = surfaces.get(owner);
-    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(entry) })) : [];
+    return at ? [...at.byInput.values()].map(entry => ({ turn: entry.turn, round: entry.round, open: () => reveal(of(at, entry.turn.steer!.id)) })) : [];
   };
   // What the tray and the correction form share of the receipts.
   const parts = { L, say, make, button, quote, latest, attempt, redraw, treatment }, correct = correction<Shown>(parts, entry => draw(entry, true));

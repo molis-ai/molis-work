@@ -36,6 +36,13 @@ export const TAB_GROUP_STYLES = `
   }
   ${GROUP}[data-collapsed="true"] .tab-item[data-tab-kind="plugin"] { display: inline-flex; }
 
+  /* Where a dragged tab or group will land: inside a group the slot is a tab of that group; a whole group's slot is the group. */
+  ${GROUP} [data-tab-reorder-slot] { height: 24px; border-radius: 8px; background: color-mix(in srgb, var(--group-color) 22%, transparent); box-shadow: none; }
+  ${WORKBENCH} .tab-strip [data-tab-reorder-slot].is-group {
+    height: 28px; max-width: none; border-radius: 10px;
+    background: color-mix(in srgb, var(--plugin-color) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--plugin-color) 34%, transparent);
+  }
+
   /* A person's group is named by a small solid label in its colour; unnamed, it is a dot. */
   ${GROUP} .tab-group-label, ${GROUP}[data-active="true"] .tab-group-label {
     height: 20px; min-width: 20px; margin: 0 2px; padding: 0 7px; gap: 0; border-radius: var(--r-tag, 6px);
@@ -65,6 +72,7 @@ export const TAB_GROUP_STYLES = `
     ${GROUP} .tab-item { height: 44px; border-radius: 12px; }
     ${GROUP} .tab-group-label { height: 44px; min-width: 44px; }
     ${WORKBENCH} .tab-undo-chip { height: 44px; }
+    ${GROUP} [data-tab-reorder-slot], ${WORKBENCH} .tab-strip [data-tab-reorder-slot].is-group { height: 44px; border-radius: 12px; }
   }
   @media (prefers-reduced-motion: reduce) {
     ${GROUP}, ${WORKBENCH} .tab-undo-chip { transition: none; animation: none; }

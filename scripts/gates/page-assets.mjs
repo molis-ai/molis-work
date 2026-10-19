@@ -235,13 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// Plugin tab groups (specs/plugin-tab-groups, 2026-10-18): a plugin's page becomes its tab and its tabs a coloured group.
-// The tab rules and the group client add 10,449 B to workbench.js and the group styles 2,330 B to workbench.css, after
+// User approved 2026-10-19: plugin tab groups (specs/plugin-tab-groups): a plugin's page becomes its tab and its tabs a coloured group.
+// The tab rules, the group client and the drag slot that opens and closes by width add 12,517 B to workbench.js and the group styles 3,090 B to workbench.css, after
 // the location chip, its drag path and its per-plugin tints were removed (−4,260 B on each stylesheet). Each increase is
 // spent once, from exactly these starts; later growth stays frozen. W5-01's spent 1,113,068 → 1,115,299 start is refused.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1115299, 1125748],
-  "/assets/molis-work-workbench.css": [1589812, 1592142],
+  "/assets/molis-work-workbench.js": [1115299, 1127816],
+  "/assets/molis-work-workbench.css": [1589812, 1592902],
   // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
   "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };

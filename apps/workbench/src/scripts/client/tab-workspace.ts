@@ -5,6 +5,7 @@ import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
+import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
@@ -432,7 +433,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (scrollPad) scrollPad.style.width = "0px";
     // Home and plugin tabs keep their names; the item tabs share what is left.
     const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="home"]):not([data-tab-kind="plugin"]):not(.is-tab-drag-source)')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
-    const slot = scroll.querySelector("[data-tab-reorder-slot]");
+    const slot = scroll.querySelector("[data-tab-reorder-slot]:not([data-tab-slot-leaving], .is-group)");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
     const clearShare = () => {
       scroll.style.removeProperty("--tab-share-width");
@@ -1700,34 +1701,15 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     sash.addEventListener("pointermove", move); sash.addEventListener("pointerup", end); sash.addEventListener("pointercancel", end);
   });
   let dragTab = null;
-  let reorderAnims = [];
   let reorderKey = "";
   const stripFor = (paneId) => {
     if (titlebarStrip && !titlebarStrip.hidden && titlebarStrip.dataset.chromePane === paneId) return titlebarStrip;
     return panesEl.querySelector('[data-tab-pane="' + paneId + '"] [data-tab-strip]');
   };
-  const reorderNodes = () => [...document.querySelectorAll(".tab-item:not(.is-tab-drag-source), [data-tab-reorder-slot]")];
-  const snapshotReorder = () => new Map(reorderNodes().map((node) => [node, node.getBoundingClientRect()]));
-  const playReorderFlip = (first) => {
-    reorderAnims.forEach((anim) => anim.cancel());
-    reorderAnims = [];
-    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
-    for (const node of reorderNodes()) {
-      const prev = first.get(node);
-      if (!prev) continue;
-      const dx = prev.left - node.getBoundingClientRect().left;
-      if (Math.abs(dx) < 1) continue;
-      reorderAnims.push(node.animate(
-        [{ transform: "translateX(" + dx + "px)" }, { transform: "translateX(0)" }],
-        { duration: reduce ? 0 : TAB_REORDER_MS, easing: TAB_REORDER_EASE },
-      ));
-    }
-  };
+  const dragSlot = (${TAB_DRAG_SLOT_FACTORY})({ ms: TAB_REORDER_MS, ease: TAB_REORDER_EASE });
   const removeReorderSlot = () => {
-    reorderAnims.forEach((anim) => anim.cancel());
-    reorderAnims = [];
     reorderKey = "";
-    document.querySelector("[data-tab-reorder-slot]")?.remove();
+    dragSlot.clear();
   };
   const hideDropPreview = () => {
     delete panesEl.dataset.splitDropPreview;
@@ -1762,33 +1744,38 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (!target?.paneId || !dragTab) { removeReorderSlot(); return; }
     const preview = tabIdsAfterMove(state, ops, dragTab.paneId, dragTab.tabId, target.paneId, target.beforeId, copy);
     const destStrip = stripFor(preview.paneId);
-    const sourceEl = document.querySelector('.tab-item[data-tab-id="' + dragTab.tabId + '"]');
+    const tabEl = document.querySelector('.tab-item[data-tab-id="' + dragTab.tabId + '"]');
+    const sourceEl = dragTab.members ? tabEl?.closest("[data-plugin-group]") : tabEl;
     if (!destStrip || !sourceEl) { removeReorderSlot(); return; }
     const key = [preview.paneId, preview.ids.join(","), preview.movingId, copy ? "copy" : "move"].join("|");
     if (key === reorderKey) return;
-    const first = snapshotReorder();
+    if (!copy && !sourceEl.classList.contains("is-tab-drag-source")) dragSlot.vacate(sourceEl);
     sourceEl.classList.toggle("is-tab-drag-source", !copy);
     document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
-    let slot = document.querySelector("[data-tab-reorder-slot]");
-    if (!slot) {
-      slot = document.createElement("span");
-      slot.dataset.tabReorderSlot = "";
-      slot.setAttribute("aria-hidden", "true");
-    }
-    slot.style.setProperty("--plugin-color", sourceEl.style.getPropertyValue("--plugin-color") || "var(--muted)");
-    const at = preview.ids.indexOf(preview.movingId), afterId = preview.ids[at + 1], beforeId = preview.ids[at - 1];
-    // A plugin's tab lands in its plugin's group, so the slot sits after its neighbour there.
+    const previous = document.querySelector("[data-tab-reorder-slot]:not([data-tab-slot-leaving])");
+    const slot = document.createElement("span");
+    slot.dataset.tabReorderSlot = "";
+    slot.setAttribute("aria-hidden", "true");
+    slot.style.setProperty("--plugin-color", sourceEl.closest(".tab-group")?.style.getPropertyValue("--group-color") || sourceEl.style.getPropertyValue("--plugin-color") || "var(--muted)");
+    if (dragTab.members) { slot.classList.add("is-group"); slot.style.width = dragTab.width + "px"; }
+    const ids = preview.ids, at = ids.indexOf(preview.movingId);
+    let next = at + 1;
+    while (dragTab.members && dragTab.members.includes(ids[next])) next += 1;
+    // A plugin's tab lands in its plugin's group, so the slot sits after its neighbour there; a whole group or a tab
+    // from outside lands between groups, never inside one.
     const moving = state.panes.flatMap((pane) => pane.tabs).find((tab) => tab.id === dragTab.tabId);
-    const before = ops.isLoose(moving) && beforeId && destStrip.querySelector('[data-plugin-group="' + moving.plugin + '"] .tab-item[data-tab-id="' + beforeId + '"]:not(.is-tab-drag-source)');
-    const after = !before && afterId && destStrip.querySelector('.tab-item[data-tab-id="' + afterId + '"]:not(.is-tab-drag-source)');
+    const loose = !dragTab.members && ops.isLoose(moving);
+    const before = loose && ids[at - 1] && destStrip.querySelector('[data-plugin-group="' + moving.plugin + '"] .tab-item[data-tab-id="' + ids[at - 1] + '"]:not(.is-tab-drag-source)');
+    let after = !before && ids[next] && destStrip.querySelector('.tab-item[data-tab-id="' + ids[next] + '"]:not(.is-tab-drag-source)');
+    if (after && !loose && after.closest("[data-plugin-group]")) after = after.closest("[data-plugin-group]");
     const pad = destStrip.querySelector("[data-tab-scroll-pad]");
     if (before) before.after(slot);
     else if (after) after.before(slot);
     else if (pad) pad.before(slot);
     else (destStrip.querySelector("[data-tab-scroll]") || destStrip).append(slot);
     reorderKey = key;
-    playReorderFlip(first);
     shareTabStrip(destStrip.querySelector("[data-tab-scroll]"));
+    dragSlot.open(slot, previous);
   };
   const paintDropPreview = (target, copy) => {
     if (target?.edge) {
@@ -1830,7 +1817,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (tab) dragTab.hoverBeforeId = beforeId;
       else beforeId = dragTab.hoverBeforeId;
     }
-    const groupWrap = event.target.closest("[data-tab-group]");
+    if (dragTab?.members && tab) {
+      // A whole group lands before or after another group, by which half of that group the pointer is over.
+      const wrap = tab.closest(".tab-group"), box = (wrap || tab).getBoundingClientRect(), pane = paneById(paneId);
+      const ids = wrap ? [...wrap.querySelectorAll(".tab-item[data-tab-id]")].map((node) => node.dataset.tabId) : [tab.dataset.tabId];
+      beforeId = event.clientX < box.left + box.width / 2 ? ids[0] : pane?.tabs[pane.tabs.findIndex((item) => item.id === ids.at(-1)) + 1]?.id;
+      dragTab.hoverBeforeId = beforeId;
+    }
+    const groupWrap = !dragTab?.members && event.target.closest("[data-tab-group]");
     const groupId = groupWrap && !groupWrap.hasAttribute("data-pinned-group") ? groupWrap.dataset.tabGroup : null;
     if (groupId && !tab) {
       const pane = paneById(paneId);
@@ -1853,18 +1847,23 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     });
     surface.addEventListener("dragstart", (event) => {
       const tab = event.target.closest("[data-tab-id]"); if (!tab) return;
-      dragTab = {
-        paneId: tab.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane || state.focusedPaneId,
-        tabId: tab.dataset.tabId,
-        width: Math.round(tab.getBoundingClientRect().width) || 172,
-        hoverBeforeId: undefined,
-      };
+      // A plugin's tab carries its whole group.
+      const group = tab.dataset.tabKind === "plugin" ? tab.closest("[data-plugin-group]") : null, source = group || tab;
+      const paneId = tab.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane || state.focusedPaneId;
+      const members = group ? [...group.querySelectorAll(".tab-item[data-tab-id]")].map((node) => node.dataset.tabId) : null;
+      const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
+      const box = source.getBoundingClientRect();
+      // The first preview is the place the drag started from, so nothing moves until the pointer does.
+      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
-      const ghost = tab.cloneNode(true);
-      ghost.setAttribute("aria-hidden", "true");
-      ghost.style.cssText = "position:absolute;top:-1000px;left:0;width:" + dragTab.width + "px;margin:0;";
+      const ghost = document.createElement("nav");
+      ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
+      ghost.style.cssText = "position:absolute;top:-1000px;left:0;width:auto;height:auto;margin:0;padding:0;border:0;background:transparent;";
+      const copyNode = source.cloneNode(true);
+      copyNode.style.width = dragTab.width + "px"; copyNode.style.margin = "0";
+      ghost.append(copyNode);
       document.body.append(ghost);
-      try { event.dataTransfer.setDragImage(ghost, Math.min(event.offsetX || 24, dragTab.width), Math.min(event.offsetY || 12, 20)); } catch {}
+      try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
       root.classList.add("is-tab-dragging");
       document.body.classList.add("is-tab-dragging");
@@ -1888,7 +1887,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         if (target.edge) ops.splitPane(state, target.paneId, target.edge, copy ? "copy" : "move", dragTab.paneId, dragTab.tabId);
         else {
           ops.moveTab(state, dragTab.paneId, dragTab.tabId, target.paneId, target.beforeId, copy);
-          if (target.groupId) ops.addTabToGroup(state, target.paneId, ops.activeTab(state)?.id, target.groupId);
+          if (target.groupId && !dragTab.members) ops.addTabToGroup(state, target.paneId, ops.activeTab(state)?.id, target.groupId);
         }
       }
       finishDrag(); apply(); persist();

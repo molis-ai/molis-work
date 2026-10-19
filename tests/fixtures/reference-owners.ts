@@ -61,5 +61,5 @@ export async function referenceOwners(t: import("node:test").TestContext) {
   actions.registerProvider({ provider: { provider_id: "pages", plugin_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, ...owner(pages, "page", pageReader, pageEntries) });
   const other = new Map<string, Doc>([["gb", { id: "gb", title: "B 项目的试用", body: "试用", version: 1 }]]);
   actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: "b" }, ...owner(other, "goal", goalReader, goalEntries) });
-  return { actions, search, goals, pages, access: (caller: ActionCallContext) => ({ client: actions, caller }) };
+  return { home, index, actions, search, goals, pages, access: (caller: ActionCallContext) => ({ client: actions, caller }) };
 }

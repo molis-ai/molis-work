@@ -124,6 +124,12 @@ function snippetOf(original: string, around: number | null, ranges: Array<[numbe
 
 export interface TextSearchIndexOptions { homeDirectory: string }
 
+function inTransaction<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const value = run(); db.exec("COMMIT"); return value; }
+  catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
+}
+
 /** Open (or create) the Home's search index. A missing, corrupt or outdated index is rebuilt empty. */
 export function openTextSearchIndex(options: TextSearchIndexOptions): SearchIndexPort {
   const path = homeSqlitePath(options.homeDirectory, TEXT_SEARCH_STORE);
@@ -160,11 +166,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     db.prepare("INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
   }
 
-  const transaction = <T>(run: () => T): T => {
-    db.exec("BEGIN IMMEDIATE");
-    try { const value = run(); db.exec("COMMIT"); return value; }
-    catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
-  };
+  const transaction = <T>(run: () => T): T => inTransaction(db, run);
   const fromSource = (row: Row): SearchIndexSourceRecord => ({ source_key: str(row.source_key), project_id: nullable(row.project_id), provider_id: str(row.provider_id),
     capability_id: str(row.capability_id), version: Number(row.version), plugin_id: str(row.plugin_id), title: str(row.title),
     collection_revision: nullable(row.collection_revision), state: str(row.state) as SearchIndexSourceRecord["state"], error: nullable(row.error),
@@ -230,6 +232,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       const row = db.prepare("SELECT * FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?").get(key, kind, objectId) as Row | undefined;
       return row ? fromDocument(row) : null;
     },
+    documents: projectId => (db.prepare("SELECT * FROM search_documents WHERE project_id = ? ORDER BY doc_id").all(projectId) as Row[]).map(fromDocument),
     search: (input: SearchIndexQuery) => {
       const plan = searchQueryPlan(input.query);
       const allowed = input.sources.filter((source, index, all) => all.findIndex(other => other.source_key === source.source_key) === index);

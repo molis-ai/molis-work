@@ -1,5 +1,8 @@
 import type { KnowledgeSection } from "@molis-ai/molis-work-contracts/services/knowledge";
 
+/** A section as the text has it; its note, if any, comes from the card. */
+export type TextSection = Omit<KnowledgeSection, "summary">;
+
 /** Text without headings is cut into sections of about this many characters, at paragraph breaks. */
 export const PLAIN_SECTION_CHARS = 2_000;
 const HEADING = /^(#{1,6})[ \t]+(.+?)[ \t#]*$/u;
@@ -23,8 +26,8 @@ function headings(content: string): Array<{ start: number; level: number; title:
 }
 
 /** Cuts heading-less text at the last paragraph break before each limit, else at the limit. */
-function plainSections(content: string): KnowledgeSection[] {
-  const sections: KnowledgeSection[] = [];
+function plainSections(content: string): TextSection[] {
+  const sections: TextSection[] = [];
   for (let start = 0; start < content.length;) {
     let end = Math.min(content.length, start + PLAIN_SECTION_CHARS);
     const near = content.lastIndexOf("\n\n", end);
@@ -39,10 +42,10 @@ function plainSections(content: string): KnowledgeSection[] {
  * The sections of a piece as written: one per Markdown heading (the text before the first one is its own section), or
  * paragraph-aligned pieces when it has none. Anchors name a section within one revision of the text only.
  */
-export function outlineOf(content: string): KnowledgeSection[] {
+export function outlineOf(content: string): TextSection[] {
   const marks = headings(content);
   if (!marks.length) return plainSections(content);
-  const sections: KnowledgeSection[] = [];
+  const sections: TextSection[] = [];
   if (marks[0]!.start > 0 && content.slice(0, marks[0]!.start).trim()) sections.push({ anchor: "h0", title: firstLine(content), level: 0, start: 0, length: marks[0]!.start });
   marks.forEach((mark, index) => {
     const end = marks[index + 1]?.start ?? content.length;

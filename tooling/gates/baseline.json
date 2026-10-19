@@ -1,5 +1,5 @@
 {
-  "giantUnits": 128,
+  "giantUnits": 127,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -181,7 +181,6 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 377,

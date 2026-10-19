@@ -39,9 +39,9 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
 export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id">): boolean {
   if (view.provider.kind === "system" && view.action.permissions.length === 0) return true;
   if (actionClientAudience(caller.actor_id) !== "agent" || !caller.project_id) return false;
+  if (view.operation !== "query" || view.action.kind !== "query") return false;
   if (view.provider.provider_id === KNOWLEDGE_PROVIDER_ID && view.provider.kind === "system") return true;
-  return view.operation === "query" && view.action.kind === "query" && view.provider.project_id === caller.project_id
-    && (isSubjectReader(view.action) || isSearchEntriesSource(view.action));
+  return view.provider.project_id === caller.project_id && (isSubjectReader(view.action) || isSearchEntriesSource(view.action));
 }
 
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */

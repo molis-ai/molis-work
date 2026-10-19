@@ -1,11 +1,14 @@
 import {
   ActionError,
+  isSearchEntriesSource,
+  isSubjectReader,
   resolveActionSubject,
   retainActionAuthority,
   type ActionCallContext,
   type ActionClient,
   type ActionSubject,
   type ActionSubjectContext,
+  type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_GREP_MAX_SUBJECTS,
@@ -14,6 +17,8 @@ import {
   KNOWLEDGE_READ_MAX_CHARS,
   knowledgeActions,
   type KnowledgeCard,
+  type KnowledgeCardRecord,
+  type KnowledgeCardStorePort,
   type KnowledgeGrepRequest,
   type KnowledgeGrepResponse,
   type KnowledgeOutline,
@@ -23,12 +28,15 @@ import {
   type KnowledgeSearchRequest,
   type KnowledgeSearchResponse,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
-import type { SearchQueryRequest, SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
 import { knowledgeErrors } from "./errors.js";
 import { grepLines, outlineOf, rangeOf } from "./text.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
+export { KnowledgeOrganizer, knowledgeCatalog, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
+  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
+export { KnowledgeCards } from "./manage.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-knowledge",
@@ -47,6 +55,8 @@ export interface KnowledgeAccess { client: ActionClient; caller: ActionCallConte
 export interface KnowledgeServiceOptions {
   /** The system search, asked with the same access; it answers only from sources the caller may read. */
   search(access: KnowledgeAccess, input: SearchQueryRequest): Promise<SearchQueryResponse>;
+  /** The cards organizing wrote and the person edited (spec §5). */
+  cards: KnowledgeCardStorePort;
 }
 
 const DEFAULT_CARDS = 10;
@@ -55,6 +65,29 @@ const DEFAULT_GREP_LIMIT = 30;
 const REASON_CHARS = 200;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS);
+
+/**
+ * Whether a caller may be shown a card, by the rule the system search applies to its index (system-search §5): the source
+ * that lists the piece is in the caller's directory now, and when the card was written from the piece's text, the caller can
+ * also read that kind from its owner.
+ */
+function visibility(views: readonly ActionView[], caller: KnowledgeAccess["caller"]): (card: KnowledgeCardRecord) => boolean {
+  const listed = new Map<string, Set<string>>(), readable = new Map<string, Set<string>>();
+  for (const view of views) {
+    if (!view.availability.available) continue;
+    if (isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length) {
+      const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
+      listed.set(searchSourceKey({ project_id, provider_id: view.provider.provider_id, capability_id: view.capability_id, version: view.version }),
+        new Set(view.action.search_source.kinds.map(entry => entry.kind)));
+    }
+    if (isSubjectReader(view.action)) {
+      const kinds = readable.get(view.provider.provider_id) ?? new Set<string>();
+      for (const kind of view.action.subject_kinds) kinds.add(kind);
+      readable.set(view.provider.provider_id, kinds);
+    }
+  }
+  return card => !!listed.get(card.source_key)?.has(card.subject.kind) && (card.content_policy === "summary" || !!readable.get(card.provider_id)?.has(card.subject.kind));
+}
 
 /**
  * Project knowledge (specs/project-knowledge): finds pieces through the system search and reads them from their owners, always
@@ -68,15 +101,35 @@ export class KnowledgeService {
     const limit = Math.min(30, Math.max(1, input.limit ?? DEFAULT_CARDS));
     const found = await this.options.search(access, { query: input.query, scope: "project", limit,
       ...(input.kinds?.length ? { kinds: input.kinds } : {}), ...(input.plugins?.length ? { plugins: input.plugins } : {}) });
-    const cards: KnowledgeCard[] = found.hits.filter(hit => hit.project_id === project).map(hit => ({ subject: hit.subject, revision: hit.revision, title: hit.title,
-      plugin_id: hit.plugin_id, plugin_title: hit.plugin_title, updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), open: hit.open }));
+    const cards: KnowledgeCard[] = [];
+    for (const hit of found.hits) {
+      if (hit.project_id !== project) continue;
+      const stored = this.stored(project, hit.subject, hit.plugin_id);
+      if (stored?.excluded) continue;
+      cards.push({ subject: hit.subject, revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
+        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
+    }
+    // What only a card's own words match (its brief, keywords, section notes), for a caller who may see the piece.
+    const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
+      .filter((card): card is KnowledgeCardRecord => !!card && !card.excluded && card.state !== "missing" && !cards.some(item => sameSubject(item.subject, card.subject))
+        && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
+    if (more.length && cards.length < limit) {
+      const visible = visibility(await access.client.discover(access.caller), access.caller);
+      for (const card of more.filter(visible).slice(0, limit - cards.length)) {
+        cards.push({ subject: card.subject, revision: card.revision, title: card.title, plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at,
+          matched: "card", hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
+      }
+    }
     return { status: found.status, cards };
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
     const context = await this.owner(access, input.subject, knowledgeActions.outline);
+    const card = this.stored(access.caller.project_id!, context.subject);
+    // Section notes are for this very text only: a card organized from another revision says nothing about it.
+    const notes = new Map(card?.organized_revision === context.revision ? card.outline.map(note => [note.anchor, note.summary]) : []);
     return { subject: context.subject, revision: context.revision, title: context.title, length: context.content.length, owner_truncated: context.truncated,
-      sections: outlineOf(context.content) };
+      sections: outlineOf(context.content).map(section => ({ ...section, summary: notes.get(section.anchor) ?? null })) };
   }
 
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
@@ -109,6 +162,12 @@ export class KnowledgeService {
     return result;
   }
 
+  /** The piece's card, when there is one for that owner. */
+  private stored(project: string, subject: ActionSubject, pluginId?: string): KnowledgeCardRecord | null {
+    const card = this.options.cards.get(project, subject);
+    return card && (pluginId === undefined || card.plugin_id === pluginId) ? card : null;
+  }
+
   /** The caller's own project; knowledge has no personal or cross-project scope. */
   private project(access: KnowledgeAccess): string {
     if (!access.caller.project_id) throw knowledgeErrors.scope("项目资料只能在项目里读取");
@@ -117,7 +176,8 @@ export class KnowledgeService {
 
   /** The piece as its owner has it now for this caller; an owner's refusal keeps its own code. */
   private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
-    this.project(access);
+    const project = this.project(access);
+    if (this.stored(project, subject)?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
     const caller = retainActionAuthority(access.caller, { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
       const { context } = await resolveActionSubject(access.client, caller, subject);

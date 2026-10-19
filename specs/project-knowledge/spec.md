@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0 在分支 `docs/project-materials` 实现中，进度见 §14。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0 已在分支 `docs/project-materials` 本地提交，K1（卡片与大纲整理）在同一分支实现中，进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -154,6 +154,7 @@
 | `knowledge.read` | subject、可选节锚点或行区间、字数上限 | 原文段（标明这是原文）、实际读到的版本或指纹、是否截断 | L2/L3；超上限分页 |
 | `knowledge.grep` | 正则或关键字、可选范围（某份资料、某个来源、工作区路径前缀） | 命中行与前后几行、出处 | 精确查找；工作区文件主要靠它 |
 | `knowledge.glob` | 路径模式 | 工作区文件路径列表 | 只在项目授权的工作区里 |
+| `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize` | 管理页用：列卡片与额度；改标题、简介、关键词或采用建议；设「不给 Agent 用」；重新整理（可确认超额） | 卡片记录、额度 | 只对本人（audience `user`），权限 `knowledge:manage`；不默认开放给 Agent |
 
 存量 Agent 怎样拿到这些工具：
 
@@ -286,3 +287,24 @@
 - Coding 一轮开始时多问一次 `agent.listActions`（运行时不支持动作工具时它返回空），所以各 Coding HTTP 测试的假宿主都补了这一项的回答（空目录）。
 - 测试（`pnpm build` 后）：`tests/knowledge-service.test.ts`（8 个，含 PMAT-24）、`tests/security-invariants-knowledge.test.ts`（S-41，4 个）、`tests/mcp-action-grants.test.ts`、`tests/agent-definitions.test.ts`（PMAT-25）、`tests/action-contract-snapshot.test.ts`、健康门禁的错误与 API 快照用例、全部 73 个 Coding 用例通过；`affected-tests` 给出的 152 个文件中其余 147 个通过。`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、根 `tsc --noEmit` 通过。
 - 还没有测试的：PMAT-23。
+
+### K1（2026-10-19，同一分支，未推送）
+
+- 卡片存在 Home 的 `knowledge/knowledge.db`（`packages/storage/src/adapters/knowledge-cards.ts`，基线 1，已登记进 Home 存储表、`docs/releases/CHECKLIST.md` 各库版本表与 `docs/system/HOME-DATA.md`）：每份资料一张卡片，含标题、简介、关键词、每节一句摘要、人改过哪些字段、整理给的新建议、「不给 Agent 用」，以及每个项目每天的整理用量。卡片自己的文字另有一份全文索引（与系统搜索同样的切词），不存资料正文。
+- 目录 = 系统搜索索引里这个项目的条目（`SearchIndexPort.documents`，合同新增一个方法）。整理器 `KnowledgeOrganizer`（`horizontal/knowledge/src/organize.ts`）先对照目录建卡、按 revision 判断要不要重新整理，再一份一份交给项目的文字模型（注册提示词 `knowledge.organize` v1，`apps/local-host/src/agent-definitions/system-prompts.ts`）。触发：`knowledge.search` 之后、插件的命令成功后（搜索宿主的 `changed`），都延迟 2 秒合并成一次；以及管理动作 `knowledge.organize`。
+- 为什么不改 `SearchService`：它已是巨大单元（403 行、26 个方法），门禁不许变大；所以目录直接读索引，触发挂在搜索宿主上。
+- `summary` 可见度的资料（含当时读不到正文、只按标题与摘要入索引的）只列出、不送模型（PMAT-04）；它的卡片用主人给的标题与摘要。
+- 长文（≥2000 字且有 ≥2 节）才写大纲；超过 12000 字只送每节开头。`knowledge.outline` 的每节摘要只在卡片整理自同一 revision 时给出，否则为空。
+- 人改过的字段，原文变了重新整理也不覆盖，模型的新写法放进 `suggestion`，`knowledge.card.edit` 的 `adopt` 采用（PMAT-07）。资料离开目录时，没被人动过的卡片删掉，人改过或设了「不给 Agent 用」的标为 `missing`，资料回来时接上。
+- 「不给 Agent 用」：查找不返回，读取、分节、逐行查找都拒绝（`knowledge.excluded`，PMAT-08）。人手选的拒绝要等 K2 的统一选择器。
+- 额度（Q3）：先定每个项目每天 100 份、60 万字，用完停在 `over_quota` 等人确认；确认一次多给一天的量（PMAT-16）。数字要在 MiniMax 实走一批真实资料后再定。
+- 默认开放的规则收紧为只开放 `system.knowledge` 的查询动作；管理动作只对本人。
+- 卡片靠自己的文字被找到时，只给此刻能看到那个来源、且（卡片整理自正文时）能读那类对象的调用者，与系统搜索同一条规则（S-41 补了拒绝用例）。
+- 删除项目时由 `knowledge` 这一项（删除确认里写「项目资料的卡片与整理记录」）按 `project_id` 清掉卡片与用量，任何进程都能做。
+- 这一期没做、原因：
+  - 每轮读取总字数上限（PMAT-11）：调用上下文里没有可信的「这一轮」标识（只有 `runtime_session_id`），要先给动作调用上下文加一个由宿主填的轮次标识，是平台合同改动，单独做。
+  - 使用回执（PMAT-12）：随 K2 管理页一起做。
+  - 读取器按范围读（§4.4）：超过 32000 字的资料仍只读得到前 32000 字。
+  - L2 分节「前缀」：现在用每节一句摘要代替，向量召回（K4）时再看要不要单独生成。
+  - 用 MiniMax 在隔离 Home 实走一批真实资料：还没跑。
+- 测试：`tests/knowledge-cards.test.ts`（10 个：PMAT-01、04、05、06×2、07×2、08、16×2）；`tests/security-invariants-knowledge.test.ts` 加了 S-41/PMAT-03 卡片可见性的拒绝用例；`tests/knowledge-service.test.ts`、`tests/security-invariants-knowledge.test.ts`、`tests/mcp-action-grants.test.ts` 随之更新并通过。

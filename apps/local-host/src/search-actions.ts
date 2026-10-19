@@ -6,7 +6,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
-import { knowledgeProvider } from "./knowledge-actions.js";
+import { createKnowledgeHost } from "./knowledge-actions.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
@@ -76,11 +76,12 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
   ];
   // Project knowledge reads through this search, so it is registered and withdrawn with it (specs/project-knowledge).
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
-    knowledgeProvider(service, clientFor)].map(registration => ports.registry.registerProvider(registration));
+    knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;
   // A deleted project's entries leave the index with it; the index is derived, so this needs no label in the dialog.
-  projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); } });
+  projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); } });
   const read = async (projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]) => {
     const reference = ports.project(projectId);
     if (!reference) return picked.map(() => null);
@@ -88,11 +89,11 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
   };
   return {
     service,
-    changed: (providerId, projectId) => service.markChanged(providerId, projectId),
+    changed: (providerId, projectId) => { service.markChanged(providerId, projectId); knowledge.changed(projectId); },
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
-    projectDeleted: projectId => { service.removeProject(projectId); },
+    projectDeleted: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); },
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
-    close: async () => { closed = true; for (const dispose of disposers) dispose(); await service.close(); index.close(); },
+    close: async () => { closed = true; for (const dispose of disposers) dispose(); await knowledge.close(); await service.close(); index.close(); },
   };
 }

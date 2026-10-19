@@ -238,6 +238,8 @@ export interface SearchIndexPort {
   upsert(documents: readonly SearchIndexDocument[]): void;
   remove(sourceKey: string, keys: readonly { kind: string; object_id: string }[]): void;
   document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
+  /** Every document indexed for one project: the catalog project knowledge organizes (specs/project-knowledge §5). */
+  documents(projectId: string): SearchIndexDocument[];
   search(query: SearchIndexQuery): { matches: SearchIndexMatch[]; total: number };
   clear(): number;
   close(): void;

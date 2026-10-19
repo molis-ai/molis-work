@@ -17,15 +17,17 @@ export const servicesKnowledgeContract = {
 
 export const KNOWLEDGE_PROVIDER_ID = "system.knowledge";
 export const KNOWLEDGE_READ_PERMISSION = "knowledge:read";
-export const KNOWLEDGE_PERMISSIONS = [KNOWLEDGE_READ_PERMISSION] as const;
+/** Editing cards, keeping a piece from agents, and asking for organizing: the person's own. */
+export const KNOWLEDGE_MANAGE_PERMISSION = "knowledge:manage";
+export const KNOWLEDGE_PERMISSIONS = [KNOWLEDGE_READ_PERMISSION, KNOWLEDGE_MANAGE_PERMISSION] as const;
 /** Most text one `knowledge.read` returns; a longer piece is read page by page with `offset`. */
 export const KNOWLEDGE_READ_MAX_CHARS = 12_000;
 export const KNOWLEDGE_READ_DEFAULT_CHARS = 6_000;
 /** Most objects one `knowledge.grep` reads. */
 export const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
 
-/** Which layer a card was found in: its title, the summary its owner allows, or its text. */
-export type KnowledgeMatchLayer = "title" | "summary" | "content";
+/** Which layer a card was found in: its title, the summary its owner allows, its text, or what organizing wrote on its card. */
+export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
 /**
  * One piece of knowledge as search found it: enough to decide whether to read further, never a quotable passage.
  * `hint` is a short window around the match; what the piece says is read with `knowledge.read`.
@@ -39,6 +41,9 @@ export interface KnowledgeCard {
   updated_at: string | null;
   matched: KnowledgeMatchLayer;
   hint: string;
+  /** One or two sentences organizing wrote (or the person edited), to decide whether to read on; null before organizing. Not the piece's text. */
+  brief: string | null;
+  keywords: string[];
   open: SearchOpenTarget | null;
 }
 export interface KnowledgeSearchRequest { query: string; kinds?: string[]; plugins?: string[]; limit?: number }
@@ -48,8 +53,11 @@ export interface KnowledgeSearchResponse {
   cards: KnowledgeCard[];
 }
 
-/** A section of a piece: its heading as written, where it starts in the text and how long it is. */
-export interface KnowledgeSection { anchor: string; title: string; level: number; start: number; length: number }
+/**
+ * A section of a piece: its heading as written, where it starts in the text and how long it is. `summary` is the one line
+ * organizing wrote for it when the card was organized from this same revision; it is for choosing what to read, not the text.
+ */
+export interface KnowledgeSection { anchor: string; title: string; level: number; start: number; length: number; summary: string | null }
 export interface KnowledgeOutlineRequest { subject: ActionSubject }
 export interface KnowledgeOutline {
   subject: ActionSubject;
@@ -86,16 +94,91 @@ export interface KnowledgeGrepResponse {
   unread: Array<{ subject: ActionSubject; reason: string }>;
 }
 
+/* ---- cards: what organizing writes on a piece, and the person's edits (spec §5) ---- */
+
+export const KNOWLEDGE_CARD_MAX_KEYWORDS = 10;
+export const KNOWLEDGE_KEYWORD_MAX_CHARS = 30;
+export const KNOWLEDGE_TITLE_MAX_CHARS = 120;
+export const KNOWLEDGE_BRIEF_MAX_CHARS = 300;
+export const KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS = 200;
+
+/**
+ * Where a card stands. `pending` waits for organizing; `listed` is a piece whose owner lets only its title and summary out
+ * (nothing of its text goes to a model); `over_quota` waits for the person to confirm more organizing today; `missing` is an
+ * edited or kept-back card whose piece is not in the catalog now (it comes back with the piece).
+ */
+export type KnowledgeCardState = "pending" | "ready" | "listed" | "failed" | "over_quota" | "missing";
+export const KNOWLEDGE_CARD_STATES = ["pending", "ready", "listed", "failed", "over_quota", "missing"] as const satisfies readonly KnowledgeCardState[];
+export type KnowledgeEditableField = "title" | "brief" | "keywords";
+export interface KnowledgeCardFields { title: string; brief: string; keywords: string[] }
+export interface KnowledgeSectionNote { anchor: string; title: string; summary: string }
+/**
+ * One piece's card. It is a pointer for finding the piece, never its content. Fields a person edited (`edited`) are the
+ * person's words: organizing a newer revision does not overwrite them and puts what it would write in `suggestion`.
+ */
+export interface KnowledgeCardRecord extends KnowledgeCardFields {
+  project_id: string;
+  subject: ActionSubject;
+  /** The search source that lists the piece, and what its owner lets out (`summary`: only title and summary). */
+  source_key: string;
+  provider_id: string;
+  plugin_id: string;
+  plugin_title: string;
+  content_policy: "context" | "summary";
+  /** The owner's revision in the catalog now, and the one the card was organized from (null before the first time). */
+  revision: string;
+  organized_revision: string | null;
+  state: KnowledgeCardState;
+  outline: KnowledgeSectionNote[];
+  edited: KnowledgeEditableField[];
+  suggestion: Partial<KnowledgeCardFields> | null;
+  /** Kept from agents by the person: not found, not read, not picked. */
+  excluded: boolean;
+  error: string | null;
+  updated_at: string | null;
+  organized_at: string | null;
+  open: SearchOpenTarget | null;
+}
+/** Organizing done in one project on one day, against the day's allowance (spec §5.2, Q3). */
+export interface KnowledgeUsage { day: string; pieces: number; chars: number; extra_pieces: number; extra_chars: number }
+export interface KnowledgeQuota { day: string; used_pieces: number; used_chars: number; limit_pieces: number; limit_chars: number; reached: boolean }
+export interface KnowledgeCardMatch { subject: ActionSubject; field: "title" | "card" }
+
+/** The service's own records, kept in the Home's `knowledge` store. Implemented by `@molis-ai/molis-work-storage`. */
+export interface KnowledgeCardStorePort {
+  get(projectId: string, subject: ActionSubject): KnowledgeCardRecord | null;
+  list(projectId: string): KnowledgeCardRecord[];
+  put(record: KnowledgeCardRecord): void;
+  remove(projectId: string, subject: ActionSubject): void;
+  removeProject(projectId: string): number;
+  /** Cards whose title, brief, keywords or section notes hold every term of the query, best first. */
+  search(projectId: string, query: string, limit: number): KnowledgeCardMatch[];
+  usage(projectId: string, day: string): KnowledgeUsage;
+  addUsage(projectId: string, day: string, delta: Partial<Omit<KnowledgeUsage, "day">>): void;
+  close(): void;
+}
+
+export interface KnowledgeCardsRequest { states?: KnowledgeCardState[]; limit?: number; offset?: number }
+export interface KnowledgeCardsResponse { cards: KnowledgeCardRecord[]; total: number; quota: KnowledgeQuota }
+/** Edit a card; `adopt` takes organizing's suggestion for those fields instead (and they become organizing's again). */
+export interface KnowledgeEditRequest { subject: ActionSubject; title?: string; brief?: string; keywords?: string[]; adopt?: KnowledgeEditableField[] }
+export interface KnowledgeExcludeRequest { subject: ActionSubject; excluded: boolean }
+/** Organize these pieces again (all of the project's when none are named); `confirm_over_quota` allows one more day's worth. */
+export interface KnowledgeOrganizeRequest { subjects?: ActionSubject[]; confirm_over_quota?: boolean }
+export interface KnowledgeOrganizeResponse { queued: number; quota: KnowledgeQuota }
+
 const text = { type: "string" };
 const nullableText = { type: ["string", "null"] };
 const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_.:-]+$" };
 const count = { type: "integer", minimum: 0 };
 const queryText = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" };
+const keywords = { type: "array", maxItems: KNOWLEDGE_CARD_MAX_KEYWORDS, items: { type: "string", minLength: 1, maxLength: KNOWLEDGE_KEYWORD_MAX_CHARS } };
+const openTarget = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 const card = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, plugin_id: text, plugin_title: text, updated_at: nullableText,
-  matched: { enum: ["title", "summary", "content"] }, hint: text, open: { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] } },
-  required: ["subject", "revision", "title", "plugin_id", "plugin_title", "updated_at", "matched", "hint", "open"], additionalProperties: false };
-const section = { type: "object", properties: { anchor: text, title: text, level: { type: "integer", minimum: 0, maximum: 6 }, start: count, length: count },
-  required: ["anchor", "title", "level", "start", "length"], additionalProperties: false };
+  matched: { enum: ["title", "summary", "content", "card"] }, hint: text, brief: nullableText, keywords, open: openTarget },
+  required: ["subject", "revision", "title", "plugin_id", "plugin_title", "updated_at", "matched", "hint", "brief", "keywords", "open"], additionalProperties: false };
+const section = { type: "object", properties: { anchor: text, title: text, level: { type: "integer", minimum: 0, maximum: 6 }, start: count, length: count, summary: nullableText },
+  required: ["anchor", "title", "level", "start", "length", "summary"], additionalProperties: false };
 const lines = { type: "array", items: text };
 
 const metadata = {
@@ -131,4 +214,40 @@ export const knowledgeActions = {
       text, before: lines, after: lines }, required: ["subject", "revision", "line", "text", "before", "after"], additionalProperties: false } }, more: { type: "boolean" },
       unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } } },
       required: ["matches", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
+};
+
+const cardRecord = { type: "object", properties: { project_id: text, subject: ACTION_SUBJECT_SCHEMA, source_key: text, provider_id: text, plugin_id: text, plugin_title: text,
+  content_policy: { enum: ["context", "summary"] }, revision: text, organized_revision: nullableText, state: { enum: [...KNOWLEDGE_CARD_STATES] }, title: text, brief: text, keywords,
+  outline: { type: "array", items: { type: "object", properties: { anchor: text, title: text, summary: text }, required: ["anchor", "title", "summary"], additionalProperties: false } },
+  edited: { type: "array", items: { enum: ["title", "brief", "keywords"] } },
+  suggestion: { anyOf: [{ type: "null" }, { type: "object", properties: { title: text, brief: text, keywords }, additionalProperties: false }] },
+  excluded: { type: "boolean" }, error: nullableText, updated_at: nullableText, organized_at: nullableText, open: openTarget },
+  required: ["project_id", "subject", "source_key", "provider_id", "plugin_id", "plugin_title", "content_policy", "revision", "organized_revision", "state", "title", "brief",
+    "keywords", "outline", "edited", "suggestion", "excluded", "error", "updated_at", "organized_at", "open"], additionalProperties: false };
+const quota = { type: "object", properties: { day: text, used_pieces: count, used_chars: count, limit_pieces: count, limit_chars: count, reached: { type: "boolean" } },
+  required: ["day", "used_pieces", "used_chars", "limit_pieces", "limit_chars", "reached"], additionalProperties: false };
+const editable = { type: "array", minItems: 1, maxItems: 3, uniqueItems: true, items: { enum: ["title", "brief", "keywords"] } };
+const manage = { kind: "operation" as const, scope: "project" as const, effect: "write" as const, subject_kinds: [] as string[], audiences: ["user"] as ("user")[],
+  permissions: [KNOWLEDGE_MANAGE_PERMISSION] };
+
+/** The person's management of cards (spec §8.3): user only; agents find and read through `knowledgeActions`. Registered with them as `system.knowledge`. */
+export const knowledgeManageActions = {
+  cards: { capability_id: "knowledge.cards", version: 1, operation: "query", action: { ...manage, kind: "query" as const, effect: "read" as const,
+    title: "列出资料卡片", description: "列出当前项目每份资料的卡片、整理状态和今天的整理额度，供管理页使用。",
+    input_schema: { type: "object", properties: { states: { type: "array", maxItems: KNOWLEDGE_CARD_STATES.length, items: { enum: [...KNOWLEDGE_CARD_STATES] } },
+      limit: { type: "integer", minimum: 1, maximum: 200 }, offset: count }, additionalProperties: false },
+    output_schema: { type: "object", properties: { cards: { type: "array", items: cardRecord }, total: count, quota }, required: ["cards", "total", "quota"], additionalProperties: false } } } as ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>,
+  edit: { capability_id: "knowledge.card.edit", version: 1, operation: "command", action: { ...manage,
+    title: "编辑资料卡片", description: "改一份资料卡片的标题、简介或关键词；改过的字段以后重新整理也不会被覆盖。也可以采用整理给出的新建议。",
+    input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string", minLength: 1, maxLength: KNOWLEDGE_TITLE_MAX_CHARS, pattern: "\\S" },
+      brief: { type: "string", maxLength: KNOWLEDGE_BRIEF_MAX_CHARS }, keywords, adopt: editable }, required: ["subject"], additionalProperties: false },
+    output_schema: cardRecord } } as ActionDefinition<KnowledgeEditRequest, KnowledgeCardRecord>,
+  exclude: { capability_id: "knowledge.card.exclude", version: 1, operation: "command", action: { ...manage,
+    title: "设置资料是否给 Agent 用", description: "不给 Agent 用的资料仍在资料列表里，但查找不会返回它，读取会被拒绝。",
+    input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, excluded: { type: "boolean" } }, required: ["subject", "excluded"], additionalProperties: false },
+    output_schema: cardRecord } } as ActionDefinition<KnowledgeExcludeRequest, KnowledgeCardRecord>,
+  organize: { capability_id: "knowledge.organize", version: 1, operation: "command", action: { ...manage,
+    title: "重新整理资料", description: "把指定的资料（不指定就是全部）排进整理队列，由项目的文字模型重写卡片与大纲；人改过的字段不覆盖。今天的额度用完时，确认后再整理一天的量。",
+    input_schema: { type: "object", properties: { subjects: { type: "array", maxItems: 200, items: ACTION_SUBJECT_SCHEMA }, confirm_over_quota: { type: "boolean" } }, additionalProperties: false },
+    output_schema: { type: "object", properties: { queued: count, quota }, required: ["queued", "quota"], additionalProperties: false } } } as ActionDefinition<KnowledgeOrganizeRequest, KnowledgeOrganizeResponse>,
 };

@@ -87,6 +87,7 @@ export interface SearchIndexPort {
         object_id: string;
     }[]): void;
     document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
+    documents(projectId: string): SearchIndexDocument[];
     search(query: SearchIndexQuery): {
         matches: SearchIndexMatch[];
         total: number;

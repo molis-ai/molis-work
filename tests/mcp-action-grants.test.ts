@@ -149,6 +149,8 @@ test("PMAT-24 the built-in Agent holds project knowledge without a grant record,
   const empty = { version: 2 as const, action_grants: [] };
   assert.deepEqual([openByDefault(knowledge, agent), openByDefault(reader("a"), agent)], [true, true]);
   assert.equal(openByDefault(writer, agent), false, "a write still needs its own grant");
+  const manage: ActionView = { ...knowledge, capability_id: "knowledge.card.edit", operation: "command", action: { ...knowledge.action, kind: "operation", effect: "write", permissions: ["knowledge:manage"] } };
+  assert.equal(openByDefault(manage, agent), false, "only knowledge reads are open; managing cards is not");
   assert.equal(openByDefault(reader("b"), agent), false, "another project's reader is not open");
   assert.equal(openByDefault(reader(undefined), agent), false, "a Home-wide reader is not project knowledge");
   assert.equal(openByDefault(knowledge, { ...agent, project_id: null }), false, "no project, no project knowledge");

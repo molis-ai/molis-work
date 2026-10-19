@@ -7,6 +7,7 @@ import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KnowledgeService, PLAIN_SECTION_CHARS, outlineOf } from "@molis-ai/molis-work-service-knowledge";
+import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
 // specs/project-knowledge K0: one set of actions every agent in a project reads knowledge through.
@@ -14,7 +15,9 @@ import { person, referenceOwners } from "./fixtures/reference-owners.js";
 const reader = (permissions = ["goals:read", "pages:read", "search:read"]): ActionCallContext => ({ ...person("a", permissions), audience: "agent", actor_id: "agent:assistant" });
 async function fixture(t: import("node:test").TestContext) {
   const f = await referenceOwners(t);
-  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input) });
+  const cards = openKnowledgeCards({ homeDirectory: f.home });
+  t.after(() => cards.close());
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards });
   return { ...f, knowledge };
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
@@ -49,7 +52,8 @@ test("PMAT-06 the outline follows the owner's headings, outside code fences", as
   f.pages.set("p1", { id: "p1", title: "试用说明", body: HANDBOOK, version: 4 });
   const outline = await f.knowledge.outline(f.access(reader()), { subject: { kind: "page", id: "p1" } });
   assert.equal(outline.revision, "4");
-  assert.deepEqual(outline.sections.map(section => [section.anchor, section.title, section.level]), [["h0", "试用手册的开头说明。", 0], ["h1", "准备", 1], ["h2", "账号", 2], ["h3", "反馈", 1]]);
+  assert.deepEqual(outline.sections.map(section => [section.anchor, section.title, section.level, section.summary]),
+    [["h0", "试用手册的开头说明。", 0, null], ["h1", "准备", 1, null], ["h2", "账号", 2, null], ["h3", "反馈", 1, null]], "no notes before the piece is organized");
   const total = outline.sections.reduce((sum, section) => sum + section.length, 0);
   assert.equal(total, HANDBOOK.length, "sections cover the text exactly once");
 });

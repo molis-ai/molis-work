@@ -492,11 +492,11 @@
   },
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 9,
+  "compatMarkerTotal": 8,
   "compatMarkers": {
     "apps/local-host/src/material-pdf-worker.ts": 1,
     "apps/local-host/src/pdf-document-parser.ts": 1,
-    "apps/local-host/src/plugin-builder/installed.ts": 3,
+    "apps/local-host/src/plugin-builder/installed.ts": 2,
     "apps/workbench/src/i18n/en.ts": 1,
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1

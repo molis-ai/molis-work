@@ -2040,3 +2040,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 代理又断了一次。②、③ 和它们的子代理都已经接上。D25 的子代理也已经续上，在等 heavy 槽位，现在两个槽位都被 ⑤ 的 fx-837 占着。
 
 - 10-20 18:25 UTC（①）D25 真实运行：用户同意现在做，① 开工前只读核对，发现本机没有真实 Home（`~/.molis-work` 不存在；4207 无人监听；无 LaunchAgent；未装 App；家目录里找不到 `config/mcp-tools.json` 或安装清单）。本机没有要维护的东西，没停任何进程，也没写任何 Home。两棵 d25 构建工作树（`dd9fffe28`、`bfe19439f`）已用 `git worktree remove` 删掉；脚本、计划、两份演练报告留在 ① 的会话笔记目录。原机器上的 Home 若还要用，在那台机器上重演后照计划第 8 节做。HANDOFF 里 D25 那一段已改。本机「维护前主检出不更新」的限制解除。
+- 10-20 18:36 UTC（①）用户定：原来那台电脑上的 Home 不再用了，D25 就此结项。HANDOFF 已改；main 上 quick-create spec 第 512 行由 ① 的 QA-020 余项 PR（分支 `fix/qa-020-tail`）一并改成结项。

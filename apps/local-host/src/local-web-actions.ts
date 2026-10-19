@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -18,12 +18,15 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
   // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id.
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined : grants.get(provider.plugin_install_id);
-  const builtin = (permissions: readonly string[]) => permissions.every(permission => builtinPermissions.includes(permission));
+  // The person's own permissions reach only what the Host registers itself. A provider the Plugin Runtime registered, built in
+  // or not, names its installation, and is reached through that installation's grants alone.
+  const ownerReaches = (view: ActionView) => view.provider.plugin_install_id === undefined
+    && view.action.permissions.every(permission => builtinPermissions.includes(permission));
   const scopeMatches = (provider: ActionProvider, scope: "home" | "project") =>
     (!provider.project_id || provider.project_id === reference?.project_id) && (scope === "home" || !!reference);
   const accepted = catalog.filter(view => {
     if (!scopeMatches(view.provider, view.action.scope)) return false;
-    if (builtin(view.action.permissions)) return true;
+    if (ownerReaches(view)) return true;
     const install = installOf(view.provider);
     return view.provider.kind === "plugin"
       && !!install && install.plugin_id === view.provider.plugin_id
@@ -46,7 +49,7 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       const matches = accepted.filter(view => view.capability_id === action.capability_id && view.version === action.version
         && (!action.provider_id || view.provider.provider_id === action.provider_id));
       const original = matches.length === 1 ? matches[0] : undefined;
-      if (original && builtin(original.action.permissions)) return;
+      if (original && ownerReaches(original)) return;
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
       const installId = original?.provider.plugin_install_id;

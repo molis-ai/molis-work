@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { DEFAULT_CONTEXT_WINDOW_TOKENS, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
+import { DEFAULT_CONTEXT_WINDOW_TOKENS, WORKSPACE_COMMAND_RECEIPT_KIND, createRuntime, type ConditionCheckers, type ExactRef, type PendingAnswer, type QueuedTask, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, HOST_GOVERNED_TOOLS } from "./prologue-action-gateway.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
@@ -193,7 +193,7 @@ function readCommandOutput(deps: PortDeps): NonNullable<PrologueRuntimePort["rea
     const { event, runId, root } = matches[0]!;
     const record = await readResource(runtime, event.receiptRef);
     const receipt = record.receipt;
-    if (record.kind !== "workspace-command-receipt" || record.version !== 1 || !sameRef(record.rootRef, root)
+    if (record.kind !== WORKSPACE_COMMAND_RECEIPT_KIND || record.version !== 1 || !sameRef(record.rootRef, root)
       || typeof record.executable !== "string" || !Array.isArray(record.argv) || !record.argv.every((arg: unknown) => typeof arg === "string")
       || !receipt || receipt.commandId !== event.commandId || !sameRef(receipt.effectRef, event.effectRef)
       || typeof receipt.stdout !== "string" || typeof receipt.stderr !== "string" || typeof receipt.truncated !== "boolean"

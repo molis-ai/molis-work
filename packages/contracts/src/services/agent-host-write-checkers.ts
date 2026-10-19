@@ -35,6 +35,18 @@ export interface AgentWriteCheckerSave {
   checkers: AgentWriteChecker[];
 }
 
+/**
+ * Which checker and version of its workspace's list answered one after-write check, kept by the Agent Host under the SDK's
+ * key for that check: what the review card and the timeline name. The command itself is in the SDK's review and receipt.
+ */
+export interface AgentWriteCheckNote {
+  checker_id: string;
+  display_name: string;
+  version: number;
+  /** The write it checks, when that write has a call id (its receipt is the SDK's `<call id>:diagnostics`). */
+  write_call_id?: string;
+}
+
 /** Where the lists are kept: one per project and workspace. Only the Agent Host reads and writes it. */
 export interface AgentWriteCheckerStore {
   read(projectId: string, workspaceId: string): Promise<AgentWriteCheckerList>;

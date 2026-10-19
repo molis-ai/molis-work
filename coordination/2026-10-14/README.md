@@ -1245,3 +1245,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 裁定 5 的「Home 级本人」按 ② 的读法，指不在项目里的 Home 级调用者（含 Agent、MCP），要守的边界是项目作用域。
     - `control` v1→v2 带来的 MCP 工具改名，不算「外部已经在用的名字」：这个动作是 10-18 才进的，main 上的 skills、docs、`apps/mcp` 和本机各 MCP 客户端配置都没引用它，所以不用问用户，正文写明新旧名就行。
 - 批次：main + #760 已绿。共享核心里，#741 现在就可以进批；#757、#762 等作者改完，三个一起组 `integration/batch-1019-1`。
+- 04:20 UTC：#760 合入（`12017cc87`），main 两处红里的 AC-05、AC-08 修好了。
+- 用户同意后删了两条远端分支：
+  - `integration/hub-1017-a`：它合进去的 #673、#681、#683、#685 都已 squash 进 main。
+  - `integration/main-fix-20261019`：删前逐文件核过，三个文件和 main 一样，`tests/local-host.test.ts` 是 main 多了 #760 后来加的那条测试。
+  - 远端现在只剩 `codex/cgs-formal-integration-20261013` 和 `codex/linux-probe-uv`，按用户的话留着。

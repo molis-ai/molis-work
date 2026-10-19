@@ -72,6 +72,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "助理在等你回答": "The assistant is waiting for your answer",
   "这个问题暂时不能回答": "This question cannot be answered right now",
   "其他（可选）": "Other (optional)",
+  "清除选择": "Clear choice",
   "提交回答": "Submit answer",
   "请 AI 重新问": "Ask again",
   "写下回答": "Write your answer",

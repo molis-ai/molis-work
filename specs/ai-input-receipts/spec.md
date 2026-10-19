@@ -895,7 +895,7 @@ interface AgentInputView {
 
 - **缺口。** SDK 只在一轮的工具名单里列了 `acknowledge-inputs` 时，才给模型看每条补充的编号、才收它的处理说明（`offersAcknowledgement`）。助理的两个工作角色只能列 `BUSINESS_HOST_TOOLS`，里面没有它，所以助理从来给不出处理说明，回执里的「AI 说」和 3e-1 的「当前约定」在真实使用里都是空的。
 - **做法。** 把 `acknowledge-inputs` 加进 `BUSINESS_HOST_TOOLS`，名单仍只有一份（`packages/contracts/src/platform/plugin-agent.ts`）。四处校验读的都是这个常量，不用改。这个工具不碰目录、不执行命令，只在 SDK 自己的输入账上记一条「AI 自称」，和业务角色的限制不冲突。提示词不动，用法由 SDK 的工具描述来讲；够不够，交手册线评估。
-- **影响。** 展开这个常量的业务角色都会多看到这个工具：助理的两个工作角色、Todo 的整理角色；Character 的工具许可也认它。不想要的角色可以不列。公开 API 快照随之更新（`plugin-agent`、`plugin`）。
+- **影响。** 展开这个常量的业务角色都会多看到这个工具：助理的两个工作角色、Todo 的整理角色；Character 的工具许可也认它。不想要的角色可以不列。公开 API 快照随之更新（`plugin-agent`、`plugin`）。这三个角色的版本当时没跟着升，同一个「角色@版本」在冻结记录里对应过两套工具；2026-10-19 补升（D3 片，与 `board-wait` 一并算）：助理的两个工作角色 1 → 2，Todo 的整理角色 2 → 3，提示词不动。
 - **验收编号与证据：**
   - RCPT-362：助理的工作轮次，模型请求里列着 `acknowledge-inputs`，看得到运行时给的补充编号；它的说明落成回执上的 `model_claim`，账上的状态不变（`tests/assistant-business-gateway.test.ts`；常量去掉这一项时这条会红）。
   - RCPT-363：业务角色仍然拿不到碰目录或执行命令的工具，`read-file`、`list`、`search`、`write`、`edit-file`、`run-command` 都在开轮前被拒，模型一次都没被调用；只列业务工具的照常开轮（`tests/prologue-start-refusal.test.ts`）。

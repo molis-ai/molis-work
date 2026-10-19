@@ -48,7 +48,7 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 | 用途 | 动作 |
 | --- | --- |
 | 发现、创建与状态 | `goals.list`、`goals.create`、`goals.state.read` |
-| 普通记录与历史 | `goals.note`、`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.events.list`、`goals.events.read` |
+| 普通记录与历史 | `goals.note`、`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.events.acknowledge`（读到本人的笔记、要求或决定后说明怎么处理；只给 MCP 与助理、Agent）、`goals.events.list`、`goals.events.read` |
 | 约定、决定与收尾 | `goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume` |
 | 结构提案 | `goals.tree.submit`、`goals.tree.read`、`goals.tree.check` |
 | 按需规划 | `goals.planning.catalog`（不含正文的目录）、`goals.planning.read`（可按 `method_ids` 读正文）、`goals.planning.save`、`goals.planning.impact`、`goals.planning.graph.check` |

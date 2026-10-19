@@ -48,7 +48,7 @@ Common Goals actions:
 | Purpose | Actions |
 | --- | --- |
 | Find, create and read state | `goals.list`, `goals.create`, `goals.state.read` |
-| Notes and history | `goals.note`, `goals.events.configure`, `goals.events.report`, `goals.progress.record`, `goals.events.list`, `goals.events.read` |
+| Notes and history | `goals.note`, `goals.events.configure`, `goals.events.report`, `goals.progress.record`, `goals.events.acknowledge` (after reading the person's note, requirement or decision, say how you will treat it; MCP, the Assistant and Agents only), `goals.events.list`, `goals.events.read` |
 | Agreement, decisions and closure | `goals.concerns.apply`, `goals.decisions.request`, `goals.decisions.cite`, `goals.agreement.set`, `goals.closure.submit`, `goals.work.resume` |
 | Tree proposals | `goals.tree.submit`, `goals.tree.read`, `goals.tree.check` |
 | Optional planning | `goals.planning.catalog` (catalog without instructions), `goals.planning.read` (instructions by `method_ids`), `goals.planning.save`, `goals.planning.impact`, `goals.planning.graph.check` |

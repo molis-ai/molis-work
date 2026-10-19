@@ -545,7 +545,7 @@ interface AgentInputView {
 
 - **现状：** 用户在 Goal 上写笔记、改要求、做决定，外部 Agent 要等下次读状态才知道，没有任何「读到 / 怎么处理」的事实。
 - **改后：**
-  - Goals 增加一个动作，让外部 Agent 对具体的笔记、要求、决定（`gevt-` 引用）声明「已读到，处理方式是…」，身份取 MCP 会话。
+  - Goals 增加一个动作 `goals.events.acknowledge`（受众只有 agent、mcp，插件调用者不可用），让外部 Agent 对具体的笔记、要求、决定（`gevt-` 引用）声明「已读到，处理方式是…」，身份取 MCP 会话。
   - Goal 时间线显示「Claude Code 会话 X 在游标 N 读到了你的笔记 · 处理方式：…」。
   - 进展报告引用这些输入。
 - 这是 Goals 拥有的新事实，不经 Prologue。干预只能是提示性的：外部 Agent 下次拉取时才读到。Codex 可以经 `sessions.message` 推送。
@@ -939,12 +939,30 @@ interface AgentInputView {
 
 ### 阶段 4：产品对象与 Goals 层
 
-依赖：PR #340 合入；W3-01 调用编号。
+依赖已满足：#340 已合入；W3-01 调用编号已在 #421 落地。
 
 - 输入与 Goal、待办、定时任务、成果之间的 Context Ledger 边；Goal 页显示「来自对话的输入」。
 - 目标与验收类的影响走 Goals 提议（Candidate Goal、约定变更），本人决定后才生效。
-- 外部 Runtime：Goals 新动作让外部 Agent 对笔记、要求、决定说明「已读到 / 处理方式」（§8.4）。
+- 外部 Runtime：Goals 新动作让外部 Agent 对笔记、要求、决定说明「已读到 / 处理方式」（§8.4；`goals.events.acknowledge`，S2-2，见下面的实现记录）。
 - 验收：Goal 页能回答「这条要求被哪个会话读到、怎么处理、改了什么」。
+
+**S2-2 实现记录（2026-10-19，§8.4；回执线，D20 P1、P2、P7）：**
+
+- **动作。** `goals.events.acknowledge@1`：外部 AI 会话对本 Goal 上的一条笔记、约定、配置或本人的决定，说「读到了，打算这样处理」。输入是 `goal_id`、`event_id`（`gevt-`）、`treatment`（和回执的 `AgentInputTreatment` 同一份八个词）、`note`（1 到 300 字）、`read_cursor`（它读到时的游标）、`idempotency_key`。受众只有 agent、mcp，声明 `plugin: false`：页面、工作流、插件调用者都拿不到。MCP 工具名 `molis_work_v1_action_goals.events.acknowledge__v1`。
+- **记录。** 写成 Goal 事件里的一条 `system` 记录，操作 `input_acknowledged`，载荷是被引用记录的 `reference`（id、种类、操作、标题、游标）、`treatment`、`note`、`read_cursor` 和 `by`。被引用记录的这些字段由宿主从那条记录抄来，不读输入。它是 AI 的说法，不是 Goal 的事实：不改工作状态，不进约定，不生效；取消了的 Goal 照收，仍是取消（和笔记、进展同一类普通记录），回收站、归档的沿用 `goals.goal.trashed`、`goals.goal.archived`。
+- **谁说的。** 作者和 `by` 只从调用上下文来：MCP 调用取运行时 id 与稳定会话（`runtime:<id>:<会话>`），助理取助理身份，其他取 agent；输入里带 `actor_id`、`project_id`、`session_id`、`actor_kind`、`by` 一律 `actions.input_invalid`。没有稳定会话的 MCP 调用在派发时被拒（`kernel.runtime_identity_missing`），什么都不写。这是 S-17 的一个新入口，测试已进 S-17 与 S-18 两行。
+- **能说明什么。** 笔记、约定（含配置）、本人的决定。进展、请求决定、报告、建意图、别的处理说明都不能：`goals.event_acknowledgement.reference_kind`；不存在的、别的 Goal 的、别的项目的统一 `…reference_missing`。`read_cursor` 必须是项目里已有的整数游标且不小于被引用记录：`…cursor_invalid`、`…cursor_before_reference`。空的说明复用 `goals.event_note.body_required`。游标是会话自己的说法，宿主只核它存在、不早于那条记录，不核它真读了什么。
+- **时间线。** 一行「处理说明」：「Claude Code 会话 X 在游标 N 读到了你的笔记「标题」」，下面是处理方式和它写的话，再一句「AI 自己说的，Molis 没有核对」，带定位按钮回到被说明的那条。「你的」只在被引用的记录是本人写的时候写，否则只写「这条笔记」。运行时的显示名取 `RUNTIME_DISPLAY_NAMES`（P7：安装检测、桌面启动、角色导入原来各留一份，现在读同一张表）。英文在 `plugins/native/goals/src/document-en.ts`。页面在服务端画，工作台脚本没有变。
+- **对已有读法的影响（P2，不升版本）。** `goals.events.list`、`latest`、`read` 本来就会返回 `system` 记录，操作名是开放字符串；多的只是一个新的 `operation` 值与载荷形状。逐个消费者查过（清单随 PR 说明提交）：没有谁因为不认识的值失败，所以三个动作不升 @2；它们的输出哈希因载荷联合多了一支而变，快照随之更新。
+- **验收编号与证据：**
+  - RCPT-376：有稳定会话的 MCP 调用方对本人写的笔记说明处理方式：一条 `input_acknowledged` 系统记录，作者是会话的审计身份，`by` 来自上下文，`reference` 指向那条笔记；`goals.events.read`、`list`、`latest` 读得回，时间线照常显示；同键重试回放，换了内容的同键报 `goals.request.idempotency_key_reused`（`tests/goals-event-acknowledge.test.ts`）。
+  - RCPT-377：只接受笔记、约定、配置和本人的决定；进展、请求决定、报告、处理说明本身都拒，报 `reference_kind`；不存在、别的 Goal、别的项目的 `gevt-` 报 `reference_missing`；取消的 Goal 照收且仍是取消，回收站、归档的沿用原码；每次被拒，事件数与游标都没变（同上；`tests/goal-event-write-rules.test.ts`）。
+  - RCPT-378：游标非整数、为负、超过项目游标报 `cursor_invalid`，小于被引用记录报 `cursor_before_reference`；游标恰好等于那条记录、等于当前游标时收（同上）。
+  - RCPT-379：输入里带 `actor_id`、`project_id`、`session_id`、`actor_kind`、`by` 报 `actions.input_invalid`；`runtime_session_missing` 的 MCP 调用被拒，什么都不写；`by` 对 MCP、助理、agent 三种来源各自正确（同上）。
+  - RCPT-380：agent、mcp 看得到、调得动；`plugin`、`user`、`workflow` 即使带 `goals:write` 也报 `actions.forbidden`；另一个项目的上下文报 `actions.scope_mismatch`；都不写（同上）。
+  - RCPT-381：取消、撤权、停用三种，处理器没开始就被拒：不写事件、不写幂等记录，调用记录里只有「未执行」一行，不含说明原文，之后同键的允许调用仍是第一次写（同上）。
+  - RCPT-382：时间线的 HTML 写出会话、游标、被说明的笔记、处理方式、它写的话、「AI 自己说的，Molis 没有核对」和定位按钮；被引用的笔记不是本人写的就不写「你的」；英文页有英文（同上；英文页由真正的英文 `L` 调同一个渲染函数得到）。
+  - RCPT-383：动作快照新增 `goals.events.acknowledge@1` 一行：受众 agent、mcp，`plugin` 关；`goals.events.*` 三行的输出哈希变化在 PR 里说明（同上）。
 
 ### 阶段 5：个人助理深化
 
@@ -1052,7 +1070,7 @@ interface AgentInputView {
 
 ### 13.4 PR #340（goal-closure-identity）
 
-阶段 4 的 Goals 关联与外部 Runtime 回执要在它合入之后再做（同改 `modules/goals` 与 `project-capabilities.ts`）。
+PR #340 已合入（`53b62b0f0`）。阶段 4 的 Goals 改动落在 `modules/goals`、`plugins/native/goals`，以及宿主的 `apps/local-host/src/goals-actions.ts`、`goal-project-application.ts`、`web-goals-read.ts`；`project-capabilities.ts` 已经没有 Goals 的引用，不再涉及。
 
 ### 13.5 Coding 下一阶段
 

@@ -16,7 +16,7 @@ export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMe
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
     definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ trustedPluginCaller: caller => isBuiltinPluginCaller(caller.host_plugin)
       && caller.actor_kind === "user" && caller.host_plugin!.actor_id === caller.actor_id
-      && caller.host_plugin!.project_id === caller.project_id && caller.host_plugin!.install_id === caller.plugin_install_id, events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
+      && caller.host_plugin!.project_id === caller.project_id && caller.host_plugin!.install_id === caller.plugin_install_id, events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,
       board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
       collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },

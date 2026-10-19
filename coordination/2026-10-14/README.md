@@ -1203,3 +1203,28 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `codex/cgs-formal-integration-20261013`（`1bc1d511a`，10-14）：比 main 多 1 个提交，动了 80 个文件（CGS 挂进项目 Runtime），从没开过 PR，也不在 main 里。不属于这七条线，不建议删，先问用户。
   - `codex/linux-probe-uv`（草稿 #734）：跟着 #631。
   - #631（feat/unified-input-voice）：03:17 UTC 还在被推，作者是 jingxusandra-gif，时区 +09:00；本机是 +08:00，本机也没有它的工作树，所以是另一台机器在推，不归这几条线。
+- 03:55 UTC：四份评审都已贴在 PR 上，结论都是「改后可合」。
+  - #757 复审（`f6a0e7b31`）：
+    - 先更正统筹上一次说的「保存与 SDK 执行同一口径」，那句不对。
+    - `executable` 带空白或 shell 符号、`NEVER_RUN` 里的名字、`cwd` 首尾空白或盘符开头，这几种都是「存得进、跑不了」。
+    - BL-220 改成请 Prologue 导出一个判定函数，GLOSSARY 两处跟上，④ 补一行 BL。
+  - Prologue #51：被标 `afterWriteCheck` 的工具必须是 `safe-read`（写后检查绕过审批直接调执行器），两份 README 跟上。
+  - Prologue #52：
+    - Node 前台起不来时，要照其他 Host 报 `COMMAND_FAILED`，不交回没有退出码的回执。
+    - 诊断提醒里 `exited unknown` 的说法与工具结果相反，要和其他几处共用一个函数。
+    - 被信号结束的那一半要补测试。
+    - 两个 Prologue PR 都要贴一次本机全量的结果。
+  - #759（`17e499075`）：首读窗口里还有四条路开着。
+    - 跨会话没关的对话框，把上一个会话的选择存进新会话；新用例和 spec 把这写成了预期。
+    - `appendDraft` 绕过了归属判断。
+    - 委派、方式命令、`/workspace` 没关。
+    - `select()` 不调 `controls()`。
+    - PR 评论 https://github.com/molis-ai/molis-work/pull/759#issuecomment-6259194509 。
+  - 统筹另外查到一个早就存在的缺陷，派给 ④ 记 BL、之后单独做：编码时间线（`plugins/native/coding/src/timeline.ts`）用 `/^exit (-?\d+)/` 从输出文字里认退出码，匹配不上就显示成功。
+- 03:36 UTC：#755 合入（`4485ce809`）。
+- 新开的 PR：
+  - ③ 的 #761：Dataset 推广每一步都重新核原调用者，即 §10.29 的 P1。
+  - ② 的 #762：#661 评审的修补，loader 环境变量按前缀拒、「移除」拆成单独动作、发起人与项目范围检查，改了动作快照和 SECURITY-INVARIANTS。
+  - 两个都交只读子代理（opus，xhigh）评审。
+  - 现在每个会话都开着 2 个 PR：② 是 #741、#762；③ 是 #760、#761；④ 是 #757、#759，另有 Prologue #51、#52。
+- `integration/main-fix-20261019` 的全量 39194646754 还在排队。#631 在另一台机器上自己跑全量，占着 runner。

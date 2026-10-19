@@ -91,15 +91,18 @@ async function projectInputSpacing(browser: LayoutBrowser) {
     for (const text of ['第一行\n第二行', '第一行\n第二行\n', '第一行\n第二行\n第三行']) {
       await putInput(browser, text);
       await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
-      const g = await evaluate<{ height:number; expected:number; gap:number; value:string }>(`(() => {
+      const g = await evaluate<{ height:number; expected:number; formHeight:number; fieldRight:number; actionLeft:number; fieldBottom:number; actionBottom:number; target:boolean; value:string }>(`(() => {
         const field=document.querySelector('[data-assistant-input]'),form=field.closest('form'),r=field.getBoundingClientRect(),s=getComputedStyle(field);
-        const lines=${text.split('\n').length}*parseFloat(s.lineHeight), top=r.top+parseFloat(s.paddingTop);
-        const actions=['[data-assistant-attach]','[data-uiv-mic]','[data-assistant-send]'].map(q=>form.querySelector(q).getBoundingClientRect().top);
-        return {height:r.height,expected:Math.max(44,lines+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)),gap:Math.min(...actions)-top-lines,value:field.value};
+        const lines=${text.split('\n').length}*parseFloat(s.lineHeight);
+        const actions=['[data-assistant-attach]','[data-uiv-mic]','[data-assistant-send]'].map(q=>form.querySelector(q).getBoundingClientRect());
+        return {height:r.height,expected:Math.max(44,lines+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)),formHeight:form.getBoundingClientRect().height,fieldRight:r.right,actionLeft:Math.min(...actions.map(a=>a.left)),fieldBottom:r.bottom,actionBottom:Math.max(...actions.map(a=>a.bottom)),target:!!form.querySelector('[data-assistant-target-wrap]').getClientRects().length,value:field.value};
       })()`);
       assert.equal(g.value,text,'resizing preserves every newline in the draft');
       assert.ok(Math.abs(g.height-g.expected)<=1,`no unused textarea rows with side=${side}: ${JSON.stringify(g)}`);
-      assert.ok(g.gap>=0&&g.gap<=8,`last line stays close to the controls with side=${side}: ${JSON.stringify(g)}`);
+      assert.equal(g.target,false,'this scenario has no continuation label');
+      assert.ok(g.formHeight-g.height<=10,`no empty control row without a continuation label: ${JSON.stringify(g)}`);
+      assert.ok(g.fieldRight<=g.actionLeft,`text does not run under controls: ${JSON.stringify(g)}`);
+      assert.ok(Math.abs(g.fieldBottom-g.actionBottom)<=1,`controls align with the bottom of the writing area: ${JSON.stringify(g)}`);
     }
   }
   await putInput(browser, '');
@@ -167,6 +170,12 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
   assert.equal(shared.font, "16px");
   assert.match(shared.outline, /solid 1px$/u, "UIV-01: the user requested a visible fine focus edge");
   assert.equal(shared.shadow, "none", "UIV-01: the focus edge must not add a bright halo");
+  const shades = await evaluate<number[][]>(`(() => {
+    const surface=document.querySelector('[data-assistant-input]').closest('.uiv-writing-surface'),ctx=document.createElement('canvas').getContext('2d');
+    return [getComputedStyle(surface).outlineColor,getComputedStyle(surface).getPropertyValue('--line')].map(color=>{ctx.fillStyle=color;ctx.fillRect(0,0,1,1);return [...ctx.getImageData(0,0,1,1).data].slice(0,3);});
+  })()`);
+  assert.ok(Math.max(...shades[0]!)-Math.min(...shades[0]!)<=8,'UIV-01: focus uses neutral grey, never the accent colour');
+  assert.ok(shades[0]!.every((channel,i)=>channel<shades[1]![i]!), 'UIV-01: focus is slightly darker than the ordinary grey edge');
   await growsAndScrolls(ASSISTANT);
   await closeAssistant();
   const event = `[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`;

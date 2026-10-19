@@ -17,7 +17,7 @@ html body form.uiv-composer[data-uiv-bound] .uiv-writing-surface {
 }
 html body form.uiv-composer[data-uiv-bound].uiv-writing-surface:has([data-uiv-input]:focus),
 html body form.uiv-composer[data-uiv-bound] .uiv-writing-surface:has([data-uiv-input]:focus) {
-  outline: var(--focus-stroke); outline-width: 1px; outline-offset: 1px;
+  outline: 1px solid color-mix(in srgb, var(--line) 85%, black); outline-offset: 1px;
   box-shadow: none;
 }
 html body form.uiv-composer[data-uiv-bound] [data-uiv-input]:disabled { background: transparent; color: var(--muted); cursor: not-allowed; }
@@ -28,7 +28,8 @@ html body form.uiv-composer.bar-composer[data-assistant-composer][data-uiv-bound
 }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { flex: 1 1 64px; width: auto; min-width: 64px; order: 1; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > :is([data-assistant-attach], .uiv-bar, [data-assistant-send]) { order: 2; }
-html body form.uiv-composer.bar-composer[data-uiv-bound]:is([data-uiv-expanded], :has(.uiv-bar button:not([data-uiv-mic], [hidden]))) > [data-uiv-input] { flex-basis: 100%; width: 100%; order: -1; }
+html body form.uiv-composer.bar-composer[data-uiv-bound]:is([data-uiv-expanded]:has(> [data-assistant-target-wrap]:not([hidden])), :has(.uiv-bar button:not([data-uiv-mic], [hidden]))) > [data-uiv-input] { flex-basis: 100%; width: 100%; order: -1; }
+html body form.uiv-composer.bar-composer[data-uiv-bound]:has(> [data-assistant-target-wrap][hidden]) { align-items: flex-end; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-assistant-attach] { margin-left: auto; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-bar { min-height: 44px; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-status { order: -2; }

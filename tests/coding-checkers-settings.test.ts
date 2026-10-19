@@ -14,7 +14,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 
 const { list, save } = agentWriteCheckerActions;
 const NODE: AgentWriteChecker = { checker_id: "node-check", display_name: "Node 语法", executable: "node", args: ["--check", "{file}"], applies_to: [".js", ".mjs"] };
-const KEPT = { ...NODE, cwd: ".", timeout_ms: 30_000, env_allowlist: [] };
+const KEPT = { ...NODE, cwd: ".", timeout_ms: 30_000 };
 const code = (expected: string) => (error: unknown) => { assert.equal((error as { code?: unknown }).code, expected, String(error)); return true; };
 
 /** A project on a throwaway Home with one workspace the test can authorize and take back. */
@@ -110,7 +110,7 @@ test("PA-26 a list is saved only for a workspace authorized now with its real pa
   } finally { await f.close(); }
 });
 
-test("PA-28 saving refuses {file} inside other text, twice or missing, grants, a time limit outside 1,000–60,000 and a working directory outside the root", { timeout: 60_000 }, async () => {
+test("PA-28 saving refuses {file} inside other text, twice or missing, grants, environment, an executable with a path, a space or a shell character or one the Host never runs, a time limit outside 1,000–60,000 and a working directory outside the root, with spaces around it, on a drive or in protected metadata", { timeout: 60_000 }, async () => {
   const f = await fixture();
   try {
     const refused: Array<[Record<string, unknown>, string]> = [
@@ -119,12 +119,37 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, a
       // A command without the file would check the whole project and call that a diagnosis (§6.0p.9).
       [{ args: ["--noEmit"] }, "agent.write_checker_invalid"],
       [{ grants: { network: true } }, "actions.input_invalid"],
+      // The SDK runs a check with no environment of the person's choosing and only a bare name found on the Host's PATH (S-38):
+      // either would be kept and then refused each time it runs.
+      [{ env_allowlist: ["NODE_OPTIONS"] }, "actions.input_invalid"],
+      [{ executable: "/usr/local/bin/node" }, "agent.write_checker_invalid"],
+      [{ executable: "node_modules/.bin/eslint" }, "agent.write_checker_invalid"],
+      [{ executable: "./node" }, "agent.write_checker_invalid"],
+      [{ executable: "tools\\lint.cmd" }, "agent.write_checker_invalid"],
+      [{ executable: ".." }, "agent.write_checker_invalid"],
+      [{ executable: " " }, "agent.write_checker_invalid"],
+      // The SDK's `prepareCommand` refuses whitespace and shell characters in the executable, and its Host never runs `NEVER_RUN`.
+      [{ executable: "npx eslint" }, "agent.write_checker_invalid"],
+      [{ executable: "npx\u3000eslint" }, "agent.write_checker_invalid"],
+      [{ executable: "eslint " }, "agent.write_checker_invalid"],
+      [{ executable: "eslint;rm" }, "agent.write_checker_invalid"],
+      [{ executable: "$HOME" }, "agent.write_checker_invalid"],
+      [{ executable: "rm" }, "agent.write_checker_invalid"],
+      [{ executable: "chmod" }, "agent.write_checker_invalid"],
       [{ timeout_ms: 999 }, "actions.input_invalid"],
       [{ timeout_ms: 60_001 }, "actions.input_invalid"],
       [{ applies_to: ["js"] }, "actions.input_invalid"],
       [{ cwd: "../outside" }, "agent.write_checker_invalid"],
       [{ cwd: "tools/../../outside" }, "agent.write_checker_invalid"],
       [{ cwd: "/tmp" }, "agent.write_checker_invalid"],
+      [{ cwd: ".git" }, "agent.write_checker_invalid"],
+      [{ cwd: "packages/web/node_modules/eslint" }, "agent.write_checker_invalid"],
+      [{ cwd: "./.prologue/" }, "agent.write_checker_invalid"],
+      // The SDK trims the directory first and refuses a drive: kept as written, these would run elsewhere or not at all.
+      [{ cwd: " /etc" }, "agent.write_checker_invalid"],
+      [{ cwd: ".git " }, "agent.write_checker_invalid"],
+      [{ cwd: "tools " }, "agent.write_checker_invalid"],
+      [{ cwd: "C:/x" }, "agent.write_checker_invalid"],
     ];
     for (const [change, expected] of refused) {
       await assert.rejects(f.save({ workspace_id: "app", expected_version: 0, checkers: [{ ...NODE, ...change }] }), code(expected), JSON.stringify(change));
@@ -133,7 +158,10 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, a
     assert.deepEqual(await f.lists(), [{ workspace_id: "app", version: 0, checkers: [] }]);
     // A whole {file}, and paths with spaces and `;`, are kept exactly as written: each is one argument, never a shell's.
     const kept = await f.save({ workspace_id: "app", expected_version: 0,
-      checkers: [{ ...NODE, args: ["--config", "a b;c.json", "{file}"], cwd: "./tools", timeout_ms: 1_000, env_allowlist: ["NODE_OPTIONS"] }] });
-    assert.deepEqual(kept.checkers, [{ ...KEPT, args: ["--config", "a b;c.json", "{file}"], cwd: "tools", timeout_ms: 1_000, env_allowlist: ["NODE_OPTIONS"] }]);
+      checkers: [{ ...NODE, args: ["--config", "a b;c.json", "{file}"], cwd: "./tools", timeout_ms: 1_000 }] });
+    assert.deepEqual(kept.checkers, [{ ...KEPT, args: ["--config", "a b;c.json", "{file}"], cwd: "tools", timeout_ms: 1_000 }]);
+    // Protected metadata is a whole path segment, not a prefix: directories only named like it are kept.
+    const alike = [{ ...NODE, checker_id: "workflows", cwd: ".github/workflows" }, { ...NODE, checker_id: "cache", cwd: "node_modules_cache" }];
+    assert.deepEqual((await f.save({ workspace_id: "app", expected_version: 1, checkers: alike })).checkers, alike.map(checker => ({ ...KEPT, ...checker })));
   } finally { await f.close(); }
 });

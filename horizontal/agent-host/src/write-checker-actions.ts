@@ -17,16 +17,36 @@ export interface WriteCheckerPorts<C extends Call> {
 }
 
 const FILE = "{file}";
+/*
+ * Whether the SDK runs a check comes down to rules it does not export yet (BL-220 asks Prologue for one function that says).
+ * They are copied here, so a checker that could never run is refused when it is saved, not after each review:
+ * - `prepareCommand` (`workspace/core/mutate-command`): no whitespace or shell character in the executable;
+ * - the Host's `runCommand` (`host/plugin/node-processes`): a bare name, never a path, and never one of its `NEVER_RUN`;
+ * - `normalizeRelativePath` (`host/core/workspace-path`): the directory trimmed, inside the root, not in `PROTECTED_SEGMENTS`.
+ */
+const NOT_A_NAME = /[\s;&|><$`\\/]/;
+const NEVER_RUN = ["rm", "rmdir", "mkfs", "dd", "shutdown", "reboot", "sudo", "su", "chown", "chmod"];
+const PROTECTED = [".git", "node_modules", ".prologue"];
 const invalid = (checker: AgentWriteChecker, why: string) => agentErrors.write_checker_invalid(`检查器「${checker.display_name}」${why}`);
 
 /** What the actions' schema cannot say about one checker, and the defaults the stored list carries (§6.0p.2, §6.0p.3). */
 function checkedChecker(checker: AgentWriteChecker): Required<AgentWriteChecker> {
+  // A bare name found on the Host's PATH (S-38), run without a shell: anything else would be kept and never run.
+  if (NOT_A_NAME.test(checker.executable) || [".", ".."].includes(checker.executable)) {
+    throw invalid(checker, "的可执行文件要写成程序名（在 PATH 上找），不能带路径、空格或 shell 符号");
+  }
+  if (NEVER_RUN.includes(checker.executable)) throw invalid(checker, `的可执行文件「${checker.executable}」在任何情况下都不会被运行`);
   // One file per check (§6.0p.9): a command without the file would check the whole project and call that a diagnosis.
   if (checker.args.filter(arg => arg === FILE).length !== 1) throw invalid(checker, "的参数里要有一个、也只能有一个 {file}");
   if (checker.args.some(arg => arg !== FILE && arg.includes(FILE))) throw invalid(checker, "的 {file} 要单独作为一个参数，不能嵌在别的文字里");
-  const cwd = posix.normalize(checker.cwd ?? ".");
+  // The SDK trims the directory before it checks it, so one kept with spaces around it would run somewhere other than it says;
+  // a drive (`C:`) is not under the root on any system.
+  const written = checker.cwd ?? ".";
+  if (written !== written.trim() || /^[A-Za-z]:/.test(written)) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
+  const cwd = posix.normalize(written);
   if (posix.isAbsolute(cwd) || cwd === ".." || cwd.startsWith("../") || cwd.includes("\\")) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
-  return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000, env_allowlist: [...checker.env_allowlist ?? []] };
+  if (cwd.split("/").some(segment => PROTECTED.includes(segment))) throw invalid(checker, "的工作目录不能在 .git、node_modules 或 .prologue 里");
+  return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000 };
 }
 
 /**

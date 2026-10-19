@@ -16,7 +16,7 @@ const view = (owner: AgentSkillOwner, server: AgentMcpServerView) => ({
   transport: server.transport, state: server.health, credential: server.credential, ...(server.endpoint ? { endpoint: server.endpoint } : {}),
   tools: server.tools.map(tool => ({ tool: tool.tool, version: tool.version })),
 });
-/** Whose project MCP a caller manages: a caller in a project only that project's; Home management (no project) every project's. */
+/** Whose project MCP a caller manages: a caller in a project only that project's; a Home-level caller outside any project (the person, a Home Agent or MCP client alike) every project's. */
 const managedCatalog = async (library: AgentMcpLibrary | undefined, caller: Pick<ActionCallContext, "project_id">) =>
   (await library?.catalog?.() ?? []).filter(({ owner }) => !caller.project_id || owner.project_id === caller.project_id);
 export async function listProjectMcpConnections(home: string, port: ProjectMcpManagementPort, actions: readonly ActionView[], caller: ActionCallContext) {

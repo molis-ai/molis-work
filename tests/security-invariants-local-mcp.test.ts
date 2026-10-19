@@ -4,7 +4,7 @@ import { existsSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { connectLocalMcp, connectorManagementActions, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectLocalMcp, connectorLocalActions, connectorManagementActions, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "local-mcp-person", audience: "agent", project_id: null,
@@ -84,22 +84,32 @@ const LOADER_FAMILIES = {
   Python: ["PYTHONPATH", "PYTHONUSERBASE", "PYTHONSTARTUP"], Perl: ["PERL5OPT", "PERL5LIB"], Ruby: ["RUBYOPT", "RUBYLIB"],
   Node: ["NODE_OPTIONS", "NODE_PATH", "NODE_EXTRA_CA_CERTS"],
 };
+// The fixture's own key goes along, and every loader name gets a value node itself accepts, so a launch that got past the rule would start
+// and write child-pid.
+const withLoader = (plan: ReturnType<typeof input>, name: string) => ({ ...plan, launch: { ...plan.launch, environment_names: ["SERVICE_KEY", name] },
+  environment: { ...plan.environment, [name]: "--no-warnings" } });
 for (const [family, names] of Object.entries(LOADER_FAMILIES)) {
   test(`S-36 local launch refuses the ${family} loader environment by its prefix before executing`, async t => {
     const home = await openTestHome(t), plan = input(home.home);
     for (const name of names) {
-      await assert.rejects(connectLocalMcp(home.home, { ...plan, launch: { ...plan.launch, environment_names: [name] }, environment: { [name]: "x" } },
-        { beforeDispatch() {} }), { code: "connector.mcp.configuration" }, name);
-      assert.equal(existsSync(join(home.home, "child-pid")), false);
+      await assert.rejects(connectLocalMcp(home.home, withLoader(plan, name), { beforeDispatch() {} }), { code: "connector.mcp.configuration" }, name);
+      assert.equal(existsSync(join(home.home, "child-pid")), false, name);
     }
   });
 }
 
+test("S-36 preparing a local launch refuses every loader family by the same prefix rule", async t => {
+  const home = await openTestHome(t), plan = input(home.home), actions = home.host.homeActionClient();
+  for (const name of Object.values(LOADER_FAMILIES).flat())
+    await assert.rejects(actions.invoke(caller, connectorLocalActions.prepare, { display_name: "Loader", expected_revision: null,
+      source: { kind: "executable", executable: plan.launch.executable }, args: plan.launch.args, cwd: plan.launch.cwd, environment_names: [name] }), { code: "connector.mcp.configuration" }, name);
+});
+
 test("S-36 ASC-14: local launch rejects relative executables and loader environment injection before executing", async t => {
   const home = await openTestHome(t), plan = input(home.home);
   const reserved = ["NODE_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "RUBYOPT", "PERL5OPT"];
-  for (const launch of [{ ...plan.launch, executable: "node" }, ...reserved.map(name => ({ ...plan.launch, environment_names: [name] }))]) {
-    await assert.rejects(connectLocalMcp(home.home, { ...plan, launch }, { beforeDispatch() {} }), /程序、参数/);
+  for (const launched of [{ ...plan, launch: { ...plan.launch, executable: "node" } }, ...reserved.map(name => withLoader(plan, name))]) {
+    await assert.rejects(connectLocalMcp(home.home, launched, { beforeDispatch() {} }), /程序、参数/);
     assert.equal(existsSync(join(home.home, "child-pid")), false);
   }
 });

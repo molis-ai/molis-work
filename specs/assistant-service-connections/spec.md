@@ -422,7 +422,7 @@ node scripts/check-spec-coverage.mjs
 
 真实 GitHub 验收补充（ASC-03、ASC-13、ASC-31）：一骏没有可用 PAT，随后明确批准通过 `gh` 官方命令临时复用既有登录令牌到一次性 Home，结束后清理，不修改 CLI 登录。生产表单提交路径已成功连接 GitHub 官方远程 MCP，发现 47 个工具，尚未创建 Issue。实际 `issue_read`、`issue_write` 的一级参数带 `x-mcp-header`，严格 JSON Schema 编译器因未知关键字将它们置为不可用。按[GitHub 的协议说明](https://github.com/github/github-mcp-server/blob/main/docs/streamable-http.md)，此注释用于新协议的 HTTP 头映射，不改变参数值约束；当前 MCP SDK 仅协商到 2025-11-25，不开启新协议头映射。修复放在共同 MCP → 动作合同边界：只从一级参数的动作校验副本移除格式正确、名字唯一且用于基本类型的该项传输注释；原始发现快照、工具指纹和传输仍保留原合同。未知关键字、嵌套注释或不合法注释继续拒绝，`required`、类型、枚举、额外属性等约束不变。不改全局校验器、不关闭严格模式、不更换 SDK。真实 HTTP 用例须证明合法调用实际派出、非法参数与不支持合同零派出；再用真实 GitHub 读写核对。
 
-真实界面走查补充（ASC-20、ASC-23、ASC-31）：Home 管理动作已有启停与移除，但设置页只给项目 MCP 显示这些按钮，Home 连接只显示断开。补齐所有本产品可管理连接的启停与移除入口，继续使用现有 `connectors.connection.control` 和读取到的 revision；外部环境管理的凭据仍不显示本地管理按钮，原断开语义不变。用已存在的设置渲染回归核对启用/停用、Home/项目与外部管理边界，再在一次性 Home 操作真实 GitHub 连接核对可见状态和实际调用拒绝/恢复。
+真实界面走查补充（ASC-20、ASC-23、ASC-31）：Home 管理动作已有启停与移除，但设置页只给项目 MCP 显示这些按钮，Home 连接只显示断开。补齐所有本产品可管理连接的启停与移除入口：启停用 `connectors.connection.control`，移除用 `connectors.connection.remove`（不可撤回动作，2026-10-19 从 `control` 拆出），都带读取到的 revision；外部环境管理的凭据仍不显示本地管理按钮，原断开语义不变。用已存在的设置渲染回归核对启用/停用、Home/项目与外部管理边界，再在一次性 Home 操作真实 GitHub 连接核对可见状态和实际调用拒绝/恢复。
 
 实际点击发现 Home UUID 的 `/manage` 请求被公共路由筛掉，落到项目入口并误报“请选择项目”。公共管理路由同时接住 Home 与项目连接，继续交给原管理动作校验权限和修订，不新增直写路径。HTTP 回归须核对旧修订拒绝、停用后的真实 MCP 调用拒绝、启用后的实际调用恢复，以及移除后的目录撤下与业务文件保留。
 

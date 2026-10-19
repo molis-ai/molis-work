@@ -113,7 +113,8 @@ test("PA-26 a list is saved only for a workspace authorized now with its real pa
 test("PA-28 saving refuses {file} inside other text, twice or missing, grants, environment, an executable with a path, a space or a shell character or one the Host never runs, a time limit outside 1,000–60,000 and a working directory outside the root, with spaces around it, on a drive or in protected metadata", { timeout: 60_000 }, async () => {
   const f = await fixture();
   try {
-    const refused: Array<[Record<string, unknown>, string]> = [
+    // Each refusal names the rule it breaks; where a message is given, the refusal says what to write instead (§6.0p.11).
+    const refused: Array<[Record<string, unknown>, string, RegExp?]> = [
       [{ args: ["--file={file}"] }, "agent.write_checker_invalid"],
       [{ args: ["{file}", "{file}"] }, "agent.write_checker_invalid"],
       // A command without the file would check the whole project and call that a diagnosis (§6.0p.9).
@@ -132,9 +133,9 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, e
       [{ executable: "npx eslint" }, "agent.write_checker_invalid"],
       [{ executable: "npx\u3000eslint" }, "agent.write_checker_invalid"],
       [{ executable: "eslint " }, "agent.write_checker_invalid"],
-      [{ executable: "eslint;rm" }, "agent.write_checker_invalid"],
+      [{ executable: "eslint;rm" }, "agent.write_checker_invalid", /要写成程序名（在 PATH 上找），不能带路径、空格或 shell 符号/],
       [{ executable: "$HOME" }, "agent.write_checker_invalid"],
-      [{ executable: "rm" }, "agent.write_checker_invalid"],
+      [{ executable: "rm" }, "agent.write_checker_invalid", /「rm」在任何情况下都不会被运行/],
       [{ executable: "chmod" }, "agent.write_checker_invalid"],
       [{ timeout_ms: 999 }, "actions.input_invalid"],
       [{ timeout_ms: 60_001 }, "actions.input_invalid"],
@@ -142,17 +143,24 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, e
       [{ cwd: "../outside" }, "agent.write_checker_invalid"],
       [{ cwd: "tools/../../outside" }, "agent.write_checker_invalid"],
       [{ cwd: "/tmp" }, "agent.write_checker_invalid"],
-      [{ cwd: ".git" }, "agent.write_checker_invalid"],
+      [{ cwd: ".git" }, "agent.write_checker_invalid", /不能在 \.git、node_modules 或 \.prologue 里/],
       [{ cwd: "packages/web/node_modules/eslint" }, "agent.write_checker_invalid"],
       [{ cwd: "./.prologue/" }, "agent.write_checker_invalid"],
       // The SDK trims the directory first and refuses a drive: kept as written, these would run elsewhere or not at all.
-      [{ cwd: " /etc" }, "agent.write_checker_invalid"],
+      [{ cwd: " /etc" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
       [{ cwd: ".git " }, "agent.write_checker_invalid"],
       [{ cwd: "tools " }, "agent.write_checker_invalid"],
       [{ cwd: "C:/x" }, "agent.write_checker_invalid"],
+      // What is kept is the normalized directory, so the same holds after normalizing brings the spaces or the drive to an end.
+      [{ cwd: "./ /etc" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
+      [{ cwd: "./C:/x" }, "agent.write_checker_invalid"],
     ];
-    for (const [change, expected] of refused) {
-      await assert.rejects(f.save({ workspace_id: "app", expected_version: 0, checkers: [{ ...NODE, ...change }] }), code(expected), JSON.stringify(change));
+    for (const [change, expected, says] of refused) {
+      await assert.rejects(f.save({ workspace_id: "app", expected_version: 0, checkers: [{ ...NODE, ...change }] }), (error: unknown) => {
+        code(expected)(error);
+        if (says) assert.match(String(error), says);
+        return true;
+      }, JSON.stringify(change));
     }
     await assert.rejects(f.save({ workspace_id: "app", expected_version: 0, checkers: [NODE, { ...NODE, display_name: "又一个" }] }), code("agent.write_checker_invalid"));
     assert.deepEqual(await f.lists(), [{ workspace_id: "app", version: 0, checkers: [] }]);
@@ -160,8 +168,10 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, e
     const kept = await f.save({ workspace_id: "app", expected_version: 0,
       checkers: [{ ...NODE, args: ["--config", "a b;c.json", "{file}"], cwd: "./tools", timeout_ms: 1_000 }] });
     assert.deepEqual(kept.checkers, [{ ...KEPT, args: ["--config", "a b;c.json", "{file}"], cwd: "tools", timeout_ms: 1_000 }]);
-    // Protected metadata is a whole path segment, not a prefix: directories only named like it are kept.
-    const alike = [{ ...NODE, checker_id: "workflows", cwd: ".github/workflows" }, { ...NODE, checker_id: "cache", cwd: "node_modules_cache" }];
+    // Protected metadata is a whole path segment, not a prefix, and a drive is a letter, a colon and a separator, as in the SDK:
+    // directories only named like them are kept.
+    const alike = [{ ...NODE, checker_id: "workflows", cwd: ".github/workflows" }, { ...NODE, checker_id: "cache", cwd: "node_modules_cache" },
+      { ...NODE, checker_id: "colon", cwd: "C:x" }];
     assert.deepEqual((await f.save({ workspace_id: "app", expected_version: 1, checkers: alike })).checkers, alike.map(checker => ({ ...KEPT, ...checker })));
   } finally { await f.close(); }
 });

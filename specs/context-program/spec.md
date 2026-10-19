@@ -516,7 +516,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - **对象声明**：Inbox、Artifacts、Sessions 原表写「✗ 没有浮条」，其实工作台已按搜索来源给它们命名对象（打开为条目标签时）；Characters 声明了表面，但不在 `SEARCH_ITEM_TAB_SURFACES` 里，实际仍没有；Git、Diff 仍没有（context-toolbar §10.1）。
 - **动作池**：现在是选区动作 25 条（Pages 20、Goals 2、Todo 1、灵光 1、搜索 1）加对象动作 8 条（Feed 5、Inbox 3），共 33 条，不是「约 40 条」（side-shelf §2）。
 - **能力名**：`coding.create-session` → `coding.sessions.create`（不是只许本机本人）；`feed.out-rules.create` → `feed.rules.create`；`feed.capture` 是场景不是动作；炼金术士、Jelly、Schedule、Cognia、Images 的动作都带插件前缀；`reminders.add` 只对插件开放；`shelf.material.save` 是把已有的 Shelf 材料交给项目，不是「从文字建」（quick-create §7）。
-- **内容站**：`receive` 的输入是 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`；幂等键 `workflow:<实例>:<步骤>`（6 个插件用 `workflowDeliveryKey`，Feed、Inbox 各自做）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
+- **内容站**：`receive@2` 的输入是平铺的 `{ title, body, url?, source?, feed_item_id?, request_id }`，幂等键就是必填的 `request_id`（工作流传 `workflow:<实例>:<步骤>`，放置传 `placement:<请求号>`；W4-6a，quick-create §11）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
 - **工作流**：`instances.start` 的输入是 `{ id, item_id?, title? }`，至少两站，空白起步要第一站支持 `can_start_blank`（quick-create §6.2）。
 
 ### 15.6 与其他在做的任务的交界
@@ -776,7 +776,7 @@ W1 做第 9 节「W1 共享件」：浮条组件与定位上移、新合同、�
 ### 18.4 从 W1 挪出去的两件（理由与取舍）
 
 - **情境中枢接右栏、助理与落点的 DOM 线**（第 9 节原写在 W1）：挪到 W3 第一片，和 Pages 报告落点、右栏格转发焦点同一个 PR。原因：DOM 事件门禁要求登记时收发两端都在，W1 里只有接收方。W1 只做数据形状（W1-3）与派生（W1-5）。代价：W3 第一片变大一些，由它自己再拆。
-- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
+- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头，已由 W4-6a 做完（`receive@2`，保存的工作流按版本固定，旧版本报不可用；quick-create §11）。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
 
 ### 18.5 与其他线会撞的地方
 

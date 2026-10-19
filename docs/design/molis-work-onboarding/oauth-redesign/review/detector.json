@@ -5,7 +5,7 @@
     "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
     "severity": "warning",
     "category": "slop",
-    "file": "/Users/yijunwang/code/goalboard/apps/workbench/src/styles/context-onboarding.ts",
+    "file": "apps/workbench/src/styles/context-onboarding.ts",
     "line": 3,
     "snippet": "font-family:Inter"
   },
@@ -15,7 +15,7 @@
     "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
     "severity": "warning",
     "category": "slop",
-    "file": "/Users/yijunwang/code/goalboard/apps/workbench/src/styles/context-onboarding.ts",
+    "file": "apps/workbench/src/styles/context-onboarding.ts",
     "line": 7,
     "snippet": "font-family:Inter"
   },
@@ -25,7 +25,7 @@
     "description": "Animating width, height, padding, or margin causes layout thrash and janky performance. Use transform and opacity instead, or grid-template-rows for height animations.",
     "severity": "warning",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/apps/workbench/src/styles/context-onboarding.ts",
+    "file": "apps/workbench/src/styles/context-onboarding.ts",
     "line": 11,
     "snippet": "transition: width"
   }

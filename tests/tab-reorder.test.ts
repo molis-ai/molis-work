@@ -33,13 +33,19 @@ test("copy preview inserts a new id and leaves the source in place", () => {
   assert.equal(ops.focused(state).tabs.length, 2);
 });
 
-test("strip reorder preview is a slot plus FLIP, not a pane overlay", () => {
+test("strip reorder preview is a slot that opens and closes by width, not a pane overlay", () => {
   assert.equal(TAB_REORDER_MS, 190);
   assert.match(TAB_WORKSPACE_STYLES, /\[data-tab-reorder-slot\]/);
-  assert.match(TAB_WORKSPACE_STYLES, /\.tab-item\.is-tab-drag-source/);
+  // The dragged tab, or a plugin's whole group, leaves the flow while its slot holds the place.
+  assert.match(TAB_WORKSPACE_STYLES, /:is\(\.tab-item, \.tab-group\)\.is-tab-drag-source/);
   assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /paintTabReorder/);
   assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /tabIdsAfterMove/);
+  // PTG-03 the new slot opens and the old one, and the dragged tab's place, close by width, so the tabs around slide.
+  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /dragSlot\.vacate\(sourceEl\)/);
+  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /dragSlot\.open\(slot, previous\)/);
+  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /\{ width: from \+ "px"[^}]*\}, \{ width: to \+ "px"/);
+  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /\(\{ ms: TAB_REORDER_MS, ease: TAB_REORDER_EASE \}\)/);
   assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /prefers-reduced-motion: reduce/);
-  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /duration: reduce \? 0 : TAB_REORDER_MS/);
+  assert.match(TAB_WORKSPACE_FACTORY_SCRIPT, /if \(reduce\(\)\) \{ done\?\.\(\); return; \}/);
   assert.match(LINEAR_DENSITY_STYLES, /\[data-tab-reorder-slot\] \{ height: 26px/);
 });

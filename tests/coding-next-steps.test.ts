@@ -68,6 +68,8 @@ test("AC-06-5: once the round is over, the card that ran last offers its result 
   assert.equal(steps[0]!.label, "打开「报销」");
   assert.match(assistantCardHtml(cards[0]!, say, undefined, false), /<a href="\/todo\?item=t1"[^>]*data-ix-press="open"/, "the control the selector names is drawn on the card Coding shows");
   for (const phase of ["running", "awaiting-input", "reconcile-required"]) assert.deepEqual(ids(codingNextSteps(run(phase), say, cards)).filter(id => id.startsWith("[data-card")), [], phase);
+  assert.deepEqual(ids(codingNextSteps(run("failed"), say, cards)).filter(id => id.startsWith("[data-card")), ['[data-card="c\\"2"] [data-ix-press="open"]'],
+    "Coding's row has no retry, so a failed round still offers the card's result (§15.11)");
   assert.deepEqual(ids(codingNextSteps(run("completed"), say, [ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "failed", "2026-10-13T01:09:00.000Z")])),
     [NEXT_STEP.card("c2")], "the card that ran last failed: it is reached among what waits, and has no result step");
 });

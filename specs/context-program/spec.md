@@ -1403,6 +1403,9 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 页面资源：`workbench.js` +1,158 字节，一次性放行（`APPROVED_CEILINGS`，理由与试过的写在 `scripts/gates/page-assets.mjs`）。
   - 用例：`tests/contextual-create.test.ts`（真 Host：两个入口直接建、一次请求只建一个、别处改过后撤销被拒且不删不改、令牌只能用一次、别的项目的令牌被拒；假目录：没有撤销、提案、多个、缺字段都出卡片，只调 `prepare`）、`tests/plugin-context-declarations.test.ts`、`tests/contextual-destinations.test.ts`（只有规则时一段文字一个去处、一个词没有）、`tests/contextual-fragment-offers.test.ts`（同项目第二份拆分提案）、`tests/contextual-todo.e2e.test.ts`（连点、重选、改后撤销被拒、撤销、打开；原来「卡片执行被拒、什么都不写、可以再执行」那一半改用 Goals「拆成目标步骤」的卡片留在同一个文件里）、`tests/lingguang-actions.test.ts` LG-REVERT-01；原来用「记成待办」「记下灵光」的三个浏览器用例改用「拆成目标步骤」，只改去哪里找。
   - 2026-10-19 补测（防腐 §10.28 对 #730 的复查）：原来写「断言不变」，不实，「卡片准备途中改选区，卡片仍按原选区」那条在 W4-1 里删掉了，没有替换。现在补回两条，都在 `contextual-todo.e2e`：Goals「拆成目标步骤」那条把这次点击发的 `/api/contextual/prepare` 扣在路上、选区换到第二段再放行，问的焦点、卡片摘要、work 和执行后的提案都只有第一段；直接新建那条把第一次 `/api/contextual/create` 扣在路上、换选区再放行，问的焦点、完成卡片和建出的待办都只有第一段。
+- 2026-10-19 手上的东西在哪里只看元素（防腐 §10.28 对 #712、#720 的 P3）：原来 `landing.place` 只在元素落在右栏格或助理里时盖掉焦点里的 `place`、`side_tab`，左边的文档（`molis:surface-focus`）和分屏窗格（`workbench-surface-focus`）自己报的 `place: "side"` 与随便一个格名会原样送到 Host，Host 就按右栏给落点、给「插入到光标处」，提示里也写成右栏的格。现在 `place` 一律由元素算出（右栏格 `side` 带格名、助理 `assistant`、其余 `main`），`side_tab` 只在右栏格里有，自己报的两样都不算数。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 §10.28 …」（分屏窗格与左边文档自称右栏、带伪造格名，Host 收到的是 `main`、没有格；Shelf 框自称助理、带伪造格名，收到的是右栏和 Shelf 自己的格）。
+  - 页面资源：`workbench.js` 少 6 字节（`tooling/gates/page-assets.json` 同步降）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 

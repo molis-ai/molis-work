@@ -1358,3 +1358,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #765 的资源数字（workbench.js +14,570 B、css +3,389 B）用户已在 ⑤ 的会话里批准。本地快查基线 `baseline.json:53` 写的是 1985，实测 1993，⑤ 在 #762 的后续 PR 里一起更新。PTG-10 的视觉验收记进「待补浏览器验证」。workbench.js 的放行键交给 ⑧ 的槽位接口。
   - #766 复审有两条要改，没改就进了 main：附件状态和 @、/ 建议不归 UIV；`spec.md:30` 的链接钉在旧提交上。已在 PR 下请作者开小 PR 修。
   - 环境：新工作树跑整体 `pnpm build`，会在 local-host 的 Swift 构建处失败。原因是 CLT 16.2 的 `bridging.modulemap` 和 `module.modulemap` 都定义了 `SwiftBridging`。修它要改用户的系统工具，交用户定，眼下不动。各线只构建要用的包，这一条已写进 LINE-COMMON §3。
+- 08:05 UTC：⑦ 回报和统筹的裁定。
+  - #773 已移交 ⑤：S-25 的菜单路径拒绝挪进 test:security；CU-G11 的裸数字；状态句；CU-G13 用 CI 的证据。
+  - BL-176 的 Prologue PR 是 molis-ai/prologue#53，交给 ⑤ 评审，再交 ④ 放进第二次换包。
+  - Coding 小跑 16 次跑完：有说明 16/16，处理方式对 15/16。按比例和甲 A0-后 比，S2 的说明多 3 跑，S3 的处理方式多 5 跑，两处都是 Coding 更好。
+  - 裁定一，结论适用于 Coding：「差不到 3 跑」这条是防 Coding 比助理差的，这两处的方向对 Coding 有利，而且 A0-后 已经到顶。§9.5 写原始数字和差值的方向，不把差值归因到机制上。
+  - 裁定二，holdFinish 不设：「收工前没说明」是 0/16，保持 SDK 默认的 false，写进决策记录，不改代码。

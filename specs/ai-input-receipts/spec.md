@@ -714,7 +714,7 @@ interface AgentInputView {
 
 - **缺口。** 页面代写的话（交还浏览器的说明、插件交来的请求，助理按 `written_by: "page"` 收）交给正在跑的 Coding 一轮时，`coding.runs.control` 的补充没有 `source`，助理转给 Coding 的端口只好把它去掉，Coding 那边就记成本人的话：回执条照人的话画，R1 的摘要也把它当「用户补充」带走（§20.5）。
 - **做法。** 合同 `services/agent-inputs` 加 `AGENT_INPUT_SOURCES`（`person`、`host`），`agent.inputs.send` 的 schema 与 Coding 补充分支的 schema 都从它取，只写一份。Coding 的补充分支多一个可选的 `source`，`runControl` 原样交给 `agent.inputs.send`；按 `docs/system/CONTRACT-CHANGES.md` 升到第 7 版，第 1～6 版解析不到。助理调 Coding 的客户端（`assistant-coding.ts`）钉第 7 版，`assistant-service.ts` 不再去掉 `source`。`host` 到运行时还是原来那条路：Agent Host 交给 SDK 的 `app` 来源，记成 `notice`，Coding 画成「Molis 的说明，不是你发的话」（RC-12），R1 不计入。本人的话照旧不带 `source`。
-- **调用方。** `coding.runs.control` 只给本人（`user`），MCP 不暴露。固定版本的引用只有助理一处，同一个改动里改完。Coding 自己的页面发的是本人的话，不带 `source`，不用改。
+- **调用方。** `coding.runs.control` 只给本人（`user`），MCP 不暴露。固定版本的引用只有助理一处，同一个改动里改完。Coding 页面上人自己打的字照旧不带 `source`；但「重试这个子任务」（`plugins/native/coding/src/subagent-cards-client.ts`）是页面代写的话（拼进了上次的错误和模型写的分工），现在仍记成本人的话，这一片没修，记为 BL-182。
 - **验收编号与证据：**
   - RCPT-368：`coding.runs.control` 第 7 版的补充收 `person`、`host` 两种来源，拒别的值、拒空串，也拒别的控制带来源；`runControl` 把来源原样交给 `agent.inputs.send`（`tests/coding-run-control-contract.test.ts`）。第 1～6 版解析不到（`tests/coding-actions.test.ts`）。页面代写、交给正在跑的 Coding 一轮的话带 `source: "host"` 到 Coding 的控制，本人的话不带（`tests/assistant-coding-executor.test.ts`）。
 

@@ -73,7 +73,11 @@ test("RCPT-368: a supplement says who wrote it, the person or the Host relaying 
     assertActionInput(schema, input);
     assert.deepEqual(await runControl(input, async () => []), { kind: "steer", send: { text: "浏览器已经交还", source, key: "send.3" } }, "BL-144: the source reaches agent.inputs.send");
   }
-  assertActionInput(schema, control.toInput(request({ kind: "steer", run_id: "run-1", text: "浏览器已经交还", source: "host" })));
+  const relayed = control.toInput(request({ kind: "steer", run_id: "run-1", text: "浏览器已经交还", source: "host" }));
+  assertActionInput(schema, relayed);
+  // The field is optional, so the schema alone passes without it: both hops are asserted to keep it.
+  assert.equal(relayed.source, "host", "the page route keeps the source");
+  assert.equal((control.toRequest(relayed).body as { source?: unknown }).source, "host", "the action call keeps the source on its way to the route");
 });
 
 test("a complete control passes the published schema and the handler does not fail for a missing field", async () => {

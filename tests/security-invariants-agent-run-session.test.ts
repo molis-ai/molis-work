@@ -1,6 +1,6 @@
 // SECURITY-INVARIANTS S-17, S-37: the session an Agent round's tool calls carry is the one the Host checked against the Runtime's own record
 // when it started the round, for every plugin; it is never read from the start request or from a tool's input, and it grants nothing.
-// Each refusal asserts the refusal itself and that nothing was written (specs/ai-input-receipts D42, RCPT-391..394).
+// Each refusal asserts the refusal itself and that nothing was written (specs/ai-input-receipts D42, RCPT-391..395).
 import assert from "node:assert/strict";
 import { mkdtemp, realpath, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -10,12 +10,14 @@ import {
   MolisWorkLocalHost, composeAgentHost, connectorSetupAction, connectorSetupExecuteAction, withConnectorConnections,
 } from "@molis-ai/molis-work-app-local-host";
 import type { ActionDefinition, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import {
-  agentHostCapabilities, type AgentActionClient, type AgentSessionRef, type AgentSessionView, type AgentStartRequest,
+  agentHostCapabilities, agentOfferActions, type AgentActionClient, type AgentRunHandle, type AgentRunOffer, type AgentRunRef, type AgentRunView, type AgentSessionRef,
+  type AgentSessionView, type AgentStartRequest,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
-import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
+import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
 import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
@@ -57,6 +59,8 @@ async function world(t: TestContext) {
   await served.web.post(`/projects/${project.project_id}/api/workspaces`, { workspace_path: home, user_confirmed: true });
   const handled: Array<{ actor_id: string; runtime_session_id: string | undefined; audit_actor_id: string | undefined }> = [];
   const rounds: Array<{ session_id: string; tools: AgentActionClient }> = [];
+  /** Each round the Runtime started, with the suggestions its model made: what `read` answers for `agent.offers.run`. */
+  const held: Array<{ ref: AgentRunRef; frozen: AgentRunHandle["frozen"]; offers: AgentRunOffer[] }> = [];
   const owner = { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user" };
   const answer: { read: (session: AgentSessionRef) => AgentSessionView } = {
     read: session => ({ session, owner, title: "Read", runs: [], latest_run: null }) };
@@ -66,7 +70,11 @@ async function world(t: TestContext) {
       capabilities: { ...emptyCapabilityMatrix(), "run.start": "supported", "text-edit": "supported", command: "supported" } },
     async health() { return { ok: true, status: "ready", message: "ready" }; },
     async createSession() { throw new Error("Not used by this fixture"); },
-    async read() { throw new Error("Not used by this fixture"); },
+    async read(run) {
+      const round = held.find(entry => entry.ref.session_id === run.session_id && entry.ref.run_id === run.run_id);
+      if (!round) throw new Error("Not used by this fixture");
+      return { ref: round.ref, frozen: round.frozen, offers: round.offers } as AgentRunView;
+    },
     observe() { throw new Error("Not used by this fixture"); },
     async control() { throw new Error("Not used by this fixture"); },
     async readCommandOutput() { throw new Error("Not used by this fixture"); },
@@ -74,9 +82,12 @@ async function world(t: TestContext) {
     async start(given) {
       const role = given.role!;
       rounds.push({ session_id: given.session.session_id, tools: role.actions!.client });
-      return { ref: { run_id: `r${rounds.length}`, session_id: given.session.session_id }, frozen: { role_id: role.role_id, role_version: role.version, execution: role.execution,
+      const ref = { run_id: `r${rounds.length}`, session_id: given.session.session_id };
+      const frozen = { role_id: role.role_id, role_version: role.version, execution: role.execution,
         model_id: "probe", prompts: role.prompts.map(prompt => ({ prompt_id: prompt.prompt_id, version: prompt.version, layer: promptLayerOf(prompt) })), host_tools: [...role.host_tools],
-        skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true as const }, action_tools: given.action_tools } };
+        skills: [], mcp_tools: [], mcp_sources: [], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true as const }, action_tools: given.action_tools };
+      held.push({ ref, frozen, offers: [] });
+      return { ref, frozen };
     },
   });
   localHost.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "fixture.agent", kind: "plugin", title: "Fixture" }, definitions: [note],
@@ -95,7 +106,25 @@ async function world(t: TestContext) {
   const tools = [note.capability_id, goalsActions.treeSubmit.capability_id, goalsActions.treeRead.capability_id];
   const submit = (round: AgentActionClient, key: string, item = key) => round.invoke(reference(goalsActions.treeSubmit.capability_id), proposal(key, item)) as Promise<Submitted>;
   const proposals = async (round: AgentActionClient) => ((await round.invoke(reference(goalsActions.treeRead.capability_id), {})) as Proposals).proposals;
-  return { home, served, project, answer, owner, handled, rounds, reference, start, tools, submit, proposals, last: () => rounds[rounds.length - 1]!.tools };
+  // A person clicks a suggestion of a round, through the plugin that keeps its card (`agent.offers.run`, for plugins only).
+  const plugin: HostPluginCaller = { plugin_id: CODING, install_id: "coding", actor_id: "user", project_id: project.project_id,
+    declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} };
+  /** The Runtime keeps the sessions it started, each with the rounds it ran, as its own record. */
+  const holding = (session: AgentSessionRef): AgentSessionView => ({ session, owner, title: "Held", latest_run: null,
+    runs: held.filter(entry => entry.ref.session_id === session.session_id).map(entry => entry.ref) });
+  /** The latest round's model suggests an action, with its contract as the Host reads it now; the input is the person's at the click. */
+  const suggest = async (offer_id: string, capability_id: string) => {
+    const round = held[held.length - 1]!, ref = reference(capability_id);
+    const view = (await client.invoke(agentHostCapabilities.listActions, [RUNTIME, CODING])).find(row =>
+      row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
+    assert.ok(view, `${capability_id} is offered to the round`);
+    round.offers.push({ offer_id, offered_at: "2026-10-20T08:00:00.000Z", title: view.action.title, summary: view.action.description, reference: ref, input: {}, action_digest: actionDigest(view) });
+    return { run: round.ref, offer_id, reference: ref };
+  };
+  const click = (offered: { run: AgentRunRef; offer_id: string; reference: ExactActionReference }, input: unknown, extra: Record<string, unknown> = {}) =>
+    client.invoke(agentOfferActions.run, { runtime_id: RUNTIME, session_id: offered.run.session_id, run_id: offered.run.run_id, offer_id: offered.offer_id,
+      reference: offered.reference, input, ...extra }, { consumer: "plugin", plugin_caller: plugin, before_effect: async () => {} });
+  return { home, served, project, answer, owner, handled, rounds, reference, start, tools, submit, proposals, last: () => rounds[rounds.length - 1]!.tools, holding, suggest, click };
 }
 
 test("S-17 a round's tool calls carry the session the Host verified (RCPT-391)", { timeout: 180_000 }, async t => {
@@ -186,6 +215,55 @@ test("S-37 a connector setup one round prepared is continued only by that sessio
   // The session that prepared it gets past the initiator check and only then fails on connecting: without this, a request that stopped
   // recording its session would be refused for everyone, and the refusal above would still pass.
   await assert.rejects(preparing.invoke(execute, { authorization_id: prepared.authorization_id }), (error: { code?: string }) => {
+    assert.notEqual(error.code, "connector.setup.foreign_request", "the request was left for the session that prepared it");
+    assert.match(String(error.code), /^connector\.mcp\./, "it failed on connecting to the endpoint nothing listens on");
+    return true;
+  });
+});
+
+// The person's click on a round's suggestion (agent.offers.run) runs the action the way the round's own calls do: the tools it reaches carry the
+// session of the round clicked, checked by the Host against the Runtime's record (requireRun), never one the click names.
+test("S-17 a click on a round's suggestion runs under the session of that round, never one the click names (RCPT-395)", { timeout: 180_000 }, async t => {
+  const w = await world(t);
+  w.answer.read = w.holding;
+  await w.start("s", w.tools);
+  const inS = await w.suggest("offer-s", note.capability_id);
+  // A click that names a session or an author is refused by the action's own contract before anything runs.
+  for (const field of ["runtime_session_id", "audit_actor_id", "actor_id", "submitted_session_id"]) {
+    await assert.rejects(w.click(inS, {}, { [field]: `${CLIENT}:forged` }), { code: "actions.input_invalid" }, field);
+  }
+  assert.deepEqual(w.handled, [], "the refused clicks ran nothing");
+  assert.deepEqual(await w.click(inS, {}), { output: "noted" });
+  assert.deepEqual(w.handled, [{ actor_id: CLIENT, runtime_session_id: "s", audit_actor_id: `${CLIENT}:s` }],
+    "the grant's client id is unchanged; the session and the author name the session of the round clicked");
+  await w.start("t", w.tools);
+  const inT = await w.suggest("offer-t", note.capability_id);
+  await w.click(inT, {});
+  assert.deepEqual(w.handled.slice(1), [{ actor_id: CLIENT, runtime_session_id: "t", audit_actor_id: `${CLIENT}:t` }], "a click in another session carries that session");
+  // The round must be the named session's own: a click naming session s with t's round is refused and runs nothing.
+  await assert.rejects(w.click({ ...inT, run: { session_id: "s", run_id: inT.run.run_id } }, {}), { code: "agent.run_unknown" });
+  assert.equal(w.handled.length, 2, "the refused click ran nothing");
+});
+
+// A consequence of RCPT-395: before a click carried its round's session, a setup one session's suggestion prepared could be continued by a click
+// in any other session of the same plugin (the initiator check compared no session with no session), which S-37 refuses.
+test("S-37 a setup a click prepared is continued only by a click in the same session, not by one in another session of the same plugin (RCPT-395)", { timeout: 180_000 }, async t => {
+  const w = await world(t);
+  w.answer.read = w.holding;
+  const refs = [connectorSetupAction.capability_id, connectorSetupExecuteAction.capability_id];
+  await w.start("s", refs);
+  const prepare = await w.suggest("offer-prepare", connectorSetupAction.capability_id);
+  const execute = await w.suggest("offer-execute", connectorSetupExecuteAction.capability_id);
+  const prepared = (await w.click(prepare, { service_id: "mcp-bearer", method: "mcp", display_name: "Prepared MCP", expected_revision: null,
+    endpoint: "http://127.0.0.1:9/mcp", authentication: "none", transport: "http" }) as { output: { authorization_id: string } }).output;
+  await w.start("t", refs);
+  const elsewhere = await w.suggest("offer-execute-t", connectorSetupExecuteAction.capability_id);
+  // Nothing listens here: a continuation that got past the initiator check would fail on connecting, not with foreign_request.
+  await assert.rejects(w.click(elsewhere, { authorization_id: prepared.authorization_id }), { code: "connector.setup.foreign_request" });
+  assert.deepEqual(withConnectorConnections(w.home, store => store.list()), [], "the refused continuation connected and saved nothing");
+  // The session that prepared it gets past the initiator check and only then fails on connecting: without this, a request that stopped
+  // recording its session would be refused for everyone, and the refusal above would still pass.
+  await assert.rejects(w.click(execute, { authorization_id: prepared.authorization_id }), (error: { code?: string }) => {
     assert.notEqual(error.code, "connector.setup.foreign_request", "the request was left for the session that prepared it");
     assert.match(String(error.code), /^connector\.mcp\./, "it failed on connecting to the endpoint nothing listens on");
     return true;

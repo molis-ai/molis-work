@@ -437,8 +437,10 @@ test("RCPT-366, 3d-4: a step a person holds is said as their own mark, never as 
   const root = ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("succeeded") })!;
   ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("succeeded", { owner: { kind: "person" } }) });
   assert.match(root.all("mw-receipt__facts")[0]!.text, /现在：你标记完成$/u, "RCPT-366 who ended it is part of what is redrawn");
-  const english = receipts(INPUT_RECEIPTS_EN).ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added("failed", { owner: { kind: "person" } }) })!;
-  assert.match(english.all("mw-receipt__facts")[0]!.text, / · now: You marked it failed$/u, "RCPT-366 the person's mark has its English");
+  // The word is picked by a dynamic key (`L(mine && MARK[state] || STEP[state])`), so the translation gate cannot see a missing English entry: draw each mark.
+  const english = (state: string) => receipts(INPUT_RECEIPTS_EN).ui.line(here, supplement({ state: "read" }), { run_id: "run-1", step_board: added(state, { owner: { kind: "person" } }) })!.all("mw-receipt__facts")[0]!.text;
+  assert.match(english("succeeded"), / · now: You marked it done$/u, "RCPT-366 the person's mark of done has its English");
+  assert.match(english("failed"), / · now: You marked it failed$/u, "RCPT-366 the person's mark of failed has its English");
 });
 
 // The receipt is kept per surface, like the tray: the Assistant showing a round Coding runs, beside the Coding page.

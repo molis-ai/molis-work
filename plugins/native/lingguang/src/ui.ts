@@ -78,7 +78,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <button class="mw-btn mw-btn--primary" type="button" data-lingguang-capture>${icon("plus")}<span>${p.text("记下第一条灵光")}</span></button>
       </div>
       <p class="lingguang-placement-line" data-placement-target></p>
-      <div data-lingguang-rows></div>
+      <div data-lingguang-rows role="listbox" aria-multiselectable="true" aria-label="${p.text("灵光")}"></div>
     </div>
     <div class="plugin-stage-workspace" data-lingguang-stage-workspace hidden>
       <div class="plugin-stage-detail-bar">

@@ -27,7 +27,7 @@ export interface CodingSessionRead {
 }
 
 /** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
-const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 6 } as const;
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 7 } as const;
 type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {

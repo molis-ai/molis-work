@@ -92,14 +92,14 @@ export interface PluginHostServices {
   readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
+  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. 2026-10-18 改: by Manifest declaration (PG-022). */
   readonly database?: import("./plugin-database.js").PluginDatabase;
-  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. */
+  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
-  /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. */
+  /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
   /** Host material readers, independently declared as materials:read and materials:fetch. */
   readonly materials?: PluginMaterialsClient;
@@ -382,7 +382,11 @@ export interface PluginRouteBinding {
  */
 export interface PluginAppContribution {
   kind: "app";
-  /** Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. */
+  /**
+   * Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. 2026-10-18 改:
+   * removed; deleting a project cancels its work through `services.background` before the platform purges what the plugin declared
+   * (PG-106 in specs/repository-anti-corruption/privileges.md).
+   */
   onProjectDeleted?(projectId: string): void;
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];

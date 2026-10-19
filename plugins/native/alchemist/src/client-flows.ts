@@ -1,6 +1,7 @@
 /** Statements of the client factory's body, written without any indentation: the served script is measured in bytes (tooling/gates/page-assets.json), and indentation is the one thing in it that cannot matter. */
 export const ALCHEMIST_FLOWS = String.raw`
 const field=(label,name,options={})=>'<label class="alc-field">'+tx(label)+(options.area?'<textarea class="mw-textarea" name="'+name+'" rows="'+(options.rows||3)+'" '+(options.required?'required':'')+' maxlength="'+(options.max||4000)+'">'+esc(options.value||'')+'</textarea>':'<input class="mw-input" name="'+name+'" type="'+(options.type||'text')+'" '+(options.required?'required':'')+' '+(options.type==='number'?'min="1" max="40" step="1"':'maxlength="1000"')+' value="'+esc(options.value??'')+'">')+'</label>';
+const reopen=async()=>{await load();await open(focus,false);};
 const formEnd=label=>'<button class="mw-btn mw-btn--primary" type="submit">'+tx(label)+'</button></form>';
 const lines=value=>String(value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
 const modelChoices=()=>'<fieldset class="alc-radios"><legend>'+tx('研究模型')+'</legend><label><input class="mw-radio" type="radio" name="model" value="auto" '+(runtime.modelPolicy==='auto'?'checked':'')+'>'+tx('使用可用模型')+'</label>'+runtime.models.map(m=>'<label><input class="mw-radio" type="radio" name="model" required value="'+esc(m.id)+'" '+(runtime.modelPolicy==='fixed'&&runtime.modelId===m.id?'checked':'')+'>'+esc(m.label)+'</label>').join('')+'</fieldset>';
@@ -38,7 +39,7 @@ body.innerHTML=muted(esc(ctx.label))+messages.map(m=>'<div class="alc-message"><
 if(!oldTarget){body.innerHTML=empty('保留想法或生成报告后，可以选中原文添加注释。');return;}
 const r=await api('/annotations?'+new URLSearchParams({kind:oldTarget.kind,objectId:oldTarget.objectId,revision:String(oldTarget.revision)}));if(captured!==JSON.stringify(ctx)||JSON.stringify(oldTarget)!==JSON.stringify(target)||sideMode!==mode)return;
 const quoted=quote&&quote.target.objectId===target.objectId?quote:null;
-body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+formEnd('保存注释'):muted(tx('先在正文中选中一段文字，再打开注释。')))+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,'data-id="'+esc(a.id)+'"')+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,'data-id="'+esc(a.id)+'"'):''):'')+'</div></article>').join('');
+body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+formEnd('保存注释'):muted(tx('先在正文中选中一段文字，再打开注释。')))+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,dataId(a.id))+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,dataId(a.id)):''):'')+'</div></article>').join('');
 }
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
@@ -56,11 +57,11 @@ if(name==='settings'){await open({kind:'settings'});return;}
 if(name==='runtime'){await runtimeForm();return;}
 if(name==='sources'){await sources();return;}
 if(name==='pulse-start'){await api('/pulse/runs',{});view='pulse';await load();notice(L('正在采集，完成后会出现在报告列表中。'));return;}
-if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await load();await open(focus,false);return;}
+if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await reopen();return;}
 if(name==='edit-direction'){
 const d=data.directions.find(item=>item.id===focus?.id);if(!d)return;
 show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,max:4000,value:d.description}),'保存',async f=>{
-await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await load();await open(focus,false);
+await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await reopen();
 });return;
 }
 if(name==='archive-direction'||name==='restore-direction'){
@@ -71,7 +72,7 @@ await load();closeDetail();return;
 }
 if(name==='card'){await open({kind:'card',id:el.dataset.id});return;}
 if(name==='keep'){const r=await api('/idea-cards/'+enc(focus.id)+'/keep',{});await load();view='ideas';await open({kind:'idea',id:r.idea.id,version:r.version.revision.version,panel:'brief'});return;}
-if(name==='discard'||name==='restore'){await api('/idea-cards/'+enc(focus.id)+'/'+name,{});await load();await open(focus,false);return;}
+if(name==='discard'||name==='restore'){await api('/idea-cards/'+enc(focus.id)+'/'+name,{});await reopen();return;}
 if(['brief','market','cost','decision'].includes(name)){await open({...focus,panel:name});return;}
 if(name==='reuse-pending'){await pendingMethods();return;}
 if(name==='reuse-apply-proposal'||name==='reuse-reject-proposal'){await api('/action-proposals/'+enc(el.dataset.id)+(name==='reuse-apply-proposal'?'/apply':'/reject'),{});await pendingMethods();return;}
@@ -82,12 +83,12 @@ if(name==='reuse-reconcile'){await api('/reuse/receipts/'+enc(el.dataset.plan)+'
 if(name==='revise-playbook'){await revisePlaybook(el.dataset.id);return;}
 if(name==='resume-plan'){await startPrepared(study.lenses[focus.panel==='market'?'market_space':'build_cost'].plan,{...focus});return;}
 if(name==='plan'){await plan();return;}
-if(name==='cancel'){await api('/runs/'+enc(el.dataset.job)+'/cancel',{});await load();await open(focus,false);return;}
+if(name==='cancel'){await api('/runs/'+enc(el.dataset.job)+'/cancel',{});await reopen();return;}
 if(name==='decide'){const chosen={...focus},outcome=el.dataset.outcome;show('记下决定',paraHtml(L(states[outcome]))+field('决策理由','reason',{area:true,required:true,max:1000})+field('下一步或回看条件','revisit',{area:true,max:1000}),'确认决定',async f=>{await api('/ideas/'+enc(chosen.id)+'/versions/'+chosen.version+'/decision',{outcome,reason:f.get('reason'),revisitCondition:f.get('revisit')});closeAfterSubmit();await load();if(same(chosen))await open(chosen,false);});return;}
 if(name==='decisions'){view='decisions';closeDetail();renderList();return;}
 if(name==='convert'){const r=await api('/opportunities/'+enc(el.dataset.id)+'/convert',{});view='directions';await load();await open({kind:'direction',id:r.direction.id});return;}
 if(name==='converted'){view='directions';await open({kind:'direction',id:el.dataset.id});return;}
-if(name==='save-opportunity'){await api('/opportunities/'+enc(el.dataset.id)+'/save',{});await load();await open(focus,false);return;}
+if(name==='save-opportunity'){await api('/opportunities/'+enc(el.dataset.id)+'/save',{});await reopen();return;}
 if(name==='chat'||name==='annotations'){await showSide(name);return;}
 if(name==='calibrate'){calibration(el.dataset.id);return;}
 if(name==='resolve'){await api('/annotations/'+enc(el.dataset.id)+'/resolve',{});await showSide('annotations');return;}

@@ -1603,3 +1603,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **K1–K5 归 ⑤，另开一个 Prologue PR（D22 补）：** 先做 K2（`toolCall` 没有长度上限），再做 K5（`catch {}` 吞掉所有错误）。现在只记在 `docs/slices/call-attribution.md:113`。
   - ⑤：#804 评审已发，补了两条文档；#802 已并 main，资源数字改成 1130033，正在跑健康门禁。
   - ③：`boundary:check` 在排队，`action-service` 和 `installed-plugin-host` 的重跑还在等结果。
+- 13:10 UTC：
+  - **合入（⑤）：** #798 @ ea0b4428e（⑨ 交互线，AC-06）。
+  - **③：** `installed-plugin-host` 在两路并行的批次里有一条用例 31.3 秒超时，预算是 30 秒；单独重跑 21/21 过，那条用了 23.1 秒。③ 在 PR 里如实写明了。
+    - 离预算已经很近。如果 CI 上也超时，按 AGENTS.md 先分清是产品变慢、测试缺陷，还是环境和时序；不调大预算。
+    - `action-service` 和 `boundary` 的结果还在等。

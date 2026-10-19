@@ -900,6 +900,61 @@ test("a capability identity the round never found is answered as unknown, not as
     (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
 });
 
+// Project-knowledge recall evaluation (specs/project-knowledge §14): MiniMax-M3 sent a known capability under a provider id
+// that offers nothing by that name, was told the capability was taken away, and gave up.
+test("a known capability under a provider or version that offers nothing by that name is answered as a wrong identity, not as taken away", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  let views = [view];
+  const ran: unknown[] = [];
+  const client = { discover: async () => views, check: async () => {}, invoke: async (...call: unknown[]) => { ran.push(call); return {}; } };
+  const { executors, offered } = prologueActionGateway({ client, operate: true } as never);
+  await executors["find-capabilities"]!({ args: { query: "Notes" } } as never);
+  const call = (args: Record<string, unknown>) => executors["change-capability"]!({ args: { input: { text: "x" }, ...args } } as never);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes" }),
+    (error: Error) => /^actions\.missing: Provider "io\.molis\.work\.notes" offers no capability with that id; nothing ran\. It is offered here by provider "fixture\.notes"\..*find-capabilities/.test(error.message)
+      && !/any more|Do not use a different capability/.test(error.message));
+  // Through the review hook too, with the identities the round has seen.
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes", input: { text: "x" } },
+    new Set(), offered) ?? "", /^Provider "io\.molis\.work\.notes" offers no capability with that id/);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 3, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here at version 3; nothing ran\. Its provider now offers version 1/.test(error.message));
+  // An identity the round really saw offered and that is gone keeps "taken away": no stand-in from another provider.
+  views = [{ ...view, provider: { ...view.provider, provider_id: "fixture.notes.next" } } as ActionView];
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here any more \(switched off.*Do not use a different capability/.test(error.message));
+  assert.deepEqual(ran, [], "nothing ran");
+});
+
+// Project-knowledge recall evaluation (specs/project-knowledge §14): an input that matched the contract was refused by its
+// owner for a value in it, the round was shown the contract instead, and kept reshaping a valid input.
+test("an input the contract accepts and its owner refuses carries the owner's own reason; one the contract refuses still gets the contract", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  const refusal = "主题 document-1 不是这里的一项：从列表或搜索结果里原样复制 [id, version]";
+  const owner = async () => { throw new ActionError("actions.input_invalid", `${refusal}${"。".repeat(1000)}`); };
+  const fits = async (_ref: unknown, input: unknown) => { if (typeof (input as { text?: unknown })?.text !== "string") throw new ActionError("actions.input_invalid", "输入不符合能力合同：/text type"); };
+  const run = (client: object, tool: string, input: unknown) => prologueActionGateway({ client: { discover: async () => [view], ...client }, operate: true } as never).executors[tool]!({ args: { ...reference, input } } as never);
+  for (const tool of ["read-capability", "change-capability"]) {
+    const read = tool === "read-capability" ? { ...view, operation: "query", action: { ...view.action, kind: "query" } } as ActionView : view;
+    const client = { discover: async () => [read], check: fits, invoke: owner };
+    await assert.rejects(prologueActionGateway({ client, operate: true } as never).executors[tool]!({ args: { ...reference, input: { text: "x" } } } as never),
+      (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`)
+        && /The input matches this capability's contract; its owner refused it for this reason\.\)$/.test(error.message) && !/matching this schema/.test(error.message)
+        && error.message.length < 800, `${tool}: the owner's reason, bounded`);
+  }
+  // The contract refuses it (or cannot be asked): the contract, as before.
+  await assert.rejects(run({ check: fits, invoke: owner }, "change-capability", { text: 1 }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message) && !error.message.includes(refusal));
+  await assert.rejects(run({ invoke: owner }, "change-capability", { text: "x" }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message));
+  // A suggestion the contract accepts and its owner refuses records nothing and gets the owner's reason.
+  await assert.rejects(prologueActionGateway({ client: { discover: async () => [view], check: fits, invoke: owner, offer: owner }, operate: true } as never)
+    .executors["suggest-action"]!({ args: { title: "记下", summary: "记一条笔记", ...reference, input: { text: "x" } } } as never),
+    (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`));
+});
+
 // AI handbook §9.5 A2: a capability that is there but cannot run now is found with its owner's reason and nothing to call
 // it with, after the usable ones; calling it anyway is refused with that same reason.
 test("a capability that cannot run now is found with its owner's reason, after the usable ones, and calling it is refused", async () => {

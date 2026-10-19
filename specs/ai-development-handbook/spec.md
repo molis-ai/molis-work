@@ -1435,6 +1435,64 @@ memory-off 说清记忆关着、去哪开    3/4                    3/4         
   普通的「以后周报都按三段写」照旧直接记进项目记忆（4/4），没有被挤进 Goals；待办不受影响。BL-146 删行。
   只在这 3 道题、这一个模型、不开侧栏表面时成立；每格 3 到 4 跑，不推出比例。没跑：开侧栏表面（21 个工具、有延后，BL-145
   另比）、项目范围之外的 Alchemist 会话、Goals 自己的界面里人主动加说明。
+#### BL-145 工具描述被延后以后，用法还用得对吗（2026-10-19）
+
+判定规则在第一次调用之前写在统筹共享笔记 handbook-eval-assistant/bl145-rule.md，下面照抄；结果另记。
+
+```text
+问题：助理带侧栏表面的一轮有 21 个工具（业务 5、侧栏 3、网关 5、委派 4、记忆 4），超过 Prologue 的 deferToolSchemasBeyond: 20，
+  于是所有非系统工具的描述都被延后：模型每轮只看到每个描述的第一句，要用时经 find-tools 取回完整描述。A3① 起委派与记忆的用法
+  只写在各自的工具描述里。要看的是：延后了，这些用法是不是还用得对。
+比什么（同一个工作树、同一份构建，main ebad9a223 加 BL-146 的 Alchemist 标题改动）：
+  甲 = 延后（构建产物原样，阈值 20）。
+  乙 = 不延后（只在构建产物 horizontal/agent-host/dist/adapters/prologue-node-port.js 里把阈值改成 99，跑完改回 20 并核对；源码不动）。
+环境：MiniMax / MiniMax-M3。每跑一个一次性 Home，跑完即删。密钥只在命令上内联读取。SURFACES=1（侧栏表面用桩驱动，不碰真实浏览器）。
+任务（run-asst.mjs 现成的四题），每题每臂 3 跑，共 24 跑。第 r 轮两臂都跑完四题，r 为奇数先甲、偶数先乙：
+  remember-verbatim「以后周报都按三段写……」：答对 = 记忆里（直接记下或待认可的候选）有一条含「三段」。
+  remember-mixed「记住我不喜欢周五下午开会。另外帮我在待办里加一条……」：答对 = 记忆里（记下或候选）有一条含「周五」，且待办里
+    有一条含「会议安排」。
+  delegate-asked（三份纪要分给三个子任务，各建一个页面）：答对 = 三项子工作都结束，项目里至少 3 个页面。
+  pages-write「在 Pages 里记一下：客户说导出太慢……」：答对 = 项目里有一个页面含「导出」。
+判定：
+  1. 每题「答对」甲 ≥ 乙 − 1 → 延后可以接受：用法继续只写在工具描述里，靠 find-tools 取回；BL-145 删行，结论写进手册 §9.5。
+  2. 有一题甲比乙少 2 跑或更多 → 设计问题。逐条看甲没答对的跑：没调 find-tools 就用错参数、或只凭第一句选错工具，就改工具描述的
+     第一句或者调高阈值（另开一片，先报统筹）；不是这类原因的照实分类。
+照实记录、不作为条件：find-tools 调用次数与取回了哪些工具、工具报错、模型调用数、用时、输入 token。
+出错的运行（Provider 5xx/429、网络、超时）算没答对，照实列出，不重跑；任一臂出错超过 2 跑，先报统筹再判。没答对的逐条标：
+  设计问题 / 模型能力 / 拿不准。
+```
+
+结果（2026-10-19）。原始行在统筹共享笔记 handbook-eval-assistant/ 里：bl145.defer.jsonl、bl145.nodefer.jsonl 各 12 行，跑的脚本 run-asst.mjs 在同一处。
+
+```text
+构建：两臂用同一个工作树的同一份构建（c4af0f836，即 main ebad9a223 加 BL-146 的标题改动）。每行记下的阈值都核过（甲 20、乙 99），
+  跑完构建产物里的阈值核回 20。这份构建里有几个包的产物比源码旧（不含 #770、#765、#762），都不在助理这一轮的路径上。
+工具：每跑 21 个。甲每轮给全描述的 9 个（系统工具，含 find-tools），延后 13 个；乙 21 个都给全描述。
+答对（3 跑里）：
+                       甲（延后）   乙（不延后）
+  remember-verbatim       3            2
+  remember-mixed          3            3
+  delegate-asked          3            3
+  pages-write             3            3
+出错：甲 0；乙 1（remember-verbatim 第 2 跑超时）。都没超过 2 跑。
+判定：四题都满足甲 ≥ 乙 − 1 → 延后可以接受。委派与记忆的用法继续只写在各自的工具描述里，延后时靠 find-tools 取回；BL-145 删行。
+没答对的一跑：乙 remember-verbatim 第 2 跑。模型把「以后周报都按三段写」当成项目约定，走 goals.guidance.add；Goals 要先向人展示
+  原文、得到同意才写，模型改用 ask-user 去问（第一次问卷 id 形状错，第二次收下），评测不回答问题，到 720 秒封顶超时。乙不延后，
+  和本题无关；归「拿不准」：这句话该记成助理记忆还是 Goals 长期说明，是 BL-146 分工的事。
+照实记录：
+  find-tools：甲 12 跑都调了，每跑 1～5 次；乙 0 次。remember-mixed 甲每跑 4～5 次，多数是拿能力的词去搜工具：「todo create」
+    「新建待办」「todo」都没有匹配的延后工具（新建待办是目录里的能力，要用 find-capabilities 找），落空后才去找能力。
+  工具参数错（TOOL_ARGUMENTS_INVALID）：甲 remember-mixed 每跑 1～2 次，都是 find-capabilities 不带 query、改传 provider_id 和
+    capability_id（或 provider 和 name），即只看了描述第一句、没取回完整描述就调；delegate-asked 甲有 2 跑各 4 次（read-capability、
+    delegate-work 缺必填字段）；pages-write 甲 1 跑 2 次（change-reversible 缺必填字段）。乙合计 2 次。每次报错后，下一次都改对了。
+  主模型调用（中位，甲 / 乙）：remember-verbatim 4 / 4；remember-mixed 7 / 3；delegate-asked 12 / 4；pages-write 7 / 3。
+  用时（中位，秒）：30 / 38；51 / 42；103 / 83；40 / 39。
+  输入 token（中位，千）：17 / 40；37 / 34；162 / 136；37 / 37。
+  remember：remember-mixed 两臂每跑都返回 HOST_RESPONSE_INVALID「没有直接记住，已作为建议放在工作面板」。原因只写在候选的 why 里
+    （要记的不是用户某条消息的原话），工具结果里没有；不影响答对（候选算数），已报统筹。
+代价：延后之后答对没少，多出来的是轮数。要改数据、要委派的三题主模型调用多了一到两倍，多出的是 find-tools（含落空的搜索）和第一次
+  只凭第一句写错参数的调用。按规则不作为条件，这一片不改。find-tools 只找延后的工具、模型拿能力的词去搜会落空这一点，改不改、
+  怎样改（find-tools 是 Prologue 的工具）另定。
 ```
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

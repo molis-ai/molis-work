@@ -74,7 +74,7 @@ export function formClient(host: FormClientHost): void {
   const page = formPage(host, request, bench);
   page.draft = formDraft({ host, request, L: page.L, ask: page.one("[data-form-draft-ask]")!, prompt: page.aiPrompt,
     button: page.one<HTMLButtonElement>("[data-form-generate-ai]")!, form: () => page.sel, done: (record) => generated(page, record),
-    note: (text, isError) => showNote(page, text, isError) });
+    note: (text, isError) => (text || page.noteScope === "draft") && showNote(page, text, isError, "draft") });
   listen(page);
   void loadList(page).catch((error: Error) => { showNote(page, error.message, true); listFailed(page, error); });
 }

@@ -1,7 +1,7 @@
 import type { FormRecord, FormStatus } from "@molis-ai/molis-work-contracts/modules/form";
 import { type FormPage, hasUnsaved } from "./page.js";
 
-/** The editor's one note line; `scope` says which later success may clear it (save, publication, required). */
+/** The editor's one note line; `scope` says which later success may clear it (save, publication, required, draft). */
 export const showNote = (page: FormPage, text: string, isError: boolean, scope = "") => {
   page.noteScope = text ? scope : "";
   const { note } = page;

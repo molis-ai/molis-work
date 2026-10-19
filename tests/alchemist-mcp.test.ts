@@ -19,8 +19,10 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
   };
+  // A tool is named after the version the Manifest serves, so a revised action (cancel, the four model actions) is called by its current name.
+  const tool = (name: string) => `alchemist.${name}__v${alchemistManifest.actions!.find(action => action.capability_id === `alchemist.${name}`)!.version}`;
   const call = async (client: Client, name: string, args: Record<string, unknown> = {}) => {
-    const result = await client.callTool({ name: `alchemist.${name}__v1`, arguments: args });
+    const result = await client.callTool({ name: tool(name), arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
   try {
@@ -30,6 +32,8 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     // Each tool is named after the version it serves: research.cancel is __v2 since it stops a Pulse too (W5-01-ALC-RES09).
     const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v${action.version}`).sort();
     assert.ok(offered.includes("alchemist.research.cancel__v2") && !offered.includes("alchemist.research.cancel__v1"), "the cancel tool is the v2 one");
+    // W5-01-ALC-RES-AUTH-04: the four model actions are offered under their v2 names (they also declare model:invoke); a client still naming v1 finds no tool.
+    for (const name of ["reuse.assess", "conversation.send", "explorations.start", "research.start"]) assert.ok(offered.includes(`alchemist.${name}__v2`) && !offered.includes(`alchemist.${name}__v1`), `${name} is offered as v2`);
     assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
     assert.deepEqual(alchemistManifest.actions!.filter(action => !action.action.audiences.includes("mcp")).map(action => action.capability_id).sort(), ["alchemist.pulse.github", "alchemist.pulse.github.configure"], "only the account choice is kept from MCP");
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
@@ -37,7 +41,7 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     assert.deepEqual((await call(other, "workspace.read")).directions, []);
     for (const [client, name, args] of [[reader, "directions.create", { description: "只读调用不能创建方向" }], [writer, "directions.create", { description: "身份不得来自调用参数", project_id: "b" }],
       [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向" }]] as const) {
-      assert.equal((await client.callTool({ name: `alchemist.${name}__v1`, arguments: args })).isError, true);
+      assert.equal((await client.callTool({ name: tool(name), arguments: args })).isError, true);
     }
     const receipt = await call(writer, "explorations.start", { id: direction.id });
     let events: any;
@@ -61,7 +65,7 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const reopened = await connect("a");
     assert.equal((await call(reopened, "ideas.version", { id: kept.idea.id, version: 1 })).version.id, kept.version.id);
     assert.equal((await call(reopened, "conversation.list")).messages[1].id, reply.assistantMessage.id);
-    assert.equal((await reopened.callTool({ name: "alchemist.cards.keep__v1", arguments: { id: exploration.cards[0].id } })).isError, true);
+    assert.equal((await reopened.callTool({ name: tool("cards.keep"), arguments: { id: exploration.cards[0].id } })).isError, true);
     assert.equal((await call(reader, "workspace.read")).ideas.length, 1);
   } finally { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); }
 });

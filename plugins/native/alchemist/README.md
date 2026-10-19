@@ -18,7 +18,7 @@
 
 执行中的任务持续续租，其他进程不会因原始租期结束而接管仍在执行的任务。取消或租约丢失后，原执行者停止等待；业务结果和检查点写入在原任务库中校验执行归属。任务状态与事件同事务保存，失败不会留下只有状态、没有对应事件的半次更新。系统动作服务迁移仍在进行，进度见 `specs/action-architecture/migration.md`。
 
-Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码、SSE 和下载。事件读取使用原任务库的一致快照，取消观察不会取消任务。生产 Host 注册同一动作清单，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话；重启后的任务保留历史作者，但需当前调用者明确继续并获得本轮权限才能执行。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
+Studio 业务由 `alchemistActions` 声明，输入输出验证与目录 JSON Schema 来自同一 Zod 合同。`createAlchemistActionHandlers` 为 Host 提供处理器，`LocalRuntime.actions` 执行原有业务；HTTP 仅负责参数映射、状态码和下载，没有事件流路由（2026-10-20 删除，页面和 Skill 都不用）。任务事件只经 `alchemist.runs.events` 动作按游标读取，使用原任务库的一致快照，重复查询或中途放弃都不会取消任务。生产 Host 注册同一动作清单，HTTP 经同一 Kernel 执行；旧演示数据的只读能力与「历史演示记录」入口已删除（2026-10-02，artifact-positioning P8）；按 Home/项目共享运行时，最后一个 Host 释放才停止。可信调用者身份保留到对象、任务和 Prologue 会话；重启后的任务保留历史作者，但需当前调用者明确继续并获得本轮权限才能执行。标准 MCP 测试使用真实 Host 和显式 fixture 权限，不能当作生产客户端授权管理完成。旧演示 writer 和生成器已移除，仅保留历史读取及导出。
 
 `src/studio` 是迁入后的唯一实现来源，不依赖原仓库路径。UI 使用宿主 plugin-stage、设计 token、列表与详情、对象侧面板及原生对话框；不再发布独立 React 页面或插件 iframe。业务 API 和已有数据原样保留，模型接入仍使用 Prologue。凭据只由宿主管理，不进入业务数据库或导出。此插件不自动创建 Goal 或修改其他插件。
 
@@ -35,6 +35,7 @@ AI 固定指令统一定义于 `src/prompts.ts`，由共同目录登记 `ALCHEMI
 - 不变量：
   - 未配置模型时保留输入并提示，不生成演示卡。方向卡与研究卡上因缺模型而停下的炼化或研究只说一次「还没有可用模型」并带「打开模型设置」（模型之后配好了就不再说），不显示状态、等待标签或内部错误码。
   - 哪些动作要模型由插件自己声明：凡声明了 `alchemist:generate` 权限（`ALCHEMIST_GENERATE_PERMISSION`）的动作，`createAlchemistActionHandlers` 都为它绑上可用性判断，「用户本人的页面一律可用」这条规则也在这里；宿主（`AlchemistHostService`）不留动作清单，只经 `modelAvailability` 端口回答「这个 Home 有没有炼金术士能跑的模型」，答案来自 Prologue 端口 `listModels` 提供的同一份列表（`alchemistModelChoices`），所以「能不能跑」只有一个答案。炼金术士的端口不认开发用环境变量里的密钥，因此只在那一种开发模式下，这个答案可能与其他插件宿主侧的 `hostCompleteText` 不同；真实 Home 里两者一致。新增一个调模型的动作，只要声明这个权限就受同一判断；`tests/model-unavailable-declarations.test.ts` 按声明遍历，不抄动作清单。
+  - 这四个动作（`alchemist.reuse.assess`、`conversation.send`、`explorations.start`、`research.start`，版本 2）除 `alchemist:generate` 外还声明平台的 `model:invoke`（`ALCHEMIST_MODEL_PERMISSION`），它们是计费、并发的动作，只有它们声明；Manifest 里 `model:invoke` 是可选权限，关掉只让这四个动作不可用。`alchemist:generate` 保留：授权、可用性判断和后台继续时保留的权限都按它写（升到版本 2 的依据见 `specs/repository-anti-corruption/spec.md` 的 ALC-RES 一节）。
   - 没有模型时，`alchemist.reuse.assess`、`alchemist.conversation.send`、`alchemist.explorations.start`、`alchemist.research.start` 在目录里对助理、MCP、工作流和插件标成不可用，原因是缺模型：工作流和插件调用得到 `actions.connection_required`，助理搜能力时不列出，MCP 的 `tools/list` 不列出这四个工具、按名调用得到 `actions.mcp_unavailable`，配好模型后它们回来；用户自己的页面不受影响，这是用户 2026-10-09 定下的做法：发送讨论先保存消息，启动炼化与启动研究记一条停下的运行，卡片再指向模型设置。`alchemist.pulse.start` 用规则综合、不调模型，不声明。`tests/model-unavailable-declarations.test.ts` 钉着现在的划分。
   - 研究阶段的端口类型在 `src/studio/server/runtime/research-runtime-port.ts`；会写 `fixture://research/…` 假证据的 `FixtureResearchRuntimeAdapter` 只在 `tests/fixtures/`，生产代码不导入它。
   - 预算不足产生部分报告，不能当作完整的双 Lens 依据；费用不可观测时不把调用数换算成金额。

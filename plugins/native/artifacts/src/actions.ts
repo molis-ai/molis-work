@@ -155,7 +155,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
         && currentProject(edge.target.project_id) && edge.source.module === "goals" && currentProject(edge.source.project_id))
         .map(edge => edge.source.id);
-      return artifactAnalysisContext(artifact, goalIds);
+      return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
     }),
     bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();

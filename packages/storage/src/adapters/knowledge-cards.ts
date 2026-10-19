@@ -1,14 +1,14 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { KnowledgeCardMatch, KnowledgeCardRecord, KnowledgeCardStorePort } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { clearInExistingHomeSqlite, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
 import { normalizeSearchText, searchQueryPlan, searchTokens } from "./text-search-index.js";
 
 /**
  * Project knowledge's own records (specs/project-knowledge §4.3): one card per piece, with what organizing wrote and what the
- * person edited, and how much organizing each project used per day. No piece's text is kept here; the card's own words are
- * searchable with the same tokenizing as the system search.
+ * person edited, how much organizing each project used per day, and who read which piece's original text (receipts, kept 30
+ * days). No piece's text is kept here; the card's own words are searchable with the same tokenizing as the system search.
  */
 export const KNOWLEDGE_CARDS_STORE = "knowledge";
 
@@ -22,6 +22,11 @@ CREATE TABLE knowledge_usage (
   project_id TEXT NOT NULL, day TEXT NOT NULL, pieces INTEGER NOT NULL, chars INTEGER NOT NULL, extra_pieces INTEGER NOT NULL, extra_chars INTEGER NOT NULL,
   PRIMARY KEY (project_id, day)
 );
+CREATE TABLE knowledge_receipts (
+  receipt_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, at TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, body TEXT NOT NULL
+);
+CREATE INDEX knowledge_receipts_project ON knowledge_receipts (project_id, receipt_id);
+CREATE INDEX knowledge_receipts_subject ON knowledge_receipts (project_id, kind, object_id, receipt_id);
 ` };
 
 type Row = Record<string, unknown>;
@@ -69,8 +74,28 @@ export function openKnowledgeCards(options: { homeDirectory: string }): Knowledg
         extra_pieces = extra_pieces + excluded.extra_pieces, extra_chars = extra_chars + excluded.extra_chars`)
         .run(projectId, day, delta.pieces ?? 0, delta.chars ?? 0, delta.extra_pieces ?? 0, delta.extra_chars ?? 0);
     },
+    addReceipt: receipt => transaction(() => addReceipt(db, receipt)),
+    receipts: (projectId, options) => receiptsOf(db, projectId, options),
     close: () => db.close(),
   };
+}
+
+/** One receipt, then what the project keeps: the last 30 days, at most `KNOWLEDGE_RECEIPT_MAX`. */
+function addReceipt(db: DatabaseSync, receipt: KnowledgeReadReceipt): void {
+  db.prepare("INSERT INTO knowledge_receipts (project_id, at, kind, object_id, body) VALUES (?, ?, ?, ?, ?)")
+    .run(receipt.project_id, receipt.at, receipt.subject.kind, receipt.subject.id, JSON.stringify(receipt));
+  const since = new Date(Date.parse(receipt.at) - KNOWLEDGE_RECEIPT_DAYS * 86_400_000).toISOString();
+  db.prepare("DELETE FROM knowledge_receipts WHERE project_id = ? AND at < ?").run(receipt.project_id, since);
+  db.prepare(`DELETE FROM knowledge_receipts WHERE project_id = ? AND receipt_id <= (SELECT receipt_id FROM knowledge_receipts WHERE project_id = ?
+    ORDER BY receipt_id DESC LIMIT 1 OFFSET ?)`).run(receipt.project_id, receipt.project_id, KNOWLEDGE_RECEIPT_MAX);
+}
+
+function receiptsOf(db: DatabaseSync, projectId: string, options: { subject?: ActionSubject; limit: number; offset: number }): { receipts: KnowledgeReadReceipt[]; total: number } {
+  const where = options.subject ? "project_id = ? AND kind = ? AND object_id = ?" : "project_id = ?";
+  const args = options.subject ? [projectId, options.subject.kind, options.subject.id] : [projectId];
+  const total = Number((db.prepare(`SELECT COUNT(*) AS n FROM knowledge_receipts WHERE ${where}`).get(...args) as Row).n);
+  const rows = db.prepare(`SELECT body FROM knowledge_receipts WHERE ${where} ORDER BY receipt_id DESC LIMIT ? OFFSET ?`).all(...args, options.limit, options.offset) as Row[];
+  return { receipts: rows.map(row => JSON.parse(String(row.body)) as KnowledgeReadReceipt), total };
 }
 
 function removeProjectCards(db: DatabaseSync, projectId: string): number {
@@ -78,6 +103,7 @@ function removeProjectCards(db: DatabaseSync, projectId: string): number {
   for (const row of ids) db.prepare("DELETE FROM knowledge_cards_fts WHERE rowid = ?").run(Number(row.card_id));
   db.prepare("DELETE FROM knowledge_cards WHERE project_id = ?").run(projectId);
   db.prepare("DELETE FROM knowledge_usage WHERE project_id = ?").run(projectId);
+  db.prepare("DELETE FROM knowledge_receipts WHERE project_id = ?").run(projectId);
   return ids.length;
 }
 

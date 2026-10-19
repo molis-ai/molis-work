@@ -30,7 +30,15 @@ export declare const KNOWLEDGE_READ_MAX_CHARS = 12000;
 
 export declare const KNOWLEDGE_READ_PERMISSION = "knowledge:read";
 
+export declare const KNOWLEDGE_RECEIPT_DAYS = 30;
+
+export declare const KNOWLEDGE_RECEIPT_MAX = 5000;
+
+export declare const KNOWLEDGE_ROUND_READ_CHARS = 60000;
+
 export declare const KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS = 200;
+
+export declare const KNOWLEDGE_TEXT_MAX_CHARS = 400000;
 
 export declare const KNOWLEDGE_TITLE_MAX_CHARS = 120;
 
@@ -90,6 +98,15 @@ export interface KnowledgeCardStorePort {
     removeProject(projectId: string): number;
     search(projectId: string, query: string, limit: number): KnowledgeCardMatch[];
     usage(projectId: string, day: string): KnowledgeUsage;
+    addReceipt(receipt: KnowledgeReadReceipt): void;
+    receipts(projectId: string, options: {
+        subject?: ActionSubject;
+        limit: number;
+        offset: number;
+    }): {
+        receipts: KnowledgeReadReceipt[];
+        total: number;
+    };
     addUsage(projectId: string, day: string, delta: Partial<Omit<KnowledgeUsage, "day">>): void;
     close(): void;
 }
@@ -169,6 +186,7 @@ export interface KnowledgeGrepResponse {
         subject: ActionSubject;
         reason: string;
     }>;
+    round_chars_left: number | null;
 }
 
 export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
@@ -205,6 +223,20 @@ export interface KnowledgeQuota {
     reached: boolean;
 }
 
+export interface KnowledgeReadReceipt {
+    project_id: string;
+    at: string;
+    subject: ActionSubject;
+    revision: string;
+    via: "read" | "grep";
+    chars: number;
+    actor_id: string;
+    agent: string | null;
+    audience: string;
+    call_id: string | null;
+    runtime_session_id: string | null;
+}
+
 export interface KnowledgeReadRequest {
     subject: ActionSubject;
     anchor?: string;
@@ -222,6 +254,18 @@ export interface KnowledgeReadResponse {
     end: number;
     remaining: number;
     owner_truncated: boolean;
+    round_chars_left: number | null;
+}
+
+export interface KnowledgeReceiptsRequest {
+    subject?: ActionSubject;
+    limit?: number;
+    offset?: number;
+}
+
+export interface KnowledgeReceiptsResponse {
+    receipts: KnowledgeReadReceipt[];
+    total: number;
 }
 
 export interface KnowledgeSearchRequest {
@@ -272,6 +316,7 @@ export declare const knowledgeManageActions: {
     edit: ActionDefinition<KnowledgeEditRequest, KnowledgeCardRecord>;
     exclude: ActionDefinition<KnowledgeExcludeRequest, KnowledgeCardRecord>;
     organize: ActionDefinition<KnowledgeOrganizeRequest, KnowledgeOrganizeResponse>;
+    receipts: ActionDefinition<KnowledgeReceiptsRequest, KnowledgeReceiptsResponse>;
 };
 
 export declare const servicesKnowledgeContract: {

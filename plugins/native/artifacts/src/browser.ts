@@ -56,7 +56,7 @@ export function requireArtifactAnalysisRecord(
 }
 
 /** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
-export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = []): ActionSubjectContext {
+export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = [], request?: { offset?: number }): ActionSubjectContext {
   const relatedGoals = [...new Set(goalIds)].sort();
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
@@ -67,7 +67,7 @@ export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: 
         binding_signature: record.producer_binding_signature },
       created_at: record.created_at, payload: record.payload, metadata: record.metadata }),
     goal_ids: relatedGoals, session_id: null,
-  });
+  }, request);
 }
 
 export type ArtifactBrowserRoute =

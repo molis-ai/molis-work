@@ -737,6 +737,8 @@ export interface ActionSubjectContext {
         id: string;
     };
     project_id?: string | null;
+    offset?: number;
+    length?: number;
 }
 
 export interface ActionUsage {
@@ -3667,6 +3669,10 @@ export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
             type: string;
             minLength: number;
         };
+        offset: {
+            type: string;
+            minimum: number;
+        };
     };
     required: string[];
     additionalProperties: boolean;
@@ -3675,6 +3681,14 @@ export declare const SUBJECT_CONTEXT_INPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
     type: string;
     properties: {
+        offset: {
+            type: string;
+            minimum: number;
+        };
+        length: {
+            type: string;
+            minimum: number;
+        };
         open: {
             type: string;
             properties: {
@@ -3855,6 +3869,8 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
     additionalProperties: boolean;
 };
 
+export declare const SUBJECT_CONTEXT_PAGE_CHARS = 32000;
+
 export declare const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
 
 export declare const SUBJECT_OFFERS_INPUT_SCHEMA: {
@@ -4026,6 +4042,11 @@ export interface SubjectActionOffer {
     title: string;
     action: ActionReference;
     input: unknown;
+}
+
+export interface SubjectContextRequest {
+    subject_id: string;
+    offset?: number;
 }
 
 export interface SubjectOfferChoice {
@@ -4244,9 +4265,7 @@ export declare function defineObjectMoveAction(capabilityId: string, kinds: read
 
 export declare function defineSearchEntriesAction(capabilityId: string, kinds: readonly SearchSourceKind[], title: string, permissions: readonly string[], scope?: "home" | "project", audiences?: readonly ActionAudience[]): ActionDefinition<SearchEntriesInput, SearchEntriesPage>;
 
-export declare function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<{
-    subject_id: string;
-}, ActionSubjectContext>;
+export declare function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectContextRequest, ActionSubjectContext>;
 
 export declare function defineSubjectOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
@@ -4471,9 +4490,9 @@ export declare function searchRevisionOf(parts: readonly string[]): string;
 
 export declare function searchText(value: unknown, max?: number): string;
 
-export declare function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & {
+export declare function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & {
     truncated?: boolean;
-}): ActionSubjectContext;
+}, request?: Pick<SubjectContextRequest, "offset">): ActionSubjectContext;
 
 export declare function validActionExecutionPolicy(value: unknown): value is ActionExecutionPolicy;
 

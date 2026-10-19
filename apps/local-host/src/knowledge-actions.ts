@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionClient, ActionHandlerBinding, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
@@ -12,6 +12,7 @@ import {
   type KnowledgeOrganizeRequest,
   type KnowledgeOutlineRequest,
   type KnowledgeReadRequest,
+  type KnowledgeReceiptsRequest,
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
@@ -83,7 +84,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     (timer as { unref?: () => void }).unref?.();
     timers.set(projectId, timer);
   };
-  const access = (caller: ActionCallContext): KnowledgeAccess => ({ client: ports.clientFor(caller), caller });
+  const access = (caller: ActionExecutionContext): KnowledgeAccess => ({ client: ports.clientFor(caller), caller, beforeEffect: caller.beforeEffect });
   const handlers: ActionHandlerBinding[] = [
     // A search brings the project's sources current; what it found new is organized shortly after.
     { ...knowledgeActions.search, handle: async (caller, input) => { const found = await service.search(access(caller), input as KnowledgeSearchRequest); changed(caller.project_id); return found; } },
@@ -92,6 +93,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeActions.grep, handle: (caller, input) => service.grep(access(caller), input as KnowledgeGrepRequest) },
     { ...knowledgeActions.glob, handle: (caller, input) => service.glob(access(caller), input as KnowledgeGlobRequest) },
     { ...knowledgeManageActions.cards, handle: (caller, input) => cards.list(caller, input as KnowledgeCardsRequest) },
+    { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },
     { ...knowledgeManageActions.exclude, handle: async (caller, input) => { await caller.beforeEffect(); return cards.exclude(caller, input as KnowledgeExcludeRequest); } },
     { ...knowledgeManageActions.organize, handle: async (caller, input) => { await caller.beforeEffect(); return cards.organize(caller, input as KnowledgeOrganizeRequest); } },

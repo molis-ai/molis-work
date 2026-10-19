@@ -13,6 +13,8 @@ import {
   type KnowledgeExcludeRequest,
   type KnowledgeOrganizeRequest,
   type KnowledgeOrganizeResponse,
+  type KnowledgeReceiptsRequest,
+  type KnowledgeReceiptsResponse,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { knowledgeErrors } from "./errors.js";
 import type { KnowledgeOrganizer } from "./organize.js";
@@ -68,6 +70,11 @@ export class KnowledgeCards {
     const queued = this.organizer.queue(project, input.subjects, input.confirm_over_quota === true);
     void this.organizer.kick(project);
     return { queued, quota: this.organizer.quota(project) };
+  }
+
+  /** Who read which piece's original text, newest first (PMAT-12). */
+  receipts(caller: ActionCallContext, input: KnowledgeReceiptsRequest): KnowledgeReceiptsResponse {
+    return this.store.receipts(this.project(caller), { ...(input.subject ? { subject: input.subject } : {}), limit: input.limit ?? DEFAULT_PAGE, offset: input.offset ?? 0 });
   }
 
   private card(caller: ActionCallContext, input: { subject: KnowledgeCardRecord["subject"] }): KnowledgeCardRecord {

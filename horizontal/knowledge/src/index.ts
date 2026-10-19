@@ -14,6 +14,7 @@ import {
   KNOWLEDGE_GREP_MAX_FILES,
   KNOWLEDGE_GREP_MAX_SUBJECTS,
   KNOWLEDGE_PROVIDER_ID,
+  KNOWLEDGE_TEXT_MAX_CHARS,
   KNOWLEDGE_READ_DEFAULT_CHARS,
   KNOWLEDGE_READ_MAX_CHARS,
   knowledgeActions,
@@ -36,6 +37,7 @@ import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modu
 import { knowledgeErrors } from "./errors.js";
 import { grepLines, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
+import { RoundBudget } from "./budget.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
@@ -43,6 +45,7 @@ export { KnowledgeOrganizer, knowledgeCatalog, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE
   type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
+export { RoundBudget } from "./budget.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-knowledge",
@@ -56,13 +59,19 @@ export const packageDescriptor = {
 } as const;
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-/** One caller's way into its project: the client of that project and the caller's own trusted context. */
-export interface KnowledgeAccess { client: ActionClient; caller: ActionCallContext }
+/**
+ * One caller's way into its project: the client of that project and the caller's own trusted context. `beforeEffect` is the
+ * handler's own check that the call is still current, run right before a receipt is written (a cancelled or revoked read leaves
+ * none); without it receipts are written as the call returns.
+ */
+export interface KnowledgeAccess { client: ActionClient; caller: ActionCallContext; beforeEffect?: () => Promise<void> }
 export interface KnowledgeServiceOptions {
   /** The system search, asked with the same access; it answers only from sources the caller may read. */
   search(access: KnowledgeAccess, input: SearchQueryRequest): Promise<SearchQueryResponse>;
-  /** The cards organizing wrote and the person edited (spec §5). */
+  /** The cards organizing wrote and the person edited (spec §5), and the receipts of what was read. */
   cards: KnowledgeCardStorePort;
+  budget?: RoundBudget;
+  clock?: () => Date;
 }
 
 const DEFAULT_CARDS = 10;
@@ -101,8 +110,11 @@ function visibility(views: readonly ActionView[], caller: KnowledgeAccess["calle
  */
 export class KnowledgeService {
   private readonly workspace = new KnowledgeWorkspace();
+  private readonly budget: RoundBudget;
 
-  constructor(private readonly options: KnowledgeServiceOptions) {}
+  constructor(private readonly options: KnowledgeServiceOptions) {
+    this.budget = options.budget ?? new RoundBudget();
+  }
 
   async search(access: KnowledgeAccess, input: KnowledgeSearchRequest): Promise<KnowledgeSearchResponse> {
     const project = this.project(access);
@@ -146,9 +158,13 @@ export class KnowledgeService {
     if (!range) throw knowledgeErrors.anchor_unknown("这份资料现在没有这个分节，先用 knowledge.outline 重新看它的结构", { anchor: input.anchor ?? null, revision: context.revision });
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
-    const end = Math.min(range.end, start + Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS));
-    return { subject: context.subject, revision: context.revision, title: context.title, layer: "original", text: context.content.slice(start, end),
-      start, end, remaining: range.end - end, owner_truncated: context.truncated };
+    const round = access.caller.call_id, left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
+    const end = Math.min(range.end, start + Math.min(asked, left ?? asked));
+    const text = context.content.slice(start, end);
+    await this.receipt(access, [{ context, via: "read", chars: text.length }]);
+    this.budget.spend(round, text.length);
+    return { subject: context.subject, revision: context.revision, title: context.title, layer: "original", text,
+      start, end, remaining: range.end - end, owner_truncated: context.truncated, round_chars_left: left === null ? null : left - text.length };
   }
 
   async grep(access: KnowledgeAccess, input: KnowledgeGrepRequest): Promise<KnowledgeGrepResponse> {
@@ -158,7 +174,7 @@ export class KnowledgeService {
     if (!named.length && !input.glob) throw knowledgeErrors.invalid("请给出要查的资料（subjects），或工作目录里的路径模式（glob）");
     const pattern = input.pattern.trim();
     if (!pattern) throw knowledgeErrors.invalid("请给出要查找的文字");
-    const result: KnowledgeGrepResponse = { matches: [], more: false, unread: [] };
+    const result: Omit<KnowledgeGrepResponse, "round_chars_left"> = { matches: [], more: false, unread: [] };
     const found = input.glob ? await this.workspace.glob(access, { pattern: input.glob, ...(input.workspace_id ? { workspace_id: input.workspace_id } : {}), limit: KNOWLEDGE_GREP_MAX_FILES }, knowledgeActions.grep, KNOWLEDGE_GREP_MAX_FILES) : null;
     if (found) {
       result.more = found.more;
@@ -168,20 +184,44 @@ export class KnowledgeService {
     const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
     const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
+    // Lines found are original text: they count toward the round's fill, and the rest is left with `more`.
+    const round = access.caller.call_id, fill = this.budget.left(round);
+    let chars = 0;
+    const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
     read.forEach((outcome, index) => {
       if ("error" in outcome) { result.unread.push({ subject: subjects[index]!, reason: reasonOf(outcome.error) }); return; }
       const { hits, more } = grepLines(outcome.context.content, pattern, input.context_lines ?? 1, Math.max(0, left));
-      left -= hits.length;
       result.more ||= more;
-      for (const hit of hits) result.matches.push({ subject: outcome.context.subject, revision: outcome.context.revision, ...hit });
+      let taken = 0;
+      for (const hit of hits) {
+        const size = [hit.text, ...hit.before, ...hit.after].join("\n").length;
+        if (fill !== null && chars + size > fill) { result.more = true; break; }
+        chars += size; taken += size; left -= 1;
+        result.matches.push({ subject: outcome.context.subject, revision: outcome.context.revision, ...hit });
+      }
+      given.push({ context: outcome.context, via: "grep", chars: taken });
     });
-    return result;
+    await this.receipt(access, given);
+    this.budget.spend(round, chars);
+    return { ...result, round_chars_left: fill === null ? null : fill - chars };
   }
 
   /** Files in the project's linked folders by path pattern, read with the caller's own grant to the folders (K0b). */
   async glob(access: KnowledgeAccess, input: KnowledgeGlobRequest): Promise<KnowledgeGlobResponse> {
     this.project(access);
     return this.workspace.glob(access, input, knowledgeActions.glob);
+  }
+
+  /** Who got original text of which piece, written once the call is still current right before it (PMAT-12). */
+  private async receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): Promise<void> {
+    const given = reads.filter(item => item.chars > 0);
+    if (!given.length) return;
+    await access.beforeEffect?.();
+    const { caller } = access, at = (this.options.clock?.() ?? new Date()).toISOString();
+    for (const { context, via, chars } of given) {
+      this.options.cards.addReceipt({ project_id: caller.project_id!, at, subject: context.subject, revision: context.revision, via, chars, actor_id: caller.actor_id,
+        agent: caller.audit_actor_id ?? null, audience: caller.audience, call_id: caller.call_id ?? null, runtime_session_id: caller.runtime_session_id ?? null });
+    }
   }
 
   /** The piece's card, when there is one for that owner. */
@@ -196,15 +236,25 @@ export class KnowledgeService {
     return access.caller.project_id;
   }
 
-  /** The piece as its owner has it now for this caller; an owner's refusal keeps its own code. */
+  /**
+   * The piece as its owner has it now for this caller; an owner's refusal keeps its own code. A reader that takes `offset` is
+   * read page by page up to `KNOWLEDGE_TEXT_MAX_CHARS`, all pages from one revision; one that does not gives its first page.
+   */
   private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
     const project = this.project(access);
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
     if (this.stored(project, subject)?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
     const caller = retainActionAuthority(access.caller, { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
-      const { context } = await resolveActionSubject(access.client, caller, subject);
-      return context;
+      const { context, reader } = await resolveActionSubject(access.client, caller, subject);
+      let content = context.content, page = context;
+      while (page.truncated && page.length !== undefined && content.length < Math.min(page.length, KNOWLEDGE_TEXT_MAX_CHARS)) {
+        page = await access.client.invoke(caller, reader, { subject_id: subject.id, offset: content.length }) as ActionSubjectContext;
+        if (page.revision !== context.revision || page.offset !== content.length || !page.content) throw knowledgeErrors.unreadable("这份资料在读取时变了，请重试");
+        content += page.content;
+      }
+      content = content.slice(0, KNOWLEDGE_TEXT_MAX_CHARS);
+      return { ...context, content, truncated: content.length < (page.length ?? content.length) || (page.length === undefined && context.truncated) };
     } catch (error) {
       if (error instanceof ActionError) throw error;
       throw knowledgeErrors.unreadable(`这份资料现在读不到：${reasonOf(error)}`);

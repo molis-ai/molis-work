@@ -197,5 +197,5 @@ test("PMAT-01 managing cards is the person's own: user-only actions under knowle
     assert.deepEqual(item.action.audiences, ["user"]);
     assert.deepEqual(item.action.permissions, ["knowledge:manage"]);
   }
-  assert.deepEqual(definitions.map(item => item.operation), ["query", "command", "command", "command"]);
+  assert.deepEqual(definitions.map(item => item.operation), ["query", "command", "command", "command", "query"]);
 });

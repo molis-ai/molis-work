@@ -154,7 +154,7 @@
 | `knowledge.read` | subject、可选节锚点或行区间、字数上限 | 原文段（标明这是原文）、实际读到的版本或指纹、是否截断 | L2/L3；超上限分页 |
 | `knowledge.grep` | 正则或关键字、可选范围（某份资料、某个来源、工作区路径前缀） | 命中行与前后几行、出处 | 精确查找；工作区文件主要靠它 |
 | `knowledge.glob` | 路径模式 | 工作区文件路径列表 | 只在项目授权的工作区里 |
-| `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize` | 管理页用：列卡片与额度；改标题、简介、关键词或采用建议；设「不给 Agent 用」；重新整理（可确认超额） | 卡片记录、额度 | 只对本人（audience `user`），权限 `knowledge:manage`；不默认开放给 Agent |
+| `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize`、`knowledge.receipts` | 管理页用：列卡片与额度；看使用记录；改标题、简介、关键词或采用建议；设「不给 Agent 用」；重新整理（可确认超额） | 卡片记录、额度 | 只对本人（audience `user`），权限 `knowledge:manage`；不默认开放给 Agent |
 
 存量 Agent 怎样拿到这些工具：
 
@@ -297,6 +297,13 @@
 - 提示词：个人助理 assistant-base v31 加一句工作目录的文件怎样找和读（v31 还没出过这个分支，原地改）；Coding 本来就有自己的工作区工具，不改。
 - 测试：`tests/knowledge-workspace.test.ts`（4 个，PMAT-13、PMAT-01）、`tests/security-invariants-knowledge.test.ts` 加 S-41/PMAT-13 的拒绝用例，用真实宿主与真实目录（夹具 `tests/fixtures/knowledge-workspace.ts`）。
 
+### K1 补完（2026-10-19，同一分支，未推送）
+
+- 每轮读取上限（PMAT-11）：一轮最多 6 万字原文（`KNOWLEDGE_ROUND_READ_CHARS`），`knowledge.read` 与 `knowledge.grep` 找到的行合计；到了就截在那里，返回 `round_chars_left: 0` 和还剩多少，让 Agent 自己决定。「这一轮」用宿主给的 `call_id`：助理与插件 Agent 的每一轮本来就把开始那次调用的编号带进每个工具调用（`assistant-authority.ts`、`agent-host-composition.ts`），不从输入读。合同里 `call_id` 原写「不能据它决定任何事」，改成「可以按它数一次操作用了多少，但不能据它决定谁能做什么」（`packages/contracts/src/platform/actions.ts`）；预算不授予任何东西。外部 MCP 客户端每次工具调用是一个编号，所以按次算。没有编号的调用只受单次上限。计数在宿主进程内存里，两小时没再读的轮次忘掉。
+- 使用回执（PMAT-12）：读到原文的 `knowledge.read`，以及 `knowledge.grep` 在其中找到行的每份资料，各记一条（谁、`audit_actor_id` 给的 Agent 或工作、哪一轮、哪个会话、哪个版本、多少字）；写之前先 `beforeEffect()`，被取消、撤权的调用不留回执也不返回内容。存在 `knowledge/knowledge.db` 新表 `knowledge_receipts`（这个库还没出过这个分支，基线 1 原地加表），保留 30 天、每个项目最多 5000 条，删项目时一并清。本人用 `knowledge.receipts`（user，`knowledge:manage`）看，管理页在 K2 显示。
+- 读取器按范围读（§4.4）：对象读取器的输入加可选的 `offset`，输出加可选的 `offset`、`length`（`packages/contracts/src/platform/action-subjects.ts`）；`subjectContext(…, input)` 从 offset 起切一页并给出全文长度。只加可选字段、放宽输入，按 `docs/system/CONTRACT-CHANGES.md` 第 4 节不算破坏性，不升版本（动作快照里各读取器的 schema 哈希随之变了）。Pages、Cognia、Jelly 笔记、Feed 条目、Artifacts 成果的读取器已接上；其余读取器的对象短，照旧给第一页。项目资料按页读到全文（最多 40 万字，`KNOWLEDGE_TEXT_MAX_CHARS`），每页的 `revision` 必须相同，中途变了就拒绝重读。
+- 测试：`tests/knowledge-reads.test.ts`（7 个：PMAT-06×3、PMAT-11、PMAT-12×3）。
+
 ### K1（2026-10-19，同一分支，未推送）
 
 - 卡片存在 Home 的 `knowledge/knowledge.db`（`packages/storage/src/adapters/knowledge-cards.ts`，基线 1，已登记进 Home 存储表、`docs/releases/CHECKLIST.md` 各库版本表与 `docs/system/HOME-DATA.md`）：每份资料一张卡片，含标题、简介、关键词、每节一句摘要、人改过哪些字段、整理给的新建议、「不给 Agent 用」，以及每个项目每天的整理用量。卡片自己的文字另有一份全文索引（与系统搜索同样的切词），不存资料正文。
@@ -311,9 +318,7 @@
 - 卡片靠自己的文字被找到时，只给此刻能看到那个来源、且（卡片整理自正文时）能读那类对象的调用者，与系统搜索同一条规则（S-41 补了拒绝用例）。
 - 删除项目时由 `knowledge` 这一项（删除确认里写「项目资料的卡片与整理记录」）按 `project_id` 清掉卡片与用量，任何进程都能做。
 - 这一期没做、原因：
-  - 每轮读取总字数上限（PMAT-11）：调用上下文里没有可信的「这一轮」标识（只有 `runtime_session_id`），要先给动作调用上下文加一个由宿主填的轮次标识，是平台合同改动，单独做。
-  - 使用回执（PMAT-12）：随 K2 管理页一起做。
-  - 读取器按范围读（§4.4）：超过 32000 字的资料仍只读得到前 32000 字。
+  - 每轮读取上限、使用回执、读取器按范围读：后来补上了，见下面「K1 补完」。
   - L2 分节「前缀」：现在用每节一句摘要代替，向量召回（K4）时再看要不要单独生成。
 - 测试：`tests/knowledge-cards.test.ts`（11 个：PMAT-01、04、05、06×3、07×2、08、16×2）；`tests/security-invariants-knowledge.test.ts` 加了 S-41/PMAT-03 卡片可见性的拒绝用例；`tests/knowledge-service.test.ts`、`tests/security-invariants-knowledge.test.ts`、`tests/mcp-action-grants.test.ts` 随之更新并通过。
 - MiniMax 实走（2026-10-19，MiniMax-M3，一次性隔离 Home，跑完即删；用生产的 `knowledgeModelWriter`、整理器与卡片库）：

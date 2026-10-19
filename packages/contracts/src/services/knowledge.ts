@@ -23,6 +23,13 @@ export const KNOWLEDGE_PERMISSIONS = [KNOWLEDGE_READ_PERMISSION, KNOWLEDGE_MANAG
 /** Most text one `knowledge.read` returns; a longer piece is read page by page with `offset`. */
 export const KNOWLEDGE_READ_MAX_CHARS = 12_000;
 export const KNOWLEDGE_READ_DEFAULT_CHARS = 6_000;
+/** Most of one piece's text knowledge reads from its owner, page by page; past it `owner_truncated` is true. */
+export const KNOWLEDGE_TEXT_MAX_CHARS = 400_000;
+/**
+ * Most original text one round of an agent gets from `knowledge.read` and `knowledge.grep` together (spec §7, PMAT-11). A round
+ * is the Host's number for the operation (`call_id`); a call without one is counted on its own.
+ */
+export const KNOWLEDGE_ROUND_READ_CHARS = 60_000;
 /** Most objects one `knowledge.grep` reads. */
 export const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
 /** Most workspace files one `knowledge.grep` with a `glob` reads. */
@@ -86,6 +93,8 @@ export interface KnowledgeReadResponse {
   end: number;
   remaining: number;
   owner_truncated: boolean;
+  /** How much original text this round may still get; 0 means the rest is left unread on purpose. Null for a call without a round. */
+  round_chars_left: number | null;
 }
 
 /**
@@ -101,6 +110,8 @@ export interface KnowledgeGrepResponse {
   more: boolean;
   /** Pieces that could not be read for the caller, and why (gone, not allowed, no reader). */
   unread: Array<{ subject: ActionSubject; reason: string }>;
+  /** As for `knowledge.read`: when it is 0, `more` may be true because this round has read its fill. */
+  round_chars_left: number | null;
 }
 
 /**
@@ -167,6 +178,27 @@ export interface KnowledgeCardRecord extends KnowledgeCardFields {
 export interface KnowledgeUsage { day: string; pieces: number; chars: number; extra_pieces: number; extra_chars: number }
 export interface KnowledgeQuota { day: string; used_pieces: number; used_chars: number; limit_pieces: number; limit_chars: number; reached: boolean }
 export interface KnowledgeCardMatch { subject: ActionSubject; field: "title" | "card" }
+/**
+ * One time original text of a piece reached a caller (`knowledge.read`, or lines found by `knowledge.grep`): who, in which round,
+ * which revision, how much. Written only after the call is still current right before it (a cancelled or revoked call leaves none).
+ */
+export interface KnowledgeReadReceipt {
+  project_id: string;
+  at: string;
+  subject: ActionSubject;
+  revision: string;
+  via: "read" | "grep";
+  chars: number;
+  actor_id: string;
+  /** The agent or work the Host names for the caller (`audit_actor_id`), when it does. */
+  agent: string | null;
+  audience: string;
+  call_id: string | null;
+  runtime_session_id: string | null;
+}
+/** How long and how many receipts a project keeps. */
+export const KNOWLEDGE_RECEIPT_DAYS = 30;
+export const KNOWLEDGE_RECEIPT_MAX = 5_000;
 
 /** The service's own records, kept in the Home's `knowledge` store. Implemented by `@molis-ai/molis-work-storage`. */
 export interface KnowledgeCardStorePort {
@@ -178,6 +210,9 @@ export interface KnowledgeCardStorePort {
   /** Cards whose title, brief, keywords or section notes hold every term of the query, best first. */
   search(projectId: string, query: string, limit: number): KnowledgeCardMatch[];
   usage(projectId: string, day: string): KnowledgeUsage;
+  addReceipt(receipt: KnowledgeReadReceipt): void;
+  /** Newest first; of one piece when `subject` is given. */
+  receipts(projectId: string, options: { subject?: ActionSubject; limit: number; offset: number }): { receipts: KnowledgeReadReceipt[]; total: number };
   addUsage(projectId: string, day: string, delta: Partial<Omit<KnowledgeUsage, "day">>): void;
   close(): void;
 }
@@ -190,6 +225,8 @@ export interface KnowledgeExcludeRequest { subject: ActionSubject; excluded: boo
 /** Organize these pieces again (all of the project's when none are named); `confirm_over_quota` allows one more day's worth. */
 export interface KnowledgeOrganizeRequest { subjects?: ActionSubject[]; confirm_over_quota?: boolean }
 export interface KnowledgeOrganizeResponse { queued: number; quota: KnowledgeQuota }
+export interface KnowledgeReceiptsRequest { subject?: ActionSubject; limit?: number; offset?: number }
+export interface KnowledgeReceiptsResponse { receipts: KnowledgeReadReceipt[]; total: number }
 
 const text = { type: "string" };
 const nullableText = { type: ["string", "null"] };
@@ -198,6 +235,7 @@ const count = { type: "integer", minimum: 0 };
 const queryText = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" };
 const globPattern = { type: "string", minLength: 1, maxLength: 300, pattern: "\\S" };
 const workspaceId = { type: "string", minLength: 1, maxLength: 200 };
+const roundLeft = { type: ["integer", "null"], minimum: 0 };
 const keywords = { type: "array", maxItems: KNOWLEDGE_CARD_MAX_KEYWORDS, items: { type: "string", minLength: 1, maxLength: KNOWLEDGE_KEYWORD_MAX_CHARS } };
 const openTarget = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 const card = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, plugin_id: text, plugin_title: text, updated_at: nullableText,
@@ -230,7 +268,8 @@ export const knowledgeActions = {
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, anchor: { type: "string", minLength: 1, maxLength: 200 }, offset: count,
       max_chars: { type: "integer", minimum: 200, maximum: KNOWLEDGE_READ_MAX_CHARS } }, required: ["subject"], additionalProperties: false },
     output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, layer: { const: "original" }, text, start: count, end: count, remaining: count,
-      owner_truncated: { type: "boolean" } }, required: ["subject", "revision", "title", "layer", "text", "start", "end", "remaining", "owner_truncated"], additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
+      owner_truncated: { type: "boolean" }, round_chars_left: roundLeft }, required: ["subject", "revision", "title", "layer", "text", "start", "end", "remaining", "owner_truncated", "round_chars_left"],
+      additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
   grep: { capability_id: "knowledge.grep", version: 1, operation: "query", action: { ...metadata,
     title: "在资料里逐行查找", description: "在指定的几份资料（subjects），或项目工作目录里路径匹配 glob 的文件（最多 50 个）的现在原文里逐行查找一段文字（不分大小写，不是正则），返回命中的行与前后几行；用于精确查找名称、编号、原话。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" },
@@ -239,8 +278,8 @@ export const knowledgeActions = {
       required: ["pattern"], anyOf: [{ required: ["subjects"] }, { required: ["glob"] }], additionalProperties: false },
     output_schema: { type: "object", properties: { matches: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, line: { type: "integer", minimum: 1 },
       text, before: lines, after: lines }, required: ["subject", "revision", "line", "text", "before", "after"], additionalProperties: false } }, more: { type: "boolean" },
-      unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } } },
-      required: ["matches", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
+      unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } },
+      round_chars_left: roundLeft }, required: ["matches", "more", "unread", "round_chars_left"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
   glob: { capability_id: "knowledge.glob", version: 1, operation: "query", action: { ...metadata,
     title: "按路径找工作目录里的文件", description: "在项目已关联的工作目录里按路径模式找文件（* 不跨目录，** 跨目录，?，{a,b}），返回路径与可交给 knowledge.read、knowledge.grep 的对象；node_modules、.git、dist 等目录和以点开头的目录只在模式点名时才进去。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: globPattern, workspace_id: workspaceId, limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_GLOB_MAX_FILES } },
@@ -262,6 +301,9 @@ const cardRecord = { type: "object", properties: { project_id: text, subject: AC
     "keywords", "outline", "edited", "suggestion", "excluded", "error", "updated_at", "organized_at", "open"], additionalProperties: false };
 const quota = { type: "object", properties: { day: text, used_pieces: count, used_chars: count, limit_pieces: count, limit_chars: count, reached: { type: "boolean" } },
   required: ["day", "used_pieces", "used_chars", "limit_pieces", "limit_chars", "reached"], additionalProperties: false };
+const receipt = { type: "object", properties: { project_id: text, at: text, subject: ACTION_SUBJECT_SCHEMA, revision: text, via: { enum: ["read", "grep"] }, chars: count,
+  actor_id: text, agent: nullableText, audience: text, call_id: nullableText, runtime_session_id: nullableText },
+  required: ["project_id", "at", "subject", "revision", "via", "chars", "actor_id", "agent", "audience", "call_id", "runtime_session_id"], additionalProperties: false };
 const editable = { type: "array", minItems: 1, maxItems: 3, uniqueItems: true, items: { enum: ["title", "brief", "keywords"] } };
 const manage = { kind: "operation" as const, scope: "project" as const, effect: "write" as const, subject_kinds: [] as string[], audiences: ["user"] as ("user")[],
   permissions: [KNOWLEDGE_MANAGE_PERMISSION] };
@@ -286,4 +328,8 @@ export const knowledgeManageActions = {
     title: "重新整理资料", description: "把指定的资料（不指定就是全部）排进整理队列，由项目的文字模型重写卡片与大纲；人改过的字段不覆盖。今天的额度用完时，确认后再整理一天的量。",
     input_schema: { type: "object", properties: { subjects: { type: "array", maxItems: 200, items: ACTION_SUBJECT_SCHEMA }, confirm_over_quota: { type: "boolean" } }, additionalProperties: false },
     output_schema: { type: "object", properties: { queued: count, quota }, required: ["queued", "quota"], additionalProperties: false } } } as ActionDefinition<KnowledgeOrganizeRequest, KnowledgeOrganizeResponse>,
+  receipts: { capability_id: "knowledge.receipts", version: 1, operation: "query", action: { ...manage, kind: "query" as const, effect: "read" as const,
+    title: "资料的使用记录", description: "列出当前项目里资料原文最近被谁、在哪一轮读过（最新在前），或某一份资料的记录；保留 30 天、最多 5000 条。",
+    input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, limit: { type: "integer", minimum: 1, maximum: 200 }, offset: count }, additionalProperties: false },
+    output_schema: { type: "object", properties: { receipts: { type: "array", items: receipt }, total: count }, required: ["receipts", "total"], additionalProperties: false } } } as ActionDefinition<KnowledgeReceiptsRequest, KnowledgeReceiptsResponse>,
 };

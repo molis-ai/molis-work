@@ -6,7 +6,7 @@
 
 **提供：** 系统动作 `knowledge.search`（卡片）、`knowledge.outline`（分节与每节一句摘要）、`knowledge.read`（原文一段）、`knowledge.grep`（逐行查字面文字，可按路径模式查工作目录里的文件）、`knowledge.glob`（按路径模式找项目工作目录里的文件，经宿主的工作目录读取、以调用者的授权），提供方 `system.knowledge`，权限 `knowledge:read`；本人管理用的 `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize`（只对 user，权限 `knowledge:manage`）。后台按资料的版本用项目的文字模型整理卡片与大纲（提示词 `knowledge.organize`），每个项目每天有额度。
 
-**技术状态：** Home 的 `knowledge/knowledge.db`：每份资料一张卡片（模型写的与人改的字段分开记）、每天的整理用量。不保存正文；使用回执在后续分期加入（spec §10）。
+**技术状态：** Home 的 `knowledge/knowledge.db`：每份资料一张卡片（模型写的与人改的字段分开记）、每天的整理用量、读原文的使用记录（`knowledge.receipts`，30 天）。不保存正文。长资料向支持 `offset` 的读取器一页页读，最多 40 万字；Agent 的一轮（宿主给的 `call_id`）最多拿 6 万字原文，用完返回 `round_chars_left: 0` 与剩余量。
 
 **不拥有：** 插件的表与正文、搜索索引（`horizontal/search`）、权限授予、模型调用。
 

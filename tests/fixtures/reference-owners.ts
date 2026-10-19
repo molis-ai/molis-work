@@ -25,7 +25,8 @@ const goalEntries = defineSearchEntriesAction("goals.search.entries", [{ kind: "
 const pageReader = defineSubjectContextAction("pages.subject.read", "page", "文档", ["pages:read"]);
 const pageEntries = defineSearchEntriesAction("pages.search.entries", [{ kind: "page", title: "文档", surface: "pages" }], "文档", ["pages:read"]);
 
-function owner(rows: Map<string, Doc>, kind: string, reader: typeof goalReader, entries: typeof goalEntries) {
+/** `paged`: the reader reads past its first page from the `offset` it is given, as a long-text owner does (project-knowledge §4.4). */
+function owner(rows: Map<string, Doc>, kind: string, reader: typeof goalReader, entries: typeof goalEntries, paged = false) {
   return {
     definitions: [entries, reader],
     handlers: [
@@ -35,7 +36,8 @@ function owner(rows: Map<string, Doc>, kind: string, reader: typeof goalReader, 
         const row = rows.get((input as { subject_id: string }).subject_id);
         if (!row) throw new ActionError("actions.subject_unavailable", "已删除");
         if (row.refuse) throw new ActionError(`${kind}s.locked`, "已锁定");
-        return subjectContext({ subject: { kind, id: row.id }, revision: String(row.version), title: row.title, content: row.body, goal_ids: [], session_id: null });
+        return subjectContext({ subject: { kind, id: row.id }, revision: String(row.version), title: row.title, content: row.body, goal_ids: [], session_id: null },
+          paged ? input as { offset?: number } : undefined);
       } },
     ],
   };
@@ -58,7 +60,7 @@ export async function referenceOwners(t: import("node:test").TestContext) {
   ]);
   const pages = new Map<string, Doc>([["p1", { id: "p1", title: "试用说明", body: "试用手册", version: 1 }]]);
   actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: "a" }, ...owner(goals, "goal", goalReader, goalEntries) });
-  actions.registerProvider({ provider: { provider_id: "pages", plugin_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, ...owner(pages, "page", pageReader, pageEntries) });
+  actions.registerProvider({ provider: { provider_id: "pages", plugin_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, ...owner(pages, "page", pageReader, pageEntries, true) });
   const other = new Map<string, Doc>([["gb", { id: "gb", title: "B 项目的试用", body: "试用", version: 1 }]]);
   actions.registerProvider({ provider: { provider_id: "goals", plugin_id: "goals", title: "Goals", kind: "plugin", project_id: "b" }, ...owner(other, "goal", goalReader, goalEntries) });
   return { home, index, actions, search, goals, pages, access: (caller: ActionCallContext) => ({ client: actions, caller }) };

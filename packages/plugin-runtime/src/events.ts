@@ -134,9 +134,7 @@ export class PluginEventBus implements PluginEventBusApi {
       if (error instanceof PluginEventError) throw error;
       throw new PluginEventError("plugin.event_payload_invalid", "事件内容没有通过类型校验");
     }
-
-    // Inside an action the event is that action's write: its original caller must still be current, in the same turn as the append.
-    assertPluginActionCurrent(identity.install_id);
+    assertPluginActionCurrent(identity.install_id); // Inside an action the event is that action's write: its caller is checked in the append's turn.
     const record = this.#repository.append({
       event_id: this.#createId(),
       project_id: this.#projectId,

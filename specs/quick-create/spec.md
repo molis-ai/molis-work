@@ -191,3 +191,347 @@ interface ItemIntake {
 ## 10. 开发手册、Skill、模板与门禁
 
 创建入口要「大部分插件都有」，所以手册、Skill、`plugin create` 模板、覆盖率门禁（冻结豁免名单，只许减少）、生成插件由平台代写，都放在 [context-toolbar §11](../context-toolbar/spec.md)，不在这里重复。本 spec 只要求：Q1 合同落地时同一个 PR 带上 Skill 与手册的对应章节，Q2 起每接一个插件就把它移出豁免名单。
+
+## 11. W4-6 与 BL-174 计划（2026-10-19）
+
+状态：计划，未实施。这一节由情境线 ⑧ 的规划会话写，对照的是 origin/main `ebad9a223` 的代码。W4-2 的代码（分支 `context/w4-2-create-entries`，写这一节时还没提交）只读过，没有改。实施之前，要先请统筹（①）回答 11.9 的两个问题。
+
+### 11.1 三片与顺序
+
+每片一个 PR。
+
+| 片 | 做什么 | 前置 | 进哪一批 |
+| --- | --- | --- | --- |
+| **W4-6a** 合同泛化 | 内容站 `receive` 的幂等键从「工作流实例 + 步骤」换成通用的请求号，`receive` 升到 v2。八个接收站、工作流、放置和测试在同一个 PR 里改完（CONTRACT-CHANGES §3.2） | 无。与 W4-2 只在快照文件和 `tests/pages-actions.test.ts` 相交（11.8） | 要改 contracts 和 SDK，算共享核心，进 ⑤ 的集成批次跑全量 |
+| **BL-174** 规则按内容挑去处 | `intake` 新增 `fits` 字段，声明自己收哪类文字。没有判断时，内核按选区的形状挑那一个去处 | W4-2 合入（两边都改 `planContextualLayout`、`candidateOf`、`ContextualCandidate`） | ⑤ 的集成批次 |
+| **W4-6b** 派生创建入口与「放进 Inbox」 | 内容站的声明可以派生出创建入口；Inbox 用它加上「放进 Inbox」；Pages 与 Inbox 共用 SDK 里的段落工具 | W4-6a、W4-2 合入；建议排在 BL-174 之后 | SDK 新增工具，算共享核心，进 ⑤ 的批次 |
+
+顺序：W4-6a →（W4-2）→ BL-174 → W4-6b。W4-6a 不等 W4-2，可以和 W4-2 的评审同时进行。
+
+W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，没有判断时 Inbox 不会只因为目录顺序在前就占到那一个推荐位。如果 W4-6b 先合，没有判断时也可能推到「放进 Inbox」。这不会写错东西，因为它只出卡片，但会改变 W4-1 定下的、人看得到的行为。
+
+### 11.2 存量工作流有没有固定 `receive` 的版本（只看代码，没有打开任何 Home 或数据库）
+
+**结论：固定了。** 而且不只固定 `receive`：保存下来的每个站点、每个角色都按确切版本固定。
+
+**依据**
+
+- **保存流程时固定。** 新建、修改、开始一次运行，都经过 `validChain`（`plugins/native/workflows/src/actions.ts:238-243`）解析全部站点。`bindingFor`（`plugins/native/workflows/src/content-client.ts:26-36`）把这个站点的每个角色（list、read、receive、create）记成 `{ capability_id, version }`，加上 `provider_id`。结果存进站点的 `content`（`plugins/native/workflows/src/model.ts:30`），落在 `workflows.chain_json` 表（`plugins/native/workflows/src/store.ts:212-230`）。
+- **运行中的实例也固定。** 推进之前，`prepareHandoff` 会再解析一遍后面的站点（`actions.ts:292-296`），然后把解析好的整条链存进实例（`actions.ts:332`，写进 `instances.chain_json`）。所以运行中的实例自己带着一份固定引用。
+- **固定的引用必须完全对上。** `resolve` 拿着保存的引用时，要求每个已保存的角色都能在目录里找到同一提供方、同一 `capability_id`、同一 `version` 的动作（`content-client.ts:38-51`）。找不到就报 `workflows.unavailable`：「已保存的接收能力 v1 不可用；原引用已保留，请检查插件或重新配置该站点」（`content-client.ts:46`），不会换成新版本。这正是 action-architecture §3「工作流存量内容站迁移」的规则。现有测试 `tests/workflow-content-actions.test.ts:110-134` 就断言了这一点（`register(2)` 之后报「v1 不可用」）。
+
+**升到 v2 之后会怎样**
+
+- 凡是用了八个接收站（Dataset、Feed、Form、Inbox、Jelly、灵光、Pages、PPT）之一的已存流程，打开时那一站标为不可用，并给出原因（`actions.ts:244-249`；`plugins/native/workflows/src/client.ts:265`）。开始不了，界面提示「先恢复不可用的站点」（`client.ts:323`）。
+- 站点在第一站也一样会坏：`resolve` 检查的是保存下来的**所有**角色，而 binding 里存着 `receive@1`。
+- 成果库这一站（`receive: false`）不受影响。
+- 修复办法：在编辑器里把这一站拿掉再加回来。新加的站点只带插件名（`client.ts:155`），保存时会固定到当前版本。
+- **运行中的实例没法在编辑器里修**：实例的链是自己存的一份，改流程碰不到它，所以这样的实例会一直停在「v1 不可用」。
+
+**不固定版本的地方**
+
+- 内置的示例流程 `[feed, inbox, pages]` 只写了插件名（`client.ts:986`）。
+- 创作台回放的语料 `tests/fixtures/studio-replay/recorded.json` 只记了能力 id，没有版本。
+- 只有测试替身写死了版本：`tests/workflows-stop-and-token.test.ts:18-19`。
+- 放置的「转成」每次都按当前目录找 `receive`（`horizontal/placement/src/index.ts:361-364`），不固定版本。
+- 创作台生成的插件调不到 `receive`：它的受众里没有 `plugin`，所以创作台的目录（`apps/local-host/src/plugin-builder/catalog.ts:60-90`）不把它开放给插件，理由写「提供方没有开放给插件」（:86）。
+
+**还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，见 11.9 问题 2。
+
+**只能看真实 Home 才知道的**：真实 Home 里有没有用到这八个站的已存流程或运行中的实例。见 11.9 问题 1，本会话没有去看。
+
+**一个已知的边角情况**：升级前发出、Feed 已经收下、但工作流崩溃没记上的那一次交接，升级后重试会在 Feed 里多出一条。原因是 Feed 的 `externalId` 从 `<实例>:<步骤>`（`plugins/native/feed/src/content-actions.ts:29-43`）变成了请求号 `workflow:<实例>:<步骤>`。另外六个站本来就用 `workflow:<实例>:<步骤>`，工作流继续发同一个值，所以不受影响；Inbox 自己不存键，跟着 Feed 走。不为这种情况写兼容。
+
+### 11.3 合同变化与各插件的版本
+
+`receive` v2 的输入（输出不变，仍是 `{ plugin, item_id, title }`）：
+
+```ts
+interface WorkflowReceiveInput {          // molis.workflow.content.receive.input.v2
+  readonly title: string;
+  readonly body: string;
+  readonly url?: string | null;
+  readonly source?: string | null;
+  readonly feed_item_id?: string | null;
+  /** 一次交付。同一个请求号只建一个对象，重发时返回同一个。由调用的入口给，不由起草猜。1–160 字。 */
+  readonly request_id: string;
+}
+```
+
+| 动作 | 版本 | 变化 | 哪一片 |
+| --- | --- | --- | --- |
+| `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt` 的 `.content.receive` | 1 → **2** | 输入改成上面的平铺形状，`input_type` 改为 `….receive.input.v2`；`output_type` 仍是 `.output.v1`；`context.title` 去掉（没有站点读它） | W4-6a |
+| 以上各站，加成果库的 `.content.list` / `.read` / `.create` | 不变，仍是 1 | 无。`workflow_content.protocol` 仍是 1 | — |
+| `inbox.content.receive@2` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `pages.create@1` 加 `intake` 同一做法 | W4-6b |
+| `inbox.intake.offers` | 新增，1 | 只用作 `prepare`，没有自己的选项，不调模型 | W4-6b |
+| `todo.items.create`、`lingguang.create` | 不变 | `intake` 多了 `fits`，属于声明 | BL-174 |
+
+合同包与 SDK 的导出变化：
+
+- **W4-6a**
+  - 新增 `WORKFLOW_CONTENT_VERSIONS`（`list: 1, read: 1, receive: 2, create: 1`）。定义器和 SDK 的检查都从它取版本。
+  - `WorkflowReceiveInput` 改成平铺。
+  - 删掉 `workflowDeliveryKey`：「工作流实例 + 步骤」这个说法回到工作流插件自己，由它拼请求号。
+- **W4-6b**
+  - `WorkflowStationSpec` 多两个可选字段：`intake`、`receive_result_view`。
+  - SDK 新增段落工具 `passageDraft`。
+- **BL-174**
+  - 新增 `ITEM_INTAKE_FITS`。
+  - `ActionIntake.fits?` 和 `ContextualCandidate.fits?`。
+
+每片都在同一个 PR 里跑 `pnpm actions:update` 和 `pnpm api:update`，并在 PR 的「公开合同与 API 影响」一栏写清楚。W4-6a 还要列出八个 MCP 工具的新旧名字。
+
+### 11.4 W4-6a：合同泛化
+
+1. **合同**（`packages/contracts/src/platform/workflow-content.ts`）
+   - 按 11.3 改 schema 与类型，版本从 `WORKFLOW_CONTENT_VERSIONS` 取。
+   - 把「定义一个角色」拆成自己的函数，让每个函数都在 20 行以内（合同纯度门禁；`defineWorkflowContentActions` 现在已经 19 行）。
+   - 改完所有站点一起换版本，不需要每个插件各改一行。
+2. **SDK 的检查**（`packages/plugin-sdk/src/action-declarations.ts:202-216`）：`input_type` 与 schema 按角色的现行版本核对。按旧形状声明 `receive` 的插件，登记时就被拒绝，理由写明「没有兑现工作流内容协议 receive v2 的输入合同」。
+3. **八个接收站**：原来用 `workflowDeliveryKey(context)` 的地方，改用 `input.request_id`。
+   - Dataset（`plugins/native/dataset/src/actions.ts:141-146`）、Form、Jelly、灵光、Pages、PPT：各自的 `content-actions.ts`。
+   - Feed 的 `externalId` 改用请求号。Feed 收东西放在哪个来源下，由可信的 `caller.audience` 决定：
+     - 受众是 `workflow` 的，仍放在 `workflow-handoffs`「工作流程」；
+     - 其他调用方的（人经放置或浮条、助理、MCP），放在新来源 `hand-ins`「放进来的内容」。
+     - 两个来源都不进系统搜索（`plugins/native/feed/src/content-actions.ts:51` 同样排除）。
+   - Inbox：`ensure(itemId, addedBy)` 里的 `added_by` 由 Inbox 插件按 `caller.audience` 定：
+     - `workflow` 记 `"workflow"`，仍显示「Inbox · 工作流程」（`plugins/native/inbox/src/projection.ts:85-88`）；
+     - `user` 记 `"web_user"`，与 Feed「加入 Inbox」同一个值（`plugins/native/feed/src/application.ts:181`）；
+     - 其余照受众名记。
+     - 没人读的 `workflow_instance_id` 去掉。宿主 `apps/local-host/src/inbox-actions.ts:65-66` 只把值传过去，不再自己写死 `"workflow"`。
+     - Inbox 调 Feed 用的是 `retainActionAuthority` 包过的调用上下文，受众不变，所以 Feed 那边看到的是同一个受众。
+4. **工作流插件**（`plugins/native/workflows/src/`）
+   - `content-client.ts` 里新增请求号函数，返回 `workflow:<实例>:<步骤>`。格式不变，所以另外六个站的已有交付键保持原样。
+   - 接收端口改成 `receive(plugin, payload, requestId, binding)`（`actions.ts:116`、`content-client.ts:95`）；`continuation.ts:43` 改用它。
+   - 实例标题不再随交付一起发。
+5. **放置**（`horizontal/placement/src/index.ts:363-364`）：用 `request_id: "placement:<请求号>"`，不再伪造 `instance_id: "placement:…", step: 0`。放置用的是本人的上下文（`apps/local-host/src/placement-actions.ts:83-86`），所以从放置转进 Inbox 的条目，以后不再被标成「Inbox · 工作流程」。
+6. **文档**
+   - `skills/molis-plugin-dev/placement.md:33` 改成「同一次交付只建一个对象（用输入里的 `request_id`）」。
+   - `docs/system/CALL-CHAINS.md:162` 写明 Feed 的两个来源由受众决定。
+   - 本文 §2 第 2 条是当时的现状，不改。
+   - `skills/molis-plugin-dev/generated-design.md:21` 推荐生成插件调用 `feed.content.receive`，可这个动作不开放给插件。这是已有的问题，不在本片修，记为后续。
+7. **存量数据**：PR 里不带任何迁移代码，处理办法见 11.9 问题 1。
+
+### 11.5 W4-6b：内容站派生创建入口与「放进 Inbox」
+
+**派生的写法**
+
+站点声明里写了 `intake` 的，定义器给这一站的 `receive` 加上一个普通的 `intake`。各字段这样来：
+
+- `intake_id`：站点 id
+- `item_kind`：`subject_kind`
+- `title`：站名
+- `material_field`：`"body"`
+- `verb`、`describe`、`examples`，以及可选的 `prepare`、`places`、`fits`：由作者写
+- `receive_result_view`：放到 `receive` 动作上，就是完成卡的摘要和链接
+
+几点说明：
+
+- 内核与宿主看到的只是一个普通的 `intake`，没有按站点、按插件分的分支。
+- SDK 已有的检查照常起作用：`material_field` 必须是顶层字段，这也是 v2 必须平铺的原因之一（`packages/plugin-sdk/src/context-declarations.ts:58`）。
+- 这一片只有 Inbox 写 `intake`。Pages、灵光已经在自己的创建动作上有入口，不再写，所以同一个插件不会出现两个同义的去处。
+- Feed、Jelly、Dataset、Form、PPT 按 §9 的 Q3 以后再接。
+
+**Inbox 的声明**（`plugins/native/inbox/src/content-actions.ts`）
+
+```ts
+defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subject_kind: "inbox_entry", /* 权限与调度不变 */
+  intake: { verb: "放进 Inbox",
+    describe: "还没决定怎么处理、先放着稍后看的一段材料或一件事；已经知道要做的放待办，一闪而过的念头放灵光",
+    examples: ["这段先放着，周会再看", "客户这条反馈稍后处理"], prepare: { capability_id: "inbox.intake.offers", version: 1 } },
+  receive_result_view: { summary: "已放进 Inbox", title_pointer: "/title",
+    link: { label: "去 Inbox", href_template: "/projects/{project_id}/?openPlugin=inbox" } } });
+```
+
+动词按 `docs/system/GLOSSARY.md:281` 写成「放进 Inbox」：中文界面里 Inbox 的显示名用英文。§7 表里的「放进收件箱」在这一片的 PR 里一并改掉。
+
+**准备（`prepare`）**
+
+- `inbox.intake.offers`：用合同包已有的 `defineFragmentOffersAction("inbox.intake.offers", [FRAGMENT_ANY_OBJECT], …, ["inbox:read"], [])` 声明，没有自己的选项，要 `inbox:read`。从选区算出完整输入 `{ title, body, request_id }`，正文末行是「摘自『对象标题』」。
+- 一个词、整个对象、几个对象，都不给输入。
+- 标题、各段原文、出处、是否截断，由 SDK 的新工具 `passageDraft`（`packages/plugin-sdk/src/passage-draft.ts`）算：标题取最近的标题，没有就取第一行去掉列表记号，最多 80 字。这套逻辑就是 W4-2 在 Pages 里写的那份。
+- 这一片顺带让 Pages 的 `preparePagesIntakeOffers`（`plugins/native/pages/src/intake-offers.ts`）也改用 `passageDraft`，W4-2-06 的断言不改。
+- Inbox 现在只依赖合同包（`plugins/native/inbox/package.json`），要加上 SDK 依赖，并重新生成包清单的行（`node scripts/gates/package-inventory.mjs --table`）。
+
+**动线**
+
+1. 人在别处（灵光、Pages、Coding 的回复、讨论、右栏 Shelf、助理面板）选中一段文字，浮条贴着选区出现。
+2. 有判断时，「放进 Inbox」和「记成待办」「记下灵光」「存为文档」「拆成目标步骤」一起进候选，判断按各自的 `describe` 和 `examples` 排。没有判断时，它不声明 `fits`，只有在没有别的去处声明这类内容时，才按目录顺序轮到它（BL-174）。
+3. 点「放进 Inbox」，按钮进入忙碌状态。宿主用 `inbox.intake.offers` 不调模型算出标题与正文，在助理面板里出一张预填卡片，标题和正文可以改。Inbox 没有 `undo`，所以不直接建。
+4. 点「确认」：以本人身份、带卡片的请求号调用 `inbox.content.receive@2`。
+   - Feed 在「放进来的内容」来源下存一条，Inbox 建一条 `added_by: "web_user"` 的事项，显示「手动加入」。
+   - 然后 Inbox 做下一步判断。判断失败不影响收下内容。
+   - 完成卡写「已放进 Inbox」，带「去 Inbox」。
+5. 做完回到原处：浮条收起，选区还在，左边不跳走。
+6. 在 Inbox 页，标题栏出现「✦」，占位文字是「这段先放着，周会再看」。写一句、回车，经过起草和卡片，确认之后与第 4 步一样。
+
+**五种状态**
+
+| 状态 | 浮条里的「放进 Inbox」 | Inbox 页的「✦」 |
+| --- | --- | --- |
+| 空 | 选中的只有空白：宿主拒绝（`contextual.empty`「没有可以放进去的内容」，`apps/local-host/src/contextual/contextual-draft.ts:65`）。一个词或整个对象：准备不给输入，没有判断时也不推；判断点了它，就退回通用起草（原文放进 `body`，标题由起草来填，填不出的标为缺项） | 输入是空的，回车不起作用，与现有的「✦」一样 |
+| 加载 | 点下后按钮忙碌，卡片出来才恢复。卡片确认后一直忙碌，直到 Inbox 存好并做完下一步判断（`receive` 是 `concurrent`，不占项目队列）。同一个请求号再点，不会多建 | 起草时输入框忙碌；卡片与左边一样 |
+| 出错 | 准备或起草失败：浮条下方一行写错误，原文不动，可以再点。确认失败（Inbox 或 Feed 被停用、写入被拒）：卡片保留并写出原因，可以再确认 | 起草失败时，用户写的话不丢（Q05）；其余与左边一样 |
+| 没有权限 | 缺 `inbox:write` 或 `feed:write`，或者 Inbox 没启用：目录里这一项不可用，不出现这个去处。准备要 `inbox:read` | 不出现「✦」 |
+| 可撤销 | 没有撤销，卡片上不写「撤销」。之后在 Inbox 里「忽略」只是处理这条事项，Feed 里那一条还在，不假装撤销过 | 同左 |
+
+以后其他站点用同样的方式接入时，五种状态照这一行写，差别只在各自的 `prepare` 和权限。
+
+### 11.6 BL-174：只有规则时，按内容挑去处
+
+**合同**（`packages/contracts/src/platform/item-intake.ts`）
+
+- 新增 `ITEM_INTAKE_FITS = ["line", "list", "prose"]`，`ActionIntake` 多一个可选的 `fits`，写它收哪几类文字。
+- SDK（`packages/plugin-sdk/src/context-declarations.ts`）只接受这三个值组成的、非空、不重复的子集。
+- `candidateOf`（`packages/kernel/src/contextual/destinations.ts`）把 `fits` 抄到候选上（`ContextualCandidate.fits`，`packages/contracts/src/services/contextual.ts`）。
+
+**内核怎么分类**：只看选区的形状，不看用了哪些词，也不点名任何插件（K5 门禁，`scripts/gates/kernel-contextual.mjs`）。只对一段文字（`range`、`block`、`blocks`）分类：
+
+- `list`：有任何一部分的角色是 `list` 或 `task`（`FRAGMENT_ROLES`）；或者至少有两行，而且每行不超过 60 个字。
+- `line`：只有一行，不超过 60 个字，而且不是只选了标题。
+- `prose`：其余情况，包括一行超过 60 个字的。
+- 只选了标题、代码或表格的，不分类。
+
+**怎么挑**：只在没有判断的时候起作用。`planContextualLayout`（`packages/kernel/src/contextual.ts:334-365`，W4-1 那几行）取排名里第一个声明了这一类、并且不带 `always_card` 的去处。没有任何去处声明这一类的，退回 W4-1 的做法：按目录顺序取第一个不带 `always_card` 的。有判断时 `fits` 不起作用，判断仍然读 `describe` 和 `examples`。
+
+**声明**
+
+- Todo：`fits: ["line", "list"]`（`plugins/native/todo/src/actions.ts:101-103`）
+- 灵光：`fits: ["prose"]`（`plugins/native/lingguang/src/actions.ts:41`）
+- Pages、Inbox、Goals 不声明。
+
+这样 BACKLOG 写的「清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光」就成立了。「带动词」这一条用「一行短句」来近似，代价写在 11.11。
+
+**文档**
+
+- `skills/molis-plugin-dev/contextual.md` 第二节的字段表加 `fits` 一行。
+- `docs/platform/PLUGIN-DEVELOPMENT.md:260` 加一句。
+- 本文 §6.1 的「现状」一行改成按内容挑。
+- `specs/BACKLOG.md` 删掉 BL-174 这一行。
+
+### 11.7 验收
+
+**W4-6a**
+
+| 编号 | 验收内容 | 证明它的测试 |
+| --- | --- | --- |
+| W4-6-01 | 八个站的 `receive` 都是 `@2`，输入是平铺形状，`request_id` 必填（1–160 字），`input_type` 是 `.input.v2`；`list`、`read`、`create` 仍是 `@1`。SDK 拒绝按旧形状声明的 `receive`，并说明理由 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
+| W4-6-02 | 八个站各自：同一个请求号只建一个对象，重发返回同一个；换一个请求号会另建；请求号不是 `workflow:` 开头的也一样 | 新增 `tests/content-station-request-id.test.ts`（真实的八个站），以及 `tests/document-plugins-limits.test.ts`、`tests/lingguang-actions.test.ts`、`tests/pages-actions.test.ts`、`tests/content-owner-regressions.test.ts` 里改过的断言 |
+| W4-6-03 | 工作流交接照旧：用 `workflow:<实例>:<步骤>` 作请求号；崩溃后重试、两次并发推进，都只交一次；Feed → Inbox → Pages → 灵光整条走通 | `tests/workflows-handoff-idempotency.test.ts`、`tests/workflows-plugin.test.ts` |
+| W4-6-04 | 已固定 `receive@1` 的流程与实例：原引用保留，报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何内容；在编辑器里把这一站拿掉再加回来，就固定到 `receive@2`，能跑 | `tests/workflow-content-actions.test.ts`（「saved versions survive withdrawal and upgrades」那一组加一条） |
+| W4-6-05 | 来源与归属只认可信的调用上下文。工作流交来的：Inbox 记 `added_by: "workflow"`，Feed 放在「工作流程」下。人经放置交来的：Inbox 记 `"web_user"`，Feed 放在「放进来的内容」下。输入里写什么都改不了这两项。Inbox 嵌套调用 Feed 时，受众不变 | `tests/inbox-action-scenes.test.ts`、`tests/workflows-plugin.test.ts`（:208）、`tests/work-placement.test.ts` |
+| W4-6-06 | 放置的「转成」用 `placement:<请求号>`，同一个请求只建一个 | `tests/work-placement.test.ts` |
+| W4-6-07 | MCP 里八个 `…content.receive__v1` 换成 `__v2`，其余工具名不变 | `tests/dataset-mcp.test.ts`、`tests/form-mcp.test.ts`、`tests/ppt-mcp.test.ts` |
+| W4-6-08 | 动作快照只有八行 `receive` 变了（`@1` 换成 `@2`），其余行不变；公开 API 里 `workflowDeliveryKey` 没有了，多了 `WORKFLOW_CONTENT_VERSIONS` | `tests/action-contract-snapshot.test.ts`；`pnpm health:check` 的 API 快照 |
+
+**W4-6b**
+
+| 编号 | 验收内容 | 证明它的测试 |
+| --- | --- | --- |
+| W4-6-09 | 站点写了 `intake` 的，`receive` 带上派生的 `intake`（`intake_id` 是站 id，`item_kind` 是 `subject_kind`，`material_field` 是 `body`）；没写的不带。内核与宿主没有按站点分的分支 | `tests/workflow-content-actions.test.ts`、`tests/plugin-context-declarations.test.ts` |
+| W4-6-10 | 「放进 Inbox」出预填卡片，不直接建。卡片里：标题取最近的标题或第一行，正文是原文，末行写出处。确认后，Feed「放进来的内容」下多一条，Inbox 多一条 `web_user` 事项；同一个请求号再确认，不多建 | `tests/contextual-create.test.ts`（真实 Host） |
+| W4-6-11 | Inbox 页有「✦」，占位取 `examples[0]`；一句话经过起草出卡片；起草失败时用户写的话还在 | `tests/contextual-draft.test.ts` |
+| W4-6-12 | Pages 与 Inbox 的标题、出处由同一份 `passageDraft` 算；W4-2-06 的断言不变；一个词、整个对象不给输入；准备要 `inbox:read` | `tests/pages-actions.test.ts`、`tests/inbox-action-scenes.test.ts` |
+| W4-6-13 | 缺 `inbox:write`、`feed:write`，或 Inbox 停用：不出现这个去处，Inbox 页也没有「✦」 | `tests/contextual-create.test.ts` |
+| W4-6-14 | 浏览器：在灵光里选一段 → 放进 Inbox → 确认卡片 → 去 Inbox 看到这一条；Inbox 页「✦」一句话 → 卡片 → 确认 | `tests/contextual-inbox.e2e.test.ts`（要写；浏览器暂停期间不跑） |
+
+**BL-174**
+
+| 编号 | 验收内容 | 证明它的测试 |
+| --- | --- | --- |
+| BL174-01 | `fits` 只接受这三个值组成的、非空、不重复的子集，其他写法 SDK 拒绝 | `tests/plugin-context-declarations.test.ts` |
+| BL174-02 | 只有规则时：清单（`list`/`task` 角色，或几行短句）推声明了 `list` 的去处；一行短句推 `line`；长叙述推 `prose`。测试里用替身插件，内核里没有插件 id 或动词 | `tests/contextual-destinations.test.ts` |
+| BL174-03 | 没有去处声明这一类时，按目录顺序（W4-1 的做法）；`always_card` 照样排除在外；有判断时 `fits` 不起作用 | 同上 |
+| BL174-04 | 真实 Host，只有规则，Todo 与灵光都启用：选一条清单出「记成待办」，选一段长叙述出「记下灵光」 | `tests/contextual-create.test.ts` |
+
+`tests/contextual-create.test.ts` 和 `tests/plugin-context-declarations.test.ts` 跑得快，走的又是用户动线，合入时按 AGENTS.md 的规则考虑加进 `tests/ci-product-subset.txt`。
+
+### 11.8 各片改动的文件与冲突
+
+**W4-6a**
+
+- 合同与 SDK：`packages/contracts/src/platform/workflow-content.ts`、`packages/plugin-sdk/src/action-declarations.ts`
+- 八个接收站：`plugins/native/dataset/src/actions.ts`；feed、form、inbox、jelly、lingguang、pages、ppt 各自的 `src/content-actions.ts`
+- 宿主：`apps/local-host/src/inbox-actions.ts`
+- 工作流：`plugins/native/workflows/src/content-client.ts`、`actions.ts`、`continuation.ts`
+- 放置：`horizontal/placement/src/index.ts`
+- 快照：`tooling/gates/actions/`、`tooling/gates/api/`
+- 文档：`skills/molis-plugin-dev/placement.md`、`docs/system/CALL-CHAINS.md`
+- 测试：
+  - 改：`workflow-content-actions`、`plugin-declaration-rules`、`content-owner-regressions`、`document-plugins-limits`、`feed-inbox-pages-loop`、`inbox-action-scenes`、`inbox-automatic-scenes`、`lingguang-actions`、`lingguang-material`、`pages-actions`、`work-placement`、`workflows-plugin`、`workflows-handoff-idempotency`、`workflows-stop-and-token`、`dataset-mcp`、`form-mcp`、`ppt-mcp`（都在 `tests/` 下，`.test.ts`）
+  - 新增：`tests/content-station-request-id.test.ts`
+
+**BL-174**
+
+- 合同与 SDK：`packages/contracts/src/platform/item-intake.ts`、`packages/contracts/src/services/contextual.ts`、`packages/plugin-sdk/src/context-declarations.ts`
+- 内核：`packages/kernel/src/contextual/destinations.ts`、`packages/kernel/src/contextual.ts`
+- 插件声明：`plugins/native/todo/src/actions.ts`、`plugins/native/lingguang/src/actions.ts`
+- 快照：`tooling/gates/actions/`、`tooling/gates/api/`
+- 文档：`skills/molis-plugin-dev/contextual.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、本文 §6.1、`specs/BACKLOG.md`
+- 测试：`tests/contextual-destinations.test.ts`、`tests/plugin-context-declarations.test.ts`、`tests/contextual-create.test.ts`
+
+**W4-6b**
+
+- 合同：`packages/contracts/src/platform/workflow-content.ts`
+- SDK：新增 `packages/plugin-sdk/src/passage-draft.ts`，改 `packages/plugin-sdk/src/index.ts`
+- Inbox：`plugins/native/inbox/src/content-actions.ts`、`manifest.ts`，新增 `intake-offers.ts`；`plugins/native/inbox/package.json` 与 `pnpm-lock.yaml`
+- Pages：`plugins/native/pages/src/intake-offers.ts`（W4-2 新加的文件）
+- 包清单：`specs/repository-anti-corruption/spec.md` §5.1 包清单的行（用脚本重新生成）
+- 快照：`tooling/gates/actions/`、`tooling/gates/api/`
+- 文档：`skills/molis-plugin-dev/contextual.md`、本文 §7
+- 测试：`tests/workflow-content-actions.test.ts`、`tests/plugin-context-declarations.test.ts`、`tests/contextual-create.test.ts`、`tests/contextual-draft.test.ts`、`tests/pages-actions.test.ts`、`tests/inbox-action-scenes.test.ts`；新增 `tests/contextual-inbox.e2e.test.ts`
+
+**与 W4-2 相交的文件**（W4-2 只读，没有改）
+
+- W4-6a 与 W4-2 都改 `tests/pages-actions.test.ts`（W4-6a 改 :38、:42 两处 `receive` 调用）和两份快照。不管谁先合，后合的一方都要重跑 `pnpm actions:update`、`pnpm api:update`。
+- BL-174 与 W4-2 改的是同一批内核与合同代码：`packages/kernel/src/contextual.ts`、`packages/kernel/src/contextual/destinations.ts`、`packages/contracts/src/services/contextual.ts`、`tests/contextual-destinations.test.ts`、`tests/contextual-create.test.ts`。所以 BL-174 必须在 W4-2 合入之后，从 main 开分支。
+- W4-6b 要改 W4-2 新加的 `plugins/native/pages/src/intake-offers.ts`，还会加到 `tests/contextual-create.test.ts` 和 `tests/pages-actions.test.ts` 里，所以也排在 W4-2 之后。
+- W4-2 提出的 D-4（只有规则时，`always_card` 的去处放进「更多」）如果定了，会和 BL-174 改同一段 `planContextualLayout`。两边要按同一份排序规则来写。
+
+**与在途 PR 相交的文件**（2026-10-19 用 `gh pr list --state open` 核对）
+
+- **#776**（`fix/platform-original-caller`）改 `plugins/native/dataset/src/actions.ts`。Dataset 的 `receive` 处理器就在这个文件的 :141-146，这是唯一一处碰到接收站代码的。#776 改的 `form/src/actions.ts`、`ppt/src/plugin.ts` 与两站的 `content-actions.ts` 不重叠。W4-6a 不改 Dataset、Form 的 README，以避开 #776 改的那两份。谁后合谁 rebase，冲突只在 import 行和 :145 那一行。
+- **#781**（alchemist）改 `tooling/gates/actions/actions.tsv`。这是生成的文件，合并后重跑 `pnpm actions:update` 即可。
+- **#788** 改 `docs/system/CALL-CHAINS.md`（:44-50 一段，不是 :162）。W4-6a 改 :162，只是文字，后合的一方 rebase。
+- **#785、#782** 改 `skills/molis-plugin-dev/` 下的其他文件（`SKILL.md`、`generated-ai.md`、`elements.md`），不和 `placement.md`、`contextual.md` 同文件。
+- **#772** 改 `apps/local-host/src/contextual/contextual-create.ts` 和 `specs/context-program/spec.md`。三片都不改这两个文件（Inbox 走卡片，不进直接创建的路径）。
+- **#777、#759** 改 `specs/BACKLOG.md`。BL-174 删掉自己那一行时可能有文字冲突，按行合并即可。
+- **#631** 改 feed、todo 的 `styles.ts` 与 `packages/contracts/src/services/assistant.ts`，与本计划的文件不重叠。
+- **#779**（PPT 收尾）删宿主里的 PPT 端口，不碰 `plugins/native/ppt/src/content-actions.ts`。
+- **#768**（Form）已经合入（`dd1398d24`），不算冲突。
+
+### 11.9 要统筹（①）回答的问题
+
+1. **真实 Home 里有没有固定了 `receive@1` 的流程或运行中的实例？**（会挡住 W4-6a 合入后在真实 Home 上的使用。）本会话没有去看。
+   - 开发用的 Home：用放在会话临时目录的一次性脚本，把 `workflows.chain_json` 与 `instances.chain_json` 里八个站的 `actions.receive.version` 从 1 改成 2。调用时的输入形状由工作流当场拼，所以改引用不会改变语义。
+   - 真实 Home：如果有这样的数据，在两条路里选一条：
+     - (a) 只有已存流程、没有运行中的实例：用户在编辑器里把站点拿掉再加回来，也就是 action-architecture §3 说的「显式修复」；
+     - (b) 有运行中的实例：只能按 CONTRACT-CHANGES §3.4 做维护——整份备份，先在拷贝上演练，再改原库——要用户当次同意。
+   - 推荐：有运行中的实例就走 (b)，否则走 (a)。两条路都不在产品代码里加迁移机制，所以不用登记到 `specs/repository-anti-corruption`。
+2. **八个 MCP 工具改名，要用户同意。**（会挡住 W4-6a 合入。）`molis_work_v1_action_<站>.content.receive__v1` 会变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样。按 CONTRACT-CHANGES §3.5，外部在用的 MCP 工具名改动是产品决定：要先问用户，在 `specs/repository-anti-corruption/spec.md` §1 记一行，PR 里列出新旧名字。推荐：同意改名，不留别名（阶段一不留兼容）。
+
+### 11.10 待补浏览器验证（用户 10-19 暂停）
+
+- 浮条：在灵光、Pages、右栏 Shelf 各选一段，有判断时出现「放进 Inbox」→ 卡片 → 确认 → Inbox 列表里有这一条，显示「手动加入」；Feed 里这一条在「放进来的内容」下。键盘走一遍：⌘. 进浮条、←→、Enter、Esc 回原处。
+- Inbox 页的「✦」：出现，占位文字对，回车出卡片，确认之后列表刷新。
+- 确认之后要等 Inbox 做完下一步判断，量一下这段时间；超过 3 秒的话，在卡片的忙碌状态里写「正在放进 Inbox」。
+- 只有规则（BL-174）：选一条清单出「记成待办」，选一段长叙述出「记下灵光」，选一个标题按目录顺序。
+- 工作流编辑器：升级后固定了 v1 的站点显示不可用和原因，拿掉再加回来就能开始；运行中的实例怎样显示「v1 不可用」。
+- 放置「转成」到 Inbox：条目不再标成「Inbox · 工作流程」。
+- 隔离 Home 实际走一遍，截 1440、1024、800、390 宽度和深色模式的图，写进 `.impeccable/qa/review/`，不入库。
+
+### 11.11 决定与否掉的做法
+
+| 决定 | 否掉的做法与理由 |
+| --- | --- |
+| `receive` v2 的输入平铺，`request_id` 放在顶层 | 否：嵌套成 `context: { request_id }`，只为一个字段套一层，而且起草服务只填顶层字段、`material_field` 也必须是顶层字段。否：`request: { id, origin }`，来源属于出处，必须从可信的调用上下文来，不能从输入读。否：保留 `instance_id`、`step`，让别的入口填假值，一个字段两种意思，快照上也看不出来 |
+| 只把 `receive` 升到 2，`protocol` 仍是 1，版本表 `WORKFLOW_CONTENT_VERSIONS` 放在合同包里 | 否：`protocol` 升到 2，所有站点的 list、read、create 快照行都会跟着变；而工作流只认 `protocol === 1`（`content-client.ts:19`），用旧 SDK 的站会悄悄从目录里消失，不给原因。否：v1、v2 并存，那是兼容期，阶段一不允许 |
+| `workflowDeliveryKey` 移到工作流插件里，格式不变 | 否：留在合同包里，「实例 + 步骤」是工作流自己的说法，别的入口不该看到它；格式不变，另外六个站的已有交付键才保持原样 |
+| 来源与归属按 `caller.audience` 定（Inbox 的 `added_by`、Feed 的来源） | 否：看请求号的前缀，输入不可信。否：一律记成工作流，放置和浮条放进来的东西会被标成「工作流程」 |
+| 存量的固定引用：产品代码里不迁移，开发用的 Home 用脚本，真实 Home 由 ① 定 | 否：工作流解析时自动把 v1 升成 v2，就是悄悄换版本，违反 action-architecture §3 的「不换成新版本」。否：给 v1 留别名，阶段一不留兼容 |
+| 派生创建入口要作者在站点声明里写 `intake` 才有，派生在定义器里做 | 否：八个站全部自动派生。Dataset、Form、PPT 要的是 CSV、题目、提纲，选中的一段文字不是它们要的内容；Pages、灵光还会多出一个重复的去处。否：由内核从 `workflow_content` 现造候选，内核里会多一条只为内容站的路径 |
+| Inbox 走预填卡片，不声明撤销 | 否：只撤一部分（把事项忽略掉），Feed 里那一条还在，等于假装撤销过；而且 `undo.input` 只能写指向输出的路径，写不了常量 |
+| 动词是「放进 Inbox」 | 否：「放进收件箱」，与 GLOSSARY:281 的显示名不一致 |
+| 段落工具放进 SDK，Pages 和 Inbox 共用 | 否：在 Inbox 里抄一份，就成了第二套（AGENTS.md「不另写第二套」）。否：不做 `prepare`，只有规则时卡片没有标题，要用户自己填，违背「选中之后不用再输入」。否：平台给每个站生成 `<站>.content.offers`，范围更大，而且是宿主替插件造动作 |
+| BL-174 只按选区的形状分 `line`、`list`、`prose`，没有声明这一类的去处时按目录顺序 | 否：用动词词表或正则判断「带动词的短句」，只对一种语言、一部分说法有效，而且没有判断时规则只是兜底，不值得做语言规则。否：在内核里写死「清单 → 待办」，就是点名插件，K5 门禁会拦。否：谁都不匹配时不推，去处不进「更多」，没有模型时就哪里都放不进去了。代价：一行没有动词的短句（例如「预算表」）也会推「记成待办」；推错了有「改放到 ▾」 |
+| 一行不超过 60 个字算短句 | 这是先定的数字，评估集有了「最合适的去处」这类标注之后再调（§6.1「评估」） |

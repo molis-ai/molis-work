@@ -39,6 +39,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { made.push(`sdk-${made.length}`); return { runtime_id: "prologue", session_id: made.at(-1) } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) { const ref = { session_id: input[1].session.session_id, run_id: `r${runs.size + 1}` }; runs.set(ref.run_id, { ref }); return { ref, frozen: view(ref).frozen } as Output; }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [...runs.values()].filter(run => run.ref.session_id === input[0].session_id).map(run => run.ref) } as Output;

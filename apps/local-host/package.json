@@ -94,6 +94,7 @@
     "@molis-ai/molis-work-service-runtime-host": "workspace:*",
     "@molis-ai/molis-work-service-scheduler": "workspace:*",
     "@molis-ai/molis-work-service-placement": "workspace:*",
+    "@molis-ai/molis-work-service-knowledge": "workspace:*",
     "@molis-ai/molis-work-service-search": "workspace:*",
     "@molis-ai/molis-work-service-memory": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",

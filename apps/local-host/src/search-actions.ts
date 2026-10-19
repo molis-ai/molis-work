@@ -6,11 +6,12 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
+import { knowledgeProvider } from "./knowledge-actions.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
  * person's own access, and every caller reaches search through the shared directory with its own authority.
- * Search itself is in horizontal/search; nothing about any plugin is known here.
+ * Search itself is in horizontal/search; nothing about any plugin is known here. Project knowledge rides on it (knowledge-actions.ts).
  */
 export interface SearchHostPorts {
   homeDirectory: string;
@@ -74,8 +75,9 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     { ...searchActions.status, handle: (caller, input) => service.status(access(caller), input as { scope?: SearchScope }) },
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
   ];
-  const dispose = ports.registry.registerProvider({ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" },
-    definitions: Object.values(searchActions), handlers });
+  // Project knowledge reads through this search, so it is registered and withdrawn with it (specs/project-knowledge).
+  const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
+    knowledgeProvider(service, clientFor)].map(registration => ports.registry.registerProvider(registration));
   let closed = false;
   // A deleted project's entries leave the index with it; the index is derived, so this needs no label in the dialog.
   projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); } });
@@ -91,6 +93,6 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     projectDeleted: projectId => { service.removeProject(projectId); },
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
-    close: async () => { closed = true; dispose(); await service.close(); index.close(); },
+    close: async () => { closed = true; for (const dispose of disposers) dispose(); await service.close(); index.close(); },
   };
 }

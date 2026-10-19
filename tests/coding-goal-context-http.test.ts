@@ -23,6 +23,7 @@ function codingHostFixture(root: string) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
     } return { available: true }; }, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
   host.registerCapability(agent.availableRoles, () => [{ role_id: "reader", available: true }] as any);
+  host.registerCapability(agent.listActions, () => []);
   host.registerCapability(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerCapability(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));

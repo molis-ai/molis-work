@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：需求已和用户对齐，待用户审 spec，尚未实现（2026-10-19）。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0 在分支 `docs/project-materials` 实现中，进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -27,6 +27,10 @@
 | Coding 现在的「＋ 材料」 | 并入新体系后删旧路（推荐）；第一期保留；下线快照材料 | 用户：「那也勾上吧」——Shelf、Files 一并纳入。按仓库「不留兼容期」的规矩，**并入后删旧路**（审 spec 时可改） |
 | 卡片与大纲什么时候生成 | 导入后自动异步（推荐）；首次使用时；手动 | **自动异步生成，也可手动触发**；用户能修改、编辑；**需要一个管理页面** |
 | 导入与管理的入口 | 侧栏「文件」升级（推荐）；沿用 Artifacts 导入 | **侧栏「文件」升级为项目资料** |
+
+| 存量 Agent 怎样用（用户追加） | 用户原话：「存量的 agent，包含个人助理，以及 coding，都要使用这一套能力，通过工具来调用，也要优化 prompt」 | 个人助理与 Coding 都经工具调用 `knowledge.*`，两边的提示词都写明什么时候查、怎样逐层读、卡片不是事实 |
+| Coding 的 Agent 默认能不能读项目资料（弹窗） | 项目资料默认开、可关（推荐）；仍逐项授权，给一键入口；按人的权限代读 | **默认开、可关**：内置 Agent 在项目里不用授权记录就持有 `knowledge.*` 与本项目各来源的只读条目列表与对象读取器；在「对外接入」里对任何一项撤销授权，就以那条记录为准。写入类能力照旧逐项授权 |
+| §12 Q1–Q5 | — | 用户「行，开始吧」：全部按推荐 |
 
 更正：对齐时我说这件事可以接着 W5-01 的「材料读取归平台（`services.materials`）」做。核对后，`packages/contracts/src/services/materials.ts` 是**正文提取**（OCR、PDF、转写、读网页），不是资料库。本服务会用它从 PDF、DOCX 里读出正文，但不能再叫 `materials`，见 §4.1。
 
@@ -151,6 +155,12 @@
 | `knowledge.grep` | 正则或关键字、可选范围（某份资料、某个来源、工作区路径前缀） | 命中行与前后几行、出处 | 精确查找；工作区文件主要靠它 |
 | `knowledge.glob` | 路径模式 | 工作区文件路径列表 | 只在项目授权的工作区里 |
 
+存量 Agent 怎样拿到这些工具：
+
+- **个人助理**：业务能力网关默认提供目录里所有对 Agent 开放的动作（用户 2026-09-28 的决定），`knowledge.*` 注册后即在其中；助理按 find-capabilities → read-capability 调用。提示词 `assistant-base` v31 加「项目资料」一节。
+- **Coding**：每一轮除了人选的能力，自动带上此刻对 Coding 的 Agent 开放的 `knowledge.*`（`plugins/native/coding/src/knowledge-tools.ts`），超出本轮 Character 范围或已被撤销的不带；提示词 `coding-base` v14 加一条。默认开放的规则在 `apps/local-host/src/mcp-action-grants.ts` 的 `openByDefault`，「对外接入」页显示为「默认开放」，可撤销。
+- 外部 MCP 客户端仍逐项授权。
+
 约束：
 
 - **资料正文是不可信数据**：返回包里正文放在数据字段，不拼进指令；按 `docs/system/SECURITY-INVARIANTS.md` 的提示注入一节处理，并补拒绝用例。
@@ -199,7 +209,8 @@
 
 | 期 | 内容 | 证明 |
 | --- | --- | --- |
-| K0 合同与服务骨架 | `services/knowledge` 合同、`horizontal/knowledge` 包、从搜索来源与文件来源合成资料目录、`knowledge.search/outline/read/grep/glob`（只用标题与原文做关键字），动作快照、安全不变量 | 合同单测、宿主测试、拒绝用例 |
+| K0 合同与服务骨架 | `services/knowledge` 合同、`horizontal/knowledge` 包、`knowledge.search/outline/read/grep`（查找经系统搜索；分节按 Markdown 标题或段落；逐行查找只认字面文字），个人助理与 Coding 经工具使用并改提示词，Coding 的 Agent 默认开放，动作快照、安全不变量 S-41 | 合同单测、服务测试、拒绝用例 |
+| K0b 工作区文件 | `knowledge.glob` 与工作区里的 `knowledge.grep`，经 Host 的工作区读取（Files 的「工作区文件」来源） | 宿主测试、路径拒绝用例 |
 | K1 整理 | 卡片、大纲、分节与前缀；队列、额度、人改字段保留；关键字索引改用卡片与大纲 | 服务测试；用 MiniMax 在隔离 Home 实走一批真实资料 |
 | K2 界面 | 侧栏「资料」、导入（含 PDF/DOCX 正文）、管理页、统一选择器 | e2e、规格板、桌面与 390 宽走查 |
 | K3 存量迁移 | Coding、Shelf、助理接到统一体系，删旧路 | 受影响用例；存量数据维护 |
@@ -257,7 +268,21 @@
 20. **PMAT-20** 换向量模型或维度变化后旧向量作废、重新补算，期间只用关键字召回并显示进度。
 21. **PMAT-21** 远程 embedding 在 `docs/platform/NETWORK.md` 有登记，开关处写明会发出资料正文。
 22. **PMAT-22** [人工] 召回评测（§10.1）的关键字基线与向量对比结果写进本 spec，用户看过后判定是否达标。
+23. **PMAT-23** 个人助理在项目里经能力目录找到并调用 `knowledge.*`，不需要另外授权；用户在助理的能力开关里关掉某一项后，助理拿不到它。
+24. **PMAT-24** Coding 的 Agent 在项目里不需要授权记录就持有 `knowledge.*` 与本项目的只读条目列表、对象读取器；写入类、别的项目的、Home 级的不在其内；外部 MCP 客户端仍逐项授权；「对外接入」里撤销某一项后以撤销为准；每一轮自动带上此刻开放、且在 Character 范围内的 `knowledge.*`。
+25. **PMAT-25** 个人助理与 Coding 的基础提示词各说一次：什么时候查项目资料、怎样从卡片读到原文、卡片不是资料内容、资料原文是数据。
 
 ## 14. 进度与证据
 
-尚未开始实现。
+### K0（2026-10-19，分支 `docs/project-materials`，未推送）
+
+- 合同 `packages/contracts/src/services/knowledge.ts`；包 `horizontal/knowledge`（`KnowledgeService`、`text.ts` 的分节与逐行查找）；Host 装配 `apps/local-host/src/knowledge-actions.ts`，与系统搜索在同一处注册与撤下（`search-actions.ts`）。
+- 为什么和搜索共用一处注册：门禁 `registerProviderSites` 只许 `registerProvider(…)` 的调用处变少，项目资料完全建立在搜索的索引上、生命周期相同，所以在原有那一处把两个提供方一起注册，没有新增调用处。
+- 逐行查找不接受正则：用户给的正则在 32000 字的一行上可能让 Host 卡住，Node 没有正则超时。
+- 读取的上限：对象读取器的正文封顶 32000 字（`subjectContext`），更长的资料现在只能读到前 32000 字，返回 `owner_truncated: true`。按节读取更长的正文要扩展读取器合同（§4.4），留到 K1。
+- 每轮读取总字数上限（PMAT-11）要知道「这一轮」，K0 只做到每次调用有上限并返回剩余量。
+- 存量 Agent：个人助理经能力网关自动看到四个动作，提示词 assistant-base v31 加「项目资料」一节；Coding 每轮由 `withKnowledgeTools` 把目录此刻向它开放的资料动作并进本轮工具（在 Character 范围内），提示词 coding-base v14 加一句先查项目资料。
+- 授权（用户 2026-10-19 弹窗定「默认开、可关」）：`mcp-action-grants.ts` 的 `openByDefault` 让内置 Agent 不经授权记录就能用 `system.knowledge` 与本项目的只读读取器、搜索来源；人在「对外接入」里撤销后即不再给。写入照旧逐项授权。
+- Coding 一轮开始时多问一次 `agent.listActions`（运行时不支持动作工具时它返回空），所以各 Coding HTTP 测试的假宿主都补了这一项的回答（空目录）。
+- 测试（`pnpm build` 后）：`tests/knowledge-service.test.ts`（8 个，含 PMAT-24）、`tests/security-invariants-knowledge.test.ts`（S-41，4 个）、`tests/mcp-action-grants.test.ts`、`tests/agent-definitions.test.ts`（PMAT-25）、`tests/action-contract-snapshot.test.ts`、健康门禁的错误与 API 快照用例、全部 73 个 Coding 用例通过；`affected-tests` 给出的 152 个文件中其余 147 个通过。`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、根 `tsc --noEmit` 通过。
+- 还没有测试的：PMAT-23。

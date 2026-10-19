@@ -1,4 +1,5 @@
-import { ActionError, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, isSearchEntriesSource, isSubjectReader, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { McpActionGrant, McpToolPreference } from "./mcp-settings-store.js";
 
 /** Internal runtimes cannot be impersonated by external MCP runtime: identities. */
@@ -29,16 +30,29 @@ function matches(grant: McpActionGrant, view: ActionView, caller: ActionCallCont
     && view.action.permissions.every(permission => grant.permissions.includes(permission));
 }
 
+/**
+ * What a client holds without a grant record: a system action that needs no permission; and, for the built-in Agent in a
+ * project, project knowledge (specs/project-knowledge, the person's 2026-10-19 decision "默认开、可关") — the knowledge actions
+ * and the project's own read-only listings and object readers they read through. A record for the action, enabled or revoked,
+ * always decides instead, so the person turns any of these off in 对外接入.
+ */
+export function openByDefault(view: ActionView, caller: Pick<ActionCallContext, "actor_id" | "project_id">): boolean {
+  if (view.provider.kind === "system" && view.action.permissions.length === 0) return true;
+  if (actionClientAudience(caller.actor_id) !== "agent" || !caller.project_id) return false;
+  if (view.provider.provider_id === KNOWLEDGE_PROVIDER_ID && view.provider.kind === "system") return true;
+  return view.operation === "query" && view.action.kind === "query" && view.provider.project_id === caller.project_id
+    && (isSubjectReader(view.action) || isSearchEntriesSource(view.action));
+}
+
 /** Declarations are not authority. Only explicit, unchanged grants produce permissions. */
 export function resolveMcpActionContext(caller: ActionCallContext, catalog: readonly ActionView[], preference: McpToolPreference): ActionCallContext {
   const accepted = catalog.filter(view => {
     if (!view.action.audiences.includes(caller.audience === "agent" ? "agent" : "mcp") || (view.provider.project_id && view.provider.project_id !== caller.project_id)) return false;
-    const publicSystem = view.provider.kind === "system" && view.action.permissions.length === 0;
     const records = preference.action_grants.filter(grant => grant.client_id === caller.actor_id
       && grant.project_id === (view.action.scope === "home" ? null : caller.project_id)
       && grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id);
     const granted = records.length === 1 && matches(records[0], view, caller);
-    return (publicSystem && !records.length) || granted;
+    return (openByDefault(view, caller) && !records.length) || granted;
   });
   return { ...caller, permissions: [...new Set(accepted.flatMap(view => view.action.permissions))],
     allowed_actions: accepted.map(view => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id })),

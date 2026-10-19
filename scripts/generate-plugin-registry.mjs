@@ -14,11 +14,11 @@
 //                                                      or a registration cannot be listed (pnpm health:check runs this)
 //
 // What --check reads is syntax only, nothing of the repository is executed: a package under plugins/native/ with no
-// registration at all (W5-02-REG-09: deleting a plugin's registration and its package.json declaration together does not
+// registration at all (W5-02-REG-02: deleting a plugin's registration and its package.json declaration together does not
 // drop it from the catalog unnoticed), a declared package without src/registration.ts (or the other way round), a
 // registration that is not an object literal, a key the contract (PluginRegistration and PluginWorkbenchRegistration in
 // packages/contracts/src/platform/plugin-registration.ts) does not have, at the top or in `workbench`, a spread, a
-// `catalog_order` that is not a positive integer literal (W5-02-REG-10: 0, 1.5 and -1 are refused) or repeats, a literal
+// `catalog_order` that is not a positive integer literal (W5-02-REG-02: 0, 1.5 and -1 are refused) or repeats, a literal
 // `project_plugin_id` that is malformed or repeats, and `clientFrom`, `clientUses` or `companions` that are not literal
 // short ids. What it cannot see:
 // an id given through a constant (most are) and a short id that names no plugin; the built catalog is checked for those

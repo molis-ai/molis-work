@@ -89,7 +89,7 @@ test("W5-02-REG-02: --check refuses a position or a key it cannot read, or one a
   assert.match(problems(literal), /project_plugin_id "same" is given by .+ and .+; each plugin needs its own/);
 });
 
-test("W5-02-REG-09: --check refuses a package under plugins/native/ that has no registration, even when its catalog entry was dropped with it", () => {
+test("W5-02-REG-02: --check refuses a package under plugins/native/ that has no registration, even when its catalog entry was dropped with it", () => {
   const catalog = readReal(CATALOG_FILE)!;
   // What the generator used to write after someone deleted Feed's registration and its package.json declaration together:
   // a catalog that is consistent with the tree and simply has no Feed in it.
@@ -112,7 +112,7 @@ test("W5-02-REG-09: --check refuses a package under plugins/native/ that has no 
   assert.deepEqual(pluginRegistryProblems(lone, [{ path: dir, name }]), []);
 });
 
-test("W5-02-REG-10: --check takes a catalog_order only as a positive integer literal", () => {
+test("W5-02-REG-02: --check takes a catalog_order only as a positive integer literal", () => {
   const refused = (value: string, expected: RegExp) => assert.match(problems(feed("catalog_order: 10", `catalog_order: ${value}`)), expected, value);
   refused("0", /gives "catalog_order" 0, which is not a positive integer/);
   refused("1.5", /gives "catalog_order" 1\.5, which is not a positive integer/);

@@ -1181,7 +1181,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | A7 | 输入框上方的「建议条」（`data-assistant-offer`） | 页面发来的建议（`purpose: suggest`）：「放进输入框 / 忽略」 | `molis:assistant-message`；各插件页面发，岛收 |
 | A8 | 对话里的操作卡 | 模型 `suggest-action` 或 A3 放的卡：可改字段、执行、结果、撤销 | `assistant-offers.ts` + `assistant-card-view.ts`（宿主画，交互线 H2） |
 | A9 | 对话里的问卷卡 | `ask-user` 的待答问题，共享问卷卡，带草稿 | `agent-question-card.ts`（宿主画，交互线 A1/A2） |
-| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-view-html.ts` 的 `assistantNextSteps`（交互线 D14） |
+| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-outcome.ts` 的 `assistantOutcomeSteps`（交互线 D14） |
 | A11 | 对话顶部条带（侧栏收起时）与左侧概况 | 状态、「去确认 / 去回答 / 去处理 / 去核对 / 看等你的子任务」按钮、暂停继续停止；两处各一份 | 岛的 `nextStep`、`paintStrip`、`paintSummary` |
 | A12 | 左侧概况的「还等你处理」 | 本工作等你的子任务与对象 | 岛的 `renderAttention` |
 | A13 | 输入框的铃铛「等你 N」 | 全部工作的通知（等你的、新消息） | `/notices`；岛 |
@@ -1488,3 +1488,45 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **执行前重读落点对象（第 6 步）**：`/api/contextual/attach` 调动作之前，宿主用 H3 的 `confirmReferences`（经 `localHost.search`，本人在这个项目里的权限）读一次落点对象，种类限定为 `attach.item_kind`；不在、不能用，或宿主没有这道检查，都拒绝（`contextual.reference_unavailable`），什么也不写。之后版本仍由 Pages 的动作自己比对。证据：`tests/pages-landing-actions.test.ts`「W3-B1 step 6」。
 - **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
 - **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。
+
+### 21.9 下一步行的结果位（槽位接口，2026-10-19；DISPATCH-1019-0710 ⑧）
+
+版面归本线（`assistant-island.ts` 的布局属 ⑧）。回执线的交付说明（3e）与交互线的结果卡（AC-06 H4）都放进下一步行的同一个位置，不各开结构。
+
+**位置与顺序**：
+
+- 先放等你的（确认、问卷、操作卡、核对、等你的子任务），然后是结果位。
+- 结果位最多给 2 步（`OUTCOME_STEPS`）。整行仍只显示 3 步，其余收进「还有 N 项」，所以结果不会把等你的挤出前三。
+- 结果位一次只说一件事，取第一个有内容的：
+  1. 工作的交付说明（回执 3e，⑥ 加）；
+  2. 最近跑完的那张卡的结果（交互 AC-06，⑨ 加）；
+  3. 最近一轮做出的结果（「打开「…」」），这一轮失败时是「用同样的话再试一次」。
+
+**接口**：
+
+- 宿主：`apps/local-host/src/assistant/assistant-outcome.ts` 的 `assistantOutcomeSteps(view, say)`。每个主人在这里加自己的一支，并在对话里画自己的记录；别处不画结果。`assistantStepRow` 把它接在等你的之后，经 `interactionNextSteps` 去重。
+- 记录：对话里的一条交付说明或结果，用自己的 `data-ix-record="<kind>:<id>"` 作键（`NEXT_STEP.record`）；卡片的结果用卡片自己的 `data-card` 作键。
+- 控件：记录里允许下一步按的控件带 `data-ix-press="<name>"`（结果的「打开」、交付说明里的链接、卡片结果的「撤销」）。步的 id 是 `<键>:<name>`（`NEXT_STEP.press`）。
+- 页面：`assistant-step-row.ts` 只按记录自己的控件，和人按的一样，所以没有第二条执行路径（FLOW-01）。控件被禁用、记录有没发出的修改、记录里没有这个名字的控件，都只把记录带到眼前，原因由记录自己的控件说（FLOW-03）。只写键不写名字的步，也只带到眼前。键要整段相同，`delivery:w1` 不会接住 `delivery:w10:…`。对话里找不到记录的步交给岛自己的处理（`open:`、`check`、`work:`、`retry`）。
+- 不改合同、不改设计系统、不改 `assistant-island.ts`（#631 在途，大面积改它）。
+
+**状态**：
+
+- 空：没有结果就不占位；整行没有步时行隐藏。
+- 进行中：一轮还没完不给结果步。
+- 失败：只给「再试一次」。
+- 不在了或打不开的结果不给步。
+- 没权限或已禁用：步只带到记录，由记录说明。
+- 能撤销：撤销是记录自己的控件，步按的就是它。
+
+**验收**：
+
+- **SLOT-01**：宿主端结果位排在等你的之后，至多 2 步，不把等你的挤出前三；不在了或打不开的结果不是步。证据：`tests/assistant-interaction-html.test.ts`。
+- **SLOT-02**：页面端只按记录自己的控件；禁用、未发出的修改、没有的名字只带到眼前；键不前缀误配；卡片的 `run` 与问卷的选项照旧。证据：`tests/assistant-step-row.test.ts`（真实下发的脚本在 `node:vm` 里跑）。
+
+**下发体积**：宿主发脚本前已用 esbuild 压空白（`tightenServedJs`），所以新增的分支只能靠把下一步行的脚本写短来抵：按属性找控件合成一个小函数 `at`，几支判断并在一起，去掉多余的初值。以宿主的压法量，这段脚本比改前少 6 字节，`workbench.js` 不变大。
+
+**待补浏览器验证**（用户 10-19 暂停）：
+
+- 一轮做出结果后，下一步行在等你的之后显示「打开「…」」，按下与按结果自己的「打开」相同。
+- 窄面板（小于 560px）时结果步随整行移到输入框上方。

@@ -18,11 +18,14 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 /**
  * AC-S04 sometimes times out on CI (red twice and green once on one commit) while it passes locally, and the screenshot cannot
  * tell which step stood still. On a timeout this notes, beside the test, what the page held at that moment: what the top
- * document asked the Host for (`__asked`), the shown bars in the side tab's document and the first bar there in any state, the
- * selection there, whether the panel is open, and the shown bars in the top document. It then rethrows the original error; no assertion changes.
+ * document asked the Host for (`__asked`), what came back for each ask (`__answers`: when it left, its status and when it came
+ * back, how many candidates and how many available, or the error), the page's clock at that moment, the shown bars in the side
+ * tab's document and the first bar there in any state, the selection there, whether the panel is open, and the shown bars in the
+ * top document. An ask with no status never came back; one with available candidates and no bar came back and was not drawn.
+ * It then rethrows the original error; no assertion changes.
  */
 const SCENE = `(() => { const doc = ${SHELF}?.contentDocument;
-  return { asked: window.__asked ?? null, side_bars: doc?.querySelectorAll(${JSON.stringify(BAR)}).length ?? null,
+  return { now: Math.round(performance.now()), asked: window.__asked ?? null, answers: window.__answers ?? null, side_bars: doc?.querySelectorAll(${JSON.stringify(BAR)}).length ?? null,
     side_first_bar: doc?.querySelector('.mw-ctx')?.outerHTML.slice(0, 500) ?? null, side_selection: doc?.getSelection()?.toString() ?? null,
     side_open: document.body.dataset.sideOpen ?? null, top_bars: document.querySelectorAll(${JSON.stringify(BAR)}).length }; })()`;
 async function noteSceneOnTimeout(t: TestContext, evaluate: <T>(expression: string) => Promise<T>, wait: Promise<void>): Promise<void> {
@@ -67,9 +70,21 @@ async function shelfBesidePages(t: TestContext) {
     body: JSON.stringify({ filename: "访谈记录.md", mime: "text/markdown", bytes_base64: btoa(String.fromCharCode(...new TextEncoder().encode(${JSON.stringify(`# 访谈记录\n\n用户说：${MATERIAL}\n`)}))) }) })
     .then((response) => response.json()).then((body) => body.item)`);
   assert.ok(item?.item_id, "the material is on the shelf");
-  // What the top document asks the Host for, to read where it says the thing in hand is.
-  await evaluate(`(() => { window.__asked = []; const original = window.fetch;
-    window.fetch = async (...args) => { if (String(args[0]).includes('/api/contextual/candidates')) window.__asked.push(JSON.parse(args[1].body)); return original(...args); }; })()`);
+  // What the top document asks the Host for, to read where it says the thing in hand is; and, for the scene, what came back.
+  await evaluate(`(() => { window.__asked = []; window.__answers = []; const original = window.fetch;
+    window.fetch = async (...args) => {
+      if (!String(args[0]).includes('/api/contextual/candidates')) return original(...args);
+      const body = JSON.parse(args[1].body), answer = { at: Math.round(performance.now()), pane_id: body.pane_id, context_id: body.focus?.context_id ?? null };
+      window.__asked.push(body); window.__answers.push(answer);
+      try {
+        const response = await original(...args);
+        Object.assign(answer, { status: response.status, back_at: Math.round(performance.now()) });
+        response.clone().json().then((out) => Object.assign(answer, { candidates: out?.plan?.candidates?.length ?? null,
+          available: out?.plan?.candidates?.filter((item) => item.available).length ?? null, plan_context_id: out?.plan?.context_id ?? null }),
+        (error) => { answer.unreadable = String(error); });
+        return response;
+      } catch (error) { answer.error = String(error); throw error; }
+    }; })()`);
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(SHELF_TAB)}, target: { item: ${JSON.stringify(item.item_id)} } } }))`);
   await waitFor(`Boolean(${SHELF}?.contentDocument?.querySelector('[data-shelf-read] .shelf-reading')?.textContent.includes(${JSON.stringify(MATERIAL)}))`, 20_000);
 

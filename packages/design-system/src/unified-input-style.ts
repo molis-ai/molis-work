@@ -23,8 +23,8 @@ html body form.uiv-composer[data-uiv-bound] .uiv-writing-surface:has([data-uiv-i
 html body form.uiv-composer[data-uiv-bound] [data-uiv-input]:disabled { background: transparent; color: var(--muted); cursor: not-allowed; }
 html body form.uiv-composer[data-home-talk-form] { display: flex; flex-wrap: wrap; width: 100%; gap: 6px; padding: 8px 16px; }
 html body form.uiv-composer.bar-composer[data-assistant-composer][data-uiv-bound] {
-  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
-  box-sizing: border-box; width: 100%; height: auto; min-height: 0; max-height: none; padding: 4px 8px; overflow: visible;
+  position: relative; display: flex; flex-wrap: wrap; align-items: center; gap:0 6px;
+  box-sizing: border-box; width: 100%; height: auto; min-height: 0; max-height: none; padding:4px 8px; overflow: visible;
 }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { flex: 1 1 64px; width: auto; min-width: 64px; order: 1; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > :is([data-assistant-attach], .uiv-bar, [data-assistant-send]) { order: 2; }

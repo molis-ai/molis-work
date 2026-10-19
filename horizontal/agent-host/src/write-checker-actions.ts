@@ -39,11 +39,11 @@ function checkedChecker(checker: AgentWriteChecker): Required<AgentWriteChecker>
   // One file per check (§6.0p.9): a command without the file would check the whole project and call that a diagnosis.
   if (checker.args.filter(arg => arg === FILE).length !== 1) throw invalid(checker, "的参数里要有一个、也只能有一个 {file}");
   if (checker.args.some(arg => arg !== FILE && arg.includes(FILE))) throw invalid(checker, "的 {file} 要单独作为一个参数，不能嵌在别的文字里");
-  // The SDK trims the directory before it checks it, so one kept with spaces around it would run somewhere other than it says;
-  // a drive (`C:`) is not under the root on any system.
-  const written = checker.cwd ?? ".";
-  if (written !== written.trim() || /^[A-Za-z]:/.test(written)) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
-  const cwd = posix.normalize(written);
+  // The SDK trims the directory, then refuses one that starts with a drive and a separator (`C:/`, `C:\`), exactly that:
+  // kept with spaces around it, it would run somewhere other than it says; on a drive, not at all. Both are checked on the
+  // normalized value, the one that is kept, since normalizing can bring either to an end (`./ /etc`, `./C:/x`).
+  const cwd = posix.normalize(checker.cwd ?? ".");
+  if (cwd !== cwd.trim() || /^[A-Za-z]:[\\/]/.test(cwd)) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
   if (posix.isAbsolute(cwd) || cwd === ".." || cwd.startsWith("../") || cwd.includes("\\")) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
   if (cwd.split("/").some(segment => PROTECTED.includes(segment))) throw invalid(checker, "的工作目录不能在 .git、node_modules 或 .prologue 里");
   return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000 };

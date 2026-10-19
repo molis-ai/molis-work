@@ -54,7 +54,7 @@
 **实现记录（2026-10-19）。** 两个新动作都只给 `user` 调，`scheduling: "concurrent"`，权限加 `model:invoke`，`execution.cost: "metered"`：
 - `issues.name_draft@1`（写）：读草稿，调一次模型，存成新记录或返回一句追问。`issues.suggest_name@1`（读）：给编辑中的原文和截图建议标题和类型，什么都不写。
 - 模型调用：上限 90 秒、4000 个输出 token。传给模型的数据里写截图有几张、这次附上没有，模型不会以为自己看过截图。
-- 截图只在所选模型声明能看图时附上。为此 `PluginModelAvailability` 多一个可选的 `vision`，宿主按模型目录里那个模型的 `vision` 填（`apps/local-host/src/plugin-model-service.ts`、`packages/contracts/src/platform/plugin-model.ts`）。模型要带 `vision: true`，截图才会到起标题这一步。界面上现在还没有「看图」的开关：`vision` 只能经模型设置接口的 `models[].vision` 写入，开关由跟进 PR 补上；在那之前，日常 Home 里多数模型收不到截图。截图没有交给模型时，页面直接说明（见 ISSUE-50）。评测两臂都按有 `vision` 跑（`MODEL_VISION=1`）。
+- 截图只在所选模型声明能看图时附上。为此 `PluginModelAvailability` 多一个可选的 `vision`，宿主按模型目录里那个模型的 `vision` 填（`apps/local-host/src/plugin-model-service.ts`、`packages/contracts/src/platform/plugin-model.ts`）。模型要带 `vision: true`，截图才会到起标题这一步。界面上现在还没有「看图」的开关：`vision` 只能经模型设置接口的 `models[].vision` 写入，开关留作后续，登记为 BL-391（三态：没设、能、不能，只有人动过才写入）；在那之前，日常 Home 里多数模型收不到截图。截图没有交给模型时，页面直接说明（见 ISSUE-50）。评测两臂都按有 `vision` 跑（`MODEL_VISION=1`）。
 - 模型回答只认两种形状：`named`（一行标题，1～200 字；类型在枚举里）和 `needs_input`（一行追问，1～200 字）。其他回答报 `issues.model_reply_invalid`（类别 upstream），提示「模型没有给出可用的标题和类型，点开补全后保存」，不修补成记录。`result.validateResult()` 在写入事务里、提交前再查一次。
 - 写入人取调用上下文的 actor。起标题存下的记录 `entered_via` 仍记 `assistant`：标题和类型是模型给的，人只写了原文。
 - `issues.capture` 只剩 `user`（页面的手动保存）。助理在对话里记问题用 `issues.create`，测试 `tests/issue-assistant.test.ts` 的 ISSUE-25 那条覆盖。

@@ -16,14 +16,17 @@ const view = (owner: AgentSkillOwner, server: AgentMcpServerView) => ({
   transport: server.transport, state: server.health, credential: server.credential, ...(server.endpoint ? { endpoint: server.endpoint } : {}),
   tools: server.tools.map(tool => ({ tool: tool.tool, version: tool.version })),
 });
+/** Whose project MCP a caller manages: a caller in a project only that project's; Home management (no project) every project's. */
+const managedCatalog = async (library: AgentMcpLibrary | undefined, caller: Pick<ActionCallContext, "project_id">) =>
+  (await library?.catalog?.() ?? []).filter(({ owner }) => !caller.project_id || owner.project_id === caller.project_id);
 export async function listProjectMcpConnections(home: string, port: ProjectMcpManagementPort, actions: readonly ActionView[], caller: ActionCallContext) {
-  const library = await port.library();
-  return (await library?.catalog?.() ?? []).map(({ owner, server }) => ({ ...view(owner, server), status: describeProjectMcpStatus(home, owner, server, actions, caller) }));
+  return (await managedCatalog(await port.library(), caller)).map(({ owner, server }) => ({ ...view(owner, server), status: describeProjectMcpStatus(home, owner, server, actions, caller) }));
 }
 export async function manageProjectMcp(home: string, port: ProjectMcpManagementPort, caller: Parameters<ActionHandlerBinding["handle"]>[0],
   input: { connection_id: string; action: "check" | "enable" | "disable" | "remove"; expected_revision?: string }) {
   const library = await port.library();
-  const entry = (await library?.catalog?.() ?? []).find(entry => entry.server.id === input.connection_id);
+  // Another project's connection is refused as if it did not exist: the caller's list never showed it.
+  const entry = (await managedCatalog(library, caller)).find(entry => entry.server.id === input.connection_id);
   if (!library || !entry) throw errors.unknown("没有这条项目 MCP 连接");
   const { owner, server } = entry;
   if (input.expected_revision !== undefined && input.expected_revision !== String(server.version)) throw errors.changed("连接已变化，请重新读取后操作");

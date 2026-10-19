@@ -1,5 +1,5 @@
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { prepareConnectorAuthorization } from "./connector-authorization-status.js";
+import { prepareConnectorAuthorization, requireConnectorInitiator } from "./connector-authorization-status.js";
 import { localMcpSetupPlan, type LocalMcpSetupInput } from "./connector-local-mcp-plan.js";
 import { removeManagedConnectorTool } from "./connector-tool-install.js";
 import { submitLocalMcpSetup } from "./connector-local-submission.js";
@@ -47,7 +47,10 @@ export function connectorLocalHandlers(home: string, remember: ConnectorMcpDirec
         ...(caller.runtime_session_id ? { runtime_session_id: caller.runtime_session_id } : {}) });
       return { authorization_id: request.id, status: request.status, setup, url: `/capabilities/connections?setup=${request.id}` };
     } },
-    { capability_id: connectorLocalActions.execute.capability_id, version: 1, handle: (caller, input) =>
-      submitLocalMcpSetup(home, (input as { authorization_id: string }).authorization_id, undefined, remember, { signal: caller.signal, beforeEffect: caller.beforeEffect }) },
+    { capability_id: connectorLocalActions.execute.capability_id, version: 1, handle: (caller, input) => {
+      const id = (input as { authorization_id: string }).authorization_id;
+      requireConnectorInitiator(home, id, caller);
+      return submitLocalMcpSetup(home, id, undefined, remember, { signal: caller.signal, beforeEffect: caller.beforeEffect });
+    } },
   ];
 }

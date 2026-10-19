@@ -38,7 +38,7 @@ export async function promoteDataset(
   id: string,
   projectId: string,
   publishArtifact: DatasetPublishArtifactPort,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: DatasetReadArtifactPort; lineHead?: DatasetLineHeadPort },
+  options: { actorId: string; expectedVersion?: number; readArtifact?: DatasetReadArtifactPort; lineHead?: DatasetLineHeadPort; beforePublish?: () => Promise<void> },
 ): Promise<{ dataset: DatasetRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   const current = stores.read(store => store.get(id, projectId));
   const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
@@ -50,6 +50,7 @@ export async function promoteDataset(
   if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
   const intent = await stores.write(caller, store => store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version));
   if (existing && !isDeepStrictEqual(existing, intent.content)) throw datasetErrors.publication_conflict("成果与原发布快照不同，数据表及快照已保留");
+  if (!existing) await options.beforePublish?.();
   const published = existing ? { artifact_id: "dataset-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,

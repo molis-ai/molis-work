@@ -19,6 +19,15 @@ export function runInPluginAction<T>(scope: PluginActionScope, handle: () => T):
   return running.run(scope, handle);
 }
 
+/**
+ * Runs what the Runtime does on its own behalf (starting or stopping a Plugin, delivering an event or an input change) outside
+ * every action. Otherwise it keeps the scope of whichever action set it off: a subscriber would answer to the publisher's
+ * caller, and a timer set up in a lazily started Plugin's `start` would answer to it for good.
+ */
+export function outsidePluginAction<T>(run: () => T): T {
+  return running.exit(run);
+}
+
 /** The action the calling code is running for, or nothing outside every action (`start`, a route, a timer set up elsewhere). */
 export function currentPluginAction(): PluginActionScope | undefined {
   return running.getStore();

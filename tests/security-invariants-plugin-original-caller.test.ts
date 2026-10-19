@@ -21,6 +21,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // the same turn as the write. What the plugin hands them (a wait of its own, or none) cannot stand in for that caller.
 
 const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
+const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`;
 const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const FILES: PluginFilesDeclaration = { store_name: "callerprobe-files", directory: "assets", max_file_bytes: 64, read_permission: READ, write_permission: WRITE };
@@ -48,16 +49,18 @@ function probe() {
       properties: { target: { type: "string", enum: [...TARGETS] }, name: { type: "string" } } }, output_schema: { type: "boolean" } };
   const define = (operation: string, title: string): ActionDefinition<{ target: Target; name: string }, boolean> => ({
     capability_id: `${ID}.${operation}`, version: 1, operation: "command", action: { ...shape, title, description: title, kind: "operation" } });
-  const writeAction = define("write", "等测试放行后写一项"), leave = define("leave", "返回之后再写一项");
+  const writeAction = define("write", "等测试放行后写一项"), leave = define("leave", "返回之后再写一项"), announce = define("announce", "发一个事件就返回"), output = define("output", "更新输出端口就返回");
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: ID, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-callerprobe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", READ, WRITE, "artifact:read", "artifact:write"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [] },
     process_items: { produces: [{ artifact_type_id: ITEM, schema_version: 1 }], consumes: [] },
-    ui: { contributions: [] }, actions: [writeAction, leave, preview.definition],
+    ui: { contributions: [] }, actions: [writeAction, leave, announce, output, preview.definition],
+    events: { publishes: [{ event_type_id: ANNOUNCED, type_version: 1 }], subscribes: [] },
+    ports: { inputs: [], outputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const held = () => { gate.entered.resolve(); return gate.release.promise; };
-  const definition: PluginDefinition = { manifest, start(context) {
+  const definition: PluginDefinition = { manifest, event_types: [{ event_type_id: ANNOUNCED, type_version: 1, validate: payload => payload }], start(context) {
     services = context.services;
     return { kind: "app", views: [], actions: [
       { ...writeAction, handle: async (_caller, input) => {
@@ -70,11 +73,40 @@ function probe() {
         gate.left = gate.release.promise.then(() => write(context.services!, target, name, async () => {}));
         return true;
       } },
+      { ...announce, handle: (_caller, input) => {
+        context.services!.events!.publish({ event_type_id: ANNOUNCED, type_version: 1, payload: { name: (input as { name: string }).name } });
+        return true;
+      } },
+      { ...output, handle: (_caller, input) => {
+        context.services!.outputs!.publish({ port: "item", content: { kind: "inline", payload: { name: (input as { name: string }).name } } });
+        return true;
+      } },
       preview.handler,
     ] };
   } };
-  return { definition, writeAction, leave, gate, services: () => services ?? assert.fail("the probe has not started"),
+  return { definition, writeAction, leave, announce, output, gate, services: () => services ?? assert.fail("the probe has not started"),
     reset() { gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
+}
+
+/** Hears the probe's event and its output port, and writes what it heard to its private storage once the test lets it. */
+function listener() {
+  const heard = deferred(), release = deferred();
+  let services: PluginHostServices | undefined;
+  const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: LISTENER, version: "1.0.0", name: LISTENER, kind: "app",
+    publisher: { publisher_id: "molis", signature: "probe-callerlistener" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: ["storage:private", "artifact:read"].map(permission => ({ permission, required: true, reason: "记下听到的" })),
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    process_items: { produces: [], consumes: [{ artifact_type_id: ITEM, schema_version: 1 }] },
+    ports: { inputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 }], outputs: [] },
+    events: { publishes: [], subscribes: [{ event_type_id: ANNOUNCED, type_version: 1, from_plugin_ids: [ID] }] },
+    upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
+  const definition: PluginDefinition = { manifest, start(context) {
+    services = context.services;
+    const hear = async (key: string) => { heard.resolve(); await release.promise; services!.storage!.set(key, "heard"); };
+    return { kind: "app", views: [], onEvent: event => hear((event.payload as { name: string }).name),
+      onUpstreamReady: () => hear("input"), onUpstreamUnavailable: () => {} };
+  } };
+  return { definition, heard, release, stored: (name: string) => services?.storage?.get(name) ?? null };
 }
 
 /** The project platform the Host builds, with the real library, file, private storage and 成果 services. */
@@ -95,8 +127,9 @@ async function platform(t: TestContext) {
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
-  const plugin = probe();
-  assert.deepEqual((await running.start([{ definition: plugin.definition, database: DATABASE, files: FILES, bundled: true }])).running, [ID]);
+  const plugin = probe(), subscriber = listener();
+  assert.deepEqual((await running.start([{ definition: plugin.definition, database: DATABASE, files: FILES, bundled: true },
+    { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;
@@ -104,7 +137,7 @@ async function platform(t: TestContext) {
     if (target === "files") return existsSync(join(home, FILES.store_name, FILES.directory, `${name}.bin`));
     return !!(target === "publish" ? artifacts : processItems).query.latestArtifactVersion(DEMO_PROJECT_ID, name);
   };
-  return { client: actions.client, plugin, written, home };
+  return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home };
 }
 
 function caller() {
@@ -155,5 +188,20 @@ test("S-18 outside every action the installation's grants decide alone", async t
   for (const target of TARGETS) {
     await write(plugin.services(), target, `${target}-outside`, async () => {});
     assert.equal(written(target, `${target}-outside`), true, target);
+  }
+});
+
+test("S-18 a subscriber or a consumer answers to its own delivery, not to the action that set it off", async t => {
+  for (const path of ["event", "input"] as const) {
+    const { client, plugin, subscriber, events, wiring } = await platform(t);
+    if (path === "input") wiring.bind({ project_id: DEMO_PROJECT_ID, target_plugin_id: LISTENER, target_port: "item", source_plugin_id: ID,
+      source_port: "item", origin: "user", actor_id: "owner" });
+    // Delivery is set off inside the probe's action; the listener writes only after that action has returned.
+    const key = path === "event" ? "announced" : "input";
+    assert.equal(await client.invoke(caller().context, path === "event" ? plugin.announce : plugin.output, { target: "storage", name: key }), true);
+    await subscriber.heard.promise;
+    subscriber.release.resolve();
+    await (path === "event" ? events : wiring).drain();
+    assert.equal(subscriber.stored(key), "heard", `${path}: the probe's ended call does not refuse the listener's write`);
   }
 });

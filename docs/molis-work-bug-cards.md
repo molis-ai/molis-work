@@ -54,7 +54,7 @@
 
 **当前本地包与安装**：`/Applications/Molis Work.app`、App 内嵌 Runtime、`~/.molis-work/config/installation.json`、home CLI/Web launcher 均为 **0.1.9**；App 内嵌与 home Core 的构建指纹同为 `3ee421eb97219f3a9ff1e1fc97ddb079582f58ad025747fedd744f9bf24ef7ad`。`Molis Work-0.1.9-macos-arm64.app.zip` SHA-256 为 `eda561d4ab051fe507359de6efecc8b56fdf9b08df4d9653691913edfecbd895`，DMG 为 `648f8ddaabee7355304bd217ea0c4d030d3eef79890a01f8d9d7f2f62aa66c32`，两个 sidecar 复核通过；安装 App 的严格 codesign 通过，但仍是 ad-hoc 签名、没有 TeamIdentifier，不能称 Apple 公证发布。
 
-**当前不一致**：服务进程与 `/health.service_process_id` 同为 12637，页面健康且 home launcher 执行 0.1.9；但官方 service status 为 `needs_repair`，LaunchAgent `PATH` 仍从 `molis-work-0.1.8/runtime` 开始，这正是 GB42 的修复前现场。active Codex Skill `/Users/oreal/.codex/skills/goal-advance` 仍链接 **0.1.7**；官方只读 `/api/settings/runtimes` 也把 Codex 判为 `needs_repair`，而不是未知 conflict，证明后续可以走受管 repair 事务。0.1.9 release 目录内虽然包含 GB33–GB39 的协议/Skill 资产，当前 Codex 新 Session 也不会自动消费它们。当前状态绝不能表述为 App/Core/service/Skill 已统一。
+**当前不一致**：服务进程与 `/health.service_process_id` 同为 12637，页面健康且 home launcher 执行 0.1.9；但官方 service status 为 `needs_repair`，LaunchAgent `PATH` 仍从 `molis-work-0.1.8/runtime` 开始，这正是 GB42 的修复前现场。active Codex Skill `~/.codex/skills/goal-advance` 仍链接 **0.1.7**；官方只读 `/api/settings/runtimes` 也把 Codex 判为 `needs_repair`，而不是未知 conflict，证明后续可以走受管 repair 事务。0.1.9 release 目录内虽然包含 GB33–GB39 的协议/Skill 资产，当前 Codex 新 Session 也不会自动消费它们。当前状态绝不能表述为 App/Core/service/Skill 已统一。
 
 **工程验证**：GB38–GB41 合并态完整 `pnpm typecheck && pnpm test` 为 **331/331**；GB42 增加 Desktop 升级交接回归后，Desktop Rust 为 **12/12**，Web service 状态机为 **23/23**，TypeScript typecheck、Rust format 与 diff check 通过。`cargo clippy --all-targets -D warnings` 仍被本卡范围外两条既有 warning 阻断，未冒充为绿。
 
@@ -154,7 +154,7 @@
 **修复决定**：用户已批准
 **修复状态**：2026-08-30 最终收口：0.1.7 App/Core/服务/Skill 已统一安装，fresh MCP 协议和 Skill 资产验证通过；Owner 对修复实现与安装交付验收通过。当前 Session 不会热加载，新 Codex Session 的真实自然语言绑定旅程仍标为 `UNVERIFIED`，不冒充产品实操。
 
-**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/Molis Work.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 Molis Work 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `/Users/oreal/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/qa/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
+**2026-08-30 复验进展**：已用 computer use 在当前 `/Applications/Molis Work.app` 打开“全局设置 → AI 与执行工具”。Codex 卡片显示“检测到旧版或不完整的 Molis Work 接入 · 需要修复”，Runtime 为“未找到可执行文件”，Skill 路径为 `~/.codex/skills/goal-advance`；当前 Session 的 MCP 工具说明虽已包含“当前消息明确命名且唯一匹配时直接 bind”的新规则，但这不能证明一个真实新 Session 会加载并执行同版 Skill。截图：`docs/qa/bug-revalidation/2026-08-30/gb01-current-runtime-incomplete.jpeg`。因此本卡当前只能判定源码工程层存在修复，产品验收失败；需统一安装后创建真实新 Session，分别复测明确唯一匹配、多候选、切换项目和未命名请求。
 
 ### 1. 真实场景
 
@@ -270,7 +270,7 @@ Molis Work 原本不持久化第二套工作状态，而是从 canonical Goal、
 
 ### 1. 真实场景
 
-当前 Session 已绑定 `Content Growth Studio`，canonical workspace 是 `/Users/oreal/adeptify-home/repos/Content Growth Studio`。消费者提交这个目录内真实存在的 JSON 和 Markdown 绝对路径作为 Evidence locator，却收到“不能指向项目范围外的本地文件”，无法登记 verified local Evidence。
+当前 Session 已绑定 `Content Growth Studio`，canonical workspace 是 `~/adeptify-home/repos/Content Growth Studio`。消费者提交这个目录内真实存在的 JSON 和 Markdown 绝对路径作为 Evidence locator，却收到“不能指向项目范围外的本地文件”，无法登记 verified local Evidence。
 
 ### 2. 事实与归因
 
@@ -1002,7 +1002,7 @@ Molis Work 侧复用现有 decomposition review，新增 `contract_coverage`：�
 
 ### 1. 真实场景
 
-最初复核 v0.1.5 时，GitHub Release、用户级 App、`~/.molis-work` Core 与常驻 Web service 都曾更新，台账因此把多张 Runtime 消费体验卡写成“已安装”。但真实 Codex 使用的 `/Users/oreal/.codex/skills/goal-advance` 仍是一个指向 `molis-work-0.1.1` 的受管符号链接。2026-08-30 再次只读复核还发现：Core launcher、owned LaunchAgent 和 4173 服务已经指向 0.1.6，`/Applications/Molis Work.app` 的 bundle 却是 0.1.3。当前不是单一 Skill 落后，而是 App、Core/service 与 Skill 三层版本分裂。
+最初复核 v0.1.5 时，GitHub Release、用户级 App、`~/.molis-work` Core 与常驻 Web service 都曾更新，台账因此把多张 Runtime 消费体验卡写成“已安装”。但真实 Codex 使用的 `~/.codex/skills/goal-advance` 仍是一个指向 `molis-work-0.1.1` 的受管符号链接。2026-08-30 再次只读复核还发现：Core launcher、owned LaunchAgent 和 4173 服务已经指向 0.1.6，`/Applications/Molis Work.app` 的 bundle 却是 0.1.3。当前不是单一 Skill 落后，而是 App、Core/service 与 Skill 三层版本分裂。
 
 ### 2. 事实与归因
 
@@ -1314,7 +1314,7 @@ CGS G2D 向 criterion `cgs-g2d-real-retrieval` 提交 `project://data/research/g
 ### 10. 验收边界
 
 - **工程验证**：定向 V1 / Web 2/2 与 TypeScript 通过。红灯证明 512 KiB + 1 字节仍在 coordinator 与 Web 整条失败；绿灯覆盖带 digest 大文件登记、超限 anchor 降级、原 verified / repo / anchor / missing / outside / symlink / opaque 行为不回归、Web 不生成预览链接、Evidence 访问 409 和原始大文件打开 413。二进制文件仍沿用既有文本预览边界，本卡没有扩大到任意二进制内容验证；完整全仓门禁会在统一打包前再运行。
-- **产品实操**：通过源码代表性真实路径。实际读取 CGS `/Users/oreal/adeptify-home/repos/Content Growth Studio/data/research/g2d-research-runs.json`，文件为 1,685,981 字节，SHA-256 为 `b9bea3bfd0beebf0466841d6aa3f8cb48d5023e3d37feeb99ae70c062855eb0e`；只在临时 Molis Work 库中以原 `project://data/research/g2d-research-runs.json` 和 digest 提交，CGS 文件未修改。computer use 打开记录页后可见“当前有效 / UNVERIFIED”、真实大小、512 KiB 上限、“内容未全文预检”“digest 未核验”和 sidecar 建议；locator 是“复制引用”按钮而非打开链接。带 Evidence 打开返回 409，直接打开返回 413。截图见 [真实 CGS 大文件 Evidence](qa/bug-revalidation/2026-08-30/gb21-large-evidence-unverified.jpeg)。最终安装后的真实 Runtime submit 仍为 `UNVERIFIED`。
+- **产品实操**：通过源码代表性真实路径。实际读取 CGS `~/adeptify-home/repos/Content Growth Studio/data/research/g2d-research-runs.json`，文件为 1,685,981 字节，SHA-256 为 `b9bea3bfd0beebf0466841d6aa3f8cb48d5023e3d37feeb99ae70c062855eb0e`；只在临时 Molis Work 库中以原 `project://data/research/g2d-research-runs.json` 和 digest 提交，CGS 文件未修改。computer use 打开记录页后可见“当前有效 / UNVERIFIED”、真实大小、512 KiB 上限、“内容未全文预检”“digest 未核验”和 sidecar 建议；locator 是“复制引用”按钮而非打开链接。带 Evidence 打开返回 409，直接打开返回 413。截图见 [真实 CGS 大文件 Evidence](qa/bug-revalidation/2026-08-30/gb21-large-evidence-unverified.jpeg)。最终安装后的真实 Runtime submit 仍为 `UNVERIFIED`。
 - **Owner 最终验收**：通过。存在/路径安全、digest 登记与内容全文验证三层状态已分离；用户对措辞的理解仍为 `UNVERIFIED`。
 
 ---
@@ -2031,7 +2031,7 @@ Runtime 当前 canonical workspace 是 Molis Work 仓库，但 Goal `casebook-pr
 ### 10. 验收边界
 
 - **工程验证**：TDD RED 已证明旧行为的三个边界：Core 抛 `evidence.locator_outside_project`、Web POST 返回 400、MCP schema 缺少 `file:` 恢复方式。最小实现后同三条 GREEN 3/3：Core 原样保留 locator/digest 且不记录 verified workspace，MCP 明确 `file:///` 仅登记规则，Web 显示 UNVERIFIED 并且不生成 `file:` 链接或项目引用打开端点。最新完整 `pnpm test` 为 328/328、0 fail，`pnpm typecheck` 与 `git diff --check` 通过；原项目内 absolute/`project://`/`repo:`、裸项目外路径拒绝、symlink 逃逸、大文件和项目引用打开回归均保留。
-- **产品实操**：通过源码真实路径。使用实际 `/Users/oreal/adeptify-home/repos/molis-work-casebook/README.md` 和 SHA-256 `4f8194b4e27027ec866fdc65a028b40601f7a5390df3a279251e39c3d1096134`，在临时 Molis Work 数据库、当前 workspace=`molis-work` 下提交：`file:///.../molis-work-casebook/README.md` 一次创建为 UNVERIFIED，locator 与 digest 原样保留、`locator_workspace_id=null`；同轮 `molis-work/README.md` 规范化成 `project://README.md` 并 verified，跨仓裸绝对路径继续返回 `evidence.locator_outside_project`。随后 computer use 打开“记录 → 执行与检查”，页面可见完整 locator、UNVERIFIED、digest、未读取/未核验和升级说明；该 locator 是“复制引用”按钮，不是链接，也没有项目引用打开入口。临时数据和服务已清理，Casebook 仓库未修改。
+- **产品实操**：通过源码真实路径。使用实际 `~/adeptify-home/repos/molis-work-casebook/README.md` 和 SHA-256 `4f8194b4e27027ec866fdc65a028b40601f7a5390df3a279251e39c3d1096134`，在临时 Molis Work 数据库、当前 workspace=`molis-work` 下提交：`file:///.../molis-work-casebook/README.md` 一次创建为 UNVERIFIED，locator 与 digest 原样保留、`locator_workspace_id=null`；同轮 `molis-work/README.md` 规范化成 `project://README.md` 并 verified，跨仓裸绝对路径继续返回 `evidence.locator_outside_project`。随后 computer use 打开“记录 → 执行与检查”，页面可见完整 locator、UNVERIFIED、digest、未读取/未核验和升级说明；该 locator 是“复制引用”按钮，不是链接，也没有项目引用打开入口。临时数据和服务已清理，Casebook 仓库未修改。
 - **Owner 最终验收**：通过。修复消除了协议矛盾并保留原安全目标：`file:` 不触发 `realpath/stat/read`，不验证存在或 digest，不记录 verified workspace，也不能从 Web 打开；裸项目外路径和 symlink 逃逸仍拒绝。多 workspace verified 能力不在本次范围。
 - **用户验收**：最终 0.1.10 安装 Core 已用等价跨仓 `file:` locator 实操通过，active Skill 也已对齐；真实 Casebook 新 Session 的自然语言使用感受仍由消费者后续观察。
 
@@ -2542,7 +2542,7 @@ completion Risk 的初衷是允许团队继续实现和补证据，同时阻止�
 
 ### 1. 真实场景
 
-Molis Work 当前 Session 绑定项目“Molis Work 内部 Casebook”，canonical workspace 为 `/Users/oreal/adeptify-home/repos/molis-work`。为保护该目录已有脏工作树，执行者把同一 Git 仓库的实现放在隔离 worktree `/private/tmp/molis-work-casebook-authorized-export`，并尝试把其中真实测试文件 `tests/casebook-planning-export.test.ts` 登记为 Evidence。绝对 locator 被准确拒绝为“当前项目范围外”；执行者只能改用 `artifact://`，记录被降级为 UNVERIFIED。
+Molis Work 当前 Session 绑定项目“Molis Work 内部 Casebook”，canonical workspace 为 `~/adeptify-home/repos/molis-work`。为保护该目录已有脏工作树，执行者把同一 Git 仓库的实现放在隔离 worktree `/private/tmp/molis-work-casebook-authorized-export`，并尝试把其中真实测试文件 `tests/casebook-planning-export.test.ts` 登记为 Evidence。绝对 locator 被准确拒绝为“当前项目范围外”；执行者只能改用 `artifact://`，记录被降级为 UNVERIFIED。
 
 ### 2. 事实与归因
 

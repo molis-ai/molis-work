@@ -1,5 +1,5 @@
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { prepareConnectorAuthorization } from "./connector-authorization-status.js";
+import { prepareConnectorAuthorization, requireConnectorInitiator } from "./connector-authorization-status.js";
 import { cliSetupPlan, installPreparedCli, connectPreparedCli, type CliSetupInput } from "./connector-cli-setup.js";
 
 const text = { type: "string", minLength: 1, maxLength: 4096 };
@@ -29,7 +29,11 @@ export function connectorCliHandlers(home: string): ActionHandlerBinding[] {
       return { authorization_id: prepared.id, setup, status: prepared.status, url: `/capabilities/connections?setup=${prepared.id}` };
     } },
     ...(["install", "connect"] as const).map(operation => ({ capability_id: connectorCliActions[operation].capability_id, version: 1,
-      handle: (caller, input) => (operation === "install" ? installPreparedCli : connectPreparedCli)(home, (input as { authorization_id: string }).authorization_id, { signal: caller.signal, beforeEffect: caller.beforeEffect }),
+      handle: (caller, input) => {
+        const id = (input as { authorization_id: string }).authorization_id;
+        requireConnectorInitiator(home, id, caller);
+        return (operation === "install" ? installPreparedCli : connectPreparedCli)(home, id, { signal: caller.signal, beforeEffect: caller.beforeEffect });
+      },
     } satisfies ActionHandlerBinding)),
   ];
 }

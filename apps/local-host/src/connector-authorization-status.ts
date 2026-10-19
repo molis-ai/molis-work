@@ -1,11 +1,14 @@
 import { createHash, randomUUID } from "node:crypto";
 import { openConnectorsStore } from "./connectors-store.js";
+import { defineErrorCodes, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { bindConnectorAuthorizationProtocol, clearConnectorAuthorizationPresentation, connectorAuthorizationInstallation, readConnectorAuthorizationCompletion } from "./connector-authorization-presentation.js";
 import { invalidateConnectorRequests } from "./connector-lifecycle.js";
 import type { LocalMcpSetup } from "./connector-local-mcp-plan.js";
 import type { ManagedToolSource } from "./connector-tool-source.js";
 import type { LocalMcpLaunch } from "./connector-local-mcp.js";
+
+const setupErrors = defineErrorCodes("connector.setup", { foreign_request: "forbidden" });
 
 export type ConnectorAuthorizationState = "prepared" | "pending" | "connected" | "cancelled" | "failed" | "expired";
 export interface ConnectorSetupPlan {
@@ -111,6 +114,17 @@ export function connectorAuthorizationInitiator(home: string, id: string): Conne
     const row = db.prepare("SELECT initiator_json FROM connector_authorization_results WHERE id=?").get(id) as { initiator_json: string | null } | undefined;
     return row?.initiator_json ? JSON.parse(row.initiator_json) as ConnectorSetupInitiator : undefined;
   });
+}
+
+/**
+ * An action that continues a prepared request (`connectors.setup.execute`, `connectors.local.execute`, `connectors.cli.install`,
+ * `connectors.cli.connect`) runs it only for whoever prepared it: the same person, project and session. The person's own page continues
+ * any request of theirs through its own routes and is not asked.
+ */
+export function requireConnectorInitiator(home: string, id: string, caller: Pick<ActionCallContext, "actor_id" | "project_id" | "runtime_session_id">): void {
+  const initiator = connectorAuthorizationInitiator(home, id);
+  if (!initiator || initiator.actor_id !== caller.actor_id || initiator.project_id !== caller.project_id || initiator.runtime_session_id !== caller.runtime_session_id)
+    throw setupErrors.foreign_request("只能继续当前用户、项目和会话自己准备的接入");
 }
 
 /** Protocol recovery inspects active requests; this does not expose their one-use state. */

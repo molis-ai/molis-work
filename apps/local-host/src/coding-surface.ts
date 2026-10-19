@@ -195,8 +195,6 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
-  const installId = platform.supervisor.state(pluginId)?.install_id;
-  const granted = installId ? platform.runtime.get(installId).grants : [];
   const abort = new AbortController();
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
   request.once("aborted", stop); response.once("close", stop);
@@ -210,7 +208,6 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
     return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
       projectRouteHooks(record, platform, pluginId, request, url, ports), {
-        granted,
         execution: routed?.control ?? plain, stop,
       });
   } finally {

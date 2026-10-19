@@ -210,7 +210,8 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。
 - **宿主工具**：角色声明 `host_tools`（如 `read-file`、`search`），实现和效果分类归 Host。
-- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和一开始就选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装，免得开新一轮时才被宿主拒绝。不写 `skills` 的角色照旧。
+- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和默认选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装。宿主那一半还没做：开新一轮时宿主还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了只过解析检查，不生效。不写 `skills` 的角色照旧。
+- **说明怎样处理补充**（`acknowledge-inputs`，`specs/ai-input-receipts` 3e-0）：一轮中途进来的补充，模型用它说自己怎样处理（马上照做、放到后面一步、不采纳、要问清楚……）、指向哪一步。展开 `BUSINESS_HOST_TOOLS` 的业务角色（助理的两个角色、Todo 整理）经这个常量自动带上；有目录的角色要自己在 `host_tools` 里列（Coding 里人直接对话的角色都列了，子任务的角色没列）。SDK 只把它当 AI 的自称记在输入账上，不改账本：不把补充标成做完，做没做看工具回执。补充的编号只在列了这个工具的一轮里给模型看。
 - **动作工具**：`action_tools` 只接受精确引用（capability_id + version + provider_id），调用仍走统一动作服务与逐客户端授权；动作的 `effect`（read/write/irreversible）决定是否要审查、是否对生成插件开放。
 - **审查**：写文件、跑命令、调用写入动作都进 `AgentReviewQueue`，由人批准；批准不等于已发生，执行前再复查授权。
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。
@@ -417,6 +418,8 @@ prompt 和执行机制「好」，是看得见的：
 
 **改了提示词之后。** 默认正文的含义变了就升 `version`：用户改过这段的，设置里会看到「默认已更新」（`InstructionPrompt.version` 的注释；判断依据是登记处的 `default_updated`）。Agent 提示词在 Manifest 的 `prompts` 声明和正文两处都写版本，两处一起升。判断题面（`system:contextual/*` 与创作台的 `choose.*`）还要在 `tests/prompt-registration.test.ts` 的 `WORDING_HISTORY` 加一行；其余提示词没有这张表。改创作台挂载的 Skill 章节或 `agent-prompts.ts` 跑 `pnpm studio:replay`；其余用第 16 节的真实模型小评测。
 
+**改了角色拿到的工具之后。** 角色实际拿到的工具集变了就升角色的 `version`，经共用常量（现在是 `BUSINESS_HOST_TOOLS`）变的也算（统筹 2026-10-19 裁定）：改常量的同一个改动里，展开它的每个角色都升一版，PR 里写出哪些角色多了或少了什么。冻结记录（第 16.4 节）里有角色版本也有 `host_tools`，版本不动而工具变了，按版本比前后两轮就以为角色没变，要逐项比工具列表才看得出来。`BUSINESS_HOST_TOOLS` 先后加过 `board-wait`（#661，业务角色从此能登记等外面的结果，只认 App 登记的只读检查器）和 `acknowledge-inputs`（#713），两次都没升角色版本，按这条补升。
+
 ### 13.2 Skill：可复用的方法与资料
 
 Molis 里叫 Skill（方法）的东西有几种，先分清写的是哪一种：
@@ -530,7 +533,7 @@ Molis 没有「录下过程生成 Skill」的功能（2026-10-19 核对），下
 | 输入回执 | 一轮中途的补充 | `packages/contracts/src/services/agent-inputs.ts` 的 `agent.inputs.send.v2` 与 `agent.inputs.withdraw.v1` | 三种时机；同键同文只算一次；回执说去向；纠正用 `about` 指向原来那条；还没交给模型的可以撤回 | 在途：回执线 1d 改恢复 | 确定性：`tests/agent-input-delivery.test.ts` |
 | 收尾核对 | 回复说做了、记住了、按钮好了或接下来要做，而这一轮其实没做 | `horizontal/agent-host/src/adapters/prologue-stop-guard.ts` 的收工钩子：可写的一轮没有任何成功的改动时，`ending-review.ts` 把结尾和宿主记的事实（`announce-guard.ts` 的 `RoundFacts`：调用过什么、结果如何）交给这一轮的模型核对一次；对不上的按种类各拦一次、接着做一次（用户 2026-09-28、2026-10-16）。核对的指令是这一轮的主人登记的提示词：Manifest 的 `ending_review` 指向它（`assistant-ending-review`、`coding-ending-review`），在「设置 › 提示词」里叫「收尾核对」，用用户改过的版本，版本记进开跑时冻结的记录（`frozen.ending_review`）；agent-host 自己不带提示词，只读回答里约定的那一行 JSON。内部标识只认宿主交给模型的；把调用写成文字按工具格式认 | 让模型读说法，宿主给事实；判断出错、超时或答得不对一律放行；有改动的一轮不核对 | 只在 Manifest 声明了 `ending_review` 的 Agent 上（现在是 Assistant 与 Coding）；有改动的一轮里多出来的假话不查；核对的用量不计入这一轮的预算 | 确定性：`tests/announce-guard.test.ts`、`tests/assistant-business-gateway.test.ts`、`tests/assistant-memory.test.ts`、`tests/agent-definitions.test.ts`；真实模型：手册需求书 §9.5 的 D1② 记录 |
 | 材料筛查 | 出机前去掉形似密钥的文字，报告像指令的文字 | `prologue-screening.ts` 的 `screenModelMaterial` | 文字仍是数据；说明写进回执 | 不是唯一防线 | 确定性：`tests/security-invariants-injection.test.ts` |
-| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理） | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来 | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条） |
+| 材料的不可信声明 | 单次推理把材料交给模型时，声明写在代码里，不在用户可改的指令里 | `packages/contracts/src/platform/model-prompts.ts` 的 `fencedMaterials`：固定的一行声明，加随机围栏里的一行 JSON（项目上手、Cognia、Todo 整理）；Runtime 插件经 `services.materials` 读到的文件，也由插件用它放进 `instructed(自己的指令, 数据)` 的数据里再交给 `services.model` | 用户怎么改指令，声明都在；指令里不再重复这句 | 起草（`draft-data.ts` 的 `声明`）、Jev 题面、Alchemist 各有自己的写法，还没并过来；灵光的对话把这句写在可改的指令 `lingguang.conversation` 里，待换成 `fencedMaterials` | 确定性：`tests/security-invariants-injection.test.ts`（S-13 的项目上手、Cognia、Todo 整理三条，以及材料服务读到的文件经 Runtime 插件自己的指令交给模型、用户改掉指令里的提醒后声明照样在的一条） |
 | 创作台的 Skill 与回放 | 生成插件的做法怎样教给 Agent、怎样验证 | `apps/local-host/src/plugin-builder/skill.ts` 的 `CHAPTERS`、`plugins/native/plugin-builder/src/agent-prompts.ts`；`pnpm studio:replay` | 离线回放加隔离 Home 冒烟的两步法 | 回放不证明文字对模型的影响 | 回放：380 份真实答卷（`docs/platform/STUDIO-SKILL-REPLAY.md`） |
 | 生成插件的 `prompts` | 作者写业务意图，平台负责模型 | `skills/molis-plugin-dev/generated-ai.md`；宿主 `apps/local-host/src/plugin-builder/model.ts` | 声明 prompts、按 id 调用、会变的内容放 `input` | 只承诺一次文字生成 | 确定性：`tests/generated-plugin-prompts.test.ts`、`tests/plugin-model-generation.test.ts` |
 | Runtime 插件的 `services.model` | 宿主自己运行的插件调模型 | 第 4 节 | 只收自己登记的指令 | 见第 4 节「不在这一片里」 | 确定性：`tests/plugin-model-service.test.ts` |

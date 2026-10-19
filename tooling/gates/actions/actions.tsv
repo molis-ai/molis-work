@@ -58,10 +58,10 @@ alchemist.reuse.feedback	1	io.molis.work.alchemist	io.molis.work.alchemist	comma
 alchemist.reuse.publish	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	f05e850e90bf	77d04c4e062c	-
 alchemist.reuse.receipt	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	e12abee3565f	a53f574db2b7	-
 alchemist.reuse.reconcile	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	e12abee3565f	a53f574db2b7	-
+alchemist.runs.continuation	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	8081d3eb3674	077341860932	-
 alchemist.runs.continue	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	concurrent	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	4b5e6e80edf8	dafa938e1df0	c785a82f12ac
 alchemist.runs.events	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	bab660acde27	c8b9369793f3	-
 alchemist.runs.list	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	4f5f0bb75396	-
-alchemist.runs.resume	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	8081d3eb3674	f04c3e8d403c	-
 alchemist.runtime.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	e3ccdf8a7db9	4ccc1efad5fa	-
 alchemist.runtime.models	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	003fd47e8628	-
 alchemist.runtime.settings	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	4ccc1efad5fa	-

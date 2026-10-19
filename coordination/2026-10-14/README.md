@@ -1338,3 +1338,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ⑨ 的 AC-10：和 #759 撞文件的部分等 #759 合入，或者叠在 #759 上；浏览器用例交给 CI 跑。
   - 跨会话消息：用户 07:03 发话之后已经发满 10 条。
 - 07:25 UTC：#768 合入（`dd1398d24`，③，表单发布的每一步都重新核对原调用者），§10.29 的 Form 条目修好了。
+- 07:30 UTC：⑦ 开始 Coding 小跑。脚本和判定规则在 `handbook-eval-coding/README.md`，以 main `4acd85c71` 为准，一共 16 次，一次只跑一次。
+  - 先定有效条件：acknowledge-inputs 的 enum、送达回执 `delivered=run`、steer id 唯一，都要满足。
+  - 不满足的按比例补跑，和 A0-后 对照。成本和时延取不到的记为「未知」。
+- CU-G13 用现成的 CI 证据，统筹核过：
+  - 夜间 Full suite（`739e6cb29`，含 #721、#735）是 success。
+  - `4acd85c71` 上的 CI push 和 merge_group 都是 success。
+  - 所以 CU-G13 不用 ⑤ 再排进批里。这条要在用户下次发话后告诉 ⑤。同一个提交上的 Full suite（39212441917，batch-1019-1）还在跑。

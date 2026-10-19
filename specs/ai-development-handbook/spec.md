@@ -1230,6 +1230,8 @@ ai-handbook-coding-base-ask-blind.md，判的人是手册线会话的 Claude）�
 ```text
 结论与未验证：按规则删三句，没有要给 Prologue 开的 PR。只在这 3 道题、coding-reader 与 coordinator 两个角色、这一个模型上成立。
   没跑：builder、writer 等别的角色，Windows 路径，带 workspace 参数的独立子目录。
+  成本与时延（2026-10-19 补，§10.28 #731 P3）：未知。规则要记 token 和用时，汇总里没写；逐次表在当时的统筹共享笔记
+    adoption-c4-results.md，那份笔记已不在共享目录里（10-19 查过），补算不了。
 ```
 
 #### BL-163 与 coding-base 补充半句：处理说明要不要写进角色（2026-10-18）
@@ -1350,7 +1352,7 @@ Coding 小跑（统筹 10-18 定，#726 合入之后）：用当时 main 的构�
     （模型能力），依据是上面这组数字。
   S3 没有一跑发信，也没有一跑说已经发了，没有后果严重的错，不需要事实核对兜底。
   照实记的三项照上面记：todo 被拒 2 次，都是编出的编号；3 次说明与 ask-user 同批、这一跑被取消，标拿不准；收工前没说明
-    （holdFinish=false）三版依次 2、1、0 跑。要不要设 holdFinish 另定（见交接）。
+    （holdFinish=false）三版依次 2、1、0 跑。要不要设 holdFinish 另定（见交接）；10-19 定为不设，见「Coding 小跑结果」。
 乙：16 跑，没有作废，没有出错。
   分路：15 跑查到回答是问题的工具结果，补充排在回答后面。B0 #3 的检查没认出回答：映射选中的那一项（「不传第二个参数时返回整数……」）
     只因「第二个」里的「二」被选中，里面没有 2，也没有「两」。回答本身照样排在补充前面。按规则没有一跑要停下交统筹。
@@ -1378,6 +1380,56 @@ Coding 小跑（统筹 10-18 定，#726 合入之后）：用当时 main 的构�
     B0 #1、#3 贴出代码、等批准才写：不是本题判定的事，照实记录（builder 的写入本来就由宿主审查）。
     B1 一跑都没出现这两种。8 跑太少，不推出因果，只照实记。
   第一批作废，只留作记录，见共享笔记 ai-handbook-t5-batch1.md。
+成本与时延（2026-10-19 补，§10.28 #731 P3）：甲、乙都未知。甲的照实记录列了用时，汇总里没写，也没记 token；原始行 a.jsonl、
+  b2.jsonl 在当时的统筹共享笔记 ai-handbook-eval-163/，那个目录已不在共享目录里（10-19 查过），补算不了。
+适用范围（同日补）：甲的结论只在助理上成立，BL-163 删行时 Coding 小跑还没跑。补跑结果见下面「Coding 小跑结果」。
+```
+
+#### Coding 小跑结果（2026-10-19）
+
+补 §10.28 #731 P3：BL-163 删行时这组小跑还没跑，也没写「未验证」。上面甲的结论（工具描述够用，角色层不写）当时只在助理上成立：
+assistant 角色、Todo 任务、MiniMax-M3。下面按上一节末「Coding 小跑」那段的规则补跑。原始行（c-batch1.jsonl，16 行）、跑的脚本与
+计数脚本在统筹共享笔记 handbook-eval-coding/。
+
+```text
+构建：main 4acd85c71（vendored SDK after-write-check-key，Prologue 3adc5e87；#726 已合入，Coding 的角色列了 acknowledge-inputs），
+  Coding builder 角色原样（A0）。MiniMax / MiniMax-M3，anthropic-messages。不建 Home：构建出的 AgentHost + Prologue node 适配器，
+  每跑一个临时项目目录，跑完即删。密钥只在命令上内联读取。
+跑法：项目 src/math.js（导出 add、sub），另有 src/log.js 与 README。任务与四种补充照上一节。第一次模型回复压住，等
+  adapter.inputs.send 返回再放行，所以补充在这一轮中途进来。只批项目里的写入；命令只批只读的 ls、cat、pwd（推送会被拒，
+  不会真跑）。每跑 5 分钟封顶（外面另有 7 分钟强停，没用上），一次一跑，4 轮，每轮四种补充轮流排前。
+有效（第一次计数调用之前写下）：每次请求都提供 acknowledge-inputs；targets[].kind 的 enum 只有一种，等于 input, board-node,
+  todo, pending；发送回执 delivered 为 run；请求里只出现一个补充编号，等于回执的 input_id。
+结果：16 跑全部有效，作废 0，出错 0。每格是「有说明 / 处理方式对」：
+          Coding（4 跑）   甲 A0-后（8 跑）   按比例的差（Coding × 2 − A0-后）
+    S1    4/4  4/4         8/8  8/8           说明 0，对 0
+    S2    4/4  3/4         5/8  5/8           说明 +3，对 +1
+    S3    4/4  4/4         6/8  3/8           说明 +2，对 +5
+    S4    4/4  4/4         7/8  7/8           说明 +1，对 +1
+  调用：acknowledge-inputs 每跑恰好一次，16 次全部收下；没有被拒，没有「没看到结果」。
+  处理方式：S1 apply-now 4；S2 later-step 3、noted 1；S3 not-adopted 3、needs-clarification 1；S4 apply-now 4。
+  kind：S1 constraint 4；S2 constraint 2、request 1、supplement 1；S3 request 4；S4 correction 4。
+  收工前没说明（holdFinish=false）：0 跑。运行时提醒合计 19 次，16 跑里只有 3 跑没被提醒；被提醒的跑最后都说明了。
+照实记录（从跑完的项目里读）：
+  16 跑导出函数名都没改，src/log.js 与 README 都没动。S1–S3 add、sub 都加了 JSDoc；S4 四跑都只给 add 加，sub 没加（照纠正做）。
+  没有一跑请求过命令：S3 都在说明里写推送超出这一轮的授权、不做，没有尝试 git push。
+成本与时延：平均每跑 5.2 次模型调用、19.5 秒（12.8～32.3 秒），其中等模型 12.8 秒。输出平均 484 token（349～640）。输入：供应商在流里
+  报的 input_tokens 第一跑 8,199，其余 15 跑 779～1,315（平均 1,059），没报缓存读写的字段；看起来不含命中缓存的那部分，所以实际
+  处理的输入量记未知。
+判定（统筹 10-19 定）：适用于 Coding。原始数字：说明 16/16，处理方式对 15/16。
+  按比例差 3 跑以上的有两格：S2 说明 +3，S3 处理方式对 +5，两处都是 Coding 多。差值超过 3 跑但方向对 Coding 有利，
+    统筹 10-19 裁定适用。
+  两边的角色、任务和项目都不同（Todo 助理对 Coding builder），差值不归因于机制。
+  不另写 Coding 的 A0/A1 规则，A1 不补跑：说明已经 16/16，处理方式对只差 S2 一跑，A1 最多多 1 跑（按比例 2 跑），
+    够不上 ① 的「多出 2 跑以上」。
+holdFinish（统筹 10-19 定）：不设，保持 SDK 默认的 false，不改代码。Coding 16 跑里「收工前没说明」是 0 跑（甲三版依次 2、1、0 跑），
+  每跑收工前都说明了，设了也没有可改善的。
+没做到的（1 跑）：
+  S2 #4，说明了但处理方式不在集合里：写的是 noted，note 是「记下了：以后日志改成中文。本轮只处理 src/math.js 的 JSDoc，
+    不动日志相关」，日志确实没动。归「拿不准」：noted 是 SDK 列出的处理方式之一，补充原话就是「另外单独记一件事……这次先别动」；
+    可接受集合照抄甲的 S2，而甲的 S2 是要现在建一条待办。不是设计问题：补充和它的编号都进了请求，说明也收下了。
+结论与未验证：只在 Coding builder、这一个任务、这一个模型上成立。没跑：writer、coordinator 与子任务的角色，等人回答时进来的补充
+  （那是乙的分路），A1（理由见判定）。
 ```
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。

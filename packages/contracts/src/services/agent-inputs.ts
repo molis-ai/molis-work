@@ -21,6 +21,7 @@ export const servicesAgentInputsContract = {
  * (a review note, a board update): the model receives it as data, and the run shows it as a note, never as their words.
  */
 export type AgentInputSource = "person" | "host";
+export const AGENT_INPUT_SOURCES: readonly AgentInputSource[] = ["person", "host"];
 
 /**
  * When a supplement reaches the model (specs/ai-input-receipts §4.1). `next-boundary`: after the reply or batch of tools
@@ -164,7 +165,7 @@ export const agentInputActions = {
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {
         runtime_id: id, session_id: id, run_id: id, text: { type: "string", minLength: 1, maxLength: 100_000, pattern: "\\S" },
-        source: { enum: ["person", "host"] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: id } },
+        source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: id } },
       output_schema: { type: "object", required: ["input_id", "replayed", "delivered"], additionalProperties: false, properties: {
         input_id: { type: "string" }, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } } } },
   } as ActionDefinition<AgentInputSendRequest, AgentSteerReceipt>,

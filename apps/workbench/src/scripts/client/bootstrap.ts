@@ -67,7 +67,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const documentCollection = trashView ? "trash" : archiveView ? "archive" : "current";
     const routePrefix = document.body.dataset.routePrefix || "";
     const route = (pathname) => routePrefix + pathname;
-    const api = (pathname,method,body) => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback:L("来源操作失败")});
+    const api = (pathname,method,body,fallback=L("来源操作失败")) => molisWorkRequest(route(pathname), {method,body:body==null?undefined:body,fallback});
     const markFeedItemRead = async (row, entryId) => {
       if (
         !row || row.dataset.feedEntryType !== "feed" ||

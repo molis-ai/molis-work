@@ -118,6 +118,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
+      addWorkspace: p => api("/api/workspaces", "POST", { workspace_path: p, user_confirmed: true }, "无法关联工作区"),
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}

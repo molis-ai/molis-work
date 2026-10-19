@@ -1,4 +1,3 @@
-import { CODING_WORKBENCH_SETUP_SCRIPT } from "./scripts/client/coding-setup.js";
 import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, COGNIA_DATABASE, createCogniaPlugin } from "@molis-ai/molis-work-plugin-cognia";
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
@@ -6,10 +5,10 @@ import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiCont
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
-import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
-import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
-import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
+import { FILES_CLIENT_FACTORY_SCRIPT, FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { GIT_CLIENT_FACTORY_SCRIPT, GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
@@ -343,19 +342,20 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
     workbench: {
       order: 20,
       contributions: [codingSettingsContribution],
-      clientFactory: CODING_WORKBENCH_SETUP_SCRIPT,
+      clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
+      clientUses: ["git", "files"],
     },
   },
   {
     project_plugin_id: FILES_PROJECT_PLUGIN_ID, catalog_order: 23,
     manifest: filesManifest,
-    workbench: { order: 21, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
+    workbench: { order: 21, contributions: [], clientFactory: FILES_CLIENT_FACTORY_SCRIPT, clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区文件与保留的内容。",
   },
   {
     project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24,
     manifest: gitManifest,
-    workbench: { order: 22, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
+    workbench: { order: 22, contributions: [], clientFactory: GIT_CLIENT_FACTORY_SCRIPT, clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区的版本与变更。",
   },
   {

@@ -1182,3 +1182,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 01:40 UTC ③ 回报两件事。
   - 集成分支 `integration/anti-corruption-closeout-20261018`（`a212e9369`）上没有剩下要落的东西，main `ffb3db076` 是它的超集。核的办法是比树：两边只差 4 个文件，都是 main 那边新（#740 和 #754 里加的验证记录）；main 走 squash，patch-id 对不上，所以不能按提交比。③ 没有在途 PR，也没往 Codex 的分支推过；yijunw0212 最后一次推这条集成分支是 10-18 18:15Z。这条分支可以删，删远端分支要先问用户，与关掉 Codex 的草稿一起问。
   - 主线红的第一处（AC-05、AC-08 关闭超时）：探针显示 `LocalHost.close()` 里 `this.host.close()` 一步要 25.7 秒，`homePlugins.close()` 7 ms 就失败，③ 在查。② 和 ③ 各断过一次代理错误（`ERR_PROXY_TUNNEL`），之后自己接着跑了。
+- 01:50 UTC：#756 合入（`7e6955b93`）。§10.28、§10.29 和 `privileges.md` 一起开成 #758，只改文档；secrets 与对照 merge-base 的 health 都过了，Verify 绿后走 merge-only。privileges.md 是 PG-001～PG-109，另有 §5 待用户定的 7 项，用户下次发话后按批弹窗问。

@@ -10,7 +10,8 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
-test("Coding freezes original multi-edit reviews, binds feedback to exact lines and restores the same output without runtime reads", async () => {
+// specs/ai-interaction-experience AC-09 (Coding's Diff): the edits reviewed are the ones frozen, feedback lands on their lines.
+test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact lines and restores the same output without runtime reads", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-changeset-http-")), path = join(root, "board.db"); seedDemoBoard(path);
   const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
   for (const id of ["app", "foreign"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }

@@ -123,7 +123,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     : prologueActionTools(input.actions, Math.min(60_000, runtime.tools.limits.maxTimeoutMs), actionController.signal, input.character.tools.includes(SUGGEST_HOST_TOOL));
   if (input.action_gateway) {
     state.gatewayRuns.set(input.session_id, { ...input.action_gateway, declare: gatewayTools?.declare });
-    if (gatewayTools) state.gatewayKnown.set(input.session_id, gatewayTools.known);
+    if (gatewayTools) { state.gatewayKnown.set(input.session_id, gatewayTools.known); state.gatewayOffered.set(input.session_id, gatewayTools.offered); }
     // Refused before any review: a call to a capability that is gone, switched off or asked through the wrong tool.
     if (!state.gatewayHooks.has(input.session_id)) {
       state.gatewayHooks.add(input.session_id);
@@ -131,7 +131,7 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
       runtime.hooks.register({ id: `molis-action-gateway-${sessionId}`, event: "tool-before", forSession: sessionId, handler: async context => {
         const gateway = state.gatewayRuns.get(sessionId);
         if (!gateway || !context.toolName) return { kind: "allow" as const };
-        const problem = await gatewayProblem(gateway, context.toolName, context.input, state.gatewayKnown.get(sessionId));
+        const problem = await gatewayProblem(gateway, context.toolName, context.input, state.gatewayKnown.get(sessionId), state.gatewayOffered.get(sessionId));
         return problem ? { kind: "deny" as const, why: problem } : { kind: "allow" as const };
       } });
     }

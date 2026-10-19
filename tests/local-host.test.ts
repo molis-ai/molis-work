@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
@@ -132,6 +132,25 @@ test("closing a project ends its waits: close does not wait out a long poll, and
   assert.equal(await following, "ended");
   assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "host.project_closing", "the wait hears that its project is closing");
   assert.equal(closed, 1);
+});
+
+test("a transport never reaches a Host wait: its action clients run declared actions only, and no action can be declared as a wait", async () => {
+  // Why closing needs to end only the waits Host code calls through invoke(): a page, MCP, the assistant or a Home plugin route
+  // reaches a capability through actionClient or homeActionClient, and those refuse anything that is not a declared action.
+  const wait = { capability_id: "test.transport.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+  const host = new LocalHost<{ value: number }>({ instanceId: "transport-wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
+  let entered = 0;
+  host.register(wait, () => { entered += 1; return "answered"; });
+  const declared: ActionDefinition<Record<string, never>, string> = { capability_id: "test.transport.declared", version: 1, operation: "wait",
+    action: { title: "跟随", description: "等下一轮", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
+  assert.throws(() => host.register(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
+  const caller = (project_id: string | null): ActionCallContext => ({ actor_id: "alice", project_id, audience: "mcp", permissions: [] });
+  await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller("p"), wait, undefined), { code: "actions.missing" });
+  await assert.rejects(host.homeActionClient().invoke(caller(null), wait, undefined), { code: "actions.missing" }, "nor does the Home line ever hold one");
+  assert.equal(entered, 0, "a wait is reached only through invoke(), where closing its project ends it");
+  assert.equal(await host.client({ project_id: "p", storage_key: "memory:p" }).invoke(wait, undefined), "answered");
+  await host.close();
 });
 
 test("a capability registered as concurrent (a model draft) runs beside the queue; a caller cannot claim it for a queued command", async () => {

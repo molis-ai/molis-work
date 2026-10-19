@@ -33,17 +33,13 @@
 | #802 | 修 QA-001：英文界面下，发送失败的原因用英文说 | `06e7ff4ac` |
 | #810 | 修 QA-002：Form 补问重试撤下旧错误；QA-003：AC-09、AC-11 用例补编号 | `053b16485` |
 | #815 | AC-10 第二片：Coding 收下回答后，回执写进卡的说明行，焦点回到输入框 | `c17504473` |
+| #824 | 统筹 D24（修 main 回归）与修 QA-024 第一片：能多选的列表里 ⌘/Ctrl 点击归选择，中键照旧在组里开；Pages、灵光的列表标上 `listbox` 和 `aria-multiselectable`；按统筹裁定改写 PTG-06 | `1dd8e78e2` |
 
-**在途：**
-
-- #824，统筹 D24（修 main 回归），同时修 QA-024 第一片：
-  - 内容：能多选的列表里，⌘/Ctrl 点击归选择，中键照旧在组里开；Pages、灵光的列表标上 `listbox` 和 `aria-multiselectable`；按统筹裁定改写 `specs/plugin-tab-groups/spec.md` 的 PTG-06。
-  - 现状：头是 `a00db5d9f`（⑤ 已合 main），在 ⑤ 手里，进集成批 1020-1。
-  - 还差：评审、CI，以及批次全量。三个浏览器用例随全量跑：`content-portable-regressions.e2e` 的 W2-18-PAGES-SOURCES-01、`plugin-tab-groups.e2e`、`lingguang-plugin.e2e`。
+**在途：** 无。#824 已由 ⑤ 随集成批 1020-1 合入 main `1dd8e78e2`（见上表）；QA-024 的第二片是 BL-340。
 
 **分支与工作树：**
 
-- 远端分支只剩 `interaction/d24-multiselect-click`，#824 合入时随合并删掉。
+- 远端分支：`interaction/d24-multiselect-click` 已随 #824 合入自动删掉；本交接的分支 `interaction/handover-1020` 随本 PR 合入自动删掉。
 - 已删：上表各 PR 的远端分支（随合并删掉）；本机上已合入 PR 的本地分支，以及 10-18 交接里待删的本地分支与工作树 `line-interaction-ac08`、`line-interaction`。
 - 留着：
   - 本会话的工作树 `.claude/worktrees/interaction-line-543ff8`，上面有分支 `interaction/handover-1020`（这次交接）和 `interaction/d24-multiselect-click`。交接 PR 合入后由 ① 清理。

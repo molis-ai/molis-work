@@ -79,6 +79,22 @@ test("S-36 ASC-25: revoked or cancelled local setup never commits, and disabled 
   assert.deepEqual(calls(home.home), [{ text: "hold" }]);
 });
 
+const LOADER_FAMILIES = {
+  Java: ["JAVA_TOOL_OPTIONS", "JAVA_HOME", "_JAVA_OPTIONS", "CLASSPATH"], JDK: ["JDK_JAVA_OPTIONS"],
+  Python: ["PYTHONPATH", "PYTHONUSERBASE", "PYTHONSTARTUP"], Perl: ["PERL5OPT", "PERL5LIB"], Ruby: ["RUBYOPT", "RUBYLIB"],
+  Node: ["NODE_OPTIONS", "NODE_PATH", "NODE_EXTRA_CA_CERTS"],
+};
+for (const [family, names] of Object.entries(LOADER_FAMILIES)) {
+  test(`S-36 local launch refuses the ${family} loader environment by its prefix before executing`, async t => {
+    const home = await openTestHome(t), plan = input(home.home);
+    for (const name of names) {
+      await assert.rejects(connectLocalMcp(home.home, { ...plan, launch: { ...plan.launch, environment_names: [name] }, environment: { [name]: "x" } },
+        { beforeDispatch() {} }), { code: "connector.mcp.configuration" }, name);
+      assert.equal(existsSync(join(home.home, "child-pid")), false);
+    }
+  });
+}
+
 test("S-36 ASC-14: local launch rejects relative executables and loader environment injection before executing", async t => {
   const home = await openTestHome(t), plan = input(home.home);
   const reserved = ["NODE_OPTIONS", "JAVA_TOOL_OPTIONS", "_JAVA_OPTIONS", "RUBYOPT", "PERL5OPT"];

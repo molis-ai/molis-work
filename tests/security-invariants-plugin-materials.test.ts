@@ -52,7 +52,7 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   await assert.rejects(host.homeActionClient().invoke(person(probes[1]!.permissions), probes[1]!.source, {}), { code: "material.source.private_address" });
 });
 
-test("W5-01-PAGES-01 a document batch is read by the Host under materials:read, inside the plugin's own concurrent action, and a bad upload is refused before parsing", async t => {
+test("PG-050 / W5-01-PAGES-01 a document batch is read by the Host under materials:read, inside the plugin's own concurrent action, and a bad upload is refused before parsing", async t => {
   const probe = materialsProbe("documentbatch", { permissions: ["materials:read"] }), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantMaterials(host, probe);
   const upload = (name: string, text: string) => ({ file_name: name, data_base64: Buffer.from(text).toString("base64") });

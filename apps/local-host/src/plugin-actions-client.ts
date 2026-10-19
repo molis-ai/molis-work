@@ -63,15 +63,20 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
     .map(reference => ({ capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }));
   const sameAction = (left: ActionReference, right: ActionReference) => left.capability_id === right.capability_id && left.version === right.version;
-  const actionCaller = (projectId: string | null): ActionCallContext => {
+  // The Plugin's call to an action of its own. Its final check also asks the original caller of the action the Plugin made this
+  // call in (`outer`): the action it calls writes in its own handler, under its own scope, so without this a cancelled or revoked
+  // outer call would still write (S-18). Outside every action (discovery, `start`, a route) there is no outer caller to ask.
+  const actionCaller = (projectId: string | null, outer?: ReturnType<typeof currentPluginAction>): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
       options.assertActive();
       for (const permission of requiredPermissions ?? []) context.requireGrant(permission);
-      if (!reference) return;
-      const action = manifest.actions?.find(item => sameAction(item, reference));
-      if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
-      for (const permission of action.action.permissions) context.requireGrant(permission);
+      if (reference) {
+        const action = manifest.actions?.find(item => sameAction(item, reference));
+        if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
+        for (const permission of action.action.permissions) context.requireGrant(permission);
+      }
+      assertCapturedPluginActionCurrent(outer);
     };
     return {
       actor_id: options.actor_id, project_id: projectId,
@@ -104,11 +109,17 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   };
   // The client exists when the Plugin has actions of its own or lists anything under `consumes`: a Plugin with no
   // action of its own still reaches a Host action it consumes. Without either there is nothing to call.
-  const ownActions = (scope: { project_id: string | null; client: ActionClient }) => bindActionClient(scope.client, () => actionCaller(scope.project_id));
-  const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext }, definition: ActionDefinition) => {
-    if (!scope.caller) return ownActions(scope);
+  const ownActions = (scope: { project_id: string | null; client: ActionClient }, outer?: ReturnType<typeof currentPluginAction>) =>
+    bindActionClient(scope.client, () => actionCaller(scope.project_id, outer));
+  const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext }, definition: ActionDefinition,
+    outer: ReturnType<typeof currentPluginAction>) => {
+    if (!scope.caller) return ownActions(scope, outer);
     const caller = scope.caller;
-    const check = (permissions: readonly string[] = []) => { options.assertActive(); for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission); };
+    const check = (permissions: readonly string[] = []) => {
+      options.assertActive();
+      for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission);
+      assertCapturedPluginActionCurrent(outer);
+    };
     return bindActionClient(scope.client, () => ({ ...caller,
       validate_authority: async reference => {
         check();
@@ -126,7 +137,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       const outer = currentPluginAction();
       const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
-      if (own) return await routedActions(scope, own).invoke(own, input, control, transport) as Output;
+      if (own) return await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output;
       if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.

@@ -42,6 +42,38 @@ function relaying(name: string) {
   return { ...base, definition, relay, nested };
 }
 
+/**
+ * A Home plugin whose action `relay`, offered to people, calls `keep`, an action of its own, with its SDK and passes no control, so
+ * `keep` learns of the person's call only through the Host. `keep` waits at `state.hold` between its two checks, then records the text;
+ * a refusal at its last check is kept in `state.refusals`. `nested` holds each such call.
+ */
+function selfRelaying(name: string) {
+  const base = consumer(name, "home", "required"), nested: Promise<unknown>[] = [];
+  const state = { stored: null as string | null, refusals: [] as unknown[], hold: undefined as { reached(): void; release: Promise<void> } | undefined };
+  const own = (verb: string, title: string, permission: string): ActionDefinition<{ text: string }, string> => ({ capability_id: `${base.id}.${verb}`, version: 1, operation: "command",
+    action: { title, description: title + "一段内容", kind: "operation", scope: "home", scheduling: "concurrent", audiences: ["user"], permissions: [permission], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } }, output_schema: { type: "string" } } });
+  const relay = own("relay", "转存", READ), keep = own("keep", "存下", WRITE);
+  const definition: PluginDefinition = { manifest: { ...base.definition.manifest, actions: [relay, keep] }, async start(context) {
+    await base.definition.start(context);
+    return { kind: "app", views: [], actions: [
+      { ...relay, handle: (_caller, input) => {
+        const call = context.services!.actions!.invoke(keep, input as { text: string });
+        nested.push(call.catch(() => undefined));
+        return call;
+      } },
+      { ...keep, async handle(caller, input) {
+        await caller.beforeEffect();
+        if (state.hold) { state.hold.reached(); await state.hold.release; }
+        try { await caller.beforeEffect(); } catch (error) { state.refusals.push(error); throw error; }
+        state.stored = (input as { text: string }).text;
+        return "stored";
+      } },
+    ] };
+  } };
+  return { ...base, definition, relay, keep, nested, state };
+}
+
 async function homeSetup(t: TestContext, consumers: readonly CallerPlugin[]) {
   const runtime = await serveHomeRuntime(t, { pluginFixtures: { home: consumers.map(item => item.definition) } });
   const probe = registerProbe(runtime.host.actionRegistry(), "home");
@@ -300,4 +332,38 @@ test("PG110-13 S-15 S-35 a caller captured while its call waits is refused once 
   await refused;
   assert.equal(probe.state.refusals.length, 1, "the waiting call's write was refused at its last check");
   assert.equal(probe.state.stored, null, "neither the presented call nor the waiting one wrote");
+});
+
+test("PG110-16 S-15 S-18 a plugin's call to an action of its own answers to the original caller of the action it runs in: revoked or cancelled while that action waits, nothing is written", async t => {
+  const plugin = selfRelaying("callerself"), state = plugin.state;
+  const { host } = await homeSetup(t, [plugin]);
+  const client = host.homeActionClient();
+  for (const failure of ["revoke", "cancel"] as const) {
+    const abort = new AbortController(), reached = deferred(), release = deferred(), refusals = state.refusals.length;
+    let revoked = false;
+    const caller: ActionCallContext = { ...person([READ]), signal: abort.signal,
+      assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the person's call was revoked"); } };
+    state.hold = { reached: reached.resolve, release: release.promise };
+    const pending = client.invoke(caller, plugin.relay, { text: failure }).then(() => "stored", (error: unknown) => error);
+    try {
+      await Promise.race([reached.promise, pending]);
+      state.hold = undefined;
+      if (failure === "revoke") revoked = true; else abort.abort();
+    } finally { release.resolve(); }
+    const outcome = await pending;
+    await plugin.nested.at(-1);
+    assert.equal(state.refusals.length, refusals + 1, `${failure}: the plugin's own action was refused at its last check`);
+    const refusal = state.refusals.at(-1) as { code?: string; name?: string };
+    if (failure === "revoke") {
+      assert.equal(refusal.code, "actions.forbidden", "revoke: the person's own check refused it");
+      assert.equal((outcome as { code?: string }).code, "actions.forbidden", "revoke: and the person's call failed with it");
+    } else {
+      assert.equal(refusal.name, "AbortError", "cancel: the person's cancelled call refused it");
+      assert.notEqual(outcome, "stored", "cancel: the person's call did not succeed");
+    }
+    assert.equal(state.stored, null, `${failure}: nothing was written`);
+  }
+  // The control: the same path with a current caller writes.
+  assert.equal(await client.invoke(person([READ]), plugin.relay, { text: "current" }), "stored", "a current caller's call writes through the same path");
+  assert.equal(state.stored, "current");
 });

@@ -211,7 +211,7 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
     assert.equal((await unapprovedRunner.call('record', input('unapproved')) as { refused?: string }).refused, 'sandbox.not_authorized', 'PG006-02 one the person did not approve is refused by the broker');
     approved.delete(progress.capability_id);
     await assert.rejects(service.call(sandboxCall, progress.capability_id, { goal_id, based_on_cursor: initial[0]!, summary: 'behind the broker', idempotency_key: 'behind' }),
-      (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && missing.test(error.message), 'PG006-02 and the gateway behind it refuses it again (actions.plugin_permission): its caller does not hold the permission');
+      (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && missing.test(error.message), 'PG006-02 and behind the broker the board refuses it again (plugin_builder.capability_refused), before any caller is issued: the person did not approve this capability');
     approved.add(progress.capability_id);
     assert.deepEqual(await cursors(), initial, 'PG006-01 PG006-02 no refusal wrote');
 

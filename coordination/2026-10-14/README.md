@@ -1345,3 +1345,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 夜间 Full suite（`739e6cb29`，含 #721、#735）是 success。
   - `4acd85c71` 上的 CI push 和 merge_group 都是 success。
   - 所以 CU-G13 不用 ⑤ 再排进批里。这条要在用户下次发话后告诉 ⑤。同一个提交上的 Full suite（39212441917，batch-1019-1）还在跑。
+- 07:35 UTC：#770 合入（`03c0b546e`）。这是 #757 复审的修复：写后检查器的 cwd 改成先归一再检查，盘符规则和 SDK 一致，补了 PA-28 的用例。#757 的尾巴收干净了。⑤ 已收到 07:20 的答复（docs 门禁、#765 先拿 workbench.js 的键）。

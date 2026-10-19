@@ -19,10 +19,10 @@ function rejected(value: unknown): void {
   assert.throws(() => assertActionInput(schema, value), (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");
 }
 
-// ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a).
-test("coding.runs.control uses version 6 and remains exclusive to the person at this computer", () => {
+// ADOPT-CONTROL-V2-01, RC-01, RCPT-321: current schema and callers use a new shape under a new action version (3: a supplement's key and mode; 4: a non-choice question's answer is a value, specs/ai-interaction-experience AC-27; 5: the value may be picked objects, AC-28-5; 6: withdraw, and a supplement's about, specs/ai-input-receipts 3b-2a; 7: a supplement's source, RCPT-368, BL-144).
+test("coding.runs.control uses version 7 and remains exclusive to the person at this computer", () => {
   assert.equal(control.definition.capability_id, "coding.runs.control");
-  assert.equal(control.definition.version, 6);
+  assert.equal(control.definition.version, 7);
   assert.deepEqual(control.definition.action.audiences, ["user"]);
 });
 
@@ -62,6 +62,18 @@ test("RCPT-321: a correction names the input it is about, and taking one back na
   const withdrawn = { ...base, kind: "withdraw", input_id: "steer-1" };
   assertActionInput(schema, withdrawn);
   assert.deepEqual(await runControl(withdrawn, async () => []), { kind: "withdraw", input_id: "steer-1" });
+});
+
+test("RCPT-368: a supplement says who wrote it, the person or the Host relaying a page's words, and only those two", async () => {
+  rejected({ ...base, kind: "steer", text: "浏览器已经交还", source: "peer" });
+  rejected({ ...base, kind: "steer", text: "浏览器已经交还", source: "" });
+  rejected({ ...base, kind: "stop", source: "host" });
+  for (const source of ["person", "host"] as const) {
+    const input = { ...base, kind: "steer", text: "浏览器已经交还", key: "send.3", source };
+    assertActionInput(schema, input);
+    assert.deepEqual(await runControl(input, async () => []), { kind: "steer", send: { text: "浏览器已经交还", source, key: "send.3" } }, "BL-144: the source reaches agent.inputs.send");
+  }
+  assertActionInput(schema, control.toInput(request({ kind: "steer", run_id: "run-1", text: "浏览器已经交还", source: "host" })));
 });
 
 test("a complete control passes the published schema and the handler does not fail for a missing field", async () => {

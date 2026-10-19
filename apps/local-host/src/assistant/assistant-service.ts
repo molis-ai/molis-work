@@ -1289,9 +1289,9 @@ export class AssistantService {
     if (read.recovery_required) throw assistantErrors.needs_check(read.error ?? "Coding 会话有需要核对的中断操作", { action: "打开 Coding 核对" });
     const latest = read.runs.at(-1);
     if (latest && (!isTerminalAgentPhase(latest.phase) || intent?.about)) {
-      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt (it takes no source: words a page wrote reach Coding as the person's).
+      // Coding's own control carries both: every answer with the revision it answers, every supplement with its receipt and its source, so words a page wrote reach the round as a note (BL-144).
       const outcome = await this.inputs.deliver(latest, text, materials, context, { answer: control => coding.control(sessionId, latest.ref.run_id, control),
-        send: ({ source: _source, ...input }) => coding.send(sessionId, latest.ref.run_id, input) }, intent);
+        send: input => coding.send(sessionId, latest.ref.run_id, input) }, intent);
       return this.result(work, outcome, latest.ref.run_id, stillCurrent);
     }
     const task = work.handover_brief ? `${work.handover_brief}\n\n用户现在的要求：${text}` : text;

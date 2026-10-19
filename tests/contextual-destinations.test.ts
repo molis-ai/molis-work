@@ -142,6 +142,54 @@ test("W4-1 §6.1: the rules pick their one destination by directory order alone,
   assert.deepEqual(judged.primary, own.slice(0, 3));
 });
 
+/** W4-2 (context-program §21.10, decision D-1): an entry that always needs a card is for the judgment to name, never the rules' pick. */
+const ownFragments = (count: number) => {
+  const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "understand", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
+  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c", "d"].slice(0, count).map(fragment)).action }, "query"), view(pages, "pages.ai")];
+};
+const proposing = view(todo, "goals.tree.submit", { intake: intake("breakdown", { effect: "proposes" }) });
+const batching = view(todo, "notes.extract", { intake: intake("extract", { multiple: true }) });
+const plain = (id: string) => view(todo, `notes.${id}`, { intake: intake(id) });
+const pickedBy = (directory: readonly ActionView[], judgment?: Parameters<typeof planContextualLayout>[0]["judgment"]) => {
+  const candidates = contextualCandidates(directory, hand()), plan = planContextualLayout({ focus: hand(), candidates, ...(judgment ? { judgment } : {}) });
+  return { candidates, plan, destinations: plan.primary.map(key => candidates.find(item => item.key === key)!).filter(item => item.origin === "intake").map(item => item.action.capability_id) };
+};
+
+test("W4-2-01: with rules only, proposal-type and batch entries are skipped for the next entry in the directory", () => {
+  const offers = ownFragments(4);
+  const { candidates, destinations } = pickedBy([...offers, proposing, batching, plain("one"), plain("two")]);
+  assert.deepEqual(destinations, ["notes.one"], "the first entry that can be made at once, not the ones before it");
+  assert.deepEqual(pickedBy([...offers, plain("two"), plain("one"), proposing, batching]).destinations, ["notes.two"], "and by directory order among those");
+  // The declaration is what marks it: nothing names a plugin, and an ordinary entry carries no mark.
+  const marked = new Map(candidates.filter(item => item.origin === "intake").map(item => [item.action.capability_id, item.always_card === true]));
+  assert.deepEqual([...marked], [["goals.tree.submit", true], ["notes.extract", true], ["notes.one", false], ["notes.two", false]]);
+  // The judgment is still asked about them: skipping is the rules' choice only.
+  assert.deepEqual(judgedCandidates(candidates, hand()).filter(item => item.origin === "intake").map(item => item.action.capability_id), ["goals.tree.submit", "notes.extract", "notes.one", "notes.two"]);
+});
+
+test("W4-2-01: a judgment that names a proposal-type entry puts it in a slot, and the rules' skip does not apply", () => {
+  const directory = [...ownFragments(4), proposing, plain("one")];
+  const proposalKey = contextualCandidates(directory, hand()).find(item => item.action.capability_id === "goals.tree.submit")!.key;
+  const judgment = { basis: "jev" as const, next: { [proposalKey]: 0.7 }, intent: {}, surface: "none" as const, surface_probability: null, speak_up: null, confidence: 0.8, latency_ms: 1 };
+  const { plan, destinations } = pickedBy(directory, judgment);
+  assert.equal(plan.basis, "judgment");
+  assert.equal(plan.primary[0], proposalKey);
+  assert.ok(destinations.includes("goals.tree.submit"));
+});
+
+test("W4-2-02: when the directory holds only proposal-type and batch entries, the rules push no destination", () => {
+  for (const [why, directory] of [["only a proposal", [proposing]], ["only a batch", [batching]], ["both", [proposing, batching]]] as const) {
+    for (const own of [4, 1]) {
+      const { plan, destinations } = pickedBy([...ownFragments(own), ...directory]);
+      assert.deepEqual(destinations, [], `${why}, ${own} actions of its own`);
+      assert.equal(plan.candidates.some(item => item.origin === "intake"), false, `${why}: not listed either, so nothing is shown that the rules did not recommend`);
+      assert.equal(plan.primary.length, Math.min(3, own), `${why}: the slots stay with the actions on the thing itself`);
+    }
+  }
+  // Nothing of its own to show: no slot is taken by a destination that only ever comes back as a card.
+  assert.deepEqual(pickedBy([proposing, batching]).plan.primary, []);
+});
+
 test("W1-05: at most eight destinations go to the judgment; the actions on the thing keep the rest of the budget", () => {
   const many = Array.from({ length: 12 }, (_, index) => view(todo, `todo.make${index}`, { intake: intake(`d${index}`) }));
   const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "question", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });

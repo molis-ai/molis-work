@@ -4,13 +4,13 @@ import {
 
 /**
  * What Goals offers for part of anything the person is reading or writing (specs/archive/contextual-interaction §3.3 S2, S5):
- * - a plan becomes proposed steps: a structure proposal that creates nothing until the person approves it in Goals;
- * - a task just ticked, in something that belongs to a Goal, becomes that Goal's progress.
+ * - a task just ticked, in something that belongs to a Goal, becomes that Goal's progress;
+ * - a plan becomes proposed steps, a structure proposal that creates nothing until the person approves it in Goals. That one is
+ *   a creation entry (`goals.tree.submit` declares `intake`, and `prepare` is this query), not a choice here: a destination is
+ *   named by the judgment or asked for, and the rules alone never push a proposal (context-program §21.10).
  * Both write, so the surface shows them as prepared cards the person confirms; preparing only reads the Goal's cursor.
  */
 export const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
-  { offer_id: "breakdown", title: "拆成目标步骤", intent: "organize", apply: "record", hint: "把一段计划拆成可以跟踪的目标步骤，提交后在 Goals 里确认才生效",
-    action: { capability_id: "goals.tree.submit", version: 1 }, granularities: ["range", "block", "blocks"] },
   { offer_id: "progress", title: "记录进展", intent: "advance", apply: "record", hint: "把刚完成的这一步记为所属 Goal 的进展",
     action: { capability_id: "goals.progress.record", version: 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
 ];

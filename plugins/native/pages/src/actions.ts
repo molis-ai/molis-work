@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createHash, randomUUID } from "node:crypto";
-import { ActionError, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, bindArtifactPreview, defineArtifactPreviewAction, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, defineArtifactReferrersAction, linksToArtifactVersion, bindArtifactCompare, objectOrMissing, sameArtifactFields, actionFieldValue, bindObjectCopyHandler, bindObjectMoveHandler, bindSearchEntriesHandler, bindFileEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineFragmentOffersAction, fileContentOf, defineObjectCopyAction, defineObjectMoveAction, defineSearchEntriesAction, defineSubjectContextAction, subjectContext, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
@@ -18,6 +18,7 @@ import { convertImportContent } from "./import-content.js";
 import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
+import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -56,11 +57,21 @@ function define<I, O>(name: string, title: string, description: string, operatio
 }
 const withAction = <I, O>(definition: ActionDefinition<I, O>, extra: Partial<ActionDefinition["action"]>): ActionDefinition<I, O> => ({ ...definition, action: { ...definition.action, ...extra } });
 const readOnly = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => withAction(definition, { effect: "read" });
+/**
+ * 「存为文档」 for what the person has in hand (context-program §21.10): a creation entry on `pages.create`, which is already taken back by
+ * `pages.discard` while no one has changed the document. The query below computes its whole input from the passage without a model;
+ * it shows nothing on the bar by itself. Selecting inside Pages offers it too: pulling a passage out into a document of its own.
+ */
+const PAGES_INTAKE = { intake_id: PAGES_DOCUMENT_INTAKE, item_kind: PAGES_SUBJECT_KIND, title: "文档", verb: "存为文档", material_field: "markdown",
+  describe: "能独立成篇、以后还要改的内容：一段完整的说明、方案或纪要；一句话的事、要跟进的事、一闪而过的想法不放这里",
+  examples: ["把这段整理成一篇文档", "把这份会议纪要存成文档", "这个方案单独写成一篇"], prepare: { capability_id: "pages.intake.offers", version: 1 } } as const;
 export const pagesActions = {
   /** One document's current text, version and links, by the shared subject protocol (the Assistant, Home, references). */
   subject: defineSubjectContextAction("pages.subject.read", PAGES_SUBJECT_KIND, "文档", read),
   /** What can be done with part of a document; preparing reads and writes nothing (specs/archive/contextual-interaction §5.1). */
   fragmentOffers: defineFragmentOffersAction("pages.fragment.offers", [PAGES_SUBJECT_KIND], "文档片段可以做的事", read, PAGES_FRAGMENT_CHOICES),
+  /** The input of 「存为文档」 for a passage from anywhere; no choices of its own, so it is only the `prepare` of `create`. */
+  intakeOffers: defineFragmentOffersAction("pages.intake.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以存为文档", read, []),
   /** System search: every document of the project by version; its text is read back through `subject`. */
   searchEntries: defineSearchEntriesAction("pages.search.entries", [{ kind: PAGES_SUBJECT_KIND, title: "文档", surface: "pages" }], "文档", read),
   /** The side panel's file tab (specs/archive/side-panel): documents by folder; the preview reads the same `subject` text. */
@@ -84,8 +95,9 @@ export const pagesActions = {
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read),
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
-  create: withAction(define<WrittenFields & { template_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换", "command", object({ ...writeFields, template_id: text }, []), object({ document: page }), write),
-    { undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } } }),
+  create: withAction(define<WrittenFields & { template_id?: string; request_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇，同一 request_id 换了内容会被拒绝", "command",
+    object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page }), write),
+    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } } }),
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
     { effect: "irreversible" }),
@@ -146,6 +158,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.fragmentOffers, (input, caller) => ({ offers: preparePagesFragmentOffers(input, PAGES_SUBJECT_KIND, undefined, id => ports.withStore(store => {
       try { return String(actionFieldValue("body", store.get(id, project(caller)).body) ?? ""); } catch { return null; }
     })) })),
+    bind(pagesActions.intakeOffers, input => ({ offers: preparePagesIntakeOffers(input) })),
     bind(pagesActions.subject, (input, caller) => ports.withStore(store => {
       let document: PagesRecord;
       try { document = store.get(input.subject_id, project(caller)); }
@@ -190,7 +203,15 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, (input, caller) => ports.withStore(store => ({ document: store.create({ ...written(input, caller, true), project_id: project(caller) }) }))),
+    bind(pagesActions.create, (input, caller) => ports.withStore(store => {
+      const { request_id, ...rest } = input;
+      const fields = { ...written(rest, caller, true), project_id: project(caller) };
+      if (request_id === undefined) return { document: store.create(fields) };
+      // The same request makes one document: a retry returns it as it is now, and other content under the same request is refused.
+      const { project_id, folder_id, ...document } = fields;
+      const request_hash = createHash("sha256").update(JSON.stringify(fields)).digest("hex");
+      return { document: store.importDocuments({ project_id, request_id, request_hash, ...(folder_id === undefined ? {} : { folder_id }), documents: [document] })[0]! };
+    })),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
       if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };

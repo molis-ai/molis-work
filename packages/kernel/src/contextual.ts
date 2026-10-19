@@ -348,9 +348,10 @@ export interface PlanInput {
  */
 export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
   const wholes = input.candidates.filter(candidate => candidate.available && candidate.scope === "object");
-  const available = input.candidates.filter(candidate => candidate.available && candidate.scope !== "object");
-  const rules = ruleScores(available, input.focus);
   const judged = input.judgment && Object.keys(input.judgment.next).length ? input.judgment : null;
+  // Rules alone do not push a destination that always needs a card (a proposal, a batch): it is for the judgment to name, or for the person to ask.
+  const available = input.candidates.filter(candidate => candidate.available && candidate.scope !== "object" && (judged || !candidate.always_card));
+  const rules = ruleScores(available, input.focus);
   const dismissed = new Set(input.dismissed ?? []);
   const order = new Map(available.map((candidate, index) => [candidate.key, index]));
   const score = (key: string) => (judged ? (judged.next[key] ?? 0) + rules[key]! * 0.01 : rules[key]!) * (dismissed.has(key) ? 0.3 : 1);

@@ -39,7 +39,7 @@ export interface PagesImportDocumentsInput {
   readonly request_id: string;
   readonly request_hash: string;
   readonly folder_id?: string;
-  readonly documents: readonly { readonly title: string; readonly body: PagesBody }[];
+  readonly documents: readonly { readonly title?: string; readonly body?: PagesBody; readonly starred?: boolean; readonly goal_id?: string; readonly template_id?: string }[];
 }
 
 /**
@@ -199,14 +199,14 @@ export class PagesStore {
         .get(project_id, input.request_id) as { request_hash: string; document_ids_json: string } | undefined;
       if (prior) {
         if (prior.request_hash !== input.request_hash) {
-          throw pagesErrors.unavailable("这次导入的文件、选择或文件夹已改变，请重新预览后导入");
+          throw pagesErrors.unavailable("同一个请求的内容已改变，请重新发起（导入时请重新预览）");
         }
         const ids = JSON.parse(prior.document_ids_json) as string[];
         const documents = ids.map((id) => {
           try { return this.get(id, project_id); }
           catch (error) {
             if (error instanceof ActionError && error.code === "pages.not_found") {
-              throw pagesErrors.unavailable("这批导入已完成，但部分文档已删除；不会重新创建");
+              throw pagesErrors.unavailable("这个请求已完成，但其中的文档已被删除；不会重新创建");
             }
             throw error;
           }
@@ -218,8 +218,7 @@ export class PagesStore {
       const documents = input.documents.map((document) => this.create({
         project_id,
         folder_id,
-        title: document.title,
-        body: document.body,
+        ...document,
       }));
       this.db.prepare("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)")
         .run(project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString());

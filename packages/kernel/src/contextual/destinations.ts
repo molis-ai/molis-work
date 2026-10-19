@@ -21,14 +21,14 @@ function destinationKey(kind: "intake" | "attach", view: ActionView, id: string)
 const placeOf = (focus: SurfaceFocus): SurfacePlace => focus.place ?? "main";
 const ownerOf = (view: ActionView) => view.provider.plugin_id ?? view.provider.provider_id;
 
-function candidateOf(kind: "intake" | "attach", view: ActionView, declared: { title: string; verb: string; describe: string }, id: string, position?: SurfaceLanding["position"]): ContextualCandidate {
+function candidateOf(kind: "intake" | "attach", view: ActionView, declared: { title: string; verb: string; describe: string; effect?: "creates" | "proposes"; multiple?: boolean }, id: string, position?: SurfaceLanding["position"]): ContextualCandidate {
   const reference = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   // Irreversible commands cannot be declared (the plugin SDK refuses them), but a directory is only a snapshot: never offer one.
   const unavailable = !view.availability.available ? view.availability.reason
     : actionEffect(view.action, view.capability_id) === "irreversible" ? "不可撤回的动作不在情境推荐里提供" : undefined;
   return { key: destinationKey(kind, view, id), offer_id: id, title: declared.verb, intent: "capture", apply: "record", hint: declared.describe,
     source: reference, action: reference, provider_title: view.provider.title, available: unavailable === undefined, ...(unavailable ? { reason: unavailable } : {}),
-    origin: kind, ...(position ? { position } : {}) };
+    origin: kind, ...(position ? { position } : {}), ...(declared.effect === "proposes" || declared.multiple ? { always_card: true as const } : {}) };
 }
 
 /**

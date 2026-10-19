@@ -132,3 +132,79 @@ test("W4-1 Q08: with an undo offered now, the entry is made at once and the undo
   const card = await createChosen(OWNER, without, at, undefined, contextualCandidates(without, at).find(item => item.origin === "intake")!.key, "r3", { actions, ports });
   assert.equal(card.created, false);
 });
+
+// ---- W4-2 (context-program §21.10): 存为文档 is made at once by Pages; 拆成目标步骤 is always a card -----------------------------
+async function openHost(permissions: string[]) {
+  const home = await mkdtemp(join(tmpdir(), "contextual-create-"));
+  const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Create", actor_id: "user" }));
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user", permissions };
+  const client = host.actionClient(ref);
+  const actions = { discover: () => client.discover(caller), invoke: (reference: ActionReference, input: unknown) => client.invoke(caller, reference, input) };
+  return { actions, invoke: <O>(capability_id: string, input: unknown) => actions.invoke({ capability_id, version: 1 }, input) as Promise<O>,
+    close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
+}
+type PagesDocument = { id: string; title: string; version: number; body: { content?: { type: string; content?: { text?: string }[] }[] } };
+const paragraphs = (document: PagesDocument) => (document.body.content ?? []).map(node => (node.content ?? []).map(part => part.text ?? "").join(""));
+
+test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and taken back only while no one has changed it", { timeout: 60_000 }, async () => {
+  const { actions, invoke, close } = await openHost(["pages:read", "pages:write"]);
+  try {
+    const directory = await actions.discover();
+    const at = focus("p1");
+    // The passage is in a Pages document: pulling it out into a document of its own is offered there as everywhere (decision D-2).
+    const entry = contextualCandidates(directory, at).find(item => item.origin === "intake" && item.title === "存为文档");
+    assert.ok(entry, "offered while selecting inside Pages");
+    const create = (request: string, from = at) => createChosen(OWNER, directory, from, undefined, entry!.key, request, { actions, ports });
+    const get = (id: string) => invoke<{ document: PagesDocument }>("pages.get", { id }).then(out => out.document);
+
+    const made = await create("req-doc");
+    assert.deepEqual([made.created, made.draft.basis, made.subject?.kind], [true, "prepared", "pages_document"]);
+    const document = await get(made.subject!.id);
+    assert.equal(document.title, PASSAGE, "no heading above it: the passage's first line");
+    assert.deepEqual(paragraphs(document), [PASSAGE, "摘自『留存计划』"], "the passage as selected, then where it came from");
+    assert.equal((await create("req-doc")).subject?.id, document.id, "the same request makes it once");
+    assert.equal((await invoke<{ documents: PagesDocument[] }>("pages.list", {})).documents.length, 1);
+
+    // Under a heading, the heading is the title.
+    const under = await create("req-doc-2", { ...focus("p2", "接口先不改，只加一层适配。"), surroundings: { heading_path: ["方案", "兼容性"], before: "", after: "" } });
+    assert.equal((await get(under.subject!.id)).title, "兼容性");
+
+    // Unchanged: 撤销 is the owner's own undo and removes it; the token is spent.
+    assert.deepEqual(await undoCreated(OWNER, under.undo_token!, actions), { undone: true });
+    await assert.rejects(get(under.subject!.id), "gone");
+    await assert.rejects(undoCreated(OWNER, under.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale", "spent once");
+
+    // Changed since it was made: the owner refuses, says so, and the document is still there as it was edited.
+    await invoke("pages.update", { id: document.id, title: "改过的标题", expected_version: document.version });
+    await assert.rejects(undoCreated(OWNER, made.undo_token!, actions), /改过/u);
+    assert.equal((await get(document.id)).title, "改过的标题");
+  } finally { await close(); }
+});
+
+test("W4-2-05: 拆成目标步骤 always comes back as a draft for a card, and nothing is filed until the person submits it", { timeout: 60_000 }, async () => {
+  const { actions, invoke, close } = await openHost(["goals:read", "goals:write"]);
+  try {
+    const directory = await actions.discover();
+    const at = focus("g1");
+    // One entry by `goals.tree.submit`'s own declaration: no longer a choice of the fragment offers, and not undoable.
+    assert.equal(fragmentCandidates(directory, at).some(item => item.title === "拆成目标步骤"), false);
+    const entry = contextualCandidates(directory, at).find(item => item.origin === "intake" && item.title === "拆成目标步骤")!;
+    assert.equal(entry.always_card, true);
+    const submit = directory.find(item => item.capability_id === "goals.tree.submit")!;
+    assert.equal(submit.action.undo, undefined, "withdrawing a proposal is the approval decision, not an undo");
+    assert.deepEqual(submit.action.result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals" });
+    assert.match(submit.action.result_view!.summary, /要在 Goals 里确认才生效/u);
+
+    const proposals = () => invoke<{ proposals: unknown[] }>("goals.tree.read", {}).then(out => out.proposals.length);
+    const before = await proposals();
+    const out = await createChosen(OWNER, directory, at, undefined, entry.key, "req-goal", { actions, ports });
+    assert.deepEqual([out.created, out.undo_token, out.draft.basis, out.draft.missing], [false, undefined, "prepared", []]);
+    const input = out.draft.input as { items: { kind: string; payload: { title?: string } }[]; idempotency_key: string; summary: string };
+    assert.equal(input.idempotency_key, "req-goal");
+    assert.deepEqual(input.items.filter(item => item.kind === "goal").map(item => item.payload.title), ["下周三前完成新手引导改版", "周五发给二十个老用户试用并收集反馈"]);
+    assert.match(out.draft.summary ?? "", /提交后要在 Goals 里确认才会生效/u);
+    assert.equal(await proposals(), before, "choosing it files nothing: only the card's submit does");
+  } finally { await close(); }
+});

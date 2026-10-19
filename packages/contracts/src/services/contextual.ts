@@ -198,6 +198,11 @@ export interface ContextualCandidate {
   readonly origin?: "subject" | "intake" | "attach";
   /** For `attach`: where in the landing object it would put the thing, as the landing reported it. */
   readonly position?: SurfaceLandingPosition;
+  /**
+   * For a destination: choosing it never creates at once, it always comes back as a card to confirm (the declaration `effect: "proposes"`
+   * or `multiple`). Rules without a judgment do not recommend it for a passage: it is for the judgment to name, or for the person to ask.
+   */
+  readonly always_card?: true;
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";

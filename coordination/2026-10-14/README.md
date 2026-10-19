@@ -1598,3 +1598,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - ① 核过前提：内核 `sceneVisible` 不看受众，快照一行都不少。
     - 但这是门禁脚本的改动，按 LINE-COMMON 第 32 行要 ③ 在自己的会话里问用户。推荐同意，并加一条内核测试，钉住「场景可见性不看受众」。
     - 用户回答之前，不交 ⑤ 合入。
+- 13:00 UTC：
+  - **prologue#54 合入 Prologue main 27daa94ea（⑤，BL-162）。** 照 D22 改了 Y1–Y3、J1–J3 和 K6。① 在 main 上抽查了 Y1、Y2、Y3 和 J3，都改到了。随 ④ 的第二次换包进 Molis Work。
+  - **K1–K5 归 ⑤，另开一个 Prologue PR（D22 补）：** 先做 K2（`toolCall` 没有长度上限），再做 K5（`catch {}` 吞掉所有错误）。现在只记在 `docs/slices/call-attribution.md:113`。
+  - ⑤：#804 评审已发，补了两条文档；#802 已并 main，资源数字改成 1130033，正在跑健康门禁。
+  - ③：`boundary:check` 在排队，`action-service` 和 `installed-plugin-host` 的重跑还在等结果。

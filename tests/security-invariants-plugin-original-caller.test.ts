@@ -25,11 +25,11 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // service writing for one installation refuses inside another installation's action.
 
 const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
-const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`;
+const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`, WRITTEN = `${ID}.written`;
 const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const FILES: PluginFilesDeclaration = { store_name: "callerprobe-files", directory: "assets", max_file_bytes: 64, read_permission: READ, write_permission: WRITE };
-const TARGETS = ["database", "storage", "files", "publish", "record", "select", "invalidate", "retain"] as const;
+const TARGETS = ["database", "storage", "files", "publish", "record", "event", "select", "invalidate", "retain"] as const;
 type Target = typeof TARGETS[number];
 const preview = artifactPreview(ID);
 
@@ -49,6 +49,7 @@ async function write(services: PluginHostServices, target: Target, name: string,
   if (target === "storage") services.storage!.set(name, "written");
   else if (target === "publish") services.artifacts!.publish({ artifact_id: name, version: 1, artifact_type_id: preview.type.artifact_type_id, schema_version: 1, content, ...pinnedArtifact(name) });
   else if (target === "record") services.processItems!.record({ artifact_id: name, version: 1, artifact_type_id: ITEM, schema_version: 1, content });
+  else if (target === "event") services.events!.publish({ event_type_id: WRITTEN, type_version: 1, payload: { name } });
   else if (target === "select") services.outputs!.select({ port: "fixed", reference: { artifact_id: name, version: 1 }, expected_reference: expected });
   else if (target === "invalidate") services.outputs!.invalidate("item", name);
   else services.outputs!.retain({ artifact_id: name, version: 1 });
@@ -70,12 +71,12 @@ function probe() {
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     process_items: { produces: [{ artifact_type_id: ITEM, schema_version: 1 }], consumes: [] },
     ui: { contributions: [] }, actions: [writeAction, leave, announce, output, preview.definition],
-    events: { publishes: [{ event_type_id: ANNOUNCED, type_version: 1 }], subscribes: [] },
+    events: { publishes: [{ event_type_id: ANNOUNCED, type_version: 1 }, { event_type_id: WRITTEN, type_version: 1 }], subscribes: [] },
     ports: { inputs: [], outputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 },
       { port: "fixed", artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const held = () => { gate.entered.resolve(); return gate.release.promise; };
-  const definition: PluginDefinition = { manifest, event_types: [{ event_type_id: ANNOUNCED, type_version: 1, validate: payload => payload }], start(context) {
+  const definition: PluginDefinition = { manifest, event_types: [ANNOUNCED, WRITTEN].map(event_type_id => ({ event_type_id, type_version: 1, validate: (payload: unknown) => payload })), start(context) {
     services = context.services;
     return { kind: "app", views: [], actions: [
       { ...writeAction, handle: async (_caller, input) => {
@@ -161,6 +162,8 @@ async function platform(t: TestContext) {
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;
     if (target === "storage") return services.storage!.get(name) !== null;
     if (target === "files") return existsSync(join(home, FILES.store_name, FILES.directory, `${name}.bin`));
+    if (target === "event") return store.db.prepare("SELECT 1 FROM plugin_events WHERE source_plugin_id = ? AND event_type_id = ? AND json_extract(payload_json, '$.name') = ?")
+      .get(ID, WRITTEN, name) !== undefined;
     if (target === "select") return running.wiring.outputReference(ID, "fixed")?.artifact_id === name;
     if (target === "invalidate") return (store.db.prepare("SELECT invalidated_reason FROM plugin_port_outputs WHERE project_id = ? AND plugin_id = ? AND port = 'item'")
       .get(DEMO_PROJECT_ID, ID) as { invalidated_reason: string | null } | undefined)?.invalidated_reason === name;

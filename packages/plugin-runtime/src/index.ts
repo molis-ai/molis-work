@@ -29,7 +29,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, currentPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, currentPluginAction, outsidePluginAction } from "./action-scope.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";

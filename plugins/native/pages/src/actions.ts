@@ -19,6 +19,7 @@ import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
 import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers.js";
+import { createPagesDocument } from "./create-document.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -203,15 +204,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, (input, caller) => ports.withStore(store => {
-      const { request_id, ...rest } = input;
-      const fields = { ...written(rest, caller, true), project_id: project(caller) };
-      if (request_id === undefined) return { document: store.create(fields) };
-      // The same request makes one document: a retry returns it as it is now, and other content under the same request is refused.
-      const { project_id, folder_id, ...document } = fields;
-      const request_hash = createHash("sha256").update(JSON.stringify(fields)).digest("hex");
-      return { document: store.importDocuments({ project_id, request_id, request_hash, ...(folder_id === undefined ? {} : { folder_id }), documents: [document] })[0]! };
-    })),
+    bind(pagesActions.create, ({ request_id, ...rest }, caller) => ports.withStore(store => ({ document: createPagesDocument(store, { ...written(rest, caller, true), project_id: project(caller) }, request_id) }))),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
       if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };

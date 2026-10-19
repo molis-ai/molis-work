@@ -3,6 +3,7 @@ import { INPUT_RECEIPTS_EN } from "@molis-ai/molis-work-design-system";
 /** The resident Assistant in the bottom bar, with the supplement receipt it shares with every plugin. */
 export const ASSISTANT_EN: Record<string, string> = {
   ...INPUT_RECEIPTS_EN,
+  "AI 记下的约定": "What the AI noted as agreed",
   "回复到原评论": "Replying to the original comment",
   "请回到原评论继续回复": "Return to the original comment to continue",
   "在主区展开": "Expand in workspace",
@@ -71,6 +72,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "助理在等你回答": "The assistant is waiting for your answer",
   "这个问题暂时不能回答": "This question cannot be answered right now",
   "其他（可选）": "Other (optional)",
+  "清除选择": "Clear choice",
   "提交回答": "Submit answer",
   "请 AI 重新问": "Ask again",
   "写下回答": "Write your answer",

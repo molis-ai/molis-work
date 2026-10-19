@@ -120,8 +120,9 @@ test("AC-22: Coding answers a typed questionnaire through the shared question ca
 });
 
 // specs/ai-interaction-experience AC-25 (first part): a single choice is answered from the row beside the composer, by pressing
-// the card's own option and its submit (specs/context-program FLOW-01, FLOW-02); there is no second way to answer.
-test("AC-25: Coding's next step answers a single choice through the card's own controls", { timeout: 180_000 }, async t => {
+// the card's own option and its submit (specs/context-program FLOW-01, FLOW-02); there is no second way to answer. AC-10-3: the
+// press leaves focus on the step, and when the row is drawn again without it, focus goes to the composer, not to the page.
+test("AC-25, AC-10-3: Coding's next step answers a single choice through the card's own controls and focus ends in the composer", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t, { why: "先确认要修哪一处。", questions: [{ prompt: "先修哪一个？", options: [{ label: "登录", recommended: true }, { label: "导出" }] }] });
   if (!opened) return;
   const { click, evaluate, waitFor, coding, bodies } = opened;
@@ -138,6 +139,9 @@ test("AC-25: Coding's next step answers a single choice through the card's own c
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/, "the model hears the option pressed in the row");
   await waitFor(`!document.querySelector('${coding} [data-coding-question]') && document.querySelector('${coding} [data-coding-steps]').hidden`, 15_000);
+  // AC-10-3: the mouse press put focus on the step, and the row was hidden under it.
+  assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector('${coding} [data-coding-task]')`), true,
+    "AC-10-3: with the row hidden, focus is in the composer and not on the page");
 });
 
 // specs/ai-interaction-experience T1 (AC-27-5, AC-27-6): words, a number, a date and a date and time on Coding's card; a value past its limit is

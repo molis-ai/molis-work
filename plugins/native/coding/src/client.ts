@@ -36,7 +36,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let viewSignal;
   const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
   const make = tag => document.createElement(tag); const q = (selector) => root.querySelector(selector); const phaseRing = phase => ({starting:'starting',running:'running',compacting:'running',pausing:'paused',paused:'paused','awaiting-input':'answer','awaiting-review':'approval',completed:'round-ended',failed:'failed',stopped:'stopped',cancelled:'cancelled','reconcile-required':'verify'})[phase] || 'idle';
-  const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
+  const turns = q('[data-coding-turns]'), input = q('[data-coding-task]'), toInput=node=>(node||input).focus({preventScroll:true});
   // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
   // sections changes, so its own writes never loop back through the observer that schedules it.
   const SECTION_SHORT={'协作与相关会话':'协作','文件检查点':'检查点','中断恢复':'恢复','本轮概况':'概况','每轮成果':'成果','本轮变更':'变更','命令回执':'命令','后台命令':'后台'};
@@ -88,7 +88,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const target=state.workspaces?.find(item=>item.workspace_id===workspaceId && item.realpath_verified);
     if(!target || target.workspace_id===state.workspace?.workspace_id) return;
     try{await useProjectWorkspace(target.workspace_id);state.workspace=target;}
-    catch(error){if(!lifetime.alive)return;status(error.message+'；Files 与 Git 仍显示原目录。',true);}
+    catch(error){status(error.message+'；Files 与 Git 仍显示原目录。',true);}
   };
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
@@ -180,7 +180,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       try{const result=await api(sessionPath(id,runId)+'/plan-amendments','POST',{amendment,expected_version:version});
         if(!live)status(result.board?.terminal?'已记在任务图上。计划的每一步都已结束。':'已记在任务图上。点「继续计划」后，下一轮按调整后的任务图继续。');
         else status(result.steered?'计划已调整，并已告诉执行中的这一轮。':'计划图已调整，但没能通知执行中的这一轮：'+(result.steer_error||'原因未知')+'。可以在输入框补充说明。',!result.steered);}
-      catch(error){if(!lifetime.alive)return;status(error.message,true);}
+      catch(error){status(error.message,true);}
       // The board's copy of rounds outside the loaded window is kept by round count; a change to the graph renews it.
       boardAll.key='';
       if(id===current)await readCurrent();
@@ -654,7 +654,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const template=make('template');template.innerHTML=question.html;
         form=template.content.firstElementChild;if(!form) continue;
         form.dataset.codingQuestion='';form.dataset.questionKey=key;form.dataset.questionDefinition=question.html;block.append(form);
-        const id=current,card=form,note=card.querySelector('[data-ix-note]'),lock=on=>card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=on);
+        const id=current,card=form,note=card.querySelector('[data-ix-note]'),lock=on=>card.querySelectorAll('fieldset,button').forEach(node=>node.disabled=on),here=()=>current===id&&lifetime.visible&&card.isConnected;
         const remember=(values=client.read())=>{
           const drafts=questionDrafts.get(id) || {};if(values)drafts[key]=values;else delete drafts[key];questionDrafts.set(id,drafts);
           try{sessionStorage.setItem(draftKey(id)+':questions',JSON.stringify(drafts));}catch{}
@@ -670,12 +670,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
             try {
               const {message}=await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
               answeredQuestions.add(key);remember(null);
-              client.destroy();(${codingQuestionAnswered.toString()})(card,note,message,input);
+              client.destroy();(${codingQuestionAnswered.toString()})(card,note,message,input,here());
               void draft.save(id,draft.local(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
-              const closed=['coding.round_ended','agent.pending_not_open'].includes(error.code);if(closed){answeredQuestions.add(key);card.dataset.refused='true';if(current===id)void readCurrent();}
-              note.textContent=error.message;lock(closed||card.dataset.answerable!=='true');if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
+              const closed=['coding.round_ended','agent.pending_not_open'].includes(error.code),at=document.activeElement;if(closed){answeredQuestions.add(key);card.dataset.refused='true';if(current===id)void readCurrent();}
+              note.textContent=error.message;const locked=closed||card.dataset.answerable!=='true';lock(locked);if(locked&&here()&&(card.contains(at)||at===document.body))toInput();if(error.details?.errors)client.showErrors(error.details.errors,{focus:true});
             } finally {delete card.dataset.busy;}
           },
         });
@@ -689,7 +689,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
     for(const form of block.querySelectorAll('[data-coding-question]')) {
       if(!live.has(form.dataset.questionKey) && !(form.dataset.busy || form.dataset.refused)) {
-        const hadFocus=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(hadFocus)input.focus({preventScroll:true});
+        const had=form.contains(document.activeElement);form.ix?.destroy();form.remove();if(had)toInput();
       }
     }
   };
@@ -907,7 +907,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       } else inline?.remove();
       timeline.renderFooter(block,run,all.indexOf(run),run===all.at(-1) && (run.phase==='reconcile-required' || !recovery && !checkpointBusy),run!==all.at(-1) && graphLatest && !recovery && !checkpointBusy);
     }
-    renderCommands(all);const row=q('[data-coding-steps]'),next=all.at(-1)?.next_html || '';if(row.dataset.html!==next){row.innerHTML=next;row.dataset.html=next;row.hidden=!next;}
+    renderCommands(all);const row=q('[data-coding-steps]'),next=all.at(-1)?.next_html || '';if(row.dataset.html!==next){const at=document.activeElement,had=row.contains(at);row.innerHTML=next;row.dataset.html=next;row.hidden=!next;if(had)toInput(row.querySelector('[data-ix-step-id="'+CSS.escape(at.dataset.ixStepId)+'"]:not(:disabled)'));}
     // One row per finished round: its changes and its report, newest first.
     const ended=all.filter(run=>['completed','failed','stopped','cancelled'].includes(run.phase)),outcomeList=q('[data-coding-outcome-list]');
     q('[data-coding-outcomes]').hidden=!ended.length;
@@ -1054,7 +1054,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(anchor)turns.scrollTop+=anchor.getBoundingClientRect().top-before;
         if(pending.length)await lifetime.nextFrame();
       }
-    }catch(error){if(!lifetime.alive)return;if(current===id)status(error.message,true);}
+    }catch(error){if(current===id)status(error.message,true);}
     finally{pageLoading=false;if(current===id)renderEarlier();}
   };
   const earlierWatch=new IntersectionObserver(entries=>{if(entries.some(entry=>entry.isIntersecting))void loadEarlier();},{root:turns,rootMargin:'900px 0px 0px 0px'});
@@ -1136,7 +1136,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(data.error) status(data.error,true);
       if(fresh && offsets.has(id)) { turns.scrollTop=offsets.get(id); pinned=atBottom(position()); }
       renderDirectory(); controls();
-    } catch(error) {if(!lifetime.alive)return; if(lifetime.alive&&error.name!=='AbortError'&&current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
+    } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
   };
   const select = async(id) => {
@@ -1262,7 +1262,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         try {
           await api(sessionPath(id,target.dataset.codingRecover)+'/recover','POST',{expected_version:Number(target.dataset.version)});
           if(current===id && generation===ticket){status('中断轮次已结束，原任务和核实结果已保留。请输入下一轮要求继续。');await readCurrent();}
-        } catch(error) {if(!lifetime.alive)return;if(current===id && generation===ticket) status('未能结束中断轮次：'+error.message,true);}
+        } catch(error) {if(current===id && generation===ticket) status('未能结束中断轮次：'+error.message,true);}
         finally {if(current===id && generation===ticket){recoveryBusy=false;if(recovery)await readRecovery();controls();}}
       }
       if(target.matches('[data-coding-checkpoints-refresh]')) await readCheckpoints();
@@ -1365,7 +1365,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-pause]') && lastRun) {
         const action=target.dataset.action==='resume'?'resume':'pause';target.disabled=true;
         try { await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:action});status(action==='pause'?'暂停请求已收到：当前这一步做完后停下，已开始的操作不会中断。':'已恢复，这一轮从暂停处接着执行。');await readCurrent(); }
-        catch(error) {if(!lifetime.alive)return; status(error.message,true); } finally { controls(); }
+        catch(error) { status(error.message,true); } finally { controls(); }
       }
       if(target.matches('[data-coding-stop]') && lastRun) { target.disabled=true;await api(sessionPath(current)+'/control','POST',{run_id:lastRun.ref.run_id,kind:'stop'});status('停止请求已收到，正在确认执行结果。');await readCurrent(); }
       if(target.matches('[data-coding-archive]') && current) {
@@ -1385,7 +1385,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         lifetime.listen(field,'keydown',(event)=>{if(event.key==='Enter'){event.preventDefault();void save().catch(error=>status(error.message,true));}if(event.key==='Escape') title.textContent=state.sessions.find(item=>item.session_id===current)?.title || '';});
         status('输入名称后按 Enter 保存，Esc 取消。');
       }
-    } catch(error) {if(!lifetime.alive)return; status(error.message,true);controls(); }
+    } catch(error) { status(error.message,true);controls(); }
   };
   lifetime.listen(root,'click',click);
   lifetime.listen(directory.querySelector('[data-coding-search]'),'input',renderDirectory);
@@ -1553,7 +1553,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{reask});
       if(!reask)status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
       pinned=true;await refreshState();await readCurrent();
-    } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}
+    } catch(error) {if(current===id)status(error.message,true);}
     finally {sending=false;controls();}
   };
   // An interrupted round is checked first; only a round whose outcomes are all known is closed and continued.
@@ -1572,7 +1572,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       for(const run of [...report.runs.filter(run=>run.subagent),entry])await api(sessionPath(id,run.run_id)+'/recover','POST',{expected_version:run.version});
       if(current!==id)return;
       await continueRound(runId);
-    } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}
+    } catch(error) {if(current===id)status(error.message,true);}
   };
   lifetime.listen(q('[data-coding-composer]'),'submit',async(event)=>{
     event.preventDefault();if(shut() || recovery || checkpointBusy || !input.value.trim()) return;
@@ -1593,7 +1593,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
       if(current===id && input.value===task) input.value='';
       if(draft.local(id)===task) await draft.save(id,''); surfaceChanged(id); await refreshState();await readCurrent();
-    } catch(error) {if(!lifetime.alive)return; status(error.message,true); }
+    } catch(error) { status(error.message,true); }
     finally { sending=false;controls(); }
   });
   let pollingTicks=0;
@@ -1604,7 +1604,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     let timer=0;
     const followConversation=async()=>{
       try{lifetime.assertCurrent(signal);if(current)await readCurrent();}
-      catch(error){if(!lifetime.alive)return;if(!signal.aborted)status(error.message,true);}
+      catch(error){if(!signal.aborted)status(error.message,true);}
       finally{if(!signal.aborted&&lifetime.visible)timer=lifetime.timeout(followConversation,conversationDelay());}
     };
     timer=lifetime.timeout(followConversation,conversationDelay());

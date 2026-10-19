@@ -19,6 +19,10 @@ class Element {
     this.parentNode = null;
   }
   contains(other: Element | null): boolean { for (let at = other; at; at = at.parentNode) if (at === this) return true; return false; }
+  querySelector(selector: string): Element | null {
+    assert.equal(selector, "h3");
+    return this.querySelectorAll("*").find(node => node.name === "h3") ?? null;
+  }
   querySelectorAll(selector: string): Element[] {
     assert.equal(selector, "*");
     return this.children.flatMap(child => [child, ...child.querySelectorAll("*")]);
@@ -35,17 +39,19 @@ class Page {
   readonly note = this.make("p", { "data-ix-note": "", role: "status" });
   readonly option = this.make("button", { role: "radio" });
   readonly submit = this.make("button", { type: "submit" });
+  readonly title = this.make("h3", { id: "q-1-title" });
   readonly card = this.make("article", { "aria-labelledby": "q-1-title" }).append(
-    this.make("header").append(this.make("h3", { id: "q-1-title" })),
+    this.make("header").append(this.make("div").append(this.make("span"), this.title)),
     this.make("form").append(this.make("fieldset").append(this.option), this.make("footer").append(this.note, this.make("kbd"), this.make("div").append(this.submit))),
   );
   readonly input = this.make("textarea");
   readonly elsewhere = this.make("button");
   constructor() { this.body.append(this.make("section").append(this.card), this.elsewhere, this.input); }
   make(name: string, attributes: Record<string, string> = {}) { return new Element(name, this, attributes); }
-  answered(said = "已收到回答，这一轮接着做。") {
-    const run = vm.runInNewContext(`(${codingQuestionAnswered.toString()})`, { document: this.document }) as (card: Element, note: Element, said: string, input: Element) => void;
-    run(this.card, this.note, said, this.input);
+  /** `here`: this is still the session on screen and the card still on the page, as the shipped client passes it. */
+  answered(said = "已收到回答，这一轮接着做。", here = true) {
+    const run = vm.runInNewContext(`(${codingQuestionAnswered.toString()})`, { document: this.document }) as (card: Element, note: Element, said: string, input: Element, here: boolean) => void;
+    run(this.card, this.note, said, this.input, here);
   }
 }
 
@@ -56,8 +62,18 @@ test("AC-10-8: the receipt is the card's own status line, which never leaves the
   assert.equal(page.note.attributes.role, "status", "the line the receipt is written in is the live region the card was drawn with");
   assert.ok(page.body.contains(page.note), "the status line is still on the page");
   assert.equal(page.removed.filter(node => node.contains(page.note)).length, 0, "nothing that holds the status line was taken off the page, even for a moment");
-  assert.deepEqual(page.card.querySelectorAll("*").map(node => node.name), ["form", "footer", "p"], "only the status line and what holds it are left");
+  // The title the card is named by stays (see the next case), so what is left is the title, the status line and what holds either.
+  assert.deepEqual(page.card.querySelectorAll("*").map(node => node.name), ["header", "div", "h3", "form", "footer", "p"], "only the title, the status line and what holds them are left");
   assert.ok(!page.body.contains(page.submit) && !page.body.contains(page.option), "the controls are gone with the fields");
+});
+
+test("AC-10-8: the card keeps its name while the receipt shows, because the title it is labelled by stays", () => {
+  const page = new Page();
+  page.answered();
+  assert.equal(page.card.attributes["aria-labelledby"], page.title.attributes.id);
+  assert.ok(page.card.contains(page.title) && page.body.contains(page.title), "the title the card is named by is still in the card, on the page");
+  assert.equal(page.removed.filter(node => node.contains(page.title)).length, 0, "nothing that holds the title was taken off the page, even for a moment");
+  assert.ok(page.removed.some(node => node.name === "span"), "what else the header said (its kicker) goes, so it does not still ask for an answer");
 });
 
 test("AC-10-3: focus that was in the card comes back to the composer, without scrolling the thread", () => {
@@ -82,4 +98,13 @@ test("AC-10-3: focus the person moved elsewhere while the answer was on its way 
   page.answered();
   assert.equal(page.document.activeElement, page.elsewhere);
   assert.equal(page.input.focusedWith, undefined);
+});
+
+test("AC-10-3: once this is no longer the session on screen, focus that fell to the page is not pulled into its composer", () => {
+  const page = new Page();
+  page.focused = null;
+  page.answered("已收到回答，这一轮接着做。", false);
+  assert.equal(page.document.activeElement, page.body, "the person's place in the page they are on is theirs");
+  assert.equal(page.input.focusedWith, undefined);
+  assert.equal(page.note.textContent, "已收到回答，这一轮接着做。", "the receipt is still written");
 });

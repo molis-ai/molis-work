@@ -26,7 +26,7 @@ Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再�
 | 2026-10-08 | Characters 的代码身份（去处 2026-10-18 定为 `modules/characters`） | 用户没选推荐。Characters 不再是 Runtime 插件：代码并进宿主或一个 Module，界面仍是设置里的一节；安装记录与 Runtime 条目一起删（第 4 波切片） |
 | 2026-10-08 | 第三方插件的安装与信任 | 本地装、首次确认、沙箱里跑，只写计划（见 THIRD-PARTY-PLUGINS.md） |
 | 2026-10-10 | 迁到 Runtime 的内置插件，能力的来源编号（W3-06 C，弹窗） | 随宿主发布的插件（宿主启动名单标 `bundled`）用插件名，创作台、未签名开发插件与第三方用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写（4.2 提供方身份；开发机的真实 Home 10-11 核对时没有要改的） |
-| 2026-10-10 | 迁到 Runtime 的内置插件声明的权限怎么给（W3-06 B，弹窗；2026-10-18 用户改成与其他插件同一规则，已实现） | 当时：内置插件安装与每次启动都拿到清单声明的全部权限，必需的和可选的一样，不能逐项关。现在：必需的总有，可选的全新安装时默认打开、可以关，关掉的启动和跟随新构建都不打开（4.2 授权第 5 点，POLICY.md 7.8） |
+| 2026-10-10 | 迁到 Runtime 的内置插件声明的权限怎么给（W3-06 B，弹窗；2026-10-18 用户改成与其他插件同一规则，Runtime 的规则已实现，开关界面是下一片） | 当时：内置插件安装与每次启动都拿到清单声明的全部权限，必需的和可选的一样，不能逐项关。现在：必需的总有，可选的全新安装时默认打开、可以关（设置里的开关是下一片），关掉的启动和跟随新构建都不打开（4.2 授权第 5 点，POLICY.md 7.8） |
 | 2026-10-18 | 插件同等待遇（弹窗） | 官方、个人、生成、第三方插件同一套合同、声明、Runtime 装配、平台服务、生命周期与授权规则；只有安装信任按来源（首次确认、沙箱、提供方身份）。只给内置的特权（`always_on`、内置之间的默认连线、Goals 信任内置调用者、native 动作算本机所有者权限、工作台手写名单）都改成按声明与授权，名单由 W5-02 生成 |
 | 2026-10-18 | 四个构建期例外（改 10-07，弹窗） | 取消。Goals 是普通插件，按本计划迁；插件创作台不算插件，并进平台能力；成果库与 Sessions 是平台事实；Sessions 这一轮清理、文档留记录，重做另开需求（BL-177） |
 | 2026-10-18 | 内置插件的授权（改 10-10 W3-06 B，弹窗） | 与其他插件同一规则：按清单的必需与可选给，可选的都能关；内置插件装上时可选项默认勾上 |
@@ -172,7 +172,7 @@ Characters 并进宿主（第 5.4 节）是第 4 波的另一片，不在这条�
 2. 改：`apps/workbench/src/ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 里 Form 的挂载（`FORM_SURFACE_SLOTS`、`renderFormContribution`、`renderFormNativePluginSurface`）改为 Runtime 视图；`creative-artifacts.ts` 里 Form 的成果发布与读取端口（`registerFormArtifactVersion`、`readFormArtifactVersion`）换成 `services.artifacts`（2026-10-15 定：换成；宿主的 `artifactLineHead` 由 `services.artifacts.head` 取代，W4-04 第一片补上）。
 3. 加：包里 `plugin.ts`（`createFormPlugin`，`start()` 兑现 Manifest 的每条视图、路由、动作）；`project-plugins.ts` 的监督器条目（`bundled: true`），放在每个项目一个的实例里（2.2 的放置规则）；`tests/builtin-plugin-assembly-gate.test.ts` 里从 `BUILD_TIME_ASSEMBLED` 和 `NATIVE_PLUGIN_HTTP_FILES` 移到 `RUNTIME_ASSEMBLED`。
 4. 保持：`plugin_id`、`{home}/form/form.db` 的位置与结构、界面外观、动作 id 与版本。不碰真实 Home 的数据。
-5. 授权规则与提供方身份已定（用户 2026-10-10，4.2，W3-06 B、C）：Form 的条目标 `bundled: true`，所以 `model:invoke` 虽是可选权限，在全新安装时默认打开（用户 2026-10-18 起与其他插件同一规则：可以在设置里关，关了只是 Form 的 AI 动作不可用），Form 的 AI 动作不会因迁移不可用；动作登记在 `plugin_id` 之下。开工前仍要定下的只有「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
+5. 授权规则与提供方身份已定（用户 2026-10-10，4.2，W3-06 B、C）：Form 的条目标 `bundled: true`，所以 `model:invoke` 虽是可选权限，在全新安装时默认打开（用户 2026-10-18 起与其他插件同一规则：可以关，关了只是 Form 的 AI 动作不可用；设置里的开关是下一片），Form 的 AI 动作不会因迁移不可用；动作登记在 `plugin_id` 之下。开工前仍要定下的只有「项目已删」步骤的送达方式（Form 的表带 `project_id`）。
 
 验收：Form 的现有用例全过；`tests/builtin-plugin-assembly-gate.test.ts` 的名单缩短；浏览器里把问卷创建、填写、看结果走一遍；W4-01 的探针夹具对 Form 同样成立（安装、发现、调用、升级、停用、卸载）；`model:invoke` 的动作在迁移后仍可用；删除一个有问卷的项目后，Form 的该项目数据被清掉。
 

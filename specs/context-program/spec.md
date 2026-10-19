@@ -1573,6 +1573,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 
 - 没有判断（没配 Jev）时，「拆成目标步骤」不再出现在浮条上：以前它是片段动作选项，在「更多」里；现在是去处，去处从不进「更多」（W4-1 已定，21.5 否了「去处一律进更多」），而 D-1 又让规则不推它。有判断时判断点名它就占位；没有判断时人只能经助理自己要。建议另议一条 D-4：只有规则时，`always_card` 的去处放进「更多」（它们从不直接建，不会误写），代价是动一次内核的版面规则。本片没有动。
 - 依赖「更多」里点「拆成目标步骤」的浏览器用例没有判断就找不到按钮：`tests/contextual-todo.e2e.test.ts` 的第二个用例、`tests/contextual-interaction.e2e.test.ts` 的 P2、`tests/context-card-in-work.e2e.test.ts`、`tests/interaction-no-crosstalk.e2e.test.ts` 的 `writeButton`。浏览器暂停，没跑也没改；浏览器恢复后要么按 D-4 放回「更多」，要么这几处改用脚本判断点名这个入口。
+- 只有规则时推的那一个去处按共同目录的顺序取第一个（21.5 的 10-18 行），`pages.create` 排在 `todo.items.create` 之前，所以在 Pages 里选一段文字，最后一个主位从「记成待办」换成了「存为文档」。W4-1 的 `tests/contextual-todo.e2e.test.ts` 第一个用例（点「记成待办」）因此找不到按钮。这是 BL-174（按内容挑去处，`intake` 声明收哪类内容）要解决的事，本片没有加排序规则；浏览器恢复后要么把这个用例换到别的来源（灵光、右栏）上选，要么 BL-174 先落地。
 
 **验收**
 
@@ -1583,11 +1584,11 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **W4-2-05**：「拆成目标步骤」永远回草稿出卡，不调 `goals.tree.submit`，不在片段选项里，没有撤销，完成卡写要在 Goals 确认并带链接；选择它不写任何提案。证据：`tests/contextual-create.test.ts`。
 - **W4-2-06**：`pages.create` 的声明、`pages.intake.offers` 的标题与正文（有标题、没标题、选了标题、太长、被截断）、空白与一个词与整个对象不出、带请求号只建一篇、同请求号换内容被拒、准备要 `pages:read`。证据：`tests/pages-actions.test.ts`。
 - **W4-2-07**：`goals.tree.submit` 声明为提案（无 `undo`，有 `result_view` 链接），Goals 的片段选项只剩 `progress`，同一个 `prepare` 仍算得出 `breakdown`。证据：`tests/contextual-fragment-offers.test.ts`。
-- **W4-2-08**：浏览器：在灵光里选一段 → 存为文档 → 打开 → 撤销；在 Pages 里选一段计划 → 拆成目标步骤 → 卡片 → 提交 → Goals 里有待确认的提案。证据：`tests/contextual-pages-goals.e2e.test.ts`（已写，未跑）。
+- **W4-2-08**：浏览器：在 Pages 里真选一段 → 浮条上有「存为文档」（只有规则时它是目录里第一个去处）→ 键盘走一遍（⌘. 进浮条、←→ 成环、Esc 回编辑器；再用 ⌘.、→、Enter 点它）→ 按所在标题命名、末行「摘自」、源文档不动 → 同一选区再点只建一篇 → 改过后撤销被拒、没改过撤销成功 → 「打开」。「拆成目标步骤」：没有判断的 Home 里浮条与「更多」都没有它；经宿主同一条 `create` 路由（键由 Goals 的声明得出）出草稿、不写提案，按页面放卡的做法放进助理，被拒的运行什么都不写、卡片原样可再运行，再运行写一份提案，卡片写「要在 Goals 里确认才生效」并带「去 Goals 确认」。证据：`tests/contextual-pages-goals.e2e.test.ts`（已写，未跑；浮条到卡片这一步没有判断就点不到，所以用宿主路由代替点击，见「已知后果」）。
 
 **待补浏览器验证**（用户 10-19 暂停）：
 
 - 上面的 `tests/contextual-pages-goals.e2e.test.ts` 跑通；键盘走一遍（⌘. 进浮条、←→、Enter、Esc 回原处）。
-- 四个依赖「更多」里「拆成目标步骤」的旧用例按「已知后果」处理后跑通。
+- 四个依赖「更多」里「拆成目标步骤」的旧用例，和 `tests/contextual-todo.e2e.test.ts` 第一个用例（目录顺序换了去处），按「已知后果」处理后跑通。
 - 隔离 Home 实走：1440、1024、800、390 加深色截图（写进 `.impeccable/qa/review/`，不入库）。
 - 同一选区点两下「存为文档」只建一篇、「去 Goals 确认」打开 Goals 且看得到待确认的提案。

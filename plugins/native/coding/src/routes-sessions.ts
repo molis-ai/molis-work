@@ -7,6 +7,7 @@ import { codingActionControl } from "./route-entry.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
+import { projectRuntime, requireProjectRuntime, selectedRuntimeId, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { roundAfterParkedAnswer, startRound } from "./start-round.js";
 import type { CodingSessionRecord } from "./store.js";
@@ -68,9 +69,11 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     }
     return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
   });
-  const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
-  const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
-  return { sessions, methods, mcp, models: await execution.models(),
+  // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
+  const { runtime: library } = projectRuntime(context, runtimes);
+  const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
+  const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
+  return { sessions, methods, mcp, runtime_id: library?.runtime_id ?? null, runtime_selected: selectedRuntimeId(context), models: await execution.models(),
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
@@ -119,11 +122,13 @@ const ROUTES: RouteMaker[] = [
     });
   },
   (a) => {
-    const { projectId, route } = a;
-    return route("coding.create-session", async (request, _api, execution) => {
+    const { context, projectId, route } = a;
+    return route("coding.create-session", async (request, api, execution) => {
       const body = bodyOf(request);
+      // The project's Runtime from the platform's directory: the one chosen for the project, else the first that can host a session.
+      const runtime = requireProjectRuntime(context, await api!.invoke(agent.listRuntimes, []));
       const record = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(),
-        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: "prologue", at: new Date().toISOString() });
+        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };
     });
   },

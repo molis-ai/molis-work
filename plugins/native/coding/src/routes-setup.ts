@@ -7,6 +7,7 @@ import { type CodingActivation, selected, sessionTitle, sessionOutputs } from ".
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
 import { text } from "./run-inputs.js";
+import { keepRuntimeChoice, libraryRuntime, projectRuntime, selectedRuntimeId } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -46,6 +47,8 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.save-mcp", async (request, api) => {
       const body = bodyOf(request);
+      // The project's Runtime holds its MCP servers; one whose matrix offers none refuses before anything is read or kept (PG-054).
+      const runtime = libraryRuntime(context, await api!.invoke(agent.listRuntimes, []), "mcp");
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
@@ -54,7 +57,7 @@ const ROUTES: RouteMaker[] = [
         if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
       }
-      return { server: await api!.invoke(agent.saveMcp, ["prologue", context.plugin_id, input]) };
+      return { server: await api!.invoke(agent.saveMcp, [runtime.runtime_id, context.plugin_id, input]) };
     });
   },
   (a) => {
@@ -62,7 +65,8 @@ const ROUTES: RouteMaker[] = [
     return route("coding.control-mcp", async (request, api) => {
       const action = bodyOf(request).action;
       if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw new Error("MCP 操作无效");
-      await api!.invoke(agent.controlMcp, ["prologue", context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
+      const runtime = libraryRuntime(context, await api!.invoke(agent.listRuntimes, []), "mcp");
+      await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
   },
@@ -70,23 +74,39 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.discover-methods", async (request, api) => {
       const body = bodyOf(request);
+      const runtime = libraryRuntime(context, await api!.invoke(agent.listRuntimes, []), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
-      return { candidates: await api!.invoke(agent.discoverSkills, ["prologue", context.plugin_id,
+      return { candidates: await api!.invoke(agent.discoverSkills, [runtime.runtime_id, context.plugin_id,
         { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "方法目录", 1000)]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.install-method", async (request, api) => ({ method: await api!.invoke(agent.installSkill,
-      ["prologue", context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) }));
+    return route("coding.install-method", async (request, api) => {
+      const runtime = libraryRuntime(context, await api!.invoke(agent.listRuntimes, []), "skills");
+      return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) };
+    });
   },
   (a) => {
     const { context, route } = a;
     return route("coding.read-method", async (request, api) => {
+      const runtime = libraryRuntime(context, await api!.invoke(agent.listRuntimes, []), "skills");
       const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
-      return { method: await api!.invoke(agent.readSkill, ["prologue", context.plugin_id, ref]) };
+      return { method: await api!.invoke(agent.readSkill, [runtime.runtime_id, context.plugin_id, ref]) };
+    });
+  },
+  // The project's own choice of Runtime for its new sessions; sent without one it is cleared, and the first available Runtime stands again.
+  (a) => {
+    const { context, route } = a;
+    return route("coding.select-runtime", async (request, api, _execution, beforeWrite) => {
+      const requested = bodyOf(request).runtime_id;
+      if (requested !== undefined && requested !== null && typeof requested !== "string") throw new Error("运行时标识无效");
+      const runtimes = await api!.invoke(agent.listRuntimes, []);
+      await beforeWrite(); beforeWrite.assert_current();
+      keepRuntimeChoice(context, runtimes, requested ? requested : null);
+      return { runtime_id: projectRuntime(context, runtimes).runtime?.runtime_id ?? null, runtime_selected: selectedRuntimeId(context) };
     });
   },
   (a) => {

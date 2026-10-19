@@ -16,7 +16,8 @@ export async function dispatchCodingDelegation(context: PluginStartContext, api:
   const projectId = context.project_id!;
   await beforeWrite(); beforeWrite.assert_current();
   const at = new Date().toISOString();
-  let target = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: "prologue", at });
+  // The work happens in the Runtime of the session that asks (PG-054): the letter goes between two sessions of that one Runtime.
+  let target = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(), title: "委派：" + title, runtime_id: record.runtime_id, at });
   let sent: AgentSessionMessage | undefined, dispatchStarted = false;
   try {
     context.services!.storage!.set(`draft:${target.session_id}`, task);
@@ -34,7 +35,9 @@ export async function dispatchCodingDelegation(context: PluginStartContext, api:
     await beforeWrite(); beforeWrite.assert_current();
     return { delegation: view(delivered, [], execution), session: execution.sessions.get(projectId, target.session_id) };
   } catch (error) {
-    if (!dispatchStarted) { await beforeWrite(); beforeWrite.assert_current(); execution.sessions.archive(projectId, target.session_id, new Date().toISOString()); throw error; }
+    // A Runtime that carries no letters between sessions says so before it sends anything: no letter exists, so this is a plain refusal.
+    const refused = !sent && (error as { code?: unknown }).code === "agent.capability_unavailable";
+    if (!dispatchStarted || refused) { await beforeWrite(); beforeWrite.assert_current(); execution.sessions.archive(projectId, target.session_id, new Date().toISOString()); throw error; }
     // Dispatch may already have flushed. Observe that same target and letter; never make another to compensate.
     await beforeWrite(); beforeWrite.assert_current();
     const observed = await api.invoke(agent.readMessages, [record.runtime_id, mine]).catch(() => [] as AgentSessionMessage[]);

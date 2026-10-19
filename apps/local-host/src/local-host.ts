@@ -84,8 +84,8 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
 }
 
 /** A wait's signal also ends when its project starts closing; any other call keeps its caller's signal alone. */
-function callSignal(capability: Pick<HostCapabilityDefinition, "operation">, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
-  if (capability.operation !== "wait") return signal ? { signal } : {};
+function callSignal(operation: string, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  if (operation !== "wait") return signal ? { signal } : {};
   const closing = entry().observing.signal;
   return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
@@ -439,7 +439,7 @@ export class LocalHost<Runtime> {
     // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
     // not offered to plugins stays out of its reach.
     const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
-      ...callSignal(capability, () => this.ensureEntry(reference), signal),
+      ...callSignal(capability.operation, () => this.ensureEntry(reference), signal),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {
         signal?.throwIfAborted(); plugin?.assertActive(); requireSynchronous(current?.(), "最终授权检查必须同步完成"); signal?.throwIfAborted(); plugin?.assertActive();

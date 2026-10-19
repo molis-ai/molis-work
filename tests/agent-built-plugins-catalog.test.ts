@@ -2,11 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions } from '@molis-ai/molis-work-contracts/services/memory';
-import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { ActionCallContext, ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
+import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
+import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
 import { REMINDER_ACTIONS, createReminderActionHandlers, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, createScheduledOperationActionHandlers } from '@molis-ai/molis-work-plugin-schedule';
 import { capabilityCatalog, catalogCapabilities, registerPlatformCapabilities, sampleFromSchema, standIn } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { deferred } from './fixtures/home-runtime.js';
+import { openTestHome } from './fixtures/test-home.js';
 
 const schema = { type: 'object', properties: {}, additionalProperties: false };
+/** What a generated plugin declared to the Host; these bare-kernel cases only need it to name the plugin. */
+const declared = (identity: { pluginId: string }) => ({ manifest: { plugin_id: identity.pluginId } }) as never;
 const goals = (capability_id: string, kind: 'query' | 'operation', output: object = { type: 'object', properties: { recorded: { type: 'boolean' } }, required: ['recorded'] }): ActionDefinition => ({
   capability_id, version: 1, operation: kind === 'query' ? 'query' : 'command',
   action: { title: capability_id, description: capability_id, kind, scope: 'project', audiences: ['user', 'agent', 'mcp'], permissions: ['goals:read'], subject_kinds: [], input_schema: schema, output_schema: output },
@@ -88,7 +94,8 @@ test('MCP tools show as MCP on the board whether a plugin or 服务连接 regist
 test('a plugin calls real actions as itself, only when live; writes stay stand-ins until it is installed; costly calls are bounded', async () => {
   const { actions, calls, generated } = project();
   let live = true;
-  const service = catalogCapabilities({ actions, catalog: () => capabilityCatalog(actions, 'web-user'), live: () => live, author: () => '进展日志' });
+  const service = catalogCapabilities({ actions, catalog: () => capabilityCatalog(actions, 'web-user'), live: () => live, declaration: declared,
+    granted: () => ['goals.list', 'goals.note', 'goals.trash', 'model.generate'], author: () => '进展日志' });
   const context = (namespace: 'preview' | 'installed') => ({ identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace }, signal: new AbortController().signal }) as never;
   assert.deepEqual(await service.call(context('preview'), 'goals.list', {}), { goals: [{ goal_id: 'g1' }] }, 'a trial reads the real directory');
   assert.deepEqual(await service.call(context('preview'), 'goals.note', {}), { recorded: true }, 'a trial write is a stand-in');
@@ -191,7 +198,7 @@ test('a capability that needs another action is not offered to generated plugins
   const dependent = catalog.find(entry => entry.id === 'fixture.talk')!;
   assert.equal(dependent.offered, false, 'what would be refused when the plugin calls it is not offered');
   assert.match(dependent.reason!, /依赖/);
-  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true, declaration: declared, granted: () => ['fixture.directory', 'fixture.talk'] });
   const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'io.molis.work.generated.x', namespace: 'installed' as const }, signal: new AbortController().signal } as never;
   assert.deepEqual(await service.call(context, 'fixture.directory', {}), {});
   await assert.rejects(service.call(context, 'fixture.talk', {}), /没有开放给插件的能力/, 'the refusal says so up front');
@@ -222,11 +229,77 @@ test('arbitrarily named providers drive sandbox limits, cost disclosure and rate
   const effects = { capabilities: ['research.summarize'] };
   assert.deepEqual(capabilityLimits(effects, catalog), { serviceTimeoutMs: 80_000, operationTimeoutMs: 105_000 });
   assert.deepEqual([...slowOperations({ operations: [{ id: 'summarize', effects }, { id: 'list', effects: {} }] }, catalog)], ['summarize']);
-  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const service = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true, declaration: declared, granted: () => effects.capabilities });
   const context = { identity: { projectId: 'p', installationId: 'i', pluginId: 'plugin', namespace: 'installed' as const }, signal: new AbortController().signal, operationId: 'summarize' };
   await service.call(context, 'research.summarize', {});
   // Recreating an adapter cannot reset the provider's budget.
-  const second = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true });
+  const second = catalogCapabilities({ actions, catalog: async () => catalog, live: () => true, declaration: declared, granted: () => effects.capabilities });
   await assert.rejects(second.call(context, 'research.summarize', {}), /次数太多/);
   assert.equal(calls, 1);
+});
+
+/** A project of a real Host, its directory as the studio's catalog reads it, and a sandboxed plugin's capability service over it. */
+async function hostProject(t: import('node:test').TestContext) {
+  const home = await openTestHome(t, { catalogPolicy: false });
+  const project = await home.createProject('Sandbox callers');
+  await home.host.withProject(project.reference, () => undefined);
+  const actions = { registry: home.host.actionRegistry(project.reference), client: home.host.actionClient(project.reference), project_id: project.project_id,
+    inspect: (caller: ActionCallContext) => home.host.inspectActions(caller, project.reference) };
+  const plugins = new Set(['io.molis.work.generated.probe']);
+  // What the person approved for the probe plugin: the probe and the Goal actions it calls.
+  const approved = ['callers.sandbox.peek', ...Object.values(goalPluginActions).map(definition => definition.capability_id)];
+  const service = catalogCapabilities({ actions, catalog: () => capabilityCatalog(actions, 'web-user'), live: () => true,
+    declaration: identity => plugins.has(identity.pluginId) ? declared(identity) : undefined, granted: identity => plugins.has(identity.pluginId) ? approved : [] });
+  const context = (change: { projectId?: string; pluginId?: string } = {}) => ({ identity: { projectId: project.project_id, installationId: 'sandbox-install',
+    pluginId: 'io.molis.work.generated.probe', namespace: 'installed' as const, ...change }, signal: new AbortController().signal }) as never;
+  return { actions, service, context, project };
+}
+
+test('PG110-09 S-15 a sandbox call runs under a caller the Host issues for that call: its project, its declaration, its installation and person, and only while it runs', async t => {
+  const { actions, service, context, project } = await hostProject(t);
+  const peek: ActionDefinition = { capability_id: 'callers.sandbox.peek', version: 1, operation: 'query', action: { title: '读取探针', description: '记下调用者', kind: 'query',
+    scope: 'project', audiences: ['plugin'], permissions: ['callers:read'], subject_kinds: [], input_schema: schema } };
+  const seen: HostPluginCaller[] = [];
+  let hold: { reached(): void; release: Promise<void> } | undefined;
+  actions.registry.registerProvider({ provider: { provider_id: 'platform', title: 'Molis Work', kind: 'system' }, definitions: [peek], handlers: [{ ...peek, async handle(caller) {
+    seen.push(caller.host_plugin!);
+    if (hold) { hold.reached(); await hold.release; }
+    return { seen: seen.length };
+  } }] });
+  assert.deepEqual(await service.call(context(), peek.capability_id, {}), { seen: 1 });
+  const retained = seen[0]!;
+  assert.deepEqual([retained.plugin_id, retained.install_id, retained.project_id, retained.actor_id],
+    ['io.molis.work.generated.probe', 'sandbox-install', project.project_id, 'plugin:io.molis.work.generated.probe']);
+  await assert.rejects(service.call(context({ projectId: 'another-project' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'an identity of another project');
+  await assert.rejects(service.call(context({ pluginId: 'io.molis.work.generated.undeclared' }), peek.capability_id, {}), { code: 'plugin_builder.capability_denied' }, 'a plugin that declared nothing');
+  assert.equal(seen.length, 1, 'neither refused call reached the provider');
+  const as = (caller: HostPluginCaller, change: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: caller.actor_id, actor_kind: 'runtime', project_id: caller.project_id,
+    audience: 'plugin', permissions: ['callers:read'], plugin_install_id: caller.install_id, host_plugin: caller, ...change });
+  await assert.rejects(actions.client.invoke(as(retained), peek, {}), { code: 'host.plugin_caller_invalid' }, 'a caller kept after its call ended');
+  const reached = deferred(), release = deferred();
+  hold = { reached: reached.resolve, release: release.promise };
+  const pending = service.call(context(), peek.capability_id, {});
+  try {
+    await Promise.race([reached.promise, pending]);
+    hold = undefined;
+    const current = seen.at(-1)!;
+    await assert.rejects(actions.client.invoke(as(current, { plugin_install_id: 'another-install' }), peek, {}), { code: 'host.plugin_caller_mismatch' }, 'another installation');
+    await assert.rejects(actions.client.invoke(as(current, { actor_id: 'plugin:io.molis.work.generated.other' }), peek, {}), { code: 'host.plugin_caller_mismatch' }, 'another person');
+  } finally { release.resolve(); }
+  assert.deepEqual(await pending, { seen: 2 });
+  assert.equal(seen.length, 2, 'only the two sandbox calls reached the provider');
+});
+
+test('PG110-10 PG-006 Goals keeps no builtin list: the board offers its plugin actions to generated plugins, and their calls reach Goals through the gateway', async t => {
+  const { service, context, actions } = await hostProject(t);
+  const catalog = await capabilityCatalog(actions, 'web-user');
+  for (const definition of Object.values(goalPluginActions)) {
+    const entry = catalog.find(item => item.id === definition.capability_id);
+    assert.equal(entry?.offered, true, `${definition.capability_id} is offered like any other plugin action`);
+  }
+  const listed = await service.call(context(), goalPluginActions.list.capability_id, {}) as { goals: unknown[] };
+  assert.deepEqual(listed.goals, []);
+  await assert.rejects(service.call(context(), goalPluginActions.state.capability_id, { goal_id: 'missing-goal' }),
+    (error: Error & { code?: string }) => error.code === 'plugin_builder.capability_refused' && !/宿主发出|不一致|没有声明或没有获得/u.test(error.message),
+    'a read of a goal that is not there is Goals\' own answer, not a refusal of the caller');
 });

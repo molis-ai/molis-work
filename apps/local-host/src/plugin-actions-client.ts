@@ -3,6 +3,7 @@ import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/a
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
+import { routedPluginCaller } from "./plugin-callers.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -55,7 +56,7 @@ function callScope(instanceProject: string | undefined, instanceClient: ActionCl
 
 /** One action binding for project and Home activations; identity and authority come from the Host. */
 export function pluginHostActions(context: PluginStartContext, manifest: PluginManifest, options: {
-  client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller?: HostPluginCaller;
+  client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller: HostPluginCaller;
 }): PluginActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
@@ -81,7 +82,8 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // An action the Manifest lists under `capabilities.consumes`, owned by the unique provider in the actual directory. The Plugin
   // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
   // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
-  // its input schema.
+  // its input schema. It carries the caller the Host issued this session (a Home session's copy for the project the call
+  // is routed into), the only one the action gateway accepts (S-15).
   const dependencyCaller = (definition: ActionDefinition, projectId: string | null, providerId?: string): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (_reference?: ActionReference, requiredPermissions?: readonly string[]) => {
@@ -91,7 +93,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
-      host_plugin: options.pluginCaller, plugin_install_id: context.install_id,
+      host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id,
       allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };

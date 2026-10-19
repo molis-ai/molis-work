@@ -9,9 +9,11 @@
 import type { ActionCallContext, ActionClient, ActionExecutionPolicy, ActionDefinition, ActionHandlerBinding, ActionRegistryPort, ActionSchema, ActionView } from '@molis-ai/molis-work-contracts/platform/actions';
 import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
+import { SandboxError, type SandboxServiceContext, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-plugin-builder';
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
+import { issuePluginCaller } from '../plugin-callers.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
 
 /** The catalog version a design records: designs call real actions with their real schemas. */
@@ -120,16 +122,22 @@ export { MODEL_STAND_IN_PREFIX };
 /**
  * The capability service for designs made against the catalog. A call reaches the real action only for identities
  * `live` accepts, and a call that changes something outside the plugin only for the installed plugin; every other call
- * gets the stand-in. The broker has already checked the id against the installation's grants.
+ * gets the stand-in. The broker has already checked the id against the installation's grants; the call still goes out under its
+ * own Host caller (`sandboxCaller`), bound to this plugin, project and installation, which holds only the permissions of the
+ * capabilities `granted` names (what the plugin declared and the person approved), so the action gateway refuses the rest
+ * again. `declaration` is what the plugin declared to the Host. The caller is withdrawn when the call ends.
  */
-export function catalogCapabilities(options: { actions: ProjectActions; catalog(): Promise<CatalogCapability[]>; live(identity: Readonly<SandboxIdentity>): boolean; author?(pluginId: string): string | undefined }): NonNullable<SandboxServices['capability']> {
+export function catalogCapabilities(options: { actions: ProjectActions; catalog(): Promise<CatalogCapability[]>; live(identity: Readonly<SandboxIdentity>): boolean;
+  declaration(identity: Readonly<SandboxIdentity>): HostPluginCaller['declaration'] | undefined; granted(identity: Readonly<SandboxIdentity>): readonly string[];
+  author?(pluginId: string): string | undefined }): NonNullable<SandboxServices['capability']> {
   return {
     async call(context, id, input) {
-      const entry = latestCapability(await options.catalog(), id);
+      const catalog = await options.catalog(), entry = latestCapability(catalog, id);
       if (!entry) throw new SandboxError('plugin_builder.capability_denied', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
-      const author = options.author?.(context.identity.pluginId);
-      const caller: ActionCallContext = { actor_id: 'plugin:' + context.identity.pluginId, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin',
+      const author = options.author?.(context.identity.pluginId), plugin = sandboxCaller(options, context);
+      const withdraw = issuePluginCaller(plugin, grantedPermissions(catalog, options.granted(context.identity)));
+      const caller: ActionCallContext = { actor_id: plugin.actor_id, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin', host_plugin: plugin,
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),
         allowed_actions: [{ capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }], signal: context.signal,
         validate_authority: async () => {
@@ -143,6 +151,24 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
         const uncertain = context.signal.aborted || ['actions.timeout', 'actions.provider_changed', 'actions.output_invalid_after_effect', 'actions.outcome_unknown'].includes(code ?? '');
         throw new SandboxError('plugin_builder.capability_refused', error instanceof Error ? error.message : String(error), uncertain ? 'unknown' : undefined);
       }
+      finally { withdraw(); }
     },
   };
+}
+
+/** What a sandbox identity holds: the permissions the board says its granted capabilities need. */
+function grantedPermissions(catalog: readonly CatalogCapability[], granted: readonly string[]): string[] {
+  return [...new Set(granted.flatMap(id => latestCapability(catalog, id)?.permissions ?? []))];
+}
+
+/** The Host caller of one sandbox capability call: the plugin itself, in this project and installation, for as long as the call and the plugin live. */
+function sandboxCaller(options: Pick<Parameters<typeof catalogCapabilities>[0], 'actions' | 'live' | 'declaration'>, context: SandboxServiceContext): HostPluginCaller {
+  const { identity } = context, declaration = options.declaration(identity);
+  if (identity.projectId !== options.actions.project_id) throw new SandboxError('plugin_builder.capability_denied', '插件的执行身份不属于这个项目');
+  if (!declaration || declaration.manifest.plugin_id !== identity.pluginId) throw new SandboxError('plugin_builder.capability_denied', '这个插件的声明已失效');
+  return Object.freeze({ plugin_id: identity.pluginId, install_id: identity.installationId, actor_id: 'plugin:' + identity.pluginId, project_id: options.actions.project_id, declaration,
+    assertActive: () => {
+      context.signal.throwIfAborted();
+      if (!options.live(identity) || !options.declaration(identity)) throw new SandboxError('plugin_builder.capability_denied', '这个插件的能力调用已停止');
+    } });
 }

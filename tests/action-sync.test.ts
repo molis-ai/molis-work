@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "plugin", permissions: ["data:write"] };
 const definition: ActionDefinition = { capability_id: "fixture.sync", version: 1, operation: "command",
@@ -10,6 +14,13 @@ const definition: ActionDefinition = { capability_id: "fixture.sync", version: 1
     permissions: ["data:write"], subject_kinds: [], input_schema: { type: "integer", minimum: 1 }, output_schema: { type: "integer", minimum: 1 } } };
 const provider = { provider_id: "data", kind: "system" as const, title: "Data", project_id: "project" };
 const errorCode = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
+
+/** A plugin that holds `data:write`, started in the bare Host's project: the call context it presents is one the Host issued it. */
+async function pluginCaller(host: LocalHost, reference: { project_id: string; storage_key: string }, store: LocalProjectDatabase): Promise<ActionCallContext> {
+  const probe = registerProbe(host.actionRegistry(reference), "project"), plugin = callerPlugin("sync", "project", { "data:write": true });
+  await startPlugin(host, reference, store, plugin);
+  return callAs(await issuedCaller(probe, plugin, reference.project_id), ["data:write"]);
+}
 
 test("sync and async dispatch share registration, schemas, grants and exact provider lifecycle", async () => {
   const service = new ActionService(); let writes = 0;
@@ -48,10 +59,12 @@ test("Host sync dispatch cannot bypass policy, cancellation or project lifetime"
   let writes = 0, policy: ActionAvailability | Promise<ActionAvailability> = { available: true };
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: () => policy });
   const reference = { project_id: "project", storage_key: "memory:sync" };
+  const directory = mkdtempSync(join(tmpdir(), "molis-action-sync-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   await host.withRuntime(reference, () => {});
   const client = host.syncActionClient(reference);
   host.actionRegistry(reference).registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, execution: "sync", handle: () => ++writes }] });
   try {
+    const caller = await pluginCaller(host, reference, store);
     assert.equal(client.invokeSync(caller, definition, 1), 1);
     policy = { available: false, code: "test.revoked", reason: "已撤销" };
     assert.throws(() => client.invokeSync(caller, definition, 1), errorCode("test.revoked"));
@@ -67,7 +80,7 @@ test("Host sync dispatch cannot bypass policy, cancellation or project lifetime"
     host.actionRegistry(reference).registerProvider({ provider, definitions: [definition], handlers: [{ ...definition, execution: "sync", handle: () => ++writes }] });
     assert.throws(() => client.invokeSync(caller, definition, 1), /同步能力需要已打开/);
     assert.equal(host.syncActionClient(reference).invokeSync(caller, definition, 1), 2);
-  } finally { await host.close(); }
+  } finally { await host.close(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("sync SDK dispatch cannot enter public actions or skip an asynchronous dependency policy", async () => {
@@ -78,15 +91,17 @@ test("sync SDK dispatch cannot enter public actions or skip an asynchronous depe
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: (_context, view) =>
     view.capability_id === dependency.capability_id ? Promise.resolve({ available: true as const }) : { available: true as const } });
   const reference = { project_id: "project", storage_key: "memory:dependencies" };
+  const directory = mkdtempSync(join(tmpdir(), "molis-action-sync-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   await host.withRuntime(reference, () => {});
   host.actionRegistry(reference).registerProvider({ provider, definitions: [root, dependency, shared], handlers: [root, dependency, shared].map(action => ({
     ...action, execution: "sync", handle: () => ++writes,
   })) });
   try {
+    const caller = await pluginCaller(host, reference, store);
     for (const action of [root, shared]) assert.throws(() => host.syncActionClient(reference).invokeSync(caller, action, 1), errorCode("actions.async_required"));
     assert.equal(writes, 0);
     assert.equal(await host.actionClient(reference).invoke({ ...caller, audience: "user" }, shared, 1), 1);
-  } finally { await host.close(); }
+  } finally { await host.close(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 
 test("a refused synchronous call is settled once, as not executed, with the call's id", () => {

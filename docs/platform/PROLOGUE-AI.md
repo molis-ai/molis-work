@@ -45,7 +45,7 @@
 ```text
 页面 → 插件 HTTP 路由（只转发）
   → 动作 pages.ai（plugins/native/pages/src/actions.ts，声明 model:invoke 与 scheduling: "concurrent"）
-  → Host 组合适配 apps/local-host/src/pages-actions.ts：注入 completeText，未配置模型时报 actions.connection_required
+  → Plugin Runtime 的 services.model（plugins/native/pages/src/plugin.ts 接成 complete）：未配置模型时报 actions.connection_required
   → hostCompleteText（apps/local-host/src/host-complete-text.ts）：固定这次的供应商与模型、读凭据快照、每次派发前复查配置与凭据、120 秒上限
   → resolvePrologueInference(home)（apps/local-host/src/prologue-inference-host.ts）：取该 Home 唯一的推理绑定，由 system-agent-service.ts 装配
   → createPrologueInference（horizontal/agent-host/src/adapters/prologue-inference.ts）：临时会话、借助 SDK collectRun 收集结果、取消与超时

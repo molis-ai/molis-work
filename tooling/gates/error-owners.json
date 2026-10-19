@@ -226,12 +226,6 @@
       ],
       "reason": "The model provider settings store; its codes (model-provider.*) become model_provider.*."
     },
-    "pages": {
-      "paths": [
-        "apps/local-host/src/pages-*"
-      ],
-      "reason": "The Pages plugin and the Host files that import and publish documents; its codes already start with pages."
-    },
     "placement": {
       "paths": [
         "horizontal/placement/",

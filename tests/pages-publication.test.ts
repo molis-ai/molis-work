@@ -3,23 +3,18 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, type GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { registerPagesArtifactVersion } from "../apps/local-host/dist/pages-artifact.js";
+import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import type { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { servePages } from "./fixtures/pages-runtime.js";
 import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+/** Pages as the Home Runtime runs it in one project (W5-01-PAGES-04): the publication is the plugin's, the 成果库 the project's. */
 async function fixture(t: any) {
-  const home = await mkdtemp(join(tmpdir(), "pages-publication-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "p" });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: "p", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
-  const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "p", title: "Publication", actor_id: "owner", idempotency_key: "init" }));
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  return { home, host, ref, caller, client, bound };
+  const f = await servePages(t), caller = { ...f.caller, actor_id: "owner" };
+  return { home: f.home, host: f.host, ref: f.project.reference, projectId: f.project.project_id, caller, client: f.client, bound: bindActionClient(f.client, () => caller) };
 }
 
 for (const failure of ["before-artifact", "after-artifact", "after-association"] as const) {
@@ -35,7 +30,7 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
     const failed = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
     assert.equal(failed.artifact_version, 0); assert.equal(failed.publication_pending!.version, 1);
     assert.equal(failed.publication_pending!.source_version, original.version);
-    const versions = () => f.host.withProject(f.ref, runtime => runtime.coordinator.artifacts.query.listArtifactVersions("p", "pages-" + original.id));
+    const versions = () => f.host.withProject(f.ref, runtime => runtime.coordinator.artifacts.query.listArtifactVersions(f.projectId, "pages-" + original.id));
     assert.equal((await versions()).length, failure === "before-artifact" ? 0 : 1);
     await assert.rejects(f.client.invoke({ ...f.caller, actor_id: "different-owner" }, pagesActions.promote, { id: original.id }), { code: "pages.publication_owner" });
     await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id, goal_id: "other-goal" }), { code: "pages.publication_pending" });
@@ -57,9 +52,9 @@ for (const failure of ["before-artifact", "after-artifact", "after-association"]
   });
 }
 
-function seedUntrackedHead(coordinator: GoalProjectApplication, document: Pick<PagesRecord, "id" | "title" | "body">): void {
+function seedUntrackedHead(coordinator: GoalProjectApplication, projectId: string, document: Pick<PagesRecord, "id" | "title" | "body">): void {
   coordinator.artifacts.commands.registerVersion({
-    project_id: "p", actor_id: "owner", owner_actor_id: LOCAL_PERSON_ACTOR_ID,
+    project_id: projectId, actor_id: "owner", owner_actor_id: LOCAL_PERSON_ACTOR_ID,
     artifact_id: "pages-" + document.id, version: 1,
     artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
     producer: { plugin_id: pagesManifest.plugin_id, plugin_version: pagesManifest.version, binding_signature: pagesManifest.publisher.signature },
@@ -74,7 +69,7 @@ test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advanc
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
   // No numeric source revision: the actual line-head adapter reports null, but there is no durable pending intent.
-  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, original));
+  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, f.projectId, original));
   const edited = (await f.bound.invoke(pagesActions.update, { id: original.id, body: body("New unpublished work"), goal_id: "new-goal" })).document;
   assert.equal(edited.publication_pending, undefined);
   const result = await f.bound.invoke(pagesActions.promote, { id: original.id, expected_version: edited.version });
@@ -82,7 +77,7 @@ test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advanc
   assert.equal(result.document.publication_pending, undefined);
   assert.deepEqual(result.document.body, body("New unpublished work"));
   await f.host.withProject(f.ref, runtime => {
-    const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
+    const versions = runtime.coordinator.artifacts.query.listArtifactVersions(f.projectId, result.artifact.artifact_id);
     assert.equal(versions.length, 2);
     const first = versions.find(version => version.version === 1)!, next = versions.find(version => version.version === 2)!;
     assert.equal(first.created_by, "owner"); assert.equal(first.owner_actor_id, LOCAL_PERSON_ACTOR_ID);
@@ -95,12 +90,12 @@ test("W1-18-PIN-CURRENT-01: an untracked Artifact head without a snapshot advanc
 test("W1-18-PIN-CURRENT-01: another actor explicitly pins the next version when no publication snapshot is pending", async t => {
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Existing pin", body: body("Already published"), goal_id: "old-goal" })).document;
-  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, original));
+  await f.host.withProject(f.ref, runtime => seedUntrackedHead(runtime.coordinator, f.projectId, original));
   const result = await f.client.invoke({ ...f.caller, actor_id: "another-actor" }, pagesActions.promote, { id: original.id });
   assert.equal(result.recovered, false); assert.equal(result.artifact.version, 2);
   assert.equal(result.document.publication_pending, undefined);
   await f.host.withProject(f.ref, runtime => {
-    const versions = runtime.coordinator.artifacts.query.listArtifactVersions("p", result.artifact.artifact_id);
+    const versions = runtime.coordinator.artifacts.query.listArtifactVersions(f.projectId, result.artifact.artifact_id);
     assert.equal(versions.length, 2);
     const first = versions.find(version => version.version === 1)!, next = versions.find(version => version.version === 2)!;
     assert.equal(first.created_by, "owner", "the original producer stays recorded");
@@ -116,9 +111,16 @@ test("a conflicting immutable Artifact cannot replace the retained publication s
   const f = await fixture(t);
   const original = (await f.bound.invoke(pagesActions.create, { title: "Approved", body: body("Approved snapshot") })).document;
   const store = openPagesStore(f.home);
-  try { store.beginPublication(original.id, "p", "owner"); } finally { store.close(); }
-  await f.host.withProject(f.ref, runtime => registerPagesArtifactVersion(runtime.coordinator, "p", "p", "owner")({ project_id: "p", page_id: original.id,
-    title: "Conflicting", body: body("Different content"), goal_id: "", version: 1, source_version: original.version }));
+  try { store.beginPublication(original.id, f.projectId, "owner"); } finally { store.close(); }
+  // The version the intent will write already exists with other content: the retained snapshot is not replaced and the draft is not attached to it.
+  await f.host.withProject(f.ref, runtime => runtime.coordinator.artifacts.commands.registerVersion({
+    project_id: f.projectId, actor_id: "owner", owner_actor_id: LOCAL_PERSON_ACTOR_ID, artifact_id: "pages-" + original.id, version: 1,
+    artifact_type_id: PAGES_ARTIFACT_TYPE_ID, schema_version: PAGES_ARTIFACT_SCHEMA_VERSION,
+    producer: { plugin_id: pagesManifest.plugin_id, plugin_version: pagesManifest.version, binding_signature: pagesManifest.publisher.signature },
+    content: { kind: "inline", payload: { title: "Conflicting", page_id: original.id, goal_id: "", body: body("Different content") } },
+    metadata: { page_id: original.id, goal_id: "", title: "Conflicting" },
+    origin: { kind: "pinned", subject: { kind: PAGES_SUBJECT_KIND, id: original.id }, revision: String(original.version) },
+    title: "Conflicting", media_type: "application/json", scope: "personal", supersedes_version: null }));
   await assert.rejects(f.bound.invoke(pagesActions.promote, { id: original.id }), { code: "pages.publication_conflict" });
   const page = (await f.bound.invoke(pagesActions.get, { id: original.id })).document;
   assert.equal(page.artifact_version, 0); assert.equal(page.publication_pending!.version, 1); assert.deepEqual(page.body, original.body);

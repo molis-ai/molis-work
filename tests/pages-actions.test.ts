@@ -120,7 +120,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
         assert.equal((await bound.invoke(actions.list, {})).documents.length, 1, "a candidate is returned, not saved as a document");
       } else {
         const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
-          : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? /模型没有返回文字/
+          : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? /模型没有返回文字/
           : mode === "cancel" ? { name: "AbortError" } : mode === "delete" ? { code: "pages.not_found" } : { code: "pages.conflict" });
         if (!["missing", "failure", "empty"].includes(mode)) {
           await entered;

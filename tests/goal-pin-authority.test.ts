@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore, pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { goalsActions, goalsArtifactInputActions, goalsDeliverableActions, GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
@@ -40,6 +40,9 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
         }
         const created = await actions.invoke(pagesActions.create, { title: "Pinned", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Keep this snapshot" }] }] } });
         const subject = { kind: "pages_document", id: created.document.id }, artifactId = "pages-" + created.document.id;
+        // The Runtime's Pages re-asks the original caller between its own commits, still inside its call and holding the project's queue.
+        // "After the owner's async return" is the parent's own next check, once Pages has finished and recorded the pin.
+        const pagesReturned = () => { const pages = openPagesStore(home); try { return pages.get(created.document.id, "board").artifact_version === 1; } finally { pages.close(); } };
         const assertGrant = (target?: ActionReference) => {
           if (target?.capability_id === role.pin.capability_id && !parentAllowed) throw new ActionError("actions.forbidden", "Only the parent's exact grant was revoked");
         };
@@ -49,7 +52,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
           validate_authority: async target => {
             const committed = app.artifacts.query.getArtifactVersion("board", { artifact_id: artifactId, version: 1 }) !== null;
             if (!holding && (phase === "before_dispatch" ? target.capability_id === pagesActions.artifactPin.capability_id
-              : target.capability_id === role.pin.capability_id && committed)) {
+              : target.capability_id === role.pin.capability_id && committed && pagesReturned())) {
               holding = true; reached(); await gate;
             }
             assertGrant(target);

@@ -8,14 +8,15 @@ import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, ownPagesStores, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
 import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
 
-async function owners(t: TestContext, completion?: PagesActionPorts["completeText"]) {
+type Completion = (prompt: Parameters<NonNullable<PagesActionPorts["complete"]>>[0], options: Parameters<NonNullable<PagesActionPorts["complete"]>>[1]) => Promise<string>;
+async function owners(t: TestContext, completion?: Completion) {
   const home = await mkdtemp(join(tmpdir(), "content-owner-"));
   const pages = openPagesStore(home), forms = openFormStore(home), datasets = openDatasetStore(home), ppt = openPptStore(home);
   t.after(async () => { pages.close(); forms.close(); datasets.close(); ppt.close(); await rm(home, { recursive: true, force: true }); });
@@ -23,8 +24,8 @@ async function owners(t: TestContext, completion?: PagesActionPorts["completeTex
   const modelAvailability = () => completion ? { available: true as const } : { available: false as const, code: "actions.connection_required", reason: "No test model" };
   const provider = (manifest: Pick<typeof pagesManifest, "plugin_id" | "name">) => ({ provider_id: manifest.plugin_id, title: manifest.name, kind: "plugin" as const, project_id: project });
   service.registerProvider({ provider: provider(pagesManifest), definitions: pagesManifest.actions!, handlers: [
-    ...createPagesActionHandlers({ withStore: run => run(pages), modelAvailability, completeText: completion, prepareImport: async () => { throw new Error("Import is not used by this fixture"); } }),
-    ...createPagesContentHandlers(service),
+    ...createPagesActionHandlers({ ...ownPagesStores(run => run(pages)), modelAvailability, ...(completion ? { complete: async (prompt, options) => ({ text: await completion(prompt, options), validateResult: () => {} }) } : {}), prepareImport: async () => { throw new Error("Import is not used by this fixture"); } }),
+    ...createPagesContentHandlers(bindActionClient(service, () => caller)),
   ] });
   service.registerProvider({ provider: provider(formManifest), definitions: Object.values(formActions),
     handlers: createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability }) });

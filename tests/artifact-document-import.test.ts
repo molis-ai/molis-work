@@ -414,7 +414,7 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   assert.equal(continued.status, 201, await continued.clone().text());
   const result = await continued.json() as { open: { surface: string; id: string; title: string } };
   assert.deepEqual([result.open.surface, result.open.title], ["pages", "接着写"]);
-  const pages = (await (await fetch(`${origin}/api/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
+  const pages = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
   assert.deepEqual(pages.filter(document => document.title === "接着写").map(document => document.id), [result.open.id], "exactly one document, the one that opens");
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);

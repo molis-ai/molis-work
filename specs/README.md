@@ -28,7 +28,7 @@
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件 AI 交互；I0 预览已在工作台框架里按实物重做并走查，待用户看实物；共享组件与产品接入未开始。
-- [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（进行中）。二十步整格与带截图的 Shelf 仍未勾。
+- [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（收尾中）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
 - [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；2026-10-18 新立，尚未实现。
 - [agent-approval](agent-approval/spec.md)：Agent 产出的变更与外部效果的真人批准门；N 个有写权限的真人、`/approve <sha>` 绑定 head、push 后过期、Agent/bot 不计；2026-10-18 新立，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。

@@ -781,7 +781,7 @@ P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器
 
 每段按 `docs/system/PARALLEL-DEVELOPMENT.md` 拆 PR：合同与扩展点先合，实现后合；门禁改动不混进功能 PR。
 
-**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
+**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线（10-20 改派 ②，③ 执行，见 `specs/repository-anti-corruption/privileges.md`）。交互线 2026-10-20 收尾后，PG-036 不再归本线，按 `specs/repository-anti-corruption/privileges.md` 的 PG-036 行跟踪。
 
 **P2 的落点（2026-10-12 核对，实施前再看一次）**：
 

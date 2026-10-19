@@ -108,6 +108,32 @@ test("a held wait runs beside the project's queue: a later read or command is no
   await host.close();
 });
 
+test("closing a project ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
+  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+  let closed = 0;
+  const host = new LocalHost<{ value: number }>({ instanceId: "wait-close-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => { closed += 1; } } });
+  const reasons: unknown[] = [];
+  host.register(wait, (_runtime, _input, invocation) => new Promise<string>(resolve => {
+    const timer = setTimeout(() => resolve("timed out"), 25_000);
+    invocation.signal?.addEventListener("abort", () => { reasons.push(invocation.signal!.reason); clearTimeout(timer); resolve("ended"); }, { once: true });
+  }));
+  const client = host.client({ project_id: "p", storage_key: "memory:p" });
+  const caller = new AbortController();
+  const own = client.invoke(wait, undefined, { signal: caller.signal });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  caller.abort(new Error("caller gone"));
+  assert.equal(await own, "ended", "the caller's own signal still ends its wait");
+  assert.equal((reasons[0] as Error).message, "caller gone");
+  const following = client.invoke(wait, undefined);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const started = Date.now();
+  await host.close();
+  assert.ok(Date.now() - started < 1_000, "close ends the wait instead of waiting out its 25 s");
+  assert.equal(await following, "ended");
+  assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "host.project_closing", "the wait hears that its project is closing");
+  assert.equal(closed, 1);
+});
+
 test("a capability registered as concurrent (a model draft) runs beside the queue; a caller cannot claim it for a queued command", async () => {
   const draft = { capability_id: "test.draft", version: 1, operation: "command", scheduling: "concurrent" } as HostCapabilityDefinition<void, string>;
   const slow = { capability_id: "test.slow", version: 1, operation: "command" } as HostCapabilityDefinition<void, string>;

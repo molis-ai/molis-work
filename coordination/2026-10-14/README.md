@@ -1484,3 +1484,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ③ 那四条疑问不挡这个 PR。
   - T1 的前置满足了，等 ② 返工的 W5-02 计划批下来再宣布冻结。
   - 我这边的会话间消息额度已用完：给 ② 的留言写在 `platform-queue.md` 顶部。
+- 11:20 UTC：#794 合入 main a95495d5c（⑤）。合入后 #790 状态句的措辞符合 D14。

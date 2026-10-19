@@ -15,7 +15,7 @@ export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
 ];
 
 /**
- * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
+ * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Plugin Builder's designer and code Agents), with the
  * owner their runs resolve under. Registered so the person can see and edit them like every other prompt.
  */
 export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; prompt: AgentPromptRegistration }> = [

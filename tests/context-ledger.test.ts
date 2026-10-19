@@ -52,6 +52,23 @@ test("Ledger retains exact reference revisions, idempotent replay, removal and s
   } finally { db.close(); }
 });
 
+test("Ledger keeps a reference to an input an agent run holds as given, without reading it (RCPT-390)", () => {
+  const db = new Database(":memory:");
+  try {
+    const ledger = createContextLedger(db, { authorize: (request) => request.actor_id === "alice" });
+    const input: ObjectRef = { ...reference("agent-host", "sess-1/inp-2"), object_type: "agent_input", project_id: "project-a" };
+    const proposal = { key: "goal.conversation_input.proposal:goal-1:sess-1/inp-2", type: "goal.conversation_input.proposal",
+      source: reference("goals", "goal-1"), target: input, cause: "AI 转述" };
+    const edge = ledger.commands.put(access, proposal);
+    assert.deepEqual(edge.target, input);
+    assert.deepEqual(ledger.commands.put(access, proposal), edge);
+    assert.equal(ledger.query.history(access, edge.key).length, 1);
+    assert.deepEqual(ledger.query.list(access, { target: input }).map(item => item.key), [edge.key]);
+    // The module is part of the reference: the same id under another module is another object.
+    assert.deepEqual(ledger.query.list(access, { target: { ...input, module: "assistant" } }), []);
+  } finally { db.close(); }
+});
+
 function feedHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");

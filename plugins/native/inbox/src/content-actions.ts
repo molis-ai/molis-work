@@ -1,5 +1,5 @@
 import { INBOX_PLUGIN_ID } from "./identity.js";
-import { retainActionAuthority, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext,
+import { retainActionAuthority, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, type SearchEntry, type ActionSubject, type ActionSubjectContext, ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionAudience, type ActionCallContext,
   type WorkflowPayload, type WorkflowReceiveInput, type WorkflowItemRef } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createInboxHomeEventsHandler } from "./home-events.js";
@@ -14,6 +14,15 @@ const REASON_TEXT: Readonly<Record<string, string>> = { manual: "手动加入", 
 
 type ContentEntry = Omit<AttentionEntryRecord, "project_id">;
 
+/**
+ * Who added an entry that was handed in, as the entry records it. It comes from the trusted audience of the call, never from the input:
+ * a workflow's handoff is `workflow`, a person's own act is `web_user` (what Feed's own 「加入 Inbox」 records), anything else is
+ * named by its audience.
+ */
+function addedByOf(audience: ActionAudience): string {
+  return audience === "workflow" ? "workflow" : audience === "user" ? "web_user" : audience;
+}
+
 export interface InboxContentPorts {
   entries(): readonly ContentEntry[];
   entry(id: string): ContentEntry;
@@ -22,7 +31,7 @@ export interface InboxContentPorts {
   readSubject?(subject: ActionSubject, caller: ActionCallContext): Promise<ActionSubjectContext>;
   readFeed(id: string, caller: ActionCallContext): Promise<WorkflowPayload>;
   receiveFeed(input: WorkflowReceiveInput, caller: ActionCallContext): Promise<WorkflowItemRef>;
-  ensure(itemId: string, instanceId: string): ContentEntry;
+  ensure(itemId: string, addedBy: string): ContentEntry;
   reopen(entry: ContentEntry): ContentEntry;
   flush(caller: ActionCallContext, entryId: string): Promise<void>;
 }
@@ -57,12 +66,12 @@ export function createInboxContentHandlers(ports: InboxContentPorts) {
     receive: async (input, caller) => {
       const origin = { ...inboxContentActions.receive, provider_id: INBOX_PLUGIN_ID };
       const nestedCaller = retainActionAuthority(caller, origin);
-      const itemId = input.payload.feed_item_id ?? (await ports.receiveFeed(input, nestedCaller)).item_id;
+      const itemId = input.feed_item_id ?? (await ports.receiveFeed(input, nestedCaller)).item_id;
       await nestedCaller.validate_authority?.(origin);
-      const stored = ports.ensure(itemId, input.context.instance_id);
+      const stored = ports.ensure(itemId, addedByOf(caller.audience));
       const entry = stored.status === "done" || stored.status === "dismissed" ? ports.reopen(stored) : stored;
       await ports.flush(nestedCaller, entry.entry_id);
-      return { plugin: "inbox", item_id: entry.entry_id, title: input.payload.title };
+      return { plugin: "inbox", item_id: entry.entry_id, title: input.title };
     },
   }), bindSearchEntriesHandler(inboxSearchEntriesAction, () => {
     const items = new Map(ports.items().map(item => [item.item_id, item]));

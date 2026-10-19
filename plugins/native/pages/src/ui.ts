@@ -90,7 +90,7 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
       </div>
       <p class="pages-placement-line" data-placement-target></p>
       <p class="pages-search-empty" data-pages-search-empty hidden>${p.text("没有匹配的文档")}</p>
-      <div data-pages-rows></div>
+      <div data-pages-rows role="listbox" aria-multiselectable="true" aria-label="${p.text("文档")}"></div>
     </div>
     <div class="plugin-stage-workspace" data-pages-stage-workspace data-floating-stage hidden>
       <div class="plugin-stage-detail-bar">

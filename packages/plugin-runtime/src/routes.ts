@@ -70,7 +70,10 @@ export interface PluginRouteDispatchInput {
   query?: Readonly<Record<string, string>>;
   body?: unknown;
   actor_id: string;
-  /** Permissions the caller's session holds. A declared route permission must be in here. */
+  /**
+   * The grants of the installation behind the route, which the Host reads as it dispatches; never the caller's own permissions.
+   * A declared route permission must be in here.
+   */
   granted?: readonly string[];
   /** Internal callers may preserve their invocation guard. HTTP adapters must not read this from request data. */
   execution?: PluginExecutionControl;

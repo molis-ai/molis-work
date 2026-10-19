@@ -74,5 +74,5 @@ MOLIS_WORK_HOME="$H" pnpm web --port 4199
 
 ## 6. 已知边界
 
-- 系统打开/保存面板常由另一个进程承载，现有落点校验会拒绝；这是一条待定的策略问题，不在这次验收里放宽。需要验收「导出/另存为」时，先问用户是否接受用菜单动作绕开面板。
+- 系统打开/保存面板按用户 2026-10-18 选的 A 走（[open-decisions.md](open-decisions.md) 第 1 节）：面板是目标窗口的 sheet（同一个 pid）就照常操作，补成真机用例；面板由另一个进程承载（`com.apple.appkit.xpc.openAndSavePanelService`）时，落点校验按 `outside-target` 拒绝，这次验收不放宽，也不用菜单动作绕开（那是没选的 C）。走到面板时请用户自己完成，记下面板的 owner pid、`app.state.windows`、`probe.point` 在面板上的返回、辅助功能树里有没有 `AXSheet`，写回 open-decisions 第 1 节。
 - 多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）仍未验证；这次只记录实际用到的机器与系统版本。

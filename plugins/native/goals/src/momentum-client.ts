@@ -120,10 +120,9 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (retry) retry.hidden = true;
       goalGraphRequest = (async () => {
         try {
-          const response = await fetch(route("/api/board/momentum?view=" + documentCollection + "&goal_id=" + encodeURIComponent(getSelected() || "")), { cache: "no-store" });
-          if (!response.ok) throw new Error(L("无法读取目标关系，请重试。"));
+          const html = await molisWorkRequest(route("/api/board/momentum?view=" + documentCollection + "&goal_id=" + encodeURIComponent(getSelected() || "")), { as: "text", fallback: L("无法读取目标关系，请重试。") });
           const template = document.createElement("template");
-          template.innerHTML = await response.text();
+          template.innerHTML = html;
           const next = template.content.querySelector("[data-goal-momentum]");
           if (!next?.querySelector("[data-graph-stage]")) throw new Error(L("目标关系响应不完整，请重试。"));
           // Keep the root stable: the expanded workspace and TUI never join this replacement.
@@ -175,7 +174,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           return true;
         } catch (error) {
           const message = graph.querySelector("[data-goal-momentum-status]");
-          if (message) { message.hidden = false; message.textContent = error.message || L("无法读取目标关系，请重试。"); }
+          if (message) { message.hidden = false; message.textContent = (error.status ? "" : error.message) || L("无法读取目标关系，请重试。"); }
           graph.querySelector("[data-retry-goal-momentum]")?.removeAttribute("hidden");
           return false;
         } finally { graph.removeAttribute("aria-busy"); goalGraphRequest = null; }

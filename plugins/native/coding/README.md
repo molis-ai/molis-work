@@ -90,6 +90,6 @@ Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏
 
 后台 Run follower 使用当前 activation 的独立权限和取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
-`coding.runs.control` 的现行合同是 version 5：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），以及对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
+`coding.runs.control` 的现行合同是 version 7：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 
 Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@molis-ai/molis-work-contracts/modules/goal-actions` 的五个完整合同；Goals 注册这些合同，Coding 不 import Goals 实现、不再消费四个旧 typed 协议。Manifest 声明 Goals 读写权限，实例资格取 Host 启动名单的真实 definition；每次路由调用传原取消、提交前复查与同步尾检。目录页仍取100项；固定报告的进展确认只读当前事实，创建给模型的目标材料才执行20k长度约束。

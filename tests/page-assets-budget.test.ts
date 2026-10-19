@@ -557,6 +557,9 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
 // ---- this repository's own build -------------------------------------------------------------------------------------
 // The committed budget against the build in this working tree (the gate CI runs after `pnpm workspace:verify`). Needs the
 // workspace built, like the other tests that read build output: `pnpm workspace:build`.
+// RAC-44, RAC-55, RAC-60: the resource part of each (Cognia's client, the background-execution prerequisite, Images' stable
+// keys): the served assets measured from this tree's build equal the committed budget, and no unbudgeted asset is served.
+// That the budget only fell against the merge-base is the CI step's `--base` comparison, not this test.
 test("this repository's build is within the committed page asset budget, which holds every served asset", () => {
   assert.ok(existsSync(path.join(repoRoot, BUDGET)), `${BUDGET} is committed`);
   const real = run(repoRoot);
@@ -626,7 +629,9 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // Receipts 3e-1 (#714) then used 1110357→1111791, and W3-C2 replaced that allowance.
 // W3-C2 (#720) then used 1111791→1111910, and W4-1 replaced that allowance.
 // W5-01 Lingguang then used 1113068→1115299, and plugin tab groups replaced that allowance.
-// Plugin tab groups (#765) then used 1115299→1129841 on the script and 1589812→1593165 on the sheet; W5-02 P0 replaced that allowance.
+// Plugin tab groups (#765) then used 1115299→1129841 on the script and 1589812→1593165 on the sheet; receipts review fixes replaced that allowance.
+// Receipts review fixes (#778) then used 1129841→1130036, and the outcome slot with the delivery note replaced that allowance.
+// The outcome slot with the delivery note (#789) then used 1130033→1130475, and W5-02 P0 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -663,6 +668,8 @@ for (const [asset, old] of [
   // W5-01-ALC-RES08 the Alchemist continuation allowance (50,619 → 52,373, user approved 2026-10-18) is spent.
   ["/assets/molis-work-plugins/alchemist.js", 50619],
   ["/assets/molis-work-workbench.js", 1115299], ["/assets/molis-work-workbench.css", 1589812],
+  ["/assets/molis-work-workbench.js", 1129841],
+  ["/assets/molis-work-workbench.js", 1130033],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -679,7 +686,7 @@ for (const [asset, old] of [
 // so the workbench script may grow once, from exactly the baseline to the measured size (+116 B). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-02 P0's addWorkspace has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1129841, 1129957] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1128760] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("p0-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "p0-change");

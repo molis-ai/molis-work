@@ -213,6 +213,7 @@ tests/goal-momentum.test.ts
 tests/goal-tree-event-flow.test.ts
 
 # goals
+tests/goals-client-request.test.ts
 tests/goals-command-module.test.ts
 tests/goals-context-ui.test.ts
 tests/goals-dialogs-ui.test.ts
@@ -278,6 +279,7 @@ tests/plugin-private-storage.test.ts
 tests/plugin-rail-selection.test.ts
 tests/plugin-release-artifact.test.ts
 tests/plugin-runtime-integration.test.ts
+tests/plugin-tab-groups-multiselect.test.ts
 
 # project
 tests/project-arrival-chooser.test.ts
@@ -337,6 +339,7 @@ tests/session-tui-capture.test.ts
 # Other areas
 tests/alchemist-actions.test.ts
 tests/alchemist-plugin.test.ts
+tests/alchemist-pulse-close.test.ts
 tests/alchemist-runtime.test.ts
 tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts
@@ -365,6 +368,7 @@ tests/execution-lifetime.test.ts
 tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
+tests/form-draft-retry.test.ts
 tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts

@@ -557,6 +557,9 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
 // ---- this repository's own build -------------------------------------------------------------------------------------
 // The committed budget against the build in this working tree (the gate CI runs after `pnpm workspace:verify`). Needs the
 // workspace built, like the other tests that read build output: `pnpm workspace:build`.
+// RAC-44, RAC-55, RAC-60: the resource part of each (Cognia's client, the background-execution prerequisite, Images' stable
+// keys): the served assets measured from this tree's build equal the committed budget, and no unbudgeted asset is served.
+// That the budget only fell against the merge-base is the CI step's `--base` comparison, not this test.
 test("this repository's build is within the committed page asset budget, which holds every served asset", () => {
   assert.ok(existsSync(path.join(repoRoot, BUDGET)), `${BUDGET} is committed`);
   const real = run(repoRoot);

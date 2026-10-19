@@ -239,7 +239,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const initializeCommand = () => initializeWorkspace(database, settings, pulse, clock.now(), actorId());
   const jobResumption = new JobResumption({ jobs, worker, runtime: runtimeSettings, actorId, now: clock.now, initialize: initializeCommand,
     taste: () => memory.listTasteRules("workspace-local").filter(rule => rule.status === "active"),
-    validate: (job, inspectBudget) => validateResumption(job, { jobs, explorations, research, pulse }, inspectBudget),
+    validate: job => validateResumption(job, { jobs, explorations, research, pulse }),
   });
   const dependencies: ApiDependencies = {
     jobResumption, initializeCommand,

@@ -17,7 +17,8 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
 
   const preview = await evaluate<{
     goalSource: boolean;
-    slotBefore: string;
+    slotAfter: string;
+    slotGroup: string;
     slotWidth: number;
     goalWidth: number;
     overlay: boolean;
@@ -35,14 +36,17 @@ test("dragging a tab on the strip shows a live landing slot", { timeout: 90_000 
     const host = document.querySelector('[data-tab-panes]');
     return {
       goalSource: goal.classList.contains('is-tab-drag-source'),
-      slotBefore: slot?.nextElementSibling?.dataset?.tabKind || '',
+      slotAfter: slot?.previousElementSibling?.dataset?.tabKind || '',
+      slotGroup: slot?.closest('[data-plugin-group]')?.dataset.pluginGroup || '',
       slotWidth: slot ? slot.getBoundingClientRect().width : 0,
       goalWidth: Number.parseFloat(getComputedStyle(document.body).getPropertyValue('--tab-reorder-width')) || 0,
       overlay: host?.hasAttribute('data-split-drop-preview') || false,
     };
   })()`);
   assert.equal(preview.goalSource, true);
-  assert.equal(preview.slotBefore, "home");
+  // PTG-03 a Goal's tab belongs to the Goals group: dragged toward Home, its slot stays after the group's plugin tab.
+  assert.equal(preview.slotGroup, "goals");
+  assert.equal(preview.slotAfter, "plugin");
   assert.ok(Math.abs(preview.slotWidth - preview.goalWidth) < 12, "slot matches dragged tab width: " + JSON.stringify(preview));
   assert.equal(preview.overlay, false);
 

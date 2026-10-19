@@ -1,7 +1,7 @@
 // @ts-nocheck
 /** Pure tab-workspace rules for additive tabs, user groups, and split panes. Stringified into the browser client; keep it type-annotation-free. */
 export function createTabWorkspaceOps(titles) {
-  const GROUP_COLORS = ["grey", "blue", "red", "yellow", "green", "pink", "purple", "cyan"];
+  const GROUP_COLORS = ["blue", "pink", "green", "purple", "yellow", "cyan", "red", "grey"];
   const uid = () => "t" + Math.random().toString(36).slice(2, 10);
   const homeTab = () => ({ id: uid(), plugin: "home", kind: "home", title: "项目首页" });
   const itemTab = (plugin, itemId, title) => ({ id: uid(), plugin, kind: "item", itemId, title });
@@ -442,7 +442,145 @@ export function createTabWorkspaceOps(titles) {
   };
 }
 
-/** Saved tabs use only the fields written by this workspace; a plugin page is pane.viewPlugin, not a tab. */
+/* Plugin tabs and their automatic groups, laid over the rules above (specs/plugin-tab-groups). */
+
+/** A tab that belongs to its plugin's automatic group: a plugin or item tab that is neither pinned nor in a user group. */
+export function isLoosePluginTab(tab) {
+  return Boolean(tab) && (tab.kind === "plugin" || tab.kind === "item") && tab.plugin !== "home" && !tab.pinned && !tab.groupId;
+}
+
+/**
+ * Settle one pane after any change: a plugin tab chosen means its page is shown, a plugin page or a loose item without
+ * its plugin tab gets one, and each plugin's loose tabs sit together at the plugin tab (or, without a loose one, at the
+ * first of them).
+ */
+export function settlePluginTabs(pane, newPluginTab, loose) {
+  const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
+  if (active?.kind === "plugin") { pane.viewPlugin = active.plugin; pane.activeTabId = null; }
+  const headOf = (plugin) => pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
+  for (let index = 0; index < pane.tabs.length; index += 1) {
+    const tab = pane.tabs[index];
+    if (tab.kind === "item" && loose(tab) && !headOf(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); index += 1; }
+  }
+  if (pane.viewPlugin && pane.viewPlugin !== "home" && !headOf(pane.viewPlugin)) pane.tabs.push(newPluginTab(pane.viewPlugin));
+  const members = new Map();
+  pane.tabs.forEach((tab) => { if (loose(tab)) members.set(tab.plugin, [...(members.get(tab.plugin) || []), tab]); });
+  const anchors = new Map([...members].map(([plugin, group]) => [plugin, (group.find((tab) => tab.kind === "plugin") || group[0]).id]));
+  pane.tabs = pane.tabs.flatMap((tab) => {
+    if (!loose(tab)) return [tab];
+    if (anchors.get(tab.plugin) !== tab.id) return [];
+    const group = members.get(tab.plugin);
+    return group.filter((member) => member.kind === "plugin").concat(group.filter((member) => member.kind !== "plugin"));
+  });
+  return pane;
+}
+
+/** The tab-workspace rules with plugin tabs: every change is settled, and closing a plugin tab closes its group. */
+export function withPluginGroups(base, settlePane, loose) {
+  const uid = () => "t" + Math.random().toString(36).slice(2, 10);
+  const pluginTab = (plugin) => ({ id: uid(), plugin, kind: "plugin", title: base.pluginTitle(plugin) });
+  const settle = (state) => { (state.panes || []).forEach((pane) => settlePane(pane, pluginTab, loose)); return state; };
+  const settled = (name) => (state, ...args) => { const result = base[name](state, ...args); settle(state); return result; };
+  const paneOf = (state, paneId) => state.panes.find((pane) => pane.id === paneId);
+  const ops = { ...base };
+  for (const name of ["openItem", "activate", "landAtProjectRoot", "togglePinned", "closePane", "openBeside", "addTabToNewGroup",
+    "addTabToGroup", "removeTabFromGroup", "ungroup", "normalizeLayout", "ensureHome"]) ops[name] = settled(name);
+  ops.create = () => settle(base.create());
+  ops.openPlugin = (state, plugin) => {
+    const shown = base.openPlugin(state, plugin);
+    settle(state);
+    return plugin === "home" ? shown : base.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
+  };
+  ops.isLoose = loose;
+  /** The tabs a plugin tab closes with it: itself and its plugin's loose tabs in the pane. */
+  ops.pluginGroup = (pane, plugin) => pane.tabs.filter((tab) => tab.plugin === plugin && (tab.kind === "plugin" || loose(tab)));
+  /** Close a plugin's group; answers what is needed to put it back exactly. */
+  ops.closePluginGroup = (state, paneId, plugin) => {
+    const pane = paneOf(state, paneId);
+    if (!pane) return null;
+    const closing = ops.pluginGroup(pane, plugin);
+    if (!closing.length && pane.viewPlugin !== plugin) return null;
+    const shown = base.shownPlugin(pane) === plugin;
+    const closed = { paneId, plugin, shown, activeTabId: pane.activeTabId, tabs: closing.map((tab) => ({ tab, index: pane.tabs.indexOf(tab) })) };
+    const first = closing.length ? pane.tabs.indexOf(closing[0]) : pane.tabs.length;
+    pane.tabs = pane.tabs.filter((tab) => !closing.includes(tab));
+    if (pane.viewPlugin === plugin) pane.viewPlugin = null;
+    if (shown) {
+      const neighbor = pane.tabs[first] || pane.tabs[first - 1] || null;
+      pane.activeTabId = neighbor?.id || null;
+      if (neighbor?.kind === "item") pane.viewPlugin = neighbor.plugin;
+    }
+    base.ensureHome(state);
+    settle(state);
+    return closed;
+  };
+  ops.closeTab = (state, paneId, tabId) => {
+    const tab = paneOf(state, paneId)?.tabs.find((candidate) => candidate.id === tabId);
+    if (tab?.kind !== "plugin") return settled("closeTab")(state, paneId, tabId);
+    ops.closePluginGroup(state, paneId, tab.plugin);
+    return state;
+  };
+  /** A user group closed with a plugin tab in it closes that plugin's loose tabs too, instead of growing a new plugin tab. */
+  ops.closeGroup = (state, paneId, groupId) => {
+    const plugins = (paneOf(state, paneId)?.tabs || []).filter((tab) => tab.groupId === groupId && tab.kind === "plugin").map((tab) => tab.plugin);
+    base.closeGroup(state, paneId, groupId);
+    plugins.forEach((plugin) => ops.closePluginGroup(state, paneId, plugin));
+    return settle(state);
+  };
+  /** Put a closed group back where it was; tabs that were opened again meanwhile are not doubled. */
+  ops.reopenPluginGroup = (state, closed) => {
+    const pane = paneOf(state, closed?.paneId) || base.focused(state);
+    if (!pane) return state;
+    const keys = new Set(pane.tabs.map(base.tabKey));
+    closed.tabs.forEach(({ tab, index }) => {
+      if (keys.has(base.tabKey(tab))) return;
+      pane.tabs.splice(Math.min(index, pane.tabs.length), 0, tab);
+    });
+    if (closed.shown) {
+      state.focusedPaneId = pane.id;
+      state.exclusive = null;
+      const active = pane.tabs.find((tab) => tab.id === closed.activeTabId);
+      pane.viewPlugin = closed.plugin;
+      pane.activeTabId = active?.id || null;
+    }
+    return settle(base.normalizeLayout(state));
+  };
+  /** A plugin tab moved to another pane takes its loose tabs with it, and the pane it left stops showing that plugin. */
+  const relocate = (state, from, to, moving, followers) => {
+    if (!to || to === from) return;
+    if (state.panes.includes(from)) {
+      from.tabs = from.tabs.filter((tab) => !followers.includes(tab));
+      if (from.viewPlugin === moving.plugin) { from.viewPlugin = null; if (!from.tabs.some((tab) => tab.id === from.activeTabId)) from.activeTabId = from.tabs[0]?.id || null; }
+      if (!from.tabs.length) base.closePane(state, from.id);
+    }
+    to.tabs.splice(to.tabs.findIndex((tab) => tab.id === moving.id) + 1, 0, ...followers);
+    base.ensureHome(state);
+  };
+  const movingGroup = (pane, tabId, carry) => {
+    const moving = pane?.tabs.find((tab) => tab.id === tabId);
+    return moving?.kind === "plugin" && carry ? { moving, followers: ops.pluginGroup(pane, moving.plugin).filter((tab) => tab !== moving) } : null;
+  };
+  ops.moveTab = (state, fromId, tabId, toId, beforeId, copy = false) => {
+    const from = paneOf(state, fromId), group = movingGroup(from, tabId, !copy && fromId !== toId);
+    base.moveTab(state, fromId, tabId, toId, beforeId, copy);
+    if (group) relocate(state, from, paneOf(state, toId), group.moving, group.followers);
+    return settle(state);
+  };
+  ops.splitPane = (state, paneId, edge, mode, sourcePaneId = paneId, sourceTabId = null) => {
+    const from = paneOf(state, sourcePaneId), group = movingGroup(from, sourceTabId, mode === "move");
+    base.splitPane(state, paneId, edge, mode, sourcePaneId, sourceTabId);
+    if (group) relocate(state, from, base.focused(state), group.moving, group.followers);
+    return settle(state);
+  };
+  ops.togglePluginGroup = (state, paneId, plugin) => {
+    const head = paneOf(state, paneId)?.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
+    if (head) { if (head.collapsed) delete head.collapsed; else head.collapsed = true; }
+    return state;
+  };
+  return ops;
+}
+
+/** Saved tabs use only the fields written by this workspace; a plugin's page is its plugin tab, shown through pane.viewPlugin. */
 export function isCurrentTabWorkspace(value, plugins) {
   if (!value || !Array.isArray(value.panes) || !value.panes.length || typeof value.focusedPaneId !== "string") return false;
   if (!Object.keys(value).every(key => ["panes", "layout", "focusedPaneId", "exclusive"].includes(key))) return false;
@@ -457,10 +595,11 @@ export function isCurrentTabWorkspace(value, plugins) {
     if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || plugins && !Object.hasOwn(plugins, pane.viewPlugin))) return false;
     return pane.tabs.every(tab => tab && typeof tab.id === "string" && typeof tab.title === "string"
       && typeof tab.plugin === "string" && (!plugins || Object.hasOwn(plugins, tab.plugin))
-      && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string")
+      && (tab.kind === "home" && tab.plugin === "home" || tab.kind === "item" && typeof tab.itemId === "string" || tab.kind === "plugin" && tab.plugin !== "home")
+      && (tab.collapsed === undefined || tab.kind === "plugin" && tab.collapsed === true)
       && (tab.pinned === undefined || typeof tab.pinned === "boolean") && (tab.groupId === undefined || typeof tab.groupId === "string")
       && (tab.goalView === undefined || ["frame", "work"].includes(tab.goalView)) && (tab.feedTask == null || typeof tab.feedTask === "string")
-      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "goalView", "feedTask"].includes(key)))
+      && Object.keys(tab).every(key => ["id", "plugin", "kind", "itemId", "title", "pinned", "groupId", "goalView", "feedTask", "collapsed"].includes(key)))
       && pane.groups.every(group => group && typeof group.id === "string" && typeof group.title === "string"
         && typeof group.color === "string" && typeof group.collapsed === "boolean"
         && Object.keys(group).every(key => ["id", "title", "color", "collapsed"].includes(key)));

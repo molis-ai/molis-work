@@ -3,7 +3,8 @@ import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
 import { pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
-import { createTabWorkspaceOps, isCurrentTabWorkspace } from "../../tab-workspace-ops.js";
+import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
+import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
@@ -49,7 +50,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   // Plugins installed at run time (built in the studio) name their own stage.
   document.querySelectorAll("[data-work-surface][data-installed-plugin]").forEach((surface) => { PLUGIN_TAB_TITLES[surface.dataset.workSurface] = surface.dataset.workSurfaceLabel; PLUGIN_TAB_ICON[surface.dataset.workSurface] = "package"; });
   const GROUP_COLOR = { grey: "var(--hue-gray)", blue: "var(--hue-blue)", red: "var(--hue-red)", yellow: "var(--hue-yellow)", green: "var(--hue-green)", pink: "var(--hue-pink)", purple: "var(--hue-purple)", cyan: "var(--hue-cyan)" };
-  const ops = (${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES);
+  const ops = (${withPluginGroups.toString()})((${createTabWorkspaceOps.toString()})(PLUGIN_TAB_TITLES), ${settlePluginTabs.toString()}, ${isLoosePluginTab.toString()});
   const isCurrent = (${isCurrentTabWorkspace.toString()});
   const TAB_SPLIT_EDGE_X = ${TAB_SPLIT_EDGE_X};
   const TAB_SPLIT_EDGE_Y = ${TAB_SPLIT_EDGE_Y};
@@ -344,6 +345,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
     if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
+    if (tab.kind === "plugin") return L(ops.pluginTitle(tab.plugin));
     return tab.title;
   };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
@@ -368,7 +370,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   };
   const appendTab = (parent, pane, tab) => {
-    const selected = tab.id === pane.activeTabId;
+    const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab);
     const button = document.createElement("div");
     button.className = "tab-item" + (selected ? " is-active" : "");
     button.dataset.tabId = tab.id;
@@ -428,7 +430,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     // for the next layout. Reusing it can alternate between sharing and hug.
     const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
     if (scrollPad) scrollPad.style.width = "0px";
-    const flexTabs = [...scroll.querySelectorAll(".tab-item:not([data-pinned]):not(.is-tab-drag-source)")].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
+    // Home and plugin tabs keep their names; the item tabs share what is left.
+    const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="home"]):not([data-tab-kind="plugin"]):not(.is-tab-drag-source)')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
     const clearShare = () => {
@@ -449,6 +452,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       if (child.classList?.contains("tab-group")) {
         const label = child.querySelector(":scope > .tab-group-label");
         if (label) reserved += label.getBoundingClientRect().width;
+        reserved += (Number.parseFloat(getComputedStyle(child).paddingLeft) || 0) + (Number.parseFloat(getComputedStyle(child).paddingRight) || 0);
         const pages = child.querySelector(".tab-group-pages") || child;
         const kids = [...pages.children].filter((el) => el.classList.contains("tab-item") || el.hasAttribute("data-tab-reorder-slot"));
         reserved += gapOf(pages) * Math.max(0, kids.length - 1);
@@ -569,25 +573,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         while (index < pane.tabs.length && pane.tabs[index].groupId === tab.groupId) { appendTab(pages, pane, pane.tabs[index]); index += 1; }
         wrap.append(pages); scrollArea.append(wrap); continue;
       }
+      const after = pluginGroups.render(scrollArea, pane, index);
+      if (after > index) { index = after; continue; }
       appendTab(scrollArea, pane, tab);
       index += 1;
-    }
-    if (pane.viewPlugin && !embedded) {
-      // Where am I: the plugin whose page this pane shows. Current while no item tab is; otherwise it returns there.
-      const chip = document.createElement("button");
-      chip.type = "button"; chip.className = "tab-view-chip"; chip.dataset.tabView = pane.viewPlugin; chip.dataset.plugin = pane.viewPlugin;
-      // A plugin's own page can be dragged like a tab: to an edge to open it beside, onto another pane to show it there.
-      chip.draggable = true;
-      const title = ops.pluginTitle(pane.viewPlugin);
-      const glyph = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(pane.viewPlugin) + '"] svg');
-      if (glyph) chip.append(glyph.cloneNode(true));
-      const label = document.createElement("span"); label.textContent = title; chip.append(label);
-      const onPage = !pane.activeTabId && !state.exclusive;
-      if (onPage) chip.setAttribute("aria-current", "page");
-      chip.title = onPage ? title : L("返回插件首页") + " · " + title;
-      chip.setAttribute("aria-label", chip.title);
-      const divider = document.createElement("span"); divider.className = "tab-view-divider"; divider.setAttribute("aria-hidden", "true");
-      fragment.prepend(chip, divider);
     }
     if (state.exclusive && !embedded && (strip.hasAttribute("data-titlebar-tabs") || pane.id === state.focusedPaneId)) {
       // Market and settings cover the panes; say so where the tabs are, with the way out beside the name.
@@ -612,6 +601,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     pad.dataset.tabScrollPad = "";
     pad.setAttribute("aria-hidden", "true");
     scrollArea.append(pad);
+    const undo = pluginGroups.undoChip(pane);
+    if (undo) fragment.append(undo);
     if (!pane.tabs.length) {
       const empty = document.createElement("p");
       empty.className = "tab-pane-empty-hint";
@@ -733,7 +724,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   let coverPlace = "";
   const historyId = (pane) => state.exclusive ? "cover:" + state.exclusive + (coverPlace ? "|" + coverPlace : "") : placeId(pane);
   const coverOf = (id) => String(id).startsWith("cover:") ? String(id).slice("cover:".length).split("|")[0] : "";
-  const keptPlace = (pane, id) => String(id).startsWith("plugin:") || String(id).startsWith("cover:") || pane.tabs.some((tab) => tab.id === id);
+  const keptPlace = (pane, id) => String(id).startsWith("plugin:") ? pane.tabs.some((tab) => tab.kind === "plugin" && tab.plugin === pluginOfPlace(pane, id)) : String(id).startsWith("cover:") || pane.tabs.some((tab) => tab.id === id);
   const pluginOfPlace = (pane, id) => String(id).startsWith("plugin:") ? String(id).slice("plugin:".length).split("|")[0]
     : String(id).startsWith("cover:") ? null : pane.tabs.find((tab) => tab.id === id)?.plugin || null;
   const pruneHistory = (pane) => {
@@ -888,19 +879,20 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /** Closing the tab being looked at returns to where the pane was before it, when that place is still there. */
   const closeTabBack = (paneId, tabId) => {
     const pane = paneById(paneId);
+    const plugin = pane?.tabs.find((tab) => tab.id === tabId && tab.kind === "plugin")?.plugin || "";
     let back = null;
-    if (pane && pane.activeTabId === tabId && !state.exclusive) {
+    if (pane && (pane.activeTabId === tabId || plugin && ops.shownPlugin(pane) === plugin && !pane.activeTabId) && !state.exclusive) {
       pruneHistory(pane);
       const entry = paneHistory(pane.id);
       for (let i = entry.index - 1; i >= 0; i -= 1) {
         const id = entry.stack[i];
-        if (id === tabId || String(id).startsWith("cover:")) continue;
+        if (id === tabId || String(id).startsWith("cover:") || plugin && pluginOfPlace(pane, id) === plugin) continue;
         if (String(id).startsWith("plugin:") || pane.tabs.some((tab) => tab.id === id)) { back = { index: i, id }; break; }
       }
     }
-    ops.closeTab(state, paneId, tabId);
+    if (plugin) pluginGroups.close(paneId, plugin); else ops.closeTab(state, paneId, tabId);
     const after = paneById(paneId);
-    if (back && after && (String(back.id).startsWith("plugin:") || after.tabs.some((tab) => tab.id === back.id))) {
+    if (back && after && keptPlace(after, back.id) && !String(back.id).startsWith("cover:")) {
       paneHistory(after.id).index = back.index;
       historyLock = true;
       try {
@@ -1185,6 +1177,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   // Search keeps owner-specific save/select behavior, including inside a split pane.
   const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"], ["characters", "[data-character-id]", "characterId"]])};
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: SEARCH_ROWS, embedded, editable: (node) => editable(node), appendTab });
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
@@ -1447,6 +1440,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     if (tab) {
       const heading = document.createElement("strong"); heading.textContent = tabLabel(tab); heading.title = tabLabel(tab); tabMenu.append(heading);
+      pluginGroups.menu(paneId, tab, add);
       add(L(tab.pinned ? "取消固定标签" : "固定标签"), "lock", "pin", () => ops.togglePinned(state, paneId, tab.id));
       if (!tab.pinned) {
         add(L("添加到新分组"), "frame", "new-group", () => ops.addTabToNewGroup(state, paneId, tab.id));
@@ -1576,16 +1570,17 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       label?.focus({ preventScroll: true });
       return true;
     }
-    const viewChip = event.target.closest("[data-tab-view]");
-    if (viewChip) {
+    const pluginTab = event.target.closest('[data-tab-kind="plugin"]');
+    if (pluginTab) {
       const pane = paneById(paneId);
       if (!pane) return true;
-      // Already on the plugin's page: the chip is its name, and pressing it goes back to the page's list.
-      if (!pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
+      // Already on the plugin's page: its tab goes back to the page's list.
+      if (ops.shownPlugin(pane) === pluginTab.dataset.plugin && !pane.activeTabId && state.focusedPaneId === paneId && !state.exclusive) { resetPluginPage(pane.viewPlugin); return true; }
       state.focusedPaneId = paneId;
-      const railButton = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(viewChip.dataset.tabView) + '"]');
-      if (railButton) railButton.click();
-      else { pane.activeTabId = null; state.exclusive = null; apply(); persist(); }
+      const railButton = document.querySelector('[data-dock] [data-plugin-id="' + CSS.escape(pluginTab.dataset.plugin) + '"]');
+      if (railButton && ops.shownPlugin(pane) !== pluginTab.dataset.plugin) railButton.click();
+      else activate(paneId, pluginTab.dataset.tabId);
+      focusActiveTab();
       return true;
     }
     const tab = event.target.closest("[data-tab-id]");
@@ -1705,8 +1700,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     sash.addEventListener("pointermove", move); sash.addEventListener("pointerup", end); sash.addEventListener("pointercancel", end);
   });
   let dragTab = null;
-  // Stands in for a tab id when the plugin page itself is dragged; no tab carries it, so split ops take the pane's page.
-  const VIEW_DRAG = "__plugin-view__";
   let reorderAnims = [];
   let reorderKey = "";
   const stripFor = (paneId) => {
@@ -1783,10 +1776,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       slot.setAttribute("aria-hidden", "true");
     }
     slot.style.setProperty("--plugin-color", sourceEl.style.getPropertyValue("--plugin-color") || "var(--muted)");
-    const afterId = preview.ids[preview.ids.indexOf(preview.movingId) + 1];
-    const after = afterId && destStrip.querySelector('.tab-item[data-tab-id="' + afterId + '"]:not(.is-tab-drag-source)');
+    const at = preview.ids.indexOf(preview.movingId), afterId = preview.ids[at + 1], beforeId = preview.ids[at - 1];
+    // A plugin's tab lands in its plugin's group, so the slot sits after its neighbour there.
+    const moving = state.panes.flatMap((pane) => pane.tabs).find((tab) => tab.id === dragTab.tabId);
+    const before = ops.isLoose(moving) && beforeId && destStrip.querySelector('[data-plugin-group="' + moving.plugin + '"] .tab-item[data-tab-id="' + beforeId + '"]:not(.is-tab-drag-source)');
+    const after = !before && afterId && destStrip.querySelector('.tab-item[data-tab-id="' + afterId + '"]:not(.is-tab-drag-source)');
     const pad = destStrip.querySelector("[data-tab-scroll-pad]");
-    if (after) after.before(slot);
+    if (before) before.after(slot);
+    else if (after) after.before(slot);
     else if (pad) pad.before(slot);
     else (destStrip.querySelector("[data-tab-scroll]") || destStrip).append(slot);
     reorderKey = key;
@@ -1794,11 +1791,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     shareTabStrip(destStrip.querySelector("[data-tab-scroll]"));
   };
   const paintDropPreview = (target, copy) => {
-    if (dragTab?.view) {
-      removeReorderSlot();
-      if (target?.edge) paintResultPreview(target, true); else delete panesEl.dataset.splitDropPreview;
-      return;
-    }
     if (target?.edge) {
       removeReorderSlot();
       paintResultPreview(target, copy);
@@ -1860,18 +1852,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       event.preventDefault(); openTabMenu(paneId, tab, tab.dataset.tabId);
     });
     surface.addEventListener("dragstart", (event) => {
-      const chip = event.target.closest(".tab-view-chip[data-tab-view]:not(.is-exclusive)");
-      if (chip) {
-        dragTab = {
-          paneId: chip.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane || state.focusedPaneId,
-          tabId: VIEW_DRAG, view: chip.dataset.tabView,
-          width: Math.round(chip.getBoundingClientRect().width) || 120, hoverBeforeId: undefined,
-        };
-        event.dataTransfer.effectAllowed = "copy"; event.dataTransfer.setData("text/plain", chip.textContent || dragTab.view);
-        root.classList.add("is-tab-dragging");
-        document.body.classList.add("is-tab-dragging");
-        return;
-      }
       const tab = event.target.closest("[data-tab-id]"); if (!tab) return;
       dragTab = {
         paneId: tab.closest("[data-tab-pane]")?.dataset.tabPane || surface.dataset.chromePane || state.focusedPaneId,
@@ -1893,7 +1873,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     surface.addEventListener("dragend", finishDrag);
     surface.addEventListener("dragover", (event) => {
       if (!dragTab) return; event.preventDefault();
-      const copy = dragTab.view ? true : isCopyDrop(event);
+      const copy = isCopyDrop(event);
       if (event.dataTransfer) event.dataTransfer.dropEffect = copy ? "copy" : "move";
       const target = dropTarget(event, surface);
       root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview"));
@@ -1903,13 +1883,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     surface.addEventListener("drop", (event) => {
       if (!dragTab) return; event.preventDefault();
       const target = dropTarget(event, surface);
-      if (dragTab.view) {
-        // The page stays where it was; the drop opens the same plugin beside it, or in the pane it lands on.
-        if (target.paneId && target.edge) ops.splitPane(state, target.paneId, target.edge, "copy", dragTab.paneId, VIEW_DRAG);
-        else if (target.paneId && target.paneId !== dragTab.paneId) { state.focusedPaneId = target.paneId; ops.openPlugin(state, dragTab.view); }
-        finishDrag(); apply(); persist();
-        return;
-      }
       const copy = isCopyDrop(event);
       if (target.paneId) {
         if (target.edge) ops.splitPane(state, target.paneId, target.edge, copy ? "copy" : "move", dragTab.paneId, dragTab.tabId);

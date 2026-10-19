@@ -235,12 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
-// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
-// Todo, receipts 3e-1, W3-C2 and W4-1, starting at 1,113,068 B. Preserve only the unspent +2,231 B; every prior start remains refused.
-// This exact increase is spent once; later growth stays frozen.
+// Plugin tab groups (specs/plugin-tab-groups, 2026-10-18): a plugin's page becomes its tab and its tabs a coloured group.
+// The tab rules and the group client add 10,449 B to workbench.js and the group styles 2,330 B to workbench.css, after
+// the location chip, its drag path and its per-plugin tints were removed (−4,260 B on each stylesheet). Each increase is
+// spent once, from exactly these starts; later growth stays frozen. W5-01's spent 1,113,068 → 1,115,299 start is refused.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1113068, 1115299],
+  "/assets/molis-work-workbench.js": [1115299, 1125748],
+  "/assets/molis-work-workbench.css": [1589812, 1592142],
   // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
   "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };

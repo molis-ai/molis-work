@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { createTabWorkspaceOps, isCurrentTabWorkspace } from "../apps/workbench/src/tab-workspace-ops.js";
+import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../apps/workbench/src/tab-workspace-ops.js";
 
 const ops = createTabWorkspaceOps();
 
@@ -413,4 +413,116 @@ test("shownPlugin names home for the home tab and the plugin for its page", () =
   assert.equal(ops.shownPlugin(ops.focused(state)), "home");
   ops.openPlugin(state, "lingguang");
   assert.equal(ops.shownPlugin(ops.focused(state)), "lingguang");
+});
+
+const grouped = () => withPluginGroups(createTabWorkspaceOps(), settlePluginTabs, isLoosePluginTab);
+const strip = (pane) => pane.tabs.map((tab) => tab.kind === "item" ? tab.plugin + ":" + tab.itemId : tab.plugin);
+
+test("PTG-01 PTG-02 opening plugins leaves one plugin tab each; choosing one shows that plugin's page", () => {
+  const ops = grouped();
+  const state = ops.create();
+  ops.openPlugin(state, "goals");
+  const feed = ops.openPlugin(state, "feed");
+  ops.openPlugin(state, "feed");
+  const pane = ops.focused(state);
+  assert.deepEqual(strip(pane), ["home", "goals", "feed"]);
+  assert.equal(feed.kind, "plugin");
+  assert.equal(pane.viewPlugin, "feed");
+  assert.equal(pane.activeTabId, null);
+  ops.activate(state, pane.id, pane.tabs.find((tab) => tab.plugin === "goals").id);
+  assert.equal(pane.viewPlugin, "goals");
+  assert.equal(pane.activeTabId, null);
+  assert.equal(ops.shownPlugin(pane), "goals");
+});
+
+test("PTG-03 an item joins its plugin's group behind the items already there; a new group opens beside the current one", () => {
+  const ops = grouped();
+  const state = ops.create();
+  ops.openPlugin(state, "goals");
+  ops.openPlugin(state, "feed");
+  ops.openItem(state, "goals", "g1", "发布");
+  ops.openItem(state, "inbox", "i1", "来信");
+  ops.openItem(state, "goals", "g2", "节奏");
+  assert.deepEqual(strip(ops.focused(state)), ["home", "goals", "goals:g1", "goals:g2", "inbox", "inbox:i1", "feed"]);
+  assert.equal(ops.activeTab(state)?.itemId, "g2");
+});
+
+test("PTG-04 a tab in a user group leaves its plugin group; pinned tabs join no group", () => {
+  const ops = grouped();
+  const state = ops.create();
+  const paneId = state.focusedPaneId;
+  ops.openItem(state, "goals", "g1", "发布");
+  const g2 = ops.openItem(state, "goals", "g2", "节奏");
+  ops.addTabToNewGroup(state, paneId, g2.id);
+  const pane = ops.focused(state);
+  assert.ok(g2.groupId);
+  assert.equal(isLoosePluginTab(g2), false);
+  assert.deepEqual(ops.pluginGroup(pane, "goals").map((tab) => tab.itemId || tab.kind), ["plugin", "g1"]);
+  const g1 = pane.tabs.find((tab) => tab.itemId === "g1");
+  ops.togglePinned(state, paneId, g1.id);
+  assert.equal(isLoosePluginTab(g1), false);
+  assert.equal(pane.tabs[0].id, g1.id);
+});
+
+test("PTG-05 closing a plugin tab closes its group, and reopening puts every tab back in order", () => {
+  const ops = grouped();
+  const state = ops.create();
+  const paneId = state.focusedPaneId;
+  ops.openPlugin(state, "goals");
+  ops.openItem(state, "feed", "f1", "日报");
+  const shown = ops.openItem(state, "feed", "f2", "周报");
+  const head = ops.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === "feed");
+  const record = ops.closePluginGroup(state, paneId, "feed");
+  const pane = ops.focused(state);
+  assert.deepEqual(strip(pane), ["home", "goals"]);
+  assert.equal(ops.shownPlugin(pane), "goals");
+  ops.reopenPluginGroup(state, record);
+  assert.deepEqual(strip(pane), ["home", "goals", "feed", "feed:f1", "feed:f2"]);
+  assert.equal(pane.activeTabId, shown.id);
+  ops.closeTab(state, paneId, head.id);
+  assert.deepEqual(strip(pane), ["home", "goals"]);
+});
+
+test("PTG-08 a saved plugin page without its plugin tab gets one, and plugin tabs pass the saved-state check", () => {
+  const ops = grouped();
+  const base = createTabWorkspaceOps();
+  const saved = base.create();
+  base.openItem(saved, "goals", "g1", "发布");
+  base.openPlugin(saved, "sessions");
+  assert.equal(isCurrentTabWorkspace(saved), true);
+  ops.normalizeLayout(saved);
+  assert.deepEqual(strip(ops.focused(saved)), ["home", "goals", "goals:g1", "sessions"]);
+  ops.togglePluginGroup(saved, saved.focusedPaneId, "goals");
+  assert.equal(isCurrentTabWorkspace(JSON.parse(JSON.stringify(saved))), true);
+  const tampered = JSON.parse(JSON.stringify(saved));
+  tampered.panes[0].tabs.find((tab) => tab.kind === "item").collapsed = true;
+  assert.equal(isCurrentTabWorkspace(tampered), false);
+});
+
+test("a plugin tab dragged to another pane takes its group, and the pane it left stops showing it", () => {
+  const ops = grouped();
+  const state = ops.create();
+  const left = state.focusedPaneId;
+  ops.openItem(state, "feed", "f1", "日报");
+  ops.openBeside(state, "goals");
+  const right = state.focusedPaneId;
+  const head = state.panes.find((pane) => pane.id === left).tabs.find((tab) => tab.kind === "plugin");
+  ops.moveTab(state, left, head.id, right, null);
+  assert.deepEqual(strip(state.panes.find((pane) => pane.id === right)), ["goals", "feed", "feed:f1"]);
+  const leftPane = state.panes.find((pane) => pane.id === left);
+  assert.deepEqual(strip(leftPane), ["home"]);
+  assert.equal(leftPane.viewPlugin, null);
+});
+
+test("a plugin tab split off to an edge takes its group into the new pane", () => {
+  const ops = grouped();
+  const state = ops.create();
+  const left = state.focusedPaneId;
+  ops.openPlugin(state, "goals");
+  ops.openItem(state, "feed", "f1", "日报");
+  const head = ops.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === "feed");
+  ops.splitPane(state, left, "right", "move", left, head.id);
+  const right = state.panes.find((pane) => pane.id !== left);
+  assert.deepEqual(strip(right), ["feed", "feed:f1"]);
+  assert.deepEqual(strip(state.panes.find((pane) => pane.id === left)), ["home", "goals"]);
 });

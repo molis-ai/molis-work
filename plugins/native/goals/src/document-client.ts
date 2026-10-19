@@ -33,18 +33,17 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       goalDocumentRequest = controller;
       setGoalDocumentBusy(true);
       try {
-        const response = await fetch(
+        const html = await molisWorkRequest(
           route("/api/goals/" + encodeURIComponent(goalId) + "/document?view=" + documentCollection),
-          { cache: "no-store", signal: controller.signal },
+          { signal: controller.signal, as: "text", fallback: "无法读取这条 Goal 正文" },
         );
-        if (!response.ok) throw new Error("无法读取这条 Goal 正文");
-        const html = await response.text();
         if (goalDocumentRequest !== controller) return null;
         replaceGoalDocument(html);
         return true;
       } catch (error) {
         if (isAbortError(error) || goalDocumentRequest !== controller) return null;
-        showError(error.message || "无法读取这条 Goal 正文");
+        // A refusal keeps the one copy this read has always shown; an unreachable Host says so.
+        showError((error.status ? "" : error.message) || "无法读取这条 Goal 正文");
         return false;
       } finally {
         if (goalDocumentRequest === controller) {

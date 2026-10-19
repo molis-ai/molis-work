@@ -41,7 +41,15 @@ export function currentPluginAction(): PluginActionScope | undefined {
  * installation's live grants, which each service checks itself, decide alone.
  */
 export function assertPluginActionCurrent(): void {
-  const scope = currentPluginAction();
+  assertCapturedPluginActionCurrent(currentPluginAction());
+}
+
+/**
+ * The same question for code that acts later on another's behalf: a service the Plugin called inside an action captures that
+ * action's scope (`currentPluginAction()`) when it is called, and asks it here when its own write comes, which may run inside
+ * another action's scope (the handler of an action it invoked). Nothing captured means the call came from outside every action.
+ */
+export function assertCapturedPluginActionCurrent(scope: PluginActionScope | undefined): void {
   if (!scope) return;
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");

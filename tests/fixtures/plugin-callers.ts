@@ -110,3 +110,16 @@ export const callAs = (issued: HostPluginCaller, permissions: readonly string[],
   actor_id: issued.actor_id, actor_kind: "user", project_id: issued.project_id, audience: "plugin", permissions,
   plugin_install_id: issued.install_id, host_plugin: issued, ...change,
 });
+
+/**
+ * What `plugin`, one of a Host's project `pluginFixtures`, presents on a call in `reference`: the project's plugins start, and its
+ * plugin-audience call carries the caller the Host issued its session, claiming `permissions` and whatever `change` says. It
+ * registers the probe, so once per Host and project.
+ */
+export async function projectPluginCaller(host: { actionRegistry(reference: LocalHostProjectReference): ActionRegistryPort;
+  inspectActions(caller: ActionCallContext, reference: LocalHostProjectReference): Promise<unknown> }, reference: LocalHostProjectReference,
+  plugin: CallerPlugin, permissions: readonly string[], change: Partial<ActionCallContext> = {}): Promise<ActionCallContext> {
+  const probe = registerProbe(host.actionRegistry(reference), "project");
+  await startProjectPlugins(host, reference);
+  return callAs(await issuedCaller(probe, plugin, reference.project_id), permissions, change);
+}

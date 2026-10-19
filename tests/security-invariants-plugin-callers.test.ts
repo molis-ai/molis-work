@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { CALLERS_READ as READ, CALLERS_WRITE as WRITE, callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins, type CallerPlugin, type CallerScope } from "./fixtures/plugin-callers.js";
+import { CALLERS_READ as READ, CALLERS_WRITE as WRITE, callAs, callerPlugin, issuedCaller, probeActions, registerProbe, startProjectPlugins, type CallerPlugin, type CallerScope } from "./fixtures/plugin-callers.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /*
@@ -21,6 +21,26 @@ import { openTestHome } from "./fixtures/test-home.js";
 /** A probe consumer. `write` is how its Manifest lists the write permission; a fixture is granted only what it requires. */
 const consumer = (name: string, scope: CallerScope, write: "required" | "optional" | "undeclared", extra: readonly string[] = []) =>
   callerPlugin(name, scope, { ...Object.fromEntries(extra.map(id => [id, true])), ...(write === "undeclared" ? {} : { [WRITE]: write === "required" }) });
+
+/**
+ * A Home consumer with an action of its own, `relay`, offered to people: its handler records through the probe's note with its SDK
+ * and passes no control, so the consumed action learns of the person's call only through the Host. `nested` holds each such call.
+ */
+function relaying(name: string) {
+  const base = consumer(name, "home", "required"), { note } = probeActions("home"), nested: Promise<unknown>[] = [];
+  const relay: ActionDefinition<{ text: string }, string> = { capability_id: `${base.id}.relay`, version: 1, operation: "command",
+    action: { title: "转记", description: "经探针记下一段内容", kind: "operation", scope: "home", scheduling: "concurrent", audiences: ["user"], permissions: [READ], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false, required: ["text"], properties: { text: { type: "string" } } }, output_schema: { type: "string" } } };
+  const definition: PluginDefinition = { manifest: { ...base.definition.manifest, actions: [relay] }, async start(context) {
+    await base.definition.start(context);
+    return { kind: "app", views: [], actions: [{ ...relay, handle: (_caller, input) => {
+      const call = context.services!.actions!.invoke(note, input as { text: string });
+      nested.push(call.catch(() => undefined));
+      return call;
+    } }] };
+  } };
+  return { ...base, definition, relay, nested };
+}
 
 async function homeSetup(t: TestContext, consumers: readonly CallerPlugin[]) {
   const runtime = await serveHomeRuntime(t, { pluginFixtures: { home: consumers.map(item => item.definition) } });
@@ -214,4 +234,70 @@ test("PG110-08 S-15 the artifacts SDK runs only under its own session's live cal
     try { assert.throws(() => borrowed.client.listConsumable(), { code }, label); }
     finally { borrowed.dispose(); }
   }
+});
+
+test("PG110-11 S-15 S-18 a plugin's call to an action it consumes answers to the original caller of the action it runs in: revoked or cancelled while that action waits, nothing is written", async t => {
+  const plugin = relaying("callerrelay");
+  const { host, probe } = await homeSetup(t, [plugin]);
+  const client = host.homeActionClient();
+  for (const failure of ["revoke", "cancel"] as const) {
+    const abort = new AbortController(), reached = deferred(), release = deferred(), refusals = probe.state.refusals.length;
+    let revoked = false;
+    const caller: ActionCallContext = { ...person([READ]), signal: abort.signal,
+      assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the person's call was revoked"); } };
+    probe.state.hold = { reached: reached.resolve, release: release.promise };
+    const pending = client.invoke(caller, plugin.relay, { text: failure }).then(() => "stored", (error: unknown) => error);
+    try {
+      await Promise.race([reached.promise, pending]);
+      probe.state.hold = undefined;
+      if (failure === "revoke") revoked = true; else abort.abort();
+    } finally { release.resolve(); }
+    const outcome = await pending;
+    await plugin.nested.at(-1);
+    assert.equal(probe.state.refusals.length, refusals + 1, `${failure}: the consumed action's write was refused at its last check`);
+    const refusal = probe.state.refusals.at(-1) as { code?: string; name?: string };
+    if (failure === "revoke") {
+      assert.equal(refusal.code, "actions.forbidden", "revoke: the person's own check refused it");
+      assert.equal((outcome as { code?: string }).code, "actions.forbidden", "revoke: and the person's call failed with it");
+    } else {
+      assert.equal(refusal.name, "AbortError", "cancel: the person's cancelled call refused it");
+      assert.notEqual(outcome, "stored", "cancel: the person's call did not succeed");
+    }
+    assert.equal(probe.state.stored, null, `${failure}: nothing was written`);
+  }
+  assert.equal(await client.invoke(person([READ]), plugin.relay, { text: "current" }), "stored", "a current caller's call writes through the same path");
+  assert.equal(probe.state.stored, "current");
+});
+
+test("PG110-12 S-15 an issued caller speaks only for a plugin-audience call: a person's, an Agent's or a workflow's call carrying it is refused", async t => {
+  const reader = consumer("calleraudience", "home", "required");
+  const { host, probe } = await homeSetup(t, [reader]);
+  const issued = await issuedCaller(probe, reader), client = host.homeActionClient(), reached = probe.state.callers.length;
+  for (const audience of ["user", "agent", "workflow"] as const) {
+    await assert.rejects(client.invoke(callAs(issued, [READ], { audience }), probe.peek, {}), { code: "host.plugin_caller_mismatch" }, audience);
+  }
+  await assert.rejects(client.discover(callAs(issued, [READ], { audience: "user" })), { code: "host.plugin_caller_mismatch" }, "discovery too");
+  assert.equal(probe.state.callers.length, reached, "no refused call reached the provider");
+  assert.equal(await client.invoke(callAs(issued, [READ]), probe.peek, {}), null, "the same caller on a plugin call passes");
+});
+
+test("PG110-13 S-15 S-35 a caller captured while its call waits is refused once its session stops: presented directly, and by the waiting call's own write", async t => {
+  const writer = consumer("callerstopped", "home", "required");
+  const { host, probe, platform } = await homeSetup(t, [writer]);
+  const install = host.homePlugins!.installation(writer.id)!.install_id, reached = deferred(), release = deferred();
+  probe.state.hold = { reached: reached.resolve, release: release.promise };
+  const pending = writer.actions().invoke(probe.note, { text: "held" });
+  const refused = assert.rejects(pending);
+  try {
+    await Promise.race([reached.promise, pending]);
+    probe.state.hold = undefined;
+    const captured = probe.state.callers.at(-1)!;
+    assert.equal(captured.install_id, install);
+    await platform.runtime.stop(install);
+    await assert.rejects(host.homeActionClient().invoke(callAs(captured, [READ, WRITE]), probe.note, { text: "presented" }), { code: "host.plugin_caller_invalid" },
+      "the captured caller, presented to the gateway after its session stopped");
+  } finally { release.resolve(); }
+  await refused;
+  assert.equal(probe.state.refusals.length, 1, "the waiting call's write was refused at its last check");
+  assert.equal(probe.state.stored, null, "neither the presented call nor the waiting one wrote");
 });

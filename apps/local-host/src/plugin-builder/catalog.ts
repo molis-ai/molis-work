@@ -11,7 +11,7 @@ import { actionEffect } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
 import { SandboxError, type SandboxServiceContext, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
-import { MODEL_STAND_IN_PREFIX, studioCapability } from '@molis-ai/molis-work-plugin-builder';
+import { MODEL_STAND_IN_PREFIX, studioCapability, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import { isMcpToolCapability } from '../mcp-tool-actions.js';
 import { issuePluginCaller } from '../plugin-callers.js';
 import { latestCapability, type ModelGenerateInput, type CapabilityImplementations } from './capabilities.js';
@@ -92,6 +92,15 @@ export async function capabilityCatalog(actions: ProjectActions, actorId: string
   return [...offered.map(view => entry(view, true)), ...agents.filter(view => !offeredKeys.has(key(view))).map(view => entry(view, false))];
 }
 
+/**
+ * What the design AI may use: only what the board offers to plugins, in the words it designs with. An entry the board shows
+ * but does not offer (an action its provider did not open to plugins, with the reason) is left out, so no design names it.
+ */
+export function designerCatalog(board: readonly CatalogCapability[]): Awaited<ReturnType<AgentBuilderPorts['catalog']>> {
+  return board.filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect, execution: entry.execution,
+    description: entry.description + (entry.execution.cost === 'metered' ? '（会产生费用：只放在由用户点击触发的 command 里）' : entry.execution.cost === 'unknown' ? '（提供方未声明费用）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) }));
+}
+
 /** A valid value for a JSON schema: what a stand-in answers wherever the real capability must not run. */
 export function sampleFromSchema(schema: unknown, depth = 0): SandboxJson {
   if (!object(schema) || depth > 6) return null;
@@ -122,10 +131,11 @@ export { MODEL_STAND_IN_PREFIX };
 /**
  * The capability service for designs made against the catalog. A call reaches the real action only for identities
  * `live` accepts, and a call that changes something outside the plugin only for the installed plugin; every other call
- * gets the stand-in. The broker has already checked the id against the installation's grants; the call still goes out under its
+ * gets the stand-in. The broker has already checked the id against the installation's grants, and a real call is checked here
+ * again against `granted` (what the plugin declared and the person approved, read at the call); the call still goes out under its
  * own Host caller (`sandboxCaller`), bound to this plugin, project and installation, which holds only the permissions of the
- * capabilities `granted` names (what the plugin declared and the person approved), so the action gateway refuses the rest
- * again. `declaration` is what the plugin declared to the Host. The caller is withdrawn when the call ends.
+ * capabilities `granted` names, so the action gateway refuses the rest a third time. `declaration` is what the plugin declared
+ * to the Host. The caller is withdrawn when the call ends.
  */
 export function catalogCapabilities(options: { actions: ProjectActions; catalog(): Promise<CatalogCapability[]>; live(identity: Readonly<SandboxIdentity>): boolean;
   declaration(identity: Readonly<SandboxIdentity>): HostPluginCaller['declaration'] | undefined; granted(identity: Readonly<SandboxIdentity>): readonly string[];
@@ -135,8 +145,11 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
       const catalog = await options.catalog(), entry = latestCapability(catalog, id);
       if (!entry) throw new SandboxError('plugin_builder.capability_denied', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
+      // Only the capability itself approves its call: another one the plugin holds with the same permissions does not.
+      const granted = options.granted(context.identity);
+      if (!granted.includes(entry.id)) throw new SandboxError('plugin_builder.capability_refused', '插件没有声明或没有获得这项能力的授权：' + id);
       const author = options.author?.(context.identity.pluginId), plugin = sandboxCaller(options, context);
-      const withdraw = issuePluginCaller(plugin, grantedPermissions(catalog, options.granted(context.identity)));
+      const withdraw = issuePluginCaller(plugin, grantedPermissions(catalog, granted));
       const caller: ActionCallContext = { actor_id: plugin.actor_id, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin', host_plugin: plugin,
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),
         allowed_actions: [{ capability_id: entry.id, version: entry.version, provider_id: entry.provider_id }], signal: context.signal,

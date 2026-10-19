@@ -1,6 +1,7 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertCapturedPluginActionCurrent, currentPluginAction, type PluginActionScope } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
@@ -83,13 +84,16 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
   // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
   // its input schema. It carries the caller the Host issued this session (a Home session's copy for the project the call
-  // is routed into), the only one the action gateway accepts (S-15).
-  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, providerId?: string): ActionCallContext => {
+  // is routed into), the only one the action gateway accepts (S-15). Its final check also asks the original caller of the
+  // action the Plugin made this call in (`outer`, captured when the Plugin called): the consumed action's own write runs
+  // in its own handler, under its own scope, so without this a cancelled or revoked outer call would still write (S-18).
+  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: PluginActionScope | undefined, providerId?: string): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (_reference?: ActionReference, requiredPermissions?: readonly string[]) => {
       options.assertActive();
       for (const permission of requiredPermissions ?? []) context.requireGrant(permission);
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
+      assertCapturedPluginActionCurrent(outer);
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
@@ -119,6 +123,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
+      const outer = currentPluginAction();
       const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
       if (own) return await routedActions(scope, own).invoke(own, input, control, transport) as Output;
@@ -127,9 +132,9 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       // otherwise answer that the action is not there.
       options.assertActive();
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
-      const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
+      const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
-      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, providerId)).invoke(definition, input, control, transport);
+      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, outer, providerId)).invoke(definition, input, control, transport);
     },
   };
 }

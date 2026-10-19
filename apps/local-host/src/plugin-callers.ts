@@ -37,22 +37,25 @@ export function routedPluginCaller(caller: HostPluginCaller, projectId: string |
   return route;
 }
 
-/** A typed Host call made for a plugin: the caller must be one the Host issued, still active, and of this project. */
+/**
+ * A typed Host call made for a plugin: the caller must be one the Host issued, still active, and of this project. A caller of
+ * another project is refused as the gateway refuses it, as an issued caller that does not match its call.
+ */
 export function requireIssuedPluginCaller(caller: HostPluginCaller, projectId: string): void {
   if (!issued.has(caller)) throw hostErrors.plugin_caller_invalid("插件调用没有宿主发出的有效身份");
-  if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
+  if (caller.project_id !== projectId) throw hostErrors.plugin_caller_mismatch("插件调用不属于当前项目");
   caller.assertActive();
 }
 
 /**
  * The action gateway's check of who is calling (S-15). A plugin-audience call, or any call that names a plugin, must carry a
- * caller the Host issued and has not withdrawn, still active, issued to this call's person, project and installation. A plugin's
- * permissions are narrowed to what it holds, whatever the call claims.
+ * caller the Host issued and has not withdrawn, still active, issued to this call's person, project and installation, and only
+ * a plugin-audience call carries one. A plugin's permissions are narrowed to what it holds, whatever the call claims.
  */
 export function verifiedCaller(caller: ActionCallContext): ActionCallContext {
   if (caller.audience !== "plugin" && !caller.host_plugin) return caller;
   const held = issuedTo(caller);
-  return caller.audience === "plugin" ? { ...caller, permissions: caller.permissions.filter(permission => held.has(permission)) } : caller;
+  return { ...caller, permissions: caller.permissions.filter(permission => held.has(permission)) };
 }
 
 /**
@@ -64,7 +67,7 @@ export function verifiedCaller(caller: ActionCallContext): ActionCallContext {
 export function admitPluginCall(caller: ActionCallContext, capabilityId: string, action: Pick<ActionMetadata, "kind" | "effect" | "plugin" | "audiences" | "permissions">): void {
   if (caller.audience !== "plugin" && !caller.host_plugin) return;
   const held = issuedTo(caller);
-  if (caller.audience !== "plugin" || !actionReachesAudience(action, capabilityId, "plugin")) return;
+  if (!actionReachesAudience(action, capabilityId, "plugin")) return;
   if (action.permissions.some(permission => !held.has(permission))) throw new ActionError("actions.plugin_permission", "插件没有声明或没有获得这项动作所需的授权");
 }
 
@@ -75,5 +78,8 @@ function issuedTo(caller: ActionCallContext): ReadonlySet<string> {
   if (plugin.actor_id !== caller.actor_id || plugin.project_id !== caller.project_id || plugin.install_id !== caller.plugin_install_id) {
     throw hostErrors.plugin_caller_mismatch("插件调用的用户、项目或安装与宿主发出的身份不一致");
   }
+  // A plugin's issued caller speaks only for a plugin-audience call: carried by a person's, an Agent's or a workflow's call,
+  // it would let that call answer as the plugin, or the plugin's identity ride on an audience it was never checked for.
+  if (caller.audience !== "plugin") throw hostErrors.plugin_caller_mismatch("宿主发出的插件身份只能用于插件调用");
   return entry.held;
 }

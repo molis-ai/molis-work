@@ -100,7 +100,10 @@ test("sync SDK dispatch cannot enter public actions or skip an asynchronous depe
     const caller = await pluginCaller(host, reference, store);
     for (const action of [root, shared]) assert.throws(() => host.syncActionClient(reference).invokeSync(caller, action, 1), errorCode("actions.async_required"));
     assert.equal(writes, 0);
-    assert.equal(await host.actionClient(reference).invoke({ ...caller, audience: "user" }, shared, 1), 1);
+    // The person reaches the shared action on the asynchronous entry. Their call carries no plugin's issued caller: one that did
+    // would speak for the plugin on an audience it was not checked for, and the gateway refuses it (PG110-12).
+    const { host_plugin: _plugin, plugin_install_id: _install, ...person } = caller;
+    assert.equal(await host.actionClient(reference).invoke({ ...person, audience: "user" }, shared, 1), 1);
   } finally { await host.close(); store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

@@ -2,6 +2,12 @@
 
 状态：执行中，整线未完成（2026-10-18 起由 Claude 接手收口：平台能力与去特权归 ② 平台会话，插件迁移与 Codex 留下的候选归 ③ 迁移会话，审查与合并归 ① 统筹；范围按 §1 10-18「这一轮的收口范围」，W5、W6 全做完。Codex 10-17～10-18 的接续复查见 §10.27）。I8 的修复树 F109 按 §1 10-15 的决定整树一个 PR，#523 已合入 main（`f74e29d86`；#522 是 Pages 编辑器的单次资源例外）；全量在 CI 分片跑，macOS 专有用例在本机补，失败逐个对照 main 基线，合入后的三项 Linux 修复与一处合并留下的旧错误码在后续 PR 补进。10-15 代码回溯审查的 C-03、C-05、C-06 与文档尾项在 #514 修，C-01、C-02、C-04、A-01、A-04 随 #523 进了 main（§10.12）。下一步接第 4–6 波与 B-01～B-12 的结构项。10-14 独立复查见 §10.11。
 
+共享候选收尾验证（2026-10-18，Codex）：既有候选组合 `a212e9369` 的 [CI 全量 39153520650](https://github.com/molis-ai/molis-work/actions/runs/39153520650) 已完成：16/16 分片及汇总成功，1,128/1,128 个测试文件通过；`side-shelf-in-hand.e2e.test.ts` 首次失败、运行器自动重试一次通过，保留这项不稳定记录。Linux 排除的 25 个 Mac 专属非浏览器文件在同一固定组合上补跑，25/25 文件、303 条通过，1 条真实 npm 包安装按既有 opt-in 跳过。未操作真实 Home、钥匙串或 launchctl。此结果结算下面各片旧“待共享全量”的记录，不代表各片已合 main 或整条 W5/W6 完成。
+
+本轮全量修复已在原候选完成并传播：Cognia/Images/Jelly 删除重复页面挂载，保留唯一 Runtime 业务视图；旧路由及 SHM 模型失败断言对齐现行合同；Pages 保存/取消调用当前评论弹层关闭句柄；Alchemist 的 Host.close 保留并发与成功后的 Promise 身份，失败才允许显式重试，已成功关闭的基础资源不重关。原拒绝、持久化与恢复断言保留。最终全量中 `system-agent-service` 3/3、`pages-previews` 2/2、`lingguang-plugin` 4/4、`interaction-no-crosstalk` 4/4 均一次通过；跨项目浏览器历史 HTTP 清理超时的根因仍未定，不据一次通过宣称修复。
+
+全量启动后，main 的 placement 关闭修复 #740 已实际合入 `be0158e53`。所有候选同步同一三文件；本地组合 `d5429d136` 相对云端冻结提交仅多该修复，整体构建、placement/重启/Alchemist/Host 关闭六文件 59 条及完整 health、boundary、资源与 secrets 检查全部通过。精确结果分别归上述两个提交；本批按依赖顺序逐片通过正式 CI、合并队列与实际 main 后结算，当前 handoff 只覆盖防腐部分，由 Claude 汇总。
+
 Pages 共享全量补修（2026-10-18，本地通过，待新共享全量）：39147615440 第 11 分片在评论保存后再次点击预览按钮失败，评论 textarea 仍挡在按钮上；原本机两条通过，说明原断言未直接验证表单关闭。当前评论提取模块接收 `hidePop` 的值，而 `showPop` 会在入口重绑该函数，保存/取消可能仍调用上一弹层的关闭句柄。`W5-10-PPV-03`：评论保存与点击取消都立即关闭本次表单，保留原编辑结果/取消零写、Escape、重新打开及真点击遮挡检查；加强断言在当前候选与干净 main 同样 1/2 失败（保存后 hidden=false），原 main 的评论提取与传值实现相同；这是新回归暴露的既有缺陷。最小修复为传入动态调用当前关闭句柄的闭包；测试固定在 CI 的 780×493 视口，保留真实点击，增加保存/按钮取消关闭断言，原 Escape 路径保持。范围限定 Pages 入口、原 previews 浏览器回归、本 spec 与实测下降资源记录；公开 API、动作、持久化、样式和门禁不改。整体构建、完整 merge-base health（含 API 快照）、boundary 和资源通过；23 文件 184 条有完整通过证据，含 8 个 Chrome 文件 41 条。首轮两条导航超时、182/184，其余 21 文件通过；两失败文件原样串行浏览器复跑 14/14，干净 main 同文件也 14/14，无断言/时限更改。正式编辑器 706,942 B，仍比 main 的 707,007 B 少 65 B，25 项总 7,480,167 B，无新增额度。日志 `/tmp/molis-pages-preview-{fix-*,navigation-current,navigation-baseline}.log`；新共享全量、正式 PR/CI 另结算。
 
 
@@ -145,6 +151,8 @@ Cognia 交接收口（2026-10-18，Codex，本地同步通过）：已 merge 灵
 交接收口（2026-10-18，Codex）：用户已要求停止开启后续实现，将手头候选经 PR、问题处理与合并 main 后统一交接。#703 的全部分支检查及合并队列 Verify 已通过，实际合入 main `63639a76498a44320018ed4d935ace2abed1c886`。原 MCP stdio 用例在源码、断言和 60 秒时限不变下低并发复跑 20.8 秒通过；桌面包必跑三文件共 39 条及 Shelf Rust 七条通过，原两次超时记录保留。材料 #727 已 merge 该实际 main，offline install、整体 build、API（无额外变化）、boundary、merge-base health 与资源核对通过；六个直接相关文件 39 条通过。25 项资源 7,477,126 B，仍比这份 main 少 6 B，没有新增额度；日志 /tmp/molis-materials-post703-{build,api,health,boundary,assets,targeted}.log。共享全量运行 39125232628 针对此前材料头 846d0baa8，结果另行结算。以下旧“待合入/不自行合并”等文字保留为当时记录，当前授权按本段；整条 W5/W6 仍未完成。
 
 材料服务接续（2026-10-18，Codex，本地组合验证通过，准备 PR）：#684 已以 c5d2b3cf6 合入，本片 merge #703 的本地同步源码 efd9c18de，纳入同一实际 main c5d2b3cf6。保留主线 S-38 命令 PATH，材料服务沿原顺延决定使用 S-39，测试同号；此前 S-38 记录仅为历史时点。最终 offline install、整体 build、API、boundary、merge-base health/快查下调与资源测量均通过；25 项 7,475,692 B，比前置少 6 B，来自灵光客户端的现错误码替换，无新资源额度。包要求及影响面的 183 个非浏览器文件全部通过，1,817 条通过、1 条原有沙箱环境条件跳过；实际 Chrome 的 plugin-sample.e2e 1/1 通过，去重184文件共1,818条通过、1条跳过、0失败。安全表合并材料不可信输入与主线桌面边界，派生表按组合重测。没有带入后续灵光、Cognia、Images、Jelly 的迁移源码；本片功能可用的本地证据不代表共享核心全量、正式 CI 或 W5/W6 整线完成。
+
+后台作业授权读取交接收口（2026-10-18，Codex，本地同步通过）：既有补片 merge 实际 main 63639a764，生产修复保持为仅把 assistant.not_found 当成工作缺失，数据库暂不可读继续交给现有 SDK 有界重查。整体 offline install/build、boundary 和 merge-base health 通过；真实 SQLite 锁恢复、外部检查授权与后台工作等待三个文件 72 条通过。新主线的助理用例与供应商 SDK 一起验证，未引入新重试机制、公开合同或客户端变化；此前 64 文件 581 条的完整相关证据保留。日志 /tmp/molis-job-read-closeout-{build,health,boundary,targeted}.log。RAC-61/62 本地成立，正式 PR/CI 与合入待队列。
 
 STREAM 正式 CI 补修（2026-10-18）：a0f47c314 的 CI 39121688588 中，边界、健康、动作合同、安全和产品子集通过，Rust 测试因 Shelf 测试目录只用进程号与时钟、并发时重名而失败；同一夹具在 c5d2b3cf6 中存在。本次仅给测试目录补进程内原子序号，生产代码和断言不变。rustfmt 与 8 线程的 Shelf Rust 定向 7/7 通过；桌面包另外两文件38条通过。MCP stdio 的原60秒用例两次超时，未放宽时限；逐阶段诊断显示三个进程启动累计约65.6秒、读写及重连均返回，总计69.6秒，仍须低并发重跑原用例确认。该超时不宣称基线已证；先推已验证的 Rust 夹具修复以重启正式 CI，不把待补证写成全绿。
 
@@ -546,6 +554,19 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 - **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。
 
 验证命令：`pnpm build`、`pnpm workspace:build`（机器 build 槽位串行）；`node scripts/run-tests.mjs` 加上述测试与两包 README 的必跑列表（浏览器走 browser 槽位）；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main`。2026-10-17 本地证据：整体构建及 workspace 构建通过；翻译 2 文件 73 项、两包必跑 24 文件 185 项、真实浏览器 2 文件 6 项、门禁集成 2 文件 136 项全部通过（合计 30 文件 400 项）。85 条英文逐条与迁移前实际 EN 比较相同；中英桌面/窄屏生成返回的 provider 次数与图片字节通过。health 对 merge-base `4726820a8` 与 boundary 通过。Images 静态脚本 22,546→21,978 B（−568 B），预算随实测下调；内联翻译脚本中文 952→5,920 B（+4,968 B）、英文 683,136→681,991 B（−1,145 B）。RAC-56/57/58 已验证。2026-10-17 用户分别批准“允许新增检查”和“允许这项内联增长”：登记检查仅增加拒绝、不放宽已有规则；中文内联增长限于上述 +4,968 B，其他静态预算不增长。RAC-59 已按获准补丁落实并验证：未登记、只有 import、无关对象与错误字段四种场景均拒绝；两种 `--update` 写过基线后仍拒绝；导入别名通过；断开真实 Images 目录登记也被发现。登记识别按导出名字、不解析模块路径，边界与现有英文词典检查一致。RAC-60 的本地构建与门禁已通过，最终集成与 CI 仍待。未宣称整个 W5-03 完成。
+
+### W5-13 补片：后台作业授权读取失败不冒充工作删除（2026-10-17，进行中）
+
+收尾组合验证（2026-10-18）：已合入 Pages 及其前置的现有 Runtime、成果服务和 Module 出口候选；完整 build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源检查通过。真实暂时读不到再恢复的作业路径、外部检查安全及 SDK 作业回归 3 文件 72 条通过；日志 `/tmp/molis-job-combined-*.log`。25 项资源仍 7,478,901 B，本修复无页面变化；原 64 文件 581 条证据保留。共享核心全量与正式 PR/CI、合入 main 仍待，未将本地候选记作主线已修。
+
+独立复查 #675（`b75e20738`）确认 `AssistantJobs.#follower` 把 `store.get` 的全部异常都当作“工作不存在”，与 `specs/prologue-adoption/spec.md` §6.0o 已定的“工作不在就 refused；读不到算这次不知道，SDK 再看”冲突。在隔离 SQLite 文件上持有真实排他锁，真实 Prologue 适配器第一次检查即把作业置为 `needs-reconciliation/unchecked`，解锁后仍不恢复，查询未执行。复现基于 main `8dad2fb96` 的同一生产实现；不读取真实 Home。
+
+最小修复仅改 `apps/local-host/src/assistant/assistant-jobs.ts` 的授权查找：只吞掉 owner 明确的 `assistant.not_found`，其他异常向现有检查器传播；检查器继续使用原有 unknown 有界重查，不新建重试、计时器或状态。作业执行、授权撤销、五次未知后交人、通知、卡片及库版本均保持原合同。复用现有 `tests/assistant-business-gateway.test.ts` 的服务与适配器夹具，允许为这条用例传入隔离的真实文件数据库。
+
+- **RAC-61**：真实排他锁引发的读取错误不会被当作工作删除；第一次失败后步骤仍运行，期间不调用状态查询；解锁后原步骤查询一次并正常完成，不创建第二步骤、不调模型。测试名带 `RAC-61`，走生产 `AssistantJobs.authority`、检查器及 SDK 等待。
+- **RAC-62**：确实不存在的工作及不属于该图的工作仍无授权；已有撤权拒绝、后台作业及助理回归通过。由同条测试及 `tests/security-invariants-external-checks.test.ts`、`tests/prologue-work-jobs.test.ts` 证明。
+
+验证：整体 `pnpm build` 后运行新增回归与 Host README 必跑/助理逻辑列表；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`。修改是一个读取错误分类，不改合同、页面或安全上限；无需修改 API/动作快照或门禁。2026-10-17 验证通过：整体构建；定向 3 文件 69 项（含真实 SQLite 排他锁恢复与既有撤权拒绝）；Host/助理必跑其余 60 文件 510 项；真实 Chrome 1 文件 2 项，合计 64 文件 581 项、无失败或跳过；health 对 merge-base `8dad2fb96`、boundary 通过。RAC-61/62 已满足；本地实现与定向验证完成，等待按本线 PR 顺序集成，不据此宣称整体防腐线完成。
 
 ## 0. 现场与范围
 

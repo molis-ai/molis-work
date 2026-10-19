@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentWorkGraphPort, AgentWorkNode } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantBackgroundJob } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -158,7 +158,10 @@ export class AssistantJobs {
   #follower(graphId: string, nodeId: string): StoredWork | undefined {
     const workId = /^job\.(.+)\.[0-9a-f]{16}$/.exec(nodeId)?.[1];
     let work: StoredWork;
-    try { work = this.ports.store.get(this.ports.actorId, workId ?? ""); } catch { return undefined; }
+    try { work = this.ports.store.get(this.ports.actorId, workId ?? ""); } catch (error) {
+      if (error instanceof ActionError && error.code === "assistant.not_found") return undefined;
+      throw error; // An unreadable work is unknown to the checker, which can look again after storage recovers.
+    }
     return AssistantJobs.graphOf(work) === graphId ? work : undefined;
   }
 

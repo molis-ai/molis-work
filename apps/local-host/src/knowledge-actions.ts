@@ -43,9 +43,12 @@ export interface KnowledgeHost {
 }
 
 const KICK_DELAY_MS = 2_000;
+// Only what a card cannot be without is required: a title and a brief. Keywords and section notes are typed but optional, and
+// cardOrganized keeps the notes that name a given section with a summary, so one stray note no longer costs the whole card
+// (measured with MiniMax: a missing keywords field, a note carrying the section's title instead of a summary; spec §14 K1).
 const CARD_SCHEMA = { type: "object", properties: { title: { type: "string" }, brief: { type: "string" }, keywords: { type: "array", items: { type: "string" } },
-  sections: { type: "array", items: { type: "object", properties: { anchor: { type: "string" }, summary: { type: "string" } }, required: ["anchor", "summary"], additionalProperties: false } } },
-  required: ["title", "brief", "keywords", "sections"], additionalProperties: false } as const;
+  sections: { type: "array", items: { type: "object", properties: { anchor: { type: "string" }, summary: { type: "string" } } } } },
+  required: ["title", "brief"] } as const;
 
 /** The Home's text model writing one card with the registered instruction; null when no text model is configured. */
 export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | null {
@@ -53,7 +56,7 @@ export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | n
   if (!generate) return null;
   return async input => {
     const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_ORGANIZE, JSON.stringify(input)), KNOWLEDGE_ORGANIZE.prompt_id), {
-      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 1500 });
+      structured: { mode: "local", name: "knowledge_card", schema: CARD_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 4000 });
     const draft = result.structured as KnowledgeDraft | undefined;
     if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的卡片");
     return draft;

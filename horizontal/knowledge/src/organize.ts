@@ -47,7 +47,8 @@ export function knowledgeCatalog(index: Pick<SearchIndexPort, "documents" | "sou
 /** What the model is given for one piece: its title, its text (or each section's opening when it is long) and the section anchors. */
 export interface KnowledgeDraftInput { title: string; summary: string; text: string; sections: Array<{ anchor: string; title: string }> }
 /** What the model proposes. Anything outside these bounds is cut; a section anchor the piece does not have is dropped. */
-export interface KnowledgeDraft { title: string; brief: string; keywords: string[]; sections: Array<{ anchor: string; summary: string }> }
+/** What a model wrote for one piece: only a title and a brief are certain; keywords and section notes may be missing or partial. */
+export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
 export type KnowledgeWriter = (input: KnowledgeDraftInput) => Promise<KnowledgeDraft>;
 
 export interface KnowledgeOrganizerOptions {
@@ -121,9 +122,9 @@ export function cardOrganized(card: KnowledgeCardRecord, input: KnowledgeDraftIn
   const heads = new Map(input.sections.map(section => [section.anchor, section.title]));
   const outline: KnowledgeSectionNote[] = [];
   for (const note of Array.isArray(draft.sections) ? draft.sections : []) {
-    const title = heads.get(note?.anchor), summary = clip(note?.summary, KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS);
-    if (title === undefined || !summary || outline.some(item => item.anchor === note.anchor)) continue;
-    outline.push({ anchor: note.anchor, title, summary });
+    const anchor = note?.anchor, title = anchor === undefined ? undefined : heads.get(anchor), summary = clip(note?.summary, KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS);
+    if (anchor === undefined || title === undefined || !summary || outline.some(item => item.anchor === anchor)) continue;
+    outline.push({ anchor, title, summary });
   }
   const kept = (field: KnowledgeEditableField) => card.edited.includes(field);
   const next: KnowledgeCardRecord = { ...card, outline, organized_revision: card.revision, state: "ready", error: null, organized_at: at,

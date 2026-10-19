@@ -68,6 +68,19 @@ test("PMAT-06 organizing writes a title, a brief and keywords, and section notes
   assert.ok(later.sections.every(section => section.summary === null), "notes from revision 4 say nothing about revision 5");
 });
 
+test("PMAT-06 a draft without keywords and with stray section notes still makes a card: only notes naming a given section with a summary are kept", async t => {
+  // What MiniMax was measured writing (spec §14 K1): no keywords field, a note carrying the section's title, a repeated and an invented anchor.
+  const f = await fixture(t, { writer: async () => ({ title: "试用说明", brief: "讲内部试用。",
+    sections: [{ anchor: "h1" }, { anchor: "h1", summary: "背景" }, { anchor: "h1", summary: "又是背景" }, { anchor: "# 为什么", summary: "编的" }, { summary: "没有编号" }, { anchor: "h3", summary: "反馈" }] }) });
+  f.pages.set("p1", { id: "p1", title: "试用说明", body: LONG, version: 4 });
+  await f.indexAll();
+  await f.organizer.kick("a");
+  const page = card(f, "p1");
+  assert.equal(page.state, "ready");
+  assert.deepEqual(page.keywords, []);
+  assert.deepEqual(page.outline.map(note => [note.anchor, note.title, note.summary]), [["h1", "背景", "背景"], ["h3", "反馈", "反馈"]]);
+});
+
 test("PMAT-06 search finds a piece by its card's own words, and shows the brief, never the text", async t => {
   const f = await fixture(t);
   await f.indexAll();

@@ -104,7 +104,7 @@ export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-item:active { background: var(--nav-active); }
   body.immersive-workbench .tab-item:hover { background: var(--nav-hover); color: var(--ink); }
   body.immersive-workbench .tab-item.is-active { background: var(--nav-raised); color: var(--ink); box-shadow: inset 0 0 0 1px var(--control-border); }
-  body.immersive-workbench.is-tab-dragging .tab-item.is-tab-drag-source {
+  body.immersive-workbench.is-tab-dragging :is(.tab-item, .tab-group).is-tab-drag-source {
     position: absolute; width: 0 !important; min-width: 0 !important; max-width: 0 !important; height: 0 !important;
     padding: 0 !important; margin: 0 !important; border: 0 !important; opacity: 0; overflow: hidden; pointer-events: none;
   }

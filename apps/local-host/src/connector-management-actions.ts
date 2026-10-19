@@ -34,10 +34,14 @@ export const connectorManagementActions = {
     title: "检查服务连接", description: "检查所选连接的真实账号或 MCP 握手与能力；刷新共同目录。只作连接与身份检查，不执行服务业务工具或业务写入。失败保留原任务和连接，不换账号。",
     kind: "query", effect: "read", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_READ],
     input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" } }, required: ["connection_id"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
-  control: { capability_id: "connectors.connection.control", version: 1, operation: "command", action: { ...metadata,
-    title: "启用、停用或移除连接", description: "按明确的连接和读取到的修订操作。停用保留凭据；移除只清理本产品持有的配置和凭据，保留业务成果，不表示已撤销服务端授权。启用后检查连接再使用。",
+  control: { capability_id: "connectors.connection.control", version: 2, operation: "command", action: { ...metadata,
+    title: "启用或停用连接", description: "按明确的连接和读取到的修订启用或停用。停用保留凭据和配置，之后可以再启用；启用后检查连接再使用。移除是另一个动作 connectors.connection.remove。",
     kind: "operation", effect: "write", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_WRITE],
-    input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, expected_revision: { type: "string", minLength: 1 }, action: { type: "string", enum: ["enable", "disable", "remove"] } }, required: ["connection_id", "expected_revision", "action"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
+    input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, expected_revision: { type: "string", minLength: 1 }, action: { type: "string", enum: ["enable", "disable"] } }, required: ["connection_id", "expected_revision", "action"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
+  remove: { capability_id: "connectors.connection.remove", version: 1, operation: "command", action: { ...metadata,
+    title: "移除连接", description: "按明确的连接和读取到的修订移除，不能撤回：删除本产品持有的凭据、协议配置和受管理安装目录，要再用须重新接入。保留业务成果；不表示已撤销服务端授权。只想暂时不用时用 connectors.connection.control 停用。",
+    kind: "operation", effect: "irreversible", scheduling: "concurrent", permissions: [CONNECTOR_MANAGEMENT_WRITE],
+    input_schema: { type: "object", properties: { connection_id: { type: "string", pattern: "^[a-z0-9-]{1,100}$" }, expected_revision: { type: "string", minLength: 1 } }, required: ["connection_id", "expected_revision"], additionalProperties: false }, output_schema: output } } as ActionDefinition,
   authorization: { capability_id: "connectors.authorization.read", version: 1, operation: "query", action: { ...metadata,
     title: "查看接入授权状态", description: "按本次授权请求 id 读取真实状态。关闭登录页不取消授权；connected 只表示连接提交，不能据此认定原任务完成。等待可由任务运行时检查此只读状态，不持续请求模型。",
     kind: "query", effect: "read", permissions: [CONNECTOR_MANAGEMENT_READ], input_schema: authorizationInput, output_schema: output } } as ActionDefinition,
@@ -52,6 +56,14 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
     const result = connectorAuthorizationStatus(home, id);
     if (!result) throw managementErrors.authorization_unknown("授权记录已失效，请重新发起接入");
     return result;
+  };
+  const change = async (caller: Parameters<ActionHandlerBinding["handle"]>[0], command: { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" }) => {
+    if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, command);
+    await caller.beforeEffect();
+    const current = withConnectorConnections(home, store => store.require(command.connection_id));
+    if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");
+    const result = controlConnectorConnection(home, command.connection_id, command.action);
+    return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
   };
   return [
     binding(connectorManagementActions.catalog, (_caller, input) => {
@@ -71,15 +83,8 @@ export function connectorManagementHandlers(home: string, remember: ConnectorMcp
       if (id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, { connection_id: id, action: "check" });
       return checkConnectorConnection(home, id, remember, caller);
     }),
-    binding(connectorManagementActions.control, async (caller, input) => {
-      const command = input as { connection_id: string; expected_revision: string; action: "enable" | "disable" | "remove" };
-      if (command.connection_id.startsWith("mcp-")) return manageProjectMcp(home, projectMcp, caller, command);
-      await caller.beforeEffect();
-      const current = withConnectorConnections(home, store => store.require(command.connection_id));
-      if (current.updated_at !== command.expected_revision) throw managementErrors.changed("连接已变化，请重新读取后操作");
-      const result = controlConnectorConnection(home, command.connection_id, command.action);
-      return command.action === "enable" ? { ...result, verification: await verifyEnabledConnection(home, command.connection_id, remember, caller) } : result;
-    }),
+    binding(connectorManagementActions.control, (caller, input) => change(caller, input as { connection_id: string; expected_revision: string; action: "enable" | "disable" })),
+    binding(connectorManagementActions.remove, (caller, input) => change(caller, { ...input as { connection_id: string; expected_revision: string }, action: "remove" })),
     binding(connectorManagementActions.authorization, (_caller, input) => authorization((input as { authorization_id: string }).authorization_id)),
     binding(connectorManagementActions.cancel, async (caller, input) => {
       const id = (input as { authorization_id: string }).authorization_id;

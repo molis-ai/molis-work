@@ -272,10 +272,11 @@ test("a bundled plugin follows the build in both directions, and the stored rele
   }
 });
 
-// The grants a followed record ends with, in every direction: every permission the new Manifest declares, required or optional,
-// and none it no longer declares (user decision 2026-10-10, docs/releases/POLICY.md section 7.8; `bundledGrants`). NEWER is an
-// optional permission the installed build never declared, so the list is the declared set and not what the record held plus
-// what the new build requires. tests/bundled-plugin-grants.test.ts has the rule's other cases (first install, narrowed grants).
+// The grants a followed record ends with, in every direction (user decision 2026-10-18, docs/releases/POLICY.md section 7.8;
+// `bundledGrants`): the new Manifest's required permissions, the optional ones the record held that it still declares, and an
+// optional one the installed build never declared (NEWER, read against the installed build's stored release), which starts
+// switched on as on a fresh install; none it no longer declares (RETIRED). tests/bundled-plugin-grants.test.ts has the rule's
+// other cases (first install, a permission the person switched off).
 for (const [target, installedVersion, hostVersion] of [["a higher version", "0.2.0", "0.3.0"], ["a lower version", "1.44.0", "0.3.0"], ["the same version with another Manifest", "0.3.0", "0.3.0"]] as const) {
   test(`a bundled follow to ${target} ends holding every permission the new Manifest declares, and none it no longer declares`, async () => {
     const db = new Database(":memory:");
@@ -297,6 +298,31 @@ for (const [target, installedVersion, hostVersion] of [["a higher version", "0.2
       assert.deepEqual(again.report.failed, [], "the next start of the same build is not a silent grant change");
       assert.deepEqual(again.report.running, [PLUGIN_ID]);
       assert.deepEqual(again.runtime.get(restart.installId).grants, converged);
+    } finally {
+      db.close();
+    }
+  });
+}
+
+// What the person switched off before the follow stays off; and without the installed build's stored release there is no telling
+// a permission new to the plugin from one the person switched off, so no optional permission is switched on.
+for (const [label, narrowed, storedRelease, expected] of [
+  ["an optional permission the person switched off stays off, and one new to the plugin is switched on", true, true, ["artifact:read", "artifact:write", "feature:newer"]],
+  ["with the installed build's stored release gone, no optional permission is switched on", false, false, ["artifact:read", "artifact:write", "feature:kept"]],
+] as const) {
+  test(`a bundled follow to a higher version: ${label}`, async () => {
+    const db = new Database(":memory:");
+    try {
+      const installed = definition("0.2.0", [], undefined, undefined, { permissions: [READ, KEPT, RETIRED] });
+      const host = definition("0.3.0", [], undefined, undefined, { permissions: [READ, WRITE, KEPT, NEWER] });
+      const first = await startProcess(db, installed, { bundled: true, archive: [] });
+      const installId = first.supervisor.state(PLUGIN_ID)!.install_id!;
+      await first.runtime.stop(installId, { preserve_enabled: true });
+      if (narrowed) first.runtime.grant(installId, ["artifact:read", "feature:retired"]);
+      if (!storedRelease) db.exec("DELETE FROM plugin_runtime_release_artifacts");
+      const second = await startProcess(db, host, { bundled: true, archive: [installed] });
+      assert.deepEqual(second.report.running, [PLUGIN_ID]);
+      assert.deepEqual(second.runtime.get(installId).grants, expected);
     } finally {
       db.close();
     }

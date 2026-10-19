@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～012；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；Computer Use 首轮已记录工程结果与真机权限缺口；回执首轮82项与真实模型路径已记录，情境、防腐继续。尚不满足完成标准，七条线均不据此归档。
+状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～018；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；Computer Use 首轮已记录工程结果与真机权限缺口；回执首轮82项与真实模型路径已记录；情境91项与真实模型路径已记录，防腐继续。尚不满足完成标准，七条线均不据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -26,7 +26,7 @@
 | 3 手册 | `ai-development-handbook/spec.md` ADH-01～ADH-23 | 文档与实现、引用和约束核对；定向验证手册承诺；按已定规则核查评测证据及少量真实调用 | 12 |
 | 4 Computer Use | `computer-use/` 四份指定文档，CU-G01～CU-G15 | 按 runbook 二十步真机验收；拒绝断言逐条读与跑；Molis 操作时 QA 不输入；独立进程面板按已定决定拒绝 | 30 |
 | 5 回执 | `ai-input-receipts/spec.md` 全部 62 个 RCPT-*，以及 §11 的 RC-01～19、G13；§20 | 对每阶段的输入、处理、改变和缺口核对真实事实；取消/重试/超时/重启；回执实走与视觉键盘矩阵 | 16 |
-| 6 情境 | `context-program/spec.md` AC-P01～06；`context-toolbar` T01～09；`quick-create` Q01～10；`side-shelf` AC-S01～15，共 40 条，按 §9、§16 分已合入与后续 | 动作目录→浮条→创建/放置→侧栏；选区变化、双页签、无权限、关闭项目；三宽度/深色/键盘/中英文 | 12 |
+| 6 情境 | `context-program/spec.md` AC-P01～06；`context-toolbar` T01～09；`quick-create` Q01～10；`side-shelf` AC-S01～15，主40条，补SLOT-01/02和49附属编号共91行，按 §9、§16 分已合入与后续 | 动作目录→浮条→创建/放置→侧栏；选区变化、双页签、无权限、关闭项目；三宽度/深色/键盘/中英文 | 12 |
 | 7 防腐 | `repository-anti-corruption/` spec、roadmap、privileges 与 `RUNTIME-MIGRATION.md` 的已合入验收项 | 逐项对照已定决定、实现与拒绝测试；复核 PG-001～PG-109 去处；机器门禁；尚未实现的核对 BL 或决定 | 0 |
 
 预算按实际发往模型端点的请求计，含重试与 Agent 内部轮次，总上限 102；每条线计数独立，不挪用，不够则记录未验证及原因，扩大前需用户授权。模型没有请求计数或可靠硬上限的入口不开跑。先核对现有评测规则，优先复用有效记录；模型能力弱不靠修改提示词来修。
@@ -39,7 +39,7 @@
 
 ## 3. 总览
 
-交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；Computer Use 为1通过、9部分通过、1不通过、4未验证；回执为27通过、50部分通过、5未验证；其余线尚未完成逐条动态验证，不以库存审读代替运行结果。
+交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；Computer Use 为1通过、9部分通过、1不通过、4未验证；回执为27通过、50部分通过、5未验证；情境91行为11通过、69部分、2不通过、9未验证；防腐继续，不以库存审读代替运行结果。
 
 | 线 | 能否归档 | 当前主要缺口 |
 | --- | --- | --- |
@@ -48,7 +48,7 @@
 | 手册 | 不能 | 11通过／10部分／1不通过／1未验证；QA-006/007、ADH-19～23开发者实作、Coding小跑与真人验收 |
 | Computer Use | 不能 | 1通过／9部分／1不通过／4未验证；Helper三项权限未授予，真机未跑，QA-008 |
 | 回执 | 不能 | 27通过／50部分／5未验证；QA-009～012、Coding真模型/强杀/异常矩阵及R1、3e后续、阶段4～6 |
-| 情境 | 不能据本报告归档 | 生产矩阵尚未实走；W4 后续、W5～W7 尚未交付 |
+| 情境 | 不能 | 91行11通过／69部分／2不通过／9未验证；QA-013～018、W1/W4后续、W5～W7及原生/完整状态矩阵 |
 | 防腐 | 不能据本报告归档 | 仍有大量在途切片；最后按新的 main 核对已合入部分 |
 
 ## 4. 各线逐条验收
@@ -342,6 +342,123 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 **归档结论：不能。** 27通过、50部分通过、5未验证、0不通过、0按决定不做。四个新问题、上述生产/异常/质量矩阵、阶段后续和三级体验未收口。SIGTERM后记录7次请求但进程未退出，随后仅对本次PID54010发SIGKILL；确认退出，核对临时目录非软链后删除Home及密文。未把这次QA启动器关闭延迟未经归因就记为产品回归。
 
 
+### 4.6 情境
+
+本节固定 main `fbc826b6878c1ea7bb1b7b2057a180140f7d90d1`。原40项之外，补收SLOT-01/02及总纲显式定义的49个附属验收，共91行；这些条件有重叠，不是91个独立功能。W0-01～05是明确的历史原型条件，单列边界，不冒充现行生产验收。
+
+`K1`：context-core，13文件74项；`K2`：context-protocol，3文件5项；`K3`：context-browser，13文件首次26通过/1失败，已知PANE-LAND-02只重跑一次后通过；`K4`：context-annex-core，6文件22项；`K5`：context-annex-browser，2文件3项。另K6：pages-actions.e2e点名回归1项通过（真实页面外改后重绘、不可读转只读）。共132个不同用例通过，另保留首次1次时序失败；没有取消或跳过。日志在本SHA被测树忽略目录 `.impeccable/qa/review/context-*.log`。K3的首次失败是断言空事件队列时捕获一个带真实pane_id/targets的合法迟到落点，不是伪造消息被接受；重跑正常，按已知时序分类，不修改测试或重复立项。boundary实际通过；首次pnpm因沙箱版本获取失败未执行门禁，恢复正常权限后重跑成功，不当产品回归。
+
+`KU`二级实走及[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6267398284)：新Home、虚构“情境 QA · 秋季计划”两段内容。从首页进入项目后首次侧栏选Issue（QA-013）；另一新origin直接入项目首开Shelf。真实选段创建Todo，来源只含第一段，多次点击仅一条；⌘.后Tab进“更多”→Enter创建→回执撤销，待办“未安排”回到空。另验证Todo自身“撤销创建”，不与情境opaque撤销混称。1440/1024/390浅色中文与1440/390深色英文已目视；390长动作标题重叠（QA-014），英文动作元数据沿已知BL-125②。
+
+同一临时Home先关闭再启动Host，Pages仍在。MiniMax-M3正式连接检查成功；“改得更简洁”未达到长度要求被拒，正文不变；“展开论述”产生可编辑候选，确认前原文不变，确认后插在第一段之后、原第二段保留，刷新仍在。第一段带到助理，真实回复“确认秋季发布计划”；选该回复，经Pages原选区预览，按Enter确认后仅替换第一段，再刷新保存。此路径贯通Pages、助理、情境及回执，未执行Coding/成果库全链。实际模型5/12次，0次额外Jev质量评测；不能称完整左右互动质量通过。服务按自建PID停；确认退出、核对目录非软链后删除Home及密文。Chrome临时视口已清除，localhost原125%缩放已恢复；截图标注按采集时实际CSS宽度，早期direct-first-Shelf图仅作首选格证据、不当1440布局证明。
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| AC-P01 | 部分通过 | 一级 | K1候选与Dock同源；拖放生产链尚未交付 | W5 | fbc826b68 |
+| AC-P02 | 部分通过 | 一级、二级（KU） | K3左/右/窗格/助理回复；KU真实回复选区浮条 | 其他右栏格与iframe全矩阵未验 | fbc826b68 |
+| AC-P03 | 部分通过 | 一级、二级（KU） | K1真实Pages预览/冲突/撤销；KU确认前正文不变，确认后写入并刷新 | QA-015；跨来源全部组合未验 | fbc826b68 |
+| AC-P04 | 部分通过 | 一级 | K1候选与去处限制；Shelf动作池仍有后续 | W6 | fbc826b68 |
+| AC-P05 | 部分通过 | 一级 | K1私密材料不进判断、boundary通过；覆盖门禁尚待 | W1-08、PG台账 | fbc826b68 |
+| AC-P06 | 未验证 | 一级（文审） | Coding旁问/分叉未交付 | W7 | fbc826b68 |
+| T01 | 部分通过 | 一级、二级（KU） | K1定位函数；KU选区高亮和焦点保留；可见Range间距8.5～9.5px，尚未独立归因owner锚点/动画 | §9决定与疑问；不放宽8px | fbc826b68 |
+| T02 | 部分通过 | 一级 | K1 Dock parity、K3真实方案与全部菜单顺序相同；未重建迁移前页面 | 历史视觉对照未验 | fbc826b68 |
+| T03 | 部分通过 | 一级、二级（KU） | K3冻结选区/修改后拒写；KU单槽候选、确认插入并刷新 | 所有链接/评论路径未实走 | fbc826b68 |
+| T04 | 部分通过 | 一级、二级（KU） | K3遮挡时隐藏；KU助理回复选区可放回Pages、无底栏动作条 | 完整并存状态未验 | fbc826b68 |
+| T05 | 部分通过 | 一级 | 定位/窗格hold用例通过；判断到达后的实际悬停保位未完整扣住 | 已知§20.11 | fbc826b68 |
+| T06 | 不通过 | 一级、二级（KU） | 1440/1024/390浅色；1440/390深色英文；390动作标题与徽标重叠，键盘更多→待办→撤销可用 | QA-014；BL-125②、BL-016 | fbc826b68 |
+| T07 | 部分通过 | 一级 | 声明/通用context路由与无工具区链审读；未独立安装只读页面实走 | 完整外部插件验证缺 | fbc826b68 |
+| T08 | 通过 | 一级 | K1工具清洗/上限与SDK拒绝；本SHA boundary 71包、2245源码、10174引用、errors=[] | 工程合同；未据此称全部PG消除 | fbc826b68 |
+| T09 | 通过 | 一级 | K3 contextual-interaction、K6 pages-actions点名回归与真实Todo固定来源通过；无测试或断言修改 | 入口迁移工程结论 | fbc826b68 |
+| Q01 | 部分通过 | 一级 | K1声明检查/创建入口；Pages、Inbox、Goals等后续未全交付 | W4；当时在途#801 | fbc826b68 |
+| Q02 | 部分通过 | 一级、二级（KU） | 真实Todo创建含出处与原选段；未填输入即建成 | BL-174；最合适判断质量未验 | fbc826b68 |
+| Q03 | 部分通过 | 一级 | K1起草字段/日期受控生成；真实模型日期提取与改放到未实走 | W4后续 | fbc826b68 |
+| Q04 | 部分通过 | 一级、二级（KU） | K1同请求幂等；KU多次点击仅一条待办 | 刷新恢复与并发完整组合缺 | fbc826b68 |
+| Q05 | 部分通过 | 一级、二级（KU） | K1起草失败保原文；K3模拟403保卡；KU缩短不达标被拒、正文不变 | QA-015；真实网络/超时矩阵缺 | fbc826b68 |
+| Q06 | 通过 | 一级 | K1私密来源过滤、本人动作不进Agent/MCP，boundary通过 | 工程隐私/调用边界 | fbc826b68 |
+| Q07 | 通过 | 一级 | K2内容站公开协议与unknownRuntime拒绝；boundary通过 | 按2026-10-11决定不留旧读取兼容 | fbc826b68 |
+| Q08 | 部分通过 | 一级、二级（KU） | K1创建/撤销与S-40错人错项目重放过期拒绝；KU键盘创建后撤销、待办恢复为空 | 完整Host重启令牌拒绝未验 | fbc826b68 |
+| Q09 | 未验证 | 一级（文审） | 批量提取卡尚未交付 | W4 F3 | fbc826b68 |
+| Q10 | 未验证 | 一级（文审） | 周报工作流接入及逐站幂等未交付 | W7 F13 | fbc826b68 |
+| AC-S01 | 不通过 | 一级、二级（KU） | 直接项目页首开Shelf；从首页进入项目却首开Issue | QA-013 | fbc826b68 |
+| AC-S02 | 部分通过 | 一级 | K3链接/搜索/侧栏模板、桌面bootstrap；未完整真实桌面入口 | QA-018；BL-014 | fbc826b68 |
+| AC-S03 | 部分通过 | 一级 | K3真实Shelf示例PDF和预览；未全走原生拖出/终端/Agent | 原生与完整状态未验 | fbc826b68 |
+| AC-S04 | 部分通过 | 一级 | K3 Shelf iframe左右选区及收起；S-30伪窗口拒绝 | 其他右栏格全矩阵缺 | fbc826b68 |
+| AC-S05 | 部分通过 | 一级、二级（KU局部） | K3文件预览→Pages光标/窗格真实写入与过期拒绝；KU助理回复→原选区 | 真实网页画布来源未实走 | fbc826b68 |
+| AC-S06 | 部分通过 | 一级 | K1无落点不产生attach，其他候选保留 | 无落点生产实走缺 | fbc826b68 |
+| AC-S07 | 未验证 | 一级（文审） | 真实拖放列表与松手位置尚未交付 | W5 | fbc826b68 |
+| AC-S08 | 未验证 | 一级（文审） | Shelf现有动作接入Jev池未完成 | W6 | fbc826b68 |
+| AC-S09 | 部分通过 | 一级、二级（KU局部） | K1失败/无模型规则回退；KU无模型浮条可建Todo；插件停用联动未全走 | W6；真实超时与停用矩阵缺 | fbc826b68 |
+| AC-S10 | 通过 | 一级 | K1 SDK拒绝跨owner/非法位置声明；S-30窗格来源明确拒绝 | 具体生产晚到写入证据见QA-015 | fbc826b68 |
+| AC-S11 | 部分通过 | 一级 | 灵光创建/撤销具备；反向Shelf和拖放仍后续 | W5/W6 | fbc826b68 |
+| AC-S12 | 部分通过 | 一级、二级（KU局部） | 证据分级；KU实际模型改写与助理交接，不冒充Jev质量评测 | BL-038；三级及左右互动质量矩阵缺 | fbc826b68 |
+| AC-S13 | 部分通过 | 一级、二级（KU） | K3情境条加入/移除及owner重读；KU选段随工作、实际回复落点确认 | QA-016；完整同次准备及全部chip键盘缺 | fbc826b68 |
+| AC-S14 | 部分通过 | 一级 | K1声明拒绝、K2未知插件open.place通用路由 | 外部插件完整安装实走缺 | fbc826b68 |
+| AC-S15 | 部分通过 | 一级、二级（KU） | K3结果/回复落点；KU真实回复→预览→确认替换→刷新保留 | QA-017；放上Shelf仍W6 | fbc826b68 |
+| SLOT-01 | 部分通过 | 一级 | K1 assistant-interaction-html两条：问答槽与位置合同 | 已知§21.9待补浏览器 | fbc826b68 |
+| SLOT-02 | 部分通过 | 一级 | K1 assistant-step-row六条：下一步行与槽位复用 | 已知§21.9待补浏览器 | fbc826b68 |
+
+附属编号均来自总纲明确的验收定义，避免漏掉工程切片；不能借防腐线相同的W1/W2编号提供证据。
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| W1-01 | 部分通过 | 一级 | K3 contextual-interaction、K4 pages-surface-naming；当前行为通过，历史逐字节/资源净减未重验 | 历史证据待核 | fbc826b68 |
+| W1-02 | 部分通过 | 一级 | K1 floating六项；定位、fixed参照、滚动与叶子入口通过；旧版视觉与体积未重建 | 历史证据待核 | fbc826b68 |
+| W1-03 | 通过 | 一级 | K4 contextual-landing七项；非法形状拒绝、screen剥离、长度/缓存/落点变化 | 合同工程 | fbc826b68 |
+| W1-04 | 通过 | 一级 | K1 plugin-context-declarations；SDK拒绝非法intake/attach、位置/版本/owner/reader | 合同拒绝 | fbc826b68 |
+| W1-05 | 通过 | 一级 | K1 destinations与Dock parity；候选、去处上限、隐私规则 | 按§18.3后定16/8，不沿旧12 | fbc826b68 |
+| W1-06 | 部分通过 | 一级 | K4 context-toolbar两项与K3组件板；生产长标题390不成立 | QA-014 | fbc826b68 |
+| W1-07 | 部分通过 | 一级 | K1 draft十项；字段限制、失败保原文、屏蔽；模型/部分目录替身 | 实际起草质量与零持久化全链缺 | fbc826b68 |
+| W1-08 | 未验证 | 一级（文审） | 覆盖门禁与CI条目明确延后，plugin-context-coverage文件未实现 | §18.4后续；非无去处 | fbc826b68 |
+| W1-09 | 未验证 | 一级（文审） | SDK页面辅助明确移至W2/W3，尚未完成 | §18.4后续 | fbc826b68 |
+| W2-00 | 部分通过 | 一级 | K4 surface-naming在VM生产总线请求/绘制/清空；Host预设回答 | 完整实走缺 | fbc826b68 |
+| W2-01 | 部分通过 | 一级 | K3无底栏、窗格/离开清空；本线精确编号引用缺 | 不借防腐同号背书 | fbc826b68 |
+| W2-02 | 部分通过 | 一级 | K3 toolbar-panes真实hold/Esc；方案到达后悬停保位未完整断言 | 已知§20.11 | fbc826b68 |
+| W2-03 | 部分通过 | 一级 | K3两档方案与动作/菜单顺序；不证明长文案布局 | QA-014 | fbc826b68 |
+| W2-04 | 部分通过 | 一级、二级（KU局部） | K3原选区候选/拒写；KU真实候选写入 | 按§19.8现行等候结果不丢，不要求旧表单全冻结 | fbc826b68 |
+| W2-05 | 部分通过 | 一级、二级（KU局部） | K3真实键盘协议/链接面板；KU快捷键→更多→Todo→撤销 | 真实读屏、全部工具键盘缺 | fbc826b68 |
+| W2-06 | 未验证 | 一级（文审） | 当前boundary与构建不能证明原切片前后逐资源净减和巨大单元比较 | 须核原PR/CI，不拿零差异门禁替代 | fbc826b68 |
+| W2-07 | 未验证 | 一级（文审） | 尚无本轮全部范围无plugin_id分支及Pages仅三个事件的完整证明 | 防腐最后补核；不借别线编号 | fbc826b68 |
+| W2-08 | 部分通过 | 一级 | K3失效建议产生toast | 按§19.8修订；完整实走缺 | fbc826b68 |
+| FLOW-01 | 部分通过 | 一级 | K1 step-row、K4 html及K5 strip-narrow；同卡入口 | 完整Runtime revision/pending_revision相同未断言 | fbc826b68 |
+| FLOW-02 | 部分通过 | 一级 | K4 next-steps单题单选/多题/多选/文本/不可答与HTML | 派生渲染；完整实走缺 | fbc826b68 |
+| FLOW-03 | 部分通过 | 一级 | K4缺字段/脏卡只定位；K5真实页面工程链 | 完整状态实走缺 | fbc826b68 |
+| FLOW-04 | 部分通过 | 一级 | K4五类排除及unknown只定位、不生成运行入口 | 真实状态切换缺 | fbc826b68 |
+| FLOW-05 | 部分通过 | 一级 | K4重复卡/follow-up输入核完整去重顺序；HTML排序折叠 | 二级缺 | fbc826b68 |
+| STRIP-01 | 部分通过 | 一级、二级（KU局部） | K3真Host检查加入前后provider内容和工作关系；KU实际模型 | provider工程为脚本，实走仅一选段 | fbc826b68 |
+| STRIP-02 | 部分通过 | 一级、二级（KU局部） | K3交接不代写输入、带材料及对象；KU同路径 | 完整入口矩阵缺 | fbc826b68 |
+| STRIP-03 | 部分通过 | 一级 | K3滚动淡出/滚轮；最后chip用focus直调 | QA-016 | fbc826b68 |
+| STRIP-04 | 部分通过 | 一级 | K3加入决定落点、×只去落点留对象、下次请求无落点 | 二级完整删除组合缺 | fbc826b68 |
+| STRIP-05 | 部分通过 | 一级 | K3 owner删除后真实provider请求不带落点 | 二级缺 | fbc826b68 |
+| CTX-COVER-01 | 部分通过 | 一级 | K3 390/1440实际遮挡命中隐藏，关闭恢复 | 不证明关闭时长标题不重叠；QA-014 | fbc826b68 |
+| PANE-LAND-01 | 部分通过 | 一级 | K3真实窗格预览与Pages持久化；首次时序红，唯一重跑通过 | 已知PANE-LAND-02偶发；二级未验窗格 | fbc826b68 |
+| PANE-LAND-02 | 通过 | 一级 | K3重跑：真实顶层/非窗格iframe伪造落点拒绝 | 首次记录保留；不误判合法迟到事件为突破 | fbc826b68 |
+| PICK-01 | 部分通过 | 一级 | K4鼠标/Enter/Space VM；K3真实鼠标/Enter | Space二级缺 | fbc826b68 |
+| PICK-02 | 部分通过 | 一级 | K4只断言标题点击不拿起，未断言原按钮行为成功 | QA-017 | fbc826b68 |
+| PICK-03 | 部分通过 | 一级 | K4 Esc/外部按下/浮条内按下/唯一对象 | 替身DOM，二级缺 | fbc826b68 |
+| PICK-04 | 部分通过 | 一级 | K4 missing/unavailable/moved不可选无事件 | owner实际刷新状态链缺 | fbc826b68 |
+| PICK-05 | 部分通过 | 一级 | K4新context、K3判断后Esc再放行不重现 | 完整二级缺 | fbc826b68 |
+| FLASH-01 | 部分通过 | 一级 | K3真指针移入移出再入与闪线计数 | 键盘focus及真人动画缺 | fbc826b68 |
+| FLASH-02 | 部分通过 | 一级 | K3落点消失后不发事件、不报错 | 二级缺 | fbc826b68 |
+| FLASH-03 | 部分通过 | 一级、二级（KU局部） | K3真实结果光标预览、确认写入；KU真实回复替换 | 结果对象完整二级缺 | fbc826b68 |
+| PANE-FLASH-01 | 部分通过 | 一级 | K5真窗格落点与悬停闪线通过 | 二级缺 | fbc826b68 |
+| PANE-FLASH-02 | 通过 | 一级 | K1 S-30 VM及K5真实自身/子框伪造来源拒绝 | 来源拒绝工程 | fbc826b68 |
+| MENU-FLASH-01 | 部分通过 | 一级 | K5真实菜单悬停闪；pointed/pinned另造组件实例 | 生产判断到达保位未完整扣住 | fbc826b68 |
+| SHELF-LINK-01 | 部分通过 | 一级 | K3真实声明模板链接打开Shelf项、无主舞台 | 真实历史Workflows到达记录未读 | fbc826b68 |
+| SHELF-LINK-02 | 部分通过 | 一级 | K3搜索示例文件点击真实结果打开指定项 | 二级缺 | fbc826b68 |
+| SHELF-LINK-03 | 部分通过 | 一级 | K3手派通知且hidden=false再点，不证明普通入口 | QA-018 | fbc826b68 |
+| OPEN-PLACE-01 | 部分通过 | 一级 | K2真实通用函数、非Shelf manifest与内置目录 | 外部插件实际安装/打开缺 | fbc826b68 |
+| SIDE-FWD-01 | 通过 | 一级 | K3真iframe允许落点、拒绝名单外事件、真实toast | S-30另覆来源 | fbc826b68 |
+| DESK-SHELF-01 | 部分通过 | 一级 | K3真bootstrap直接调用molisWorkOpenShelf | 真实热键/菜单栏未走；BL-014 | fbc826b68 |
+| DESK-SHELF-02 | 部分通过 | 一级 | K3矩形上报/切格/关闭null、仅顶层；Tauri bridge替身 | 真实IPC/原生滚轮命中未走；BL-014 | fbc826b68 |
+
+历史W0原型只核范围，不用其模拟替代当前生产：W0-01、W0-02、W0-03、W0-04、W0-05均为**未验证，一级（文审），SHA fbc826b68**；本轮没有重跑原型，依据§16.2“W0独有条件（不替代原验收）”排除生产统计；各自生产后继已在上述P/Q/S及W1表判断。LG-REVERT-01、DOCK-04和S-*是引用其他owner的验收，不重复当本线新增条件。SLOT-03在本基线仍为在途，不纳入已合入结论。
+
+**轻做／证据不足。** QA-015的撤权测试在入口第一次验证就拒绝，未造真正等待后撤权；QA-016用直接focus替代键盘遍历；QA-017标题称按钮仍工作却只证明不触发拿起；QA-018绕开不可见入口再点通知。相关受控测试仍有价值，不能扩大成它们未断言的产品事实。T05保位、外部插件完整接入、原生拖放/菜单、SLOT浏览器与W1后续均保留已有去处。
+
+**代码质量与安全。** 生产候选/落点经共同目录，SDK对跨owner声明有真实拒绝；S-30伪窗格、S-40错人/项目/重放等均跑到拒绝。没有把QA-015认定为已发生安全突破；真实迟到写入还需接缝证明。宿主旧插件私路及W1-08覆盖门禁沿PG/W5/W6计划，不在本次修补。已定16/8候选上限、Q07现行合同无读取兼容、W2-04保等待结果等按后定决定验，不重开旧方案。
+
+**归档结论：不能。** 主40项为5通过、28部分、2不通过、5未验证；加SLOT及49附属后共11通过、69部分、2不通过、9未验证。新QA-013～018、W4后续/W5～W7、W1-08/09、完整异常与真人体验尚未收口。未验证不等于“按已定决定不做”。
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
@@ -349,27 +466,36 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 已派 |
 | QA-002 | 交互；P2；产品缺陷 | AC-26／S1；交互 §1 完整失败恢复、§3 状态连续、§5 生命周期与恢复 | ebad9a223b84d28937df03393231381587b3193a | 新临时 Home 配 MiniMax-M3；Form 创建问卷并生成 4 题；输入“另做一份培训反馈问卷，请先问我面向哪种学员和题量。”；首次补问结构校验失败；原要求重试获得合法三题卡 | 预期新卡可答且聚焦时旧生成错误撤下；实际旧错误与合法卡同时显示；原提示和 4 道业务题保留。首次拒绝本身不是缺陷，也不能推断响应具体哪字段错 | 二级：[同一页面错误与新卡截图，1440/390 深色](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；源码与实走一致。真实模型首轮结果有随机性，确定性复验需以受控供应商先无效后有效补问驱动同一生产页面 | `plugins/native/form/src/browser/draft.ts:37`、`:42`、`:45`；`browser/client.ts:77`；`browser/save.ts:24` | HANDOFF §3 ③ Form 文件 owner，⑨交互共同复验 | 第一次无效补问、重试有效补问后，新卡可见且首题获焦，旧生成错误隐藏；原提示保留，回答前业务题数不增 | 已派 |
 | QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 已派 |
-| QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 新 |
-| QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 新 |
-| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:52 设30秒、:56归档、:59 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 新 |
-| QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 文审与源码；GitHub 两 PR 均 merged，且变更已在本 SHA；不同于已知control版本#793 | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 新 |
-| QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 文审，当前实现与§9一致；没有因此放宽不同PID拒绝或改代码；已核PG§7与在途未找到本项 | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 新 |
+| QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 已派 |
+| QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 已派 |
+| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:52 设30秒、:56归档、:59 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 已派 |
+| QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 文审与源码；GitHub 两 PR 均 merged，且变更已在本 SHA；不同于已知control版本#793 | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 已派 |
+| QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 文审，当前实现与§9一致；没有因此放宽不同PID拒绝或改代码；已核PG§7与在途未找到本项 | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 已派 |
 | QA-009 | 回执；P2；轻做或证据不足 | RC-02/11；§11阶段1c/1d | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；运行R1 agent-input-delivery与R4 coding-input-receipts.e2e对应编号；读同键重发和网络故障夹具 | 预期真实Coding已收下后丢回包、同键重发仍只一笔；实际去重Map在替身内，浏览器在原fetch之前抛错，仅比对重试键。助理RC-16另有真实覆盖，不扩大结论 | R1/R4均通过；历史SDK去重记录不等于当前Coding全链 | tests/agent-input-delivery.test.ts:55；tests/coding-input-receipts.e2e.test.ts:106；:122 | HANDOFF §3 ⑥回执，④采用协作 | 真实Host接受固定键后切断响应，重发返回原input_id/replayed，账里仅一条且provider只含一次、界面不重复 | 新 |
 | QA-010 | 回执；P2；轻做或证据不足 | RCPT-102；§20.3/20.5 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-history-requirements的RCPT-102；读coding-history-summary-http故障注入与host-inference-completion截止测试，检查下一轮请求 | 预期实际摘要超时后六条要求仍进入下一轮且不重复摘要；实际测试立即Error或空值，含“两分钟”的错误字样不构成超时。其他inference deadline测试不是此路径 | R1/R2通过；未复现产品挂住或丢要求 | tests/coding-history-requirements.test.ts:19；:91；tests/coding-history-summary-http.test.ts:43；tests/host-inference-completion.test.ts:120 | HANDOFF §3 ⑥回执与④agent-host | 真实摘要截止超时走回退，下一provider请求保六条要求，迟到摘要不替换且无额外摘要调用 | 新 |
 | QA-011 | 回执；P3；文档不符、测试夹具失真 | RCPT-341；§11阶段3d-1 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-report-persistence对应编号和prologue-input-receipts；对照spec五态及真实SDK结算投影 | 预期报告标准与真实终态一致；实际spec写五状态，夹具五输入仅四态、含终态applied且无received；生产结算会把received/applied归未读。不能靠再造一个received夹具补绿 | R2/R5通过；生产导出只取终态，静态链与真实投影一致 | specs/ai-input-receipts/spec.md:837；tests/coding-report-persistence.test.ts:123；plugins/native/coding/src/routes-changesets.ts:32 | HANDOFF §3 ⑥回执 | 用真实结算账生成固定报告，逐条状态与SDK一致；spec分别写清全生命周期五态与终态可出现集合 | 新 |
 | QA-012 | 回执；P2；轻做或证据不足 | RCPT-343；§11阶段3d-1 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-report-persistence的RCPT-343与prologue-materials；追踪存报告到下一provider请求 | 预期已存固定报告作为材料进入下一轮仍是数据；实际前者到格式器即止，后者用手写普通材料，未串起同一固定报告。并未观察到注入或安全突破 | R2/R3通过，围栏与泛材料真实provider测试均有效，缺连接组合 | tests/coding-report-persistence.test.ts:202；tests/prologue-materials.test.ts:34 | HANDOFF §3 ⑥回执与④采用 | 公开保存带恶意围栏的报告后交固定版本给下一Run，在真实provider请求中核正文和来源版本仅在数据通道、任务/系统不被替换 | 新 |
 
+| QA-013 | 情境；P2；产品缺陷 | AC-S01；side-shelf §3.1/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；新浏览器origin走首页→个人空间→首次侧栏；另一新origin直接入个人空间作对照 | 预期首开Shelf；实际经首页首开Issue，直接项目页首开Shelf。未先点Issue | KU一级代码/二级截图评论6267398284；shelf-plugin测试直接入项目未覆首页 | apps/workbench/src/arrival/shell.ts:84；home-plugin-navigation.ts:7；scripts/client/side-panel.ts:145、226 | HANDOFF §3④界面组／情境线（原⑧） | 新origin经首页与直接项目两路首次侧栏均Shelf；随后用户选格、重开保留所选 | 新 |
+| QA-014 | 情境；P2；产品缺陷 | T06；context-toolbar §6/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；Pages写入两段中文，选第一段；CSS宽390，浅/深色；浮条含长标题和owner徽标 | 预期文字清晰、各动作不交叠且44px目标；实际44px按钮内文字宽73/58px越界，与相邻文字覆盖，外框无横向溢出仍失败 | KU中文浅色/英文深色截图评论6267398284；读DOM按钮矩形，K3只量外框与触控高 | packages/design-system/src/context-toolbar.ts:26、31、50、131；plugins/native/pages/src/editor-tools.ts:43、58；tests/context-toolbar.e2e.test.ts:17 | HANDOFF §3④界面组／情境与设计系统 | 390真实Pages长中英标题/徽标均在自身控件内不交叠，规定入口可达且点击命中正确动作 | 新 |
+| QA-015 | 情境；P2；轻做或证据不足 | AC-P03/Q05；context-program §21.8 B1、AGENTS late effect | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑pages-landing-actions的cancelled用例，读validate_authority注入与调用次序；不改测试 | 预期已受理等待后撤权仍拒绝且所有业务事实不变；实际validate_authority第一次调用就抛错，未造等待期间撤权，完整document不变只证明入口拒绝 | K1通过；真实SDK前置拒绝有效，尚无此Pages落点晚到组合。不是已确认安全突破 | tests/pages-landing-actions.test.ts:68、82、84 | HANDOFF §3④情境／Pages，②动作授权配合 | 首次校验通过，写入前屏障暂停后取消/撤权再释放，断言准确拒绝码且文档、版本、change及失败业务记账均不变 | 新 |
+| QA-016 | 情境；P2；轻做或证据不足 | AC-S13/STRIP-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-context-strip.e2e的STRIP-03并读最后chip到达步骤 | 预期从普通焦点以键盘逐项到最后chip，焦点及可见区正确；实际直接DOM focus最后一枚，只证明被聚焦时滚动 | K3六项通过；滚轮/淡出是真实断言，键盘遍历未证明；§10防腐称键盘到最后 | tests/assistant-context-strip.e2e.test.ts:100；specs/context-program/spec.md:1285 | HANDOFF §3④界面组／情境 | 从正常输入焦点仅Tab/方向键到最后chip，每项焦点可见且最后一枚完整滚入；不得直接focus终点 | 新 |
+| QA-017 | 情境；P2；轻做或证据不足 | PICK-02；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-pick PICK-02，对照测试名、title点击及实际断言 | 预期标题打开对象、原按钮仍执行，并且不拿起；实际只断言reported为空，未断言打开/执行成功，错误preventDefault仍可能通过 | K4通过；标题与断言范围不符，未观察到产品按钮失效 | tests/assistant-pick.test.ts:97、100 | HANDOFF §3④界面组／情境，助理owner配合 | 真实结果卡标题打开正确owner对象、原按钮执行一次且不发拿起事件，文字选择也不拿起 | 新 |
+| QA-018 | 情境；P2；轻做或证据不足 | AC-S02/SHELF-LINK-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑shelf-side-links.e2e；读通知注入、入口显示及点击步骤 | 预期从用户可见通知入口打开指定Shelf项；实际手派通知，强行hidden=false后直点；不能证明真实通知生成与正常可见入口闭环 | K3真实Shelf目标打开有效；不是认定通知功能已坏。BL-009管铃铛重复，不覆盖此测试绕过 | tests/shelf-side-links.e2e.test.ts:55、60、63 | HANDOFF §3④情境／助理通知owner | 真实业务产生可查询通知，从产品正常可见入口打开它，Shelf对应项到位且主区不变，不强制修改hidden | 新 |
+
 QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知 P1 #709 继续沿用原编号，未新立项；尚待按原步骤复验。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。统筹已在[分诊评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265235773)确认 QA-001～003 并派交互线；#785 没有补测试编号，QA-003 保留。QA-009～012已核BACKLOG、防腐§10.27～29、PG及#631/#778/#789/#793/#795，未找到同一缺口的登记；候选只有独立核实并去重后才编号。
 
 ## 6. 跨线场景
 
-已实走一条跨线子链（RU）：助理提问→补充/撤回→真实模型→Pages固定文档→文件预览，见§4.5；不含Coding与情境落点。
+已实走情境跨线子链（KU）：Pages选段→真实助理回复→情境浮条→Pages预览确认→刷新保存，另一支选段→Todo→撤销；见§4.6。
+
+已实走另一条跨线子链（RU）：助理提问→补充/撤回→真实模型→Pages固定文档→文件预览，见§4.5；不含Coding与情境落点。
 
 尚待实走：助理提问 → Coding 执行 → 固定结果进入成果库 → 情境浮条放进 Pages；核对同一事实的主人、输入回执、取消/撤权后的业务写入及恢复。须先确认当前各线承诺，缺失的链路只按其已有决定判定。
 
 ## 7. 没验的范围和原因
 
-除 §4.1～4.5 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
+除 §4.1～4.6 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
 
 ## 8. 待用户验收
 
@@ -392,3 +518,7 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 - 手册线 7/12 次请求完成；按 PID 49492 停服务，确认进程退出后核对临时目录并删除，密文随 Home 清除。
 
 - Computer Use 的0/30请求仅权限先决检查；已按自建 PID 50894 停服务并核对删除本线临时 Home。没有修改系统权限；后续真机需权限由用户自行配置后再复验。
+
+- 统筹在[第二批分诊](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6266065707)确认并派出QA-004～008；尚未据此关闭或判复验通过。
+- 情境T01实测可见Range与浮条间距8.5～9.5px；源码优先owner的coordsAtPos，与总纲§19.3普通DOM选区优先的文字不同；动画位移/取整可能参与。未取得同一owner锚点的动态对照，不改8px标准、不把推断当根因；保留部分通过及待复核子项。
+- 防腐前重新fetch，固定新main 7d1cc4bfade6c93cb1006e691da3e73b83316de1；已含#759，原已知P1 #709改记已修待复验。旧线结论不因后续合入自动变绿；#802仍在途。防腐真实模型预算0。

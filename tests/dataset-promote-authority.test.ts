@@ -21,12 +21,15 @@ const STAGES = {
   "after-begin-wait": { wait: 2, when: "after" },
   "before-publish": { wait: 3, when: "during" },
   "after-publish-wait": { wait: 3, when: "after" },
+  "after-publish": { wait: 4, when: "during" },
   "after-complete-wait": { wait: 4, when: "after" },
 } as const;
+const FAILURES = ["revoke", "cancel", "replace"] as const;
 type Stage = keyof typeof STAGES;
+type Failure = typeof FAILURES[number];
 
 /** Dataset on the project platform the Host builds: the real library in the Home, the real 成果 module and the Kernel's call. */
-async function promotion(stage: Stage | "none", failure: "revoke" | "cancel") {
+async function promotion(stage: Stage | "none", failure: Failure) {
   const home = mkdtempSync(join(tmpdir(), `dataset-authority-${stage}-`));
   const file = join(home, "project.db");
   seedDemoBoard(file);
@@ -42,8 +45,8 @@ async function promotion(stage: Stage | "none", failure: "revoke" | "cancel") {
   try {
     assert.deepEqual((await platform.start([{ definition: createDatasetPlugin(), database: DATASET_DATABASE, bundled: true }])).running, [DATASET_PLUGIN_ID]);
     const controller = new AbortController(), trigger = stage === "none" ? undefined : STAGES[stage];
-    let revoked = false, waits = 0, armed = false, fired = false;
-    const fail = () => { fired = true; if (failure === "cancel") controller.abort(); else revoked = true; };
+    let revoked = false, replaced = false, waits = 0, armed = false, fired = false;
+    const fail = () => { fired = true; if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };
     const caller: ActionCallContext = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user",
       permissions: [...new Set([...datasetActions.promote.action.permissions, "dataset:read", "artifact:read"])], signal: controller.signal,
       validate_authority: async () => {
@@ -54,6 +57,7 @@ async function promotion(stage: Stage | "none", failure: "revoke" | "cancel") {
       assert_authority_current: () => {
         controller.signal.throwIfAborted();
         if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked");
+        if (replaced) throw new ActionError("actions.provider_changed", "the provider was replaced");
         // The wait's own final check has passed: fail before whatever it guards runs.
         if (armed) { armed = false; queueMicrotask(fail); }
       } };
@@ -70,20 +74,20 @@ async function promotion(stage: Stage | "none", failure: "revoke" | "cancel") {
 }
 
 /** W5-01-DATASET-06: Dataset hands the platform no check of its own; the library and the 成果 service refuse a stale caller at each stage. */
-test("W5-01-DATASET-06: cancel or revoke at each publication stage keeps only already-committed stages", async () => {
-  for (const stage of Object.keys(STAGES) as Stage[]) for (const failure of ["revoke", "cancel"] as const) {
+test("W5-01-DATASET-06: cancel, revoke or a replaced provider at each publication stage keeps only already-committed stages", async () => {
+  for (const stage of Object.keys(STAGES) as Stage[]) for (const failure of FAILURES) {
     const { outcome, fired, row, published } = await promotion(stage, failure);
     const label = `${stage} ${failure}`;
     assert.equal(fired, true, `${label}: the failure was injected`);
-    if (failure === "revoke") assert.equal((outcome as { code?: string }).code, "actions.forbidden", label);
-    else assert.equal((outcome as { name?: string }).name, "AbortError", label);
+    if (failure === "cancel") assert.equal((outcome as { name?: string }).name, "AbortError", label);
+    else assert.equal((outcome as { code?: string }).code, failure === "revoke" ? "actions.forbidden" : "actions.provider_changed", label);
     assert.equal(row.artifact_version, 0, `${label}: the table never records a pinned version`);
     if (stage === "after-begin-wait") {
       assert.equal(row.publication_pending, undefined, `${label}: nothing begins once the caller is gone`);
       assert.equal(published, 0, label);
     } else {
       assert.equal(row.publication_pending?.version, 1, `${label}: the committed intent stays for recovery`);
-      assert.equal(published, stage === "after-complete-wait" ? 1 : 0, label);
+      assert.equal(published, stage === "after-publish" || stage === "after-complete-wait" ? 1 : 0, label);
     }
   }
   const { outcome, row, published } = await promotion("none", "revoke");

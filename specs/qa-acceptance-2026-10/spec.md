@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～005；采用线已完成本轮逐项核对和部分实走，其余线仍在准备。尚不满足完成标准，七条线均不据此归档。
+状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～007；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；其余线仍在准备。尚不满足完成标准，七条线均不据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -39,13 +39,13 @@
 
 ## 3. 总览
 
-交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；其余线尚未完成逐条动态验证，不以库存审读代替运行结果。
+交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；其余线尚未完成逐条动态验证，不以库存审读代替运行结果。
 
 | 线 | 能否归档 | 当前主要缺口 |
 | --- | --- | --- |
 | 交互 | 不能 | QA-001～003、已知 #709（修复在途 #759）/#775、P5 与 H4 2c 续做、完整产品状态矩阵及 BL-016 真人验收 |
 | 采用 | 不能 | 2 通过／22 部分／15 未验证；QA-004/005、BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6 与完整产品实走 |
-| 手册 | 不能据本报告归档 | ADH-19～23、Coding 小跑、独立开发者使用与真人验收 |
+| 手册 | 不能 | 11通过／10部分／1不通过／1未验证；QA-006/007、ADH-19～23开发者实作、Coding小跑与真人验收 |
 | Computer Use | 不能据本报告归档 | 20 步真机、真实拒绝与回滚尚未开始 |
 | 回执 | 不能据本报告归档 | 逐编号运行和实走尚未开始；R1、3e 后续和阶段 4～6 有既定去处 |
 | 情境 | 不能据本报告归档 | 生产矩阵尚未实走；W4 后续、W5～W7 尚未交付 |
@@ -174,18 +174,57 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 
 **归档结论：不能。** 2 通过、22 部分通过、0 不通过、15 未验证、0 按决定整条不做。QA-004/005、BL-104/091、完整两产品动线和上述 A2/P5/P6 等续做仍缺。未来已排切片不是“按已定决定不做”。
 
+### 4.3 手册
+
+本节基线为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`，重新 fetch 后 detached 检出、离线安装和整体构建通过。`H1`：8 个文件的 19 项定向用例全部通过，日志 `.impeccable/qa/review/handbook-engineering.log`。运行文件为 agent-definitions、assistant-undo、assistant-business-gateway、assistant-work-continuity、assistant-delegation、assistant-methods、assistant-memory、announce-guard；按实际测试名筛选，编号只在注释的不漏算。测试使用真实宿主/SDK 与受控 provider，仍是一级。
+
+`H2`：文档与源码逐项核对。手册仍有唯一入口；按场景分开固定合同、模型判断、材料和方法，不把权限交给 prompt；第 15 节有有界调用、Skill 和多步协作实例，第 16 节分清机制/真实 SDK/真实模型/人工质量。§9.5 的 A3②和 D1②确有任务、次数、成本、前后比较及设计/能力/拿不准分类，不能说没有记录；历史记录未在本机全量复跑。外部一手资料包括 [Anthropic context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[building effective agents](https://www.anthropic.com/engineering/building-effective-agents)、[OpenAI harness engineering](https://openai.com/index/harness-engineering/)，本次已打开核对其相关主题；引用不覆盖仓库现行合同。
+
+`HU`：一次性个人 Home，正式目录配置 MiniMax-M3，真实请求 **7/12**（连接检查 1，业务轮 6）。[HU 截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265432912)包括1440浅色英文、1024/390深色中文；另留存其余宽度图，键盘打开结果与收起助理已实走，未验证完整错误/无权限/撤销状态矩阵。用户动线：Pages 空列表 → 助理输入三条虚构会议事实并指定“会议纪要整理” → 读取方法 → 创建文档 → 键盘打开结果 → 页面刷新后再从 Pages 打开。工作 `work-a3f6b41f-3301-4e88-ae75-faa1fed102c3`，Run `c-8x9e2`，文档 `6e347b64-fba8-4f5e-85bb-ca5511b6d579` revision 1。第一次读取方法误把 input 写成字符串，被合同拒绝；下一次改为对象成功，随后 pages.create 成功，无多余确认。文档确有结论、林青/2026-10-23 待办、预算待定和原文缺项；未擅自创建 Todo。实际用量 input 38,386、output 871、cached input 51,968；不能把三项简单相加当独立消耗。先有失败再成功，步骤中保留“1 did not finish”是本次调用事实，不作为重复执行缺陷。
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| ADH-01 | 通过 | 一级（文审） | H2 唯一手册入口、Skill 导航、接入合同仍在；结论限文档结构 | — | 8eedf2222 |
+| ADH-02 | 通过 | 一级（文审） | H2 §12 职责与判断依据、按不确定性选择固定步骤/Agent | — | 8eedf2222 |
+| ADH-03 | 通过 | 一级（文审） | H2 §13 稳定指令/动态材料/合同/示例及实际注册路径；未评测示意有标注 | — | 8eedf2222 |
+| ADH-04 | 通过 | 一级（文审） | H2 §15.2 按适用范围读方法，工具权限仍由宿主；不复制路由 | — | 8eedf2222 |
+| ADH-05 | 通过 | 一级（文审） | H2 来源、纠正、预算、摘要、交接案例及补材料原则 | — | 8eedf2222 |
+| ADH-06 | 通过 | 一级（文审） | H2 与安全合同一致：校验/幂等/取消/撤权/恢复保留在工程层 | — | 8eedf2222 |
+| ADH-07 | 不通过 | 一级（文审、源码） | H2 §14 的现状/证据/在途标记与本表及代码互相矛盾 | QA-007；control 版本另属已知 #793 | 8eedf2222 |
+| ADH-08 | 部分通过 | 一级、二级（一个方法） | H2 三类实例有解释；HU 复现 Pages 方法，尚非全部开发案例 | 独立开发者走读未完成 | 8eedf2222 |
+| ADH-09 | 通过 | 一级（文审） | H2 §16.3 记录任务效果、适应性、方差和证据类型，历史样例不宣称一次稳定 | — | 8eedf2222 |
+| ADH-10 | 通过 | 一级（文审） | H2 诊断分上下文/工具/prompt/模型/运行时；手册范围没有新增强制审批/评分 | 不是整仓无违规结论 | 8eedf2222 |
+| ADH-11 | 通过 | 一级（文审） | H2 一手来源可查，具体版本仍以仓库实际实现核验 | — | 8eedf2222 |
+| ADH-12 | 部分通过 | 一级 | H1 材料事实与角色规则有断言；once helper 只证规则所在层，不数同层重复次数 | 完整每节/重复次数证据不足 | 8eedf2222 |
+| ADH-13 | 部分通过 | 一级 | H1 base 单句且无类别路由；A3②有 48 跑历史对比 | 本轮未重复真实模型“记一下”矩阵 | 8eedf2222 |
+| ADH-14 | 通过 | 一级、二级 | H1 v2 声明/正文无确认；HU 真读取并成功建 Pages，页面刷新后内容仍在 | 单任务实走，不推断稳定成功率 | 8eedf2222 |
+| ADH-15 | 通过 | 一级（记录核查） | A3②完整前后记录与分类存在，符合本条记录标准 | 不冒称本次独立复跑 | 8eedf2222 |
+| ADH-16 | 部分通过 | 一级 | H1 无工具核对、事实围栏、各种失实每轮拦一次、无效JSON放过；错误/超时未找到故障断言 | QA-006 | 8eedf2222 |
+| ADH-17 | 部分通过 | 一级 | H1 只认给过标识、子任务不查、主工作仍查；真实各种内容未全走 | 用户可见结果仍缺二级矩阵 | 8eedf2222 |
+| ADH-18 | 部分通过 | 一级（记录核查） | D1②真模型对比及单次核对记录存在；把超时说成已有确定性证明不成立 | QA-006 | 8eedf2222 |
+| ADH-19 | 部分通过 | 一级（文审） | #787 已有渐进披露与选择字段说明；没有本次独立作者实作 | 手册后续开发情境走读 | 8eedf2222 |
+| ADH-20 | 部分通过 | 一级（文审） | 正文含真实过程→固定/可变/判断点→回放→注册不自动启用 | 生成实际 Skill 并回放未做 | 8eedf2222 |
+| ADH-21 | 部分通过 | 一级（文审） | 有多次运行、触发率/质量、description/正文迭代评测方法 | 独立 Skill 前后评测未做 | 8eedf2222 |
+| ADH-22 | 部分通过 | 一级（文审） | 校验清单区分拒绝与报告；本次未逐个跑作者失败样例 | 作者侧失败样例未验证 | 8eedf2222 |
+| ADH-23 | 未验证 | 无动态证据 | 技能包在个人助理与 Coding 各用一次并改进的完整开发者记录未完成 | skill-packs 与本 spec 后续；不是永久不做 | 8eedf2222 |
+
+**轻做与代码质量。** QA-006/007 按新问题列出；ADH-12 的“只写一次”现有 helper 只能确认唯一层，不能证明同层不重复。H1 的方法测试只断言 v2 文字，实际建页面由 HU 补齐。没有用历史真实模型评测代替本次执行，也没有因模型第一次参数错误修改提示词。唯一模型接线在 agent-host，方法由插件声明注册；收尾核对的 catch 放过是明确已定行为，不能当空 catch 随意改。现有宿主私路与权限去向继续沿用防腐已登记项目。
+
+**归档结论：不能。** 11 通过、10 部分通过、1 不通过、1 未验证。QA-006/007、ADH-19～23 的开发者实作、Coding 真实模型小跑及三级体验仍未收口；HU 仅补齐 ADH-14 的这条完整路径。
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 新 |
-| QA-002 | 交互；P2；产品缺陷 | AC-26／S1；交互 §1 完整失败恢复、§3 状态连续、§5 生命周期与恢复 | ebad9a223b84d28937df03393231381587b3193a | 新临时 Home 配 MiniMax-M3；Form 创建问卷并生成 4 题；输入“另做一份培训反馈问卷，请先问我面向哪种学员和题量。”；首次补问结构校验失败；原要求重试获得合法三题卡 | 预期新卡可答且聚焦时旧生成错误撤下；实际旧错误与合法卡同时显示；原提示和 4 道业务题保留。首次拒绝本身不是缺陷，也不能推断响应具体哪字段错 | 二级：[同一页面错误与新卡截图，1440/390 深色](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；源码与实走一致。真实模型首轮结果有随机性，确定性复验需以受控供应商先无效后有效补问驱动同一生产页面 | `plugins/native/form/src/browser/draft.ts:37`、`:42`、`:45`；`browser/client.ts:77`；`browser/save.ts:24` | HANDOFF §3 ③ Form 文件 owner，⑨交互共同复验 | 第一次无效补问、重试有效补问后，新卡可见且首题获焦，旧生成错误隐藏；原提示保留，回答前业务题数不增 | 新 |
-| QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 新 |
-
+| QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 已派 |
+| QA-002 | 交互；P2；产品缺陷 | AC-26／S1；交互 §1 完整失败恢复、§3 状态连续、§5 生命周期与恢复 | ebad9a223b84d28937df03393231381587b3193a | 新临时 Home 配 MiniMax-M3；Form 创建问卷并生成 4 题；输入“另做一份培训反馈问卷，请先问我面向哪种学员和题量。”；首次补问结构校验失败；原要求重试获得合法三题卡 | 预期新卡可答且聚焦时旧生成错误撤下；实际旧错误与合法卡同时显示；原提示和 4 道业务题保留。首次拒绝本身不是缺陷，也不能推断响应具体哪字段错 | 二级：[同一页面错误与新卡截图，1440/390 深色](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；源码与实走一致。真实模型首轮结果有随机性，确定性复验需以受控供应商先无效后有效补问驱动同一生产页面 | `plugins/native/form/src/browser/draft.ts:37`、`:42`、`:45`；`browser/client.ts:77`；`browser/save.ts:24` | HANDOFF §3 ③ Form 文件 owner，⑨交互共同复验 | 第一次无效补问、重试有效补问后，新卡可见且首题获焦，旧生成错误隐藏；原提示保留，回答前业务题数不增 | 已派 |
+| QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 已派 |
 | QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 新 |
 | QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 新 |
+| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:51 设30秒、:57归档、:60 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回；取消路径不重新开轮 | 新 |
+| QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 文审与源码；GitHub 两 PR 均 merged，且变更已在本 SHA；不同于已知control版本#793 | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 新 |
 
-QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知 P1 #709 继续沿用原编号，未新立项；尚待按原步骤复验。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。QA-003 若统筹已把追溯纳入 #785，则按反馈改标已知，不重复派单。候选问题只有独立核实并去重后才编号。
+QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知 P1 #709 继续沿用原编号，未新立项；尚待按原步骤复验。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。统筹已在[分诊评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265235773)确认 QA-001～003 并派交互线；#785 没有补测试编号，QA-003 保留。候选问题只有独立核实并去重后才编号。
 
 ## 6. 跨线场景
 
@@ -193,7 +232,7 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 ## 7. 没验的范围和原因
 
-除 §4.1～4.2 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
+除 §4.1～4.3 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
 
 ## 8. 待用户验收
 
@@ -212,3 +251,5 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 - 2026-10-19：正常助理/Coding 配置需要凭据密文，自动审批先按“密钥不进文件”拒绝启动；没有请求发出。用户随后明确允许本次例外：仅一次性 Home 保存 AES-GCM 密文，独立加密主钥匙只在内存，停服务后删除 Home；明文继续只从专属钥匙串内联读入 MINIMAX_API_KEY，不进文件/日志/参数/截图。不伪造 connection 或跳过正式配置检查。
 
 - 采用线真实服务请求总数最终为 18，已停止自建 PID，核对临时目录名且非软链后删除整个 Home；未操作真实 Home/4207。PA-23 按现行 P3a 已定接法判断，不能把旧 A0 的禁 yield 文字用于否定正式 SDK 接续。
+
+- 手册线 7/12 次请求完成；按 PID 49492 停服务，确认进程退出后核对临时目录并删除，密文随 Home 清除。

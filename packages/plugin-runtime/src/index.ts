@@ -29,7 +29,14 @@ export type {
 } from "./release-artifacts.js";
 
 export { currentPluginAction } from "./action-scope.js";
+export { createPluginOwnerFilesClient } from "./owner-files-service.js";
+export type { PluginOwnerFilesGate } from "./owner-files-service.js";
+export { createPluginBackgroundClient } from "./background-service.js";
 export { createPluginModelClient, pluginModelErrors } from "./model-service.js";
+export { createPluginModelConfigurationClient } from "./model-configuration.js";
+export type { PluginModelConfigurationPort } from "./model-configuration.js";
+export { createPluginImageGenerationClient } from "./image-generation.js";
+export type { PluginImageGenerationPort, PluginImageGenerationGate, PluginImageGenerationDispatch } from "./image-generation.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";

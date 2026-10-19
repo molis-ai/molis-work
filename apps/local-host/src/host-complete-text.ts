@@ -19,7 +19,9 @@ export interface HostTextRequestOptions {
   maxOutputTokens?: number;
 }
 export type HostCompleteText = (prompt: string, options?: HostTextRequestOptions) => Promise<string>;
-export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptions) => Promise<PrologueTextResult>;
+export type HostTextGenerationResult = PrologueTextResult & { validateResult(): void };
+export type HostTextGenerationFailure = Error & { execution?: PrologueInferenceError["execution"]; validateResult?: () => void };
+export type HostTextGeneration = (prompt: string, options?: HostTextRequestOptions) => Promise<HostTextGenerationResult>;
 export interface HostTextOptions { homeDirectory?: string; selection?: TextModelSelection; resolveInference?: typeof resolvePrologueInference; env?: NodeJS.ProcessEnv }
 interface TextConfiguration { base_url: string; api_format: ModelApiFormat; model_id: string; prompt_cache?: ModelPromptCacheMode }
 const unavailable = () => new ActionError("actions.connection_required", "所选文字模型或连接已不可用，请检查模型设置和服务连接");
@@ -74,13 +76,11 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
           const apiKey = runWithMolisWorkHome(home, () => createFileSecretStore().get(before.provider.credential_ref))?.trim();
           if (!apiKey) throw unavailable();
           if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
-          const result = await completeTextRequest(config, before.provider.credential_ref, () => {
+          return guardedGeneration(() => completeTextRequest(config, before.provider.credential_ref, () => {
             if (JSON.stringify(current()) !== JSON.stringify(before)) throw unavailable();
             return apiKey;
           }, prompt, home, request, options.resolveInference,
-          () => JSON.stringify(current()) !== JSON.stringify(before));
-          if (JSON.stringify(current()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
-          return result;
+          () => JSON.stringify(current()) !== JSON.stringify(before)), () => JSON.stringify(current()) !== JSON.stringify(before));
         };
       }
       // A disabled/invalid saved provider must not silently activate an environment credential.
@@ -105,14 +105,30 @@ export function hostTextGeneration(options: HostTextOptions = {}): HostTextGener
     assertVisionInput(request, false);
     const before = environmentState();
     if (!before || JSON.stringify(before.config) !== JSON.stringify(config)) throw unavailable();
-    const result = await completeTextRequest(config, ENVIRONMENT_CREDENTIAL, () => {
+    return guardedGeneration(() => completeTextRequest(config, ENVIRONMENT_CREDENTIAL, () => {
       if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw unavailable();
       return before.key;
     }, prompt, home, request, options.resolveInference,
-    () => JSON.stringify(environmentState()) !== JSON.stringify(before));
-    if (JSON.stringify(environmentState()) !== JSON.stringify(before)) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
-    return result;
+    () => JSON.stringify(environmentState()) !== JSON.stringify(before)), () => JSON.stringify(environmentState()) !== JSON.stringify(before));
   };
+}
+
+/** This closure retains the dispatched snapshot, including for failures with execution facts. */
+async function guardedGeneration(run: () => Promise<PrologueTextResult>, changed: () => boolean): Promise<HostTextGenerationResult> {
+  const validateResult = () => {
+    if (changed()) throw new ActionError("actions.configuration_changed", "生成期间模型或连接已变化，结果未提交，请重试");
+  };
+  try {
+    const result = await run();
+    validateResult();
+    return Object.defineProperty({ ...result }, "validateResult", { value: validateResult }) as HostTextGenerationResult;
+  } catch (error) {
+    // Dispatch already classified terminal refusals; they carry no recordable result.
+    if (error instanceof ActionError) throw error;
+    validateResult();
+    if (error instanceof Error) Object.defineProperty(error, "validateResult", { value: validateResult, configurable: true });
+    throw error;
+  }
 }
 
 /** Names the environment key to the model runtime; it is not a stored credential. */
@@ -200,7 +216,7 @@ async function completeTextRequest(config: TextConfiguration, credentialRef: str
     throw new Error(message);
   }
   signal?.throwIfAborted();
-  if (typeof result.value !== "string" || !result.value.trim()) throw new Error("模型没有返回正文，材料已保留，可重试");
+  if (typeof result.value !== "string" || !result.value.trim()) throw Object.assign(new Error("模型没有返回正文，材料已保留，可重试"), { execution: { run_ref: result.run_ref, state: result.state, configuredModel: result.configuredModel, reportedModels: result.reportedModels, usage: result.usage } });
   return { ...result, value: result.value.trim() };
 }
 

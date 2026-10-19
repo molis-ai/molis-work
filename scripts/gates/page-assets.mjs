@@ -241,6 +241,8 @@ const headErrors = (measured, budget, base) => {
 // This exact increase is spent once; later growth stays frozen.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1113068, 1115299],
+  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
+  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

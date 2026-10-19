@@ -1,14 +1,14 @@
 # 内置插件迁到 Plugin Runtime：计划
 
-状态：计划，2026-10-08 按 origin/main `31c357df` 核实（行号与计数都在这个提交上重量过；2026-10-10 删除实验插件后，目录条目、名单与手写接线的计数按删掉的部分扣减，行号只改了下面标明的几处）。2026-10-16 按 origin/main `76758783` 重核名单（只改了下面目录条数、三份名单与这一句）：第一个样板 Form 已由项目监督器启动（W4-04），Issues 是 Home 监督器启动的 Home 级插件；第二个样板 Todo 仍在构建期名单上，尚未开始。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进宿主（第 5.4 节）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
+状态：执行中。2026-10-18 按本地 W5-01 整合候选核对：Form、灵光、PPT、Dataset 由项目监督器启动，Issues、Todo、Cognia、Images、Jelly 由 Home 监督器启动；Todo #684、灵光 #729 已合入 main，Cognia、Images、Jelly、PPT、Dataset 候选仍待各自正式合入，不能用本地名单代替 main 状态。第 2.1 节为当前代码，其他标明日期的行号、接线数量和缺口保留调研时口径。这份文档回答「迁哪些、不迁哪些、什么顺序、迁之前要补什么、每个插件一个 PR 怎么做、怎样量进展」，并写明 Characters 反方向并进 modules/characters（第 5.4 节）。**2026-10-18 用户改了几项（第 1 节末四行）**：四个构建期例外取消（Goals 按本计划迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），内置插件的授权改成与其他插件同一规则，只给内置的特权改成按声明与授权，项目库加库服务；第 10 节第 3～9 项都已定。下文与这些冲突的地方标了「2026-10-18 改」，没标的照旧。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「装配统一」；路线图 W1-15、W3-06、W4-01、W4-02、W4-04、W5-01、W5-02、W6-01、W6-02（`specs/repository-anti-corruption/roadmap-2026-10-07.md`）；扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md)，第三方插件见 [THIRD-PARTY-PLUGINS.md](THIRD-PARTY-PLUGINS.md)。
 
 ## 白话说明
 
-内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；有 7 个，其中 Characters 已定并进宿主、不再算（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；有 18 个，名单冻结，只许减少（实验插件已在 2026-10-10 删除，不在其中）。两种方式的插件在工作台里都有目录条目。迁移就是把这 18 个里的 14 个逐个搬到第一种方式（另 4 个是批准的例外），每搬一个，删掉它在宿主里的文件和接线。数据不动：库留在原处，用户看到的界面不变。迁完后经 Runtime 装配的是 20 个（现有 6 个加迁来的 14 个），构建期只剩 4 个例外。
+内置插件现在有两种装配方式。**经 Plugin Runtime**：监督器启动，有安装记录、升级检查、崩溃恢复，HTTP 由 Manifest 声明；本地候选有 16 个，其中 Characters 已定并进宿主（第 5.4 节）。**构建期组合**：宿主里手写一行 `registerProvider`、一个 `<插件>-native-plugin-http.ts`、`web-request.ts` 里的一段路由，没有安装记录和升级检查；本地候选还剩 10 个，名单冻结，只许减少。两种方式的插件在工作台里都有目录条目。迁移逐个删除插件在宿主里的专用文件和接线，最终构建期只剩 4 个批准例外。2026-10-18 改：这 4 个例外已取消（Goals 按标准迁到 Runtime，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理），见第 1 节与第 3 节开头，所以「只剩 4 个批准例外」是取消前的算法。库留在原处，界面与业务事实保持；每片完成程度和验证见防腐 spec。
 
-Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，项目 scope 由真实客户端给，不从路由前缀或输入制造。项目删除仍向现行 catalog 的数据 owner 调清理，不新增 Runtime 删除事件。相关验收与待运行工程证据见防腐 spec §10.2。
+Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再建第二个平台。安装、发行物和安装隔离 KV 为完整 v2，旧版与坏结构严格拒绝；迁移来的插件业务表仍留原 SQLite。数据库/模型/动作/指令与生命周期复用现有共同服务；Home HTTP 共用 operations，Host 验证路径中的项目存在、插件可见后给本次调用建立项目身份，不信请求体或 query 自称的项目。项目删除仍向现行 catalog 的数据 owner 调清理；可信 Home 条目可声明同步停止回调，由同一 owner 在 purge 前送给当前实例，停用后回到原离线清理。相关验收与待运行工程证据见防腐 spec 的 W5-01 段。
 
 ## 1. 用户已定的决定
 
@@ -40,17 +40,19 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（9）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 8。
-- Home 级（2）：issues、todo，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（15）：alchemist、artifacts、cognia、dataset、feed、goals、images、inbox、jelly、pages、plugin-builder、ppt、schedule、sessions、workflows。
+- `RUNTIME_ASSEMBLED`（11）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、ppt、dataset，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 10。
+- Home 级（5）：issues、todo、cognia、images、jelly，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（10）：alchemist、artifacts、feed、goals、inbox、pages、plugin-builder、schedule、sessions、workflows。
 
-以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光已删除各自的两份适配。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
+PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
+
+以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia、Images、Jelly 已删除各自的动作/HTTP适配；Images 的专用 Host 服务也已移除。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 18 个构建期插件的分类与放置
 
 范围（个人或项目）取自目录条目的 `personal`；数据位置取自 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`、`apps/local-host/src/project-database-schema.ts` 和各包。
 
-**批准的构建期例外（4）**（2026-10-18 取消，见第 1 节与第 3 节开头）：Goals、Artifacts、Sessions（包 `plugins/native/work`）、插件创作台（`plugin-builder`），见第 3 节。
+**批准的构建期例外（4）**（2026-10-18 改：已取消，见第 1 节与第 3 节开头）：Goals、Artifacts、Sessions（包 `plugins/native/work`）、插件创作台（`plugin-builder`），见第 3 节。
 
 **要迁的（14）**。「实例」一列是放置规则的结果（见表后），「项目分区的 Home 数据」一列说明有没有要在「项目已删」步骤里清的数据（见 4.2 和 6）：
 
@@ -66,7 +68,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 | Jelly | 是 | Home 级 | `{home}/jelly/jelly.db` | 没有（包里没有 `project_id`） | 36、32 |
 | Cognia | 是 | Home 级 | `{home}/cognia/cognia.db` | 没有 | 21、14 |
 | Images | 是 | Home 级 | `{home}/images/images.db`，另有运行锁 | 有：`jobs` 表带 `project_id`（`plugins/native/images/src/store.ts`） | 7、61；另有 `ImagesHostService` |
-| Alchemist | 是 | Home 级 | `{home}/alchemist/alchemist.db`，每项目另有 `alchemist/projects/<id>/studio.sqlite` | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
+| Alchemist | 是 | Home 级 | 没有 Home 级的库；每个项目一个目录 `{home}/alchemist/projects/<id>/`，里面 `studio.sqlite`（工作室，`alchemist-service-host.ts`）与 `search.sqlite`（搜索，`alchemist-search.ts`） | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件包自建（`SCHEDULE_*_SCHEMA_SQL`） | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
 | Feed | 否 | 每个项目一个 | 项目库，表由 Feed、Sources、Signals 模块和插件的 `FEED_OUT_RULES_SCHEMA_SQL` 建 | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveFeedSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 没有 `feed-actions.ts`；`feed-native-plugin-http.ts` 113；在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；Feed 被 29 个宿主文件 import（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`），单独成案 |
@@ -81,7 +83,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ## 3. 批准的构建期例外
 
-**2026-10-18 用户取消了这四个例外**（第 1 节）：Goals 按本计划迁到 Runtime；插件创作台不再算插件，并进平台能力；成果库与 Sessions 是平台事实，Sessions 这一轮清理。下表保留当时读出的理由，作为补平台能力时要解决的依赖，不再是不迁的依据。
+**2026-10-18 改：用户取消了这四个例外**（第 1 节）：Goals 按本计划迁到 Runtime；插件创作台不再算插件，并进平台能力；成果库与 Sessions 是平台事实，Sessions 这一轮清理。下表保留当时读出的理由，作为补平台能力时要解决的依赖，不再是不迁的依据。
 
 四个例外都是 2026-10-07 用户批准的。spec 里只记了结论，没有逐条记理由；下面的原因是从代码里读出的事实。
 
@@ -103,7 +105,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 `PluginHostServices`（`packages/contracts/src/platform/plugin.ts`）现在只有 `actions`、项目库键值 `storage`、`artifacts`、`processItems`、`ui`、`events`、`inputs`、`outputs`、`capabilities`。缺：
 
 1. **模型服务**：`services.model`，由 `horizontal/agent-host` 支撑，带登记的指令、`scheduling: "concurrent"` 和 `beforeEffect()`；是 Runtime 插件服务，不是 typed 宿主能力。
-   **已有（W3-06 E）**：`context.services.model`，只给宿主自己运行（非沙箱）、Manifest 声明 `model:invoke`、平台有 Home 的插件；只在声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作里放行；经 `hostTextGeneration` → agent-host，不向 Prologue 传调用编号。写法与限额见 [Prologue AI 手册第 4 节](../platform/PROLOGUE-AI.md)。**这一片不含**：选定某个模型与列出可选模型、图片输入、动作返回后的后台任务里调模型、Home 级实例（`HomePluginExecutor`）上的模型；迁移要用到时先补服务，不在迁移 PR 里补。
+   **已有（W3-06 E）**：`context.services.model`，只给宿主自己运行（非沙箱）、Manifest 声明 `model:invoke`、平台有 Home 的插件；只在声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作里放行；经 `hostTextGeneration` → agent-host，不向 Prologue 传调用编号。写法与限额见 [Prologue AI 手册第 4 节](../platform/PROLOGUE-AI.md)。当时这一片不含的几项，W5-01 已经补进服务：调用可带 `selection`（选定的模型不可用就拒绝，不替换）、`availability()`、`configuration` 与 `images`（`packages/contracts/src/platform/plugin-model.ts`、`plugin-model-configuration.ts`，#743）；动作返回后的工作经 `services.background`（`packages/contracts/src/platform/plugin-background.ts`，沿用接受时调用者的权限，#742）。迁移还缺别的服务时照旧先补服务，不在迁移 PR 里补。Home 级实例上的模型服务已经有：`HomePluginExecutor`（`apps/local-host/src/home-plugin-executor.ts`）启动插件时同样经 `pluginModelFor` 给 `services.model`，规则与项目执行器一样（S-15）。
 2. **插件自有的 Home 库服务**：按 `{home}/<id>/<id>.db` 打开已有的库，表不变。
 3. **Home 级 Runtime 实例**：`createPluginPlatform` 现在只在每个项目里创建，Home 级的个人插件（Todo、Jelly、Cognia、Images、Alchemist）要有一个 Home 级实例，按项目启用照旧。
 4. **「项目已删」步骤的送达**：见 4.2 末项。这是 2026-10-07 删除项目决定带来的缺口，路线图的 W3-06 描述里没有，需要补进去。
@@ -120,7 +122,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
      - **依赖声明 `required_actions`**：内核每次判断可用性时，若依赖里写了 `provider_id` 而登记的提供方不是它，就报 `actions.provider_changed`，整个动作不可用（`packages/kernel/src/action-service.ts` 第 427–428 行）。有 `plugins/native/inbox/src/actions.ts` 第 67 行（`inbox.pages.results` 依赖 Pages 的 `pages.generations.list`）和第 78 行（`inbox.pages.generate` 依赖 Pages 的三个动作），都钉 `PAGES_PLUGIN_ID`；还有 `apps/local-host/src/information-actions.ts` 第 15 行（`information.plan` 依赖 Feed 的快照与 `inbox.list`），钉 `FEED_PLUGIN_ID`、`INBOX_PLUGIN_ID`。
      - **保留调用权限 `retainActionAuthority` 与 `validate_authority`**：嵌套调用把原动作的 `provider_id` 钉住（`packages/contracts/src/platform/actions.ts` 第 386 行，这里的 `provider_id` 必填），入口再逐个核对。已查到的三类入口都要求与当前登记的完全相等，否则拒绝：本地网页（`apps/local-host/src/local-web-actions.ts` 第 34–44 行，`actions.forbidden`）、MCP（`mcp-action-client.ts` 第 19–24 行经 `mcp-action-grants.ts` 第 48–54 行，`mcp.action_revoked`）、助理（`apps/local-host/src/assistant/assistant-authority.ts` 第 69–76 行，`assistant.action_revoked`）。写死处：Feed 自己的四个文件 `plugins/native/feed/src/content-actions.ts` 第 40 行、`item-actions.ts` 第 79 行、`rule-actions.ts` 第 93 行、`source-actions.ts` 第 72 行，另有宿主的 `apps/local-host/src/content-action-providers.ts` 第 44 行（钉 `feedManifest.plugin_id`）；Inbox 自己的 `plugins/native/inbox/src/actions.ts` 第 141 行、`content-actions.ts` 第 58 行；Inbox 钉 Pages 的 `plugins/native/inbox/src/pages.ts` 第 69 行（`pages.generate`）；Workflows 自己的 `plugins/native/workflows/src/actions.ts` 第 213 行。
      - **算键的字面量**：`apps/local-host/src/functions-host.ts` 第 16 行用 `"io.molis.work.inbox"` 算内置首页规则的推荐选项键；键里含源提供方的 `provider_id`，并且没有它就不给算（`packages/kernel/src/subject-offer-choices.ts` 第 35–39 行），Inbox 迁后这个键就对不上 Inbox 实际给出的选项。
-     - 指向批准的构建期例外的不受影响（2026-10-18 例外取消后，迁 Goals 时这几处一并查），例外期间它们的 `provider_id` 不变：Goals（`apps/local-host/src/project-capabilities.ts` 第 64、66 行，`plugins/native/feed/src/query-actions.ts` 第 25 行）、Sessions（`apps/local-host/src/work-actions.ts` 第 10 行，`home-talk-actions.ts` 第 16、29 行）。
+     - 指向批准的构建期例外的不受影响（2026-10-18 改：例外取消后，迁 Goals 时这几处一并查），例外期间它们的 `provider_id` 不变：Goals（`plugins/native/feed/src/item-actions.ts` 第 14 行，`plugins/native/feed/src/query-actions.ts` 第 28 行，`server/src/continuity/actions.ts` 第 4–6 行；`project-capabilities.ts` 里已经没有点名 Goals 的行）、Sessions（`apps/local-host/src/work-actions.ts` 第 10 行，`home-talk-actions.ts` 第 16、29 行）。
      - **还没逐个核对的**：下列地方也读写带 `provider_id` 的引用，本文没有确认它们迁移后会不会失配，设计稿要查全：搜索索引的 `search_sources` 表（`packages/storage/src/adapters/text-search-index.ts` 第 148 行）和搜索命中编号（`horizontal/search/src/index.ts` 第 110 行的 `encodeSearchHitId`）、角色可选能力的引用（`plugins/native/characters/src/actions.ts` 第 10 行、`plugin.ts` 第 59 行）。
      - **清点命令**：`git grep -n -E 'provider_id: *([A-Za-z_.]*(PLUGIN_ID|plugin_id)|"io\.molis\.work\.[a-z.]+")' -- apps packages plugins modules horizontal ':!tests' ':!*.md' | grep -v -E 'provider_id: [A-Za-z]+\.plugin_id, plugin_id:'`。`grep -v` 滤掉的是各 `*-actions.ts` 登记自己提供方的行，形状是 `provider_id: <X>Manifest.plugin_id, plugin_id: …`。在 origin/main `31c357df` 上输出 20 行：`personal-planning-actions.ts` 那行登记的是系统提供方，不是钉死；指向例外的 6 行不受影响；剩 13 行，分布在 11 个文件，就是上面逐条列的。命令只认 `provider_id: …` 的写法，经变量传递的要在设计稿里另查。
   - **选项。**
@@ -203,7 +205,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 
 1. **代码放哪**：宿主还是 `modules/characters`。Module 已经拥有草稿、修订和启用状态；放进 `apps/local-host` 要遵守「apps 只装配与做 IO，不写业务规则」（`docs/system/DEVELOPMENT-REQUIREMENTS.md`）。
 2. **设置里的一节**：并进宿主后，「角色」在 `apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS` 里是第 12 项，位置（`order: 35`）不变；舞台页 `page` 也要有归宿。位置数见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.6。
-3. **要删的**：监督器条目与 `charactersPluginPorts`、目录条目、`RUNTIME_ASSEMBLED` 里的 `characters`、`charactersWorkbenchPanel` 对插件舞台的拼装；`characters-host.ts` 里 Coding 要用的 `codingCharacterPorts` 和导入相关的文件留下。
+3. **要删的**：监督器条目与 `charactersPluginPorts`、目录条目、`RUNTIME_ASSEMBLED` 里的 `characters`、`charactersWorkbenchPanel` 对插件舞台的拼装，以及 `characters-host.ts` 里的 `codingCharacterPorts`。2026-10-18 改（统筹定，依据「插件不分官方还是个人、不给某个插件在宿主里开私路」，`specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行）：Coding 与助理要用的角色能力（列出、冻结某个角色的某一版）不再走宿主里留的端口；这些处理器放进 `modules/characters`，作为动作公开列出/冻结角色，Coding（`project-plugins.ts`）和助理（`assistant-http.ts`）都经统一动作服务调用，端口随之删除。导入相关的文件（`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`）是否留在宿主，由这一片定。在这之前代码仍是：`codingCharacterPorts` 留在 `characters-host.ts`，两处调用它。
 4. **「角色」成果类型的声明要换主人**：Manifest 的 `artifacts.produces` 现在声明了 `CHARACTER_ARTIFACT_TYPE` 和预览动作 `characters.artifacts.preview`；AGENTS.md 要求成果类型在 Manifest 声明、带 owner。插件没了，这个声明和预览动作要落到宿主或 Module 的声明里，`tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts` 要继续成立。
 5. **动作的提供方会换**：`CHARACTERS_ACTIONS` 今天由 Runtime 安装提供（`provider_id` 是 `install_id`），并进宿主后换成宿主提供方。动作 id 与版本不变，但 `provider_id` 变，影响面同 4.2 的「提供方身份」里的存量引用（MCP 授权、工作流步骤按 `provider_id` 匹配），要在同一个决定里处理，不要在这一片里悄悄改。4.2 的清点命令在代码里没有查到写死 Characters `provider_id` 的行，所以它没有第 3 类后果。**（已定：用户 2026-10-10 选内置插件一律用插件名，W3-06 C 已把 Characters 登记在 `io.molis.work.characters` 之下，并进宿主时 `provider_id` 不用再变；这一项剩下的只是维护七改写存量引用。）**
 6. **安装记录**：每个项目库的 `plugin_runtime_installs` 里有 `io.molis.work.characters` 的记录（监督器启动时建）。决定写的是「安装记录与 Runtime 条目一起删」。对真实 Home 的项目库，这是删数据，走第 7 节的流程：先备份，在拷贝上演练，逐库核对。
@@ -244,10 +246,10 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 | 指标 | 现在 | 全部迁完后的目标 |
 | --- | --- | --- |
 | 目录条目 | 25 | 24（Characters 并进宿主后少一条） |
-| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 7 | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
-| `BUILD_TIME_ASSEMBLED`（构建期装配的内置插件） | 18 | 4（Goals、Artifacts、Sessions、插件创作台） |
-| `apps/local-host/src/*-native-plugin-http.ts` | 17 个文件，905 行 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
-| 以插件命名的 `apps/local-host/src/*-actions.ts` | 16 个，593 行 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
+| `RUNTIME_ASSEMBLED`（Runtime 装配的内置插件） | 9 | 20（现有 6 个，Characters 移出，加迁来的 14 个） |
+| `BUILD_TIME_ASSEMBLED`（构建期装配的内置插件） | 16 | 4（Goals、Artifacts、Sessions、插件创作台） |
+| `apps/local-host/src/*-native-plugin-http.ts` | 15 个文件 | 1 个（`artifact-native-plugin-http.ts`，208 行） |
+| 以插件命名的 `apps/local-host/src/*-actions.ts` | 15 个 | 3 个（`artifact-actions.ts`、`goals-actions.ts`、`work-actions.ts`，共 136 行） |
 | `project-host.ts` 里按插件逐个登记的 `registerProvider` | 16 行 | 0 |
 | 新增一个内置插件在包外的手改文件数（外加门禁名单一行与 SSOT 一行，两端都要） | 12（见 EXTENSION-POINTS.md 3.1） | 1（要 X-1；没有 X-1 是 4） |
 

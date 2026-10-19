@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Native Goals 通过 `records` 保存有限 Goal/Relation 结构提案，使用 `decisions` 在同一事务内记录决定并调用实际数据 owner。`eventDecisions` 保存受保护入口产生的可信用户决定，供当前约定与要求验收引用。`query` 读取事件游标、快照与 Goal Tree 提案。
+Native Goals 通过 `records` 保存有限 Goal/Relation 结构提案，使用 `decisions` 在同一事务内记录决定并调用实际数据 owner。`eventDecisions` 保存受保护入口产生的可信用户决定，供当前约定与要求验收引用。`query` 读取事件游标、快照与 Goal Tree 提案。Repository 与 RecordStore 只在包内使用，调用方从 Module 的业务服务进入。
 
 ## 从哪里读代码
 

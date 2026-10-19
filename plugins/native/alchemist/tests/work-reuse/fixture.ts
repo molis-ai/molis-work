@@ -1,3 +1,6 @@
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ALCHEMIST_ACTION_PERMISSIONS } from "../../src/studio/shared/contracts/actions.js";
+import { createAlchemistActionHandlers } from "../../src/studio/server/services/action-operations.js";
 import { mkdtempSync, rmSync } from "node:fs";
 import { alchemistOutput } from "../../../../../tests/fixtures/alchemist-output.js";
 import { tmpdir } from "node:os";
@@ -65,6 +68,8 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
     },
     linkConsumption: async (caller, input) => {
       if (linkFailure) throw new Error("ledger unavailable");
+      await caller.validate_permissions?.(["alchemist:write"]);
+      caller.assert_authority_current?.();
       for (const ref of input.references) ledger.commands.put({ ...access, actor_id: caller.actor_id }, {
         key: `reuse:${input.runId}:${ref.artifact_id}:${ref.version}`, type: "work.reuse.consumed",
         source: { module: "artifacts", id: ref.artifact_id, version: ref.version, scope, project_id: "project-test" },
@@ -73,7 +78,12 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
     },
   };
   let runtime = createLocalRuntime({ databasePath: join(home, "studio.sqlite"), ai, workReuse: host, pulseSourceMode: "fixture" });
-  const call = <I, O>(definition: Parameters<typeof runtime.actions.invoke<I,O>>[0], input: I) => runtime.actions.invoke(definition, input);
+  const service = new ActionService();
+  const dispose = service.registerProvider({ provider: { provider_id: "alchemist", title: "Alchemist fixture", kind: "plugin", plugin_id: "alchemist", project_id: "project-test" },
+    definitions: Object.values(a), handlers: createAlchemistActionHandlers({ resolve: caller => runtime.actionsFor(caller.actor_id) }) });
+  const call = async <I, O>(definition: Parameters<typeof runtime.actions.invoke<I,O>>[0], input: I): Promise<O> => await service.invoke({
+    actor_id: "actor-local", project_id: "project-test", audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS,
+  }, definition, input) as O;
   const { direction } = await call(a.directionCreate, { title: "访谈研究", description: options.description ?? "为独立团队研究访谈整理与提案工具" });
   const started = await call(a.explorationStart, { id: direction.id }); await runtime.runPending();
   const { exploration } = await call(a.explorationGet, { id: started.runId });
@@ -93,7 +103,7 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
     return (await call(a.proposalApply, { id: proposal.id })).rule;
   };
   return { home, artifacts, ledger, access, requests, call, plan, run, confirmMethod, idea, ideas, direction,
-    get runtime() { return runtime; }, host,
+    get runtime() { return runtime; }, host, revokeAuthority: dispose,
     beforeDispatch(callback?: typeof beforeDispatch) { beforeDispatch=callback; },
     denyReference(ref: ArtifactReference, value=true) { value ? deniedReferences.add(ref.artifact_id) : deniedReferences.delete(ref.artifact_id); },
     deny(value=true) { denied=value; }, bad(value=true) { badOutput=value; }, linkFailure(value=true) { linkFailure=value; },
@@ -101,6 +111,6 @@ export async function fixture(options: { ai?: AlchemistAiPort; description?: str
     afterGenerate(callback?: () => void) { afterGenerate=callback; },
     transformOutput(callback?: typeof transformOutput) { transformOutput=callback; },
     async restart() { await runtime.close(); runtime=createLocalRuntime({ databasePath: join(home,"studio.sqlite"), ai, workReuse:host,pulseSourceMode:"fixture" }); },
-    async close() { await runtime.close(); db.close(); rmSync(home,{recursive:true,force:true}); },
+    async close() { dispose(); await runtime.close(); db.close(); rmSync(home,{recursive:true,force:true}); },
   };
 }

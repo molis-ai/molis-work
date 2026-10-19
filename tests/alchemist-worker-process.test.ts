@@ -17,7 +17,7 @@ async function until(check: () => Promise<boolean> | boolean) {
   while (!await check()) { if (Date.now() > deadline) assert.fail("Worker state did not settle"); await new Promise(resolve => setTimeout(resolve, 25)); }
 }
 
-test("Alchemist independent processes preserve a long live call and recover a killed owner without another model request", { timeout: 30_000 }, async () => {
+test("W5-01-ALC-RES01/04: independent processes preserve live leases and only resume a killed owner after confirmation", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-workers-"));
   const children: ChildProcess[] = [], responses: ServerResponse[] = [];
   const server = createServer(async (req, res) => { for await (const _ of req) {} responses.push(res); });
@@ -62,10 +62,18 @@ test("Alchemist independent processes preserve a long live call and recover a ki
     await until(() => responses.length === 2);
     const observer = await launch(); await observer.send({ operation: "start" });
     const exited = once(first.child, "exit"); first.child.kill("SIGKILL"); await exited;
-    await until(async () => (await observer.api(`/explorations/${crashed.runId}`)).exploration.status === "failed");
-    const failed = (await observer.api(`/explorations/${crashed.runId}`)).exploration;
-    assert.equal(failed.errorCode, "alchemist.ai_call_interrupted"); assert.deepEqual(failed.cards, []);
-    assert.equal(responses.length, 2, "The interrupted provider request must not be replayed");
+    await until(async () => (await observer.api(`/runs/${crashed.jobId}/resume`)).canContinue === true);
+    const interrupted = (await observer.api(`/explorations/${crashed.runId}`)).exploration;
+    assert.equal(interrupted.status, "running"); assert.deepEqual(interrupted.cards, []);
+    assert.equal(responses.length, 2, "Lease expiry and status queries must not replay the interrupted provider request");
+    const view = await observer.api(`/runs/${crashed.jobId}/resume`);
+    const accepted = await observer.api(`/runs/${crashed.jobId}/continue`, { confirmation: view.confirmation });
+    assert.equal(accepted.accepted, true);
+    await until(() => responses.length === 3);
+    responses[2]!.writeHead(200, { "content-type": "application/json" }); responses[2]!.end(JSON.stringify(generation));
+    await until(async () => (await observer.api(`/explorations/${crashed.runId}`)).exploration.status === "completed");
+    assert.equal((await observer.api(`/explorations/${crashed.runId}`)).exploration.cards.length, 1);
+    assert.equal(responses.length, 3, "Explicit continuation dispatches exactly one new call");
     assert.equal((await observer.api(`/explorations/${receipt.runId}`)).exploration.cards.length, 1);
     await observer.close();
   } finally {

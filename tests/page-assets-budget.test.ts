@@ -649,6 +649,12 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1110056], ["/assets/molis-work-workbench.js", 1110084],
   ["/assets/molis-work-workbench.js", 1109330], ["/assets/molis-work-workbench.js", 1110329],
   ["/assets/molis-work-workbench.js", 1110357],
+  ["/assets/molis-work-workbench.js", 1110116],
+  ["/assets/molis-work-workbench.js", 1111561],
+  ["/assets/molis-work-workbench.js", 1112315],
+  ["/assets/molis-work-workbench.js", 1112375],
+  // W5-10 preview extraction is smaller than the combined main baseline; its intermediate allowance is retired.
+  ["/assets/molis-work-pages-editor.js", 706825], ["/assets/molis-work-pages-editor.js", 706928],
   ["/assets/molis-work-workbench.js", 1111791], ["/assets/molis-work-workbench.js", 1114022],
   ["/assets/molis-work-workbench.js", 1111910], ["/assets/molis-work-workbench.js", 1114141],
 ] as const) {
@@ -689,4 +695,26 @@ test("W5-01 has one bounded allowance on the workbench script; other assets and 
     assert.equal(gate("--update", "--base", "w501-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
+});
+
+test("W5-01-ALC-RES08: approved continuation UI allowance cannot grow or be reused", () => {
+  const asset = "/assets/molis-work-plugins/alchemist.js";
+  branch("alchemist-res-base", () => { sizes[asset] = 50619; putBudget(sizes); });
+  git("checkout", "-q", "-B", "alchemist-res-change");
+  sizes[asset] = 52373;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  assert.equal(gate("--base", "alchemist-res-base").code, 0);
+  sizes[asset]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes[asset]--;
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
+  sizes["/assets/a.css"]--;
+  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
+  commit("freeze the approved Alchemist continuation UI size");
+  git("branch", "-f", "alchemist-res-frozen");
+  sizes[asset]++;
+  putBudget(sizes);
+  assert.equal(gate("--base", "alchemist-res-frozen").code, 1);
+  assert.equal(gate("--update", "--base", "alchemist-res-frozen").code, 1);
 });

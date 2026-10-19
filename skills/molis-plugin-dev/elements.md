@@ -12,7 +12,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
-- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。
+- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。（2026-10-18 改：「只许内置声明」是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；代码改完之前仍按上文，外部插件仍不要写。）
 
 ## 版本升级
 
@@ -70,7 +70,7 @@ Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：
 
 两条路径，不要抄错：
 
-1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节，某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 12 MiB）。
+1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节（Home 级实例的路由默认 12 MiB），某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 45 000 000 字节，`packages/plugin-sdk/src/manifest.ts` 的 `MAX_ROUTE_BODY_BYTES`，超过的 Manifest 解析时被拒）。
 2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`、`/api/pages/`…），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
@@ -108,7 +108,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里没有通用连线页：输入口由默认连线（下一条）接上，或由人在成果库详情把某一版接给插件输入（`artifacts.plugin_inputs.bind`，只对人开放）。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里。Local Host 没有挂 `/api/plugins/:id/ports`。
-- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。
+- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成任何插件声明了、经同意或按安装信任就有，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按上文。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。

@@ -226,7 +226,7 @@ v1 manifest 继续解析：`parsePluginManifest` 按 `schema_version` 分派，v
 
 ### S1 Skill Pack（内容包）
 
-新增一种**只有内容**的声明形态：`skills/`、`agents/`、`commands/`、`connectors`，没有 runtime、actions、views、storage 或 routes。它可以随宿主发布、从本地目录安装或从受控目录安装；安装仍走签名、版本、授权与卸载流程。宿主注册表把包内技能注册为个人助理的 `methods`、Coding 的可安装方法/`agent.skills`，两边共享同一份目录。技能不授予权限；技能里声明的工具仍走动作授权。格式、渐进披露与 `applies_to` 见 [skill-packs](../skill-packs/spec.md)。
+内容包不是新的包种类，而是**没有 runtime、只有 Manifest 的插件**：技能写在 Manifest 的 `methods`（`AgentSkillDeclaration`，加 `description`、`when_to_use`、`applies_to` 等可选字段）里，正文与 `references/`、`scripts/`、`assets/` 随插件发布；没有 runtime、actions、views、storage 或 routes。它和别的插件走同一条安装路径：签名、版本、授权、启用与卸载都一样，随宿主发布、从本地目录或从受控目录安装都行；平台不设 `pack.json` 或专用的技能注册表（2026-10-19 改，原因是 2026-10-18 的「待遇一样、不开私路」）。助理与 Coding 读同一份平台方法目录，Coding 按 `applies_to` 把技能注册为可安装方法/`agent.skills`。技能不授予权限；技能里声明的工具仍走动作授权。Manifest 目前要求有 `entrypoints`，没有 runtime 的插件需要允许它为空，这是合同改动（`docs/system/CONTRACT-CHANGES.md`）。格式、渐进披露与 `applies_to` 见 [skill-packs](../skill-packs/spec.md)。
 
 ### S2 目录元数据
 
@@ -235,6 +235,8 @@ v1 manifest 继续解析：`parsePluginManifest` 按 `schema_version` 分派，v
 ### S3 Hooks 声明
 
 插件 Manifest 可以声明 `hooks`（事件、匹配器、动作、超时、是否阻塞），项目可以声明 `.molis/hooks/*.md` 规则；两者都注册到 Prologue 现有的 `runtime.hooks`，不另造机制。事件至少覆盖 `tool-before`、`tool-after`、`tool-failed`、`session-start`、`session-stop`、`prompt-submit`、`compaction-before/after`、`subagent-start/end`；动作支持 allow/ask/deny/rewrite/warn；默认失败即挡，超时、归属、作用域沿用现有 hook bus。用户/插件钩子必须有面板启停、日志和沙箱；不能执行无界脚本。
+
+hooks 的 allow/deny/rewrite 能放行、拒绝或改写工具调用，是信任边界的变化。实现之前必须先在 `docs/system/SECURITY-INVARIANTS.md` 加新的一行并配「拒绝」测试（钩子不能放宽动作授权、不能改写出越权的调用、超时与失败即挡），并先把设计拿给用户确认（弹窗问用户）；没有这两步，S3 不开工。
 
 ### S4 LSP 声明
 

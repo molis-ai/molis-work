@@ -2,22 +2,24 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { generateProviderImages, normalizeImageBaseUrl, type ImageProviderRequest } from "../plugins/native/images/src/providers.js";
 
+// W5-01-IMGPORT-01: protocol requests contain no credentials and validate actual returned images.
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==", "base64");
 const request: ImageProviderRequest = {
-  api_format: "openai-images", base_url: "https://images.example/v1", model: "gpt-image-1.5",
-  credential_ref: "image-fixture", resolveCredential: ref => ref === "image-fixture" ? "fixture-key" : null,
+  protocol: "openai-images", base_url: "https://images.example/v1", model: "gpt-image-1.5",
+  slot_id: "image-fixture", expected_revision: "fixed-revision",
   prompt: "一只纸雕狐狸", size: "1024x1024", aspect_ratio: "",
 };
 
-test("images: Host receives the original model, prompt, credential reference and cancellation signal", async () => {
+test("images: Host receives the original model, prompt, opaque connection revision and cancellation signal", async () => {
   const signal = new AbortController().signal;
   let calls = 0;
   const images = await generateProviderImages(request, signal, async (input, observedSignal) => {
     calls++;
     assert.equal(input, request);
     assert.equal(observedSignal, signal);
-    assert.equal(input.resolveCredential(input.credential_ref), "fixture-key");
-    assert.equal(input.resolveCredential("another-reference"), null);
+    assert.equal(input.expected_revision, "fixed-revision");
+    assert.equal(Object.hasOwn(input, "credential_ref"), false);
+    assert.equal(Object.hasOwn(input, "resolveCredential"), false);
     return [{ bytes: PNG, mime: "image/png" }];
   });
   assert.equal(calls, 1);
@@ -26,7 +28,7 @@ test("images: Host receives the original model, prompt, credential reference and
 });
 
 test("images: Gemini selection and aspect ratio pass through without text emulation", async () => {
-  const input = { ...request, api_format: "gemini" as const, model: "gemini-image", size: "", aspect_ratio: "16:9" };
+  const input = { ...request, protocol: "gemini" as const, model: "gemini-image", size: "", aspect_ratio: "16:9" };
   await generateProviderImages(input, new AbortController().signal, async (observed) => {
     assert.deepEqual(observed, input);
     return [{ bytes: PNG }];

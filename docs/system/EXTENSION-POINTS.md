@@ -80,7 +80,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 **目标：1（外加 2）。** 新增一个内置插件 = 自己的包 + `scripts/workspace-packages.mjs` 一条登记，外加门禁名单一行和 SSOT 一行。其余由声明产生，下面五项都做到才是 1：
 
 - W3-06：模型服务、Home 库服务、Home 级 Runtime 实例（2026-10-07 已定：个人插件装在一个 Home 级实例，按项目启用照旧，数据留在 `{home}/<id>/<id>.db`）。Home 级实例已经有了：Issue 插件（#396）在工作台目录条目上声明 `runtime: { scope: "home" }`，宿主的 `home-plugins.ts` 装配它；W3-06-F 复用这个实例（spec §1 2026-10-12），登记位置按用户 2026-10-14 的决定写进 `AGENTS.md`。
-- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。
+- W4-03：伙伴页按 Manifest 视图渲染，去掉 `coding-surface.ts` 和默认连线表里按插件写的分支。默认连线表已删（第一片），改为各插件 Manifest 的 `default_source`，现在只在随 Host 发布的插件之间生效；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。
 - W5-02：目录、监督器列表、设计系统名单、搜索标签面、分组与常驻提示都由各包的声明生成。
 - W5-06：声明式贡献挂载，取代每个插件一套的渲染接线。
 - **X-1（4.3）**：应用的 `package.json` 依赖和根包依赖由脚本生成。路线图第 4.6 节的普查已经把「应用的 package.json 依赖」列进声明式注册该生成的东西（`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 607 行），W5-02 的切片描述却没有写它。没有 X-1，目标是 4（`scripts/workspace-packages.mjs` 加三个 `package.json`），不是 1。
@@ -114,15 +114,15 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 | 场景 | 现在 | 位置 |
 | --- | --- | --- |
 | 已有插件里再加一个 AI 动作 | 0 | 包内 `actions.ts`、`prompts.ts`；指令追加到包导出的 `X_INSTRUCTIONS`，目录条目已引用它 |
-| 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期插件的 5 个适配文件随各自迁移删掉（W5-11） |
+| 新的 Runtime 插件要调模型 | 0 | Manifest 声明 `model:invoke`，在动作处理器里用 `context.services.model`（W3-06 E，`packages/plugin-runtime/src/model-service.ts`，宿主端口 `apps/local-host/src/plugin-model-service.ts`，只对宿主自己运行的非沙箱插件）；没有目录条目的插件在 `PluginDefinition.instructions` 里声明指令，不新建宿主端口文件。构建期适配随各自迁移删掉（W5-11） |
 | 宿主自己的模型调用（不属于任何插件） | 2 | `apps/local-host/src/agent-definitions/system-prompts.ts`（定义）、`builtin-instructions.ts`（`BUILTIN_INSTRUCTIONS`、`SYSTEM_INSTRUCTION_SOURCES` 登记）；调用方是功能本身，不计 |
 | 内置 Agent 的角色提示词与方法 | 0 | 目录条目的 `agent`、`methods`（`BUILTIN_PLUGIN_AGENTS` 派生）；系统内联角色在 `builtin-instructions.ts` 的 `BUILTIN_INLINE_AGENT_*` |
 | Runtime 与已安装插件的 `methods` | 0 | Manifest `methods` 加 `PluginDefinition.methods` 的正文；插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02，`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，与指令同一处；用例 `tests/plugin-methods-runtime.test.ts`）。目录已登记该主人时拒绝启动；沙箱执行的生成插件不登记 |
 | 用户自定义角色 | 0 | 运行时数据（Characters），不改代码 |
 
-宿主里还有 5 个按插件写的 AI 适配文件：`alchemist-prologue.ts`、`cognia-prologue.ts`、`jelly-model.ts`、`shelf-ai.ts`、`typesafe-prologue.ts`。
+模型服务负责真实调用；消费者独立模型选择与设置由 `model-configuration.ts` 按可信声明提供，Images 的有限生图端口由 `plugin-image-generation-service.ts` 对接 Connector 和 agent-host。剩余构建期调用随各自迁移收回。
 
-**目标：0 / 0 / 2。** W3-06 E 已把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 取代 5 个适配文件。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
+**目标：0 / 0 / 2。** W3-06 E 已把模型做成 Runtime 插件服务（`services.model`，由 agent-host 支撑，带登记指令、concurrent 调度和 `beforeEffect`），不是新的 typed 宿主能力（2026-10-07「两套能力机制收敛」：typed 注册表只留作 Runtime 插件的宿主内服务通道，不许再加新项）。系统级调用保持 2：定义加登记是有意的显式登记，`tests/prompt-registration.test.ts` 会让没登记的调用失败。W5-11 用 `services.model` 继续收回构建期插件的模型接线。`methods` 随 W4-02 生效：Runtime 和已安装插件声明的方法由监督器和安装宿主在启动时登记、在停用、卸载、升级时收回，目标同内置插件（0 处宿主改动）。
 
 ### 3.5 动作与消费场景
 
@@ -313,7 +313,7 @@ Text Stats 的 12 个文件是：上表的 `scripts/workspace-packages.mjs`、3 
 1. `skills/molis-plugin-dev/host.md`「必改」第 1–11 步缺少：根 `package.json`、设计系统的三处名单（`MW_PLUGINS`、`PLUGIN_ICON`、`PLUGIN_NAMES`）。第 4 步说内置插件要在 `builtin-plugins.ts` 加目录条目，与 `AGENTS.md`「不再往 `builtin-plugins.ts` 加构建期条目」并存，需要一句话说清后者指的是构建期装配的条目。
 2. `host.md`「数据落哪」写本机数据放 `{home}/<id>/<id>.db`，当前库由可信 Host 条目的 `database` 声明、插件经 `services.database` 访问；Home/项目都复用同一服务，作者不能从 Manifest/参数选库（见 3.1）。
 3. `skills/molis-plugin-dev/SKILL.md`「选 kind 和家族」：Shelf 的 Manifest 是 `native` 但 `start()` 返回 `app` 贡献，Characters、Coding 一族是 `app`；新内置插件写哪个 kind 没有明说，而授权有两层，要分开写清：
-   - **调用者的权限**由 kind 决定：`apps/local-host/src/local-owner-permissions.ts` 只把 `manifest.kind === "native"` 的目录条目的动作权限当作本机所有者的内置权限，其余插件走安装授权（`local-web-actions.ts` 的 `localWebActionContext` 要求运行中安装的 `grants` 覆盖动作的全部权限）。2026-10-18 用户定改成按声明与授权、任何插件一样，实现前代码仍按 kind。
+   - **调用者的权限**由 kind 决定：`apps/local-host/src/local-owner-permissions.ts` 只把 `manifest.kind === "native"` 的目录条目的动作权限当作本机所有者的内置权限，其余插件走安装授权（`local-web-actions.ts` 的 `localWebActionContext` 要求运行中安装的 `grants` 覆盖动作的全部权限）。2026-10-18 改：改成按声明与授权、任何插件一样，实现前代码仍按 kind。
    - **动作可不可用**与 kind 无关：每个经 Plugin Runtime 安装的提供方，都要求安装的 `grants` 覆盖该动作的全部 `permissions`，否则报 `actions.plugin_permission`（`packages/plugin-runtime/src/action-provider.ts`；内核在发现和每次调用时检查，`packages/kernel/src/index.ts` 的 `requireCapability`）。授予什么按插件是不是随宿主发布的分。不是 `bundled` 的条目：监督器安装时只授予 Manifest 里 `required: true` 的权限，除非条目传 `grants`（`packages/plugin-runtime/src/supervisor.ts` 的 `#activate`、`install-rules.ts` 的 `defaultGrants`），所以这类插件的动作用到的权限要标 `required: true`，或由安装的人确认授权。`bundled` 的条目（监督器条目标 `bundled: true` 的内置插件）：全新安装时拿到 Manifest 声明的全部权限，可选的默认打开，条目自己的 `grants` 不起作用；之后与其他插件同一规则，可选的按人留下的给，人关掉的启动和跟随新构建都不打开（用户 2026-10-18 的决定，改 2026-10-10 W3-06 B；`install-rules.ts` 的 `bundledGrants`、`recordToFollow`、`followBundledBuild`；[POLICY.md](../releases/POLICY.md) 第 7.8 节；[RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md) 4.2 第 5 点）。所以内置插件不必为让动作可用而把权限标成 `required: true`；标不标只看 `required` 自己的意思：缺它插件就不能运行，撤销它整个提供方就不可用（`action-provider.ts` 的 `availability`，`actions.plugin_permission`）。Shelf 能用，是因为它是 `bundled`、全新安装时拿到清单声明的全部权限（今天它的三项权限恰好都是必需的，`plugins/native/shelf/src/manifest.ts`、`runtime-actions.ts`），不是因为它是 `native`。
    需要在选 kind 一节和 host.md 的监督器条目里写清。
 4. `tests/builtin-plugin-assembly-gate.test.ts` 开头注释把 `builtin-plugins.ts` 目录条目算作构建期路径的一部分，但 Runtime 装配的 7 个插件同样有目录条目（同一个测试第二项断言要求它们有）。这是测试里的注释，随 W1-05 改。

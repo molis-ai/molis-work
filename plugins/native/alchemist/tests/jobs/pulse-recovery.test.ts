@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { expect, it } from "vitest";
@@ -40,7 +41,7 @@ it("resumes Pulse after a collected source without fetching that source twice", 
       clock,
       workspaceId: "workspace-local",
     })({ sourceIds: ["watcha", "github"] });
-    expect(before.claimNext()?.id).toBe(run.jobId);
+    expect(before.claim(run.jobId)?.id).toBe(run.jobId);
     pulse.saveSourceCollection(run.id, "fetch-watcha", {
       sourceId: "watcha",
       status: "completed",
@@ -75,7 +76,7 @@ it("resumes Pulse after a collected source without fetching that source twice", 
       idFactory,
       leaseMs: 1_000,
     });
-    expect(after.recoverExpired()).toBe(1);
+    expect(after.get(run.jobId)?.status).toBe("running");
     let watchaCalls = 0;
     const sources: SourcePort[] = [
       {
@@ -120,6 +121,8 @@ it("resumes Pulse after a collected source without fetching that source twice", 
       }),
     );
 
+    expect(await worker.runNext()).toBe(false);
+    acceptTestJob(worker, run.jobId);
     await worker.runNext();
 
     expect(watchaCalls).toBe(0);
@@ -140,3 +143,29 @@ class MutableClock {
     this.value = value;
   }
 }
+
+for (const fail of [false, true]) it(`W5-01-ALC-RES03 W5-01-ALC-RES07: revoked Pulse late ${fail ? "failure" : "success"} never records a source or advances`, async () => {
+  const temporary = createTempDatabase(), database = openDatabase(temporary.path);
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  try {
+    applyStudioBaseline(database, ":memory:"); seedResearchIdea(database);
+    const clock = { now: () => new Date().toISOString() }, idFactory = { next: (prefix: string) => `${prefix}-${crypto.randomUUID()}` };
+    const pulse = new SqlitePulseRepository(database); pulse.ensureDefaultSourceSettings(clock.now());
+    const jobs = new SqliteJobRunner(database, { workerId: "current-pulse", clock, idFactory });
+    const run = createStartPulseRunService({ database, pulse, jobs, idFactory, clock, workspaceId: "workspace-local" })({ sourceIds: ["watcha", "github"] });
+    let laterCalls = 0;
+    const sources: SourcePort[] = [{ sourceId: "watcha", async collect() {
+      entered.resolve(); await release.promise;
+      if (fail) throw new Error("Source returned too late");
+      return { sourceId: "watcha", status: "completed", requestUrl: "https://watcha.cn/api/v2/hot/products", fetchedAt: clock.now(), signals: [] };
+    } }, { sourceId: "github", async collect() { laterCalls++; throw new Error("A revoked task cannot fetch another source"); } }];
+    const worker = new LocalWorker(jobs, createJobHandlers({ explorations: new SqliteExplorationRepository(database), runtime: new FixtureAiRuntimeAdapter(),
+      idFactory, clock, pulse: { repository: pulse, sources, synthesizer: new RuleBasedPulseSynthesizer() } }));
+    const accepted = acceptTestJob(worker, run.jobId), work = worker.runNext();
+    await entered.promise; accepted.revoke();
+    const facts = () => ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_signals", "pulse_reports", "activity_events"]
+      .map(table => database.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const before = facts(); release.resolve(); await work;
+    expect(facts()).toEqual(before); expect(laterCalls).toBe(0);
+  } finally { release.resolve(); database.close(); temporary.cleanup(); }
+});

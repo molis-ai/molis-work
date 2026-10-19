@@ -503,6 +503,16 @@
     "error": "输入不符合能力合同：/ required"
   },
   "GET <project>/api/dataset": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/dataset/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -511,7 +521,7 @@
       "datasets"
     ]
   },
-  "GET <project>/api/dataset/no-such": {
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets/no-such": {
     "status": 404,
     "type": "application/json",
     "code": "dataset.not_found",
@@ -520,9 +530,29 @@
   "GET <project>/api/images": {
     "status": 404,
     "type": "application/json",
-    "error": "找不到图片操作或请求方法不支持"
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.images/jobs": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "jobs"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.images/connections": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "auth_connections",
+      "connections"
+    ]
   },
   "GET <project>/api/ppt": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.ppt/ppt": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -531,7 +561,18 @@
       "presentations"
     ]
   },
+  "GET <project>/api/plugins/io.molis.work.ppt/ppt/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "ppt.not_found",
+    "error": "找不到这份演示稿"
+  },
   "GET <project>/api/jelly": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.jelly/": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -556,7 +597,7 @@
     "code": "todo.not_found",
     "error": "找不到这件待办，可能已被删除"
   },
-  "GET <project>/api/cognia": {
+  "GET <project>/api/plugins/io.molis.work.cognia/library": {
     "status": 200,
     "type": "application/json",
     "keys": [

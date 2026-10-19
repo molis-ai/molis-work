@@ -18,8 +18,7 @@ import {
 } from "@molis-ai/molis-work-app-workbench";
 import {
   DATASET_CLIENT_FACTORY_SCRIPT,
-  DatasetPluginRouteTable,
-  createDatasetRouteHandlers,
+  datasetActions,
   mergeDatasetDraftRows,
   openDatasetStore,
   parseCsv,
@@ -34,9 +33,8 @@ import {
 } from "@molis-ai/molis-work-plugin-form";
 import {
   PPT_CLIENT_FACTORY_SCRIPT,
-  PptPluginRouteTable,
-  createPptRouteHandlers,
   openPptStore,
+  pptActions,
 } from "@molis-ai/molis-work-plugin-ppt";
 import {
   renderMolisWorkWeb,
@@ -348,53 +346,28 @@ test("Forms：建题、预览提交、结果计数，重开还在；出题是本
 test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是本地 stub", async () => {
   await withHome(async (home) => {
     const store = openDatasetStore(home);
-    const routes = new DatasetPluginRouteTable(createDatasetRouteHandlers(datasetTestPorts(store, projectQuery().get("project_id")!)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/dataset", query: projectQuery(), body: projectBody({ title: "成绩" }) });
-    const id = (created?.body as { dataset: { id: string } }).dataset.id;
-    const imported = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/import-csv`,
-      query: projectQuery(),
-      body: projectBody({ csv: "姓名,分数\n一骏,95\n小陈,88" }),
-    });
-    const table = (imported?.body as { dataset: { columns: Array<{ name: string; type: string }>; rows: unknown[] } }).dataset;
+    const { actions } = datasetTestPorts(store, PROJECT);
+    const created = await actions.invoke(datasetActions.create, { title: "成绩" });
+    const id = created.dataset.id;
+    const imported = await actions.invoke(datasetActions.import, { id, csv: "姓名,分数\n一骏,95\n小陈,88" });
+    const table = imported.dataset;
     assert.equal(table.columns.length, 2);
     assert.equal(table.rows.length, 2);
     assert.equal(table.columns[0]?.type, "text");
     assert.equal(table.columns[1]?.type, "number");
-    const generated = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/generate-column`,
-      query: projectQuery(),
-      body: projectBody({ prompt: "完成日期" }),
-    });
-    const withColumn = (generated?.body as { dataset: { columns: Array<{ name: string; type: string }> } }).dataset;
+    const generated = await actions.invoke(datasetActions.generate, { id, prompt: "完成日期" });
+    const withColumn = generated.dataset;
     assert.equal(withColumn.columns.at(-1)?.name, "完成日期");
     assert.equal(withColumn.columns.at(-1)?.type, "text");
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/versions`,
-      query: projectQuery(),
-      body: projectBody({ note: "导入后" }),
-    });
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}`,
-      query: projectQuery(),
-      body: projectBody({ rows: [] }),
-    });
-    const versions = await routes.handle({ method: "GET", pathname: `/api/dataset/${id}/versions`, query: projectQuery(), body: {} });
-    const versionId = (versions?.body as { versions: Array<{ id: string }> }).versions[0]?.id ?? "";
-    const rolled = await routes.handle({
-      method: "POST",
-      pathname: `/api/dataset/${id}/rollback`,
-      query: projectQuery(),
-      body: projectBody({ version_id: versionId }),
-    });
-    const restored = (rolled?.body as { dataset: { rows: unknown[] } }).dataset;
+    await actions.invoke(datasetActions.snapshot, { id, note: "导入后" });
+    await actions.invoke(datasetActions.update, { id, rows: [] });
+    const versions = await actions.invoke(datasetActions.versions, { id });
+    const versionId = versions.versions[0]?.id ?? "";
+    const rolled = await actions.invoke(datasetActions.rollback, { id, version_id: versionId });
+    const restored = rolled.dataset;
     assert.equal(restored.rows.length, 2);
-    const exported = await routes.handle({ method: "GET", pathname: `/api/dataset/${id}/export`, query: projectQuery(), body: {} });
-    const csv = (exported?.body as { csv: string }).csv;
+    const exported = await actions.invoke(datasetActions.export, { id });
+    const csv = exported.csv;
     assert.match(csv, /姓名/);
     assert.match(csv, /一骏/);
     const parsed = parseCsv(csv);
@@ -415,29 +388,25 @@ test("Dataset：行列、CSV、导出、版本回滚，重开还在；加列是�
 test("PPT：多页编辑、主题色、JSON 导出字段，重开还在", async () => {
   await withHome(async (home) => {
     const store = openPptStore(home);
-    const routes = new PptPluginRouteTable(createPptRouteHandlers(pptTestPorts(store, PROJECT)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/ppt", query: projectQuery(), body: projectBody({ title: "季度回顾" }) });
-    const id = (created?.body as { presentation: { id: string; slides: Array<{ id: string }> } }).presentation.id;
-    const updated = await routes.handle({
-      method: "POST",
-      pathname: `/api/ppt/${id}`,
-      query: projectQuery(),
-      body: projectBody({
-        color_primary: "#5e6ad2",
-        slides: [
-          { id: "s1", title: "开场", bullets: ["这一季做了什么"], notes: "慢一点", order: 1 },
-          { id: "s2", title: "下一步", bullets: ["把问卷接回来", "把表格接回来"], notes: "", order: 2 },
-        ],
-      }),
+    const { actions } = pptTestPorts(store, PROJECT);
+    const created = await actions.invoke(pptActions.create, { title: "季度回顾" });
+    const id = created.presentation.id;
+    const updated = await actions.invoke(pptActions.update, {
+      id,
+      color_primary: "#5e6ad2",
+      slides: [
+        { id: "s1", title: "开场", bullets: ["这一季做了什么"], notes: "慢一点", order: 1 },
+        { id: "s2", title: "下一步", bullets: ["把问卷接回来", "把表格接回来"], notes: "", order: 2 },
+      ],
     });
-    const deck = (updated?.body as { presentation: { title: string; slides: Array<{ title: string; bullets: string[] }>; color_primary: string } }).presentation;
+    const deck = updated.presentation;
     assert.equal(deck.slides.length, 2);
     assert.equal(deck.slides[1]?.title, "下一步");
     assert.deepEqual(deck.slides[0]?.bullets, ["这一季做了什么"]);
     assert.equal(deck.color_primary, "#5e6ad2");
-    const exported = JSON.stringify(store.get(id));
-    assert.match(exported, /开场/);
-    assert.match(exported, /把表格接回来/);
+    const exported = await actions.invoke(pptActions.export, { id });
+    assert.match(exported.content, /开场/);
+    assert.match(exported.content, /把表格接回来/);
     store.close();
 
     const reopened = openPptStore(home);

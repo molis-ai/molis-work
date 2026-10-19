@@ -15,8 +15,9 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { streamProbe } from "./fixtures/plugin-stream.js";
+import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 import { lingguangActions, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
@@ -298,3 +299,40 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
     await host.close(); rmSync(home, { recursive: true, force: true });
   }
 });
+
+for (const scope of ["home", "project"] as const) {
+  test(`S-18 RAC-52 RAC-54 ${scope} revokes accepted work before awaiting stop and refuses a route without its installation grant`, { timeout: 30_000 }, async t => {
+    const probe = backgroundProbe(`background-stop-${scope}`, scope), entered = deferred(), release = deferred();
+    // The business permission is optional here so the real grant API can leave the plugin running without it.
+    probe.definition.manifest.permissions.find(item => item.permission === `background-stop-${scope}:write`)!.required = false;
+    probe.behavior.work = async () => { entered.resolve(); await release.promise; throw new Error("late provider failure"); };
+    const f = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
+    const project = scope === "project" ? await f.project("Stop a background action") : undefined;
+    // First activate project fixtures, then grant through the lifecycle API while stopped.
+    if (project) await f.host.inspectActions(person(probe.permissions, project.project_id), project.reference);
+    const platform = project ? await f.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id)) : await f.host.homePlugins!.ready();
+    assert.ok(platform);
+    const installId = platform.supervisor.state(probe.id)!.install_id!;
+    await platform.runtime.stop(installId);
+    platform.runtime.grant(installId, probe.permissions); await platform.supervisor.restart(probe.id);
+    const path = `${project ? `/projects/${project.project_id}` : ""}/api/plugins/${probe.id}/background`;
+    const heldStop = deferred(), stopEntered = deferred();
+    probe.lifecycle.stop = async () => { stopEntered.resolve(); await heldStop.promise; };
+    try {
+      assert.equal((await f.request(path, { method: "POST", body: { id: "held" } })).status, 200); await entered.promise;
+      const rejected = assert.rejects(probe.handles[0]!.result);
+      const stop = platform.runtime.stop(installId); await stopEntered.promise;
+      assert.equal(probe.controls[0]!.signal!.aborted, true); await rejected;
+      await assert.rejects(probe.controls[0]!.beforeEffect());
+      heldStop.resolve(); await stop;
+      platform.runtime.grant(installId, probe.permissions.filter(permission => !permission.endsWith(":write")));
+      await platform.supervisor.restart(probe.id);
+      release.resolve(); await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(probe.stored("result.held"), null); assert.equal(probe.stored("failure.held"), null);
+      const before = probe.requests.length;
+      const denied = await f.request(path, { method: "POST", body: { id: "denied", permissions: probe.permissions } });
+      assert.equal(denied.status, 403); assert.equal(probe.requests.length, before, "route grant is checked before plugin code");
+      assert.equal(probe.handles.length, 1);
+    } finally { release.resolve(); heldStop.resolve(); }
+  });
+}

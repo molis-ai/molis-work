@@ -188,6 +188,7 @@ export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
 }>;
 
 export type { PlacementResult } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";

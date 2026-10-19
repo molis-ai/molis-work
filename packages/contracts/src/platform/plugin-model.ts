@@ -1,5 +1,7 @@
-import type { ActionAvailability } from "./actions.js";
+import type { BoundedInferenceReceipt } from "../services/agent-host.js";
+import type { ActionAvailability, ActionError } from "./actions.js";
 import type { InstructedPrompt, InstructionPrompt } from "./model-prompts.js";
+export type { PluginModelConfigurationInput, PluginModelConfigurationView, PluginModelConfigurationClient, PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
 
 /**
  * What one call of the model service may ask for. The defaults are what the Host's text completion has always used
@@ -12,7 +14,29 @@ export const PLUGIN_MODEL_LIMITS = {
   max_output_tokens: 12_000,
 } as const;
 
+/** A model already configured by the person in this Home; never an endpoint or a credential. */
+export interface PluginModelSelection {
+  readonly provider_id: string;
+  readonly model_id: string;
+}
+
+export interface PluginModelChoice extends PluginModelSelection {
+  readonly label: string;
+  readonly vision: boolean;
+  readonly reasoning_effort: boolean;
+}
+
+/** Original image bytes; no caller-supplied path, URL or credential. */
+export interface PluginModelImage {
+  readonly bytes: Uint8Array;
+  readonly label?: string;
+}
+
 export interface PluginModelRequest {
+  /** Copied before the first wait; at most 30 images, 32 MiB each and 128 MiB total. */
+  readonly images?: readonly PluginModelImage[];
+  /** Exact selection for this call; absent uses the Host default. An unavailable selection is refused, never replaced. */
+  readonly selection?: PluginModelSelection;
   /** Joined with the running action's own signal: either one ends the call. */
   readonly signal?: AbortSignal;
   /** Text as it is generated, in provider order. Refused after cancellation, loss of authority, or completion of this request. */
@@ -28,12 +52,25 @@ export interface PluginModelRequest {
 }
 
 export interface PluginModelResult {
+  /** Original inference facts, absent only when the Host injected a text-only implementation. */
+  readonly execution?: BoundedInferenceReceipt;
+  /** After beforeEffect, immediately before synchronous commit: rechecks this original call and model binding. */
+  validateResult(): void;
   readonly text: string;
   /** Only with `output: "json"`: the decoded answer. The plugin checks its shape; the service checks only that it is JSON. */
   readonly value?: unknown;
   /** Only when the provider reported it; a model the Host was given for a test reports nothing. */
   readonly usage?: { readonly input_tokens: number; readonly output_tokens: number };
 }
+
+/** Execution failures keep their original receipt and commit guard when inference actually ran. */
+export type PluginModelFailure = ActionError & {
+  readonly execution?: BoundedInferenceReceipt;
+  readonly validateResult?: () => void;
+};
+
+/** Model display metadata only; never a credential reference or endpoint. */
+export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string };
 
 /**
  * The Host's text model, for a plugin the Host runs itself that declares `model:invoke`. It works only inside one of the plugin's
@@ -43,8 +80,12 @@ export interface PluginModelResult {
  * The plugin still checks `beforeEffect()` itself before it writes, and commits against the version it read.
  */
 export interface PluginModelClient {
-  /** Whether a call could be answered now: the plugin is running with the grant, and the Host has a model set up. */
-  availability(): ActionAvailability;
+  /** The declared Home consumer's model settings; writes only through its exact settings action. */
+  readonly configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationClient;
+  /** Available model names and capabilities only; no request or credential decryption. */
+  choices(): readonly PluginModelChoice[];
+  /** Whether this selection (or the Host default) is available now, while the plugin is running with its model grant. */
+  availability(selection?: PluginModelSelection): PluginModelAvailability;
   /**
    * `prompt` is the plugin's own registered instruction and this call's data (`instructed(instruction, data)`); a plain string is
    * refused. The person's version of the instruction is what is sent.

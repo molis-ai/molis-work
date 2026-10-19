@@ -62,6 +62,12 @@ git show e4bdeb12:outputs/molis-work-positioning-2026-09-25/bp.zh-CN.md > bp.zh-
 
 `.gitignore` 里旧名 `.goalboard/` 与 `.requirements/` 两行也去掉了：现在没有任何代码、文档或脚本会在仓库里建这两个目录（代码里没有 `.goalboard` 的引用；Home 目录里的 `~/.goalboard` 链接是真实 Home 的事，见 `docs/system/HOME-DATA.md`）。
 
+## 原始采集与开发机路径
+
+产品运营的两份原始采集（`docs/product-operations/research/` 下的 `2026-10-17-快照.json` 26,839 行、`2026-10-18-快照.json` 14,525 行）在 #717（`59fd7850c`）入库，#719（`4e729b6c3`）从树里删掉，`docs/product-operations/.gitignore` 从此忽略 `/research/*-快照.json` 与 `/research/raw/`。这两份文件里有私有仓库 molis-club 的本机路径、分支、HEAD 和 60 个文件的路径与 sha256，以及 38 个工作树的路径和 git status；没有令牌或邮箱。
+
+用户 2026-10-18 定：Git 历史不改写（改写要 force push），这两份仍在 `59fd7850c` 的历史里；以后靠规则挡住同类文件：`pnpm health:check` 加一条不比基线的规则，拒绝 `docs/` 下（含 `archive/`）超过阈值的 `.json`，以及以 `/Users/` 或 `/home/` 开头、带用户名的开发机绝对路径。这条规则由平台会话实现，口径写在 `scripts/gates/README.md`；落地之前靠评审看住。原始采集放在仓库之外。文档里要指某台机器上的 Home 或工作树时，写 `~/.molis-work` 或仓库相对路径，不写带用户名的绝对路径。
+
 ## vendored Prologue 包
 
 `vendor/prologue-sdk/` 只放当前使用的包（AGENTS.md「硬约束」）。每个 vendored 的 tgz 旁边有 `<tgz>.sha256` 和 `<tgz>.provenance.json`（字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm）；当前 Prologue 包由上游提交 `9fc3b173` 的 `packages/sdk` 无补丁重建，步骤在该目录 README。历史补丁不留正文：25 份补丁的大小、SHA-256、git blob、基线、来源和它们产出的包记在 `vendor/prologue-sdk/patch-history.json`，补丁本身都在提交 `e4bdeb12`（此后到删除它们的合并之前的提交里也有），按 git blob 取回。

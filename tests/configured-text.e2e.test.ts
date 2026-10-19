@@ -6,8 +6,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-// The same module the running Host uses: completions go through the Home Runtime that Host has bound.
-import { saveJellyModelSettings, readJellyModelSettings, createJellyCompletion } from "../apps/local-host/dist/jelly-model.js";
+import type { JellyModelSettings } from "@molis-ai/molis-work-plugin-jelly";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 
 for (const width of [1440, 390]) {
@@ -19,7 +18,9 @@ for (const width of [1440, 390]) {
     const model = createServer(async (request, response) => {
       let body = ""; for await (const chunk of request) body += chunk;
       const payload = JSON.parse(body); received.push(payload.model);
-      const content = "从同一角度再拍一张窗边的照片。", usage = { prompt_tokens: 12, completion_tokens: 9, total_tokens: 21 };
+      const title = "从同一角度再拍一张窗边的照片。";
+      const content = payload.model === "b-model" ? JSON.stringify({ actions: [{ title, notes: "与原来的照片对照", minutes: 15 }], clarification_questions: [] }) : title;
+      const usage = { prompt_tokens: 12, completion_tokens: 9, total_tokens: 21 };
       // Text now goes through the Home's Prologue Runtime, which asks OpenAI-compatible services to stream.
       if (payload.stream) {
         response.writeHead(200, { "content-type": "text/event-stream" });
@@ -38,7 +39,21 @@ for (const width of [1440, 390]) {
     const modelUrl = `http://127.0.0.1:${address.port}/v1`;
     const browser = await openGoalBrowser(t, true);
     if (!browser) return;
-    const { homeDirectory: home, command, sessionId, navigate, origin, projectId, waitFor, click, evaluate } = browser;
+    const { homeDirectory: home, command, sessionId, navigate, origin, controlToken, projectId, waitFor, click, evaluate } = browser;
+    // W5-01-JMC-01: configuration and inference use the live Runtime HTTP routes.
+    const jelly = async <T>(path: string, body?: unknown): Promise<T> => {
+      const response = await fetch(`${origin}/api/plugins/io.molis.work.jelly${path}`, {
+        method: body === undefined ? "GET" : "POST",
+        headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": crypto.randomUUID() },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (response.headers.get("content-type")?.includes("ndjson")) {
+        const events = (await response.text()).trim().split("\n").map(line => JSON.parse(line));
+        const final = events.at(-1); assert.equal(response.status, 200);
+        assert.equal(final.type, "result", JSON.stringify(final)); return final.result as T;
+      }
+      const result = await response.json(); assert.equal(response.status, 200, JSON.stringify(result)); return result as T;
+    };
     const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     let firstConnection = "";
     try {
@@ -67,7 +82,7 @@ for (const width of [1440, 390]) {
     await click('[data-lingguang-chat] [type=submit]');
     await waitFor("document.querySelector('[data-lingguang-messages]').textContent.includes('从同一角度再拍一张窗边的照片')");
     assert.deepEqual(received, ["a-model"]);
-    saveJellyModelSettings(home, { provider_id: "a", model_id: "a-model" });
+    await jelly("/model-settings", { provider_id: "a", model_id: "a-model" });
     withConnectorConnections(home, store => store.disconnect(firstConnection));
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
     await waitFor("document.body.dataset.desktopSurface === 'jelly'");
@@ -81,12 +96,14 @@ for (const width of [1440, 390]) {
     await writeFile(new URL(`model-disconnected-${width}.png`, output), Buffer.from(shot.data, "base64"));
     await click('[data-jelly-dialog-ok]');
     await waitFor("document.querySelector('[data-jelly-dialog-error]')?.textContent.includes('原选择已保留')");
-    assert.equal(readJellyModelSettings(home).selection?.provider_id, "a");
+    assert.equal((await jelly<JellyModelSettings>("/model-settings")).selection?.provider_id, "a");
     await click('[data-jelly-provider=b]');
     await click('[data-jelly-dialog-ok]');
     await waitFor("!document.querySelector('[data-jelly-dialog]').open");
-    assert.equal(readJellyModelSettings(home).selection?.provider_id, "b");
-    assert.equal(await createJellyCompletion(home)!("Use the user's new selection"), "从同一角度再拍一张窗边的照片。");
+    assert.equal((await jelly<JellyModelSettings>("/model-settings")).selection?.provider_id, "b");
+    const planned = await jelly<{ plan: { actions: { title: string }[] }; method: string }>("/ai", { kind: "decompose", source_type: "text", text: "明天从同一角度拍窗边的照片" });
+    assert.equal(planned.method, "model");
+    assert.equal(planned.plan.actions[0]!.title, "从同一角度再拍一张窗边的照片。");
     assert.deepEqual(received, ["a-model", "b-model"]);
     await navigate(() => command("Page.navigate", { url: `${origin}/settings/models?provider=a` }, sessionId));
     await waitFor("document.querySelector('[data-model-connection]')?.selectedOptions[0]?.textContent.includes('连接不可用')");

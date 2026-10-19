@@ -2,22 +2,14 @@ import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
-import { bindLocalWebActions } from "./local-web-actions.js";
+import { pluginRouteControl } from "./plugin-route-control.js";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { WORK_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-work";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
-import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
-import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
-import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
-import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
 import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -158,7 +150,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const codingServices = projectCodingServices(context);
-  const pluginPorts: CodingSurfacePorts = { ...codingServices, store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
+  const pluginPorts: CodingSurfacePorts = { ...codingServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value), translate: (value) => value };
   const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, codingServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
@@ -210,26 +202,21 @@ const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
 ];
 
-/** The built-time plugins' own HTTP, each under its own permissions; Jelly and Cognia are Home plugins, Todo is personal but project-aware. */
+/** The remaining build-time plugins' own HTTP, each under its own permissions. */
 const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "pages", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePagesNativePluginHttp(request, response, url, { projectId: hostReference.project_id, actions: userActions(PAGES_ACTION_PERMISSIONS) }) },
-  { id: "dataset", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleDatasetNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(DATASET_ACTION_PERMISSIONS, transport) })) },
-  { id: "images", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handleImagesNativePluginHttp(request, response, url, (_input) => ({ projectId: hostReference.project_id, actions: userActions(IMAGES_ACTION_PERMISSIONS) })) },
-  { id: "ppt", handle: async ({ request, response, url, serverOptions, hostReference, userActions }) => Boolean(serverOptions.homeDirectory)
-    && await handlePptNativePluginHttp(request, response, url, (_input, transport) => ({ projectId: hostReference.project_id, actions: userActions(PPT_ACTION_PERMISSIONS, transport) })) },
-  { id: "jelly", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
-    && await handleJellyNativePluginHttp(request, response, url, transport => asHomePerson(localHost, JELLY_ACTION_PERMISSIONS, transport)) },
-  { id: "cognia", handle: async ({ request, response, url, serverOptions, localHost }) => Boolean(serverOptions.homeDirectory)
-    && await handleCogniaNativePluginHttp(request, response, url, transport => asHomePerson(localHost, COGNIA_ACTION_PERMISSIONS, transport)) },
-  { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
+  { id: "personal", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
     && await handlePersonalNativePluginHttp(request, response, url, {
       projectId: options.project?.project_id ?? "",
       alchemist: { projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
-        actions: { invoke: async (definition, input, signal) => await localHost.actionClient(hostReference).invoke({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id,
-          audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS, signal }, definition, input) as never } },
+        actions: { invoke: async (definition, input, signal) => {
+          if (!signal) throw new ActionError("actions.forbidden", "缺少请求生命周期");
+          const control = pluginRouteControl(signal, () => {
+            if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
+          });
+          return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
+        } } },
       shelf: {
         actions: asHomePerson(localHost, SHELF_ACTION_PERMISSIONS, {}),
         project: { title: options.project?.display_name ?? options.projectId,

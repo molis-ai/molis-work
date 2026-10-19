@@ -33,6 +33,7 @@ export interface SearchOpaqueBlobStore extends SearchDeadlineAwareOpaqueBlobStor
 
 export function createSearchOpaqueBlobStore(
   db: SqliteDatabase,
+  assertCurrent?: () => void,
 ): SearchOpaqueBlobStore {
   const readNowMs = db.prepare(`SELECT ${SQLITE_NOW_MS} AS now_ms`);
   const readRow = db.prepare(
@@ -50,12 +51,7 @@ export function createSearchOpaqueBlobStore(
   const listKeys = db.prepare(
     "SELECT key, cas_token FROM feed_runtime_blobs WHERE namespace = ?",
   );
-  const scanPage = db.prepare(
-    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key > ? ORDER BY key COLLATE BINARY LIMIT ?",
-  );
-  const scanFirst = db.prepare(
-    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? ORDER BY key COLLATE BINARY LIMIT ?",
-  );
+
 
   const trustedNowUnixMs = (): number => {
     const row = readNowMs.get() as { now_ms?: number } | undefined;
@@ -78,6 +74,7 @@ export function createSearchOpaqueBlobStore(
     async createIfAbsent(input) {
       const casToken = newCasToken();
       return inImmediate(db, () => {
+        assertCurrent?.();
         const result = insertIgnore.run(
           input.namespace,
           input.key,
@@ -94,6 +91,7 @@ export function createSearchOpaqueBlobStore(
     async compareAndSet(input) {
       const casToken = newCasToken();
       return inImmediate(db, () => {
+        assertCurrent?.();
         const result = updateCas.run(
           input.opaque,
           casToken,
@@ -124,6 +122,7 @@ export function createSearchOpaqueBlobStore(
             observedAtUnixMs,
           };
         }
+        assertCurrent?.();
         const result = updateCas.run(
           input.opaque,
           casToken,
@@ -147,6 +146,7 @@ export function createSearchOpaqueBlobStore(
     },
 
     async delete(input) {
+      assertCurrent?.();
       const result = deleteCas.run(
         input.namespace,
         input.key,
@@ -159,37 +159,48 @@ export function createSearchOpaqueBlobStore(
       let deleted = 0;
       for (const row of listKeys.all(input.namespace) as Array<{ key: string; cas_token: string }>) {
         if (!input.discard(row.key)) continue;
+        assertCurrent?.();
         const result = deleteCas.run(input.namespace, row.key, row.cas_token) as SqliteChanges;
         if (Number(result.changes ?? 0) === 1) deleted += 1;
       }
       return deleted;
     },
 
-    async scan(input) {
-      if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 128) {
-        throw new Error("Invalid blob scan page");
-      }
-      const afterKey =
-        input.cursor === undefined ? undefined : decodeScanCursor(input.cursor, input.namespace);
-      const rows = (
-        afterKey === undefined
-          ? scanFirst.all(input.namespace, input.limit + 1)
-          : scanPage.all(input.namespace, afterKey, input.limit + 1)
-      ) as Array<{ key: string; opaque: string; cas_token: string }>;
-      const hasMore = rows.length > input.limit;
-      const page = hasMore ? rows.slice(0, input.limit) : rows;
-      const last = page[page.length - 1];
-      return {
-        entries: page.map((row) => ({
-          key: row.key,
-          opaque: row.opaque,
-          casToken: row.cas_token,
-        })),
-        ...(hasMore && last !== undefined
-          ? { nextCursor: encodeScanCursor(input.namespace, last.key) }
-          : {}),
-      };
-    },
+    scan: createBlobScanner(db),
+  };
+}
+
+function createBlobScanner(db: SqliteDatabase): SearchOpaqueBlobStore["scan"] {
+  const scanPage = db.prepare(
+    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? AND key > ? ORDER BY key COLLATE BINARY LIMIT ?",
+  );
+  const scanFirst = db.prepare(
+    "SELECT key, opaque, cas_token FROM feed_runtime_blobs WHERE namespace = ? ORDER BY key COLLATE BINARY LIMIT ?",
+  );
+  return async (input) => {
+    if (!Number.isSafeInteger(input.limit) || input.limit < 1 || input.limit > 128) {
+      throw new Error("Invalid blob scan page");
+    }
+    const afterKey =
+      input.cursor === undefined ? undefined : decodeScanCursor(input.cursor, input.namespace);
+    const rows = (
+      afterKey === undefined
+        ? scanFirst.all(input.namespace, input.limit + 1)
+        : scanPage.all(input.namespace, afterKey, input.limit + 1)
+    ) as Array<{ key: string; opaque: string; cas_token: string }>;
+    const hasMore = rows.length > input.limit;
+    const page = hasMore ? rows.slice(0, input.limit) : rows;
+    const last = page[page.length - 1];
+    return {
+      entries: page.map((row) => ({
+        key: row.key,
+        opaque: row.opaque,
+        casToken: row.cas_token,
+      })),
+      ...(hasMore && last !== undefined
+        ? { nextCursor: encodeScanCursor(input.namespace, last.key) }
+        : {}),
+    };
   };
 }
 
@@ -252,15 +263,18 @@ export function createSearchAead(): SearchAeadPort {
 
 export function createSearchSecretStore(
   backend: SecretBackend,
+  assertCurrent?: () => void,
 ): SearchSecretStorePort {
   return {
     async get(key) {
       return backend.get(key) ?? undefined;
     },
     async createIfAbsent(key, value) {
+      assertCurrent?.();
       return backend.createIfAbsent(key, value);
     },
     async delete(key) {
+      assertCurrent?.();
       return backend.deleteIfPresent(key);
     },
   };

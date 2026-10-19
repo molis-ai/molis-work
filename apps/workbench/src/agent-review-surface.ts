@@ -151,7 +151,7 @@ function readable(document: AgentReviewDocument): boolean {
       && document.args.every(arg => typeof arg === "string") && typeof document.cwd === "string" && Number.isFinite(document.timeout_ms)
       && (document.env_allowlist === undefined || Array.isArray(document.env_allowlist) && document.env_allowlist.every(name => typeof name === "string"))
       && (document.escalate === undefined || typeof document.escalate === "boolean")
-      && (document.after_write_check === undefined || typeof document.after_write_check.display_name === "string" && Number.isSafeInteger(document.after_write_check.version))
+      && (document.after_write_check === undefined || typeof document.after_write_check?.display_name === "string" && Number.isSafeInteger(document.after_write_check.version))
       && (document.grants === undefined || typeof document.grants.network === "boolean" && Array.isArray(document.grants.paths)
         && document.grants.paths.every(grant => typeof grant.path === "string" && (grant.access === "read" || grant.access === "write")));
     case "tool-operation": return typeof document.summary === "string" && Array.isArray(document.fields);

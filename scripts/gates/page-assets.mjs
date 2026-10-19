@@ -235,13 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// Reviewed 2026-10-19: receipts review fixes (#778, specs/ai-input-receipts): a step the person holds says so, and the
-// mark of what AI noted is one whole English sentence per holder, written once rather than per round, with both wordings
-// in the shared RECEIPT_WORDS table (first version +292 B). That adds 195 B to workbench.js, spent once from exactly
-// this start; later growth stays frozen. Plugin tab groups' spent starts (workbench.js 1,115,299, workbench.css 1,589,812)
-// are refused, like every spent start before them.
+// Reviewed 2026-10-19: the outcome slot's result buttons and the delivery note (#789 with #803, specs/context-program
+// §21.9 SLOT-03, specs/ai-input-receipts §9.2 3e-2a): the next-step row binds each outcome record once with the island's
+// bindText, and the page places the Host-drawn note after the tray, renews it only when its text changes and opens a
+// supplement's receipt. The record's key, class and aria-live are written by the Host (−139 B) and the review shortened the
+// placing and pressing (−28 B). That adds 442 B to workbench.js, spent once from exactly this start; later growth stays
+// frozen. The receipts review fixes' spent start (workbench.js 1,129,841) is refused, like every spent start before it.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129841, 1130036],
+  "/assets/molis-work-workbench.js": [1130033, 1130475],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

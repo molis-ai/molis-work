@@ -126,6 +126,10 @@
       "types": "./dist/platform/plugin-sandbox.d.ts",
       "import": "./dist/platform/plugin-sandbox.js"
     },
+    "./platform/plugin-registration": {
+      "types": "./dist/platform/plugin-registration.d.ts",
+      "import": "./dist/platform/plugin-registration.js"
+    },
     "./platform/plugin-agent": {
       "types": "./dist/platform/plugin-agent.d.ts",
       "import": "./dist/platform/plugin-agent.js"

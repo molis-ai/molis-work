@@ -129,7 +129,7 @@ test("Host request locales stay isolated across interleaved async rendering and 
 });
 
 
-test("RAC-56/57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
+test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
   for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
     const browser: { L?: typeof L } = {};
     runInNewContext(clientI18nScript(), browser);

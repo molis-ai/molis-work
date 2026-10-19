@@ -5,10 +5,15 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 
-function openProjects(directory: string, plugins?: ProjectPluginRegistry) {
+/** What Projects is told exists: five plugins, and Inbox enabled with Feed (the Host derives the real one from its catalog). */
+const shipped: ProjectPluginRegistry = {
+  has: (pluginId) => ["goals", "sessions", "inbox", "feed", "artifacts"].includes(pluginId),
+  companions: (pluginId) => pluginId === "feed" ? ["inbox"] : [],
+};
+
+function openProjects(directory: string, plugins: ProjectPluginRegistry = shipped) {
   const db = new Database(join(directory, "catalog.db"));
   createProjectsSchema(db);
   const projects = new ProjectsModule({
@@ -33,8 +38,8 @@ test("a Plugin the registry knows can be enabled without touching the schema", (
   try {
     // A registry that also knows a Plugin this build never compiled into a literal set.
     const registry: ProjectPluginRegistry = {
-      has: (pluginId) => BUILTIN_PROJECT_PLUGIN_REGISTRY.has(pluginId) || pluginId === "coding",
-      companions: (pluginId) => BUILTIN_PROJECT_PLUGIN_REGISTRY.companions(pluginId),
+      has: (pluginId) => shipped.has(pluginId) || pluginId === "coding",
+      companions: (pluginId) => shipped.companions(pluginId),
     };
     const { db, projects } = openProjects(directory, registry);
     const project = createProject(projects, directory, "编码项目");

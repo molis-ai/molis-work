@@ -4,6 +4,7 @@ import type { RuntimeSettingsDto } from "../../shared/contracts/settings.js";
 import { defaultRuntimeSettings, type SqliteSettingsRepository } from "../db/settings-repository.js";
 import { generateWithHost, type AlchemistAiPort } from "./host-port.js";
 import type { AlchemistEffectControl } from "../services/action-operations.js";
+import { alchemistStateErrors } from "../../errors.js";
 
 interface RuntimeSelectorOptions {
   workspaceId: string;
@@ -32,7 +33,7 @@ export class RuntimeSelector implements AiRuntimePort {
   async captureSelection(): Promise<{ modelId: string; identity: string }> {
     const settings = this.settings(), identity = this.selectionIdentity();
     const models = await this.listModels();
-    if (identity !== this.selectionIdentity()) throw new Error("alchemist.resume_context_changed");
+    if (identity !== this.selectionIdentity()) throw alchemistStateErrors.resume_context_changed("模型设置刚刚改变，请重新查看继续条件。");
     const selected = settings.modelPolicy === "fixed" ? models.find(model => model.id === settings.modelId) : models[0];
     if (!selected) throw new Error(settings.modelPolicy === "fixed" ? "alchemist.runtime_model_unavailable" : "alchemist.runtime_not_configured");
     return { modelId: selected.id, identity };

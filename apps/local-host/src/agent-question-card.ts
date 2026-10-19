@@ -94,7 +94,7 @@ export function agentQuestionHtml(question: AgentPendingQuestion, say: Say, draf
     ];
   const closed = question.answerable === false;
   return renderInteractionQuestion({
-    id: `q-${question.pending_id}`, kicker: say("等你回答"), state: closed ? "unavailable" : "answer", title: question.prompt, fields, optionalLabel: say("选填"),
+    id: `q-${question.pending_id}`, kicker: say("等你回答"), state: closed ? "unavailable" : "answer", title: question.prompt, fields, optionalLabel: say("选填"), clearLabel: say("清除选择"),
     ...(closed ? { banner: { text: question.unavailable_reason || say("这个问题暂时不能回答"), tone: "quiet" as const, actions: reask ? [{ id: "reask", label: say("请 AI 重新问") }] : [] } } : {}),
     footer: { note, keys: "⌘↵", actions: closed ? [] : [{ id: "answer", label: say("提交回答"), variant: "primary", type: "submit" }] },
   });

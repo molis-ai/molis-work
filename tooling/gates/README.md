@@ -7,7 +7,7 @@
 | 路径 | 是什么 | 谁改 |
 | --- | --- | --- |
 | `baseline.json` | 各项数字的本地快查基线；CI 不读它，只对照 merge-base 比 | `node scripts/check-health-gates.mjs --update --base origin/main`（数字变小时） |
-| `limits.json` | 巨大单元与 vendored SDK 的阈值，只许收紧 | 人，过评审 |
+| `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |

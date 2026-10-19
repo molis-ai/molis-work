@@ -7,6 +7,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "@molis-ai/molis-work-app-workbench";
+import { CARD_RESULT_OPEN, cardOutcomeSteps } from "@molis-ai/molis-work-app-local-host";
 
 interface Node_ { dataset: Record<string, string>; children: Node_[]; disabled: boolean; pressed: number; ixBase?: string; ix?: { read(): unknown };
   readonly firstChild: Node_ | null; click(): void; querySelector(selector: string): Node_ | null; querySelectorAll(selector: string): Node_[] }
@@ -84,6 +85,16 @@ test("SLOT-02: a card's result is keyed by the card; its run step still presses 
   assert.deepEqual([undo.pressed, run.pressed], [1, 0], "the result's own 撤销");
   go("card:c1:run");
   assert.deepEqual([undo.pressed, run.pressed, jumped.length], [1, 1, 2]);
+});
+
+test("AC-06-4: the step the Host gives for a card's result presses that result's own 「打开」, never the card's run", () => {
+  const open = node({ ixPress: CARD_RESULT_OPEN }), run = node({ ixAction: "run" });
+  const { go, jumped } = row([node({ card: "c1" }, [run, open], { draft: { base: {}, now: {} } })]);
+  const [step] = cardOutcomeSteps([{ card_id: "c1", title: "新建待办", status: "done", missing: [], updated_at: "2026-10-13T01:05:00.000Z",
+    presentation: { link: { label: "继续接入" } } }], "", text => text);
+  assert.ok(step, "a card that ran and can be opened is a step");
+  go(step.id);
+  assert.deepEqual([open.pressed, run.pressed, jumped.length], [1, 0, 1], "pressed as the person would, the card brought into view");
 });
 
 test("SLOT-02: only a card's run step presses the run button; any other record's run presses the control named run", () => {

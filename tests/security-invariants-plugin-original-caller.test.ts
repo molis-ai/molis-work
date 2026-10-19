@@ -4,11 +4,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginFilesDeclaration, PluginHostServices, PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { openCharacters } from "@molis-ai/molis-work-module-characters";
+import { charactersActions, createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -203,5 +206,45 @@ test("S-18 a subscriber or a consumer answers to its own delivery, not to the ac
     subscriber.release.resolve();
     await (path === "event" ? events : wiring).drain();
     assert.equal(subscriber.stored(key), "heard", `${path}: the probe's ended call does not refuse the listener's write`);
+  }
+});
+
+test("S-18 Characters publish: a caller gone after its beforeWrite is refused by the 成果 service itself", async t => {
+  const home = mkdtempSync(join(tmpdir(), "characters-original-caller-")), file = join(home, "project.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID), characters = openCharacters(home, "user");
+  const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
+    eventCursor: (projectId: string) => store.eventCursor(projectId) };
+  const artifacts = new ArtifactsModule(ports);
+  const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "user", db: store.db, journal: store, artifacts,
+    processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null });
+  t.after(async () => {
+    try {
+      await running.closeCoordination();
+      for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
+    } finally { characters.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
+  });
+  // Characters checks nothing of its own after `await beforeWrite()`, and its library only reads inside the publish: the 成果
+  // is the one write. The caller goes away in that window, after every wait has passed and before the 成果 service runs.
+  let gone: (() => void) | undefined;
+  const definition = createCharactersPlugin({ actorId: "user", drafts: characters.service,
+    references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
+    publish: (id, revision, publisher) => { gone?.(); return characters.service.publish(id, revision, publisher); } });
+  assert.deepEqual((await running.start([{ definition, grants: ["artifact:read", "artifact:write"] }])).running, [CHARACTER_PLUGIN_ID]);
+  const created = characters.service.create();
+  const draft = characters.service.update(created.character_id, created.revision, { title: "Guarded", instructions: "Fixed instructions", host_tools: null });
+  for (const failure of ["revoke", "cancel", "none"] as const) {
+    const abort = new AbortController();
+    let revoked = false;
+    const context: ActionCallContext = { actor_id: "user", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...charactersActions.publish.action.permissions],
+      signal: abort.signal, assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked"); } };
+    gone = failure === "none" ? undefined : () => { if (failure === "cancel") abort.abort(); else revoked = true; };
+    const outcome = await actions.client.invoke(context, charactersActions.publish, { id: draft.character_id, expected_revision: draft.revision })
+      .then(() => "published", (error: unknown) => error);
+    const published = artifacts.query.listArtifacts(DEMO_PROJECT_ID).length;
+    if (failure === "none") { assert.equal(outcome, "published"); assert.equal(published, 1, "a current caller publishes"); continue; }
+    if (failure === "revoke") assert.equal((outcome as { code?: string }).code, "actions.forbidden", failure);
+    else assert.equal((outcome as { name?: string }).name, "AbortError", failure);
+    assert.equal(published, 0, `${failure}: nothing published once the caller is gone`);
   }
 });

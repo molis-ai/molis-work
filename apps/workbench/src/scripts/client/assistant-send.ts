@@ -98,7 +98,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * supplement the round has not put in the context (the work's control), or sends a correction naming it (Send with
  * `about`; the receipt's key is its request id, so words resent after a lost answer count once). After the rounds, the shared
  * tray lists what is still open (§4.4, stage 3b-2c): what waits in the work's session, read only while no round is live
- * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control.
+ * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control. After the
+ * tray comes the work's delivery note (receipts 3e-2a): the Host's record as it is, replaced whole only when its html changed,
+ * so the step row binds it again; a supplement in it opens that supplement's receipt.
  *
  * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default on
  * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. When the round
@@ -107,7 +109,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  */
 export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
   const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
-  let asked = "", ask = null, choice = "answer", pacted = null;
+  let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
@@ -144,6 +146,15 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     after(thread, put, view) {
       const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
       if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
+      const note = view?.delivery_html || "";
+      if (note !== drawn) {
+        drawn = note; block?.remove(); block = null;
+        if (note) {
+          block = Object.assign(document.createElement("div"), { innerHTML: note }).firstChild;
+          block.onclick = (e) => { const one = e.target.closest("[data-input]"); one && shared.link(thread, one.dataset.input)?.click(); };
+        }
+      }
+      if (block) put(block);
       const kept = view ? shared.agreements(thread, view.rounds.map((one) => one.run_id)) : null, read = kept ? kept.textContent : "";
       if (read !== pacted) { pacted = read; pact(kept, kept ? String(kept.querySelectorAll("li").length) : ""); }
     },

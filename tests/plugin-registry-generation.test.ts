@@ -36,6 +36,8 @@ const feedPackage = (edit: (json: PackageJson) => void) => {
   edit(json);
   return { [FEED_PACKAGE]: `${JSON.stringify(json, null, 2)}\n` };
 };
+/** The next free catalog position: they are positive integers, so a new plugin's is one past the highest. */
+const NEXT_POSITION = Math.max(...BUILTIN_PLUGIN_CATALOG.map(entry => entry.catalog_order)) + 1;
 const problems = (changes: Record<string, string | null>, packages: readonly Entry[] = WORKSPACE_PACKAGES) =>
   pluginRegistryProblems(tree(changes), packages).join("\n");
 
@@ -87,6 +89,39 @@ test("W5-02-REG-02: --check refuses a position or a key it cannot read, or one a
   assert.match(problems(literal), /project_plugin_id "same" is given by .+ and .+; each plugin needs its own/);
 });
 
+test("W5-02-REG-09: --check refuses a package under plugins/native/ that has no registration, even when its catalog entry was dropped with it", () => {
+  const catalog = readReal(CATALOG_FILE)!;
+  // What the generator used to write after someone deleted Feed's registration and its package.json declaration together:
+  // a catalog that is consistent with the tree and simply has no Feed in it.
+  const withoutFeed = catalog.replace(/^import \{ registration as feedRegistration \}.*\n/m, "").replace("  feedRegistration,\n", "");
+  assert.notEqual(withoutFeed, catalog);
+  const dropped = {
+    ...feedPackage(json => { delete json["molis-work"].registration; delete json.exports["./registration"]; }),
+    [FEED]: null,
+    [CATALOG_FILE]: withoutFeed,
+  };
+  const named = /molis-work-plugin-feed: has no registration; every package under plugins\/native\/ writes plugins\/native\/feed\/src\/registration\.ts and declares it in package\.json/;
+  assert.match(problems(dropped), named);
+  assert.equal(pluginRegistry(tree(dropped), WORKSPACE_PACKAGES).text, null, "the generator writes nothing while a package is unregistered");
+  // A new plugin that forgot its registration is the same case.
+  const dir = "plugins/native/forgetful", name = "@molis-ai/molis-work-plugin-forgetful";
+  const forgetful = { [`${dir}/package.json`]: `${JSON.stringify({ name, exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" } } }, null, 2)}\n` };
+  assert.match(problems(forgetful, [...WORKSPACE_PACKAGES, { path: dir, name }]), /molis-work-plugin-forgetful: has no registration/);
+  // Only a layout that has adopted registrations is asked: the scratch layouts of the gates' own tests list plugin packages and nothing else.
+  const lone = { files: [], read: (file: string) => (file === `${dir}/package.json` ? forgetful[file] : null) };
+  assert.deepEqual(pluginRegistryProblems(lone, [{ path: dir, name }]), []);
+});
+
+test("W5-02-REG-10: --check takes a catalog_order only as a positive integer literal", () => {
+  const refused = (value: string, expected: RegExp) => assert.match(problems(feed("catalog_order: 10", `catalog_order: ${value}`)), expected, value);
+  refused("0", /gives "catalog_order" 0, which is not a positive integer/);
+  refused("1.5", /gives "catalog_order" 1\.5, which is not a positive integer/);
+  refused("1e400", /gives "catalog_order" 1e400, which is not a positive integer/);
+  refused("-1", /must give "catalog_order" a number literal, a positive integer/);
+  refused("TEN", /must give "catalog_order" a number literal, a positive integer/);
+  assert.doesNotMatch(problems(feed("catalog_order: 10", `catalog_order: ${NEXT_POSITION}`)), /catalog_order/, "an unused positive integer is accepted");
+});
+
 test("W5-02-REG-02: --check refuses companions and client ids that are not literal short ids", () => {
   assert.match(problems(feed('companions: ["inbox"]', "companions: [INBOX_ID]")), /must give "companions" literal short ids/);
   assert.match(problems(feed('companions: ["inbox"]', 'companions: ["Inbox"]')), /must give "companions" literal short ids/);
@@ -116,7 +151,7 @@ test("W5-02-REG-03: a new plugin is its own package; the generator lists it and 
   const packages = [...WORKSPACE_PACKAGES, { path: dir, name }];
   const own = {
     [`${dir}/package.json`]: `${JSON.stringify({ name, exports: { ".": { types: "./dist/index.d.ts", import: "./dist/index.js" }, "./registration": { types: "./dist/registration.d.ts", import: "./dist/registration.js" } }, "molis-work": { registration: "./registration" } }, null, 2)}\n`,
-    [`${dir}/src/registration.ts`]: readReal(FEED)!.replace(/catalog_order: \d+/, "catalog_order: 10.5").replace("project_plugin_id: FEED_PROJECT_PLUGIN_ID", 'project_plugin_id: "future"').replace(/companions: \[[^\]]*\],?\n/, ""),
+    [`${dir}/src/registration.ts`]: readReal(FEED)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`).replace("project_plugin_id: FEED_PROJECT_PLUGIN_ID", 'project_plugin_id: "future"').replace(/companions: \[[^\]]*\],?\n/, ""),
   };
   assert.match(problems(own, packages), /out of date or edited by hand/, "the catalog does not list it until regenerated");
   const { text, problems: refused } = pluginRegistry(tree(own), packages);
@@ -124,7 +159,6 @@ test("W5-02-REG-03: a new plugin is its own package; the generator lists it and 
   assert.ok(text);
   assert.match(text, /^import \{ registration as futureRegistration \} from "@molis-ai\/molis-work-plugin-future\/registration";$/m);
   const listed = text.split("\n").filter(line => line.startsWith("  ")).map(line => line.trim().replace(/,$/, ""));
-  const before = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.catalog_order < 10.5).length;
-  assert.equal(listed.indexOf("futureRegistration"), before, "listed at its catalog_order, right after Feed");
+  assert.equal(listed.indexOf("futureRegistration"), BUILTIN_PLUGIN_CATALOG.length, "listed by catalog_order (after the last plugin), not by package name");
   assert.deepEqual(problems({ ...own, [CATALOG_FILE]: text }, packages), "", "its package and the regenerated catalog are the whole change");
 });

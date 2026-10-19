@@ -5,17 +5,22 @@
 // catalog entry in src/registration.ts, `export const registration: PluginRegistration = { … }`, and declares it in its
 // package.json: `exports["./registration"]` and `"molis-work": { "registration": "./registration" }`. The catalog file is
 // only the list of those entries: one import per package (by package name, in code-point order) and the array in
-// `catalog_order`. A new plugin changes only its own package; this script writes the list.
+// `catalog_order`. The catalog file is never edited by hand: a new plugin writes its own registration and this script lists it.
+// (It still joins WORKSPACE_PACKAGES in scripts/workspace-packages.mjs and is added as a dependency of apps/workbench and
+// apps/local-host in their package.json; PG-069, W5-02 PR-2, generates those from the registry.)
 //
 //   node scripts/generate-plugin-registry.mjs          write the catalog file (refuses while any registration is malformed)
 //   node scripts/generate-plugin-registry.mjs --check  fail, naming the package, when the file is stale or edited by hand,
 //                                                      or a registration cannot be listed (pnpm health:check runs this)
 //
-// What --check reads is syntax only, nothing of the repository is executed: a declared package without src/registration.ts
-// (or the other way round), a registration that is not an object literal, a key the contract (PluginRegistration and
-// PluginWorkbenchRegistration in packages/contracts/src/platform/plugin-registration.ts) does not have, at the top or in
-// `workbench`, a spread, a `catalog_order` that is not a number literal or repeats, a literal `project_plugin_id` that is
-// malformed or repeats, and `clientFrom`, `clientUses` or `companions` that are not literal short ids. What it cannot see:
+// What --check reads is syntax only, nothing of the repository is executed: a package under plugins/native/ with no
+// registration at all (W5-02-REG-09: deleting a plugin's registration and its package.json declaration together does not
+// drop it from the catalog unnoticed), a declared package without src/registration.ts (or the other way round), a
+// registration that is not an object literal, a key the contract (PluginRegistration and PluginWorkbenchRegistration in
+// packages/contracts/src/platform/plugin-registration.ts) does not have, at the top or in `workbench`, a spread, a
+// `catalog_order` that is not a positive integer literal (W5-02-REG-10: 0, 1.5 and -1 are refused) or repeats, a literal
+// `project_plugin_id` that is malformed or repeats, and `clientFrom`, `clientUses` or `companions` that are not literal
+// short ids. What it cannot see:
 // an id given through a constant (most are) and a short id that names no plugin; the built catalog is checked for those
 // when it loads (apps/workbench/src/plugin-catalog.ts) and by tests/plugin-registry-generation.test.ts.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -52,7 +57,7 @@ export function contractKeys(snapshot) {
 
 /** The registry's built-in plugin packages, each with its registration source (or null) and what is wrong with its declaration. */
 export function registeredPackages(snapshot, packages) {
-  const result = [], problems = [];
+  const result = [], problems = [], unregistered = [];
   for (const entry of packages.filter((item) => item.path.startsWith(PLUGIN_ROOT))) {
     const manifestText = snapshot.read(`${entry.path}/package.json`);
     if (manifestText === null) { problems.push(`${entry.name}: ${entry.path}/package.json does not exist`); continue; }
@@ -60,13 +65,17 @@ export function registeredPackages(snapshot, packages) {
     try { json = JSON.parse(manifestText); } catch { problems.push(`${entry.name}: ${entry.path}/package.json is not JSON`); continue; }
     const file = `${entry.path}/${REGISTRATION_FILE}`, source = snapshot.read(file);
     const declared = json["molis-work"]?.registration, exported = json.exports?.["./registration"];
-    if (declared === undefined && source === null) continue;
+    if (declared === undefined && source === null) { unregistered.push({ entry, file }); continue; }
     if (declared === undefined) { problems.push(`${entry.name}: has ${REGISTRATION_FILE} but its package.json does not declare it ("molis-work": { "registration": "./registration" })`); continue; }
     if (declared !== "./registration") problems.push(`${entry.name}: "molis-work".registration must be "./registration", not ${JSON.stringify(declared)}`);
     if (exported?.import !== "./dist/registration.js" || exported?.types !== "./dist/registration.d.ts") problems.push(`${entry.name}: package.json exports "./registration" must be { "types": "./dist/registration.d.ts", "import": "./dist/registration.js" }`);
     if (source === null) { problems.push(`${entry.name}: package.json declares a registration but ${file} does not exist`); continue; }
     result.push({ name: entry.name, dir: entry.path.slice(PLUGIN_ROOT.length), file, source });
   }
+  // A package with no registration is a mistake wherever any plugin registers or the catalog or the contract is there; a layout
+  // with none of those (a scratch layout of the gates' own tests that merely lists plugin packages) has not adopted them.
+  const adopted = result.length > 0 || problems.length > 0 || snapshot.read(CATALOG_FILE) !== null || snapshot.read(REGISTRATION_CONTRACT) !== null;
+  if (adopted) for (const { entry, file } of unregistered) problems.push(`${entry.name}: has no registration; every package under ${PLUGIN_ROOT} writes ${file} and declares it in package.json ("molis-work": { "registration": "./registration" })`);
   return { packages: result, problems };
 }
 
@@ -97,8 +106,10 @@ export function readRegistration(pkg, keys) {
   const inner = workbench && ts.isObjectLiteralExpression(workbench) ? properties(workbench, keys.workbench, "workbench ") : null;
   if (!inner) say(`must give "workbench" an object literal`);
   const orderNode = top.get("catalog_order"), idNode = top.get("project_plugin_id");
-  const order = orderNode && ts.isNumericLiteral(orderNode) ? Number(orderNode.text) : null;
-  if (order === null) say(`must give "catalog_order" a number literal`);
+  const written = orderNode && ts.isNumericLiteral(orderNode) ? Number(orderNode.text) : null;
+  if (written === null) say(`must give "catalog_order" a number literal, a positive integer`);
+  else if (!Number.isSafeInteger(written) || written < 1) say(`gives "catalog_order" ${orderNode.getText()}, which is not a positive integer`);
+  const order = Number.isSafeInteger(written) && written >= 1 ? written : null;
   let id = null;
   if (!idNode) say(`has no "project_plugin_id"`);
   else if (ts.isStringLiteralLike(idNode)) {

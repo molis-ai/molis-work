@@ -133,7 +133,8 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/document*"] }, sessionId);
   await showGoalStageList();
   await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
-  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('Failed to fetch') || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
+  // PG094-09: the read goes through the page's request helper, which names an unreachable Host in its own words.
+  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('连不上 Molis Work 服务') || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");

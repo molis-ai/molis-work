@@ -11,16 +11,14 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
         submit.textContent = L("正在保存…");
         errorBox.hidden = true;
         try {
-          const response = await fetch(route("/api/policy-bindings"), {
+          await molisWorkRequest(route("/api/policy-bindings"), {
             method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({
+            body: {
               scope: "project_default",
               policy: { human_approval: values.has("human_approval") },
-            }),
+            },
+            fallback: L("工作规则保存失败"),
           });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || L("工作规则保存失败"));
           await refreshBoard(true);
           showToast(L("项目默认工作规则已保存"));
         } catch (error) {
@@ -35,7 +33,7 @@ const GOALS_POLICY_SUBMIT_SCRIPT = `      const policyForm = submittedForm.close
 `;
 
 export const GOALS_POLICY_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { route, controlHeaders: molisWorkControlHeaders, translate: L,
+    const { route, translate: L,
       requireFormFacts, refreshBoard, showToast, humanDecisionError } = host;
     const submitMatchedPolicy = async (submittedForm, event) => {
 ${GOALS_POLICY_SUBMIT_SCRIPT}    };

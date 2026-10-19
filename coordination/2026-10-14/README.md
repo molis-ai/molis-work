@@ -1196,3 +1196,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 小意见：为不让巨大单元变大而压行，以后改成抽出类外函数。
   - 为看 main 的两处红，推了 `integration/main-fix-20261019`（main `b3688266b` + #760 `8c2531104`），full suite run 39194646754。
 - 03:35 UTC：四个评审子代理并行开出，都是 xhigh：#759、#757 的当前 head `f6a0e7b31`、Prologue #51、#52。#741、#755 等 ② 报 Verify 绿。#631（feat/unified-input-voice，草稿）在自己跑 workflow_dispatch 全量，不归这几条线。
+- 03:45 UTC：#755 变基到 `7e6955b93`，diff 与审过的一致：插件 body 自带的 `call_id` 丢掉，S-03 表和用例同步改了。Verify 绿，gate-and-queue 通过后已入队。#741 也已变基、Verify 绿；它属于共享核心，等 main 变绿后与 #757 组一批跑全量。③ 在本地提交了 Dataset P1 的修法（`fix(dataset): every publication step rechecks the original caller`，W5-01-DATASET-06），正在跑 dataset e2e。
+- 远端分支清点：
+  - `integration/anti-corruption-closeout-20261018`：③ 已核对，内容全在 main，可以删。
+  - 统筹自己推的 `integration/main-check-20261019`：用完了，可以删。
+  - `codex/cgs-formal-integration-20261013`（`1bc1d511a`，10-14）：比 main 多 1 个提交，动了 80 个文件（CGS 挂进项目 Runtime），从没开过 PR，也不在 main 里。不属于这七条线，不建议删，先问用户。
+  - `codex/linux-probe-uv`（草稿 #734）：跟着 #631。
+  - #631（feat/unified-input-voice）：03:17 UTC 还在被推，作者是 jingxusandra-gif，时区 +09:00；本机是 +08:00，本机也没有它的工作树，所以是另一台机器在推，不归这几条线。

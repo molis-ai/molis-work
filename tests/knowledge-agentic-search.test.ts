@@ -106,3 +106,21 @@ test("PMAT-29 grep without a scope looks through the project's catalog; it can g
   const kept = await f.knowledge.grep(f.access(agent()), { pattern: "MW-0042", output: "subjects" });
   assert.deepEqual([kept.found.map(item => item.subject.id), kept.unread.map(item => item.subject.id)], [["g2"], []]);
 });
+
+test("PMAT-31 a subject project knowledge does not have is refused as not a piece here, saying to copy the subject as given; a known piece keeps its owner's reason", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  await f.indexAll();
+  const unknown = (error: unknown) => error instanceof ActionError && error.code === "knowledge.unknown" && /照抄/.test(error.message);
+  // An id the owner of a readable kind does not have is not a piece here.
+  const copy = { kind: "page", id: "p1-copy" };
+  await assert.rejects(() => f.knowledge.read(f.access(agent()), { subject: copy }), unknown);
+  await assert.rejects(() => f.knowledge.outline(f.access(agent()), { subject: copy }), unknown);
+  // A kind no reader is offered for keeps the directory's own refusal (S-41: a kind the caller may not read looks the same).
+  await assert.rejects(() => f.knowledge.read(f.access(agent()), { subject: { kind: "doc", id: "p1" } }), (error: unknown) => error instanceof ActionError && error.code === "actions.subject_unavailable");
+  const named = await f.knowledge.grep(f.access(agent()), { pattern: "MW-0042", subjects: [{ kind: "page", id: "p1-copy" }] });
+  assert.match(JSON.stringify(named.unread), /照抄/u);
+  // A piece with a card that its owner now refuses keeps the owner's own reason.
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 3, refuse: true });
+  await assert.rejects(() => f.knowledge.read(f.access(agent()), { subject: { kind: "page", id: "p1" } }), (error: unknown) => error instanceof ActionError && error.code === "pages.locked");
+});

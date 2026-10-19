@@ -90,6 +90,8 @@ const DEFAULT_LIST = 30;
 const REASON_CHARS = 200;
 const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind && a.id === b.id;
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS);
+/** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
+const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 
 /**
  * Whether a caller may be shown a card, by the rule the system search applies to its index (system-search §5): the source
@@ -312,6 +314,13 @@ export class KnowledgeService {
     return access.caller.project_id;
   }
 
+  /** Whether a reader of this kind is offered to the caller, so a refusal is about the id and not about the kind. */
+  private async readable(caller: ActionCallContext, access: KnowledgeAccess, subject: ActionSubject): Promise<boolean> {
+    let views: readonly ActionView[];
+    try { views = await access.client.discover(caller); } catch { return false; }
+    return views.some(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(subject.kind) && view.availability.available);
+  }
+
   /**
    * The piece as its owner has it now for this caller; an owner's refusal keeps its own code. A reader that takes `offset` is
    * read page by page up to `KNOWLEDGE_TEXT_MAX_CHARS`, all pages from one revision; one that does not gives its first page.
@@ -319,7 +328,8 @@ export class KnowledgeService {
   private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
     const project = this.project(access);
     if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
-    if (this.stored(project, subject)?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
+    const known = this.stored(project, subject);
+    if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
       const { context, reader } = await resolveActionSubject(access.client, caller, subject);
@@ -332,6 +342,12 @@ export class KnowledgeService {
       content = content.slice(0, KNOWLEDGE_TEXT_MAX_CHARS);
       return { ...context, content, truncated: content.length < (page.length ?? content.length) || (page.length === undefined && context.truncated) };
     } catch (error) {
+      // A subject no card knows, of a kind this caller may read, that its owner does not take is not a piece here: most often
+      // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id
+      // for a fault in its other arguments. A kind the caller may not read keeps the directory's own refusal (S-41).
+      if (!known && error instanceof ActionError && UNKNOWN_SUBJECT_CODES.has(error.code) && await this.readable(caller, access, subject)) {
+        throw knowledgeErrors.unknown(`项目资料里没有这一份。subject 要原样用 knowledge.list、search 或 grep 给的那一个：kind 与整串 id 照抄，不改写、不截取（这次收到 kind ${JSON.stringify(subject.kind.slice(0, 40))}，id ${JSON.stringify(subject.id.slice(0, 80))}）`);
+      }
       if (error instanceof ActionError) throw error;
       throw knowledgeErrors.unreadable(`这份资料现在读不到：${reasonOf(error)}`);
     }

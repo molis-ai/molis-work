@@ -248,9 +248,9 @@ const APPROVED_CEILINGS = {
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
-// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes).
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-knowledge.js": 23747,
+  "/assets/molis-work-knowledge.js": 23979,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

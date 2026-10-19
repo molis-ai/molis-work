@@ -42,7 +42,7 @@ function renderKnowledgeImportDialog(L: SidePanelPrimitives["L"]): string {
   return `<dialog class="mw-dialog mw-dialog--form knowledge-import" data-knowledge-import-dialog aria-labelledby="knowledge-import-title">
         <form method="dialog" class="knowledge-import-form" data-knowledge-import-form>
           <header><h2 id="knowledge-import-title">${L("导入资料")}</h2><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-knowledge-import-close>${L("关闭")}</button></header>
-          <p class="knowledge-import-intro">${L("导入的文件和文档存进项目，项目里的 Agent 都能找到；PDF、Word 会读出正文。原文后续修改不会自动同步。")}</p>
+          <p class="knowledge-import-intro">${L("导入的文件和文档存进项目，项目里的 Agent 都能找到；PDF、Office 文档和电子书读出正文，图片识别文字，音视频转成文字。原文后续修改不会自动同步。")}</p>
           <div class="knowledge-import-kinds" role="radiogroup" aria-label="${L("来源")}">
             <label><input type="radio" name="kind" value="files" checked> ${L("本地文件")}</label>
             <label><input type="radio" name="kind" value="online"> ${L("在线文档")}</label>

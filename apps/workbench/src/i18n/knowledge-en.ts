@@ -32,7 +32,7 @@ export const KNOWLEDGE_EN: Record<string, string> = {
   "导入资料": "Import",
   "刷新资料列表": "Refresh the list",
   "资料卡片": "Card",
-  "导入的文件和文档存进项目，项目里的 Agent 都能找到；PDF、Word 会读出正文。原文后续修改不会自动同步。": "Imported files and documents are saved in the project, where its agents can find them; the text of PDFs and Word documents is read out. Later changes to the original are not synced.",
+  "导入的文件和文档存进项目，项目里的 Agent 都能找到；PDF、Office 文档和电子书读出正文，图片识别文字，音视频转成文字。原文后续修改不会自动同步。": "Imported files and documents are saved in the project, where its agents can find them; the text of PDFs, Office documents and e-books is read out, images are recognized and audio and video are transcribed. Later changes to the original are not synced.",
   "在线文档": "Online document",
   "把文件或文件夹拖到这里，或者": "Drop files or folders here, or",
   "单个文件不超过 6 MB，一次最多 200 个；文件夹里以点开头的文件和 node_modules 一类的目录会跳过。": "Up to 6 MB per file and 200 files at a time. In a folder, hidden files and folders such as node_modules are skipped.",
@@ -87,6 +87,7 @@ export const KNOWLEDGE_EN: Record<string, string> = {
   "还没有连接这个文档工具。先在 能力 → 连接 里连接，再回来导入。": "This document tool is not connected yet. Connect it in Capabilities → Connections, then come back to import.",
   "导入失败。请检查文件、链接、文档权限和连接器配置后重试。": "Import failed. Check the file, link, document permissions and connector setup, then try again.",
 
+  "正在导入 {at} / {count}：{name}（识别文字或转写要一会儿）": "Importing {at} / {count}: {name} (recognizing text or transcribing takes a moment)",
   "正在导入 {at} / {count}：{name}": "Importing {at} / {count}: {name}",
   "没有变化": "Unchanged",
   "导入了 {done} 个，{failed} 个没有导入（原因见上面）。": "{done} imported, {failed} not imported (reasons above).",

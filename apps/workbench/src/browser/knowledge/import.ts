@@ -4,6 +4,8 @@ import { el, L, request } from "./common.js";
 const MAX_FILES = 200;
 const MAX_BYTES = 6 * 1024 * 1024;
 const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
+/** Files the Host recognizes or transcribes while the import waits (a scanned PDF too), which take seconds to minutes. */
+const SLOW_FILE = /\.(pdf|png|jpe?g|webp|heic|heif|tiff?|bmp|gif|mp3|wav|m4a|aac|aiff?|flac|mp4|mov|m4v|webm)$/iu;
 const skipped = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 interface Picked { file: File; path: string }
 interface ImportSources { sources: Record<string, boolean>; connections: Array<{ connection_id: string; service_id: string; display_name: string; state: string }> }
@@ -103,7 +105,8 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     const rows = [...pickedList.children] as HTMLElement[];
     for (const [index, item] of queue.entries()) {
       const mark = rows[index]?.querySelector("small");
-      status.textContent = L("正在导入 {at} / {count}：{name}", { at: index + 1, count: queue.length, name: item.path });
+      status.textContent = SLOW_FILE.test(item.path) ? L("正在导入 {at} / {count}：{name}（识别文字或转写要一会儿）", { at: index + 1, count: queue.length, name: item.path })
+        : L("正在导入 {at} / {count}：{name}", { at: index + 1, count: queue.length, name: item.path });
       try {
         if (item.file.size > MAX_BYTES) throw new Error(L("超过 6 MB"));
         const saved = await one(await bodyOf(item.file));

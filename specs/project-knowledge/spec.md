@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已提交，第三轮评测见 §14；之后按评测加了短编号 ref（PMAT-39）与 grep 接着找（PMAT-40），第五轮 38/40，剩下的错是模型能力。全部已推送，开 PR 交统筹（10-19）。之后用户要求复查代码、界面与策略，四项按推荐定（§2 末四行），修复与验证见 §14「代码与界面复查」（PMAT-41–46）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已提交，第三轮评测见 §14；之后按评测加了短编号 ref（PMAT-39）与 grep 接着找（PMAT-40），第五轮 38/40，剩下的错是模型能力。全部已推送，开 PR 交统筹（10-19）。之后用户要求复查代码、界面与策略，四项按推荐定（§2 末四行），修复与验证见 §14「代码与界面复查」（PMAT-41–46）。用户随后要导入读更多文件（§2 末两行）：Office、OpenDocument、RTF、EPUB 经开源的 officeparser 转成 Markdown，图片与扫描 PDF 识别文字、音视频转写用 Host 已有的 macOS 组件，见 §14「导入读更多格式」（PMAT-47）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -43,6 +43,8 @@
 | 人选中的资料占不占本轮额度（10-19，弹窗） | 不占，单独计（推荐）；占；人选的不限 | **不占，单独计**：人选的资料由本人或插件读（audience `user` / `plugin`），每份按 `KNOWLEDGE_READ_MAX_CHARS` 读，长的分页并写明怎样接着读；本轮额度只管 Agent 自己找的（PMAT-42） |
 | 设了「不给 Agent 用」的资料整理不整理（10-19，弹窗） | 不整理（推荐）；照常整理 | **不整理**：不发给模型、不花额度；恢复后再排进整理（PMAT-43） |
 | 读不出正文的文件（10-19，弹窗） | 能读的都读，读不出的不整理（推荐）；只读 PDF 与 Word；都整理 | **能读的都读**：合法 UTF-8 的文本（CSV、JSON、代码）读出正文；读不出的只存原件，不发给模型，导入处写明「读不出正文」（PMAT-44） |
+| 导入读哪些格式（10-19，弹窗） | Office 与电子书（推荐）；图片与扫描 PDF 文字识别；音视频转写 | 用户原话：「use open-source project like everything to markdown, or other projects, transform more thing, including all above」：**三项都做，用开源的转 Markdown 项目**。比较后取 officeparser（MIT，纯 JavaScript）读 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB；文字识别与转写用 Host 已有的 macOS 组件（Vision、Whisper），不另加 OCR 库；取舍记在 `specs/repository-anti-corruption/dependencies-and-sdk-plan.md` §3.6 |
+| 文字识别什么时候做（10-19，弹窗） | 导入时做、有时限（推荐）；导入后在后台做 | **导入时做、有时限**：图片 60 秒、扫描 PDF 120 秒、音视频 300 秒；超时或失败只存原件，导入处写明原因，不整理 |
 
 更正：对齐时我说这件事可以接着 W5-01 的「材料读取归平台（`services.materials`）」做。核对后，`packages/contracts/src/services/materials.ts` 是**正文提取**（OCR、PDF、转写、读网页），不是资料库。本服务会用它从 PDF、DOCX 里读出正文，但不能再叫 `materials`，见 §4.1。
 
@@ -332,6 +334,7 @@
 44. **PMAT-44** 导入 PDF、Word 以外的文件时，合法 UTF-8 的文本（CSV、JSON、代码）读出正文并能被搜到；读不出的只存原件、导入处写明「读不出正文」、卡片只列标题。
 45. **PMAT-45** 分节认 Windows 换行（`\r\n`）的 Markdown 标题；没有 Markdown 标题时认「第X章/节/条」「一、」「（一）」一类编号标题（至少两个、≤ 40 字、不以句读结尾）；grep 的长行以命中处为中心截取。
 46. **PMAT-46** 宽松召回补上的卡片，给本人的搜索带命中的一小段原文作提示；给 Agent 的仍只有卡片简介（PMAT-09）。
+47. **PMAT-47** 导入 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB 时读出 Markdown 正文（表格是 Markdown 表格、标题是标题，没有 YAML 头与 HTML）；图片读出识别的文字、没有文字层的 PDF 读出识别的文字、音视频读出转写，都写明「可能有错字」；做不到时（不是 macOS、没有识别组件、语音模型没下载、超时、没有文字）只存原件，导入处写明原因与 Agent 只能看到名字。安装包不带工作区用 override 去掉的依赖（`tesseract.js`），从 release 再安装也一样。
 
 ## 14. 进度与证据
 
@@ -636,4 +639,31 @@ Bug
 页面资源：workbench.js +274 B、workbench.css 比原放行 +104 B、molis-work-knowledge.js +1,553 B（已批准的新资源），都经 APPROVED_CEILINGS / APPROVED_NEW_ASSETS 一次性放行。
 验证：pnpm build、typecheck、boundary:check、health:check --base origin/main、page-assets --base origin/main、api:update、actions:update；
   相关单元用例 26 个文件全过（含新的 knowledge-fresh-catalog 与 PMAT-42–46 的用例）；浏览器里逐项点过上面的界面问题。
+```
+
+### 导入读更多格式（2026-10-19，用户要求，两项弹窗，同一 PR #839，PMAT-47）
+
+```text
+读法（apps/local-host/src/artifact-original-text.ts，导入时做，有时限）
+  DOCX PPTX XLSX ODT ODS ODP RTF EPUB  officeparser 8.1.1 → Markdown，工作线程（256 MB、60 秒、解压 64 MB / 5,000 项），不开 OCR、不取附件与批注
+  PDF                                  先读文字层；不够时整份识别（macOS Vision，120 秒），哪个读出的字多用哪个
+  图片（png jpg heic tiff …）           macOS Vision 识别（中英，60 秒）
+  音视频（mp3 m4a wav mp4 mov …）       Host 的 Whisper（300 秒）；语音模型没下载时不下载，写明要先在灵光里下载
+  其他                                  合法 UTF-8 就是正文；否则只存原件
+  Word 以前经 mammoth 读成 HTML 放进资料，现在同样走 officeparser，得到 Markdown（分节与查找按标题走）。
+
+本机实测（样本由 LibreOffice、python-pptx、Chrome 截图与 macOS say 生成，一次性目录，跑完即删）
+  pptx 93 ms、odp 86 ms、xlsx 64 ms、ods 61 ms、odt 67 ms、docx 68 ms、rtf 57 ms、epub 62 ms：标题、列表、表格、演讲备注都在
+  中文截图 695 ms、同一张图做成的扫描 PDF 759 ms：逐行读出，表格成了空格分隔的行
+  中文语音 6.8 秒：模型没下载时 226 ms 返回「要先下载本机语音模型（约 597 MB）」；在一次性 Home 里下载模型（166 秒）后转写 2.5 秒，
+    「[0.00–6.80 秒] 退货政策: 签收后30天内可以无理由退货,冲锋衣和背包都适用。」；模型随 Home 一起删除
+  ODP 里 LibreOffice 生成的页码占位会留下一行「&lt;number>」，无害，不处理
+
+依赖与安装包：pnpm overrides 让 officeparser 与 Host 共用 pdfjs-dist、不装 tesseract.js（44 MB 的 core）；安装器按 overrides 的删除跳过
+  这一对，release 的 package.json 记下它（dependencies-and-sdk-plan.md §3.6）。审计条数加前加后都是 10，新包没有公告。
+界面：导入对话框的说明改为「PDF、Office 文档和电子书读出正文，图片识别文字，音视频转成文字」；导入 PDF、图片、音视频时状态写「识别文字或转写要一会儿」。
+  molis-work-knowledge.js 再 +232 B（APPROVED_NEW_ASSETS 23,979）。
+测试：artifact-document-import 的 PMAT-47（手工拼出最小的 xlsx、pptx、odt、epub、rtf，不需要办公软件；空白 PNG 在 macOS 上是「没有识别出文字」、
+  别处是「不能识别文字」）；runtime-dependency-flatten 的 PMAT-47（tesseract.js 不进安装包）；install、runtime-payload、npm-package 通过。
+没做：导入时同意下载语音模型（现在要先在灵光里下载一次）；旧格式 .doc .xls .ppt（二进制格式，officeparser 不读）。
 ```

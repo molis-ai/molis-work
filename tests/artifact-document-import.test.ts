@@ -14,6 +14,7 @@ import {
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
@@ -467,4 +468,27 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
   assert.equal((broken.record.payload as { content: string }).content, "");
   assert.match(broken.result.warnings.join("\n"), /Agent 只能看到它的名字/u, "the import says no text was read, and what that means");
   assert.equal(artifactAnalysisContext(broken.record).content, "");
+});
+
+test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an image is recognized, or the import says why not", async t => {
+  const { coordinator, post } = await fixture(t);
+  const imported = async (filename: string, mime: string, bytes: Uint8Array) => {
+    const response = await post({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
+    assert.equal(response.status, 201, await response.clone().text());
+    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    return { warnings: result.warnings, content: (coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { content: string }).content };
+  };
+  const sheet = await imported("价目.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx([["型号", "价格"], ["TP-2", "1299"]]));
+  assert.match(sheet.content, /\| 型号 \| 价格 \|\n\| --- \| --- \|\n\| TP-2 \| 1299 \|/u, "a sheet is a Markdown table");
+  assert.deepEqual(sheet.warnings, []);
+  assert.match((await imported("复盘.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", pptx("第四季度重点：仓库扩容"))).content, /第四季度重点：仓库扩容/u);
+  const text = await imported("制度.odt", "application/vnd.oasis.opendocument.text", odt("值班制度", "夜班每两周轮换一次。"));
+  assert.match(text.content, /^# 值班制度\n\n夜班每两周轮换一次。$/u, "a heading stays a heading, with no front matter or HTML");
+  assert.match((await imported("手册.epub", "application/epub+zip", epub("保修", "背包保修三年。"))).content, /# 保修\n\n背包保修三年。/u);
+  assert.match((await imported("说明.rtf", "application/rtf", rtf("退款说明", "七天内原路退回。"))).content, /退款说明\n\n七天内原路退回。/u);
+  // A blank image has nothing to recognize; where the macOS helper is missing the import says that instead. Either way the
+  // original is kept with no text and the warning says what agents can see.
+  const image = await imported("空白.png", "image/png", blankPng());
+  assert.equal(image.content, "");
+  assert.match(image.warnings.join("\n"), /^(?:图片里没有识别出文字|这台电脑不能识别文字（需要 macOS 的文字识别组件）)，只保存了原件；Agent 只能看到它的名字。$/u);
 });

@@ -1,6 +1,6 @@
 import { SYSTEM_TABS_FACTORY, SCROLL_MEMORY_FACTORY } from "./system-tabs.js";
 import { openPluginInSide, sideOpenedTabs } from "./plugin-place.js";
-import { pluginSearchRows } from "../../plugin-workbench.js";
+import { pluginRecordRows, pluginSearchRows } from "../../plugin-workbench.js";
 import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
@@ -228,7 +228,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     lastSelection.set(surface, { itemId, at: now });
     surface.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId } }));
   };
-  // Collapses the shell makes itself (showing a page for the first time, returning from a tab, the location chip) are
+  // Collapses the shell makes itself (showing a page for the first time, returning from a tab, the plugin tab) are
   // not the person closing a record: the record watcher below lets them pass, and the callers keep history themselves.
   const shellCollapse = new Set();
   const applyPluginDefault = (plugin) => {
@@ -396,8 +396,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     close.type = "button";
     close.className = "tab-item-close";
     close.dataset.tabClose = tab.id;
-    close.setAttribute("aria-label", L("关闭标签"));
-    close.title = L("关闭标签") + " · " + tabLabel(tab);
+    // A plugin tab closes its whole group.
+    const closeWords = L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签");
+    close.setAttribute("aria-label", closeWords);
+    close.title = closeWords + " · " + tabLabel(tab);
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
@@ -432,7 +434,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const scrollPad = scroll.querySelector("[data-tab-scroll-pad]");
     if (scrollPad) scrollPad.style.width = "0px";
     // Home and plugin tabs keep their names; the item tabs share what is left.
-    const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="home"]):not([data-tab-kind="plugin"]):not(.is-tab-drag-source)')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"]'));
+    const flexTabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned]):not([data-tab-kind="home"]):not([data-tab-kind="plugin"])')].filter((tab) => !tab.closest('.tab-group[data-collapsed="true"], .is-tab-drag-source'));
     const slot = scroll.querySelector("[data-tab-reorder-slot]:not([data-tab-slot-leaving], .is-group)");
     const flexNodes = slot ? flexTabs.concat(slot) : flexTabs;
     const clearShare = () => {
@@ -446,7 +448,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const flexSet = new Set(flexNodes);
     const gapOf = (el) => Number.parseFloat(getComputedStyle(el).gap) || 0;
     let reserved = 0;
-    const scrollKids = [...scroll.children];
+    // A closing slot and the dragged tab's old place are on their way to nothing; they take no room.
+    const gone = (el) => el.hasAttribute?.("data-tab-slot-leaving") || el.classList?.contains("is-tab-drag-source");
+    const scrollKids = [...scroll.children].filter((child) => !gone(child));
     reserved += gapOf(scroll) * Math.max(0, scrollKids.length - 1);
     for (const child of scrollKids) {
       if (flexSet.has(child)) continue;
@@ -455,7 +459,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         if (label) reserved += label.getBoundingClientRect().width;
         reserved += (Number.parseFloat(getComputedStyle(child).paddingLeft) || 0) + (Number.parseFloat(getComputedStyle(child).paddingRight) || 0);
         const pages = child.querySelector(".tab-group-pages") || child;
-        const kids = [...pages.children].filter((el) => el.classList.contains("tab-item") || el.hasAttribute("data-tab-reorder-slot"));
+        const kids = [...pages.children].filter((el) => (el.classList.contains("tab-item") || el.hasAttribute("data-tab-reorder-slot")) && !gone(el));
         reserved += gapOf(pages) * Math.max(0, kids.length - 1);
         for (const kid of kids) {
           if (!flexSet.has(kid)) reserved += kid.getBoundingClientRect().width;
@@ -1070,7 +1074,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
             surfaceShows.set(tab.plugin, "tab:" + tab.id);
           } else {
             // A plugin page keeps what was open in it. It goes back to its list only after showing one of its tabs,
-            // whose item is not the page's, or when asked to (the location chip, the plugin's own back).
+            // whose item is not the page's, or when asked to (the plugin tab, the plugin's own back).
             const shown = surfaceShows.get(viewPlugin);
             surfaceShows.set(viewPlugin, "page");
             if (shown === "page") { if (returning) restoreScroll(node); }
@@ -1178,7 +1182,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   };
   // Search keeps owner-specific save/select behavior, including inside a split pane.
   const SEARCH_ROWS = ${JSON.stringify([...pluginSearchRows(), ["feed", "[data-feed-task-toggle]", "feedTaskToggle"], ["characters", "[data-character-id]", "characterId"]])};
-  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: SEARCH_ROWS, embedded, editable: (node) => editable(node), appendTab });
+  const pluginGroups = (${PLUGIN_TAB_GROUPS_FACTORY})({ getState: () => state, ops, apply: () => apply(), persist, L, rows: ${JSON.stringify(pluginRecordRows())}.concat(SEARCH_ROWS), embedded, notify: notifyParent, editable: (node) => editable(node), appendTab });
   let cancelRecordJump = null;
   const openPluginRecord = (plugin, itemId) => {
     // A plugin with no search rows is still opened, and asked for the record by id below (the side panel's files).
@@ -1450,7 +1454,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         });
         if (tab.groupId) add(L("从分组移除"), "x", "ungroup-tab", () => ops.removeTabFromGroup(state, paneId, tab.id));
       }
-      add(L("关闭标签"), "x", "close", () => closeTabBack(paneId, tab.id));
+      add(L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签"), "x", "close", () => closeTabBack(paneId, tab.id));
     }
     if (layoutMenu.matches(":popover-open")) layoutMenu.hidePopover();
     const rect = anchor.getBoundingClientRect(); tabMenu.showPopover();
@@ -1759,6 +1763,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     slot.style.setProperty("--plugin-color", sourceEl.closest(".tab-group")?.style.getPropertyValue("--group-color") || sourceEl.style.getPropertyValue("--plugin-color") || "var(--muted)");
     if (dragTab.members) { slot.classList.add("is-group"); slot.style.width = dragTab.width + "px"; }
     const ids = preview.ids, at = ids.indexOf(preview.movingId);
+    // A plugin tab copied where its plugin already has one only shows that plugin there: nothing lands on the strip.
+    if (at < 0) { removeReorderSlot(); return; }
     let next = at + 1;
     while (dragTab.members && dragTab.members.includes(ids[next])) next += 1;
     // A plugin's tab lands in its plugin's group, so the slot sits after its neighbour there; a whole group or a tab
@@ -1774,8 +1780,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     else if (pad) pad.before(slot);
     else (destStrip.querySelector("[data-tab-scroll]") || destStrip).append(slot);
     reorderKey = key;
+    dragSlot.close(previous);
     shareTabStrip(destStrip.querySelector("[data-tab-scroll]"));
-    dragSlot.open(slot, previous);
+    dragSlot.open(slot);
   };
   const paintDropPreview = (target, copy) => {
     if (target?.edge) {
@@ -1929,7 +1936,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       openBeside(event.data.plugin, event.data.itemId, event.data.title);
     } else {
       state.focusedPaneId = pane.id;
-      if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
+      if (event.data.background === true && event.data.itemId) pluginGroups.openBehind(event.data.plugin, event.data.itemId, event.data.title);
+      else if (typeof event.data.recordId === "string") openPluginRecord(event.data.plugin, event.data.recordId);
       else if (event.data.itemId) openItem(event.data.plugin, event.data.itemId, event.data.title, event.data.goalView); else openPlugin(event.data.plugin);
     }
   });

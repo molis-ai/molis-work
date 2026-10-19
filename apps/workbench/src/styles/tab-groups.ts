@@ -12,7 +12,7 @@ export const TAB_GROUP_STYLES = `
   ${WORKBENCH} .tab-strip .tab-item:is([data-tab-kind="home"], [data-tab-kind="plugin"]):not([data-pinned]) { width: max-content; flex-shrink: 0; }
   ${GROUP} {
     --group-wash: color-mix(in srgb, var(--group-color) 10%, transparent);
-    height: 28px; gap: 2px; padding: 2px; border-radius: 10px; background: var(--group-wash);
+    height: 28px; gap: 2px; padding: 2px; border-radius: var(--r-row, 10px); background: var(--group-wash);
     transition: background-color var(--dur-move) var(--ease-quint);
   }
   ${GROUP}[data-active="true"] { --group-wash: color-mix(in srgb, var(--group-color) 15%, transparent); }
@@ -73,6 +73,12 @@ export const TAB_GROUP_STYLES = `
     ${GROUP} .tab-group-label { height: 44px; min-width: 44px; }
     ${WORKBENCH} .tab-undo-chip { height: 44px; }
     ${GROUP} [data-tab-reorder-slot], ${WORKBENCH} .tab-strip [data-tab-reorder-slot].is-group { height: 44px; border-radius: 12px; }
+  }
+  /* A phone's strip is too narrow to spend on words: the chip is its undo mark in the closed plugin's colour. */
+  @media (max-width: 760px) {
+    ${WORKBENCH} .tab-undo-chip { width: 44px; padding: 0; justify-content: center; border-radius: 12px; }
+    ${WORKBENCH} .tab-undo-chip span { display: none; }
+    ${WORKBENCH} .tab-undo-chip svg { width: 16px; height: 16px; }
   }
   @media (prefers-reduced-motion: reduce) {
     ${GROUP}, ${WORKBENCH} .tab-undo-chip { transition: none; animation: none; }

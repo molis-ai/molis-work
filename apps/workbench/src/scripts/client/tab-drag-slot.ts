@@ -30,11 +30,10 @@ export const TAB_DRAG_SLOT_FACTORY = String.raw`({ ms, ease }) => {
       source.before(space);
       close(space);
     },
+    /** The slot a new one replaces starts closing; mark it before widths are shared, since it is on its way to nothing. */
+    close,
     /** The new slot is in place: it opens to its width while the previous one closes. */
-    open(slot, previous) {
-      close(previous);
-      resize(slot, 0, slot.getBoundingClientRect().width);
-    },
+    open(slot) { resize(slot, 0, slot.getBoundingClientRect().width); },
     clear() { document.querySelectorAll("[data-tab-reorder-slot], [data-tab-slot-leaving]").forEach((node) => node.remove()); },
   };
 }`;

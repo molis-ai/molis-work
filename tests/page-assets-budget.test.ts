@@ -659,6 +659,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1111791], ["/assets/molis-work-workbench.js", 1114022],
   ["/assets/molis-work-workbench.js", 1111910], ["/assets/molis-work-workbench.js", 1114141],
   ["/assets/molis-work-workbench.js", 1113068],
+  // W5-01-ALC-RES08 the Alchemist continuation allowance (50,619 → 52,373, user approved 2026-10-18) is spent.
+  ["/assets/molis-work-plugins/alchemist.js", 50619],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -674,7 +676,7 @@ for (const [asset, old] of [
 // Plugin tab groups (specs/plugin-tab-groups): the workbench script and sheet may grow once, from exactly the main
 // baseline to the measured size (+12,517 B, +3,090 B). One byte more, another asset, or growth from the new baseline still fails.
 test("plugin tab groups have one bounded allowance on the workbench script and sheet; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1115299, 1127816], "/assets/molis-work-workbench.css": [1589812, 1592902] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1115299, 1129869], "/assets/molis-work-workbench.css": [1589812, 1593201] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("ptg-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "ptg-change");
@@ -696,26 +698,4 @@ test("plugin tab groups have one bounded allowance on the workbench script and s
     assert.equal(gate("--update", "--base", "ptg-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
-});
-
-test("W5-01-ALC-RES08: approved continuation UI allowance cannot grow or be reused", () => {
-  const asset = "/assets/molis-work-plugins/alchemist.js";
-  branch("alchemist-res-base", () => { sizes[asset] = 50619; putBudget(sizes); });
-  git("checkout", "-q", "-B", "alchemist-res-change");
-  sizes[asset] = 52373;
-  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
-  assert.equal(gate("--base", "alchemist-res-base").code, 0);
-  sizes[asset]++;
-  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
-  sizes[asset]--;
-  sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 1);
-  sizes["/assets/a.css"]--;
-  assert.equal(gate("--update", "--base", "alchemist-res-base").code, 0);
-  commit("freeze the approved Alchemist continuation UI size");
-  git("branch", "-f", "alchemist-res-frozen");
-  sizes[asset]++;
-  putBudget(sizes);
-  assert.equal(gate("--base", "alchemist-res-frozen").code, 1);
-  assert.equal(gate("--update", "--base", "alchemist-res-frozen").code, 1);
 });

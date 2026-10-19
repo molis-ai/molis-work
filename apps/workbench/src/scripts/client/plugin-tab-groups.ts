@@ -9,7 +9,7 @@ const SPARE_HUES = ["blue", "green", "orange", "purple", "cyan", "pink", "yellow
  * Plugin groups on the tab strip: drawing a plugin's automatic group, the plugin tab as the current place, closing a
  * group with a way back, and ⌘/Ctrl- or middle-click on a record opening it as a tab in its group.
  */
-export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, editable, appendTab }) => {
+export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, persist, L, rows, embedded, notify, editable, appendTab }) => {
   const HUES = ${JSON.stringify(PLUGIN_HUES)};
   const SPARE = ${JSON.stringify(SPARE_HUES)};
   const hueOf = (plugin) => HUES[plugin] || SPARE[[...String(plugin)].reduce((sum, char) => sum + char.charCodeAt(0), 0) % SPARE.length];
@@ -37,20 +37,32 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const pages = document.createElement("div"); pages.className = "tab-group-pages";
     members.forEach((tab) => appendTab(pages, pane, tab));
     const items = members.length - (head ? 1 : 0);
+    const trigger = pages.querySelector('[data-tab-kind="plugin"] .tab-item-trigger');
+    // A plugin tab with tabs behind it says whether they are shown, and how many, as a person's group label does.
+    if (trigger && items) {
+      trigger.setAttribute("aria-expanded", String(!head.collapsed));
+      trigger.setAttribute("aria-label", trigger.getAttribute("aria-label") + " · " + L("组里还有 {n} 个标签", { n: items }));
+    }
     if (head?.collapsed && items) {
       const count = document.createElement("span"); count.className = "tab-group-count"; count.textContent = String(items);
-      count.title = L("组里还有 {n} 个标签", { n: items });
+      count.title = L("组里还有 {n} 个标签", { n: items }); count.setAttribute("aria-hidden", "true");
       pages.querySelector('[data-tab-kind="plugin"]')?.append(count);
     }
     wrap.append(pages); parent.append(wrap);
     return end;
   };
   const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: L(ops.pluginTitle(record.plugin)) });
+  // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
+  const live = document.createElement("div");
+  live.setAttribute("role", "status");
+  live.style.cssText = "position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;";
+  if (!embedded) document.body.append(live);
   /** Close a plugin's group and keep a way back: the strip offers it for a few seconds, ⌘⇧T / Ctrl+Shift+T after that. */
   const close = (paneId, plugin) => {
     const record = ops.closePluginGroup(getState(), paneId, plugin);
     if (!record || embedded) return record;
     closed.push({ record, until: Date.now() + UNDO_MS });
+    live.textContent = L("已关闭 {plugin} 标签组", { plugin: L(ops.pluginTitle(plugin)) }) + " · " + undoLabel(record);
     if (closed.length > 10) closed.shift();
     clearTimeout(undoTimer);
     undoTimer = setTimeout(() => apply(), UNDO_MS + 20);
@@ -72,6 +84,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     chip.style.setProperty("--group-color", "var(--hue-" + hueOf(last.record.plugin) + ")");
     chip.innerHTML = '<svg aria-hidden="true"><use href="#icon-undo"></use></svg><span></span>';
     chip.querySelector("span").textContent = undoLabel(last.record);
+    chip.setAttribute("aria-label", undoLabel(last.record));
     chip.title = undoLabel(last.record) + (/Mac|iPhone|iPad/.test(navigator.platform) ? " (⌘⇧T)" : " (Ctrl+Shift+T)");
     chip.addEventListener("click", (event) => { event.stopPropagation(); reopen(); });
     return chip;
@@ -88,30 +101,32 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     if (event.key.toLowerCase() !== "t" || !event.shiftKey || event.altKey || !(event.metaKey || event.ctrlKey) || editable(event.target)) return;
     if (reopen()) event.preventDefault();
   });
-  /* ⌘/Ctrl-click or a middle click on a record in a plugin's page opens it as a tab in that plugin's group, and the
-     pane stays where it is. */
-  const RECORD_ROWS = [...rows.filter(([plugin]) => plugin !== "feed"), ["feed", "[data-feed-entry-id]", "feedEntryId"], ["inbox", "[data-inbox-row][data-inbox-entry-id]", "inboxEntryId"],
-    ["sessions", "[data-operation-select]", "operationSelect"], ["goals", "[data-tree-item][data-goal-id]", "goalId"]];
-  const openInBackground = (event) => {
-    if (embedded || (event.type === "click" && !(event.metaKey || event.ctrlKey)) || (event.type === "auxclick" && event.button !== 1)) return;
-    const target = event.target?.nodeType === 1 ? event.target : null;
-    if (!target || target.closest("a[href], [data-tab-strip], [data-titlebar-tabs]")) return;
-    // Goals list its records in the directory column, outside any surface.
-    const surface = target.closest("[data-work-surface]");
-    const plugin = surface ? ops.pluginOfSurface(surface.dataset.workSurface) : target.closest("[data-tree-item][data-goal-id]") ? "goals" : "";
-    const spec = RECORD_ROWS.find(([id]) => id === plugin);
-    const row = spec ? target.closest(spec[1]) : null;
-    const itemId = row && (!surface || surface.contains(row)) ? row.dataset[spec[2]] : "";
-    if (!itemId) return;
-    event.preventDefault(); event.stopImmediatePropagation();
+  /** Open a record as a tab in its plugin's group and keep the pane where it is; a split pane asks the workbench to. */
+  const openBehind = (plugin, itemId, title) => {
+    if (embedded) { notify("workbench-pane-open", { plugin, itemId, title, background: true }); return; }
     const state = getState(), pane = ops.focused(state);
     const before = { activeTabId: pane.activeTabId, viewPlugin: pane.viewPlugin };
-    const title = row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || itemId;
     ops.openItem(state, plugin, itemId, title);
     pane.activeTabId = before.activeTabId; pane.viewPlugin = before.viewPlugin;
     apply(); persist();
   };
+  /* ⌘/Ctrl-click or a middle click on a record in a plugin's page opens it that way. Each plugin declares its record row
+     in its catalog entry (recordRow, else searchRow). */
+  const openInBackground = (event) => {
+    if ((event.type === "click" && !(event.metaKey || event.ctrlKey)) || (event.type === "auxclick" && event.button !== 1)) return;
+    const target = event.target?.nodeType === 1 ? event.target : null;
+    if (!target || target.closest("a[href], [data-tab-strip], [data-titlebar-tabs]")) return;
+    // Records belong to the plugin whose surface or directory section lists them, or that marks a container of its own.
+    const scope = target.closest("[data-record-owner], [data-work-surface], [data-plugin-section]");
+    const plugin = scope ? scope.dataset.recordOwner || ops.pluginOfSurface(scope.dataset.workSurface || scope.dataset.pluginSection) : "";
+    const spec = rows.find(([id]) => id === plugin);
+    const row = spec ? target.closest(spec[1]) : null;
+    const itemId = row && scope.contains(row) ? row.dataset[spec[2]] : "";
+    if (!itemId) return;
+    event.preventDefault(); event.stopImmediatePropagation();
+    openBehind(plugin, itemId, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || itemId);
+  };
   window.addEventListener("click", openInBackground, true);
   window.addEventListener("auxclick", openInBackground, true);
-  return { shows, render, close, reopen, undoChip, menu, hueOf };
+  return { shows, render, close, reopen, undoChip, menu, hueOf, openBehind };
 }`;

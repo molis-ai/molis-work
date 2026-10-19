@@ -28,6 +28,13 @@ export function pluginSearchRows(packs: readonly BuiltinPluginWorkbenchPack[] = 
     : []);
 }
 
+/** The rows a record opens from on a plugin's page where they differ from its search row; the page falls back to that. */
+export function pluginRecordRows(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Array<[string, string, string]> {
+  return packs.flatMap((pack) => pack.recordRow
+    ? [[pack.project_plugin_id, pack.recordRow.selector, pack.recordRow.idDataset] as [string, string, string]]
+    : []);
+}
+
 export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false): string {
   return packs.flatMap((pack) => {
     const lines: string[] = [];

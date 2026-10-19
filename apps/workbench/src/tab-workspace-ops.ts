@@ -50,7 +50,7 @@ export function createTabWorkspaceOps(titles) {
     const used = new Set(pane.tabs.map((tab) => tab.groupId).filter(Boolean));
     pane.groups = (pane.groups || []).filter((group) => used.has(group.id));
   };
-  // The location chip names the plugin of what the pane shows: an item tab's own plugin, not whichever plugin page
+  // The pane's shown plugin is the plugin of what it shows: an item tab's own plugin, not whichever plugin page
   // the pane happened to show before that tab was chosen again.
   const followActiveItem = (pane) => {
     const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
@@ -450,13 +450,15 @@ export function isLoosePluginTab(tab) {
 }
 
 /**
- * Settle one pane after any change: a plugin tab chosen means its page is shown, a plugin page or a loose item without
- * its plugin tab gets one, and each plugin's loose tabs sit together at the plugin tab (or, without a loose one, at the
- * first of them).
+ * Settle one pane after any change: a plugin tab chosen means its page is shown, a pane keeps one plugin tab per plugin
+ * (the first), a plugin page or a loose item without its plugin tab gets one, and each plugin's loose tabs sit together
+ * at the plugin tab (or, without a loose one, at the first of them).
  */
 export function settlePluginTabs(pane, newPluginTab, loose) {
   const active = pane.tabs.find((tab) => tab.id === pane.activeTabId);
   if (active?.kind === "plugin") { pane.viewPlugin = active.plugin; pane.activeTabId = null; }
+  const heads = new Set();
+  pane.tabs = pane.tabs.filter((tab) => tab.kind !== "plugin" || !heads.has(tab.plugin) && Boolean(heads.add(tab.plugin)));
   const headOf = (plugin) => pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
   for (let index = 0; index < pane.tabs.length; index += 1) {
     const tab = pane.tabs[index];
@@ -545,7 +547,10 @@ export function withPluginGroups(base, settlePane, loose) {
     }
     return settle(base.normalizeLayout(state));
   };
-  /** A plugin tab moved to another pane takes its loose tabs with it, and the pane it left stops showing that plugin. */
+  /**
+   * A plugin tab moved to another pane takes its loose tabs with it, and the pane it left stops showing that plugin. Where
+   * that pane already has the plugin's tab, the group joins it: one plugin tab, and a record already open there is not doubled.
+   */
   const relocate = (state, from, to, moving, followers) => {
     if (!to || to === from) return;
     if (state.panes.includes(from)) {
@@ -553,7 +558,16 @@ export function withPluginGroups(base, settlePane, loose) {
       if (from.viewPlugin === moving.plugin) { from.viewPlugin = null; if (!from.tabs.some((tab) => tab.id === from.activeTabId)) from.activeTabId = from.tabs[0]?.id || null; }
       if (!from.tabs.length) base.closePane(state, from.id);
     }
-    to.tabs.splice(to.tabs.findIndex((tab) => tab.id === moving.id) + 1, 0, ...followers);
+    const existing = to.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === moving.plugin && tab !== moving);
+    let head = moving;
+    if (existing) {
+      const keys = new Set(to.tabs.map(base.tabKey));
+      followers = followers.filter((tab) => !keys.has(base.tabKey(tab)));
+      to.tabs = to.tabs.filter((tab) => tab !== moving);
+      if (to.activeTabId === moving.id) to.activeTabId = existing.id;
+      head = existing;
+    }
+    to.tabs.splice(to.tabs.findIndex((tab) => tab.id === head.id) + 1, 0, ...followers);
     base.ensureHome(state);
   };
   const movingGroup = (pane, tabId, carry) => {
@@ -562,6 +576,10 @@ export function withPluginGroups(base, settlePane, loose) {
   };
   ops.moveTab = (state, fromId, tabId, toId, beforeId, copy = false) => {
     const from = paneOf(state, fromId), group = movingGroup(from, tabId, !copy && fromId !== toId);
+    const tab = from?.tabs.find((candidate) => candidate.id === tabId), to = paneOf(state, toId);
+    // A plugin tab is not doubled: copied where its plugin already has a tab, it shows that plugin's page there.
+    const head = copy && tab?.kind === "plugin" && to?.tabs.find((candidate) => candidate.kind === "plugin" && candidate.plugin === tab.plugin);
+    if (head) { to.activeTabId = head.id; state.focusedPaneId = to.id; return settle(state); }
     base.moveTab(state, fromId, tabId, toId, beforeId, copy);
     if (group) relocate(state, from, paneOf(state, toId), group.moving, group.followers);
     return settle(state);
@@ -590,6 +608,8 @@ export function isCurrentTabWorkspace(value, plugins) {
   if (!Object.keys(layout).every(key => ["direction", "sizes", "tree"].includes(key))) return false;
   return value.panes.every(pane => {
     if (!pane || typeof pane.id !== "string" || !Array.isArray(pane.tabs) || !Array.isArray(pane.groups)) return false;
+    const heads = pane.tabs.filter(tab => tab?.kind === "plugin").map(tab => tab.plugin);
+    if (new Set(heads).size !== heads.length) return false;
     if (!Object.keys(pane).every(key => ["id", "tabs", "activeTabId", "groups", "viewPlugin"].includes(key))) return false;
     if (pane.activeTabId !== null && typeof pane.activeTabId !== "string") return false;
     if (pane.viewPlugin !== null && (typeof pane.viewPlugin !== "string" || plugins && !Object.hasOwn(plugins, pane.viewPlugin))) return false;

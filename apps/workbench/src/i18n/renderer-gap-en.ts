@@ -1,7 +1,9 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
-  "组里还有 {n} 个标签": "{n} more tabs in this group",
+  "组里还有 {n} 个标签": "Tabs in this group: {n}",
   "撤销关闭 {plugin}": "Reopen {plugin}",
+  "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",
+  "关闭标签组": "Close tab group",
   "客户端操作未完成。请查看提示后重试。": "The client operation did not finish. Check its prompt and try again.",
   "配置客户端": "Configure client",
   "结束操作": "End operation",

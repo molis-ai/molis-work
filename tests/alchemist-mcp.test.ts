@@ -10,11 +10,12 @@ import { alchemistManifest } from "@molis-ai/molis-work-plugin-alchemist";
 
 // Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
-test("Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants", { timeout: 120_000 }, async () => {
+/** External MCP clients, each a process of its own over one Home; `held` keeps that process's studio from draining its jobs. */
+async function mcpHome() {
   const home = await mkdtemp(join(tmpdir(), "alchemist-mcp-")), clients: Client[] = [];
-  const connect = async (project: string, access = "write") => {
+  const connect = async (project: string, access = "write", held = false) => {
     const client = new Client({ name: "external-alchemist", version: "1" }); clients.push(client);
-    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/alchemist-mcp-server.ts", import.meta.url)), home, project, access], stderr: "pipe" });
+    const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx", fileURLToPath(new URL("./fixtures/alchemist-mcp-server.ts", import.meta.url)), home, project, access, ...(held ? ["held"] : [])], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", data => { errors += String(data); });
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
@@ -23,13 +24,16 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const result = await client.callTool({ name: `alchemist.${name}__v1`, arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
+  return { connect, call, async close() { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); } };
+}
+
+test("Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants", { timeout: 120_000 }, async () => {
+  const { connect, call, close } = await mcpHome();
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     const tools = (await writer.listTools()).tools;
     // MCP offers the actions that name it as an audience; choosing which GitHub account the market pulse uses stays with the person (user only).
-    // Each tool is named after the version it serves: research.cancel is __v2 since it stops a Pulse too (W5-01-ALC-RES09).
-    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v${action.version}`).sort();
-    assert.ok(offered.includes("alchemist.research.cancel__v2") && !offered.includes("alchemist.research.cancel__v1"), "the cancel tool is the v2 one");
+    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v1`).sort();
     assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
     assert.deepEqual(alchemistManifest.actions!.filter(action => !action.action.audiences.includes("mcp")).map(action => action.capability_id).sort(), ["alchemist.pulse.github", "alchemist.pulse.github.configure"], "only the account choice is kept from MCP");
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
@@ -63,5 +67,28 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     assert.equal((await call(reopened, "conversation.list")).messages[1].id, reply.assistantMessage.id);
     assert.equal((await reopened.callTool({ name: "alchemist.cards.keep__v1", arguments: { id: exploration.cards[0].id } })).isError, true);
     assert.equal((await call(reader, "workspace.read")).ideas.length, 1);
-  } finally { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); }
+  } finally { await close(); }
+});
+
+// W5-01-ALC-RES09: the tool an MCP client names is `alchemist.research.cancel__v1` (the action stays at version 1 although it now also stops a
+// Pulse: tool names and the grants made on them stay as they were). A wrong name or version resolves to no tool, so this fails with it.
+test("W5-01-ALC-RES09: a queued Pulse is stopped through the MCP tool alchemist.research.cancel__v1", { timeout: 120_000 }, async () => {
+  const { connect, call, close } = await mcpHome();
+  try {
+    // The studio of this process never drains, so the Pulse is still queued, between pulse.start and runPending, when the tool is called.
+    const client = await connect("p", "write", true);
+    const names = (await client.listTools()).tools.map(tool => tool.name);
+    assert.ok(names.includes("alchemist.research.cancel__v1"), "the cancel tool is offered under its version 1 name");
+    assert.ok(!names.some(name => name.startsWith("alchemist.research.cancel__") && name !== "alchemist.research.cancel__v1"), "and under no other version");
+    const { run } = await call(client, "pulse.start");
+    assert.equal(run.status, "queued");
+    const stopped = await call(client, "research.cancel", { id: run.jobId });
+    assert.equal(stopped.kind, "pulse");
+    assert.deepEqual([stopped.run.id, stopped.run.status], [run.id, "cancelled"]);
+    assert.equal((await call(client, "pulse.reports")).latestRun.status, "cancelled", "the Pulse reads back as stopped");
+    const again = await client.callTool({ name: "alchemist.research.cancel__v1", arguments: { id: run.jobId } });
+    assert.equal(again.isError, true, "a stopped Pulse cannot be stopped again");
+    assert.equal((await call(client, "pulse.reports")).latestRun.status, "cancelled", "and the refusal left it as it was");
+    assert.equal((await client.callTool({ name: "alchemist.research.cancel__v2", arguments: { id: run.jobId } })).isError, true, "no other version of the tool exists");
+  } finally { await close(); }
 });

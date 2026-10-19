@@ -93,8 +93,6 @@ const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.
  * with permissions of their own (like Images' `connections.*`), and the Host serves them without opening any project's studio.
  */
 const homeChoices = new Set(["pulse.github", "pulse.github.configure"]);
-/** Actions whose shape changed after version 1 (docs/system/CONTRACT-CHANGES.md §3): research.cancel also stops a market pulse (D27). */
-const revisedVersions = new Map([["research.cancel", 2]]);
 
 /** The permission an action declares when it runs a model. The plugin gates exactly the actions that carry it, for every caller but the person's own page. */
 export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
@@ -104,7 +102,7 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
   const home = homeChoices.has(name);
   const permissions = home ? [kind === "query" ? "alchemist:connections:read" : "alchemist:connections:write"] : ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : [])];
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
-    capability_id: `alchemist.${name}`, version: revisedVersions.get(name) ?? 1, operation: kind,
+    capability_id: `alchemist.${name}`, version: 1, operation: kind,
     action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: home ? "home" : "project", audiences: home ? ["user"] : ["user", "workflow", "agent", "mcp"],
       subject_kinds: ["alchemist"], permissions: [...permissions, ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),

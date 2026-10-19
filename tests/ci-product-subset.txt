@@ -212,6 +212,7 @@ tests/goal-momentum.test.ts
 tests/goal-tree-event-flow.test.ts
 
 # goals
+tests/goals-client-request.test.ts
 tests/goals-command-module.test.ts
 tests/goals-context-ui.test.ts
 tests/goals-dialogs-ui.test.ts

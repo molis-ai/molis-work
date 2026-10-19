@@ -55,7 +55,7 @@ test("S-41 an owner's refusal keeps the owner's own code", async t => {
   await assert.rejects(() => f.knowledge.read(f.access(agent("a")), { subject: { kind: "goal", id: "g3" } }), refused("goals.locked"));
 });
 
-test("S-41 PMAT-03 a card found by its own words is shown only to a caller who may read that kind, in its own project", async t => {
+test("S-41 PMAT-03 a card found by its own words, listed, or grepped across the catalog is only for a caller who may read that kind, in its own project", async t => {
   const f = await fixture(t);
   const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => knowledgeCatalog(f.index, projectId),
     writer: () => async input => ({ title: input.title, brief: "内测通行证的说明", keywords: ["内测通行证"], sections: [] }) });
@@ -66,6 +66,12 @@ test("S-41 PMAT-03 a card found by its own words is shown only to a caller who m
   const pagesOnly = await f.knowledge.search(f.access(agent("a", ["pages:read", "search:read"])), { query: "内测通行证" });
   assert.deepEqual(pagesOnly.cards.map(card => card.subject.id), ["p1"], "goal cards were written from goals' text: not for a caller who cannot read goals");
   assert.deepEqual((await f.knowledge.search(f.access(agent("b")), { query: "内测通行证" })).cards, [], "project a's cards are not searched from project b");
+  const listed = await f.knowledge.list(f.access(agent("a", ["pages:read", "search:read"])), {});
+  assert.deepEqual(listed.pieces.map(piece => piece.subject.id), ["p1"], "the list follows the same rule");
+  assert.deepEqual((await f.knowledge.list(f.access(agent("b")), {})).pieces.filter(piece => piece.subject.id !== "gb"), [], "project a's cards are not listed from project b");
+  const grep = await f.knowledge.grep(f.access(agent("a", ["pages:read", "search:read"])), { pattern: "试用", output: "subjects" });
+  assert.ok(grep.found.every(item => item.subject.kind === "page") && grep.unread.every(item => item.subject.kind === "page"), "a catalog grep reads no goal for a caller who cannot read goals");
+  assert.ok(!(await f.knowledge.grep(f.access(agent("b")), { pattern: "试用", output: "subjects" })).found.some(item => item.subject.id !== "gb"), "nor another project's pieces");
 });
 
 test("S-41 PMAT-13 the linked folder is read only with the caller's own grant, never through a link out of it or a climbing path, never from another project", async t => {

@@ -108,7 +108,7 @@ export function draftInput(piece: KnowledgePiece): KnowledgeDraftInput {
     return { title: piece.title, summary: piece.summary, text: piece.content.slice(0, ORGANIZE_TEXT_CHARS), sections: heads };
   }
   const each = Math.max(200, Math.floor(ORGANIZE_TEXT_CHARS / sections.length));
-  const text = sections.map(section => `[${section.anchor}] ${piece.content.slice(section.start, section.start + Math.min(section.length, each))}`).join("\n\n").slice(0, ORGANIZE_TEXT_CHARS);
+  const text = sections.map(section => `[${section.anchor}] ${piece.content.slice(section.start, section.start + Math.min(section.own, each))}`).join("\n\n").slice(0, ORGANIZE_TEXT_CHARS);
   return { title: piece.title, summary: piece.summary, text, sections: heads };
 }
 

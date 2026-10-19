@@ -10,6 +10,7 @@ import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
+import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
   const home = homePluginSideTabs();
@@ -316,7 +317,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
-  <script src="/assets/molis-work-workbench.js"></script>
+  <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });
   return prefixLocalLinks(html, view.route_prefix, desktopShell);

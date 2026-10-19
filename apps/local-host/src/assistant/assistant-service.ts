@@ -45,7 +45,7 @@ import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./as
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
-import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
+import { checkHeldImages, checkMaterials, readPickedPiece } from "./assistant-send-materials.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -1042,7 +1042,7 @@ export class AssistantService {
     const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
-      if (!material.reference || !material.object) { out.push(material); continue; }
+      if (!material.reference || !material.object || "subject" in material.reference) { out.push(material.reference && "subject" in material.reference ? await readPickedPiece(actions, views, { ...material, reference: material.reference }) : material); continue; }
       if (!opener) throw assistantErrors.unsupported(`现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
       const opened = await actions.invoke({ capability_id: opener.capability_id, version: opener.version, provider_id: opener.provider.provider_id }, { hit_id: material.reference.hit_id })
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as

@@ -1,7 +1,8 @@
-import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
+  KNOWLEDGE_READ_PERMISSION,
   knowledgeActions,
   knowledgeManageActions,
   type KnowledgeCardsRequest,
@@ -9,6 +10,7 @@ import {
   type KnowledgeExcludeRequest,
   type KnowledgeGlobRequest,
   type KnowledgeGrepRequest,
+  type KnowledgeListRequest,
   type KnowledgeOrganizeRequest,
   type KnowledgeOutlineRequest,
   type KnowledgeReadRequest,
@@ -16,7 +18,7 @@ import {
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeReader, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
@@ -29,6 +31,8 @@ export interface KnowledgeHostPorts {
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
   index: Pick<SearchIndexPort, "documents" | "sources">;
   clientFor(caller: ActionCallContext): ActionClient;
+  /** The project owner's authority, which indexing and organizing read every source with. */
+  ownerContext?(projectId: string): Promise<ActionCallContext>;
   /** The project's text model now (tests give their own); by default the Home's configured text model. */
   writer?(): KnowledgeWriter | null;
   quota?: { pieces: number; chars: number };
@@ -74,7 +78,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const store = openKnowledgeCards({ homeDirectory: ports.homeDirectory });
   const organizer = new KnowledgeOrganizer({ store, catalog: async projectId => knowledgeCatalog(ports.index, projectId),
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
-  const service = new KnowledgeService({ search: (access, input) => ports.search.query(access, input), cards: store });
+  const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let closed = false;
@@ -84,22 +88,36 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     (timer as { unref?: () => void }).unref?.();
     timers.set(projectId, timer);
   };
-  const access = (caller: ActionExecutionContext): KnowledgeAccess => ({ client: ports.clientFor(caller), caller, beforeEffect: caller.beforeEffect });
+  /**
+   * A Plugin holding `knowledge:read` (Coding reading what the person picked for its round) reads the project's knowledge with the
+   * project owner's authority, as indexing and organizing do: a Plugin is not offered the sources' own readers. The receipt, the
+   * round's fill and the pieces kept from agents are still the Plugin's call's, and it stays bound to that call's own authority.
+   */
+  const access = async (caller: ActionExecutionContext, action: ActionReference): Promise<KnowledgeAccess> => {
+    const asked: KnowledgeAccess = { client: ports.clientFor(caller), caller, beforeEffect: caller.beforeEffect };
+    if (caller.audience !== "plugin" || !caller.project_id || !caller.permissions.includes(KNOWLEDGE_READ_PERMISSION) || !ports.ownerContext) return asked;
+    const owner = await ports.ownerContext(caller.project_id), origin = { ...action, provider_id: KNOWLEDGE_PROVIDER_ID };
+    return { ...asked, reader: { ...owner, ...(caller.signal ? { signal: caller.signal } : {}),
+      validate_authority: async reference => { await caller.validate_authority?.(origin); await owner.validate_authority?.(reference); },
+      assert_authority_current: (reference, permissions) => { caller.assert_authority_current?.(origin); owner.assert_authority_current?.(reference, permissions); } } };
+  };
+  // Listing brings the project's sources current first (a catch-up that fails still lists what is there); cards for what it found
+  // are there before the list is read, and organizing them follows shortly after.
+  const caughtUp = async (caller: ActionExecutionContext) => {
+    const caught = await service.catchUp(await access(caller, knowledgeActions.list)).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return { listing: false }; });
+    if (caller.project_id) await organizer.reconcile(caller.project_id).catch(error => ports.onError?.(error, "knowledge.reconcile"));
+    changed(caller.project_id);
+    return caught.listing;
+  };
   const handlers: ActionHandlerBinding[] = [
+    { ...knowledgeActions.list, handle: async (caller, input) => service.list(await access(caller, knowledgeActions.list), input as KnowledgeListRequest, await caughtUp(caller)) },
     // A search brings the project's sources current; what it found new is organized shortly after.
-    { ...knowledgeActions.search, handle: async (caller, input) => { const found = await service.search(access(caller), input as KnowledgeSearchRequest); changed(caller.project_id); return found; } },
-    { ...knowledgeActions.outline, handle: (caller, input) => service.outline(access(caller), input as KnowledgeOutlineRequest) },
-    { ...knowledgeActions.read, handle: (caller, input) => service.read(access(caller), input as KnowledgeReadRequest) },
-    { ...knowledgeActions.grep, handle: (caller, input) => service.grep(access(caller), input as KnowledgeGrepRequest) },
-    { ...knowledgeActions.glob, handle: (caller, input) => service.glob(access(caller), input as KnowledgeGlobRequest) },
-    // Listing brings the project's sources current first (a catch-up that fails still lists what is there) and organizes what is new.
-    { ...knowledgeManageActions.cards, handle: async (caller, input) => {
-      const caught = await service.catchUp(access(caller)).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return { listing: false }; });
-      // Cards for what the catch-up found are there before the list is read; organizing them follows shortly after.
-      if (caller.project_id) await organizer.reconcile(caller.project_id).catch(error => ports.onError?.(error, "knowledge.reconcile"));
-      changed(caller.project_id);
-      return cards.list(caller, input as KnowledgeCardsRequest, caught.listing);
-    } },
+    { ...knowledgeActions.search, handle: async (caller, input) => { const found = await service.search(await access(caller, knowledgeActions.search), input as KnowledgeSearchRequest); changed(caller.project_id); return found; } },
+    { ...knowledgeActions.outline, handle: async (caller, input) => service.outline(await access(caller, knowledgeActions.outline), input as KnowledgeOutlineRequest) },
+    { ...knowledgeActions.read, handle: async (caller, input) => service.read(await access(caller, knowledgeActions.read), input as KnowledgeReadRequest) },
+    { ...knowledgeActions.grep, handle: async (caller, input) => service.grep(await access(caller, knowledgeActions.grep), input as KnowledgeGrepRequest) },
+    { ...knowledgeActions.glob, handle: async (caller, input) => service.glob(await access(caller, knowledgeActions.glob), input as KnowledgeGlobRequest) },
+    { ...knowledgeManageActions.cards, handle: async (caller, input) => cards.list(caller, input as KnowledgeCardsRequest, await caughtUp(caller)) },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },
     { ...knowledgeManageActions.exclude, handle: async (caller, input) => { await caller.beforeEffect(); return cards.exclude(caller, input as KnowledgeExcludeRequest); } },

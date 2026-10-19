@@ -172,10 +172,5 @@ export const ARTIFACT_EN: Record<string, string> = {
   // plugins/native/artifacts/src/browser-ui.ts
   "下载原文件": "Download original file",
   "下载正文": "Download text",
-  // plugins/native/artifacts/src/import-ui.ts
-  "导入到成果": "Import into Results",
-  "导入的文件或文档会作为这个项目的一个成果保留下来；原文后续修改不会自动同步。": "An imported file or document is kept as a result of this project; later changes to the original aren't synced automatically.",
-  "账号连接": "Account connection",
-  "管理连接": "Manage connections",
-  "单个文件不超过 6 MB。": "Each file must be 6 MB or smaller.",
+  "在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在侧栏「资料」里导入文件，固定下来的版本都在这里。": "Versions you keep with “Save as fixed version” in Pages, questionnaires, decks or tables, and files imported in the side panel’s Knowledge tab, are all here.",
 };

@@ -533,8 +533,6 @@ sessions.message.send	1	io.molis.work.sessions	io.molis.work.sessions	command	op
 sessions.resume	1	io.molis.work.sessions	io.molis.work.sessions	command	operation	project	write	-	agent,mcp,user,workflow	sessions:read,sessions:resume	session	-	-	3c059c7f1f2f	0eb9388b57e5	-
 sessions.search.entries	1	io.molis.work.sessions	io.molis.work.sessions	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	sessions:read	session	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	883e95b9d28c
 sessions.subject.read	1	io.molis.work.sessions	io.molis.work.sessions	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	sessions:read	session	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	1b694155359d	-
-shelf.material-output.read	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	d746974fa9af	873febd4bba9	-
-shelf.material-output.select	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	project	write	-	agent,mcp,user,workflow	artifact:read,artifact:write	artifact,shelf_item	-	-	95594fd63588	c8e7ccee276b	-
 shelf.results.list	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	d746974fa9af	e0efe01ef0ab	-
 shelf.results.preview	1	io.molis.work.shelf	io.molis.work.shelf	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	artifact,shelf_item	-	-	c8e7ccee276b	f7fcc997d7cb	-
 shelf.results.receive	1	io.molis.work.shelf	io.molis.work.shelf	command	operation	project	write	-	user	artifact:read,storage:private	artifact,shelf_item	-	-	924f8506e0d6	5ff76b3a9785	-

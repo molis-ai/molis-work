@@ -51,7 +51,15 @@ export function renderKnowledgeSettings({ L, projectId }: { L(text: string): str
 }
 
 /**
- * The page's browser program: TypeScript in `src/browser/knowledge/` (tsconfig.browser.json), bundled by esbuild into
- * `dist/knowledge-client.js` when the package builds. It binds every 项目资料 page, also one the settings cover places later.
+ * The browser program of project knowledge: TypeScript in `src/browser/knowledge/` (tsconfig.browser.json), bundled by esbuild
+ * into `dist/knowledge-client.js` when the package builds, and served once as `KNOWLEDGE_CLIENT_ASSET` (cached; the user chose
+ * one asset over copies inside each page's script, 2026-10-19). It binds every 项目资料 page, also one the settings cover places
+ * later, the side panel's import, and the one picker of project knowledge. It needs the page's `L` and `molisWorkRequest`
+ * first, so its tag comes after the page's own scripts.
  */
-export const KNOWLEDGE_SETTINGS_CLIENT = readFileSync(new URL("./knowledge-client.js", import.meta.url), "utf8").trim();
+export const KNOWLEDGE_CLIENT_ASSET = "/assets/molis-work-knowledge.js";
+export const knowledgeClientTag = (): string => `<script src="${KNOWLEDGE_CLIENT_ASSET}"></script>`;
+let client: string | null = null;
+export function renderMolisWorkKnowledgeClientScript(): string {
+  return client ??= readFileSync(new URL("./knowledge-client.js", import.meta.url), "utf8").trim();
+}

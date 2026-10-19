@@ -48,7 +48,7 @@ test("PMAT-13 knowledge.read, outline and grep take a workspace file; grep finds
   const grep = await f.knowledge.grep(access, { pattern: "内测通行证", glob: "**/*" });
   assert.deepEqual(grep.matches.map(match => [match.subject.id, match.line]).sort(), [["ws1:src/index.ts", 2], ["ws1:src/lib/util.ts", 1]]);
   assert.deepEqual(grep.unread.map(item => [item.subject.id, item.reason]), [["ws1:src/logo.png", "这是二进制文件，没有文字可读"]]);
-  await assert.rejects(() => f.knowledge.grep(access, { pattern: "x" }), { code: "knowledge.invalid" });
+  assert.equal((await f.knowledge.grep(access, { pattern: "x" })).catalog, true, "with neither subjects nor glob, grep looks through the catalog (PMAT-29)");
 });
 
 test("PMAT-01 knowledge.glob is declared once with the other knowledge actions, read-only and concurrent", () => {

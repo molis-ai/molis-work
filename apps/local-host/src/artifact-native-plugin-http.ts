@@ -190,11 +190,8 @@ export function createLocalArtifactHttp() {
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
-      const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers, pluginInputs,
-        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
-        ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
+        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.

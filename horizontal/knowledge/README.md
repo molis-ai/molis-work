@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-Agent 调 `knowledge.search` 拿到几张卡片（标题、来源、命中附近一小段），对想用的那份调 `knowledge.outline` 看分节，再用 `knowledge.read` 按分节读原文；要找确切的名称或编号时用 `knowledge.grep`。Host（[apps/local-host/src/knowledge-actions.ts](../../apps/local-host/src/knowledge-actions.ts)）把这四个动作注册成提供方 `system.knowledge`，与系统搜索同一处装配。
+Agent 像在代码库里找东西一样一步步找（spec §6.2）：`knowledge.list` 看项目里有什么，`knowledge.search` 按词拿卡片，`knowledge.grep` 找确切的行（不点名资料就查全项目，也可只要哪几份有、各几行），`knowledge.outline` 看分节树，`knowledge.read` 按节（连同子节）或从某一行起读原文；`knowledge.glob` 找工作目录里的文件。Host（[apps/local-host/src/knowledge-actions.ts](../../apps/local-host/src/knowledge-actions.ts)）把这些动作注册成提供方 `system.knowledge`，与系统搜索同一处装配。
 
 | 文件 | 用途 |
 | --- | --- |

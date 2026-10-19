@@ -12,11 +12,15 @@ export declare const KNOWLEDGE_GLOB_MAX_FILES = 500;
 
 export declare const KNOWLEDGE_GLOB_MAX_FOLDERS = 400;
 
+export declare const KNOWLEDGE_GREP_MAX_ALTERNATIVES = 4;
+
 export declare const KNOWLEDGE_GREP_MAX_FILES = 50;
 
 export declare const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
 
 export declare const KNOWLEDGE_KEYWORD_MAX_CHARS = 30;
+
+export declare const KNOWLEDGE_LIST_MAX = 100;
 
 export declare const KNOWLEDGE_MANAGE_PERMISSION = "knowledge:manage";
 
@@ -27,6 +31,8 @@ export declare const KNOWLEDGE_PROVIDER_ID = "system.knowledge";
 export declare const KNOWLEDGE_READ_DEFAULT_CHARS = 6000;
 
 export declare const KNOWLEDGE_READ_MAX_CHARS = 12000;
+
+export declare const KNOWLEDGE_READ_MAX_LINES = 2000;
 
 export declare const KNOWLEDGE_READ_PERMISSION = "knowledge:read";
 
@@ -163,6 +169,13 @@ export interface KnowledgeGlobResponse {
     }>;
 }
 
+export interface KnowledgeGrepFound {
+    subject: ActionSubject;
+    revision: string;
+    title: string;
+    lines: number;
+}
+
 export interface KnowledgeGrepMatch {
     subject: ActionSubject;
     revision: string;
@@ -174,21 +187,57 @@ export interface KnowledgeGrepMatch {
 
 export interface KnowledgeGrepRequest {
     pattern: string;
+    alternatives?: string[];
     subjects?: ActionSubject[];
     glob?: string;
     workspace_id?: string;
     context_lines?: number;
     limit?: number;
+    output?: "lines" | "subjects";
 }
 
 export interface KnowledgeGrepResponse {
     matches: KnowledgeGrepMatch[];
+    found: KnowledgeGrepFound[];
+    searched: number;
+    catalog: boolean;
     more: boolean;
     unread: Array<{
         subject: ActionSubject;
         reason: string;
     }>;
     round_chars_left: number | null;
+}
+
+export interface KnowledgeListEntry {
+    subject: ActionSubject;
+    revision: string;
+    title: string;
+    plugin_id: string;
+    plugin_title: string;
+    updated_at: string | null;
+    brief: string | null;
+    keywords: string[];
+    sections: number;
+    open: SearchOpenTarget | null;
+}
+
+export interface KnowledgeListRequest {
+    plugins?: string[];
+    kinds?: string[];
+    limit?: number;
+    offset?: number;
+}
+
+export interface KnowledgeListResponse {
+    pieces: KnowledgeListEntry[];
+    total: number;
+    sources: Array<{
+        plugin_id: string;
+        plugin_title: string;
+        count: number;
+    }>;
+    listing: boolean;
 }
 
 export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
@@ -243,6 +292,8 @@ export interface KnowledgeReadRequest {
     subject: ActionSubject;
     anchor?: string;
     offset?: number;
+    line?: number;
+    max_lines?: number;
     max_chars?: number;
 }
 
@@ -254,6 +305,9 @@ export interface KnowledgeReadResponse {
     text: string;
     start: number;
     end: number;
+    start_line: number;
+    end_line: number;
+    total_lines: number;
     remaining: number;
     owner_truncated: boolean;
     round_chars_left: number | null;
@@ -286,7 +340,9 @@ export interface KnowledgeSection {
     anchor: string;
     title: string;
     level: number;
+    parent: string | null;
     start: number;
+    line: number;
     length: number;
     summary: string | null;
 }
@@ -306,6 +362,7 @@ export interface KnowledgeUsage {
 }
 
 export declare const knowledgeActions: {
+    list: ActionDefinition<KnowledgeListRequest, KnowledgeListResponse>;
     search: ActionDefinition<KnowledgeSearchRequest, KnowledgeSearchResponse>;
     outline: ActionDefinition<KnowledgeOutlineRequest, KnowledgeOutline>;
     read: ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>;

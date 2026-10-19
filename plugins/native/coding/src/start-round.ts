@@ -14,7 +14,7 @@ import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState, sessionTitle } from "./route-activation.js";
+import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
@@ -130,7 +130,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
     await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]), characterTools);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
-  const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(a, execution));
+  const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
   if (plan) text_materials.unshift(planMaterial(plan));
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.

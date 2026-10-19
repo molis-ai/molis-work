@@ -75,7 +75,7 @@ export class KnowledgeWorkspace {
 
   /** The workspace read action and the project's folders, as this caller may reach them now. */
   private async reader(access: KnowledgeAccess, origin: Origin, workspaceId: string | undefined) {
-    const caller = retainActionAuthority(access.caller, { ...origin, provider_id: KNOWLEDGE_PROVIDER_ID });
+    const caller = retainActionAuthority(access.reader ?? access.caller, { ...origin, provider_id: KNOWLEDGE_PROVIDER_ID });
     const views = await access.client.discover(caller);
     const files = available(views, workspaceReadActions.file), list = available(views, projectsCapabilities.listWorkspaces);
     if (!files || !list) throw knowledgeErrors.unreadable("没有读取项目工作目录的授权；要用工作目录里的文件，请在「对外接入」里允许读取项目目录文件");

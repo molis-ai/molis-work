@@ -56,6 +56,7 @@ export async function handleKnowledgeHttp(request: IncomingMessage, response: Se
         const kind = query.get("kind"), id = query.get("id");
         return { status: 200, body: { card: (await allCards()).find(card => card.subject.kind === kind && card.subject.id === id) ?? null } };
       }
+      if (method === "GET" && route === "glob") return { status: 200, body: await call(knowledgeActions.glob, { pattern: query.get("pattern") ?? "", limit: PAGE }) };
       if (method === "GET" && route === "search") return { status: 200, body: await call(knowledgeActions.search, { query: query.get("q") ?? "", limit: 30 }) };
       if (method !== "POST") return null;
       if (route === "edit") return { status: 200, body: await call(knowledgeManageActions.edit, body) };

@@ -1,0 +1,108 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, type KnowledgeDraft, type KnowledgeDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
+import { person, referenceOwners } from "./fixtures/reference-owners.js";
+
+// specs/project-knowledge K4 (§6.2): the steps an agent takes to find something, after Claude Code, Codex and PageIndex — look
+// at what the project holds, narrow down by words, look at a piece's section tree, find exact lines, read from a line.
+
+const agent = (call_id?: string, permissions = ["goals:read", "pages:read", "search:read"]): ActionCallContext =>
+  ({ ...person("a", permissions), audience: "agent", actor_id: "agent:assistant", ...(call_id ? { call_id } : {}) });
+const owner = person("a");
+const MANUAL = ["# 试用手册", "开头的说明。", "", "## 账号", "每人一个账号。", "", "### 编号", "内测通行证 MW-0042。", "", "## 反馈", "反馈写进 Goal。", "", "# 附录", "联系方式。"].join("\n");
+
+async function fixture(t: import("node:test").TestContext, budget?: RoundBudget) {
+  const f = await referenceOwners(t);
+  const cards = openKnowledgeCards({ homeDirectory: f.home });
+  t.after(() => cards.close());
+  const writer = async (input: KnowledgeDraftInput): Promise<KnowledgeDraft> =>
+    ({ title: input.title, brief: `讲的是${input.title}。`, keywords: [input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) });
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, ...(budget ? { budget } : {}) });
+  const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); await organizer.reconcile("a"); };
+  return { ...f, cards, organizer, knowledge, manage: new KnowledgeCards(cards, organizer), indexAll };
+}
+
+test("PMAT-26 list shows what the project holds as cards the caller may see, by source, newest first, without text", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  await f.indexAll();
+  await f.organizer.kick("a");
+  const listed = await f.knowledge.list(f.access(agent()), {});
+  assert.deepEqual(listed.pieces.map(piece => piece.subject.id).sort(), ["g1", "g2", "g3", "p1"], "every piece of project a the caller's sources list; project b's goal is not one");
+  assert.deepEqual(listed.sources.map(source => [source.plugin_title, source.count]).sort(), [["Goals", 3], ["Pages", 1]]);
+  const page = listed.pieces.find(piece => piece.subject.id === "p1")!;
+  assert.equal(page.brief, "讲的是试用手册。");
+  assert.ok(!JSON.stringify(listed).includes("MW-0042"), "no original text");
+  const pages = await f.knowledge.list(f.access(agent()), { plugins: ["pages"] });
+  assert.deepEqual([pages.total, pages.pieces.length, pages.sources.length], [1, 1, 2], "a filter narrows the pieces, the source counts stay whole");
+  const paged = await f.knowledge.list(f.access(agent()), { limit: 2, offset: 2 });
+  assert.deepEqual([paged.total, paged.pieces.length], [4, 2]);
+
+  // Kept from agents, or from a source the caller cannot read, is not listed.
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p1" }, excluded: true });
+  assert.ok(!(await f.knowledge.list(f.access(agent()), {})).pieces.some(piece => piece.subject.id === "p1"));
+  const noGoals = await f.knowledge.list(f.access(agent(undefined, ["pages:read", "search:read"])), {});
+  assert.deepEqual(noGoals.pieces.map(piece => piece.subject.id), [], "without goals:read the goals are not shown");
+  await assert.rejects(() => f.knowledge.list(f.access({ ...agent(), project_id: null }), {}), (error: unknown) => error instanceof ActionError && error.code === "knowledge.scope");
+});
+
+test("PMAT-27 the outline is a tree: each section names its parent and line, and a heading's anchor reads it with its subsections", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  const outline = await f.knowledge.outline(f.access(agent()), { subject: { kind: "page", id: "p1" } });
+  assert.deepEqual(outline.sections.map(section => [section.anchor, section.title, section.level, section.parent, section.line]),
+    [["h1", "试用手册", 1, null, 1], ["h2", "账号", 2, "h1", 4], ["h3", "编号", 3, "h2", 7], ["h4", "反馈", 2, "h1", 10], ["h5", "附录", 1, null, 13]]);
+  const topLevel = outline.sections.filter(section => section.parent === null).reduce((sum, section) => sum + section.length, 0);
+  assert.equal(topLevel, MANUAL.length, "the top-level sections cover the text exactly once");
+  const account = await f.knowledge.read(f.access(agent()), { subject: { kind: "page", id: "p1" }, anchor: "h2" });
+  assert.ok(account.text.startsWith("## 账号") && account.text.includes("MW-0042") && !account.text.includes("## 反馈"), account.text);
+  assert.deepEqual([account.start_line, account.end_line], [4, 9]);
+});
+
+test("PMAT-28 read by line: a line grep found is where reading starts, with the lines it covers and how many there are", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  const subject = { kind: "page", id: "p1" };
+  const [hit] = (await f.knowledge.grep(f.access(agent()), { pattern: "MW-0042", subjects: [subject], context_lines: 0 })).matches;
+  assert.equal(hit!.line, 8);
+  const read = await f.knowledge.read(f.access(agent()), { subject, line: hit!.line - 1, max_lines: 2 });
+  assert.equal(read.text, "### 编号\n内测通行证 MW-0042。\n");
+  assert.deepEqual([read.start_line, read.end_line, read.total_lines, read.remaining], [7, 8, 14, 0], "the asked lines are all there; the rest of the text is told by total_lines");
+  const tail = await f.knowledge.read(f.access(agent()), { subject, line: 14 });
+  assert.deepEqual([tail.text, tail.remaining], ["联系方式。", 0]);
+  for (const input of [{ subject, line: 15 }, { subject, line: 2, anchor: "h1" }, { subject, line: 2, offset: 3 }]) {
+    await assert.rejects(() => f.knowledge.read(f.access(agent()), input), (error: unknown) => error instanceof ActionError && error.code === "knowledge.invalid", JSON.stringify(input));
+  }
+});
+
+test("PMAT-29 grep without a scope looks through the project's catalog; it can give only which pieces match, and takes other wordings", async t => {
+  const f = await fixture(t, new RoundBudget(5_000));
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  f.goals.set("g2", { id: "g2", title: "试用反馈整理", body: "收集试用反馈\n编号 MW-0042 的反馈最多", version: 2 });
+  await f.indexAll();
+
+  const lines = await f.knowledge.grep(f.access(agent("r1")), { pattern: "MW-0042", context_lines: 0 });
+  assert.equal(lines.catalog, true);
+  assert.deepEqual(lines.matches.map(match => [match.subject.id, match.line]).sort(), [["g2", 2], ["p1", 8]]);
+  assert.deepEqual(lines.found.map(item => [item.subject.id, item.lines]).sort(), [["g2", 1], ["p1", 1]]);
+  assert.ok(lines.searched >= 2 && lines.unread.every(item => item.subject.id !== "gb"), "only this project's pieces are read");
+
+  const before = lines.round_chars_left!;
+  const subjects = await f.knowledge.grep(f.access(agent("r1")), { pattern: "反馈", output: "subjects" });
+  assert.deepEqual(subjects.matches, [], "no text");
+  assert.equal(subjects.round_chars_left, before, "counts do not spend the round's fill of original text");
+  assert.deepEqual(subjects.found.map(item => [item.subject.id, item.title, item.lines]).sort(), [["g2", "试用反馈整理", 2], ["p1", "试用手册", 2]]);
+  assert.ok(subjects.found.every((item, index) => index === 0 || subjects.found[index - 1]!.lines >= item.lines), "most matching lines first");
+
+  const either = await f.knowledge.grep(f.access(agent()), { pattern: "联系方式", alternatives: ["收集试用"], output: "subjects" });
+  assert.deepEqual(either.found.map(item => item.subject.id).sort(), ["g2", "p1"], "a line with any of the wordings matches");
+
+  // Kept from agents: not read, and not reported as unreadable either.
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p1" }, excluded: true });
+  const kept = await f.knowledge.grep(f.access(agent()), { pattern: "MW-0042", output: "subjects" });
+  assert.deepEqual([kept.found.map(item => item.subject.id), kept.unread.map(item => item.subject.id)], [["g2"], []]);
+});

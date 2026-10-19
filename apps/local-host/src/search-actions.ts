@@ -76,7 +76,12 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
   ];
   // Project knowledge reads through this search, so it is registered and withdrawn with it (specs/project-knowledge).
-  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ...(ports.onError ? { onError: ports.onError } : {}) });
+  const ownerContext = async (projectId: string) => {
+    const reference = ports.project(projectId);
+    if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
+    return ports.ownerContext(reference);
+  };
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
     knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;

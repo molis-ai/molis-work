@@ -5,6 +5,9 @@ import type { TestContext } from "node:test";
 import { LocalHost, LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -26,9 +29,20 @@ export async function codingSdkRuntime(t: TestContext) {
   local.register(projectSettingsCapabilities.workspaces, () => [{ workspace_id: "work", canonical_path: home, display_name: "Fixture", realpath_verified: true }]);
   const privateStorage = new SqlitePluginPrivateStorage(store.db), artifacts = new ArtifactsModule({ db: store.db, homeOwner: "web-user", appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
+  // Coding reads what the person brought through project knowledge (specs/project-knowledge PMAT-18); here its stand-in answers
+  // a fixed version from the project's stores. The knowledge service's own reads are tested in tests/knowledge-*.test.ts.
+  service.registerProvider({ provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system" }, definitions: [knowledgeActions.read],
+    handlers: [{ ...knowledgeActions.read, handle: (_caller, input) => {
+      const asked = input as KnowledgeReadRequest, reference = asked.subject.kind === "artifact" ? parseArtifactSubjectId(asked.subject.id) : null;
+      const record = reference && (artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) ?? processItems.query.getArtifactVersion(DEMO_PROJECT_ID, reference));
+      if (!record) throw new ActionError("knowledge.unreadable", "这份资料现在读不到");
+      const text = JSON.stringify(record.payload).slice(0, asked.max_chars ?? 6_000);
+      return { subject: asked.subject, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
+        remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
+    } }] });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,
     actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "storage:private", "workspace:read"] }]);
+  await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "storage:private", "workspace:read"] }]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";

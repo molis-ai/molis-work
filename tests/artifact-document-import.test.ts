@@ -58,13 +58,9 @@ async function fixture(t: test.TestContext) {
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
   const { store, coordinator, post, get, origin, restart } = await fixture(t);
   const before = store.snapshot(DEMO_PROJECT_ID);
-  // The 成果库's one import entry is a dialog in its directory (artifact-positioning A3); there is no import page.
+  // Importing is one entry for the whole project, the side panel's 资料 tab (specs/project-knowledge §8); the 成果库 points there.
   const directory = await (await get("/artifacts")).text();
-  assert.match(directory, /data-artifact-import-open/);
-  assert.match(directory, /<dialog[^>]*data-artifact-import-dialog/);
-  for (const source of ["notion", "feishu", "lark", "google-docs", "file"]) {
-    assert.ok(directory.includes(`value="${source}"`), source);
-  }
+  assert.doesNotMatch(directory, /data-artifact-import-open|data-artifact-import-dialog/);
   const oldPage = await get("/artifacts/import");
   assert.doesNotMatch(await oldPage.text(), /data-artifact-import-form/);
   const file = { source: "file", filename: "导入验收.md", content: markdown };

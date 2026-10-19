@@ -22,9 +22,9 @@ async function fixture(t: import("node:test").TestContext) {
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
 
-test("PMAT-01 the five knowledge actions are reads every audience reaches through the directory", () => {
+test("PMAT-01 the six knowledge actions are reads every audience reaches through the directory", () => {
   const definitions = Object.values(knowledgeActions);
-  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob"]);
+  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.list", "knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob"]);
   assert.deepEqual(inspectActionDeclarations(definitions, undefined), []);
   for (const item of definitions) {
     assert.equal(item.action.kind, "query");
@@ -54,8 +54,8 @@ test("PMAT-06 the outline follows the owner's headings, outside code fences", as
   assert.equal(outline.revision, "4");
   assert.deepEqual(outline.sections.map(section => [section.anchor, section.title, section.level, section.summary]),
     [["h0", "试用手册的开头说明。", 0, null], ["h1", "准备", 1, null], ["h2", "账号", 2, null], ["h3", "反馈", 1, null]], "no notes before the piece is organized");
-  const total = outline.sections.reduce((sum, section) => sum + section.length, 0);
-  assert.equal(total, HANDBOOK.length, "sections cover the text exactly once");
+  const total = outline.sections.filter(section => section.parent === null).reduce((sum, section) => sum + section.length, 0);
+  assert.equal(total, HANDBOOK.length, "the top-level sections cover the text exactly once");
 });
 
 test("PMAT-06 text without headings is cut at paragraph breaks", () => {

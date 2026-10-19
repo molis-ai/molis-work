@@ -58,3 +58,25 @@ export const KNOWLEDGE_SETTINGS_STYLES = `
     .knowledge-settings .knowledge-select-all { margin-left: 0; }
   }
 `;
+
+/** The project knowledge picker (browser/knowledge/picker.ts): a form dialog, one checkbox row per piece, the count by the buttons. */
+export const KNOWLEDGE_PICKER_STYLES = `
+  dialog.mw-dialog.knowledge-picker { width: min(560px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); padding: 20px; display: none; }
+  dialog.mw-dialog.knowledge-picker[open] { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto auto; gap: 12px; }
+  .knowledge-picker header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .knowledge-picker h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
+  .knowledge-picker-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+  .knowledge-picker-tools > .mw-input { flex: 1 1 200px; min-width: 0; }
+  .knowledge-picker-tools > .mw-select { flex: 0 1 auto; width: auto; max-width: 160px; }
+  .knowledge-picker-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 120px; max-height: 50dvh; display: flex; flex-direction: column; gap: 2px; }
+  .knowledge-picker-row label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px; border-radius: 8px; cursor: pointer; }
+  .knowledge-picker-row label:hover { background: var(--nav-hover); }
+  .knowledge-picker-row .mw-check { margin-top: 2px; }
+  .knowledge-picker-copy { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .knowledge-picker-copy strong { font-size: 13px; font-weight: 500; overflow-wrap: anywhere; }
+  .knowledge-picker-copy small { font-size: 12px; color: var(--muted); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .knowledge-picker-empty { padding: 16px 8px; font-size: 13px; color: var(--muted); }
+  .knowledge-picker-status { margin: 0; min-height: 1em; font-size: 12px; color: var(--muted); }
+  .knowledge-picker footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+  .knowledge-picker-count { margin-right: auto; font-size: 12px; color: var(--muted); }
+`;

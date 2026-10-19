@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * The action a Plugin's code is running for, as the Runtime knows it: which installation, which declaration, and the call's own
@@ -22,4 +22,18 @@ export function runInPluginAction<T>(scope: PluginActionScope, handle: () => T):
 /** The action the calling code is running for, or nothing outside every action (`start`, a route, a timer set up elsewhere). */
 export function currentPluginAction(): PluginActionScope | undefined {
   return running.getStore();
+}
+
+/**
+ * Asked by a service right before it writes for a Plugin: the original caller of the action that code runs for must still be
+ * current, its call not cancelled and its authority not revoked or moved to another provider. The answer is synchronous, so
+ * nothing runs between it and the write; a `beforeEffect` the Plugin hands the service only waits, and the Plugin passes no
+ * caller of its own. Outside every action (`start`, a route, a timer set up there) there is no caller to ask, and the
+ * installation's live grants, which each service checks itself, decide alone.
+ */
+export function assertPluginActionCurrent(): void {
+  const scope = currentPluginAction();
+  if (!scope) return;
+  scope.caller.signal?.throwIfAborted();
+  requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
 }

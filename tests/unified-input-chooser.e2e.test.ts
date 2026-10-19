@@ -88,17 +88,19 @@ test("UIV-01/11 首页短输入保持单层紧凑底栏，只有可操作的状�
 });
 
 // UIV-01/02/11: user acceptance requires a fixed dock; only the composer grows upward.
-test("UIV-01/11 多行正文向上展开，底栏左右入口和操作行位置不变", { timeout: 120_000 }, async t => {
+test("UIV-01/11 多行正文覆盖展开，主区与底栏左右入口位置不变", { timeout: 120_000 }, async t => {
   const browser = await sendBrowser(t);
   if (!browser) return;
   const { command, sessionId, click, evaluate, waitFor, navigate, origin, projectId } = browser;
   await openWork(browser, await seedWork(browser, "底栏向上展开复验"));
-  const geometry = () => evaluate<{ dock:number; bottom:number; top:number; fieldWidth:number; formWidth:number; fieldHeight:number; scrollHeight:number; fieldBottom:number; actionTop:number; targetVisible:boolean; fixed:number[]; reachable:boolean }>(`(() => {
+  const geometry = () => evaluate<{ dock:number; bottom:number; top:number; fieldWidth:number; formWidth:number; fieldHeight:number; scrollHeight:number; fieldBottom:number; actionTop:number; targetVisible:boolean; main:number[]; fixed:number[]; reachable:boolean }>(`(() => {
     const form=document.querySelector('[data-assistant-composer]'),field=form.querySelector('[data-assistant-input]'),r=field.getBoundingClientRect(),f=form.getBoundingClientRect();
     const actions=['[data-assistant-attach]','[data-uiv-mic]','[data-assistant-send]'].map(s=>form.querySelector(s));
     const fixed=[...document.querySelectorAll('.workbench-bar > .bar-start,.workbench-bar > .bar-end'),...actions];
+    const main=document.querySelector('.chooser, .tab-workspace').getBoundingClientRect();
     return {dock:document.querySelector('.workbench-bar').getBoundingClientRect().height,bottom:f.bottom,top:f.top,fieldWidth:r.width,formWidth:f.width,
       fieldHeight:field.clientHeight,scrollHeight:field.scrollHeight,fieldBottom:r.bottom,actionTop:Math.min(...actions.map(b=>b.getBoundingClientRect().top)),
+      main:[main.top,main.bottom,main.width,main.height],
       targetVisible:!!form.querySelector('[data-assistant-target-wrap]').getClientRects().length,
       fixed:fixed.flatMap(b=>{const x=b.getBoundingClientRect();return [x.top,x.bottom];}),
       reachable:actions.every(b=>{const x=b.getBoundingClientRect();return x.bottom<=innerHeight&&x.right<=innerWidth&&b.contains(document.elementFromPoint(x.left+x.width/2,x.top+x.height/2));})};
@@ -127,6 +129,7 @@ test("UIV-01/11 多行正文向上展开，底栏左右入口和操作行位置�
         assert.ok(Math.abs(g.dock-base.dock)<1,`dock height stays fixed: ${label}`);
         assert.ok(Math.abs(g.bottom-base.bottom)<1,`composer grows upward from the same bottom: ${label}`);
         assert.ok(g.fixed.every((v,i)=>Math.abs(v-base.fixed[i]!)<1),`side entrances and actions stay anchored: ${label}`);
+        assert.ok(g.main.every((v,i)=>Math.abs(v-base.main[i]!)<1),`UIV-11 typing does not resize or move the main area: ${JSON.stringify({base:base.main,...g})}`);
         assert.ok(g.reachable,`every action stays clickable: ${label}`);
         if (width>=1180) assert.ok(g.targetVisible,'continuation target stays available');
         if (text) {

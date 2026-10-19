@@ -88,17 +88,22 @@ async function projectInputSpacing(browser: LayoutBrowser) {
   for (const side of [false, true, false]) {
     if (await evaluate("document.body.dataset.sideOpen === 'true'") !== side) await click('[data-side-toggle]');
     await waitFor(`(document.body.dataset.sideOpen === 'true') === ${side}`);
+    await putInput(browser, '短输入');
+    const mainGeometry = () => evaluate<number[]>("(() => {const m=document.querySelector('.tab-workspace'),r=m.getBoundingClientRect();return [r.top,r.bottom,r.width,r.height,...[m,...m.querySelectorAll('*')].filter(e=>e.getClientRects().length&&e.scrollHeight>e.clientHeight).map(e=>e.scrollTop)];})()");
+    const mainBefore=await mainGeometry();
     for (const text of ['第一行\n第二行', '第一行\n第二行\n', '第一行\n第二行\n第三行']) {
       await putInput(browser, text);
       await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
-      const g = await evaluate<{ height:number; expected:number; formHeight:number; fieldRight:number; actionLeft:number; fieldBottom:number; actionBottom:number; target:boolean; value:string }>(`(() => {
+      const g = await evaluate<{ height:number; expected:number; formHeight:number; fieldRight:number; actionLeft:number; fieldBottom:number; actionBottom:number; centers:number[]; target:boolean; value:string }>(`(() => {
         const field=document.querySelector('[data-assistant-input]'),form=field.closest('form'),r=field.getBoundingClientRect(),s=getComputedStyle(field);
         const lines=${text.split('\n').length}*parseFloat(s.lineHeight);
         const actions=['[data-assistant-attach]','[data-uiv-mic]','[data-assistant-send]'].map(q=>form.querySelector(q).getBoundingClientRect());
-        return {height:r.height,expected:Math.max(44,lines+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)),formHeight:form.getBoundingClientRect().height,fieldRight:r.right,actionLeft:Math.min(...actions.map(a=>a.left)),fieldBottom:r.bottom,actionBottom:Math.max(...actions.map(a=>a.bottom)),target:!!form.querySelector('[data-assistant-target-wrap]').getClientRects().length,value:field.value};
+        return {height:r.height,expected:Math.max(44,lines+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)),formHeight:form.getBoundingClientRect().height,fieldRight:r.right,actionLeft:Math.min(...actions.map(a=>a.left)),fieldBottom:r.bottom,actionBottom:Math.max(...actions.map(a=>a.bottom)),centers:actions.map(a=>(a.top+a.bottom)/2),target:!!form.querySelector('[data-assistant-target-wrap]').getClientRects().length,value:field.value};
       })()`);
+      assert.deepEqual(await mainGeometry(),mainBefore,'UIV-11 editing leaves main geometry and scroll positions unchanged in each side-panel state');
       assert.equal(g.value,text,'resizing preserves every newline in the draft');
       assert.ok(Math.abs(g.height-g.expected)<=1,`no unused textarea rows with side=${side}: ${JSON.stringify(g)}`);
+      assert.ok(Math.max(...g.centers)-Math.min(...g.centers)<=1,`attach, microphone and send share one centerline: ${JSON.stringify(g)}`);
       assert.equal(g.target,false,'this scenario has no continuation label');
       assert.ok(g.formHeight-g.height<=10,`no empty control row without a continuation label: ${JSON.stringify(g)}`);
       assert.ok(g.fieldRight<=g.actionLeft,`text does not run under controls: ${JSON.stringify(g)}`);
@@ -334,8 +339,8 @@ test('UIV-01/02/11 三入口在窄屏与短窗能通过真实滚轮到达书写�
   await resize(1440,900);
   await navigate(() => command('Page.navigate', { url:`${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.querySelector('[data-assistant-composer]').dataset.uivBound === '1'");
-  // UIV-11: the material strip occupies real space above a multiline dock, including on keyboard focus.
-  await putInput(browser, LONG_DRAFT, "窄窗材料不能盖住主区");
+  // UIV-11: the material strip and multiline input overlay the main area, including on keyboard focus.
+  await putInput(browser, LONG_DRAFT, "窄窗材料随输入框覆盖展开");
   await waitFor("!document.querySelector('[data-assistant-context-strip]').hidden");
   const failures:string[] = [];
   const entries = [
@@ -345,6 +350,12 @@ test('UIV-01/02/11 三入口在窄屏与短窗能通过真实滚轮到达书写�
   ];
   for (const entry of entries) {
     await resize(1440,900);
+    // Test each writing surface directly: a separate expanded dock is now an intentional overlay.
+    if (entry.name !== 'assistant') {
+      await putInput(browser, '');
+      const material = '[data-assistant-context-strip] [data-strip-key^="file:"] button';
+      if (await evaluate(`!!document.querySelector('${material}')?.getClientRects().length`)) await click(material);
+    }
     if (entry.name === 'home') {
       const event = `[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`;
       await click('[data-plugin-strip] [data-plugin-id="home"]');
@@ -363,7 +374,7 @@ test('UIV-01/02/11 三入口在窄屏与短窗能通过真实滚轮到达书写�
       }
     }
     for (const [width,height] of [[477,560],[320,640],[390,844],[640,393],[1280,393]]) {
-      await draft(ASSISTANT);
+      if (entry.name === 'assistant') await draft(ASSISTANT);
       if (await evaluate<boolean>("!document.querySelector('[data-assistant-panel]').hidden")) await click('[data-assistant-panel-close]');
       await draft(entry.field);
       await resize(width,height);

@@ -32,7 +32,9 @@ export const LAYOUT_AUDIT = String.raw`(() => {
     const key = kind + '|' + (a ? label(a) : '') + '|' + (b ? label(b) : '');
     if (seen.has(key)) return;
     seen.add(key);
-    findings.push({ kind, a: a ? label(a) : undefined, b: b ? label(b) : undefined, ...extra });
+    findings.push({ kind, a: a ? label(a) : undefined, b: b ? label(b) : undefined,
+      aComposer: a instanceof Element && !!a.closest('[data-assistant-composer]'), bComposer: b instanceof Element && !!b.closest('[data-assistant-composer]'),
+      aMain: a instanceof Element && !!a.closest('.tab-workspace, .arrival-stage'), bMain: b instanceof Element && !!b.closest('.tab-workspace, .arrival-stage'), ...extra });
   };
   const shown = (el) => el.checkVisibility({ checkOpacity: true, checkVisibilityCSS: true });
   const round = (n) => Math.round(n * 10) / 10;
@@ -161,6 +163,12 @@ export const LAYOUT_AUDIT = String.raw`(() => {
 })()`;
 
 export interface LayoutFinding { kind: string; a?: string; b?: string; [detail: string]: unknown }
+/** UIV-11: the user requested an overlay. Use DOM ownership, not translated labels, to identify it. */
+export function composerOverlaysContent(finding: LayoutFinding): boolean {
+  return (finding.kind === "covered" && finding.bComposer === true && finding.aMain === true)
+    || (finding.kind === "overlap" && ((finding.aComposer === true && finding.bMain === true) || (finding.bComposer === true && finding.aMain === true)));
+}
+
 type Evaluate = <T = unknown>(expression: string) => Promise<T>;
 
 export const layoutFindings = (evaluate: Evaluate): Promise<LayoutFinding[]> => evaluate<LayoutFinding[]>(LAYOUT_AUDIT);

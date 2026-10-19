@@ -95,20 +95,20 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
     if (dir) { await mkdir(dir, { recursive: true }); await writeFile(join(dir, name), bytes); }
   };
   const measure = async (label: string, parts: Array<"assistant" | "coding" | "home">) => {
-    const box = await evaluate<{ composerTop:number; composerBottom:number; assistant: number; assistantInner: number; assistantField: number; assistantAttach: number; assistantFieldBottom: number; assistantFieldTop: number; assistantAttachMid: number; assistantFieldMid: number; barTop: number; barBottom: number; pinBottom: number; coding: number; codingInner: number; codingField: number; codingModel: number; home: number; homeInner: number; homeField: number; viewport: number }>(`(() => {
+    const box = await evaluate<{ composerTop:number; composerBottom:number; assistant: number; assistantInner: number; assistantField: number; assistantAttach: number; assistantFieldBottom: number; assistantFieldTop: number; assistantActions: Array<{top:number;bottom:number;left:number;right:number;height:number}>; assistantFieldRight: number; barTop: number; barBottom: number; pinBottom: number; coding: number; codingInner: number; codingField: number; codingModel: number; home: number; homeInner: number; homeField: number; viewport: number }>(`(() => {
       const metrics = (selector) => { const node = document.querySelector(selector); if (!node || node.hidden || node.closest("[hidden]")) return { outer: 0, inner: 0 }; return { outer: node.getBoundingClientRect().width, inner: node.clientWidth }; };
       const assistant = metrics("[data-assistant-composer]");
       const coding = metrics("[data-coding-composer] .coding-composer-shell");
       const home = metrics("[data-home-talk-form]");
       const field = (selector) => { const node = document.querySelector(selector); if (!node || node.hidden || node.closest("[hidden]")) return 0; return node.getBoundingClientRect().width; };
       const widthOf = (selector) => { const node = document.querySelector(selector); if (!node) return 0; const picker = node.closest(".mw-select-picker"); const trigger = picker ? picker.querySelector(".mw-select-picker__trigger") : null; const target = trigger && trigger.getBoundingClientRect().width > 0 ? trigger : node; if (target.hidden || target.closest("[hidden]")) return 0; return target.getBoundingClientRect().width; };
-      const rectOf = (selector) => { const node = document.querySelector(selector); if (!node) return { top: 0, bottom: 0, height: 0 }; const rect = node.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, height: rect.height }; };
+      const rectOf = (selector) => { const node = document.querySelector(selector); if (!node) return { top: 0, bottom: 0, height: 0, left: 0, right: 0 }; const rect = node.getBoundingClientRect(); return { top: rect.top, bottom: rect.bottom, height: rect.height, left: rect.left, right: rect.right }; };
       const assistantFieldRect = rectOf("[data-assistant-input]");
       const composerRect = rectOf("[data-assistant-composer]");
-      const assistantAttachRect = rectOf("[data-assistant-attach]");
+      const assistantActions = ["[data-assistant-attach]","[data-assistant-composer] [data-uiv-mic]","[data-assistant-send]"].map(rectOf);
       const barRect = rectOf(".workbench-bar");
       const pinRect = rectOf(".dock-pin");
-      return { composerTop:composerRect.top, composerBottom:composerRect.bottom, assistant: assistant.outer, assistantInner: assistant.inner, assistantField: field("[data-assistant-input]"), assistantAttach: widthOf("[data-assistant-attach]"), assistantFieldTop: assistantFieldRect.top, assistantFieldBottom: assistantFieldRect.bottom, assistantFieldMid: assistantFieldRect.top + assistantFieldRect.height / 2, assistantAttachMid: assistantAttachRect.top + assistantAttachRect.height / 2, barTop: barRect.top, barBottom: barRect.bottom, pinBottom: pinRect.bottom, coding: coding.outer, codingInner: coding.inner, codingField: field("[data-coding-task]"), codingModel: widthOf("[data-coding-composer] [data-coding-model]"), home: home.outer, homeInner: home.inner, homeField: field("[data-home-talk-form] textarea"), viewport: innerWidth };
+      return { composerTop:composerRect.top, composerBottom:composerRect.bottom, assistant: assistant.outer, assistantInner: assistant.inner, assistantField: field("[data-assistant-input]"), assistantAttach: widthOf("[data-assistant-attach]"), assistantFieldTop: assistantFieldRect.top, assistantFieldBottom: assistantFieldRect.bottom, assistantActions, assistantFieldRight: assistantFieldRect.right, barTop: barRect.top, barBottom: barRect.bottom, pinBottom: pinRect.bottom, coding: coding.outer, codingInner: coding.inner, codingField: field("[data-coding-task]"), codingModel: widthOf("[data-coding-composer] [data-coding-model]"), home: home.outer, homeInner: home.inner, homeField: field("[data-home-talk-form] textarea"), viewport: innerWidth };
     })()`);
     if (parts.includes("assistant")) {
       assert.ok(box.assistantInner > 0, `${label} assistant composer is on screen`);
@@ -118,7 +118,10 @@ test("UIV-01 三个入口画出同一作曲条，键盘、浅色深色和窄屏�
       assert.ok(box.assistantFieldTop >= box.composerTop && box.assistantFieldBottom <= box.composerBottom, `${label} field stays contained in its writing surface`);
       assert.ok(box.pinBottom <= box.barBottom + 1, `${label} dock icon stays inside the bar ${box.pinBottom} of ${box.barBottom}`);
       assert.ok(box.assistantAttach > 0 && box.assistantAttach < box.assistantField, `${label} attach stays beside the field`);
-      assert.ok((box.assistantAttachMid >= box.assistantFieldBottom || Math.abs(box.assistantAttachMid - box.assistantFieldMid) < 1) && box.assistantAttachMid < box.barBottom, `${label} attach stays beside the writing or wraps below when controls need more room`);
+      // UIV-01/11: no-target input shares its last row with controls; their centers align with each other, not with the whole multiline field.
+      const centers=box.assistantActions.map(action=>action.top+action.height/2);
+      assert.ok(Math.max(...centers)-Math.min(...centers)<=1,`${label} controls share one horizontal centerline: ${JSON.stringify(box)}`);
+      assert.ok(box.assistantActions.every(action=>action.bottom<=box.composerBottom && (action.left>=box.assistantFieldRight || action.top>=box.assistantFieldBottom)),`${label} controls never cover the writing: ${JSON.stringify(box)}`);
       if (box.viewport <= 720) assert.ok(box.assistant >= box.viewport * 0.8, `${label} assistant composer ${box.assistant} of viewport ${box.viewport}`);
     }
     if (parts.includes("coding")) {

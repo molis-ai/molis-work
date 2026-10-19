@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { layoutFindings } from "./fixtures/layout-audit.js";
+import { layoutFindings, composerOverlaysContent } from "./fixtures/layout-audit.js";
 
 // The layout audit is what says a screen of the way in is clean, so it has to be shown to catch each thing it claims to
 // and to leave alone what only looks like a problem (a scroller's far end, an ellipsis, text sharing a line).
@@ -17,9 +17,9 @@ test("the layout audit finds what overlaps, is cut off, covered or out of reach,
   if (!browser) return;
   const { command, sessionId, evaluate, navigate } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 600, height: 400, deviceScaleFactor: 1, mobile: false }, sessionId);
-  const audit = async (body: string, style?: string) => {
+  const audit = async (body: string, style?: string, overlay = false) => {
     await navigate(() => command("Page.navigate", { url: `data:text/html;charset=utf-8,${encodeURIComponent(page(body, style))}` }, sessionId));
-    return (await layoutFindings(evaluate)).map(finding => finding.kind).sort();
+    return (await layoutFindings(evaluate)).filter(finding => !(overlay && composerOverlaysContent(finding))).map(finding => finding.kind).sort();
   };
 
   assert.deepEqual(await audit(`<button style="position:absolute;left:20px;top:20px">一</button><button style="position:absolute;left:140px;top:20px">二</button><p style="position:absolute;left:20px;top:80px;margin:0">一行字</p>`), [], "a clean screen has no findings");
@@ -34,6 +34,14 @@ test("the layout audit finds what overlaps, is cut off, covered or out of reach,
 
   assert.deepEqual(await audit(`<button style="position:absolute;left:20px;top:20px;width:32px;padding:0"><svg width="16" height="16"></svg><span style="display:none">新建项目</span></button>`), ["unnamed"], "an icon-only control whose label is hidden has no name");
   assert.deepEqual(await audit(`<button aria-label="新建项目" style="position:absolute;left:20px;top:20px;width:32px;padding:0"><svg width="16" height="16"></svg><span style="display:none">新建项目</span></button>`), [], "and a name from aria-label is one");
+
+  // UIV-11: intentional composer overlays must not hide the reverse failure or collisions within the composer.
+  const main = '<main class="tab-workspace"><button class="under">Main action</button></main>';
+  const composer = '<form data-assistant-composer><button class="over">Send</button></form>';
+  const overlayStyle = 'button {position:absolute;left:20px;top:20px;width:100px} .over {z-index:2}';
+  assert.deepEqual(await audit(main + composer, overlayStyle, true), [], 'the composer may cover main content');
+  assert.ok((await audit(main + composer, overlayStyle + '.under {z-index:3}', true)).includes('covered'), 'main content covering a composer action still fails');
+  assert.ok((await audit('<form data-assistant-composer><button>Record</button><button class="over">Send</button></form>', overlayStyle, true)).includes('covered'), 'one composer action covering another still fails');
 
   // What only looks like a problem: a scroller's far end, an ellipsis, a link in a sentence, a hidden file input.
   assert.deepEqual(await audit(`<div style="position:absolute;left:0;top:0;width:300px;height:100px;overflow:auto"><button style="margin-top:300px">在滚动区远端的按钮</button></div><button style="position:absolute;left:320px;top:20px">旁边</button>`), [], "a control below a scroller's fold is reached by scrolling");

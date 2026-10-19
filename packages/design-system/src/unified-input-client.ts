@@ -237,7 +237,7 @@ function uivResize(field: UivField): void {
   field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;
   if (form) uivMeasureDock(field.ownerDocument);
 }
-/** Reserve the upward extension in the same turn as text growth, before the next paint or hit test. */
+/** Measure the upward extension only to keep the Assistant panel within the viewport. */
 function uivMeasureDock(document: Document): void {
   const bar = document.querySelector(".workbench-bar");
   if (!(bar instanceof HTMLElement)) return;

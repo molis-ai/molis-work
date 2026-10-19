@@ -5,7 +5,7 @@ import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { PROJECT_ARRIVAL_RELATIVE_PATH } from "../apps/local-host/dist/project-arrival.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { assertLayoutClean } from "./fixtures/layout-audit.js";
+import { assertLayoutClean, composerOverlaysContent } from "./fixtures/layout-audit.js";
 import { renderMolisWorkProjectIndex } from "./workbench-renderer-fixture.js";
 
 // The project chooser in a real browser (specs/archive/project-arrival-flow): the directory on the desk, the brief on the sheet,
@@ -343,10 +343,16 @@ test("the Assistant in the bar speaks for the project in view, and keeps a draft
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "把周五的发布清单整理出来", "each project's words are where they were left");
   await click(`#row-${others[0]}`);
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"), "先看看沙盒的测试");
-  // A long line in the bar stays inside it, whatever the width.
+  // UIV-11 (2026-10-19): long input overlays the main sheet; its own controls and side entrances remain usable.
   await evaluate("document.querySelector('[data-assistant-input]').focus()");
   await command("Input.insertText", { text: "再补一句很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长很长的话，看看输入框会不会顶到旁边的按钮".repeat(2) }, sessionId);
-  for (const width of [1440, 768, 390]) { await view(width, 900); await assertLayoutClean(evaluate, `a long line in the bar · ${width}`); }
+  for (const width of [1440, 768, 390]) {
+    await view(width, 900);
+    await assertLayoutClean(evaluate, `a long line in the bar · ${width}`, {
+      // The writing surface may cover main content; reverse occlusion and collisions within the dock still fail.
+      allow: composerOverlaysContent,
+    });
+  }
 });
 
 test("sixty projects scroll inside the directory, the keys keep the selection in view, and the frame never moves", { timeout: 180_000 }, async t => {

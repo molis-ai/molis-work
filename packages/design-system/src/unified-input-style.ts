@@ -30,7 +30,7 @@ html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-uiv-input] { fl
 html body form.uiv-composer.bar-composer[data-uiv-bound] > :is([data-assistant-attach], .uiv-bar, [data-assistant-send]) { order: 2; }
 html body form.uiv-composer.bar-composer[data-uiv-bound]:is([data-uiv-expanded]:has(> [data-assistant-target-wrap]:not([hidden])), :has(.uiv-bar button:not([data-uiv-mic], [hidden]))) > [data-uiv-input] { flex-basis: 100%; width: 100%; order: -1; }
 html body form.uiv-composer.bar-composer[data-uiv-bound]:has(> [data-assistant-target-wrap][hidden]) { align-items: flex-end; }
-html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-assistant-attach] { margin-left: auto; }
+html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-assistant-attach] { height: 44px; margin-left: auto; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-bar { min-height: 44px; }
 html body form.uiv-composer.bar-composer[data-uiv-bound] > .uiv-status { order: -2; }
 
@@ -52,13 +52,16 @@ html body form.uiv-composer[data-uiv-bound] :is([data-uiv-voice-status], [data-u
 html body :is(.home-talk, .coding-dialogue):has(> form.uiv-composer) { overflow-y: auto; scroll-padding-block: 8px; }
 html body form.uiv-composer[data-coding-composer] .coding-composer-leading { flex-basis: 100%; }
 
-html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { height: var(--dock-h); min-height: 0; align-self: end; margin-top: max(0px, calc(var(--uiv-dock-height, var(--dock-h)) - var(--dock-h))); }
+html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { height: var(--dock-h); min-height: 0; align-self: end; margin-top: 0; }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center { align-self: end; margin-block: 0 max(0px, calc((var(--dock-h) - 52px) / 2)); }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center[data-assistant-island] { --next-row: 0px; --context-row: 0px; }
-/* Reserve the upward extension above the fixed bar so main-area focus is never covered. */
+/* The composer overlays the main area; only the fixed dock occupies layout space. */
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) > .bar-center > :is(.assistant-context-strip, .assistant-next-row) { position: relative; inset: auto; margin-bottom: 6px; max-width: 100%; }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .plugin-picker-popover { max-height: min(78dvh, calc(100dvh - var(--dock-h) - var(--desktop-titlebar-height, 32px) - 20px)); overflow-y: auto; }
 html body.immersive-workbench .workbench-bar:has(form.uiv-composer) .assistant-panel { max-height: calc(100dvh - var(--desktop-titlebar-height, 0px) - var(--uiv-dock-height, var(--dock-h)) - 20px); }
+@media (min-width: 601px) and (pointer: fine) {
+  html body form.uiv-composer.bar-composer[data-uiv-bound] > [data-assistant-send] { margin-block: 5px; }
+}
 @media (min-width: 601px) {
   html body.immersive-workbench .workbench-bar:has(form.uiv-composer) { grid-template-rows: minmax(0, 1fr); }
   html body.immersive-workbench .immersive-workspace:has(> .workbench-bar .uiv-composer) { grid-template-rows: var(--desktop-titlebar-height) minmax(0, 1fr) auto; }

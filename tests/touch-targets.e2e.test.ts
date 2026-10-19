@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { layoutFindings } from "./fixtures/layout-audit.js";
+import { layoutFindings, composerOverlaysContent } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 
 // DESIGN.md and UIV-01/11: touch targets stay 44px; desktop chrome keeps its documented floors.
@@ -417,7 +417,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   };
   // The directory's resize grip runs the full height of the window's grid and crosses the bar between 601 and about 900px wide
   // whatever the control sizes are; it is not what is measured here.
-  const shellFindings = async () => (await layoutFindings(evaluate)).filter(finding => IN_SHELL.test(`${finding.a ?? ""} ${finding.b ?? ""}`) && !/tree-resizer/.test(`${finding.a ?? ""} ${finding.b ?? ""}`));
+  const shellFindings = async (overlay = false) => (await layoutFindings(evaluate)).filter(finding => !(overlay && composerOverlaysContent(finding)) && IN_SHELL.test(`${finding.a ?? ""} ${finding.b ?? ""}`) && !/tree-resizer/.test(`${finding.a ?? ""} ${finding.b ?? ""}`));
 
   /** Whether the line, one step less folded than the island left it, would run over its pill: a step is taken only when it must be. */
   const FOLD_ORDER = JSON.stringify(["", ...FOLD_STEPS.map(([name]) => name)]);
@@ -733,7 +733,7 @@ for (const scheme of ["light", "dark"] as const) {
     for (const [width, height] of [[390, 844], [852, 393]] as const) {
       await w.open(width, height, "", "true");
       await w.line(`a new work · ${width}`, NEW_WORK, NEW_WORK_KINDS, 44);
-      assert.deepEqual(await w.shellFindings(), [], `a new work · ${width}: the bar lays out cleanly with 44px chips`);
+      assert.deepEqual(await w.shellFindings(true), [], `a new work · ${width}: the bar lays out cleanly with 44px chips`);
     }
     await w.makeCurrentWork();
     // The opened Assistant panel's tab bar (the work's tab and its close mark, new work, all works, details, minimize) is a row of 44px
@@ -772,7 +772,7 @@ for (const scheme of ["light", "dark"] as const) {
         const { fit } = await w.line(`${name} · ${width}`, [...chips], [...kinds], 44);
         stages[`${width} ${name}`] = fit.stage;
         await w.typeAndLeave(`${name} · ${width}`, fit, width <= 600);
-        assert.deepEqual(await w.shellFindings(), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
+        assert.deepEqual(await w.shellFindings(true), [], `${name} · ${width}: the bar lays out cleanly with 44px chips`);
         assert.ok(fit.input >= (width <= 600 ? 64 : 44), `${name} · ${width}: the input keeps its floor beside the chips (${fit.input}px)`);
       }
     }
@@ -784,7 +784,7 @@ for (const scheme of ["light", "dark"] as const) {
     await w.open(1024, 768, "", "true");
     await w.line("a work with a Coding mode and every chip · 1024", WITH_MODE, [...BASE, "mode chip"], 44);
     await w.line("a work with a Character and every chip · 1024", WITH_CHARACTER, [...BASE, "character chip"], 44);
-    assert.deepEqual(await w.shellFindings(), [], "a work with every chip · 1024: the bar lays out cleanly");
+    assert.deepEqual(await w.shellFindings(true), [], "a work with every chip · 1024: the bar lays out cleanly");
   });
 
   test(`a fine-pointer window keeps the desktop bar's written sizes and its floor · ${scheme}`, { timeout: 300_000 }, async t => {

@@ -25,7 +25,7 @@
 | D13 | 菜单作为有类型的动作（按菜单路径、经辅助功能按下），不靠点菜单栏坐标 | 菜单栏不属于目标应用的窗口，落点校验必然拒绝；按路径选比按坐标更可核对、更好给人看 |
 | D14 | 落点校验在助手里、紧挨着注入之前做：该点最上层的窗口和该点的辅助功能元素都属于目标应用；拖动两端都要在目标应用里；需要前台的动作先把目标应用提到前台再核 | 真机：普通窗口在提到前台后不再盖住；始终在上层的窗口（浮动面板、通知条、锁屏）照样拒绝（§5） |
 | D15 | 截图：只拍目标应用的窗口（ScreenCaptureKit 只含该应用），裁到它前窗的范围，按 1 倍点数出图。密码类输入框只要和请求矩形相交，png 就不得离开助手（拒绝，不涂黑后放行）；驱动把助手的 `capture.password` 记成 refused。Prologue 的脱敏器只放行驱动自己产出的截图（同侧栏浏览器 D10）。辅助功能树看不到密码框时，像素仍可能离开，这是已知限度 | 真机：被访达盖住一半的 TextEdit 截图里没有访达的像素（§5）。相交即拒绝由 `tests/computer-use-gaps.test.ts` 覆盖，还没有对着真密码框跑过助手 |
-| D16 | 模型看辅助功能树的文字（带可点击坐标），截图给人看、进记录，不进模型 | 与侧栏浏览器相同；Prologue 现在不能把一轮中途的截图交给模型（§3 第 1 行），本目标不扩这一项，能力对照表如实写 |
+| D16 | **已由 §9 取代（2026-10-18）**：树不够（截断或没有可点节点）时，动作落点周围的 2 倍裁剪交给模型（第八个切片，CU-G08）；树稀疏时用 Vision OCR 的文字兜底，标为不可信（第四个切片，CU-G10）。模型主动要求看某个区域仍没有合同入口（open-decisions 第 2 节）。以下是原决定，留作历史：模型看辅助功能树的文字（带可点击坐标），截图给人看、进记录，不进模型 | 与侧栏浏览器相同；Prologue 现在不能把一轮中途的截图交给模型（§3 第 1 行），本目标不扩这一项，能力对照表如实写 |
 | D17 | 只看只点名单含终端、IDE，以及能执行脚本的应用（脚本编辑器、Automator、快捷指令） | 它们能跑命令，命令走 Coding |
 | D18 | 禁区识别 Molis 自己：Molis Work 桌面应用（`com.molis.work`）、助手本身，以及窗口标题带 Molis 标记的浏览器窗口（网页模式下 Molis 页面的标题带标记）；另加时间闸：助手注入输入后 1.5 秒内收到的、属于桌面操作的确认答复一律不算 | goal 第 3 条「识别办法由实现定」；标记谁都能加，加了只会让那个窗口不可碰，方向是关着的 |
 | D19 | 「本轮内允许」用 Prologue 的带寿命批准实现：只认这一轮的副作用、不落盘、轮次结束即收回，只覆盖可撤回的本机动作（`mutate-local` / `user-visible`）与列出的动作种类；驱动判定为不可撤回的动作归 `mutate-external`，不在其内 | goal 第 2 条「Prologue 只扩合同与策略」；批准寿命原在 Prologue 的「以后」里 |
@@ -75,7 +75,7 @@
 | 一轮同时挂浏览器与桌面 | `horizontal/agent-host/src/adapters/prologue-surfaces.ts`、`packages/contracts/src/services/ui-surfaces.ts` | 本任务 |
 | 「电脑」标签、设置 | `apps/workbench/src/side-panel-computer.ts`、助理设置、`apps/workbench/src/i18n/` | 本任务 |
 
-不在本任务内：Windows 与 Linux；远程与云桌面；插件声明会操作哪些应用；右栏 Shelf 格（PR #180）；截图进模型与文字识别（D16）。
+不在本任务内：Windows 与 Linux；远程与云桌面；插件声明会操作哪些应用；右栏 Shelf 格（PR #180）；模型主动要求看某个区域（open-decisions 第 2 节）。原先这里还写着「截图进模型与文字识别（D16）」，已由 §9 取代：树不够时给模型落点裁剪（CU-G08），树稀疏时 OCR 兜底（CU-G10）。
 
 ## 7. 进度（2026-10-10）
 
@@ -146,7 +146,7 @@
 | CU-G11 语义定位 | 已完成 | 名称/角色:名称/`~片段`（不编译正则，S-25），歧义与无匹配拒绝；节点编号只认带方括号的 `[n]`，光数字按名称找 |
 | CU-G12 评测骨架 | 部分 | 10 场景 fake helper；真机场景单列，未声称 |
 | CU-G13 门禁 | 已完成 | build、boundary、health、secrets、CI Verify、S-25 通过（#721、#735）。全量：main 的夜间 Full suite 跑在含两者的 `739e6cb29` 上（CI run 39157724720，2026-10-18 19:12Z），16 片 1,094 个文件全部通过，3 个浏览器文件第二次才过；Computer Use 的 7 个文件（act-loop 6、evaluation 1、gaps 11、reliability 13、task-done 4、computer-selector 2、assistant-tool-words 2）都在里面。那次是 Linux，标为 macOS-only 的文件不跑（今天的树上 29 个），其中没有 Computer Use 的文件。`pnpm test:security` 全量：`4acd85c71` 的 CI（run 39211104008）两片 54 + 53 个文件全部通过 |
-| CU-G14 文档 | 部分 | spec/runbook 已更新；索引与归档未做 |
+| CU-G14 文档 | 部分 | spec 与 open-decisions 写的是现状；runbook 第 6 节原先还在问选项 C，2026-10-19 按用户 10-18 选的 A 改正（QA-008），D16 标为已由 §9 取代；索引与归档等真机验收（CU-G02～G04）之后做 |
 | CU-G15 文件/延迟/多显示器 | 未做 | 可选阶段 5 |
 
 收尾 PR [#721](https://github.com/molis-ai/molis-work/pull/721) 已于 2026-10-18 合入（`7509b10ad`），S-25 跟进 [#735](https://github.com/molis-ai/molis-work/pull/735) 合入为 `35eea0614`。打开/保存面板与模型主动 zoom 的选项、验证矩阵见 [open-decisions.md](open-decisions.md)。

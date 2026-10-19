@@ -311,7 +311,8 @@ function personEdits(home: string, owner: string, promptId: string, body: string
 // The platform's materials service: what it extracts from a file for a Runtime plugin is material, and reaches the model after the
 // plugin's own registered instruction inside `fencedMaterials`. The notice is in code, so a person who rewrites the instruction
 // (here: no word of caution left) does not remove it, and a file that forges the fence's end, a role or an order stays inside its JSON.
-test("S-13 a file the platform's materials service extracts for a Runtime plugin reaches the model only as fenced JSON under the fixed untrusted notice, whatever the person's version of the instruction says", { timeout: 60_000 }, async t => {
+// The platform does not fence for the plugin: this holds because the plugin hands the text to the model through `fencedMaterials`.
+test("S-13 a file the platform's materials service extracts reaches the model as fenced JSON under the fixed untrusted notice when the Runtime plugin fences it with fencedMaterials, whatever the person's version of the instruction says", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "security-invariants-materials-"));
   const model = await recordingTextModel(t, home, () => "供应商可在 11 月 10 日前交付图片素材");
   const probe = materialsProbe("fencedprobe", { permissions: ["materials:read", "model:invoke"], readPermissions: ["materials:read", "model:invoke"] });

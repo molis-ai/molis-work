@@ -7,7 +7,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
- * S-42: a plugin that declares and holds `actions:delegate` reaches the Host's action directory from inside its own running action, as
+ * S-41: a plugin that declares and holds `actions:delegate` reaches the Host's action directory from inside its own running action, as
  * that action's original caller under the workflow audience (user decision 2026-10-20). Each test asserts a refusal: the target's handler
  * never runs, and nothing the plugin was meant to store after the call is stored.
  */
@@ -80,7 +80,7 @@ async function setup(t: TestContext, probes: readonly Probe[] = [delegateProbe("
     log: () => readFileSync(join(served.home, "logs/action-calls.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>) };
 }
 
-test("W5-01-DELEGATE-01 S-42 only a plugin whose Manifest declares actions:delegate gets services.actions.directory", async t => {
+test("W5-01-DELEGATE-01 S-41 only a plugin whose Manifest declares actions:delegate gets services.actions.directory", async t => {
   const undeclared = delegateProbe("undeclared", { declare: false }), declared = delegateProbe("declared");
   await setup(t, [undeclared, declared]);
   assert.equal(undeclared.contexts.at(-1)!.services!.actions!.directory, undefined);
@@ -88,7 +88,7 @@ test("W5-01-DELEGATE-01 S-42 only a plugin whose Manifest declares actions:deleg
   assert.equal(typeof declared.contexts.at(-1)!.services!.actions!.directory!.discover, "function");
 });
 
-test("W5-01-DELEGATE-01 S-42 a declared but not granted permission refuses discover and invoke, and the target never runs", async t => {
+test("W5-01-DELEGATE-01 S-41 a declared but not granted permission refuses discover and invoke, and the target never runs", async t => {
   const s = await setup(t, [delegateProbe("ungranted")], WITHOUT_GRANT);
   s.offer([OPEN]);
   // A Home installation says a grant it does not hold as `actions.forbidden` (its executor checks its own record first).
@@ -100,7 +100,7 @@ test("W5-01-DELEGATE-01 S-42 a declared but not granted permission refuses disco
   assert.deepEqual(s.ran, [OPEN.capability_id]);
 });
 
-test("W5-01-DELEGATE-02 S-42 outside a running action, from another installation's action, and after the action ended, the directory refuses", async t => {
+test("W5-01-DELEGATE-02 S-41 outside a running action, from another installation's action, and after the action ended, the directory refuses", async t => {
   const first = delegateProbe("scopeone"), second = delegateProbe("scopetwo");
   const s = await setup(t, [first, second]);
   s.offer([OPEN]);
@@ -122,7 +122,7 @@ test("W5-01-DELEGATE-02 S-42 outside a running action, from another installation
   assert.deepEqual(s.ran, []);
 });
 
-test("W5-01-DELEGATE-02 S-42 a malformed reference is refused before any directory is asked", async t => {
+test("W5-01-DELEGATE-02 S-41 a malformed reference is refused before any directory is asked", async t => {
   const s = await setup(t); s.offer([OPEN]);
   for (const bad of [{ capability_id: "../x", version: 1 }, { capability_id: OPEN.capability_id, version: 0 }, { capability_id: OPEN.capability_id, version: 1, provider_id: "bad id" }]) {
     await assert.rejects(s.run({ op: "invoke", reference: bad }), { code: "actions.reference_invalid" });
@@ -130,7 +130,7 @@ test("W5-01-DELEGATE-02 S-42 a malformed reference is refused before any directo
   assert.deepEqual(s.ran, []);
 });
 
-test("W5-01-DELEGATE-03 S-42 a call the plugin made with its own grants (plugin audience) is not widened to the workflow audience", async t => {
+test("W5-01-DELEGATE-03 S-41 a call the plugin made with its own grants (plugin audience) is not widened to the workflow audience", async t => {
   const delegator = delegateProbe("widened"), caller = delegateProbe("widener", { consumes: ["widened.run"] });
   const s = await setup(t, [delegator, caller]);
   s.offer([OPEN]);
@@ -143,14 +143,14 @@ test("W5-01-DELEGATE-03 S-42 a call the plugin made with its own grants (plugin 
 });
 
 for (const audience of ["user", "agent", "mcp", "workflow"] as const) {
-  test(`W5-01-DELEGATE-03 S-42 an original caller of the ${audience} audience may delegate, and the target is reached as workflow`, async t => {
+  test(`W5-01-DELEGATE-03 S-41 an original caller of the ${audience} audience may delegate, and the target is reached as workflow`, async t => {
     const s = await setup(t); s.offer([OPEN]);
     assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, { ...s.caller, audience, actor_id: `runtime:${audience}` }), "done");
     assert.equal(s.targetsSeen.at(-1)!.audience, "workflow"); assert.equal(s.targetsSeen.at(-1)!.actor_id, `runtime:${audience}`);
   });
 }
 
-test("W5-01-DELEGATE-04 S-42 the nested caller is the original under the workflow audience with delegated_by, the same permissions and no plugin identity", async t => {
+test("W5-01-DELEGATE-04 S-41 the nested caller is the original under the workflow audience with delegated_by, the same permissions and no plugin identity", async t => {
   const s = await setup(t); s.offer([OPEN]);
   const forged = { plugin_id: "forged.plugin", install_id: "forged-install", actor_id: "runtime:shape", project_id: s.project.project_id, declaration: s.probe.definition, assertActive: () => undefined };
   const original: ActionCallContext = { ...s.caller, actor_id: "runtime:shape", audience: "agent", actor_kind: "runtime", audit_actor_id: "runtime:shape:session", runtime_session_id: "session-1",
@@ -168,7 +168,7 @@ test("W5-01-DELEGATE-04 S-42 the nested caller is the original under the workflo
   assert.equal(s.probe.seen.at(-1)!.audience, "agent"); assert.equal(s.probe.seen.at(-1)!.delegated_by, undefined);
 });
 
-test("W5-01-DELEGATE-05 S-42 a target not open to workflow, a permission the original caller lacks, and a pinned provider that is not the owner are refused", async t => {
+test("W5-01-DELEGATE-05 S-41 a target not open to workflow, a permission the original caller lacks, and a pinned provider that is not the owner are refused", async t => {
   const s = await setup(t); s.offer([OPEN, NO_WORKFLOW, NEEDS_MORE]);
   await assert.rejects(s.run({ op: "invoke", reference: ref(NO_WORKFLOW) }), { code: "actions.dependency_missing" });
   await assert.rejects(s.run({ op: "invoke", reference: ref(NEEDS_MORE) }), { code: "actions.dependency_missing" });
@@ -178,23 +178,25 @@ test("W5-01-DELEGATE-05 S-42 a target not open to workflow, a permission the ori
   assert.equal(await s.run({ op: "invoke", reference: ref(NEEDS_MORE) }, { ...s.caller, permissions: [...PAGE_PERMISSIONS, "delegate:admin"] }), "done");
 });
 
-test("W5-01-DELEGATE-05 S-42 discover lists what the delegated caller sees: not what only the plugin's own audience or the caller's missing permissions reach", async t => {
+test("W5-01-DELEGATE-05 S-41 discover lists what the delegated caller sees: not what only the plugin's own audience or the caller's missing permissions reach", async t => {
   const s = await setup(t); s.offer([OPEN, NO_WORKFLOW, NEEDS_MORE]);
   const listed = await s.run({ op: "discover" }) as string[];
   assert.ok(listed.includes(OPEN.capability_id));
   for (const hidden of [NO_WORKFLOW, NEEDS_MORE]) assert.equal(listed.includes(hidden.capability_id), false);
 });
 
-test("W5-01-DELEGATE-05 S-42 a target the workflow audience reaches but the original caller's own audience does not is refused too", async t => {
-  const s = await setup(t); s.offer([NO_AGENT]);
-  assert.equal(await s.run({ op: "invoke", reference: ref(NO_AGENT) }), "done");
+test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow only, as for Workflows: an agent's call reaches a workflow-only target, not an agent-only one", async t => {
+  const s = await setup(t); s.offer([NO_AGENT, NO_WORKFLOW]);
+  const agent: ActionCallContext = { ...s.caller, audience: "agent", actor_id: "runtime:agent" };
+  assert.equal(await s.run({ op: "invoke", reference: ref(NO_AGENT) }, agent), "done");
+  assert.equal(s.targetsSeen.at(-1)!.audience, "workflow");
   s.ran.length = 0;
-  await assert.rejects(s.run({ op: "invoke", reference: ref(NO_AGENT) }, { ...s.caller, audience: "agent", actor_id: "runtime:agent" }), { code: "actions.forbidden" });
+  await assert.rejects(s.run({ op: "invoke", reference: ref(NO_WORKFLOW) }, agent), { code: "actions.forbidden" });
   assert.deepEqual(s.ran, []);
 });
 
 for (const mutation of ["source-stop", "source-revoke", "target-replace", "parent-revoke", "cancel"] as const) {
-  test(`W5-01-DELEGATE-06 S-42 ${mutation} while the delegated call waits prevents result delivery`, async t => {
+  test(`W5-01-DELEGATE-06 S-41 ${mutation} while the delegated call waits prevents result delivery`, async t => {
     const s = await setup(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     s.hold.wait = async () => { entered.resolve(); await release.promise; };
     let remove = s.offer([OPEN]), active = true;
@@ -217,7 +219,7 @@ for (const mutation of ["source-stop", "source-revoke", "target-replace", "paren
   });
 }
 
-test("W5-01-DELEGATE-07 S-42 the call log row names the plugin beside the original actor, and the same call made directly names no plugin", async t => {
+test("W5-01-DELEGATE-07 S-41 the call log row names the plugin beside the original actor, and the same call made directly names no plugin", async t => {
   const s = await setup(t); s.offer([OPEN]);
   const original: ActionCallContext = { ...s.caller, actor_id: "runtime:logged", audience: "agent" };
   await s.run({ op: "invoke", reference: ref(OPEN) }, original);

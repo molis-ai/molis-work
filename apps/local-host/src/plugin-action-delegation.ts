@@ -10,7 +10,7 @@ export const ACTIONS_DELEGATE_PERMISSION = "actions:delegate";
 export const declaresActionDelegation = (manifest: PluginManifest): boolean => manifest.permissions.some(item => item.permission === ACTIONS_DELEGATE_PERMISSION);
 
 /**
- * `services.actions.directory` (S-42): the Host's action directory, reached from inside this plugin's own running action as the action's
+ * `services.actions.directory` (S-41): the Host's action directory, reached from inside this plugin's own running action as the action's
  * original caller under the workflow audience, with that caller's permissions as they are (user decision 2026-10-20: not narrowed to the
  * plugin's own grants). The kernel then applies the target's audience, permissions, availability and input schema as it does for a workflow.
  * What this adds on top: the installation's `actions:delegate` grant on every call and again after every await, a caller that is not a plugin
@@ -55,14 +55,14 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       return views;
     },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
-      const ref = checkedReference(reference), original = originOf(), { caller, check, source } = delegate(original, control);
+      // No retained guard on the target: that would also require the target to be open to the original caller's own audience, a narrowing
+      // the user's decision does not make (Workflows calls as workflow without it). The kernel's own dispatch fences the target's effects.
+      const ref = checkedReference(reference), { caller, check } = delegate(originOf(), control);
       await check();
       const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
       await check();
-      const retained = original.retainAuthority!([pinned]);
-      await retained(); source();
       const result = await options.client.invoke(caller, pinned, input);
-      await retained(); await check(); retained.assertCurrent(); source();
+      await check();
       return result as Output;
     },
   };

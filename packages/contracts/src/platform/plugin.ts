@@ -83,7 +83,7 @@ export interface PluginCapabilityClient {
 /**
  * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
  * Both calls run as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
- * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-42).
+ * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-41).
  */
 export interface PluginActionDirectory {
   discover(): Promise<readonly import("./actions.js").ActionView[]>;

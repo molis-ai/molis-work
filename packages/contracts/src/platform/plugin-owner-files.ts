@@ -1,4 +1,7 @@
-/** Private files whose root and top-level entries are fixed by the trusted Home start list. */
+/**
+ * Private files whose root and top-level entries are fixed by the trusted Home start list. 2026-10-18 改: declared in the Manifest
+ * and granted like any plugin's, initial files as declared seeds (PG-102, PG-103 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ */
 export type PluginOwnerFileInfo = { readonly kind: "file"; readonly byte_length: number } | { readonly kind: "directory" };
 export interface PluginOwnerFileEntry { readonly name: string; readonly kind: "file" | "directory" }
 export interface PluginOwnerFilesReader {

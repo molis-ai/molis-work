@@ -45,7 +45,7 @@ test("Jelly receives a handed-over spark as one note, once; it reads back as a J
   const f = await fixture(t);
   // A station is used inside a project, the way placement hands a spark over from where it is.
   const jelly = bindActionClient(f.client, () => ({ actor_id: "owner", project_id: f.project.project_id, audience: "user", permissions: JELLY_ACTION_PERMISSIONS }));
-  const input = { payload: { title: "发布会预热", body: "倒计时海报提前一周放出", source: "灵光 · 发布会预热" }, context: { instance_id: "placement:req-1", step: 0 } };
+  const input = { title: "发布会预热", body: "倒计时海报提前一周放出", source: "灵光 · 发布会预热", request_id: "placement:req-1" };
   const first = await jelly.invoke(jellyContentActions.receive, input);
   const again = await jelly.invoke(jellyContentActions.receive, input);
   assert.equal(first.plugin, "jelly"); assert.equal(again.item_id, first.item_id, "a retried handoff finds the note it made");

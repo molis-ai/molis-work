@@ -9,6 +9,12 @@ const requiredFor = (views: readonly ActionView[]): readonly WorkflowContentRole
 const key = (view: ActionView) => `${view.provider.provider_id}\0${view.action.workflow_content!.id}`;
 const definition = (view: ActionView): ActionDefinition => ({ ...view, provider_id: view.provider.provider_id });
 
+/**
+ * The request id of one handoff: this instance's delivery at this step. A retry after a crash and a second concurrent advance send the
+ * same id, so a receiver makes one object for it. "Instance" and "step" are the workflow's own words; a receiver only sees the id.
+ */
+export const workflowRequestId = (instanceId: string, step: number): string => `workflow:${instanceId}:${step}`;
+
 /** The consumer understands the content protocol, never a provider's plugin ID or implementation. */
 export function createWorkflowContentPorts(actions: BoundActionClient): WorkflowContentPorts {
   // These ports live for one action call (the caller's scoped authority), so the directory is read once per call, like
@@ -92,6 +98,6 @@ export function createWorkflowContentPorts(actions: BoundActionClient): Workflow
     listStartItems: plugin => invoke<readonly WorkflowStartItem[]>(plugin, "list", {}),
     createBlank: (plugin, title, content) => invoke<WorkflowItemRef>(plugin, "create", { title }, content),
     read: (item, content) => invoke<WorkflowPayload>(item.plugin, "read", { item_id: item.item_id }, content),
-    receive: (plugin, payload, context, content) => invoke<WorkflowItemRef>(plugin, "receive", { payload, context }, content),
+    receive: (plugin, payload, requestId, content) => invoke<WorkflowItemRef>(plugin, "receive", { ...payload, request_id: requestId }, content),
   };
 }

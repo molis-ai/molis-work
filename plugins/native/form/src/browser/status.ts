@@ -12,6 +12,9 @@ export const showNote = (page: FormPage, text: string, isError: boolean, scope =
   if (isError && text) note.scrollIntoView({ block: "nearest" });
 };
 
+/** The 「AI 生成题目」 words on the note line: they always show; `""` takes back only a note the draft put there, never a save's or a publication's. */
+export const draftNote = (page: FormPage, text: string, isError: boolean) => (text || page.noteScope === "draft") && showNote(page, text, isError, "draft");
+
 /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
 export const placed = (detail: Record<string, unknown>) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };
 

@@ -39,7 +39,7 @@ export function formDraft({ host, request, L, ask, prompt, button, form, done, n
       else { close(); await done(payload.form); }
     } catch (failure) {
       const errors = (failure as { details?: { errors?: Record<string, string> } }).details?.errors;
-      if (bound && errors) bound.showErrors(errors, { focus: true });
+      if (bound && errors) { bound.showErrors(errors, { focus: true }); note("", false); }
       else note((failure as Error).message, true);
     }
   };

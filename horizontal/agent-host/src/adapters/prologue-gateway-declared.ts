@@ -21,8 +21,8 @@ export const SUGGEST_PARAMETERS = { type: "object", properties: {
 }, required: ["title", "summary", "capability_id", "version", "provider_id", "input"] };
 
 /**
- * How much of what a round found is declared. The tools stay the same few (the Assistant's main round is at the
- * runtime's deferral limit, BL-145), so the found capabilities ride on their `input`: at most this many per tool, a
+ * How much of what a round found is declared. The tools stay the same few (the Assistant's main round is already past
+ * the runtime's deferral limit, BL-145), so the found capabilities ride on their `input`: at most this many per tool, a
  * schema up to this size, and this much for all of them in one request. Past that the oldest found are left out;
  * they are still callable, and find-capabilities still shows their schema.
  */

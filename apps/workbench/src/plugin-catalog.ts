@@ -1,11 +1,11 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
-export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 export interface PluginMarketCard {
   readonly id: ProjectPluginId;
@@ -36,7 +36,7 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
 
 /** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
 export function availableProjectPluginIds(
-  enabled: readonly string[], catalog: readonly BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG,
+  enabled: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
 ): ReadonlySet<string> {
   const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
   const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
@@ -128,7 +128,7 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: (pluginId) => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
   companions: (pluginId) => [
-    ...(PROJECT_PLUGIN_COMPANIONS[pluginId as keyof typeof PROJECT_PLUGIN_COMPANIONS] ?? []),
+    ...(entryFor(pluginId)?.companions ?? []),
     ...requiredCompanions(pluginId),
   ],
   isPersonal: (pluginId) => PERSONAL_PLUGIN_IDS.includes(pluginId),
@@ -142,7 +142,7 @@ export interface RailEntry {
   glyph: string;
 }
 
-function entryFor(projectPluginId: ProjectPluginId): BuiltinPluginEntry | undefined {
+function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {
   return BUILTIN_PLUGIN_CATALOG.find((entry) => entry.project_plugin_id === projectPluginId);
 }
 

@@ -235,7 +235,7 @@ test("touch sizing goes by the input: 44px targets for phones and coarse pointer
   assert.match(css, /@media \(max-width: 374px\) \{ [^\n]*\.workbench-bar \{ column-gap: 0; padding-inline: 0; \} [^\n]*\.bar-center \{ margin-inline: 8px; \} \}/, "below 375px (eight 44px targets and the bar's padding) the bar's gap and side padding give way, so the phone's second row fits 360 and 320px and the Assistant line above it keeps its place");
   assert.match(css, /@media \(pointer: coarse\) and \(max-height: 560px\) and \(min-width: 601px\) \{[^}]*--dock-h: 60px; --composer-h: 50px;/, "a coarse-pointer short window keeps 44px buttons and a full composer");
   assert.doesNotMatch(css, /@media \(max-width: 600px\) \{\s*:is\(body\.immersive-workbench[^{]*\) \{[^}]*--dock-btn: 44px;/, "the phone layout block no longer owns the 44px sizing");
-  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the location chip is 44px where the tabs are");
+  assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{[^}]*\.tab-view-chip \{ height: 44px; \}/, "the cover chip is 44px where the tabs are");
   assert.match(css, /@media \(max-width: 760px\), \(pointer: coarse\) \{\s*body\.immersive-workbench \.tab-view-chip-close \{ width: 44px; height: 44px; \}/, "and so is its close mark");
   assert.match(css, /\.assistant-target-clear \{[^}]*width: 28px; height: 28px;/, "the mark that starts a new work is 28px on a desktop bar, the bar's floor");
   const design = readFileSync(join(process.cwd(), "DESIGN.md"), "utf8");

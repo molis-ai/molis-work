@@ -87,6 +87,8 @@ export interface InteractionQuestionView {
   answered?: { rows: Array<[string, string]>; actions?: InteractionAction[] };
   footer: { note: string; error?: boolean; keys?: string; actions: InteractionAction[] };
   optionalLabel?: string;
+  /** The button that empties an optional single choice; it shows only while one is picked. */
+  clearLabel?: string;
 }
 export interface InteractionOperationView {
   id: string;
@@ -101,6 +103,7 @@ export interface InteractionOperationView {
   /** Values the person may still change before it runs (the card's own client reads them like a questionnaire's). */
   fields?: InteractionField[];
   optionalLabel?: string;
+  clearLabel?: string;
   actions?: InteractionAction[];
   preview?: { title: string; rows: Array<[string, string]>; note?: string; actions?: InteractionAction[] };
   status?: { text: string; tone?: "failed" | "waiting"; busy?: boolean };
@@ -202,13 +205,15 @@ function referenceControl(id: string, c: Extract<InteractionControl, { kind: "re
       "aria-controls": `${id}-results`, autocomplete: "off", placeholder: c.placeholder, "data-ix-ref-query": true, "data-ix-focus": true, "aria-describedby": `${id}-status ${describedBy}` })}></span>
     <ul class="mw-menu mw-ix-ref-results" role="listbox" id="${esc(`${id}-results`)}" hidden></ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false"><span></span><span class="mw-ix-ref__meta"></span></li></template><p class="mw-ix-ref-status" id="${esc(`${id}-status`)}" data-ix-ref-status aria-live="polite"></p></div>`;
 }
-export function renderInteractionField(scope: string, field: InteractionField, optionalLabel = "选填"): string {
-  const group = field.control.kind === "choice";
+/** An optional single choice can be emptied again before it is sent: a radio alone cannot be unpicked. */
+export function renderInteractionField(scope: string, field: InteractionField, optionalLabel = "选填", clearLabel = "清除选择"): string {
+  const c = field.control, group = c.kind === "choice";
   const labelId = fieldId(scope, field.id, "label");
   const label = group ? `<span id="${esc(labelId)}">${esc(field.label)}</span>` : `<label id="${esc(labelId)}" for="${esc(fieldId(scope, field.id))}">${esc(field.label)}</label>`;
   return `<div class="mw-ix-row" data-ix-field="${esc(field.id)}">
     <div class="mw-ix-label">${label}${field.optional ? `<span class="mw-ix-optional">${esc(optionalLabel)}</span>` : ""}${field.refreshed ? `<span class="mw-ix-refreshed" data-ix-refreshed>${esc(field.refreshed)}</span>` : ""}</div>
-    <div class="mw-ix-control">${control(scope, field)}${field.notice ? `<div class="mw-ix-notice" data-ix-notice><p data-ix-notice-text>${esc(field.notice.text)}</p>${actionRow(field.notice.actions, "")}</div>` : ""}
+    <div class="mw-ix-control">${control(scope, field)}${group && field.optional && !c.multiple
+      ? renderButton({ label: clearLabel, variant: "ghost", attrs: { "data-ix-clear": true, "aria-describedby": labelId } }) : ""}${field.notice ? `<div class="mw-ix-notice" data-ix-notice><p data-ix-notice-text>${esc(field.notice.text)}</p>${actionRow(field.notice.actions, "")}</div>` : ""}
       ${field.hint ? `<p class="mw-ix-hint" id="${esc(fieldId(scope, field.id, "hint"))}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${esc(fieldId(scope, field.id, "error"))}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
   </div>`;
 }
@@ -224,7 +229,7 @@ export function renderInteractionQuestion(view: InteractionQuestionView): string
   const scope = view.id;
   const banner = view.banner ? `<div class="mw-ix-banner" data-ix-banner data-tone="${view.banner.tone}"><p data-ix-banner-text>${esc(view.banner.text)}</p>${actionRow(view.banner.actions, "")}</div>` : "";
   const form = `<form class="mw-ix-form" novalidate data-ix-form${view.answered ? " hidden" : ""}>${view.intro ? `<p class="mw-ix-intro">${esc(view.intro)}</p>` : ""}
-    <fieldset class="mw-ix-fields" data-ix-fields><legend class="mw-sr-only">${esc(view.title)}</legend>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</fieldset>
+    <fieldset class="mw-ix-fields" data-ix-fields><legend class="mw-sr-only">${esc(view.title)}</legend>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel, view.clearLabel)).join("")}</fieldset>
     <footer class="mw-ix-foot"><p class="mw-ix-note" data-ix-note role="status"${view.footer.error ? ' data-tone="error"' : ""}>${esc(view.footer.note)}</p>${view.footer.keys ? `<kbd class="mw-ix-keys">${esc(view.footer.keys)}</kbd>` : ""}${actionRow(view.footer.actions, "")}</footer></form>`;
   const answered = view.answered ? `<div class="mw-ix-answered" data-ix-answered><dl data-ix-summary>${rows(view.answered.rows)}</dl>${actionRow(view.answered.actions, "")}</div>` : "";
   return `<article class="mw-ix-card mw-ix-question" data-ix-question="${esc(scope)}" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "question", view.collapse ? renderInteractionAction({ variant: "ghost", iconOnly: true, icon: "chevron-up", ...view.collapse }) : "")}${view.target ? targetLine(view.target) : ""}${banner}${form}${answered}${evidenceBlock(view.evidence)}</article>`;
@@ -239,7 +244,7 @@ export function renderInteractionOperation(view: InteractionOperationView): stri
   const result = view.result ? `<section class="mw-ix-result" data-ix-result tabindex="-1" aria-labelledby="${esc(`${scope}-result`)}"><span class="mw-ix-result__mark">${renderStateRing({ state: "done" })}</span><div class="mw-ix-result__body"><h4 id="${esc(`${scope}-result`)}">${esc(view.result.title)}</h4><p>${esc(view.result.body)}</p>${
     actionRow(view.result.actions, "")}${view.result.details ? `<div class="mw-ix-result__details" data-ix-result-details><h5>${esc(view.result.details.title)}</h5><p data-ix-result-text>${esc(view.result.details.body)}</p></div>` : ""}</div></section>` : "";
   return `<article class="mw-ix-card mw-ix-operation" data-ix-operation="${esc(scope)}" tabindex="-1" aria-labelledby="${esc(`${scope}-title`)}">${heading(scope, view, "zap")}${target}${
-    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
+    view.impact ? `<p class="mw-ix-impact">${icon("info")}<span>${esc(view.impact)}</span></p>` : ""}${view.fields?.length ? `<div class="mw-ix-fields" data-ix-fields>${view.fields.map(field => renderInteractionField(scope, field, view.optionalLabel, view.clearLabel)).join("")}</div>` : ""}${actionRow(view.actions, "data-ix-actions")}${preview}${status}${actionRow(view.recovery, "data-ix-recovery")}${result}${evidenceBlock(view.evidence)}</article>`;
 }
 /** Next steps beside a composer: at most one primary and one secondary; a busy step shows its progress. */
 export function renderInteractionNextSteps(steps: InteractionNextStep[], label = "下一步", options?: InteractionNextStepsOptions): string {

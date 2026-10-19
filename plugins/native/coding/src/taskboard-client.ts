@@ -16,7 +16,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const {board,current,navigate,status,ownTask,amend,roleName,from}=ports;
   const outline=ports.outline||null,progress=ports.progress||(()=>{}),onShow=ports.onShow||(()=>true);
   const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
-  let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set();
+  let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set(),empty='这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。';
   // The outline's rows are redrawn whole; one listener on the list finds a row's target by its key.
   const outlineTargets=new Map();
   if(outline)lifetime.listen(outline,'click',event=>{const row=event.target.closest('.coding-outline-row'),target=row&&outlineTargets.get(row.dataset.boardKey);if(target)void navigate(owner,target).catch(error=>status(error.message,true));});
@@ -238,7 +238,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const next=fingerprint();if(next===outlineKey)return;outlineKey=next;
     const groups=tree(),line=summary();
     brief.textContent=line.text;brief.hidden=!line.text;if(expand)expand.disabled=false;
-    note.textContent=loadError||data.error||(groups.length?'点一行查看详情；「展开任务图」可以调整步骤。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    note.textContent=loadError||data.error||(groups.length?'点一行查看详情；「展开任务图」可以调整步骤。':empty);
     rows.replaceChildren();outlineTargets.clear();
     for(const group of groups){
       const heading=el('h2','mw-dir__heading',group.label+' ');heading.append(el('small','',group.count||String(group.items.length)));rows.append(heading);
@@ -254,7 +254,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const scroll=board.scrollTop,groups=tree();
     title.textContent='TaskBoard';
     meta.textContent=summary().text;
-    notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':empty);
     list.replaceChildren();
     for(const group of groups){
       const fold=el('details','coding-board-fold');fold.open=!collapsed.has('group:'+group.id);fold.dataset.boardGroup=group.id;

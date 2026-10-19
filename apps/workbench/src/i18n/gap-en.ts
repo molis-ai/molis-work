@@ -33,7 +33,6 @@ export const GAP_EN: Record<string, string> = {
   "下午好": "Good afternoon",
   "晚上好": "Good evening",
   "夜深了": "Working late",
-  "返回插件首页": "Back to the plugin page",
   "创作": "Create",
   "拓展": "Extend",
   "全部插件": "All plugins",

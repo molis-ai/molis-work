@@ -12,7 +12,8 @@ const until = async <T>(read: () => T | Promise<T>, what: string): Promise<NonNu
 
 // Stopping a round ends it. Nothing more is put in front of the person to approve: an operation already waiting on
 // review is withdrawn, and one the model asks for after the stop is never shown. Neither runs.
-test('packed SDK: stop withdraws waiting reviews and never surfaces one asked for after the stop', {timeout:30_000}, async t=>{
+// specs/ai-interaction-experience AC-11 (the approval semantics under the package in use).
+test('AC-11: packed SDK: stop withdraws waiting reviews and never surfaces one asked for after the stop', {timeout:30_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-stop-review-')), project=join(root,'project');await mkdir(project);await writeFile(join(project,'a.ts'),'original\n');
   let requests=0, hold: Promise<void> | null=null, command=false;
   // Each round reads a.ts, then asks to write it.

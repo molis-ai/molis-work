@@ -26,6 +26,7 @@ const card = renderInteractionQuestion({
     { id: "when", label: "开始", control: { kind: "datetime", date: "2026-10-16", time: "10:00", zone: "UTC−07:00", calendar } },
     { id: "refs", label: "材料", control: { kind: "reference", source: "goal,page", multiple: true, max: 2, picked: [],
       labels: { remove: "去掉", empty: "没有找到", failed: "搜不了", full: "够了", found: "{n} 个" } } },
+    { id: "tone", label: "语气", optional: true, control: { kind: "choice", options: [{ value: "warm", label: "温和" }, { value: "plain", label: "直接" }] } },
   ],
 });
 const page = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>:root{${renderShellTokens("light")}${renderShapeTokens()}${renderControlMetrics()}}${TYPEFACE_STYLES}${PRIMITIVE_STYLES}${INTERACTION_STYLES}body{margin:0;padding:24px;background:var(--paper);color:var(--ink);font-family:var(--font)}.icon-sprite{position:absolute;width:0;height:0}svg{width:14px;height:14px;fill:none;stroke:currentColor}</style></head>
@@ -230,6 +231,23 @@ test("AC-18 / the shared interaction client works on the design system's markup 
     assert.deepEqual(await evaluate(browser, `[...document.querySelectorAll('${list} [role=option]')].map(o => o.dataset.ixRefOption)`), ["goal g"]);
     await key(browser, "Escape");
     await evaluate(browser, `window.client.write({ refs: [] })`);
+  });
+  await t.test("AC-10-9: an optional single pick can be emptied again before it is sent; a required one can only change", async () => {
+    const shown = (field: string) => evaluate<boolean>(browser, `getComputedStyle(document.querySelector('[data-ix-field=${field}] [data-ix-clear]')).display !== 'none'`);
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=format] [data-ix-clear]')`), null, "a required single pick has nothing to empty it with");
+    assert.equal(await evaluate(browser, `document.querySelector('[data-ix-field=topics] [data-ix-clear]')`), null, "several picks are each toggled off on their own");
+    assert.deepEqual(await value("tone"), []);
+    assert.equal(await shown("tone"), false, "with nothing picked there is nothing to clear");
+    await browser.click('[data-ix-field="tone"] [data-ix-option="warm"]');
+    assert.deepEqual(await value("tone"), ["warm"]);
+    assert.equal(await shown("tone"), true);
+    await clear(browser);
+    await browser.click('[data-ix-field="tone"] [data-ix-clear]');
+    assert.deepEqual(await value("tone"), [], "the draft empties with the pick");
+    assert.deepEqual(await log(browser), [["change", { field: "tone", value: [] }]], "the host hears one change, so the saved draft follows");
+    assert.equal(await shown("tone"), false);
+    assert.deepEqual(await evaluate(browser, `(e=>[e.getAttribute('role'), e.closest('[data-ix-field]').dataset.ixField, e.tabIndex])(document.activeElement)`), ["radio", "tone", 0],
+      "focus returns to the group's one tab stop, not to the page");
   });
   await t.test("destroy() removes every listener", async () => {
     await clear(browser);

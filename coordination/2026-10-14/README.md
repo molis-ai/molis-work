@@ -1650,3 +1650,25 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - Codex 验收计数：编号 8 条，已修 1 条（QA-001）。
   - **#804：** ⑤ 按 D25 把用户决定写进 quick-create §11.9 第 3 条、anti-corruption §1 那一行和 PR 正文，附了原话（7b20d36d0）。MCP 改名和已存流程两问的原答也补上了。① 已核对。仍不合，等 ⑧ 的维护计划和演练。
   - **④：** A2-2 的相关用例跑到 26/84，全过；跑完后开 PR 交 ⑤。
+- 13:08 UTC：
+  - **D25 维护计划已审**，审查意见写在 `coord-shared/review/d25-plan-review-1019.md`。结论：方向对，按 R1～R6 改。⑧ 的会话不能写 `coord-shared/`，所以计划放在共享笔记目录 `d25-receive-v2-maintenance-plan.md`。
+    - **R1：** 角色发布版不由脚本代 Characters 去写。产品的 `publish` 会按 agent-host 的实时目录，逐个核对全部 `action_tools` 的受众和可用性，离线做不到；而且由脚本直接写，等于在插件之外再开一条发布路。所以分两段：
+      - A 段：授权、草稿、Functions 映射，Host 停着做，可以整库回滚；
+      - B 段：4207 在新 main 上起来之后，以本人身份调产品自己的 `characters.publish`。
+    - **R2：** 换入 SQLite 文件前先做 `wal_checkpoint(TRUNCATE)`。库文件和 `-wal`、`-shm` 当成一组换入、一组回滚，否则 SQLite 会把旧的 WAL 回放到新库上。
+    - **R3（裁计划第 9 节第 1 点，按用户「不想手动改」）：** 纳入两处。跑真实 Home 之前，先给用户看计数，由用户确认。
+      - Functions 推荐能力映射；
+      - Coding 会话存的 `actions:<session>` 和 `character:<session>`（固定版本）。
+      - 另外，凡是存了角色固定版本或准确动作引用的地方，用代码搜索全部列出。
+    - **R4：** 脚本显式接新旧两份构建，v1 的声明从旧构建读。
+    - **R5：** 真实 Home 上跑的必须是演练过的那份构建。
+    - **R6：** 构建经 heavy.sh 跑；不开浏览器，不调模型。
+    - A 段现在可以开写。R1、R3、R4 的补充写好后回给 ①，看过再动 B 段，然后做整套演练。
+  - **prologue#55 已合入 Prologue main 26a86ff3b**（⑤，D22 补 K1～K5）。① 合入后复查，结论是可以，没有后续要做的：
+    - K2：`ORIGIN_STAMP_CHARS` 是 256。超长的编号，引擎不盖；App 给的，当场拒绝，零写入。BL162-07、16、17 覆盖了这两种情况，也覆盖了正好等于上限的情况。BL162-18 钉住绑定上限 200 不超过 256。
+    - K5：`runningStepOf` 只把 `TASKBOARD_NOT_FOUND` 当作「板不在」，`heldOf` 抛的就是这个码。别的错误照常抛出，BL162-47 覆盖。
+    - K4：`origin-mirror.typecheck.ts` 在 `tsconfig.typecheck.json`（`packages/**/*.ts`）的范围里。PR 里有四条变异，都能让它变红。
+    - Prologue 仓库没有 CI。PR 里写了在本机跑的 `tsc` 和 251 条 vitest，都过了。
+    - 这一版随 ④ 的下一次换包进 molis-work。
+  - **⑦ 开了 #809**：只改文档，修 QA-007、QA-008，另外改正 T0 权限表里引的四处出处。⑤ 在审。
+  - **④：** A2-2 的健康门禁在 slot-1 排队，另外三项检查已在 slot-2 跑起来。

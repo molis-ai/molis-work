@@ -11,7 +11,8 @@ import { CodingSessionStore, CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, c
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
-test("formal report routes freeze real Artifact versions, distinguish missing/failed evidence, and reopen without a runtime", async () => {
+// specs/ai-interaction-experience AC-09 (Coding's report): the report opens from its fixed versions, with or without a runtime.
+test("AC-09: formal report routes freeze real Artifact versions, distinguish missing/failed evidence, and reopen without a runtime", async () => {
   const dir = mkdtempSync(join(tmpdir(), "coding-report-"));
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   let store = new LocalProjectDatabase(dbPath);

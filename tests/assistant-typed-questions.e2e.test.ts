@@ -65,7 +65,8 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
 
 // specs/ai-interaction-experience T1 (AC-27-5, AC-27-6): the Assistant's card takes words, a number, a date and a date and time; a value past its
 // limit is refused by the real Runtime beside its own field with the limit named, and the corrected answer continues the same work.
-test("AC-27-5: the Assistant answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
+// AC-11 (the package in use, end to end): the vendored Prologue package's real Runtime, through the Host, to the page and back.
+test("AC-11 AC-27-5: the Assistant answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
   const page = await assistantAsking(t, ASKED, "复盘会安排好了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, requests } = page;
   const card = "[data-ix-question]";

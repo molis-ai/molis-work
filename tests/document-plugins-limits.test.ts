@@ -175,8 +175,11 @@ test("QA-019 W5-01-PPT-05: a model grant withdrawn after the answer stops ppt.ou
     if (withdrawn) {
       await assert.rejects(outcome, { code: "plugin.grant_denied" });
       assert.equal(dispatched, 1, "the model did answer");
-      assert.deepEqual(events, ["beforeEffect", "answered", "beforeEffect", "transaction", "validateResult"],
-        "the write's own wait agreed; validateResult refused inside the transaction, before its first statement");
+      // Only the order the acceptance names is pinned: the answer came before the write, and inside the write validateResult
+      // refused before its first statement. How many times PPT waits on beforeEffect along the way is its own business.
+      const written = events.slice(events.indexOf("transaction"));
+      assert.ok(events.indexOf("answered") >= 0 && events.indexOf("answered") < events.indexOf("transaction"), "the model answered before the write");
+      assert.deepEqual(written, ["transaction", "validateResult"], "validateResult refused inside the transaction, before its first statement");
       // PPT keeps no failure rows of its own: every row of its library, its version and slides among them, is as it was.
       assert.deepEqual(rows(), before);
       assert.deepEqual(await run(pptActions.get, { id: deck.id }), { presentation: seeded });

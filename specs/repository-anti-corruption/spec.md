@@ -277,10 +277,11 @@ ALC-RES 复查修正（2026-10-19，③，§10.29 #747 的 P2 与统筹裁定 9�
   - 冲突（`conflict`）：`job_lease_active`、`job_not_resumable`、`resume_context_changed`、`research_budget_exhausted`
   - 无效（`invalid`）：`job_kind_unsupported`
   - 不可用（`unavailable`）：`background_authority_required`
-  - 找不到（`not_found`）：`job_not_found`，对外仍是 `alchemist.run_not_found`
+  - 找不到（`not_found`）：`job_not_found`，对外仍换成 `alchemist.run_not_found`。插件路由回 404；经动作网关或 MCP 时这个错误不带类别，读成 `invalid`（原来就如此）
 - 预算耗尽原先由校验器抛普通 `Error`，现在校验器只报告，由继续服务按声明的码拒绝。
 - 探索停在 `generating` 检查点时，模型结果未知，可能已经收费。恢复视图对它也给 `unknownCall`。探索的确认串包含这一状态，所以在它之前给出的确认会被拒绝（`resume_context_changed`）。界面上「可能重复收费」对两类任务都显示，「计入原预算」只在有预算（Lens）时显示。
 - 验收 `W5-01-ALC-RES09`：探索在 `generating` 处恢复，视图给出未知调用，旧确认被拒且不派出调用，新确认继续时再调一次模型。
+- 待补浏览器验证（用户 10-19 暂停）：探索在 `generating` 处继续的对话框显示「可能重复收费」、不显示「计入原预算」，三种宽度加暗色，验收号 `W5-01-ALC-RES09`。
 - 验收 `W5-01-ALC-RES10`：每种拒绝的码与类别都核对过，包括没有后台授权的入口与找不到的任务。
 - 不在这里做的：裁定 10（把按任务类别另要的权限写进声明）和 `runs.list` 的分页，都是 P3，另开一片。
 

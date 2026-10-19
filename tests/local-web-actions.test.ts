@@ -285,3 +285,20 @@ test("S-15 with cognia:read revoked from its installation, Cognia's read route i
   const refused = await request(library);
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
 });
+
+// §10.29's reproduction for #744: Images is a Home plugin whose Manifest says `kind: "native"`. With `images:read` revoked, its jobs
+// route is refused by the route's own gate (`actions.forbidden`), not first let through on the person's permissions and then refused
+// by the provider (`actions.plugin_permission`); the read it still holds keeps working.
+test("S-15 with images:read revoked from its installation, the Images jobs route is refused at the route layer", { timeout: 90_000 }, async t => {
+  const { host, request, project } = await serveHomeRuntime(t);
+  const plugin = "io.molis.work.images", { project_id } = await project("撤掉图片读取授权");
+  const jobs = `/projects/${project_id}/api/plugins/${plugin}/jobs`;
+  assert.deepEqual(await (await request(jobs)).json(), { jobs: [] });
+  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(plugin)!;
+  await platform.runtime.stop(install.install_id);
+  platform.runtime.grant(install.install_id, install.grants.filter(permission => permission !== "images:read"));
+  assert.equal((await platform.supervisor.restart(plugin)).status, "running");
+  const refused = await request(jobs);
+  assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
+  assert.equal((await request(`/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
+});

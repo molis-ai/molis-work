@@ -1,5 +1,3 @@
-import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -358,13 +356,4 @@ export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): st
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
-}
-
-
-export function renderImagesContribution(model: ImagesUiModel): string {
-  return workbenchUiHost.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: IMAGES_UI_CONTRIBUTION_ID, surface: "workbench", model } }).html;
-}
-
-export function renderJellyContribution(surface: JellyUiSurface, model: JellyUiModel): string {
-  return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: JELLY_UI_CONTRIBUTION_ID, surface, model } }).html;
 }

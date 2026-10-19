@@ -126,12 +126,6 @@
       ],
       "reason": "Contextual ranking's Host side (service, judgment, HTTP edge); its codes already start with contextual."
     },
-    "dataset": {
-      "paths": [
-        "apps/local-host/src/dataset-*"
-      ],
-      "reason": "The Dataset plugin and the Host files that serve it; its codes already start with dataset."
-    },
     "feed": {
       "paths": [
         "modules/feed/",
@@ -178,12 +172,6 @@
       ],
       "reason": "The IM server package and its identity and continuity services (ImError): its im, identity, continuity and server prefixes become im.* (spec W3-02 R6; stored codes wait for the maintenance)."
     },
-    "images": {
-      "paths": [
-        "apps/local-host/src/images-*"
-      ],
-      "reason": "The Images plugin and the Host files that serve it; its codes already start with images."
-    },
     "inbox": {
       "paths": [
         "apps/local-host/src/inbox-*",
@@ -196,12 +184,6 @@
         "apps/local-host/src/installer/"
       ],
       "reason": "The installer, uninstaller, web service and Runtime integration code: one area whose single-use prefixes (source, home, release, runtime, uninstall, service) become installer.* (spec W3-02 R5)."
-    },
-    "jelly": {
-      "paths": [
-        "apps/local-host/src/jelly-*"
-      ],
-      "reason": "The Jelly plugin and the Host files that read its sources and material; its codes already start with jelly."
     },
     "kernel": {
       "paths": [
@@ -276,12 +258,6 @@
         "apps/local-host/src/plugin-builder-surface.ts"
       ],
       "reason": "The plugin builder (Studio) plugin and its Host side."
-    },
-    "ppt": {
-      "paths": [
-        "apps/local-host/src/ppt-*"
-      ],
-      "reason": "The PPT plugin and the Host files that serve it; its codes already start with ppt."
     },
     "runtime_host": {
       "paths": [

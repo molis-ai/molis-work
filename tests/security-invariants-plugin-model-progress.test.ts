@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import type { PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostCompleteText, HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -33,7 +34,14 @@ for (const outcome of ["answer", "failure"] as const) {
       assert.throws(() => progress!({ type: "text-delta", text: "late" }), { code: "actions.expired" });
       assert.deepEqual(chunks, ["第一句，", "第二句。"]);
       assert.equal(result, outcome === "answer" ? "第一句，第二句。" : undefined);
-      assert.equal(refusal, outcome === "failure" ? failure : undefined);
+      // W5-01-SHM-01: non-ActionError failures now have a safe owner code and no invented execution facts.
+      if (outcome === "failure") {
+        assert.ok(refusal instanceof ActionError);
+        assert.equal(refusal.code, "plugin.model_failed");
+        assert.equal(refusal.message, "模型请求失败，请重试");
+        assert.equal((refusal as PluginModelFailure).execution, undefined);
+        assert.equal(typeof (refusal as PluginModelFailure).validateResult, "function");
+      } else assert.equal(refusal, undefined);
     } finally { release.resolve(); }
     assert.equal(await pending, "action finished");
   });
@@ -67,6 +75,9 @@ for (const invalidation of ["action-cancel", "request-cancel", "disable", "insta
     try {
       await Promise.race([entered.promise, pending]);
       assert.deepEqual(chunks, ["before"]);
+      // W5-01-SHM-02: a provider callback outside the action's ALS still uses the original live authority.
+      progress!({ type: "text-delta", text: "still-authorized" });
+      assert.deepEqual(chunks, ["before", "still-authorized"]);
       if (invalidation === "action-cancel") actionAbort.abort();
       else if (invalidation === "request-cancel") requestAbort.abort();
       else if (invalidation === "caller-revoke") allowed = false;
@@ -75,7 +86,7 @@ for (const invalidation of ["action-cancel", "request-cancel", "disable", "insta
       else if (invalidation === "disable") assert.equal((await request(`/api/plugins/${probe.id}/disable`, { method: "POST", body: {} })).status, 200);
       else { await platform.runtime.stop(install.install_id); platform.runtime.grant(install.install_id, ["storage:private"]); }
       assert.throws(() => progress!({ type: "text-delta", text: "after" }));
-      assert.deepEqual(chunks, ["before"], "no text is delivered after authority ends, even if the model ignores cancellation");
+      assert.deepEqual(chunks, ["before", "still-authorized"], "no text is delivered after authority ends, even if the model ignores cancellation");
     } finally { release.resolve(); }
     await over.promise; await refused; await stopping;
     assert.equal(handed, false);

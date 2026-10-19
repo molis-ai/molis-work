@@ -52,7 +52,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ### 现在怎么工作
 
-中文原文是键：`L("设置")`、`p.text("加入 Inbox")`、浏览器脚本里的 `L('设置')`。英文写在各主人的词典里（`export const X_EN: Record<string, string>`，如 `plugins/native/images/src/en.ts`、`src/i18n/*.ts`）；[`src/i18n/en.ts`](src/i18n/en.ts) 把它们按顺序并成一张 `EN`，后写的覆盖先写的；服务端 `L()` 与浏览器端 `globalThis.L` 都只查这一张（[`src/i18n.ts`](src/i18n.ts)）。
+翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，经 `BUILTIN_PLUGIN_CATALOG` 条目的 `messages` 登记；[`src/i18n.ts`](src/i18n.ts) 按当前请求语言查找，浏览器收到当前页面语言的同一份词条。中文键的英文仍写在各主人的 `X_EN` 词典中，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`，后写的覆盖先写的；中文页直接显示中文原文。两种调用均在查词后替换参数。
 
 检查是 [`scripts/gates/translations.mjs`](../../scripts/gates/translations.mjs)，接在 `pnpm health:check` 里，CI 的「Health gates」步骤用 `--base` 跑它。它扫整个源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试和构建产物），不用文件名单：
 
@@ -95,23 +95,13 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 5. 跑 `node scripts/check-health-gates.mjs`（缺英文为零，没有新冲突），再跑 `node scripts/run-tests.mjs tests/i18n.test.ts tests/translation-check.test.ts` 和该插件自己的用例。冲突或无用键少了，在同一个 PR 里 `node scripts/check-health-gates.mjs --update --base origin/main`。
 6. 一个插件里一部分文件用稳定键、一部分仍用中文键是允许的；检查两种都认。
 
-**还没有的**，第一个样板要一起做：运行时。`L()` 现在只查 `EN[中文]`，遇到稳定键会原样返回键；样板要让 `L()` 按当前语言查主人们的 messages 表，让浏览器端的 `clientI18nScript()`（今天中文页送 `{}`、英文页送整张 `EN`）也送稳定键表，并决定 messages 表怎么登记。登记不能再往 `i18n/en.ts` 加 `import`（它现在从 17 个插件包 import 词典，正是路线图第 5 波要拆的热点），应该走插件目录条目（`builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`）或 Plugin Runtime。运行时落地后，再给检查加一条：每个 messages 表都被目录引用。
+**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在已有 `BUILTIN_PLUGIN_CATALOG` 条目写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录数组条目的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
 
 ### 第一个样板：Images（`plugins/native/images`）
 
-在 `node scripts/gates/translations.mjs --owners` 里（2026-10-08）选纠缠最少、又把两条路径都走到的插件：
+Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处浏览器调用，共 85 个稳定键，词典在 `plugins/native/images/src/messages.ts`。中文沿用原文；英文沿用迁移前实际 `EN` 结果，例如 `生成结果` 实际显示 `Results`。仍由其他主人或目录元数据使用的 16 个中文词条留在 Images 的 `en.ts`，其余旧条目已删除；这份小词典仍并入 `EN`，直到剩余消费者也迁移。
 
-| | Images | 为什么看这一列 |
-| --- | --- | --- |
-| 有翻译调用的文件 | 2 个：`ui.ts`（服务端 `p.text`，46 处）、`client.ts`（浏览器脚本里的 `L('…')`，60 处） | 服务端渲染和送到浏览器的目录两头都有，运行时两条路一次验完 |
-| 动态调用 | 0 | 没有要先改成常量的键 |
-| 自己词典里别的主人也用的键 | 11 / 89，多是「关闭」「正在保存…」这类通用词 | 这些旧条目要留到那些主人迁完；同列的 schedule 23、ppt 33、form 37、dataset 39、todo 64 |
-| 借用别的主人词典里的键 | 3 | 迁的时候要给它们建自己的键 |
-| 冲突键 | 2：`图片`（Workbench 译 Image，这里译 Images）、`生成结果`（这里是 Generation result，Shelf 译 Results） | 刚好能演示冲突怎么消：每个意思一个键；同列的 schedule 8、ppt 14、dataset 17 |
-| 无用键 | 6，都是文案改过后留下的旧条目 | 迁的时候顺手删 |
-| 其他 | `src/*.ts` 共 1,441 行（main 上 1,430，本次补英文加了 11）；main 上次改界面是 2026-10-02；在途的 `fix/project-deletion-owners` 动 `store.ts`、`service.ts`、`index.ts` 和 README（删项目时清数据），不碰 `ui.ts`、`client.ts`、`en.ts`；有 `tests/images-plugin.test.ts`、`tests/images-plugin.e2e.test.ts` | 改动小、有现成回归 |
-
-没选的：Feed（一个文件 372 处调用，但 205 个键借自 Workbench 的词典）、Todo（328 处、64 个键别人也用）、Goals（39 个文件、1,069 处调用、444 个键借自别人的词典，另有 215 个无用键）、Workbench 自己（78 个文件，`common.*` 在这里定义，放最后）。样板之后按同一张表挑下一个：schedule、lingguang、ppt。
+`tests/i18n.test.ts` 检查真实 Host 与浏览器脚本收到所有词条、异步请求语言隔离、参数替换及实际 UI 渲染；`tests/images-actions.e2e.test.ts` 在中英两种语言、1440/390 像素下验证空态、服务管理、撤权与生成结果，受控 provider 的调用次数和图片字节照旧。整体 W5-03 的其他主人仍待迁移。
 
 ## 开发要求
 

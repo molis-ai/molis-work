@@ -50,13 +50,11 @@ import {
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
-  renderImagesContribution,
   renderPagesContribution,
   renderFormContribution,
   renderDatasetContribution,
   renderPptContribution,
   renderLingguangContribution,
-  renderJellyContribution,
   renderAlchemistContribution,
   renderWorkflowsContribution,
   renderWorkbenchDocument,
@@ -99,18 +97,10 @@ function renderDatasetNativePluginSurface(surface: "directory" | "workbench"): s
   });
 }
 
-function renderImagesNativePluginSurface(): string {
-  return renderImagesContribution({ primitives: { escape: escapeHtml, text: L } });
-}
-
 function renderPptNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPptContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
-}
-
-function renderJellyNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderJellyContribution(surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -366,7 +356,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderJellyNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

@@ -76,9 +76,9 @@ const pulseSource = object({ sourceId, label: text, enabled: z.boolean(), homepa
 const pulseRun = object({ id, workspaceId: id, status: runStatusSchema, stage: lensRunSchema.shape.stage, sourceIds: z.array(sourceId), runtimeLabel: text, jobId: id,
   errorCode: text.optional(), createdAt: text, updatedAt: text });
 const pulseFinding = object({ id, title: text, fact: text, whyItMatters: text, demandInference: text, counterSignals: strings, unknowns: strings, sourceSignalIds: strings });
-const pulseReport = object({ id, runId: id, revision: version, status: z.enum(["completed", "partial"]), title: text, summary: text, periodStart: text, periodEnd: text, runtimeLabel: text,
+export const pulseReport = object({ id, runId: id, revision: version, status: z.enum(["completed", "partial"]), title: text, summary: text, periodStart: text, periodEnd: text, runtimeLabel: text,
   successfulSourceIds: z.array(sourceId), failedSourceIds: z.array(sourceId), coverageGaps: strings, findings: z.array(pulseFinding), createdAt: text });
-const opportunity = object({ id, reportId: id, title: text, highlight: text, rationale: text, demandInference: text, counterSignals: strings, unknowns: strings, sourceSignalIds: strings,
+export const opportunity = object({ id, reportId: id, title: text, highlight: text, rationale: text, demandInference: text, counterSignals: strings, unknowns: strings, sourceSignalIds: strings,
   status: z.enum(["new", "saved_for_later", "converted_to_direction", "dismissed"]), savedAt: text.optional(), dismissedAt: text.optional(), convertedAt: text.optional(), convertedDirectionId: id.optional(), createdAt: text });
 const supplySignal = object({ id, sourceId, title: text, url: text, summary: text, observedAt: text, publishedAt: text.optional(), categories: strings,
   nativeMetrics: z.array(object({ name: text, label: text, value: z.number(), unit: z.enum(["count", "percent", "visits", "score"]), observedAt: text, definition: text })), supports: strings, cannotProve: strings });
@@ -191,7 +191,7 @@ export const alchemistOperations = {
   directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
-    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, undefined, followedJob("jobId")),
+    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent", followedJob("jobId")),
   explorationGet: operation("explorations.get", "读取炼化", "读取真实运行状态、候选卡与来源方向", "query", identity, object({ direction: directionSchema, exploration: explorationSchema })),
   cardGet: operation("cards.get", "读取候选卡", "读取卡片正文；已保留的卡片返回对应 Idea 和版本", "query", identity,
     z.discriminatedUnion("kind", [object({ kind: z.literal("candidate"), model: candidateModel }), object({ kind: z.literal("idea_redirect"), ideaId: id, version })])),
@@ -205,8 +205,19 @@ export const alchemistOperations = {
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
     researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
-    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, undefined, followedJob("run.jobId")),
+    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent", followedJob("run.jobId")),
   runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),
+  runList: operation("runs.list", "读取待继续任务", "读取原任务及其对象位置和当前实例的受理状态，不启动工作", "query", empty,
+    object({ jobs: z.array(object({ jobId: id, kind: text, status: text, accepted: z.boolean(), directionId: text.optional(), ideaId: text.optional(),
+      errorCode: text.optional() })) })),
+  runResume: operation("runs.resume", "查看任务继续条件", "只读查看原任务、租约与本次模型及偏好；不会派出调用", "query", identity,
+    object({ jobId: id, kind: text, status: text, canContinue: z.boolean(), reason: text.optional(), leaseExpiresAt: text.optional(),
+      modelId: text.optional(), tasteTitles: strings.optional(), confirmation: text.optional(),
+      budget: object({ limit: z.number().int().positive(), reserved: z.number().int().nonnegative(), remaining: z.number().int().nonnegative() }).optional(),
+      unknownCall: object({ operation: z.enum(["collecting", "cross_checking", "cross_checking_format_correction", "synthesizing"]) }).optional() })),
+  runContinue: operation("runs.continue", "继续原任务", "沿原输入与预算继续指定 job；确认当前模型与偏好，不重复已完成阶段", "command",
+    object({ id, confirmation: z.string().max(16000).optional() }), object({ jobId: id, accepted: z.boolean() }),
+    [], { cost: "metered" }, "concurrent", followedJob("jobId")),
   runEvents: operation("runs.events", "读取任务事件", "按 jobId（不是研究 run.id）读取 after 游标后的事件；重复查询不会取消任务", "query",
     object({ id, after: z.number().int().nonnegative().optional() }), object({ jobId: id, status: runStatusSchema, cursor: z.number().int().nonnegative(),
       events: z.array(object({ jobId: id, sequence: z.number().int().positive(), type: text, payload: z.unknown(), createdAt: text })) })),

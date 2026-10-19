@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { afterEach, describe, expect, it } from "vitest";
@@ -42,6 +43,7 @@ describe("Market Pulse worker", () => {
     ]);
     const run = fixture.start();
 
+    acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
     expect(fixture.pulse.getRun(run.id)).toMatchObject({ status: "partial", stage: "synthesizing" });

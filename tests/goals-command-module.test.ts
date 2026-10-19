@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import * as goalsPackage from "@molis-ai/molis-work-module-goals";
 import {
   GoalsModule,
 } from "@molis-ai/molis-work-module-goals";
@@ -42,6 +43,9 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
       idempotency_key: "initialize",
     });
     const goals = new GoalsModule(store.db, {});
+    // W5-08-MOD-03/04: only public business services are available and own the writes below.
+    assert.equal("GoalsRepository" in goalsPackage, false);
+    assert.equal("repository" in goals, false);
 
     const parent = goals.commands.createGoal("board-module", acceptedGoal("goal-parent", "父 Goal", "父结果"), {
       actor_id: "user-1",

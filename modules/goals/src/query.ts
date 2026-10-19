@@ -26,10 +26,13 @@ export class GoalsQueryService implements GoalsQueryApi {
   private readonly guidance: GuidanceCommands;
   private readonly facts: GoalQueryFactsRepository;
 
+  readonly #repository: GoalsRepository;
+
   constructor(
-    readonly repository: GoalsRepository,
+    repository: GoalsRepository,
     options: GoalsCommandContextOptions = {},
   ) {
+    this.#repository = repository;
     this.context = new GoalsCommandContext(repository, options);
     this.guidance = new GuidanceCommands(this.context);
     this.facts = new GoalQueryFactsRepository(repository.db);
@@ -37,38 +40,38 @@ export class GoalsQueryService implements GoalsQueryApi {
 
   listProjectIds() { return this.facts.listProjectIds(); }
 
-  listActivePolicyBindings(projectId: string, goalId?: string) { return this.repository.listActivePolicyBindings(projectId, goalId); }
+  listActivePolicyBindings(projectId: string, goalId?: string) { return this.#repository.listActivePolicyBindings(projectId, goalId); }
   listPolicyHistory(projectId: string) { return this.facts.listPolicyHistory(projectId); }
   listWorkEventGoalLinks(projectId: string) { return this.facts.listWorkEventGoalLinks(projectId); }
   listDependencies(projectId: string, goalId: string) { return this.facts.listDependencies(projectId, goalId); }
   activeReplacement(projectId: string, goalId: string) { return this.facts.activeReplacement(projectId, goalId); }
 
   getBoard(projectId: string): GoalsBoardRecord | null {
-    return this.repository.getBoard(projectId);
+    return this.#repository.getBoard(projectId);
   }
 
   getGoal(projectId: string, goalId: string): GoalRecord | null {
-    const goal = this.repository.getGoal(goalId);
+    const goal = this.#repository.getGoal(goalId);
     return goal?.project_id === projectId ? goal : null;
   }
 
   hasGoalIdentity(goalId: string): boolean {
-    return this.repository.getGoal(goalId) !== null;
+    return this.#repository.getGoal(goalId) !== null;
   }
 
   getRelation(projectId: string, relationId: string) {
-    return this.repository.getRelation(projectId, relationId);
+    return this.#repository.getRelation(projectId, relationId);
   }
 
 
   policyBindingState(projectId: string, bindingId: string): "active" | "replaced" | "withdrawn" | null {
-    const row = this.repository.db.prepare("SELECT state FROM policy_bindings WHERE project_id = ? AND policy_binding_id = ?")
+    const row = this.#repository.db.prepare("SELECT state FROM policy_bindings WHERE project_id = ? AND policy_binding_id = ?")
       .get(projectId, bindingId) as { state: "active" | "replaced" | "withdrawn" } | undefined;
     return row?.state ?? null;
   }
 
   criterionGoalId(criterionId: string): string | null {
-    return this.repository.criterionGoalId(criterionId);
+    return this.#repository.criterionGoalId(criterionId);
   }
 
   listGoals(
@@ -78,7 +81,7 @@ export class GoalsQueryService implements GoalsQueryApi {
     this.context.requireBoard(projectId);
     const includeArchived = options.include_archived ?? true;
     const includeTrashed = options.include_trashed ?? true;
-    return this.repository.listGoals(projectId).filter((goal) =>
+    return this.#repository.listGoals(projectId).filter((goal) =>
       (includeArchived || goal.archived_at == null) &&
       (includeTrashed || goal.trashed_at == null)
     );
@@ -87,33 +90,33 @@ export class GoalsQueryService implements GoalsQueryApi {
   listRelations(projectId: string, goalId?: string): GoalRelationRecord[] {
     this.context.requireBoard(projectId);
     if (goalId != null) this.requireGoal(projectId, goalId);
-    return this.repository.listRelations(projectId, goalId);
+    return this.#repository.listRelations(projectId, goalId);
   }
 
   listTrashedGoals(projectId: string): GoalRecord[] {
     this.context.requireBoard(projectId);
-    return this.repository.listTrashedGoals(projectId);
+    return this.#repository.listTrashedGoals(projectId);
   }
 
   snapshot(projectId: string): GoalsQuerySnapshot {
-    const board = this.repository.getBoard(projectId);
+    const board = this.#repository.getBoard(projectId);
     if (!board) throw goalErrors["goals.board.not_found"](`这个项目还没有初始化目标资料库: ${projectId}`);
     return {
       board,
-      observed_event_cursor: this.repository.eventCursor(projectId),
-      goals: this.repository.listGoals(projectId),
-      relations: this.repository.listRelations(projectId),
-      policy_bindings: this.repository.listActivePolicyBindings(projectId),
+      observed_event_cursor: this.#repository.eventCursor(projectId),
+      goals: this.#repository.listGoals(projectId),
+      relations: this.#repository.listRelations(projectId),
+      policy_bindings: this.#repository.listActivePolicyBindings(projectId),
       // Packs saved before later fields existed are completed on the way out, as the planning engine does.
-      planning_method_packs: this.repository.listPlanningMethodPacks(projectId),
-      project_guidance: this.repository.listProjectGuidanceEntries(projectId),
+      planning_method_packs: this.#repository.listPlanningMethodPacks(projectId),
+      project_guidance: this.#repository.listProjectGuidanceEntries(projectId),
     };
   }
 
   resolvePolicy(projectId: string, goalId: string, strengthen?: Partial<GoalPolicy>): GoalPolicy {
     this.context.requireBoard(projectId);
     this.requireGoal(projectId, goalId);
-    return resolveGoalPolicy(this.repository.listActivePolicyBindings(projectId, goalId), strengthen);
+    return resolveGoalPolicy(this.#repository.listActivePolicyBindings(projectId, goalId), strengthen);
   }
 
   readGoal(projectId: string, goalId: string): GoalFactsView {

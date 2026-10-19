@@ -64,7 +64,7 @@
 | 9 | `plugins/native/feed` | 1 | 1 | 7 | 不依赖 Feed 迁 Runtime 的专项计划 |
 | 10 | `plugins/native/workflows` | 1 | 1 | 6 |  |
 | 11 | `plugins/native/work` | 4 | 4 | 5 |  |
-| 12 | `plugins/native/plugin-builder` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 起不算插件、并进平台能力，仍就地拆） |
+| 12 | `plugins/native/plugin-builder` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 改：不算插件、并进平台能力，仍就地拆） |
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
 | 14 | `modules/feed` | 1 | 1 | 5 |  |
 | 15 | `packages/storage` | 2 | 2 | 4 |  |
@@ -146,7 +146,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 - 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”，搬的时候要在同一个 PR 里拆到阈值以下。
 - 决定 #16（界面翻译全部换成稳定键，词典按主人分）：`en.ts` 不是例外，判“归线 · §4.7 · W5-03”。词典按主人分已经定了，这张表不再是“必须一整块”的东西；W5-03 把插件自有词条移给主人、删无引用的键，它随之变小。
 - 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支已随之去掉（W2-03），W5-10 直接拆删后的 `SearchService`。
-- 10-07 的插件平台范围决定把 Goals、Artifacts、Sessions 与插件创作台列为构建期例外，它们不迁 Runtime，也就不会因 W5-01 缩小；它们的巨大单元都判“拆 · W5-10”。2026-10-18 用户取消了这四个例外（Goals 迁 Runtime，插件创作台并进平台，成果库与 Sessions 归平台事实、Sessions 清理）；拆分判断不变，迁移或清理那一片按新的归属重判。
+- 10-07 的插件平台范围决定把 Goals、Artifacts、Sessions 与插件创作台列为构建期例外，它们不迁 Runtime，也就不会因 W5-01 缩小；它们的巨大单元都判“拆 · W5-10”。2026-10-18 改：用户取消了这四个例外（Goals 迁 Runtime，插件创作台并进平台，成果库与 Sessions 归平台事实、Sessions 清理）；拆分判断不变，迁移或清理那一片按新的归属重判。
 
 ## 3. 清单
 
@@ -301,8 +301,8 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `goals` | `src/proposal-ui.ts` | `createProposalRenderer` 函数 187 行 | 拆 · W5-10 | `renderGoalTreeProposalDecision` 一个内嵌函数 126 行，按区块拆；`goalTreeRelationScenario`、`renderGoalTreeProposalScenario` 已独立。 | 1 |
 | `goals` | `src/tree-ui.ts` | `createTreeRenderer` 函数 236 行 | 拆 · W5-10 | `createTreeRenderer` 里 `renderGoalTree`（70）、`renderTreeDependencies`（42）、`renderCollectionFold`（27）、`renderTreeStatusFilter`（17）各成模块。 | 1 |
 | `pages` | `src/client.ts` | 文件 1,153 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,149/1,153 行）。 | 12 |
-| `pages` | `src/commands.ts` | 文件 2,241 行 | 拆 · W5-10 | 编辑命令文件：114 个顶层函数声明（94 个导出）。按命令族拆成几个文件（块转换与 Markdown：`markdownBlock` 59、`turnSpanInto` 48；列表：`listItemSpan`、`outdentFromContainer`；折叠与分栏：`collapseSelectedBlock`、`collapseEmptyColumn`、`enterInToggle`；代码行：`leaveEmptyCodeLine` 等），每个文件不超过 800 行。 | 0 |
-| `pages` | `src/editor-browser.ts` | 文件 4,043 行<br>`mount` 函数 1,024 行<br>`hoverHandlePlugin` 函数 798 行<br>`view` 函数 676 行<br>`renderMenu` 函数 173 行<br>`findPlugin` 函数 169 行<br>`slashPlugin` 函数 160 行 | 拆 · W5-10 | 路线点名 `mount`（1,024 行：`new EditorView` 一段 215、`plugins` 数组 183、`openAi` 78、`runAiCommand` 56、`openCalloutStyle` 55）和 `hoverHandlePlugin`（798 行，其中 `view` 676 行，`view` 里的 `renderMenu` 173 行；三者重叠计数，一并处理）。两者移走后文件仍约 2,200 行，其余的编辑器插件（`findPlugin` 169、`slashPlugin` 160、`mentionPlugin`、`chromePlugin`）与节点视图（`imageNodeView`、`codeNodeView`、`bookmarkNodeView`）各成文件。 | 5 |
+| `pages` | `src/commands.ts` | 原文件 2,241 行 → 128 行；七个内部命令族最大 634 行 | 已拆 · W5-10（2026-10-17，本地定向通过，待 CI） | 选区与菜单、块变更、插入、容器、光标与代码、格式、Markdown 各归一个模块；保留原入口的 113 个导出与全部实现，调用方无须切换。构建、健康门禁和 29 文件 545 条非浏览器回归、七个 Chrome 文件 37 条全部通过；完整证据见防腐 spec 的 W5-10-PGC-01～03。mount/hover 与存储仍由对应行处理。 | 0 |
+| `pages` | `src/editor-browser.ts` | 文件 719 行<br>`mount` 函数 451 行 | 拆 · W5-10（节点视图、查找、插入、块菜单、拖拽、剪贴板与键盘本地通过，工具投影本地通过，预览层本地通过，主体继续） | 布局、媒体与卡片节点视图已各归内部模块，共用类型和 DOM 小函数归叶子模块，原有 94 个声明实现与 27 个出口保持；31 非浏览器文件 620 条、七个 Chrome 文件 37 条通过，见防腐 spec 的 W5-10-PGV-01/02。查找状态/视图另归 editor-find，原 169 行插件变为 27 行、视图工厂 140 行；最终 31 非浏览器文件 620 条和新增 Chrome 查找用例通过，见 W5-10-PGF-01/02。插入菜单、段间输入与剪贴板各归内部模块，斜杠插件 139 行；修复段间临时输入焦点，36 文件 651 条通过，见 W5-10-PGI-01～03。块菜单 DOM/模式/操作归单实例类（241 行、22 方法），共享块选择键与命令归叶子模块；37 文件 652 条通过，见 W5-10-PGM-01/02。悬浮状态、手柄定位/监听与拖拽会话/绘制已拆成五个内部模块，最大新函数130行，原两个巨大函数消除；40文件660条通过，资源减少20 B，见W5-10-PGH-01/02。剪贴板输入/输出和图片拖入归现有editor-paste，39文件657条通过，资源减少9 B，见W5-10-PGP-01～03。37个键盘绑定按原顺序归三个短职责函数，最大66行；40文件661条通过，资源减少49 B，见W5-10-PGK-01～03。14项工具定义/投影和选区矩形归65行内部模块，38文件663条通过，资源减少14 B，见W5-10-PGT-01～03。预览DOM与更新/跟随/释放归89行私有闭包，入口降至719行、mount451行；新增Chrome2条及六文件39条通过，用户批准单次103 B，精确资源及73条预算回归通过，见W5-10-PPV-01/02。剩余mount继续按职责收小，不把巨大闭包原样换文件。 | 5 |
 | `pages` | `src/store.ts` | `PagesStore` 类 376 行 / 28 方法 | 拆 · W5-10 | `PagesStore` 28 个方法分五组：页面（`create`、`importDocuments`、`update`、`relocate`、`duplicate`、`delete`）、发布（`beginPublication`、`completePublication`）、生成（`beginGeneration`、`completeGeneration`、`failGeneration`、`saveGeneration`）、变更审阅（`keepChange`、`revertChange`、`discard`）、文件夹。 | 6 |
 | `pages` | `src/styles.ts` | 文件 812 行 | 拆 · W5-10 | 只超 12 行，不登记例外：开头 12 行用 `PAGES_TONES` 生成色调规则（`CALLOUT_TONE_RULES`、`TONE_RULES`），它们的主人是 `tone.ts`；移过去文件正好回到 800 行。此后再往里加样式就要按界面分文件；登记不放行新增或变大，另一条路只有单独开 PR 改门禁本身。 | 5 |
 | `plugin-builder` | `src/agent-authoring.ts` | `expandDesign` 函数 225 行 | 拆 · W5-10 | `expandDesign` 45 条语句，8 个 `for…of` 块各 11–17 行逐类规范化设计稿条目；每个循环一个规范化函数。 | 3 |

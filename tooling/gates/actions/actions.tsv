@@ -27,7 +27,7 @@ alchemist.directions.create	1	io.molis.work.alchemist	io.molis.work.alchemist	co
 alchemist.directions.status	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	5f049254990d	fd1b58120e4a	-
 alchemist.directions.update	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	ff09472ed6d1	fd1b58120e4a	-
 alchemist.explorations.get	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	8081d3eb3674	ea53df4d0948	-
-alchemist.explorations.start	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:generate,alchemist:read,alchemist:write	alchemist	-	-	401fc5539cf5	2b8b092b3131	c785a82f12ac
+alchemist.explorations.start	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	concurrent	agent,mcp,user,workflow	alchemist:generate,alchemist:read,alchemist:write	alchemist	-	-	401fc5539cf5	2b8b092b3131	c785a82f12ac
 alchemist.idea.subject.read	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	alchemist:read	alchemist-idea	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
 alchemist.ideas.version	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	e2f42cd53328	5bbf0229ac68	-
 alchemist.memory.apply	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	8081d3eb3674	f8484a40a511	-
@@ -50,7 +50,7 @@ alchemist.pulse.sources.configure	1	io.molis.work.alchemist	io.molis.work.alchem
 alchemist.pulse.start	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:collect,alchemist:read,alchemist:write	alchemist	-	-	22c840cb1d8e	69e7c5eebfec	613063238287
 alchemist.research.cancel	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	8081d3eb3674	dc958664e166	-
 alchemist.research.plan	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	fac9e64aafad	5aa25446332c	-
-alchemist.research.start	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:generate,alchemist:read,alchemist:write	alchemist	-	-	f9801bdeb6a0	dc958664e166	a49dab76f553
+alchemist.research.start	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	concurrent	agent,mcp,user,workflow	alchemist:generate,alchemist:read,alchemist:write	alchemist	-	-	f9801bdeb6a0	dc958664e166	a49dab76f553
 alchemist.research.workspace	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	e2f42cd53328	a522ced7357a	-
 alchemist.reuse.assess	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	concurrent	agent,mcp,user,workflow	alchemist:generate,alchemist:read,alchemist:write	alchemist	-	-	c9cf4be3bc18	61cfea36ebe2	613063238287
 alchemist.reuse.candidates	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	57444687a490	c6d38c936782	-
@@ -58,7 +58,10 @@ alchemist.reuse.feedback	1	io.molis.work.alchemist	io.molis.work.alchemist	comma
 alchemist.reuse.publish	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	f05e850e90bf	77d04c4e062c	-
 alchemist.reuse.receipt	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	e12abee3565f	a53f574db2b7	-
 alchemist.reuse.reconcile	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	e12abee3565f	a53f574db2b7	-
+alchemist.runs.continue	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	concurrent	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	4b5e6e80edf8	dafa938e1df0	c785a82f12ac
 alchemist.runs.events	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	bab660acde27	c8b9369793f3	-
+alchemist.runs.list	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	4f5f0bb75396	-
+alchemist.runs.resume	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	8081d3eb3674	f04c3e8d403c	-
 alchemist.runtime.configure	1	io.molis.work.alchemist	io.molis.work.alchemist	command	operation	project	write	-	agent,mcp,user,workflow	alchemist:read,alchemist:write	alchemist	-	-	e3ccdf8a7db9	4ccc1efad5fa	-
 alchemist.runtime.models	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	003fd47e8628	-
 alchemist.runtime.settings	1	io.molis.work.alchemist	io.molis.work.alchemist	query	query	project	read	-	agent,mcp,user,workflow	alchemist:read	alchemist	-	-	f973399805c1	4ccc1efad5fa	-
@@ -333,7 +336,7 @@ images.jobs.cancel	1	io.molis.work.images	io.molis.work.images	command	operation
 images.jobs.delete	1	io.molis.work.images	io.molis.work.images	command	operation	project	irreversible	-	agent,mcp,user,workflow	images:delete	image	-	-	61f64d4ce922	07a9ad95ba37	-
 images.jobs.get	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	61f64d4ce922	0bc3a87b0bfa	-
 images.jobs.list	1	io.molis.work.images	io.molis.work.images	query	query	project	read	-	agent,mcp,user,workflow	images:read	image	-	-	d746974fa9af	c0b932c0321f	-
-images.jobs.start	1	io.molis.work.images	io.molis.work.images	command	operation	project	write	-	agent,mcp,user,workflow	images:generate	image	-	-	0a4d2fe3c139	0bc3a87b0bfa	613063238287
+images.jobs.start	2	io.molis.work.images	io.molis.work.images	command	operation	project	write	concurrent	agent,mcp,user,workflow	images:generate,model:invoke	image	-	-	0a4d2fe3c139	0bc3a87b0bfa	5f322bcacafa
 images.search.entries	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	images:read	image_job	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	62a8136d3028
 images.subject.read	1	io.molis.work.images	io.molis.work.images	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	images:read	image_job	molis.subject-reference.v1	molis.subject-context.v1	56056e2eba4c	db343dd77f37	-
 inbox.actions.prepare	1	io.molis.work.inbox	io.molis.work.inbox	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	inbox:read	inbox_entry	molis.subject-offers.input.v1	molis.subject-offers.output.v1	03d0cfd95e8f	1f8df39bd1f3	f8ecaca1791c

@@ -126,6 +126,7 @@ test("An embedded view never lends its prototypes to the page holding it: conten
   assert.equal(await page.evaluate("studioScope.signal.aborted"), true, "removing the frame disposes its client");
 });
 
+// W5-01-IMAGES-LIFECYCLE-01: the fixture serves the current Runtime routes; lifetime assertions are unchanged.
 test("Images uses Host lifetime: hidden views stop polling, reopening refreshes, and late detached responses cannot replace current rows", { timeout: 30_000 }, async t => {
   const page = await chrome(t); if (!page) return;
   let reads = 0, block = false, pending: ServerResponse | undefined, aborted = 0;
@@ -133,12 +134,12 @@ test("Images uses Host lifetime: hidden views stop polling, reopening refreshes,
   const body = imagesUiContribution.render({ contribution_id: imagesUiContribution.descriptor.contribution_id, surface: "workbench", model: { primitives: { escape: escapeHtml, text: text => text } } });
   const server = createServer((request, response) => {
     response.setHeader("content-type", request.url === "/" ? "text/html" : "application/json");
-    if (request.url === "/api/images/jobs") {
+    if (request.url === "/api/plugins/io.molis.work.images/jobs") {
       reads++;
       if (block) { pending = response; response.on("close", () => { aborted++; }); return; }
       response.end(JSON.stringify({ jobs: [job] })); return;
     }
-    if (request.url === "/api/images/connections") { response.end(JSON.stringify({ connections: [], auth_connections: [] })); return; }
+    if (request.url === "/api/plugins/io.molis.work.images/connections") { response.end(JSON.stringify({ connections: [], auth_connections: [] })); return; }
     response.end(`<!doctype html><section id="parent" hidden>${body}</section><script>
       window.molisWorkControlHeaders = () => ({});
       window.mount = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();

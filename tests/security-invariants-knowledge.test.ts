@@ -5,6 +5,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
+import { knowledgeWorkspace } from "./fixtures/knowledge-workspace.js";
 
 // S-41 (docs/system/SECURITY-INVARIANTS.md): project knowledge reads only what the caller may read, in the caller's project.
 
@@ -65,4 +66,22 @@ test("S-41 PMAT-03 a card found by its own words is shown only to a caller who m
   const pagesOnly = await f.knowledge.search(f.access(agent("a", ["pages:read", "search:read"])), { query: "内测通行证" });
   assert.deepEqual(pagesOnly.cards.map(card => card.subject.id), ["p1"], "goal cards were written from goals' text: not for a caller who cannot read goals");
   assert.deepEqual((await f.knowledge.search(f.access(agent("b")), { query: "内测通行证" })).cards, [], "project a's cards are not searched from project b");
+});
+
+test("S-41 PMAT-13 the linked folder is read only with the caller's own grant, never through a link out of it or a climbing path, never from another project", async t => {
+  const f = await knowledgeWorkspace(t);
+  const ungranted = f.access(f.agent([]));
+  await assert.rejects(() => f.knowledge.glob(ungranted, { pattern: "**/*" }), (error: unknown) => error instanceof ActionError);
+  await assert.rejects(() => f.knowledge.read(ungranted, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), (error: unknown) => error instanceof ActionError);
+  const access = f.access(f.agent());
+  const all = await f.knowledge.glob(access, { pattern: "**/*" });
+  assert.ok(all.files.length > 0 && !all.files.some(file => file.path.startsWith("linked")), "a link out of the folder is not walked");
+  await assert.rejects(() => f.knowledge.read(access, { subject: { kind: "workspace_file", id: "ws1:linked/secret.txt" } }), refused("knowledge.unreadable"));
+  await assert.rejects(() => f.knowledge.read(access, { subject: { kind: "workspace_file", id: "ws1:../outside/secret.txt" } }), refused("knowledge.invalid"));
+  await assert.rejects(() => f.knowledge.glob(access, { pattern: "../outside/*" }), refused("knowledge.invalid"));
+  const grep = await f.knowledge.grep(access, { pattern: "secret", glob: "**/*" });
+  assert.equal(grep.matches.length, 0, "nothing outside the folder is read");
+  const elsewhere = f.access(f.agent(["workspace:read"], "b"));
+  await assert.rejects(() => f.knowledge.glob(elsewhere, { pattern: "**/*" }), refused("knowledge.unreadable"));
+  await assert.rejects(() => f.knowledge.read(elsewhere, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), refused("knowledge.unreadable"));
 });

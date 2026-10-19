@@ -11,6 +11,7 @@ import {
   type ActionView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
+  KNOWLEDGE_GREP_MAX_FILES,
   KNOWLEDGE_GREP_MAX_SUBJECTS,
   KNOWLEDGE_PROVIDER_ID,
   KNOWLEDGE_READ_DEFAULT_CHARS,
@@ -19,6 +20,8 @@ import {
   type KnowledgeCard,
   type KnowledgeCardRecord,
   type KnowledgeCardStorePort,
+  type KnowledgeGlobRequest,
+  type KnowledgeGlobResponse,
   type KnowledgeGrepRequest,
   type KnowledgeGrepResponse,
   type KnowledgeOutline,
@@ -29,14 +32,17 @@ import {
   type KnowledgeSearchResponse,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { knowledgeErrors } from "./errors.js";
 import { grepLines, outlineOf, rangeOf } from "./text.js";
+import { KnowledgeWorkspace } from "./workspace.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
 export { KnowledgeOrganizer, knowledgeCatalog, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
   type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
+export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-knowledge",
@@ -94,6 +100,8 @@ function visibility(views: readonly ActionView[], caller: KnowledgeAccess["calle
  * with the caller's own authority. It keeps no content: a card is a pointer, and every read goes to the owner's subject reader.
  */
 export class KnowledgeService {
+  private readonly workspace = new KnowledgeWorkspace();
+
   constructor(private readonly options: KnowledgeServiceOptions) {}
 
   async search(access: KnowledgeAccess, input: KnowledgeSearchRequest): Promise<KnowledgeSearchResponse> {
@@ -145,12 +153,20 @@ export class KnowledgeService {
 
   async grep(access: KnowledgeAccess, input: KnowledgeGrepRequest): Promise<KnowledgeGrepResponse> {
     this.project(access);
-    const subjects = input.subjects.filter((subject, index) => input.subjects.findIndex(other => sameSubject(other, subject)) === index);
-    if (subjects.length > KNOWLEDGE_GREP_MAX_SUBJECTS) throw knowledgeErrors.invalid(`一次最多查 ${KNOWLEDGE_GREP_MAX_SUBJECTS} 份资料`);
+    const named = input.subjects ?? [];
+    if (named.length > KNOWLEDGE_GREP_MAX_SUBJECTS) throw knowledgeErrors.invalid(`一次最多查 ${KNOWLEDGE_GREP_MAX_SUBJECTS} 份资料`);
+    if (!named.length && !input.glob) throw knowledgeErrors.invalid("请给出要查的资料（subjects），或工作目录里的路径模式（glob）");
     const pattern = input.pattern.trim();
     if (!pattern) throw knowledgeErrors.invalid("请给出要查找的文字");
-    const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     const result: KnowledgeGrepResponse = { matches: [], more: false, unread: [] };
+    const found = input.glob ? await this.workspace.glob(access, { pattern: input.glob, ...(input.workspace_id ? { workspace_id: input.workspace_id } : {}), limit: KNOWLEDGE_GREP_MAX_FILES }, knowledgeActions.grep, KNOWLEDGE_GREP_MAX_FILES) : null;
+    if (found) {
+      result.more = found.more;
+      for (const folder of found.unread) result.unread.push({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id: `${folder.workspace_id}:${folder.path}` }, reason: folder.reason });
+    }
+    const all = [...named, ...found?.files.map(file => file.subject) ?? []];
+    const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
+    const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     read.forEach((outcome, index) => {
       if ("error" in outcome) { result.unread.push({ subject: subjects[index]!, reason: reasonOf(outcome.error) }); return; }
@@ -160,6 +176,12 @@ export class KnowledgeService {
       for (const hit of hits) result.matches.push({ subject: outcome.context.subject, revision: outcome.context.revision, ...hit });
     });
     return result;
+  }
+
+  /** Files in the project's linked folders by path pattern, read with the caller's own grant to the folders (K0b). */
+  async glob(access: KnowledgeAccess, input: KnowledgeGlobRequest): Promise<KnowledgeGlobResponse> {
+    this.project(access);
+    return this.workspace.glob(access, input, knowledgeActions.glob);
   }
 
   /** The piece's card, when there is one for that owner. */
@@ -177,6 +199,7 @@ export class KnowledgeService {
   /** The piece as its owner has it now for this caller; an owner's refusal keeps its own code. */
   private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
     const project = this.project(access);
+    if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
     if (this.stored(project, subject)?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
     const caller = retainActionAuthority(access.caller, { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {

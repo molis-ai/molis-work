@@ -25,6 +25,11 @@ export const KNOWLEDGE_READ_MAX_CHARS = 12_000;
 export const KNOWLEDGE_READ_DEFAULT_CHARS = 6_000;
 /** Most objects one `knowledge.grep` reads. */
 export const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
+/** Most workspace files one `knowledge.grep` with a `glob` reads. */
+export const KNOWLEDGE_GREP_MAX_FILES = 50;
+/** Most paths one `knowledge.glob` returns, and the most folders it lists to find them. */
+export const KNOWLEDGE_GLOB_MAX_FILES = 500;
+export const KNOWLEDGE_GLOB_MAX_FOLDERS = 400;
 
 /** Which layer a card was found in: its title, the summary its owner allows, its text, or what organizing wrote on its card. */
 export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
@@ -83,8 +88,12 @@ export interface KnowledgeReadResponse {
   owner_truncated: boolean;
 }
 
-/** `pattern` is literal text, matched without case; there is no regex (a pattern must not be able to stall the Host). */
-export interface KnowledgeGrepRequest { pattern: string; subjects: ActionSubject[]; context_lines?: number; limit?: number }
+/**
+ * `pattern` is literal text, matched without case; there is no regex (a pattern must not be able to stall the Host). It looks
+ * in the named `subjects`, in the project's linked-folder files that `glob` matches (in `workspace_id`, or every linked folder),
+ * or both; at least one of the two.
+ */
+export interface KnowledgeGrepRequest { pattern: string; subjects?: ActionSubject[]; glob?: string; workspace_id?: string; context_lines?: number; limit?: number }
 export interface KnowledgeGrepMatch { subject: ActionSubject; revision: string; line: number; text: string; before: string[]; after: string[] }
 export interface KnowledgeGrepResponse {
   matches: KnowledgeGrepMatch[];
@@ -92,6 +101,21 @@ export interface KnowledgeGrepResponse {
   more: boolean;
   /** Pieces that could not be read for the caller, and why (gone, not allowed, no reader). */
   unread: Array<{ subject: ActionSubject; reason: string }>;
+}
+
+/**
+ * Files in the project's linked folders whose path matches `pattern` (`*` within a folder, `**` across folders, `?`, `{a,b}`),
+ * relative to the folder. Built and fetched folders (`WORKSPACE_SKIPPED_FOLDERS`) and dot folders are walked only when the
+ * pattern names them. Each file is a `workspace_file` subject that `knowledge.outline`, `read` and `grep` take.
+ */
+export interface KnowledgeGlobRequest { pattern: string; workspace_id?: string; limit?: number }
+export interface KnowledgeGlobFile { subject: ActionSubject; workspace_id: string; workspace_name: string; path: string }
+export interface KnowledgeGlobResponse {
+  files: KnowledgeGlobFile[];
+  /** True when the limit, or the most folders one call lists, stopped the walk: narrow the pattern or name a folder. */
+  more: boolean;
+  /** Folders that could not be listed for the caller, and why. */
+  unread: Array<{ workspace_id: string; path: string; reason: string }>;
 }
 
 /* ---- cards: what organizing writes on a piece, and the person's edits (spec §5) ---- */
@@ -172,6 +196,8 @@ const nullableText = { type: ["string", "null"] };
 const token = { type: "string", minLength: 1, maxLength: 64, pattern: "^[a-zA-Z0-9_.:-]+$" };
 const count = { type: "integer", minimum: 0 };
 const queryText = { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" };
+const globPattern = { type: "string", minLength: 1, maxLength: 300, pattern: "\\S" };
+const workspaceId = { type: "string", minLength: 1, maxLength: 200 };
 const keywords = { type: "array", maxItems: KNOWLEDGE_CARD_MAX_KEYWORDS, items: { type: "string", minLength: 1, maxLength: KNOWLEDGE_KEYWORD_MAX_CHARS } };
 const openTarget = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 const card = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, plugin_id: text, plugin_title: text, updated_at: nullableText,
@@ -206,14 +232,24 @@ export const knowledgeActions = {
     output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, layer: { const: "original" }, text, start: count, end: count, remaining: count,
       owner_truncated: { type: "boolean" } }, required: ["subject", "revision", "title", "layer", "text", "start", "end", "remaining", "owner_truncated"], additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
   grep: { capability_id: "knowledge.grep", version: 1, operation: "query", action: { ...metadata,
-    title: "在资料里逐行查找", description: "在指定的几份资料的现在原文里逐行查找一段文字（不分大小写，不是正则），返回命中的行与前后几行；用于精确查找名称、编号、原话。",
+    title: "在资料里逐行查找", description: "在指定的几份资料（subjects），或项目工作目录里路径匹配 glob 的文件（最多 50 个）的现在原文里逐行查找一段文字（不分大小写，不是正则），返回命中的行与前后几行；用于精确查找名称、编号、原话。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: { type: "string", minLength: 1, maxLength: 200, pattern: "\\S" },
-      subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_SUBJECTS, items: ACTION_SUBJECT_SCHEMA }, context_lines: { type: "integer", minimum: 0, maximum: 3 },
-      limit: { type: "integer", minimum: 1, maximum: 100 } }, required: ["pattern", "subjects"], additionalProperties: false },
+      subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_SUBJECTS, items: ACTION_SUBJECT_SCHEMA }, glob: globPattern, workspace_id: workspaceId,
+      context_lines: { type: "integer", minimum: 0, maximum: 3 }, limit: { type: "integer", minimum: 1, maximum: 100 } },
+      required: ["pattern"], anyOf: [{ required: ["subjects"] }, { required: ["glob"] }], additionalProperties: false },
     output_schema: { type: "object", properties: { matches: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, line: { type: "integer", minimum: 1 },
       text, before: lines, after: lines }, required: ["subject", "revision", "line", "text", "before", "after"], additionalProperties: false } }, more: { type: "boolean" },
       unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } } },
       required: ["matches", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
+  glob: { capability_id: "knowledge.glob", version: 1, operation: "query", action: { ...metadata,
+    title: "按路径找工作目录里的文件", description: "在项目已关联的工作目录里按路径模式找文件（* 不跨目录，** 跨目录，?，{a,b}），返回路径与可交给 knowledge.read、knowledge.grep 的对象；node_modules、.git、dist 等目录和以点开头的目录只在模式点名时才进去。读工作目录要有读取它的授权。",
+    input_schema: { type: "object", properties: { pattern: globPattern, workspace_id: workspaceId, limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_GLOB_MAX_FILES } },
+      required: ["pattern"], additionalProperties: false },
+    output_schema: { type: "object", properties: {
+      files: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, workspace_id: text, workspace_name: text, path: text },
+        required: ["subject", "workspace_id", "workspace_name", "path"], additionalProperties: false } }, more: { type: "boolean" },
+      unread: { type: "array", items: { type: "object", properties: { workspace_id: text, path: text, reason: text }, required: ["workspace_id", "path", "reason"], additionalProperties: false } } },
+      required: ["files", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGlobRequest, KnowledgeGlobResponse>,
 };
 
 const cardRecord = { type: "object", properties: { project_id: text, subject: ACTION_SUBJECT_SCHEMA, source_key: text, provider_id: text, plugin_id: text, plugin_title: text,

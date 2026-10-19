@@ -315,6 +315,23 @@ export function parseFilePath(value: unknown, allowRoot = false): string[] {
   });
 }
 
+/**
+ * A file in a project's linked folder as one object: Files lists it under this kind in the side panel, and project knowledge
+ * finds and reads it by the same subject, so it is one piece wherever it shows up. The id is `<workspace_id>:<a/b/c>`.
+ */
+export const WORKSPACE_FILE_SUBJECT_KIND = "workspace_file";
+export function workspaceFileSubjectId(workspaceId: string, path: readonly string[]): string {
+  return `${workspaceId}:${path.join("/")}`;
+}
+/** The folder and path a workspace file subject names; the path is checked as every workspace path is. Null when it names none. */
+export function parseWorkspaceFileSubjectId(id: string): { workspace_id: string; path: string[] } | null {
+  const at = id.indexOf(":");
+  if (at <= 0) return null;
+  try { return { workspace_id: id.slice(0, at), path: parseFilePath(id.slice(at + 1).split("/")) }; } catch { return null; }
+}
+/** Folders that are built, fetched or tool state rather than the project's own files: walking a workspace skips them unless asked by name. */
+export const WORKSPACE_SKIPPED_FOLDERS = ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"] as const;
+
 /** Display only. Never feed this back into anything that resolves a path. */
 export function pathLabel(path: readonly string[]): string {
   return path.join("/");

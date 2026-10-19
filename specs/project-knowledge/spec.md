@@ -288,6 +288,15 @@
 - 测试（`pnpm build` 后）：`tests/knowledge-service.test.ts`（8 个，含 PMAT-24）、`tests/security-invariants-knowledge.test.ts`（S-41，4 个）、`tests/mcp-action-grants.test.ts`、`tests/agent-definitions.test.ts`（PMAT-25）、`tests/action-contract-snapshot.test.ts`、健康门禁的错误与 API 快照用例、全部 73 个 Coding 用例通过；`affected-tests` 给出的 152 个文件中其余 147 个通过。`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、根 `tsc --noEmit` 通过。
 - 还没有测试的：PMAT-23。
 
+### K0b（2026-10-19，同一分支，未推送）
+
+- `knowledge.glob`（新动作）按路径模式找项目已关联工作目录里的文件；`knowledge.grep` 除了 `subjects` 还接受 `glob`（可带 `workspace_id`），一次最多读 50 个文件；`knowledge.read`、`outline`、`grep` 都接受 `workspace_file` 对象，版本是文件的指纹。
+- 都只经宿主唯一的工作目录读取动作 `projects.workspace.files.read`、以调用者自己的授权读（`horizontal/knowledge/src/workspace.ts`）：内置 Agent 没有默认拿到它，要在「对外接入」里允许，没有就拒绝并说在哪里允许。路径、链接、越界的拒绝由那个动作本身做（S-41 加了拒绝用例：无授权、指向目录外的链接、`..`、别的项目）。
+- 工作目录文件的对象种类与 id（`workspace_file`、`<workspace_id>:<a/b/c>`）和要跳过的构建、依赖目录名从 Files 插件搬进合同（`packages/contracts/src/modules/workspace-artifacts.ts`），Files 侧栏与项目资料用同一个，同一个文件在两处是同一份资料。
+- 路径模式自己逐段匹配（`*`、`**`、`?`、`{a,b}`），不从调用者的文字拼正则；以点开头的文件和目录、`node_modules`、`.git`、`dist` 等只在模式点名时才进。一次最多列 400 个目录、返回 500 个文件，到了上限返回 `more: true`。
+- 提示词：个人助理 assistant-base v31 加一句工作目录的文件怎样找和读（v31 还没出过这个分支，原地改）；Coding 本来就有自己的工作区工具，不改。
+- 测试：`tests/knowledge-workspace.test.ts`（4 个，PMAT-13、PMAT-01）、`tests/security-invariants-knowledge.test.ts` 加 S-41/PMAT-13 的拒绝用例，用真实宿主与真实目录（夹具 `tests/fixtures/knowledge-workspace.ts`）。
+
 ### K1（2026-10-19，同一分支，未推送）
 
 - 卡片存在 Home 的 `knowledge/knowledge.db`（`packages/storage/src/adapters/knowledge-cards.ts`，基线 1，已登记进 Home 存储表、`docs/releases/CHECKLIST.md` 各库版本表与 `docs/system/HOME-DATA.md`）：每份资料一张卡片，含标题、简介、关键词、每节一句摘要、人改过哪些字段、整理给的新建议、「不给 Agent 用」，以及每个项目每天的整理用量。卡片自己的文字另有一份全文索引（与系统搜索同样的切词），不存资料正文。

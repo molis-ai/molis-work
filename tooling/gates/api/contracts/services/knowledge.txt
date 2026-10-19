@@ -8,6 +8,12 @@ export declare const KNOWLEDGE_CARD_MAX_KEYWORDS = 10;
 
 export declare const KNOWLEDGE_CARD_STATES: readonly ["pending", "ready", "listed", "failed", "over_quota", "missing"];
 
+export declare const KNOWLEDGE_GLOB_MAX_FILES = 500;
+
+export declare const KNOWLEDGE_GLOB_MAX_FOLDERS = 400;
+
+export declare const KNOWLEDGE_GREP_MAX_FILES = 50;
+
 export declare const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
 
 export declare const KNOWLEDGE_KEYWORD_MAX_CHARS = 30;
@@ -115,6 +121,29 @@ export interface KnowledgeExcludeRequest {
     excluded: boolean;
 }
 
+export interface KnowledgeGlobFile {
+    subject: ActionSubject;
+    workspace_id: string;
+    workspace_name: string;
+    path: string;
+}
+
+export interface KnowledgeGlobRequest {
+    pattern: string;
+    workspace_id?: string;
+    limit?: number;
+}
+
+export interface KnowledgeGlobResponse {
+    files: KnowledgeGlobFile[];
+    more: boolean;
+    unread: Array<{
+        workspace_id: string;
+        path: string;
+        reason: string;
+    }>;
+}
+
 export interface KnowledgeGrepMatch {
     subject: ActionSubject;
     revision: string;
@@ -126,7 +155,9 @@ export interface KnowledgeGrepMatch {
 
 export interface KnowledgeGrepRequest {
     pattern: string;
-    subjects: ActionSubject[];
+    subjects?: ActionSubject[];
+    glob?: string;
+    workspace_id?: string;
     context_lines?: number;
     limit?: number;
 }
@@ -233,6 +264,7 @@ export declare const knowledgeActions: {
     outline: ActionDefinition<KnowledgeOutlineRequest, KnowledgeOutline>;
     read: ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>;
     grep: ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>;
+    glob: ActionDefinition<KnowledgeGlobRequest, KnowledgeGlobResponse>;
 };
 
 export declare const knowledgeManageActions: {

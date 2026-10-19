@@ -22,9 +22,9 @@ async function fixture(t: import("node:test").TestContext) {
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
 
-test("PMAT-01 the four knowledge actions are reads every audience reaches through the directory", () => {
+test("PMAT-01 the five knowledge actions are reads every audience reaches through the directory", () => {
   const definitions = Object.values(knowledgeActions);
-  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep"]);
+  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob"]);
   assert.deepEqual(inspectActionDeclarations(definitions, undefined), []);
   for (const item of definitions) {
     assert.equal(item.action.kind, "query");

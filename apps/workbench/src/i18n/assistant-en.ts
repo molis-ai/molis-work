@@ -564,5 +564,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "这个会话的运行记录暂时读不出来，请稍后再试": "This session's run records can't be read right now. Try again in a moment.",
   "上一轮停在一道等你回答的问题上：回答后接着做，也可以结束那一轮": "The last round stopped on a question waiting for your answer. Answer it to go on, or end that round.",
   "已回答，下一轮还没开始；回答留在排队里": "Answered. The next round hasn't started; your answer is waiting in the queue.",
+  "已回答，下一轮没能开始：": "Answered, but the next round couldn't start: ",
   "说“继续”接着做": "Say “continue” to go on",
 };

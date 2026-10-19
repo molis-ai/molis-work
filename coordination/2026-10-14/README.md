@@ -2043,3 +2043,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 10-20 18:36 UTC（①）用户定：原来那台电脑上的 Home 不再用了，D25 就此结项。HANDOFF 已改；main 上 quick-create spec 第 512 行由 ① 的 QA-020 余项 PR（分支 `fix/qa-020-tail`）一并改成结项。
 - 10-20 18:59 UTC（①）#841 开出（`fix/qa-020-tail` @ `5b886e0cb`）：修 QA-020 余项（防腐 spec 旧码改 `host.workspace_not_found`；`workspaces.ts:12` 注释改成回滚、恢复 400；删去走不到的 `startsWith("workspace.")`），加 D25 结项（quick-create spec 第 3 条与防腐 spec §1 第 1031 行）。本机：picker 5/5、`--base` 健康门禁过、secrets 干净。已交 ⑤：先合 #841，再改 #828 的 QA-020 行并合 #828，然后在 #784 留评论。工作树 `qa020-tail` 等 #841 合入后删。
 - 10-20 19:21 UTC（①）#841 已合入 main `5160c3bbc`，⑤ 已在 #784 留言 QA-020 余项已修；#828 的 QA-020 行等 #819（batch-1020-2）合入时一起改。工作树 `qa020-tail` 与本地分支已删，远端分支合入时已自动删除。
+- 10-20 19:42 UTC（⑤ 报）#832 合入 `cb67fb4f8`、#841 合入 `5160c3bbc`；#837 推到 `22ccad1f8`（BL-392 归 ③）；#826 已合 main `4ab84bf3c`；#840 可合、⑤ 改 1 处文档；#776/#797/#812、#801/#830/#819/#822、#835 在合 main，齐了建 batch-1020-2 跑一次全量。本机不跑全量，每个 PR 只跑相关文件。

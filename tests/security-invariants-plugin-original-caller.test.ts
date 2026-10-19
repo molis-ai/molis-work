@@ -21,26 +21,37 @@ import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // S-18: the platform services a plugin writes through ask the original caller of the action the plugin runs for themselves, in
-// the same turn as the write. What the plugin hands them (a wait of its own, or none) cannot stand in for that caller.
+// the same turn as the write. What the plugin hands them (a wait of its own, or none) cannot stand in for that caller, and a
+// service writing for one installation refuses inside another installation's action.
 
 const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE = "callerprobe:write", ITEM = "example.item";
 const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`;
 const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const FILES: PluginFilesDeclaration = { store_name: "callerprobe-files", directory: "assets", max_file_bytes: 64, read_permission: READ, write_permission: WRITE };
-const TARGETS = ["database", "storage", "files", "publish", "record"] as const;
+const TARGETS = ["database", "storage", "files", "publish", "record", "select", "invalidate", "retain"] as const;
 type Target = typeof TARGETS[number];
 const preview = artifactPreview(ID);
+
+/** What a write needs to exist first, made by the test outside every action: `select` picks a 成果 the probe published. */
+function prepare(services: PluginHostServices, target: Target, name: string): void {
+  if (target === "select") services.artifacts!.publish({ artifact_id: name, version: 1, artifact_type_id: preview.type.artifact_type_id, schema_version: 1,
+    content: { kind: "inline", payload: { name } }, ...pinnedArtifact(name) });
+}
 
 /** One write through each service. `wait` is the plugin's own, never the caller's `beforeEffect`. */
 async function write(services: PluginHostServices, target: Target, name: string, wait: () => Promise<void>): Promise<void> {
   const content = { kind: "inline" as const, payload: { name } };
   if (target === "database") { await services.database!.transaction(wait, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [name])); return; }
   if (target === "files") { await services.files!.create({ beforeEffect: wait }, `${name}.bin`, Buffer.from(name)); return; }
+  const expected = target === "select" ? services.outputs!.reference("fixed") : null;
   await wait();
   if (target === "storage") services.storage!.set(name, "written");
   else if (target === "publish") services.artifacts!.publish({ artifact_id: name, version: 1, artifact_type_id: preview.type.artifact_type_id, schema_version: 1, content, ...pinnedArtifact(name) });
-  else services.processItems!.record({ artifact_id: name, version: 1, artifact_type_id: ITEM, schema_version: 1, content });
+  else if (target === "record") services.processItems!.record({ artifact_id: name, version: 1, artifact_type_id: ITEM, schema_version: 1, content });
+  else if (target === "select") services.outputs!.select({ port: "fixed", reference: { artifact_id: name, version: 1 }, expected_reference: expected });
+  else if (target === "invalidate") services.outputs!.invalidate("item", name);
+  else services.outputs!.retain({ artifact_id: name, version: 1 });
 }
 
 /** A plugin that exists only for the test: `write` waits for the test inside the wait it hands the service; `leave` writes after it returns. */
@@ -56,11 +67,12 @@ function probe() {
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: ID, version: "1.0.0", name: ID, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-callerprobe" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", READ, WRITE, "artifact:read", "artifact:write"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [] },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     process_items: { produces: [{ artifact_type_id: ITEM, schema_version: 1 }], consumes: [] },
     ui: { contributions: [] }, actions: [writeAction, leave, announce, output, preview.definition],
     events: { publishes: [{ event_type_id: ANNOUNCED, type_version: 1 }], subscribes: [] },
-    ports: { inputs: [], outputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 }] },
+    ports: { inputs: [], outputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 },
+      { port: "fixed", artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const held = () => { gate.entered.resolve(); return gate.release.promise; };
   const definition: PluginDefinition = { manifest, event_types: [{ event_type_id: ANNOUNCED, type_version: 1, validate: payload => payload }], start(context) {
@@ -91,10 +103,17 @@ function probe() {
     reset() { gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
 }
 
-/** Hears the probe's event and its output port, and writes what it heard to its private storage once the test lets it. */
-function listener() {
+/**
+ * Hears the probe's event and its output port, and writes what it heard to its private storage once the test lets it. Its
+ * `borrow` action writes through the probe's services, which a plugin could reach only by sharing them outside the platform.
+ */
+function listener(probeServices: () => PluginHostServices) {
   const heard = deferred(), release = deferred();
   let services: PluginHostServices | undefined;
+  const borrow: ActionDefinition<{ target: Target; name: string }, boolean> = { capability_id: `${LISTENER}.borrow`, version: 1, operation: "command",
+    action: { scope: "project", audiences: ["user"], permissions: [], subject_kinds: [], scheduling: "concurrent", title: "用探针的服务写一项",
+      description: "用探针的服务写一项", kind: "operation", input_schema: { type: "object", additionalProperties: false, required: ["target", "name"],
+        properties: { target: { type: "string", enum: [...TARGETS] }, name: { type: "string" } } }, output_schema: { type: "boolean" } } };
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: LISTENER, version: "1.0.0", name: LISTENER, kind: "app",
     publisher: { publisher_id: "molis", signature: "probe-callerlistener" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: ["storage:private", "artifact:read"].map(permission => ({ permission, required: true, reason: "记下听到的" })),
@@ -102,14 +121,18 @@ function listener() {
     process_items: { produces: [], consumes: [{ artifact_type_id: ITEM, schema_version: 1 }] },
     ports: { inputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 }], outputs: [] },
     events: { publishes: [], subscribes: [{ event_type_id: ANNOUNCED, type_version: 1, from_plugin_ids: [ID] }] },
-    upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
+    actions: [borrow], upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const definition: PluginDefinition = { manifest, start(context) {
     services = context.services;
     const hear = async (key: string) => { heard.resolve(); await release.promise; services!.storage!.set(key, "heard"); };
     return { kind: "app", views: [], onEvent: event => hear((event.payload as { name: string }).name),
-      onUpstreamReady: () => hear("input"), onUpstreamUnavailable: () => {} };
+      onUpstreamReady: () => hear("input"), onUpstreamUnavailable: () => {}, actions: [{ ...borrow, handle: async (_caller, input) => {
+        const { target, name } = input as { target: Target; name: string };
+        await write(probeServices(), target, name, async () => {});
+        return true;
+      } }] };
   } };
-  return { definition, heard, release, stored: (name: string) => services?.storage?.get(name) ?? null };
+  return { definition, borrow, heard, release, stored: (name: string) => services?.storage?.get(name) ?? null };
 }
 
 /** The project platform the Host builds, with the real library, file, private storage and 成果 services. */
@@ -130,7 +153,7 @@ async function platform(t: TestContext) {
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
-  const plugin = probe(), subscriber = listener();
+  const plugin = probe(), subscriber = listener(() => plugin.services());
   assert.deepEqual((await running.start([{ definition: plugin.definition, database: DATABASE, files: FILES, bundled: true },
     { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
@@ -138,46 +161,66 @@ async function platform(t: TestContext) {
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;
     if (target === "storage") return services.storage!.get(name) !== null;
     if (target === "files") return existsSync(join(home, FILES.store_name, FILES.directory, `${name}.bin`));
+    if (target === "select") return running.wiring.outputReference(ID, "fixed")?.artifact_id === name;
+    if (target === "invalidate") return (store.db.prepare("SELECT invalidated_reason FROM plugin_port_outputs WHERE project_id = ? AND plugin_id = ? AND port = 'item'")
+      .get(DEMO_PROJECT_ID, ID) as { invalidated_reason: string | null } | undefined)?.invalidated_reason === name;
+    if (target === "retain") return running.wiring.retained(ID).some(reference => reference.artifact_id === name);
     return !!(target === "publish" ? artifacts : processItems).query.latestArtifactVersion(DEMO_PROJECT_ID, name);
   };
   return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home };
 }
 
+/** The original caller. `replace` is what a caller whose authority moved to another provider reports (an MCP tool that changed, for one). */
 function caller() {
   const abort = new AbortController();
-  let revoked = false;
+  let refusal: ActionError | undefined;
   const context: ActionCallContext = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [WRITE], signal: abort.signal,
-    assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked"); } };
-  return { context, cancel: () => abort.abort(), revoke: () => { revoked = true; } };
+    assert_authority_current: () => { if (refusal) throw refusal; } };
+  return { context, cancel: () => abort.abort(), revoke: () => { refusal = new ActionError("actions.forbidden", "the caller was revoked"); },
+    replace: () => { refusal = new ActionError("actions.provider_changed", "the caller's provider changed"); } };
 }
 
 for (const target of TARGETS) {
-  test(`S-18 ${target}: a plugin's own wait does not stand in for its caller; revoked or cancelled while it waits, nothing is written`, async t => {
+  test(`S-18 ${target}: a plugin's own wait does not stand in for its caller; revoked, cancelled or moved to another provider while it waits, nothing is written`, async t => {
     const { client, plugin, written } = await platform(t);
-    for (const failure of ["revoke", "cancel"] as const) {
+    for (const failure of ["revoke", "cancel", "replace"] as const) {
       plugin.reset();
       const call = caller(), name = `${target}-${failure}`;
+      prepare(plugin.services(), target, name);
       const pending = client.invoke(call.context, plugin.writeAction, { target, name }).then(() => "written", (error: unknown) => error);
       await plugin.gate.entered.promise;
       call[failure]();
       plugin.gate.release.resolve();
       const outcome = await pending;
       await plugin.gate.done.promise;
-      if (failure === "revoke") assert.equal((outcome as { code?: string }).code, "actions.forbidden", name);
-      else assert.equal((outcome as { name?: string }).name, "AbortError", name);
+      if (failure === "cancel") assert.equal((outcome as { name?: string }).name, "AbortError", name);
+      else assert.equal((outcome as { code?: string }).code, failure === "revoke" ? "actions.forbidden" : "actions.provider_changed", name);
       assert.equal(written(target, name), false, `${name}: refused after the plugin's own wait passed`);
     }
     plugin.reset(); plugin.gate.release.resolve();
+    prepare(plugin.services(), target, `${target}-current`);
     assert.equal(await client.invoke(caller().context, plugin.writeAction, { target, name: `${target}-current` }), true);
     assert.equal(written(target, `${target}-current`), true, "a current caller writes");
   });
 }
+
+test("S-18 a service writing for one installation refuses inside another installation's action", async t => {
+  const { client, plugin, subscriber, written } = await platform(t);
+  // The listener's action reaches the probe's services. Its caller is current, but it never asked the probe to write.
+  for (const target of TARGETS) {
+    const name = `${target}-borrowed`;
+    prepare(plugin.services(), target, name);
+    await assert.rejects(client.invoke(caller().context, subscriber.borrow, { target, name }), { code: "actions.forbidden" }, target);
+    assert.equal(written(target, name), false, `${target}: nothing written for the probe from the listener's action`);
+  }
+});
 
 test("S-18 work an action leaves running cannot write after the action has returned", async t => {
   const { client, plugin, written } = await platform(t);
   for (const target of TARGETS) {
     plugin.reset();
     const name = `${target}-left`;
+    prepare(plugin.services(), target, name);
     assert.equal(await client.invoke(caller().context, plugin.leave, { target, name }), true);
     plugin.gate.release.resolve();
     await assert.rejects(plugin.gate.left!, { code: "actions.expired" }, target);
@@ -189,6 +232,7 @@ test("S-18 outside every action the installation's grants decide alone", async t
   const { plugin, written } = await platform(t);
   // The plugin's `start`, a route and a timer set up there run outside every action: there is no caller to ask.
   for (const target of TARGETS) {
+    prepare(plugin.services(), target, `${target}-outside`);
     await write(plugin.services(), target, `${target}-outside`, async () => {});
     assert.equal(written(target, `${target}-outside`), true, target);
   }

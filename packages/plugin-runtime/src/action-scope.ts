@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
-import { requireSynchronous, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /**
  * The action a Plugin's code is running for, as the Runtime knows it: which installation, which declaration, and the call's own
@@ -37,12 +37,14 @@ export function currentPluginAction(): PluginActionScope | undefined {
  * Asked by a service right before it writes for a Plugin: the original caller of the action that code runs for must still be
  * current, its call not cancelled and its authority not revoked or moved to another provider. The answer is synchronous, so
  * nothing runs between it and the write; a `beforeEffect` the Plugin hands the service only waits, and the Plugin passes no
- * caller of its own. Outside every action (`start`, a route, a timer set up there) there is no caller to ask, and the
- * installation's live grants, which each service checks itself, decide alone.
+ * caller of its own. `installId` is the installation the service writes for: inside another installation's action that action's
+ * caller never asked this one to write, so the write is refused. Outside every action (`start`, a route, a timer set up there)
+ * there is no caller to ask, and the installation's live grants, which each service checks itself, decide alone.
  */
-export function assertPluginActionCurrent(): void {
+export function assertPluginActionCurrent(installId: string): void {
   const scope = currentPluginAction();
   if (!scope) return;
+  if (scope.install_id !== installId) throw new ActionError("actions.forbidden", "这次写入属于另一个插件安装，不属于正在运行的动作");
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
 }

@@ -55,7 +55,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
-      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: assertPluginActionCurrent,
+      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
       author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
@@ -63,7 +63,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const fileDeclaration = options.filesFor?.(definition);
     if (fileDeclaration) {
       if (!options.home) throw new Error("私有文件服务需要 Home");
-      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); });
+      files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive);
@@ -87,7 +87,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   const declaration = options.databaseFor?.(definition);
   if (declaration === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
-  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); });
+  return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -153,7 +153,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
   const declaresCapabilities = manifest.capabilities.consumes.length > 0;
   const wiringInput = wiring === undefined
     ? undefined
-    : { manifest, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
+    : { manifest, install_id: context.install_id, graph: wiring, artifacts: artifactService.client, processItems: artifactService.process, scopeKey: options.scopeKey ?? null,
         requireGrant: (permission: string) => context.requireGrant(permission),
         latestVersion: (artifactId: string) => options.processItems.query.latestArtifactVersion(options.project_id, artifactId)?.version ?? 0 };
   return {

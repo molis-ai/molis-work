@@ -14,6 +14,8 @@ import { deliveryNote, deliveryNoteHtml, deliverySteps } from "@molis-ai/molis-w
 class El {
   className = ""; dataset: Record<string, string> = {}; attrs: Record<string, string> = {}; parent: El | null = null; html = ""; firstChild: El | null = null;
   listeners: Record<string, Array<(event: unknown) => void>> = {}; kids: El[] = [];
+  /** The note's one click handler, which the shipped script sets as the property (it is the factory's own element). */
+  onclick: ((event: unknown) => void) | null = null;
   constructor(public tag: string) {}
   get innerHTML() { return this.html; }
   set innerHTML(value: string) {
@@ -86,7 +88,7 @@ test("RCPT-375: a changed note is redrawn whole as a new element; a note of anot
 test("RCPT-375: a supplement's button in the note opens its receipt; nothing else in it does", () => {
   const { after, notes, opened } = page();
   after(note("w1", '<button data-input="s1">「补一句」</button><button data-input="gone">「别的」</button><button data-assistant-object="0">周报</button>'));
-  const click = notes()[0]!.listeners["click"]![0]!;
+  const click = notes()[0]!.onclick!;
   const target = (match: { dataset: { input: string } } | null) => ({ target: { closest: (selector: string) => selector === "[data-input]" ? match : null } });
   click(target({ dataset: { input: "s1" } }));
   assert.deepEqual(opened, ["s1"], "the shared receipt's own link, on this thread");

@@ -32,7 +32,7 @@ const steps = [{ id: "1", text: "整理数据", state: "done" as const }, { id: 
 /** The record the page puts in the conversation as it is: its key is the one the outcome slot's steps name. */
 const WRAP = '<div class="mw-receipt" data-ix-record="delivery:w1" aria-live="off">';
 
-const FORBIDDEN = /已生效|部分生效|已遵循|已完成/;
+const FORBIDDEN = /已生效|部分生效|已遵循|已采纳|已完成/;
 
 /** A work that has everything in it: every kind of line the note can carry. */
 const full = (end: "completed" | "failed" | "stopped" | "cancelled" = "completed"): AssistantWorkView => view(end, [
@@ -58,6 +58,10 @@ test("RCPT-369: the note exists only after the work's rounds have ended, and onl
   assert.equal(deliveryNote(view("completed", [turn("n1", "Molis 的说明", steer("s1", "applied"), "notice")])), null, "a notice is not a supplement of the person's");
   assert.equal(deliveryNote({ ...view("completed"), rounds: [] }), null);
   assert.equal(deliveryNote(view("reconcile-required", undefined, { work: { work_id: "w1", executor: { kind: "assistant" }, state: "running" } as AssistantWorkView["work"] })), null, "a round that is not settled is not an end");
+  for (const older of ["unknown", "reconcile-required"]) {
+    const later = view("completed", undefined, { rounds: [round(older, [turn("t1", "补充", steer("s1", "read"))], [], "run-1"), round("completed", [], [], "run-2")] });
+    assert.equal(deliveryNote(later)?.end, "completed", `an earlier round that is ${older} does not hide the note once the latest one has ended: only the latest round's phase says how it ended`);
+  }
 });
 
 test("RCPT-369: the title follows how the latest round ended, always from the latest round, and no part of the note says it was followed or completed", () => {
@@ -67,11 +71,36 @@ test("RCPT-369: the title follows how the latest round ended, always from the la
     assert.ok(text.startsWith(`${WRAP}<div class="mw-receipt__body"><p class="mw-receipt__who">${title}</p>`), `${phase}: ${title}`);
     assert.doesNotMatch(text, FORBIDDEN, `${phase}: the words the ledger cannot vouch for`);
   }
-  const check = view("reconcile-required", undefined, { work: { work_id: "w1", executor: { kind: "assistant" }, state: "needs-check" } as AssistantWorkView["work"] });
-  assert.equal(deliveryNote(check)?.end, "needs-check");
-  assert.match(html(check), new RegExp(`^${WRAP}<div class="mw-receipt__body"><p class="mw-receipt__who">截至最近一轮：中断，结果待核对</p>`));
-  assert.doesNotMatch(html(check), FORBIDDEN);
   assert.doesNotMatch(Object.values(groups(html(full()))).join(""), FORBIDDEN, "a sub-task that ended is only said to have ended");
+});
+
+/** A work the Host reads as needing a check: the runtime asks for one, or a continuation is blocked (`assistant-continuations.ts`). */
+const checking = { work: { work_id: "w1", executor: { kind: "assistant" }, state: "needs-check" } as AssistantWorkView["work"], objects: [result("a", "周报")] };
+
+test("RCPT-369: a latest round that is not settled (reconcile-required, unknown) has no note and no result step, whatever the work's state says", () => {
+  for (const phase of ["reconcile-required", "unknown"]) {
+    const one = view(phase, undefined, checking);
+    assert.equal(deliveryNote(one), null, `${phase}: the round has not ended, so there is no note to title`);
+    assert.equal(html(one), "");
+    assert.deepEqual(deliverySteps(one, say), [], `${phase}: no step to the note`);
+    assert.deepEqual(assistantOutcomeSteps(one, say), [], `${phase}: the slot gives no result step: what the round made is not known yet`);
+  }
+  const one = view("reconcile-required", undefined, checking);
+  const row = assistantStepRow(one, say);
+  assert.match(row.next_all_html, /data-ix-step-id="check"/, "…what waits on the person is still the check, from the waiting place");
+  assert.doesNotMatch(row.next_all_html, /data-ix-step-id="delivery:w1|data-ix-step-id="open:/, "…and nothing after it opens a result");
+  drawAssistantReply({ view: one }, { say, drafts: () => ({}), card: () => "" });
+  assert.equal(drawn(one), "", "a reply carries no note either");
+});
+
+test("RCPT-369: the title is the latest round's, even when a continuation leaves the work needing a check; the check comes first in the row", () => {
+  const one = view("completed", undefined, checking);
+  assert.equal(deliveryNote(one)?.end, "completed", "the round did end; the work's state is the check's, not the round's");
+  assert.ok(html(one).startsWith(`${WRAP}<div class="mw-receipt__body"><p class="mw-receipt__who">截至最近一轮：最近一轮已结束</p>`));
+  assert.doesNotMatch(html(one), /中断|结果待核对/, "a round that completed is not called interrupted");
+  const ids = [...assistantStepRow(one, say).next_all_html.matchAll(/data-ix-step-id="([^"]+)"/g)].map(match => match[1]);
+  assert.deepEqual(ids, ["check", "delivery:w1", "delivery:w1:open:page:a"], "「去核对」 first, then the note and the result");
+  for (const phase of ["failed", "stopped", "cancelled"]) assert.equal(deliveryNote(view(phase, undefined, checking))?.end, phase === "failed" ? "failed" : "stopped", `${phase}: from the round, not the work`);
 });
 
 test("RCPT-370: the ledger's facts and the AI's own statement are two groups, each supplement's line a button to its receipt", () => {
@@ -219,18 +248,18 @@ test("RCPT-374: every line of the note has its English, and what is new is writt
   wide.objects.push(result("m", "移走的", { state: "moved", open: undefined, moved_to: { title: "别处", kind: "project" } }), result("n", "挪去别处", { state: "moved", open: undefined }), result("u", "读不到", { state: "unavailable", open: undefined }), result("g", "改过", { state: "changed" }));
   wide.delegated = ["idle", "running", "waiting-input", "waiting-review", "paused", "completed", "failed", "stopped", "needs-check"].map((state, index) => ({ work_id: `c${index}`, title: state, state: state as "idle", follow_ups: 0 }));
   for (const phase of ["completed", "failed", "stopped"] as const) deliveryNoteHtml(deliveryNote({ ...wide, rounds: [{ ...wide.rounds[0]!, phase }] })!, recording);
-  deliveryNoteHtml(deliveryNote({ ...wide, work: { ...wide.work, state: "needs-check" } })!, recording);
+  deliveryNoteHtml(deliveryNote({ ...wide, rounds: [{ ...wide.rounds[0]!, phase: "completed" }], work: { ...wide.work, state: "needs-check" } })!, recording);
   deliveryNoteHtml(deliveryNote({ ...wide, queued_inputs: [] })!, recording);
   deliverySteps(wide, recording); deliverySteps({ ...wide, rounds: [{ ...wide.rounds[0]!, phase: "completed" }] }, recording);
   const missing = [...new Set(asked)].filter(key => EN[key] === undefined);
   assert.deepEqual(missing, [], "each Chinese line has an English one");
-  const written = ["截至最近一轮：最近一轮已结束", "截至最近一轮：最近一轮失败", "截至最近一轮：已停止", "截至最近一轮：中断，结果待核对", "做了什么", "这项工作做出的结果", "还差什么", "为它问的问题：", "AI 报告的步骤：", "改动：", "子任务：", "读不到的结果：", "排在队里：",
+  const written = ["截至最近一轮：最近一轮已结束", "截至最近一轮：最近一轮失败", "截至最近一轮：已停止", "做了什么", "这项工作做出的结果", "还差什么", "为它问的问题：", "AI 报告的步骤：", "改动：", "子任务：", "读不到的结果：", "排在队里：",
     "没有排队", "Molis 写的", "别的会话写的", "看交付说明", "这项工作的补充和结果"];
   for (const key of written) {
     assert.ok(asked.includes(key), `the note uses ${key}`);
     assert.match(EN[key]!, /^[A-Z]/, `${key}: starts a sentence`);
     assert.doesNotMatch(EN[key]!, /[一-鿿]/, `${key}: no Chinese left in it`);
   }
-  for (const key of written.slice(0, 4)) assert.doesNotMatch(EN[key]!, /\b(?:followed|completed|took effect)\b/i, "no claim the ledger cannot vouch for");
+  for (const key of written.slice(0, 3)) assert.doesNotMatch(EN[key]!, /\b(?:followed|completed|took effect)\b/i, "no claim the ledger cannot vouch for");
   assert.equal(EN["没有排队"], "Nothing is waiting in the queue.");
 });

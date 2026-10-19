@@ -559,7 +559,6 @@ export const ASSISTANT_EN: Record<string, string> = {
   "截至最近一轮：最近一轮已结束": "As of the latest round: it has ended",
   "截至最近一轮：最近一轮失败": "As of the latest round: it failed",
   "截至最近一轮：已停止": "As of the latest round: it was stopped",
-  "截至最近一轮：中断，结果待核对": "As of the latest round: it was interrupted, and the result needs checking",
   "做了什么": "What was done",
   "这项工作做出的结果": "What this work made",
   "还差什么": "What is still missing",

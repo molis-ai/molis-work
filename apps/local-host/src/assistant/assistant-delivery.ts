@@ -10,7 +10,7 @@ export function isOpenable(object: AssistantWorkObject): boolean {
 }
 
 /** How the latest round ended, as the delivery note says it. */
-export type DeliveryEnd = "completed" | "failed" | "stopped" | "needs-check";
+export type DeliveryEnd = "completed" | "failed" | "stopped";
 
 /** One supplement of the person, as the runtime's ledger and the AI's own statement have it. Facts only; the words are `deliveryNoteHtml`'s. */
 export interface DeliverySupplement {
@@ -57,13 +57,12 @@ export interface DeliveryNote {
 /** The verbs of what the Assistant or its professional Agent changed; reading and looking things up are not a delivery. */
 const CHANGES: ReadonlySet<string> = new Set(["change", "file-change"]);
 
-/** Null while any round is live or unsettled; otherwise how the latest one ended. */
+/** Null while any round is live, or while the latest one is not settled (`unknown`, `reconcile-required`); otherwise how the latest one ended. A work that needs checking after a continuation does not change how that round ended. */
 function endOf(view: AssistantWorkView): DeliveryEnd | null {
   const last = view.rounds.at(-1);
   if (!last) return null;
   if (view.rounds.some(round => round.phase !== "unknown" && round.phase !== "reconcile-required" && !isTerminalAgentPhase(round.phase))) return null;
-  if (view.work.state === "needs-check") return "needs-check";
-  if (view.rounds.some(round => round.phase === "unknown" || round.phase === "reconcile-required")) return null;
+  if (last.phase === "unknown" || last.phase === "reconcile-required") return null;
   return last.phase === "completed" ? "completed" : last.phase === "failed" ? "failed" : "stopped";
 }
 
@@ -153,8 +152,7 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
     ...note.queue === null ? [] : note.queue.length ? note.queue.map(item => esc(say("排在队里：") + quoted(item.text))
       + (item.source === "host" ? DOT + esc(say("Molis 写的")) : item.source === "peer" ? DOT + esc(say("别的会话写的")) : "")) : [esc(say("没有排队"))],
   ];
-  const title = note.end === "completed" ? say("截至最近一轮：最近一轮已结束") : note.end === "failed" ? say("截至最近一轮：最近一轮失败")
-    : note.end === "stopped" ? say("截至最近一轮：已停止") : say("截至最近一轮：中断，结果待核对");
+  const title = note.end === "completed" ? say("截至最近一轮：最近一轮已结束") : note.end === "failed" ? say("截至最近一轮：最近一轮失败") : say("截至最近一轮：已停止");
   return `<div class="mw-receipt" data-ix-record="${esc(note.record)}" aria-live="off"><div class="mw-receipt__body"><p class="mw-receipt__who">${esc(title)}</p>`
     + group(say("记录里的"), recorded) + group(say("AI 自己说的，Molis 没有核对"), claimed, ' class="mw-receipt__claimed"')
     + group(say("做了什么"), [...note.changes.filter(item => !unsure(item)).map(change), ...note.subtasks.filter(ended).map(part)])
@@ -164,10 +162,10 @@ export function deliveryNoteHtml(note: DeliveryNote, say: (text: string, values?
 /**
  * The delivery note's steps in the outcome slot (specs/context-program §21.9): one to bring the note into view, and the
  * first result that opens, pressed through the note's own button. None when the latest round failed: the slot then gives
- * only the retry, and the note is still drawn. The note is the record `delivery:<work>` in the conversation.
+ * only the retry, and the note is still drawn. The note is the record `delivery:<work>` in the conversation. A caller that
+ * has the view's note already passes it (null for none), so a reply works it out once.
  */
-export function deliverySteps(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string): InteractionNextStep[] {
-  const note = deliveryNote(view);
+export function deliverySteps(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string, note: DeliveryNote | null = deliveryNote(view)): InteractionNextStep[] {
   if (!note || view.rounds.at(-1)?.phase === "failed") return [];
   const { record } = note, first = note.results.find(item => item.open);
   return [{ id: record, label: say("看交付说明"), source: say("这项工作的补充和结果") },

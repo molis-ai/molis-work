@@ -1,6 +1,6 @@
 import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { deliverySteps, isOpenable } from "./assistant-delivery.js";
+import { deliveryNote, deliverySteps, isOpenable, type DeliveryNote } from "./assistant-delivery.js";
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
@@ -13,10 +13,10 @@ export const OUTCOME_STEPS = 2;
  * note (receipts 3e), then the result of the card that ran last (interaction AC-06), then what the latest round made, or
  * its retry when it failed. Each owner adds its own branch here and draws its record in the conversation; nothing else
  * draws an outcome. A step leads to that record by `NEXT_STEP.record` or `NEXT_STEP.press`, so pressing it does only what
- * the record's own control does.
+ * the record's own control does. A caller that has the view's delivery note already passes it (null for none).
  */
-export function assistantOutcomeSteps(view: AssistantWorkView, say: Say): InteractionNextStep[] {
-  const delivery = deliverySteps(view, say);
+export function assistantOutcomeSteps(view: AssistantWorkView, say: Say, note: DeliveryNote | null = deliveryNote(view)): InteractionNextStep[] {
+  const delivery = deliverySteps(view, say, note);
   return (delivery.length ? delivery : roundOutcome(view, say)).slice(0, OUTCOME_STEPS);
 }
 

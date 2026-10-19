@@ -150,8 +150,8 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
       if (note !== drawn) {
         drawn = note; block?.remove(); block = null;
         if (note) {
-          const box = document.createElement("div"); box.innerHTML = note; block = box.firstChild;
-          block.addEventListener("click", (event) => { const one = event.target.closest("[data-input]"); if (one) shared.link(thread, one.dataset.input)?.click(); });
+          block = Object.assign(document.createElement("div"), { innerHTML: note }).firstChild;
+          block.onclick = (e) => { const one = e.target.closest("[data-input]"); one && shared.link(thread, one.dataset.input)?.click(); };
         }
       }
       if (block) put(block);

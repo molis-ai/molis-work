@@ -59,13 +59,15 @@ const baseAllowed: Record<string, string> = {
   ".gitignore": "ignore rules", ".impeccable": "evidence", "AGENTS.md": "rules", "README.md": "front page", apps: "apps", docs: "docs",
   "package.json": "root manifest", packages: "packages", plugins: "plugins", skills: "skills", specs: "specs", tests: "tests", tooling: "tooling", vendor: "vendored",
 };
+// `docsJsonBytes` bounds a .json under docs/ (scripts/gates/doc-raw-data.mjs); the base holds one exactly at the limit.
+const baseLimits = { file: 200, classLines: 100, classMethods: 30, functionLines: 80, vendoredPrologueSdk: 2, docsJsonBytes: 64 };
 const contractsManifest = (subpaths: string[]) => JSON.stringify({ name: "@molis-ai/molis-work-contracts",
   exports: Object.fromEntries([[".", { import: "./dist/index.js" }], ...subpaths.map((subpath) => [`./${subpath}`, { import: `./dist/${subpath}.js` }])]) }, null, 2) + "\n";
 
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-doc-gates-"));
   git("init", "-q", "-b", "main");
-  put("tooling/gates/limits.json", JSON.stringify({ file: 200, classLines: 100, classMethods: 30, functionLines: 80, vendoredPrologueSdk: 2 }, null, 2) + "\n");
+  put("tooling/gates/limits.json", JSON.stringify(baseLimits, null, 2) + "\n");
   put("tooling/gates/root-allowlist.json", allowlist(baseAllowed));
   put("package.json", JSON.stringify({ name: "fixture", scripts: { build: "tsc", "health:check": "node scripts/check-health-gates.mjs" } }) + "\n");
   put(".gitignore", "dist/\n.impeccable/qa/\n");
@@ -78,11 +80,16 @@ before(() => {
     "Read `docs/guide.md`, then `skills/dev/SKILL.md`. Run `pnpm health:check`. The old test is `tests/old.test.ts`.",
     "Archive per `specs/README.md`. Actions live in `plugins/native/<name>/src/actions.ts`.",
     "A stray folder starts no cited path: `outputs/gone.txt`."));
-  put("tests/old.test.ts", "export const old = 1;\n");
+  put("tests/old.test.ts", "export const old = 1; // A test may still say /Users/someone/notes; the rule reads docs/ only.\n");
   put("docs/guide.md", lines("# Guide", "", "## Setup steps", "",
     "[next](next.md) [anchor](#setup-steps) [up](../README.md#fixture) [dir](../packages/) [encoded](./%E6%96%87.md) [outside](https://example.com/x) [mail](mailto:a@b.c)",
     "", "```", "[inside a fence](nowhere.md)", "```", "", "An inline span `[inside code](nowhere.md)` is not a link either."));
   put("docs/next.md", "# Next\n");
+  // None of these is a path on someone's machine: placeholders, a bare /Users/, a home/ folder inside a repository-relative path,
+  // a path under ~, a URL whose path has a home segment. A path on a machine outside docs/ is not this rule's either.
+  put("docs/paths.md", lines("# Paths", "", "Write `/Users/<name>/` or `/home/$USER/` or `/home/*/`, never a bare `/Users/` with a name after it.",
+    "The view is `apps/web/home/view.ts`; notes live in `~/home/notes`; https://example.com/news/home/2026/ is a link."));
+  put("docs/design/record.json", `{"a":"${"x".repeat(55)}"}\n`);
   put("docs/文.md", "# 文\n");
   put("docs/archive/old.md", "[gone](missing.md)\n");
   put("skills/dev/SKILL.md", lines("# Dev", "",
@@ -277,6 +284,23 @@ const violations: Scenario[] = [
     git("rm", "-q", ".impeccable/review/set-b/1.png");
     put(".impeccable/review/set-a/9.png", "9");
   }, expect: [/in \.impeccable\/review\/set-a 2 → 3/] },
+
+  // ---- raw captures and developer paths in docs/ (no baseline, user 2026-10-18) ----
+  { kind: "absolute", name: "a .json under docs/ one byte over docsJsonBytes", mutate: () => put("docs/research/capture.json", `{"a":"${"x".repeat(56)}"}\n`),
+    expect: [/raw data in docs: docs\/research\/capture\.json is 65 bytes, over the 64 a \.json under docs\/ may hold/] },
+  { kind: "absolute", name: "a developer path in an archived handoff", mutate: () => put("docs/archive/handoff.md", "cd /Users/someone/repo\n"),
+    expect: [/raw data in docs: docs\/archive\/handoff\.md:1: \/Users\/someone is a path on a developer's machine/] },
+  { kind: "absolute", name: "a /home path inside a .json under docs/", mutate: () => put("docs/design/detector.json", '{"file":"/home/dev/x.css"}\n'),
+    expect: [/raw data in docs: docs\/design\/detector\.json:1: \/home\/dev is a path/] },
+  { kind: "absolute", name: "a file URL into a home folder", mutate: () => append("docs/guide.md", "\nSee file:///Users/someone/shot.png and HOME=/home/dev.\n"),
+    expect: [/docs\/guide\.md:\d+: \/Users\/someone is a path/, /docs\/guide\.md:\d+: \/home\/dev is a path/] },
+  { kind: "absolute", name: "the docs .json limit loosened", mutate: () => put("tooling/gates/limits.json", JSON.stringify({ ...baseLimits, docsJsonBytes: 1 << 20 }, null, 2) + "\n"),
+    expect: [/limit "docsJsonBytes" loosened 64 → 1048576/] },
+  { kind: "absolute", name: "the docs .json limit removed to switch the rule off", mutate: () => {
+    const { docsJsonBytes: _dropped, ...rest } = baseLimits;
+    put("tooling/gates/limits.json", JSON.stringify(rest, null, 2) + "\n");
+  }, expect: [/limit "docsJsonBytes" removed from tooling\/gates\/limits\.json \(it was 64\)/,
+    /raw data in docs: tooling\/gates\/limits\.json has no positive "docsJsonBytes", and docs\/ holds 1 \.json file/] },
 
   // ---- placeholder contract subpaths (no baseline: the six that existed went in W2-01) ----
   { kind: "absolute", name: "a new descriptor-only, unused contracts subpath", mutate: () => {

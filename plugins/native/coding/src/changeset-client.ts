@@ -36,6 +36,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     return TONES[file.review.execution] || ['attention','结果未知','verify'];
   };
   const el=(tag,cls,text)=>{const node=document.createElement(tag);if(cls)node.className=cls;if(text!==undefined)node.textContent=text;return node;};
+  const fileIcon=()=>{const node=el('span','coding-change-icon');node.innerHTML='<svg aria-hidden="true"><use href="#icon-file"></use></svg>';return node;};
   const counts=(file)=>{const box=el('span','coding-change-counts');box.append(el('ins','','+'+file.added_lines),el('del','','−'+file.removed_lines));return box;};
   const pathLabel=(path)=>{const box=el('span','coding-change-path'),cut=path.lastIndexOf('/');if(cut>=0)box.append(el('span','coding-change-dir',path.slice(0,cut+1)));box.append(el('b','',path.slice(cut+1)));box.title=path;return box;};
   const renderFiles=(files,runValue)=>{
@@ -45,11 +46,11 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     const state=(file)=>{const [tone,label,ring]=stateOf(file),node=el('span','coding-change-state',label);node.dataset.tone=tone;node.dataset.mwState=ring;return node;};
     for(const [path,list] of groups){
       const first=files[list[0]],group=el('div','coding-change-file');group.dataset.kind=first.kind;
-      if(list.length===1){const button=pick(list[0]);button.setAttribute('aria-pressed',String(list[0]===index));button.classList.add('is-file');button.append(el('span','coding-change-icon'),pathLabel(path),el('span','coding-change-kind',first.kind==='added'?'新建':'修改'),counts(first),state(first));button.firstChild.innerHTML='<svg aria-hidden="true"><use href="#icon-file"></use></svg>';group.append(button);}
+      if(list.length===1){const button=pick(list[0]);button.setAttribute('aria-pressed',String(list[0]===index));button.classList.add('is-file');button.append(fileIcon(),pathLabel(path),el('span','coding-change-kind',first.kind==='added'?'新建':'修改'),counts(first),state(first));group.append(button);}
       else{
         const head=el('div','coding-change-file-head'),writes=el('span','coding-change-kind',list.length+' 次写入'),netGroup=(value?.net_groups || []).find(item=>item.path===path);
         if(netGroup && !netGroup.available)writes.title=netGroup.reason;
-        head.append(el('span','coding-change-icon'),pathLabel(path),writes);head.firstChild.innerHTML='<svg aria-hidden="true"><use href="#icon-file"></use></svg>';group.append(head);
+        head.append(fileIcon(),pathLabel(path),writes);group.append(head);
         if(netGroup?.available){
           const whole=el('button','coding-change-write is-net');whole.type='button';whole.dataset.codingChangeNet=path;whole.setAttribute('aria-pressed',String(net && list.includes(index)));
           whole.append(el('span','coding-change-step','本轮净变更'));lifetime.listen(whole,'click',()=>{if(!(net && list.includes(index)))void open(runValue,false,list[0],fixed,'1');});group.append(whole);

@@ -3,7 +3,7 @@ import test from "node:test";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
-  agentQuestionHtml, assistantCardHtml, assistantNextSteps, assistantStepRow, drawAssistantReply, questionErrors,
+  agentQuestionHtml, assistantCardHtml, assistantOutcomeSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
 import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -136,13 +136,33 @@ const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantW
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
 
-test("AC-23: the steps under the latest round derive from the work: open what it made, or send the same words again", () => {
-  assert.deepEqual(assistantNextSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);
+test("AC-23, SLOT-01: the outcome slot under the latest round derives from the work: open what it made, at most two, or send the same words again", () => {
+  assert.deepEqual(assistantOutcomeSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);
   const made = (id: string, title: string): AssistantWorkView["objects"][number] => ({ relation: "result", open: { surface: "pages", id }, state: "current", subject: { kind: "page", id }, title,
     recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" });
-  const steps = assistantNextSteps(view("completed", { objects: [made("a", "周报"), made("b", "纪要"), made("c", "附件")] }), say);
+  const steps = assistantOutcomeSteps(view("completed", { objects: [made("a", "周报"), made("b", "纪要"), made("c", "附件")] }), say);
   assert.deepEqual(steps.map(step => [step.id, step.label, step.primary]), [["open:page:a", "打开「周报」", undefined], ["open:page:b", "打开「纪要」", false]]);
-  assert.deepEqual(assistantNextSteps(view("running"), say), []);
+  assert.deepEqual(assistantOutcomeSteps(view("running"), say), []);
+});
+
+test("SLOT-01: the outcome slot follows whatever waits on the person; the row still shows three and folds the rest", () => {
+  const made = (id: string): AssistantWorkView["objects"][number] => ({ relation: "result", open: { surface: "pages", id }, state: "current", subject: { kind: "page", id }, title: id,
+    recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" });
+  const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
+  const done = view("completed", { cards: [card("ready")], objects: [made("a"), made("b"), made("c")] });
+  assert.deepEqual(ids(assistantStepRow(done, say).next_all_html), ["card:card-1:run", "open:page:a", "open:page:b"], "the card that waits first, then two outcomes");
+  const crowded = view("completed", { cards: done.cards, objects: done.objects,
+    reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
+  const row = assistantStepRow(crowded, say);
+  assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
+  assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
+  const delegated = assistantStepRow(view("completed", { objects: done.objects, reviews: crowded.reviews,
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }] }), say);
+  assert.deepEqual(ids(delegated.next_all_html), ["review:r1", "work:child-1", "open:page:a", "open:page:b"]);
+  assert.deepEqual(ids(delegated.next_html), ["review:r1", "work:child-1", "open:page:a"], "nor a sub-task that waits on the person");
+  const shut = made("b"); delete shut.open;
+  const missing = view("completed", { objects: [{ ...made("a"), state: "missing" }, shut] });
+  assert.deepEqual(assistantOutcomeSteps(missing, say), [], "a result that is gone or cannot be opened is not a step");
 });
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {

@@ -12,6 +12,9 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
  * on screen: the page runs it by pressing that record's own control (FLOW-01), so there is no second execution path.
  * `card:<id>:run` presses the card's run button (the page first checks the card has no unsent edits, FLOW-03);
  * `question:<id>:<field>:<value>` picks that option in the card and presses its submit; the rest only bring the record into view.
+ * An outcome record (specs/context-program §21.9) is keyed `<kind>:<id>` by its `data-ix-record`, a card by its `data-card`;
+ * `press` names a control the record carries as `data-ix-press="<name>"`, which the Assistant's row presses only when it is
+ * enabled and the record has no unsent edits, and otherwise brings the record into view.
  */
 export const NEXT_STEP = {
   review: (id: string) => `review:${id}`,
@@ -19,6 +22,8 @@ export const NEXT_STEP = {
   run: (id: string) => `card:${id}:run`,
   question: (id: string) => `question:${id}`,
   choose: (id: string, field: string, value: string) => `question:${id}:${field}:${value}`,
+  record: (kind: string, id: string) => `${kind}:${id}`,
+  press: (record: string, name: string) => `${record}:${name}`,
 } as const;
 
 /** The one choice the person can answer with a single press: the set has one question, it is single choice, nothing else is required (FLOW-02). */

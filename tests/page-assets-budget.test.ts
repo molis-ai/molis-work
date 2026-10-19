@@ -653,6 +653,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1111561],
   ["/assets/molis-work-workbench.js", 1112315],
   ["/assets/molis-work-workbench.js", 1112375],
+  // W5-10 preview extraction is smaller than the combined main baseline; its intermediate allowance is retired.
+  ["/assets/molis-work-pages-editor.js", 706825], ["/assets/molis-work-pages-editor.js", 706928],
   ["/assets/molis-work-workbench.js", 1111791], ["/assets/molis-work-workbench.js", 1114022],
   ["/assets/molis-work-workbench.js", 1111910], ["/assets/molis-work-workbench.js", 1114141],
 ] as const) {

@@ -143,6 +143,18 @@ export class KnowledgeService {
     return { status: found.status, cards };
   }
 
+  /**
+   * Brings this project's sources in the search index current, the way a search does (a search is the only door into the
+   * index's catch-up, and SearchService may not grow). The management page and the side panel ask it before listing cards, so a
+   * project nobody has searched yet still shows its pieces. The word asked is not used: only the catch-up matters.
+   */
+  async catchUp(access: KnowledgeAccess): Promise<{ listing: boolean }> {
+    this.project(access);
+    const found = await this.options.search(access, { query: "资料", scope: "project", limit: 1 });
+    // The search waits only so long; a source it has not listed yet is still being listed, and its pieces come after.
+    return { listing: found.sources.some(source => source.state === "indexing") };
+  }
+
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
     const context = await this.owner(access, input.subject, knowledgeActions.outline);
     const card = this.stored(access.caller.project_id!, context.subject);

@@ -218,7 +218,11 @@ export interface KnowledgeCardStorePort {
 }
 
 export interface KnowledgeCardsRequest { states?: KnowledgeCardState[]; limit?: number; offset?: number }
-export interface KnowledgeCardsResponse { cards: KnowledgeCardRecord[]; total: number; quota: KnowledgeQuota }
+/**
+ * `model_ready`: whether the project has a text model now; without one, waiting cards stay waiting (and are found by title and
+ * opening text). `listing`: some of the project's sources are still being listed for the first time, so more pieces may appear.
+ */
+export interface KnowledgeCardsResponse { cards: KnowledgeCardRecord[]; total: number; quota: KnowledgeQuota; model_ready: boolean; listing: boolean }
 /** Edit a card; `adopt` takes organizing's suggestion for those fields instead (and they become organizing's again). */
 export interface KnowledgeEditRequest { subject: ActionSubject; title?: string; brief?: string; keywords?: string[]; adopt?: KnowledgeEditableField[] }
 export interface KnowledgeExcludeRequest { subject: ActionSubject; excluded: boolean }
@@ -314,7 +318,8 @@ export const knowledgeManageActions = {
     title: "列出资料卡片", description: "列出当前项目每份资料的卡片、整理状态和今天的整理额度，供管理页使用。",
     input_schema: { type: "object", properties: { states: { type: "array", maxItems: KNOWLEDGE_CARD_STATES.length, items: { enum: [...KNOWLEDGE_CARD_STATES] } },
       limit: { type: "integer", minimum: 1, maximum: 200 }, offset: count }, additionalProperties: false },
-    output_schema: { type: "object", properties: { cards: { type: "array", items: cardRecord }, total: count, quota }, required: ["cards", "total", "quota"], additionalProperties: false } } } as ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>,
+    output_schema: { type: "object", properties: { cards: { type: "array", items: cardRecord }, total: count, quota, model_ready: { type: "boolean" }, listing: { type: "boolean" } },
+      required: ["cards", "total", "quota", "model_ready", "listing"], additionalProperties: false } } } as ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>,
   edit: { capability_id: "knowledge.card.edit", version: 1, operation: "command", action: { ...manage,
     title: "编辑资料卡片", description: "改一份资料卡片的标题、简介或关键词；改过的字段以后重新整理也不会被覆盖。也可以采用整理给出的新建议。",
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string", minLength: 1, maxLength: KNOWLEDGE_TITLE_MAX_CHARS, pattern: "\\S" },

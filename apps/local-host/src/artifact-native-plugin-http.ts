@@ -97,6 +97,11 @@ export function createLocalArtifactHttp() {
         sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
         return true;
       }
+      // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
+      if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {
+        sendLocalWebJson(response, 200, await context.actions.invoke(artifactsActions.importSources, {}));
+        return true;
+      }
       if (pathname === "/api/artifacts/continue" && request.method === "POST") {
         // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version, with its own permissions.
         const body = await readArtifactImportBody(request) as { reference?: { artifact_id?: unknown; version?: unknown }; plugin_id?: unknown };

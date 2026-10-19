@@ -121,6 +121,8 @@ export interface KnowledgeCardsResponse {
     cards: KnowledgeCardRecord[];
     total: number;
     quota: KnowledgeQuota;
+    model_ready: boolean;
+    listing: boolean;
 }
 
 export interface KnowledgeEditRequest {

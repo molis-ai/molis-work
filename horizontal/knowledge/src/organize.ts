@@ -204,6 +204,9 @@ export class KnowledgeOrganizer {
     return { day: usage.day, used_pieces: usage.pieces, used_chars: usage.chars, limit_pieces, limit_chars, reached: usage.pieces >= limit_pieces || usage.chars >= limit_chars };
   }
 
+  /** Whether there is a text model to organize with now. */
+  modelReady(): boolean { return this.options.writer() !== null; }
+
   async close(): Promise<void> {
     this.closed = true;
     await Promise.allSettled([...this.running.values()]);

@@ -92,7 +92,14 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeActions.read, handle: (caller, input) => service.read(access(caller), input as KnowledgeReadRequest) },
     { ...knowledgeActions.grep, handle: (caller, input) => service.grep(access(caller), input as KnowledgeGrepRequest) },
     { ...knowledgeActions.glob, handle: (caller, input) => service.glob(access(caller), input as KnowledgeGlobRequest) },
-    { ...knowledgeManageActions.cards, handle: (caller, input) => cards.list(caller, input as KnowledgeCardsRequest) },
+    // Listing brings the project's sources current first (a catch-up that fails still lists what is there) and organizes what is new.
+    { ...knowledgeManageActions.cards, handle: async (caller, input) => {
+      const caught = await service.catchUp(access(caller)).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return { listing: false }; });
+      // Cards for what the catch-up found are there before the list is read; organizing them follows shortly after.
+      if (caller.project_id) await organizer.reconcile(caller.project_id).catch(error => ports.onError?.(error, "knowledge.reconcile"));
+      changed(caller.project_id);
+      return cards.list(caller, input as KnowledgeCardsRequest, caught.listing);
+    } },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },
     { ...knowledgeManageActions.exclude, handle: async (caller, input) => { await caller.beforeEffect(); return cards.exclude(caller, input as KnowledgeExcludeRequest); } },

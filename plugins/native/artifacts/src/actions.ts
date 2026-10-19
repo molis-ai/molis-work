@@ -169,7 +169,9 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
         // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
         return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
-          title: record.title, summary, updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } };
+          // An imported document is read as its text, so its text is indexed and organized (specs/project-knowledge PMAT-14); other types keep their summary.
+          title: record.title, summary, updated_at: record.created_at, content: record.artifact_type_id === DOCUMENT_ARTIFACT_TYPE ? "context" : "summary",
+          open: { surface: "artifacts", id: artifactVersionPath(record) } };
       });
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {

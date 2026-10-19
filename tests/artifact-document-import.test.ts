@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,7 +9,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {
-  DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
+  artifactAnalysisContext, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -419,4 +420,54 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);
   await refused.text();
+});
+
+/** A one-page PDF with a text layer: the lines are drawn in Helvetica, the offsets in the cross-reference table are exact. */
+function pdfWith(lines: string[]): Buffer {
+  const stream = `BT /F1 14 Tf 72 720 Td 18 TL ${lines.map(line => `(${line}) '`).join(" ")} ET`;
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => { offsets.push(body.length); body += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`
+    + `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
+}
+
+test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it is what readers of the 成果 get", async t => {
+  const { coordinator, post } = await fixture(t);
+  const original = (filename: string, mime: string, bytes: Uint8Array) => ({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
+  const saved = async (body: unknown) => {
+    const response = await post(body);
+    assert.equal(response.status, 201, await response.clone().text());
+    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    return { result, record: coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)! };
+  };
+
+  const pdf = pdfWith(["Quarterly review notes", "The beta pass code is MW-0042."]);
+  const fromPdf = await saved(original("review.pdf", "application/pdf", pdf));
+  const pdfPayload = fromPdf.record.payload as { content: string; original_file: { data_base64: string } };
+  assert.match(pdfPayload.content, /The beta pass code is MW-0042\./u);
+  assert.deepEqual(Buffer.from(pdfPayload.original_file.data_base64, "base64"), pdf, "the original is kept byte for byte");
+  const pdfContext = artifactAnalysisContext(fromPdf.record);
+  assert.match(pdfContext.content, /beta pass code is MW-0042/u, "a reader gets the text");
+  assert.doesNotMatch(pdfContext.content, /data_base64|JVBERi0/u, "never the original's bytes");
+
+  const { zipSync } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate") as { zipSync(entries: Record<string, Uint8Array>): Uint8Array };
+  const docx = zipSync({
+    "[Content_Types].xml": Buffer.from('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>'),
+    "word/document.xml": Buffer.from('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>保留事实：试点在三月开始</w:t></w:r></w:p></w:body></w:document>'),
+  });
+  const fromWord = await saved(original("方案.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+  assert.match((fromWord.record.payload as { content: string }).content, /保留事实：试点在三月开始/u);
+  assert.match(artifactAnalysisContext(fromWord.record).content, /试点在三月开始/u);
+
+  // A file it cannot read is still imported: the original is kept, the import says so, and a reader is told there is no text.
+  const broken = await saved(original("scan.pdf", "application/pdf", Buffer.from("%PDF-1.4\nnot really a pdf\n%%EOF\n", "latin1")));
+  assert.equal((broken.record.payload as { content: string }).content, "");
+  assert.ok(broken.result.warnings.length > 0, "the import says no text was read");
+  assert.match(artifactAnalysisContext(broken.record).content, /^（导入的原件 scan\.pdf，application\/pdf，没有读出正文。）$/u);
 });

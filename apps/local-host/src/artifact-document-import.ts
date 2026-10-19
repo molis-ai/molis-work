@@ -1,5 +1,6 @@
 import type { IncomingMessage } from "node:http";
-import { readMaterialHtml } from "./material-extraction.js";
+import { extractMaterial, readMaterialHtml } from "./material-extraction.js";
+import { readMaterialDocuments } from "./material-documents.js";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
@@ -61,6 +62,7 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
       catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
+    readFileText: file => readOriginalText(file, ports.signal),
     async readExternal(document) {
       const service = CONNECTOR_IDS[document.source];
       const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");
@@ -123,4 +125,26 @@ export async function readArtifactImportBody(request: IncomingMessage): Promise<
     request.on("error", reject);
     request.on("aborted", () => reject(artifactImportErrors.request_aborted("导入请求已中断，请重新尝试")));
   });
+}
+
+/**
+ * The text of an original the import keeps as it is (specs/project-knowledge PMAT-14): a PDF's text layer (no recognition) and a
+ * Word document's content, by the Host's extraction. A file it cannot read is still imported, with a note and no text.
+ */
+async function readOriginalText(file: { filename: string; data_base64: string }, signal?: AbortSignal): Promise<{ text: string; warnings: string[] } | null> {
+  const extension = file.filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1];
+  if (extension !== "pdf" && extension !== "docx") return null;
+  const source = { file_name: file.filename, bytes: Buffer.from(file.data_base64, "base64") };
+  try {
+    if (extension === "pdf") {
+      const read = await extractMaterial(source, { ...(signal ? { signal } : {}), timeoutMs: 60_000, pdfMode: "text", textFormat: "markdown" });
+      const thin = read.coverage.status !== "sufficient" ? ["PDF 里只读出了部分文字（扫描页没有文字层）；原件完整保存。"] : [];
+      return { text: read.text, warnings: read.text.trim() ? thin : ["这份 PDF 没有可读的文字层，只保存了原件。"] };
+    }
+    const batch = await readMaterialDocuments([source], { ...(signal ? { signal } : {}), timeoutMs: 60_000 });
+    return { text: batch.documents.map(document => document.content).join("\n\n"), warnings: batch.warnings };
+  } catch {
+    signal?.throwIfAborted();
+    return { text: "", warnings: ["没能读出这个文件的正文，只保存了原件。"] };
+  }
 }

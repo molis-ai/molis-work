@@ -1179,3 +1179,6 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - 新开的在途：② 的 #741（内置插件可选权限）与 #755（路由拒绝只带 Host 记的 call_id）都审过、可合，但都有冲突要变基；④ 的 #757（写后检查器保存时拒跑不了的配置，改 contracts）审过可合。三个都是共享核心，等 main 末端变绿后合成 `integration/batch-1019-1` 跑一次全量。
 - 跨会话消息：统筹在用户上次发话之后已发满 10 条，暂停到用户下次发话。给 ② 的那条（#755、#741 的结论，加 #717 的门禁）存在统筹的 outbox 里，届时补发。
 - 01:33 UTC：同一 run 的第 2 次重跑，第 2 片又红在 `tests/side-shelf-in-hand.e2e.test.ts` 的 W3-C AC-S04。Shelf 侧栏 iframe 里的选中条没出来，焦点停在 Pages 编辑器上，片内重试也红；怀疑 #753（Pages 编辑器拆分、弹层生命周期）或 #745（Shelf 的 owner 文件）。其余片被 fail-fast 取消。这一条与 §10.29 的条目一起存进统筹 outbox，等用户下次发话后发给 ③。
+- 01:40 UTC ③ 回报两件事。
+  - 集成分支 `integration/anti-corruption-closeout-20261018`（`a212e9369`）上没有剩下要落的东西，main `ffb3db076` 是它的超集。核的办法是比树：两边只差 4 个文件，都是 main 那边新（#740 和 #754 里加的验证记录）；main 走 squash，patch-id 对不上，所以不能按提交比。③ 没有在途 PR，也没往 Codex 的分支推过；yijunw0212 最后一次推这条集成分支是 10-18 18:15Z。这条分支可以删，删远端分支要先问用户，与关掉 Codex 的草稿一起问。
+  - 主线红的第一处（AC-05、AC-08 关闭超时）：探针显示 `LocalHost.close()` 里 `this.host.close()` 一步要 25.7 秒，`homePlugins.close()` 7 ms 就失败，③ 在查。② 和 ③ 各断过一次代理错误（`ERR_PROXY_TUNNEL`），之后自己接着跑了。

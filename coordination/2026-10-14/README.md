@@ -1228,3 +1228,20 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 两个都交只读子代理（opus，xhigh）评审。
   - 现在每个会话都开着 2 个 PR：② 是 #741、#762；③ 是 #760、#761；④ 是 #757、#759，另有 Prologue #51、#52。
 - `integration/main-fix-20261019` 的全量 39194646754 还在排队。#631 在另一台机器上自己跑全量，占着 runner。
+- 04:15 UTC：用户同意删掉两条用完的远端分支。删之前核过：`integration/main-check-20261019` 的末端是 main 的祖先；`integration/anti-corruption-closeout-20261018` 与 `ffb3db076` 只差 ③ 说的 4 个文件，都是 main 那边新。两条已删。按用户的话，`codex/cgs-formal-integration-20261013` 和 `codex/linux-probe-uv` 留着。
+  - 另清点出 `integration/hub-1017-a`（10-17，作者 hub，合了 #673、#681、#683、#685，四个都已 squash 进 main），也用完了，要删先问用户。
+- 统筹复审 #760（`a736f603c`），结论：可合，已入队（merge-only）。
+  - 统筹第 1 条判断错了。两个等待（`agent.run.wait.v1`、`agent.collaboration.await.v1`）都是不带 `action` 的宿主描述符；`ActionService` 只认带 `action` 的；声明动作时 operation 只能是 query 或 command。所以页面、MCP、Home 路由都调不到等待。
+  - ③ 撤掉那行改法，改成一条测试钉住这三条事实，对。
+  - 评论 https://github.com/molis-ai/molis-work/pull/760#issuecomment-6259296173 。
+- `integration/main-fix-20261019`（main `b3688266b` + #760 `8c2531104`）的全量 39194646754 16 片全绿：AC-05、AC-08 修好了，AC-S04 这次也过了。
+- AC-S04 按 ③ 的分析定为链合入之前就有的时序偶发：这一格 2 红 1 绿，`c99671c29` 上也红过；本机在 main 上通过；两者之间改的 7 个文件都不在侧栏和情境栏的路径上。根因还分不清是三种里的哪一种，诊断包装交 ③：开一个只改测试的 PR，超时那一刻打出页面状态，排在 Form P1 之后。
+- #761（Dataset P1，`e02930f2d`）统筹评审：可合，没有要改的；等 ③ 贴上 `dataset-actions.e2e` 的重跑结果后入队。评论 https://github.com/molis-ai/molis-work/pull/761#issuecomment-6259354615 。
+- 新的 P1：Form 发布有一模一样的窗口（`plugins/native/form/src/promote.ts:51-63`，和修复前的 Dataset 逐行同构）。派 ③，在 #760 合入后空出的名额里做，同一个 PR 把 PPT-07、DATASET-06 和 Form 的编号一起登进 S-18 与 `test:security`，Pages 一起核。
+- 平台层的结构性修法派 ②（P2）：`openPluginDatabase.transaction` 和 SDK 的 `artifacts.publish` 照 ownerFiles 的写法按 `currentPluginAction()` 自查原调用方，之后删掉三份手写包装。
+- #762（② 的连接器修补，`b97f1b53a`）统筹评审：改后可合，不涉及信任边界的设计变更。评论 https://github.com/molis-ai/molis-work/pull/762#issuecomment-6259373561 。
+  - 要改一条：S-37 的「项目」这一维没有拒绝用例。
+  - 统筹裁定两条：
+    - 裁定 5 的「Home 级本人」按 ② 的读法，指不在项目里的 Home 级调用者（含 Agent、MCP），要守的边界是项目作用域。
+    - `control` v1→v2 带来的 MCP 工具改名，不算「外部已经在用的名字」：这个动作是 10-18 才进的，main 上的 skills、docs、`apps/mcp` 和本机各 MCP 客户端配置都没引用它，所以不用问用户，正文写明新旧名就行。
+- 批次：main + #760 已绿。共享核心里，#741 现在就可以进批；#757、#762 等作者改完，三个一起组 `integration/batch-1019-1`。

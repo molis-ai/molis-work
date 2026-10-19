@@ -176,7 +176,7 @@
 
 | 编号 | 特权或缺口（一句） | 代码位置 | 受影响的插件 | 要补的平台能力或改法 | 归属 | 阶段 | 依据 | 来源编号 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| PG-027 | P2 · 宿主把带用户授权的 ActionClient 交给几个插件：discover 只留本安装的动作，invoke 只许调自己的或 consumes 里的。平台没有给插件嵌套调用 command 的客户端（query 已有 `invokeQuery`） | `plugin-actions-client.ts:116-117,119-131`；已有的只读部分：`plugin-actions-client.ts:118`、`plugin-action-query.ts`、`packages/contracts/src/platform/plugin.ts:84-86`；Workflows 的步骤调所选的任意动作（含写）：`plugins/native/workflows/src/actions.ts:221,350-355` | Workflows、Inbox、Feed | SDK 给一个嵌套动作客户端：沿用外层调用的身份、取消和撤权，按 consumes 授权。#744 已经给了只读的 `invokeQuery`，还缺 command；Workflows 迁移要 command，只有 query 不够（③ 10-19 定） | ② | 1 | 10-18 待遇 | FI-01 | 待做（T0 已核，见 §8） |
+| PG-027 | P2 · 宿主把带用户授权的 ActionClient 交给几个插件：discover 只留本安装的动作，invoke 只许调自己的或 consumes 里的。平台没有给插件嵌套调用 command 的客户端（query 已有 `invokeQuery`） | `plugin-actions-client.ts:116-117,119-131`；已有的只读部分：`plugin-actions-client.ts:118`、`plugin-action-query.ts`、`packages/contracts/src/platform/plugin.ts:84-86`；Workflows 的步骤只能选 command（`plugins/native/workflows/src/actions.ts:42-44` 的 `workflowActionChoices`），调所选的动作：`:221,350-355` | Workflows、Inbox、Feed | SDK 给一个嵌套动作客户端：沿用外层调用的身份、取消和撤权，按 consumes 授权。#744 已经给了只读的 `invokeQuery`，还缺 command；Workflows 迁移要 command，只有 query 不够（③ 10-19 定） | ② | 1 | 10-18 待遇 | FI-01 | 待做（T0 已核，见 §8） |
 | PG-028 | P2 · 插件调自己的动作时，丢了外层调用的受众；`allowModelDownload` 能被插件自己的调用打开 | `plugin-materials-service.ts`、`material-native.ts`（`allowModelDownload`） | 灵光，以及用材料模型的插件 | 照 §4 d：自调用沿用外层受众；`allowModelDownload` 只认宿主发的路由 control，或本人的直接调用。复现见 §6 V-28 | ② | 2 | 10-18 授权 | #727 复查、裁定 10 | 待做（统筹已定，见 §4） |
 | PG-029 | P2 · 决定、管理、配置类动作要求 `caller.user_action`（来源和时间），但没有平台给的可信来源 | `plugins/native/goals/src/decision-action.ts:20-31`、`plugins/native/goals/src/board-actions.ts:14-18`、`plugins/native/goals/src/configuration-actions.ts:12` | Goals | `user_action` 由调用上下文按入口给（AGENTS：可信身份从上下文来），插件填的和输入里带的一律不认 | ② | 1 | 10-18 授权 | GG-07 | 待做 |
 | PG-030 | P2 · 处理器嵌套调用时，`retainActionAuthority` 要求写出提供方，Feed 只好把自己的 `provider_id` 钉死 | `plugins/native/feed/src/content-actions.ts:41`、`plugins/native/feed/src/item-actions.ts:90`、`plugins/native/feed/src/rule-actions.ts:93` | Feed、Inbox | 平台按调用者的安装身份去找「自己的动作」，不要求插件钉死自己 | ② | 1 | 10-18 待遇 | FI-13 | 待做 |
@@ -197,7 +197,7 @@
 | PG-039 | P2 · 唤醒只投给同一进程里登记过的处理器（`PluginWakeupIndex`），现在只有宿主登记 | `horizontal/scheduler/src/index.ts:70-98,200-202` | Schedule、Workflows、Feed | 唤醒改成动作，经网关投递，带安装身份和授权 | ② | 2 | 10-18 待遇 | FI-03 | 待做 |
 | PG-040 | P2 · 每 30 秒一次的 `projects.schedules` 轮询由宿主替 Feed 和 Schedule 手写，用的身份是 `workflow-events` 这类宿主名字 | `web-project-schedulers.ts:65-73`、`workflow-feed-options.ts:18-28` | Feed、Schedule、Workflows | 轮询改成插件声明的定时唤醒（PG-039），后台调用用插件的安装身份 | ② | 2 | 10-18 授权 | FI-04、FI 待核 4 | 待做 |
 | PG-041 | P2 · 「提醒」「定时操作」本是给所有插件用的服务，现在由 Schedule 插件和宿主实现 | `plugins/native/schedule/src/reminder-actions.ts:6,14-20,27-31`、`plugins/native/schedule/src/operation-actions.ts:5,12-19`、`schedule-reminders.ts:30-36` | Schedule、Todo、生成的插件 | 提醒和定时操作改成平台服务，结果经动作交给订阅方。页面关着时能不能送达，见 §6 V-12 | ② | 2 | 10-18 待遇 | FI-05、PRIV 待核 4 | 待做 |
-| PG-042 | P2 · 定时对话任务由宿主替 Schedule 起 Prologue Agent 会话，还从工作台 import `BUILTIN_PLUGIN_AGENTS` | `schedule-task-runner.ts:5,64-71` | Schedule、Workflows | 平台提供后台 Agent 运行：用插件的安装身份和声明的角色，能取消，受同一把 Agent 锁管 | ② | 2 | 10-18 待遇 | FI-06 | 待做 |
+| PG-042 | P2 · 定时对话任务由宿主替 Schedule 起 Prologue Agent 会话，还从工作台 import `BUILTIN_PLUGIN_AGENTS` | `schedule-task-runner.ts:5,64-71,90` | Schedule、Workflows | 平台提供后台 Agent 运行：用插件的安装身份和声明的角色，能取消，受同一把 Agent 锁管 | ② | 2 | 10-18 待遇 | FI-06 | 待做 |
 | PG-043 | P2 · 首页聚合和跨项目查询，都是宿主逐个打开每个项目库替插件查 | `coding-background-tasks.ts:44-50`、`web-catalog.ts:36,58`、`feed-history-release.ts:45-67`、`connector-source-state.ts:15-27` | Coding、Feed | 平台提供 Home 聚合：插件声明可聚合的查询动作，平台逐个项目去调再合并 | ② | 3 | 10-18 待遇 | PRIV-39、CF-02、FI-09 | 待做（T0 已核，见 §8） |
 | PG-044 | P2 · 工作区的变化和操作结果经宿主钩子通知插件；宿主的工作区服务反过来依赖 Git 插件包；审查结算由宿主适配成 Git 的端口回调 | `project-plugins.ts:170-186`、`project-plugin-ports.ts:46`、`git-operation-notifications.ts:5-12`、`workspace-git.ts:8`、`git-operations.ts:8`、`git-status.ts:4-5` | Git、Files、Coding | 工作区变化和 git 结算改成平台事件（X-6），插件订阅；宿主服务不 import 插件包 | ② | 2 | 10-18 待遇 | PRIV-23、CF-13、CF-16 | 待做 |
 
@@ -444,8 +444,8 @@
 
 - PG-026：`shelf-ai.ts:63-87` 读的是材料，不写图片，已从依据里删掉；Shelf 的落盘是 `modules/shelf/src/store.ts:228-229,281-283`。
 - PG-089：原意是页面请求短路由。依据改成 `navigation-inbox.ts:146`（`/api/inbox/pages`，`:166` 再次请求），`:94` 的 `/api/inbox/workbench` 同类。
-- PG-027：要 command。Workflows 的步骤调所选的任意动作（`plugins/native/workflows/src/actions.ts:350`），之后才 `beforeEffect`；`:221` 用 `retainActionAuthority` 留住外层授权。只有 query 不够。
-- PG-052：去掉 Schedule 是对的。Schedule 的提示词正文在 `plugins/native/schedule/src/roles.ts`；宿主替它起 Agent（`schedule-task-runner.ts:64-71`）归 PG-042，PG-042 的依据已从过时的 `:28-38` 改成 `:5,64-71`。
+- PG-027：要 command。Workflows 的步骤只能选 command（`plugins/native/workflows/src/actions.ts:42-44`），调所选的动作（`:350`），之后才 `beforeEffect`；`:221` 用 `retainActionAuthority` 留住外层授权。只有 query 不够。
+- PG-052：去掉 Schedule 是对的。Schedule 的提示词正文在 `plugins/native/schedule/src/roles.ts`；宿主替它起 Agent（`schedule-task-runner.ts:64-71` 取声明、组授权，`:90` 起会话）归 PG-042，PG-042 的依据已从过时的 `:28-38` 改成 `:5,64-71,90`。
 
 **① 复查已定（#799）**：
 

@@ -3,7 +3,7 @@
 审查提交：`c1531e6dd1bc2692826c3bf3e9b8a86317a98be6`（短名 `c1531e6dd`）。
 日期：2026-10-16 11:44:45 +0000。
 提交说明：`docs(backlog): BL-143 — the Feed reader's retry flake in product-interaction (#593)`。
-仓库：`/Users/oreal/adeptify-home/repos/molis-work`，分支 `main`，与 `origin/main` 相同。
+仓库：当时的复查检出，分支 `main`，与 `origin/main` 相同。
 
 测量命令：`node scripts/check-health-gates.mjs --base origin/main --report`。
 合并基线：`c1531e6d`（HEAD 就是 `origin/main`，这一次是该提交对自己的只减比较）。

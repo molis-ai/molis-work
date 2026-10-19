@@ -23,7 +23,7 @@
 对 Molis 的影响：
 
 - #47 现在没有影响。Molis 没有写后检查的执行器，SDK 的公开面只加不改。
-- #48 让 Molis 每一跑的 `acknowledge-inputs` 说明变短。Molis 不注入 `appRefs` 解析器，所以 `app-ref` 不再出现。原先它列在说明里，写了也会被拒。名单里没有任务图工具的跑（助理的业务轮次就是这样）也不再列 `board-node`。Molis 的代码一行不动。
+- #48 让 Molis 每一跑的 `acknowledge-inputs` 说明变短。Molis 不注入 `appRefs` 解析器，所以 `app-ref` 不再出现。原先它列在说明里，写了也会被拒。助理的业务轮次的名单里有 `board-wait`（`BUSINESS_HOST_TOOLS`），所以 `board-node` 照旧列，只有名单里一个任务图工具也没有的跑才不再列（`tests/assistant-business-gateway.test.ts` 钉着助理那一轮看到的工具）。Molis 的代码一行不动。
 - Molis 自己的写后检查（[采用 spec](../../specs/prologue-adoption/spec.md) §6.0p）要用它：审查卡上的「写后检查：<检查器>（配置 v<n>）」按 `afterWriteCheck.operationKey` 对上执行器这一次用的配置，回执按 `afterWriteCheckReceiptKey` 找。
 - Molis 里写死的三个资源种类改用这几个常量，是 Molis 自己的一件待办，不在这次换包里。
 
@@ -64,7 +64,7 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 这个包装进干净目录，13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `f7f8adbf2^` 取回。
 
 Molis 侧的验证：
 - 在 main `6505378e`（#695 合入之后）上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过。
@@ -93,7 +93,7 @@ Molis 这一次只换包，`answerInterrupted` 由交互线接上。在那之前
 - 这个包装进干净目录，13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `7faaa027c^` 取回。
 
 #690 起是 main 的依赖，2026-10-17 换成 after-write-check；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
@@ -113,7 +113,7 @@ Molis 这一次只换包，`answerInterrupted` 由交互线接上。在那之前
 - 这个包上 13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `102671ce6^` 取回。
 
 Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 在 main `dd2bac58` 上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过。
@@ -162,7 +162,7 @@ Molis 现在没有调用 `refreshMcp`，统一连接管理的「检查连接」�
 - 这个包上 13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `447bec2e0^` 取回。
 
 Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 在 main `5239a371` 上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过，装上的 SDK 带 `refreshMcp`。
@@ -182,7 +182,7 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 这个包上 13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0j。#632 起是 main 的依赖，同日换成 mcp-refresh；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `5b9fdbf35^` 取回。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0j。#632 起是 main 的依赖，同日换成 mcp-refresh；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## main 上的上一份：parameter-branches（#615，2026-10-17 换掉）
 
@@ -196,7 +196,7 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 这个包上 13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0f。#615 起是 main 的依赖，2026-10-17 随 P4-C2 换成 reference-kinds；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `7bf9b7a1e^` 取回。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0f。#615 起是 main 的依赖，2026-10-17 随 P4-C2 换成 reference-kinds；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## main 上的上一份：find-tools-deferral（#599，2026-10-16 换掉）
 
@@ -208,7 +208,7 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 
 `prologue-sdk-0.0.0-rc.1-found-tools.tgz`（1,186,918 字节），SHA-256 `cfed7ff4653289c67ee0dd2801e1b6d9a287d6c8873f477b4927e12dbf510705`。来源是上游 main 的 `e4afd1a718bd8a8629d52526b953bbe75149baa6`（[Prologue #28](https://github.com/molis-ai/prologue/pull/28) 的合并，当时的 main 头；树与评审过的 head `af7be966` 相同），从干净 `git archive` 构建，不加补丁、`dirty: false`。比上一份多的只有 #28：`find-tools` 交出过形状的工具，之后的请求照常声明（记成 Run 事件 `tools-found`，接着历史的下一跑照它接上）；只列了名字的延后工具，Model 那道门也照收；检查器可以说出参数形状（`ConditionCheckers.list()`、`CheckerDescriptor.params`），`board-wait` 的 `params` 照它写类型、登记时先按它核。
 
-验证（2026-10-16）：build dist、`tsc` 无错；同一棵树上的 SDK 全量 354 个文件，3931 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`，它会操作真实桌面）；这个包上 13 个消费者脚本全过。重建命令与工具版本见旁边 `.provenance.json`。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0e。#581 起是 main 的依赖，同日换成 find-tools-deferral；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
+验证（2026-10-16）：build dist、`tsc` 无错；同一棵树上的 SDK 全量 354 个文件，3931 条通过、21 条跳过、0 条失败（未跑 `desktop-computer-use.live`，它会操作真实桌面）；这个包上 13 个消费者脚本全过。重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `3870004d6^` 取回。Molis 侧的验证写在 [采用 spec](../../specs/prologue-adoption/spec.md) §6.0e。#581 起是 main 的依赖，同日换成 find-tools-deferral；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## main 上的上一份：collaboration（#534，2026-10-16 换掉）
 

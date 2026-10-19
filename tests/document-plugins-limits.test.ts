@@ -30,25 +30,25 @@ async function fixture(t: test.TestContext) {
 }
 const payload = (title: string, body: string) => ({ title, body, url: null, source: null, feed_item_id: null });
 
-test("a workflow hand-off past a receiver's limits is cut to fit instead of being refused on every retry", async t => {
+test("a workflow hand-off past a receiver's limits is cut to fit instead of being refused on every retry (W4-6-02, W4-6-03)", async t => {
   const f = await fixture(t);
   const ports = createWorkflowContentPorts(f.as("workflow")), receive = (...args: Parameters<typeof ports.receive>) => ports.receive(...args);
   // A long article headline: Pages takes titles up to 80 characters.
   const headline = "An unusually descriptive English article headline that easily runs past eighty characters in length";
   assert.ok(headline.length > 80);
-  const page = await receive("pages", payload(headline, "the body"), { instance_id: "run-1", step: 1 });
+  const page = await receive("pages", payload(headline, "the body"), "workflow:run-1:1");
   const stored = (await f.bound.invoke(pagesActions.get, { id: page.item_id })).document;
   assert.equal(stored.title, headline.slice(0, 80));
   assert.match(JSON.stringify(stored.body), /the body/);
   // Form: a title past 80 and a list past the 40 questions a form holds.
   const list = Array.from({ length: 45 }, (_, index) => `- 问题 ${index + 1}？`).join("\n");
-  const form = await receive("form", payload("T".repeat(81), list), { instance_id: "run-2", step: 1 });
+  const form = await receive("form", payload("T".repeat(81), list), "workflow:run-2:1");
   const made = (await f.bound.invoke(formActions.get, { id: form.item_id })).form;
   assert.equal(made.title, "T".repeat(80));
   assert.equal(made.questions.length, 40);
   assert.equal(made.questions[0]!.title, "问题 1？");
-  // The same delivery is still one form.
-  assert.equal((await receive("form", payload("T".repeat(81), list), { instance_id: "run-2", step: 1 })).item_id, form.item_id);
+  // The same request id is still one form (W4-6-02).
+  assert.equal((await receive("form", payload("T".repeat(81), list), "workflow:run-2:1")).item_id, form.item_id);
 });
 
 test("a form submission's source comes from the call, not from the input: only a user's fill page records fill", async t => {

@@ -9,7 +9,7 @@ import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
   DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
-  SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE,
+  SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE, WORKFLOW_CONTENT_SCHEMAS,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineArtifactPreviewAction, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -62,6 +62,13 @@ test("the fixture Manifest is clean, so a problem in a case below is the case's 
 
 const incomplete = [`能力 ${KEY} 的输入输出、权限或展示定义不完整`];
 const workflowShape = { id: "example-list", title: "Example", icon: "list", protocol: 1, role: "list" };
+/** A `receive` as the protocol declares it now (W4-6-01): version 2 of the input, version 1 of the output. */
+const receiveNow = { workflow_content: { ...workflowShape, role: "receive" }, kind: "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+  input_type: "molis.workflow.content.receive.input.v2", output_type: "molis.workflow.content.receive.output.v1",
+  input_schema: WORKFLOW_CONTENT_SCHEMAS.receive.input, output_schema: WORKFLOW_CONTENT_SCHEMAS.receive.output };
+const oldReceiveInput = { type: "object", additionalProperties: false, required: ["payload", "context"],
+  properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } } };
+const { request_id: _requestId, ...flatWithoutRequestId } = (WORKFLOW_CONTENT_SCHEMAS.receive.input as { properties: Record<string, unknown> }).properties;
 
 const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unknown; expected: string[] }> = [
   { rule: "nothing declared", actions: undefined, expected: [] },
@@ -116,7 +123,14 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "a workflow content declaration that is not one", actions: [defined({ workflow_content: {} })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "a workflow content protocol other than 1", actions: [defined({ workflow_content: { ...workflowShape, protocol: 2 } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content that receives while it is the receiver", actions: [defined({ workflow_content: { ...workflowShape, role: "receive", receives: false } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
-  { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 v1 的输入输出合同`] },
+  { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 list v1 的输入输出合同`] },
+  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, { operation: "command" })], expected: [] },
+  { rule: "W4-6-01 a receive that still takes the v1 input", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive whose flat input has no request id", actions: [defined({ ...receiveNow, input_schema: { ...WORKFLOW_CONTENT_SCHEMAS.receive.input, properties: flatWithoutRequestId, required: ["title", "body"] } }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
   { rule: "a command whose kind is query", actions: [defined({}, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },

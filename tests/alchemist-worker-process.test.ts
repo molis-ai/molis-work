@@ -62,11 +62,11 @@ test("W5-01-ALC-RES01/04: independent processes preserve live leases and only re
     await until(() => responses.length === 2);
     const observer = await launch(); await observer.send({ operation: "start" });
     const exited = once(first.child, "exit"); first.child.kill("SIGKILL"); await exited;
-    await until(async () => (await observer.api(`/runs/${crashed.jobId}/resume`)).canContinue === true);
+    await until(async () => (await observer.api(`/runs/${crashed.jobId}/continuation`)).canContinue === true);
     const interrupted = (await observer.api(`/explorations/${crashed.runId}`)).exploration;
     assert.equal(interrupted.status, "running"); assert.deepEqual(interrupted.cards, []);
     assert.equal(responses.length, 2, "Lease expiry and status queries must not replay the interrupted provider request");
-    const view = await observer.api(`/runs/${crashed.jobId}/resume`);
+    const view = await observer.api(`/runs/${crashed.jobId}/continuation`);
     const accepted = await observer.api(`/runs/${crashed.jobId}/continue`, { confirmation: view.confirmation });
     assert.equal(accepted.accepted, true);
     await until(() => responses.length === 3);

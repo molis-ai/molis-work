@@ -3,5 +3,6 @@
   "classLines": 300,
   "classMethods": 25,
   "functionLines": 150,
-  "vendoredPrologueSdk": 2
+  "vendoredPrologueSdk": 2,
+  "docsJsonBytes": 65536
 }

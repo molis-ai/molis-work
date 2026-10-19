@@ -34,6 +34,7 @@ export const INTERACTION_QUESTION_STYLES = `
 @container mw-ix (min-width: 520px) { .mw-ix-row { grid-template-columns: 84px minmax(0, 1fr); gap: 14px; } .mw-ix-label { padding-top: 6px; } }
 .mw-ix-label { display: grid; align-content: start; gap: 2px; color: var(--ink); font-weight: var(--weight-control, 500); }
 .mw-ix-optional { color: var(--muted); font-size: 11px; font-weight: var(--weight-body, 400); }
+.mw-ix-row:not(:has([aria-checked="true"])) [data-ix-clear] { display: none; }
 .mw-ix-control { display: grid; gap: 6px; min-width: 0; justify-items: start; }
 .mw-ix-control > .mw-ix-text { width: 100%; max-width: none; }
 .mw-ix-control > textarea.mw-ix-text { min-height: 60px; resize: vertical; }
@@ -48,7 +49,8 @@ export const INTERACTION_QUESTION_STYLES = `
   transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
 .mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-option:active:not(:disabled) { transform: scale(.97); }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
+/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]), .mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
 .mw-ix-option:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
 .mw-ix-option__top { display: flex; align-items: center; gap: 6px; }
 .mw-ix-option__title { font-weight: var(--weight-control, 500); }
@@ -56,13 +58,10 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
 .mw-ix-option__check { margin-left: auto; display: inline-grid; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
 .mw-ix-option__check svg { width: 12px; height: 12px; }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check { opacity: 1; transform: none; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check, .mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 .mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
 .mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
-/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
-.mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
-.mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 .mw-ix-banner { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink); }
 .mw-ix-banner[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 12%, var(--paper)); }
 .mw-ix-banner[data-tone="failed"] { background: color-mix(in srgb, var(--red) 10%, var(--paper)); }

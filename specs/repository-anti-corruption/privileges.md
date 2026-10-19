@@ -287,7 +287,7 @@
 | PG-099 | P3 · 死代码：宿主替插件渲染目录和舞台的旧函数还在（`git-status.ts` 只在 `index.ts` 里导出）；Alchemist 自带的 cookie 和 Origin 守卫，只有传了 `localSecurity` 才生效 | `git-status.ts`、`apps/local-host/src/index.ts:201-206`、`plugins/native/alchemist/src/studio/server/app.ts:5,10-11`、`alchemist-native-plugin-http.ts:30` | Git、Coding、Alchemist | 删掉；Alchemist 的守卫是不是真的死代码，先核（§6 V-07） | ③ | 2 | 10-18 待遇 | CF-17、CJ-24 | 待做 |
 | PG-100 | P3 · 灵光的 `fateLabel` 写死了别的插件的对象种类（goal、todo、pages） | `plugins/native/lingguang/src/client.ts:294-303` | 灵光 | 对象种类的显示名从登记表读（PG-032） | ③ | 3 | 10-18 待遇 | DT-23 | 待做 |
 | PG-101 | P3 · 创作台的 Manifest consume 了一组 typed agent-host 能力，代码里一处都没用到 | `plugins/native/plugin-builder/src/manifest.ts:11` | 创作台 | 删掉没用的 consumes | ② | 4 | 10-18 例外 | AB-21 | 待做 |
-| PG-109 | P2 · 宿主私路的残留：`creative-artifacts.ts` 仍导出 PPT 的三个旧端口，并 import PPT 插件，已经没有调用方。同一文件里 Dataset 的三个端口 #749 已删 | `creative-artifacts.ts:6,21,28,57`（`ffb3db076`） | PPT | 删掉这三个端口和对 PPT 插件的 import | ③ | 2 | 10-18 待遇 | #748 复查 | 待做 |
+| PG-109 | P2 · 宿主私路的残留：`creative-artifacts.ts` 仍导出 PPT 的三个旧端口，并 import PPT 插件，已经没有调用方。同一文件里 Dataset 的三个端口 #749 已删 | `creative-artifacts.ts:6,21,28,57`（`ffb3db076`） | PPT | 删掉这三个端口和对 PPT 插件的 import | ③ | 2 | 10-18 待遇 | #748 复查 | 待复核（#779） |
 
 ## 4. 统筹已定的口径
 

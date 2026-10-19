@@ -1,5 +1,6 @@
-import type { RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { TasteRule } from "../../domain/memory/rules.js";
+import { alchemistStateErrors } from "../../errors.js";
 import type { JobAcceptance, LocalWorker } from "../jobs/local-worker.js";
 import type { validateResumption } from "../jobs/resumption-validation.js";
 import type { PersistedJob, SqliteJobRunner } from "../jobs/sqlite-job-runner.js";
@@ -20,7 +21,8 @@ export interface ResumeView {
   tasteTitles?: string[];
   confirmation?: string;
   budget?: { limit: number; reserved: number; remaining: number };
-  unknownCall?: { operation: "collecting" | "cross_checking" | "cross_checking_format_correction" | "synthesizing" };
+  /** The last model call's result is unknown and may have been charged: continuing calls it again, so the person confirms first. */
+  unknownCall?: { operation: "generating" | "collecting" | "cross_checking" | "cross_checking_format_correction" | "synthesizing" };
 }
 interface Dependencies {
   jobs: SqliteJobRunner;
@@ -29,7 +31,7 @@ interface Dependencies {
   actorId(): string;
   taste(): readonly TasteRule[];
   now(): string;
-  validate(job: PersistedJob, inspectBudget?: boolean): ReturnType<typeof validateResumption>;
+  validate(job: PersistedJob): ReturnType<typeof validateResumption>;
   initialize(): void;
 }
 
@@ -46,13 +48,13 @@ export class JobResumption {
       Object.assign(result, details);
       if (exhausted) return { ...result, reason: "alchemist.research_budget_exhausted" };
     }
-    catch (error) { return { ...result, reason: error instanceof Error ? error.message : "alchemist.job_not_resumable", leaseExpiresAt: job.leaseExpiresAt }; }
+    catch (error) { return { ...result, reason: refusalCode(error, "alchemist.job_not_resumable"), leaseExpiresAt: job.leaseExpiresAt }; }
     if (!needsExplorationModel(job)) return { ...result, canContinue: true };
     try {
-      const snapshot = await this.explorationSnapshot();
+      const snapshot = await this.explorationSnapshot(result.unknownCall);
       return { ...result, canContinue: true, modelId: snapshot.modelId,
         tasteTitles: snapshot.taste.map(rule => rule.title), confirmation: snapshot.confirmation };
-    } catch (error) { return { ...result, reason: error instanceof Error ? error.message : "alchemist.runtime_model_unavailable" }; }
+    } catch (error) { return { ...result, reason: refusalCode(error, "alchemist.runtime_model_unavailable") }; }
   }
 
   async prepareStart(kind: string, control?: AlchemistEffectControl): Promise<JobAcceptance> {
@@ -74,14 +76,14 @@ export class JobResumption {
 
   async continue(jobId: string, confirmation: string | undefined, control?: AlchemistEffectControl): Promise<{ jobId: string; accepted: boolean }> {
     const job = this.require(jobId);
-    this.validate(job);
+    const { unknownCall } = this.validate(job) ?? {};
     const authority = retain(control, job.kind), actorId = this.d.actorId();
     const acceptance: JobAcceptance = { authority, actorId, validate: () => this.validate(this.require(jobId)) };
     if (!this.d.worker.accept(jobId, acceptance, false)) return { jobId, accepted: false };
     try {
       if (needsExplorationModel(job)) {
-        const snapshot = await this.explorationSnapshot();
-        if (snapshot.confirmation !== confirmation) throw new Error("alchemist.resume_context_changed");
+        const snapshot = await this.explorationSnapshot(unknownCall);
+        if (snapshot.confirmation !== confirmation) throw alchemistStateErrors.resume_context_changed("模型、个人判断偏好或上次调用的状态已经改变，请重新查看继续条件。");
         acceptance.exploration = snapshot;
       }
       await control!.beforeEffect(); authority.assertCurrent();
@@ -94,30 +96,38 @@ export class JobResumption {
 
   private require(jobId: string): PersistedJob {
     const job = this.d.jobs.get(jobId);
-    if (!job) throw new Error("alchemist.job_not_found");
+    if (!job) throw alchemistStateErrors.job_not_found("没有找到这次运行。");
     return job;
   }
-  private validate(job: PersistedJob, inspectBudget = false) {
-    if (![DISCOVERY_BRAINSTORM_JOB, RESEARCH_LENS_JOB, DISCOVERY_PULSE_JOB].includes(job.kind)) throw new Error("alchemist.job_kind_unsupported");
-    if (!["queued", "running", "interrupted", "failed"].includes(job.status)) throw new Error("alchemist.job_not_resumable");
-    if (job.status === "running" && (!job.leaseExpiresAt || job.leaseExpiresAt > this.d.now())) throw new Error("alchemist.job_lease_active");
-    if (job.status === "failed" && !["alchemist.ai_call_interrupted", "alchemist.research_call_interrupted", "alchemist.runtime_shutdown", "alchemist.job_execution_failed", "alchemist.research_budget_exhausted"].includes(job.errorCode ?? "")) throw new Error("alchemist.job_not_resumable");
-    return this.d.validate(job, inspectBudget);
+  /** Refuses a job that cannot continue; with `reportExhausted` an exhausted budget is returned for the view to show instead. */
+  private validate(job: PersistedJob, reportExhausted = false) {
+    if (![DISCOVERY_BRAINSTORM_JOB, RESEARCH_LENS_JOB, DISCOVERY_PULSE_JOB].includes(job.kind)) throw alchemistStateErrors.job_kind_unsupported("这类任务不能继续。");
+    if (!["queued", "running", "interrupted", "failed"].includes(job.status)) throw alchemistStateErrors.job_not_resumable("这次任务不能继续，请回到原内容查看。");
+    if (job.status === "running" && (!job.leaseExpiresAt || job.leaseExpiresAt > this.d.now())) throw alchemistStateErrors.job_lease_active("原执行租约尚未到期，请稍后重新查看。");
+    if (job.status === "failed" && !["alchemist.ai_call_interrupted", "alchemist.research_call_interrupted", "alchemist.runtime_shutdown", "alchemist.job_execution_failed", "alchemist.research_budget_exhausted"].includes(job.errorCode ?? "")) throw alchemistStateErrors.job_not_resumable("这次任务不能继续，请回到原内容查看。");
+    const details = this.d.validate(job);
+    if (details?.exhausted && !reportExhausted) throw alchemistStateErrors.research_budget_exhausted("原预算已用尽，不能继续派出调用。");
+    return details;
   }
-  private async explorationSnapshot() {
+  /** What the person confirms: the model, their taste, and whether the last call's result is unknown. */
+  private async explorationSnapshot(unknownCall?: ResumeView["unknownCall"]) {
     const taste = structuredClone(this.d.taste());
     const tasteIdentity = JSON.stringify(taste);
     const selected = await this.d.runtime.captureSelection();
-    if (tasteIdentity !== JSON.stringify(this.d.taste())) throw new Error("alchemist.resume_context_changed");
+    if (tasteIdentity !== JSON.stringify(this.d.taste())) throw alchemistStateErrors.resume_context_changed("个人判断偏好刚刚改变，请重新查看继续条件。");
     return { modelId: selected.modelId, taste,
-      confirmation: JSON.stringify([selected.modelId, selected.identity, taste.map(rule => [rule.id, rule.version, rule.updatedAt])]) };
+      confirmation: JSON.stringify([selected.modelId, selected.identity, taste.map(rule => [rule.id, rule.version, rule.updatedAt]), unknownCall?.operation ?? null]) };
   }
 }
 
 function retain(control: AlchemistEffectControl | undefined, kind: string): RetainedActionAuthority {
-  if (!control?.retainBackgroundAuthority) throw new Error("alchemist.background_authority_required");
+  if (!control?.retainBackgroundAuthority) throw alchemistStateErrors.background_authority_required("这个入口不能在后台继续任务。");
   control.assert_authority_current?.();
   return control.retainBackgroundAuthority([kind === DISCOVERY_PULSE_JOB ? "alchemist:collect" : "alchemist:generate"]);
+}
+/** The reason a view shows: a declared refusal by its code, an undeclared one by its message. */
+function refusalCode(error: unknown, fallback: string): string {
+  return error instanceof ActionError ? error.code : error instanceof Error ? error.message : fallback;
 }
 function needsExplorationModel(job: PersistedJob): boolean {
   return job.kind === DISCOVERY_BRAINSTORM_JOB && (job.checkpoint as { stage?: string } | undefined)?.stage !== "ready_to_persist";

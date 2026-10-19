@@ -326,7 +326,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | Inbox、Feed | 场景声明 `model:invoke`（判断场景） | 构建期 | 无 | 不适用：判断不向人提问。`inbox.pages.generate` 跟 Pages |
 | Images | 不调文字模型（`services.imageGeneration`） | Plugin Runtime（Home） | 无 | 不适用：本文管文字模型的问与建议；尺寸、比例的选择器另议 |
 | 项目讨论 im-ui | 不调模型 | 平台侧栏 | 无 | 只核对一致性，不新增 AI 能力 |
-| Goals、Files、Characters、Artifacts、Diff、Git、Text-stats | 不调模型（`plugins/native/*/src` 里没有模型调用） | — | — | 不适用 |
+| Goals、Files、Characters、Artifacts、Diff、Git、Text-stats、Sessions（`plugins/native/work`） | 不调模型（`plugins/native/*/src` 里没有模型调用） | — | — | 不适用 |
 | 生成插件 | `model.generate`（沙箱 Broker → `hostTextGeneration`） | 创作台安装 | 无：沙箱没有 `ask-user`、`suggest-action`；操作结果包在 `value` 里交给部件，不经问卷卡出口 | 平台缺口（2026-10-18 插件一视同仁）：要先问的信息现在做成提交部件的字段（`skills/molis-plugin-dev/generated-ai.md`）；让生成插件也能 `needs_input`，要部件客户端会画问卷卡，另起一片 |
 
 P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器验证恢复）。每个一片，各自补用例与证据，回填上表。

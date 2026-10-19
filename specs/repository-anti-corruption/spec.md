@@ -429,6 +429,11 @@ Form 发布授权补漏（2026-10-19，§10.29 统筹追加的 P1，③；分支
 - 同一片：`W5-01-PPT-07`、`W5-01-DATASET-06` 补上第五个交错点与提供方被替换；三份用例登记进 `docs/system/SECURITY-INVARIANTS.md` S-18 的 CI 列，并加进 `test:security`。
 - Pages 不用改：`promotePagesDocument` 从 begin 经发布到完成都是同步的，中间没有 `await`，取消或撤权插不进这三步之间。
 
+平台自查（2026-10-19，§10.29 的 P2，②；分支 `fix/platform-original-caller`）：上面 PPT、Dataset、Form 三段「修法」里插件手写的同步检查和发布包装都已删掉。
+- 插件经平台服务写入时，由服务自己在写入的同一回合查 Runtime 动作作用域里的原调用方（`packages/plugin-runtime/src/action-scope.ts` 的 `assertPluginActionCurrent`）：库事务在插件交来的等待前后、每条语句前和 `COMMIT` 前各查一次；成果 `publish` 与过程项 `record` 在登记版本之前查。插件只留各阶段的等待：`stores.write(caller, …)`，以及发布前的 `beforePublish: () => caller.beforeEffect()`。
+- `W5-01-PPT-07`、`W5-01-DATASET-06`、`W5-01-FORM-01` 三份用例改在真实的 `createPluginPlatform` 上跑（真库、真成果模块、Kernel 的调用）：五个交错点，每个点分别取消、撤权、提供方被替换。把平台的检查短路，三份都失败。
+- Characters 的发布在 `await beforeWrite()` 之后不再检查，由 `tests/security-invariants-plugin-original-caller.test.ts` 的 S-18 用例覆盖。
+
 W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
 - 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。
 - 大小：宿主不再发 `files.js`、`git.js`、`diff.js`、`text-stats.js`（共 1,736,113 字节）；加载器多带四个包名，同片把它里面重复三次的失败文字和两处收尾合成一处，`molis-work-workbench.js` 净降 8 字节。`tooling/gates/page-assets.json` 删掉四条、降一条。

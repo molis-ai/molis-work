@@ -40,10 +40,6 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
   "coding.create-session": { definition: define("sessions.create", "新建编码会话", "新建一个编码会话；第一轮任务开始前不会调用模型", "command", closed({ title: { type: "string", maxLength: 200 } }, []), ["storage:private"], READS),
     toInput: request => body(request).title === undefined ? {} : { title: body(request).title }, toRequest: input => ({ method: "POST", params: {}, query: {}, body: input }) },
-  // Which Runtime the project's new sessions run on is the person's own setting at this computer: the local user only.
-  "coding.select-runtime": { definition: define("runtime.select", "选择运行时", "选定本项目新会话使用的运行时；不带 runtime_id 就清除选择，改用运行时目录里第一个可用的", "command",
-      closed({ runtime_id: { type: "string", minLength: 1, maxLength: 200 } }, []), ["storage:private"], LOCAL),
-    toInput: request => body(request).runtime_id === undefined ? {} : { runtime_id: body(request).runtime_id }, toRequest: input => ({ method: "POST", params: {}, query: {}, body: input }) },
   "coding.read-session": { definition: define("sessions.read", "读取编码会话", "读取会话、最近几轮执行与草稿；window 限制完整读取的轮次", "query",
       closed({ ...session, window: { type: "integer", minimum: 1, maximum: 50 }, known: { type: "string", maxLength: 20_000 }, earlier: { type: "string", maxLength: 200 } }, ["session_id"]), ["artifact:read"], READS),
     toInput: request => fromRequest(request, ["window", "known", "earlier"]), toRequest: input => ({ method: "GET", params: params(input), query: query(input, ["window", "known", "earlier"]), body: {} }) },

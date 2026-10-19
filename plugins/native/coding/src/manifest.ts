@@ -155,7 +155,6 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.read-method", method: "GET", path: "/methods/:skillId/:version" },
     { route_id: "coding.state", method: "GET", path: "/state" },
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
-    { route_id: "coding.select-runtime", method: "POST", path: "/runtime" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
     { route_id: "coding.subject", method: "GET", path: "/sessions/:sessionId/subject" },
     { route_id: "coding.search-entries", method: "GET", path: "/search/entries" },

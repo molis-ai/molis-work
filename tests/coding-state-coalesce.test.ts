@@ -153,7 +153,6 @@ test("PG-054 with only Prologue in the directory a new session, the methods and 
     assert.equal(created.body.session.runtime_id, "prologue");
     const state = await h.call("/state");
     assert.equal(state.status, 200, JSON.stringify(state.body));
-    assert.deepEqual([state.body.runtime_id, state.body.runtime_selected], ["prologue", null]);
     assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }]);
     assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "prologue" }]);
     const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
@@ -167,39 +166,40 @@ test("PG-054 with only Prologue in the directory a new session, the methods and 
   } finally { await h.close(); }
 });
 
-test("PG-054 without a choice a new session uses the first Runtime in the directory that can host one", { timeout: 30_000 }, async () => {
-  const h = await harness([runtime("reader", { "session.create": "unsupported", "run.start": "unsupported" }), runtime("beta"), runtime("prologue")]);
+test("PG-054 a Runtime listed earlier that cannot host a session is skipped: a new session, the methods and the MCP servers use the next one", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("reader", { "session.create": "unsupported", "run.start": "unsupported" }), runtime("no-rounds", { "run.start": "unsupported" }), runtime("beta"), runtime("prologue")]);
   try {
-    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "beta");
+    const created = await h.call("/sessions", {});
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    assert.equal(created.body.session.runtime_id, "beta", "the first two in the directory cannot host a session; the third can");
     const state = await h.call("/state");
-    assert.deepEqual([state.body.runtime_id, state.body.runtime_selected], ["beta", null]);
     assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "beta" }]);
-    // A directory with nothing that can host a session refuses plainly; no session is made.
-    h.world.runtimes = [runtime("reader", { "session.create": "unsupported" })];
-    const none = await h.call("/sessions", {});
-    assert.equal(none.status, 503, JSON.stringify(none.body));
-    assert.equal(none.body.code, "coding.runtime_unavailable");
-    assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 1);
+    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "beta" }]);
+    const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
+    assert.equal(saved.body.server.runtime, "beta");
+    // The directory's order is the only rule: when the earlier ones can host a session again, they are the ones used.
+    h.world.runtimes = [runtime("reader"), runtime("beta"), runtime("prologue")];
+    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "reader");
+    assert.deepEqual(h.sessions.list(DEMO_PROJECT_ID).map(session => session.runtime_id).sort(), ["beta", "reader"], "the session already made keeps its Runtime");
   } finally { await h.close(); }
 });
 
-test("PG-054 a project that chose another Runtime gets new sessions, methods and MCP servers from it, until the choice is cleared", { timeout: 30_000 }, async () => {
-  const h = await harness([runtime("beta"), runtime("prologue")]);
+test("PG-054 with no Runtime that can host a session a new session is refused with a readable reason and none is made", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("reader", { "session.create": "unsupported" }), runtime("no-rounds", { "run.start": "unsupported" })]);
   try {
-    const chosen = await h.call("/runtime", { runtime_id: "prologue" });
-    assert.equal(chosen.status, 200, JSON.stringify(chosen.body));
-    assert.deepEqual([chosen.body.runtime_id, chosen.body.runtime_selected], ["prologue", "prologue"]);
-    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "prologue");
+    const refused = await h.call("/sessions", { title: "不会建立" });
+    assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
+    assert.match(refused.body.error, /宿主还没有可用的运行时/);
+    assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 0, "nothing was created");
+    // The project still opens: no methods or MCP servers are asked of a Runtime that cannot be chosen, and none are saved.
     const state = await h.call("/state");
-    assert.deepEqual([state.body.runtime_id, state.body.runtime_selected], ["prologue", "prologue"]);
-    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }]);
-    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "prologue" }]);
-    assert.equal((await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } })).body.server.runtime, "prologue");
-    // Cleared, the first Runtime in the directory stands again; sessions already made keep the Runtime they were made on.
-    const cleared = await h.call("/runtime", {});
-    assert.deepEqual([cleared.status, cleared.body.runtime_id, cleared.body.runtime_selected], [200, "beta", null]);
-    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "beta");
-    assert.deepEqual(h.sessions.list(DEMO_PROJECT_ID).map(session => session.runtime_id).sort(), ["beta", "prologue"]);
+    assert.deepEqual([state.status, state.body.sessions, state.body.methods, state.body.mcp], [200, [], [], []]);
+    assert.equal(h.made(agent.listSkills).length + h.made(agent.listMcp).length, 0);
+    assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 503);
+    assert.equal(h.made(agent.controlMcp).length, 0);
+    // A Runtime that can host one appears: the same request now works, with nothing to redo.
+    h.world.runtimes = [runtime("reader", { "session.create": "unsupported" }), runtime("prologue")];
+    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "prologue");
   } finally { await h.close(); }
 });
 
@@ -226,32 +226,6 @@ test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refus
       assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
     }
     assert.equal(h.made(agent.discoverSkills).length + h.made(agent.installSkill).length + h.made(agent.readSkill).length, 0);
-  } finally { await h.close(); }
-});
-
-test("PG-054 a choice that is gone or cannot host a session is refused where it is made and never replaced behind the person's back", { timeout: 30_000 }, async () => {
-  const h = await harness([runtime("beta"), runtime("prologue"), runtime("reader", { "run.start": "unsupported" })]);
-  try {
-    for (const bad of ["ghost", "reader"]) {
-      const refused = await h.call("/runtime", { runtime_id: bad });
-      assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
-    }
-    assert.equal((await h.call("/runtime", { runtime_id: 7 })).status, 400);
-    assert.equal((await h.call("/state")).body.runtime_selected, null, "a refused choice is not kept");
-    assert.equal((await h.call("/runtime", { runtime_id: "prologue" })).status, 200);
-    // The chosen Runtime leaves the directory: new sessions are refused, the choice stays visible, and nothing falls back to "beta".
-    h.world.runtimes = [runtime("beta")];
-    const refused = await h.call("/sessions", {});
-    assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
-    assert.match(refused.body.error, /prologue/);
-    assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 0);
-    const state = await h.call("/state");
-    assert.deepEqual([state.body.runtime_id, state.body.runtime_selected, state.body.methods, state.body.mcp], [null, "prologue", [], []]);
-    assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 503);
-    assert.equal(h.made(agent.controlMcp).length, 0);
-    // It comes back: the same choice works again, with nothing to redo.
-    h.world.runtimes = [runtime("beta"), runtime("prologue")];
-    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "prologue");
   } finally { await h.close(); }
 });
 

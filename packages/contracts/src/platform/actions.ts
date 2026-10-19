@@ -63,6 +63,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
+  /**
+   * The plugin (its Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`), on its
+   * original caller's behalf. Set only by the Host while it builds that nested caller; the call log keeps it beside the actor. It grants
+   * nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_by?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**

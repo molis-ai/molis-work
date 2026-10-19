@@ -221,3 +221,7 @@ HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程�
 导入等待网络或 worker 的动作显式声明 concurrent。端口保留 ActionExecutionContext 的 beforeEffect，不能只把 actor / validate_authority 传下去再自己查启用状态；完整检查还包含注册世代、当前权限、宿主生命周期与取消。
 
 账号文档读取复用 Host 的连接器请求生命周期，向 Integration 传递 signal 与每次请求前的 beforeDispatch。元信息返回后读取正文、获取令牌或 OAuth 重试前仍需复查原调用；取消不能被映射成网络故障后重试。最终账号 revision 检查放在异步授权检查之后，保留最初选择的连接，不能接受读取途中重新授权的新账号。
+
+### 动作目录委托：以原调用者的身份调目录里的动作
+
+插件要替眼前这个调用者去调目录里的另一个动作（工作流程那样“目录里有什么就调什么”），Manifest 声明权限 `actions:delegate`，在自己的并发动作里用 `context.services.actions.directory`：`discover()` 列出能调的动作，`invoke(reference, input, control?)` 调其中一个。这个服务和别的权限一样按安装授权，不因为是内置而有；没声明就没有 `directory`，声明了但没授权（写成可选权限、用户没勾上），每次 `discover` / `invoke` 都被拒（Home 实例是 `actions.forbidden`），撤权后正在等的调用也不交回结果。只能在本安装自己正在执行的动作里用，后台任务、别的安装的动作、动作结束后的迟到调用都拒绝（`actions.forbidden` / `actions.expired`）。嵌套调用的调用者是原调用者换成 `workflow` 受众，权限一个不多一个不少（用户 2026-10-20 定：只受原调用者约束，不收窄到插件自己的授权），调用记录行带 `delegated_by`（插件 id）。原调用者本身是 `plugin` 受众（别的插件用它自己的授权调进来）的一律拒绝，免得借这条路放宽成工作流受众。目标动作要向 `workflow` 开放，也要向原调用者的受众开放；原调用者缺的权限、目录里没有或不止一个提供方的，同普通调用一样被拒。取消、停用、撤权都在每次 await 前后检查，交回结果和业务写入之前仍要 `await caller.beforeEffect()`。规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-42。

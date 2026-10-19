@@ -1485,3 +1485,17 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - T1 的前置满足了，等 ② 返工的 W5-02 计划批下来再宣布冻结。
   - 我这边的会话间消息额度已用完：给 ② 的留言写在 `platform-queue.md` 顶部。
 - 11:20 UTC：#794 合入 main a95495d5c（⑤）。合入后 #790 状态句的措辞符合 D14。
+- 11:20–11:40 UTC：
+  - **合入（⑤）：**
+    - #795 @ fbc826b68（⑥ D3：业务角色加了新工具就升版本，assistant 2、assistant-delegated 2、todo organizer 3）；
+    - #775 @ c0b204fd6（⑨，AC-10 第一片：可以不选的单选题，选了能清掉）。
+  - **D20（⑥ 回执 S2/S3 的待定项）：**
+    - P4 认可：AI 能调的写动作和 list 都声明 `plugin: false`，各配一条插件调用者被拒的测试。原因是 `actionReachesAudience` 会让对 agent 开放、又可撤销的动作自动传到 plugin 受众。
+    - P2 认可不升版本，附条件：PR 里逐个列消费者，加一条 @1 读出 `system` 记录的测试，Skill 和 `docs/mcp.md` 跟着改。核出有消费者会坏，就改走升 @2，先问用户。
+    - P5 认可 `ObjectRef.module` 加 `agent-host`。⑤ 评审，CODEOWNERS 会请 @yijunw0212。合同 id 不升，同一个 PR 里改完所有消费方，进批。
+    - P7 新加 Runtime 显示名表，同一个 PR 里把两份私有表改成读它（单一来源，不记 BL）。
+    - P8 归 ⑥，作为 S3-3 单开：Coding Agent 的上下文补上 `runtime_session_id`，只取宿主开的这一轮会话的，不从输入读（S-17），配三条拒绝用例。
+    - 批复写在 `receipts-s2-s3-plan.md` §11，消息等额度恢复再发。
+  - **Codex #784 新证据：**
+    - 手册、Computer Use、回执三条线的二级实走都通过（只覆盖各自那条路径）。
+    - QA-004～008 是新编号，最高 P2，没有 P0。已交只读子代理核代码，结果回来后发第 2 批分诊表。

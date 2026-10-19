@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～018；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；Computer Use 首轮已记录工程结果与真机权限缺口；回执首轮82项与真实模型路径已记录；情境91项与真实模型路径已记录，防腐继续。尚不满足完成标准，七条线均不据此归档。
+状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/006/008已复验、QA-007仍有余项。已知P1 #709原草稿路径已复验，PG-006/110仍待修复复验；产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -8,8 +8,8 @@
 
 - 初始被测 main：`b016513df6196ced8f12952d58268cc0dc278e07`。从 `origin/main` 新建 detached 工作树；每条线开始前重新 fetch 并固定该线 SHA，结论逐项标注。
 - 本次只测试、判定和写报告；仓库改动仅本文件及 `specs/README.md` 的索引。报告走文档草稿 PR；不修改实现、测试、其他 spec 或 BACKLOG，不合并、批准、关闭或入队任何 PR。
-- 机器：本次会话所在 macOS 26.6.2 / Darwin arm64，Node 25.9.0、pnpm 11.9.0（CI 使用 Node 24）；用户已确认它不是要求避开的开发 Mac，可以运行 QA。测试并发 1，浏览器并发 1，构建与浏览器使用仓库机器槽位；本机不跑全量。
-- Home：每次动态验证显式设置 `MOLIS_WORK_HOME` 为新建临时目录；不读取或写入真实 Home，不连接 4207。清理前核对目录确为本次创建。只按 PID 停本次启动的进程。
+- 机器：本次会话所在 macOS 26.6.2 / Darwin arm64，Node 25.9.0、pnpm 11.9.0（CI 使用 Node 24）；用户已确认它不是要求避开的开发 Mac，可以运行 QA。前六线测试并发1；防腐定向非浏览器文件并发最多2，浏览器并发1，构建与浏览器使用仓库机器槽位；本机不跑全量。
+- Home：每次动态验证显式设置 `MOLIS_WORK_HOME` 为新建临时目录；不读取或写入真实 Home，不连接 4207。清理前核对目录确为本次创建、不是软链，并确认服务进程已退出。只按 PID 停本次启动的进程；本轮运行用Home均已删除。
 - 模型：MiniMax-M3，Anthropic 兼容端点 `https://api.minimax.cn/anthropic`。经用户指示复用本机 appkey 的 minimax 项，在内存中复制到本次 QA 专用钥匙串项。运行时同一 Python 程序经 Security.framework 读取、仅以内存环境注入 `MINIMAX_API_KEY`；不输出明文密钥、不改钥匙串访问权限。用户后续允许一次性 Home 保存密文，见 §9。`security` 命令曾触发系统读取确认，已停止使用此方式；同一程序读取无需弹窗。
 - 交互动态基线：每线前 fetch 后固定 `ebad9a223b84d28937df03393231381587b3193a`（下文简称 `ebad9a223`，均指此完整 SHA）。相对初始基线仅新增 Computer Use #773；交互代码未变。安装与完整构建成功，被测源码保持干净；报告分支与被测 detached 树分离。
 - 真实模型边界：Form 单次文字生成支持空模型目录下的开发环境变量入口，走生产 Runtime / Agent Host / SDK；助理 Agent 的正式配置仍从模型目录读取，不能用 Form 的成功证明其已配置。实际请求计数包装只放行原始真实请求，不伪造响应；第 13 次 MiniMax 请求在发送前拒绝。
@@ -21,17 +21,17 @@
 
 | 顺序 / 线 | 编号与唯一需求源 | 验证方法 | 真实模型请求上限 |
 | --- | --- | --- | ---: |
-| 1 交互 | `ai-interaction-experience/spec.md` AC-01～28、AC-27-1～6、AC-28-1～6，共 40 行；当前状态表为 §20.15，§17 是原计划 | 审读引用编号的测试及生产调用链；按编号定向跑；卡片、Coding、键盘、异常、三宽度与深色实走 | 12 |
+| 1 交互 | `ai-interaction-experience/spec.md` AC-01～28、AC-27-1～6、AC-28-1～6，原基线40行；7d1补核AC-06-1～5、AC-10-1～9后共54行，见§4.8；当前状态表为 §20.15，§17 是原计划 | 审读引用编号的测试及生产调用链；按编号定向跑；卡片、Coding、键盘、异常、三宽度与深色实走 | 12 |
 | 2 采用 | `prologue-adoption/spec.md` PA-01～PA-39，§5.3、§6.0p.7 | SDK 接线、执行/取消/授权/恢复的测试与持久化；在临时 Home 实走 TaskBoard 和多 Agent 场景，查历史真模型记录 | 20 |
 | 3 手册 | `ai-development-handbook/spec.md` ADH-01～ADH-23 | 文档与实现、引用和约束核对；定向验证手册承诺；按已定规则核查评测证据及少量真实调用 | 12 |
 | 4 Computer Use | `computer-use/` 四份指定文档，CU-G01～CU-G15 | 按 runbook 二十步真机验收；拒绝断言逐条读与跑；Molis 操作时 QA 不输入；独立进程面板按已定决定拒绝 | 30 |
-| 5 回执 | `ai-input-receipts/spec.md` 全部 62 个 RCPT-*，以及 §11 的 RC-01～19、G13；§20 | 对每阶段的输入、处理、改变和缺口核对真实事实；取消/重试/超时/重启；回执实走与视觉键盘矩阵 | 16 |
+| 5 回执 | `ai-input-receipts/spec.md` 原基线62个RCPT-*以及§11的RC-01～19、G13共82行；7d1补核RCPT-366/367后84行；§20 | 对每阶段的输入、处理、改变和缺口核对真实事实；取消/重试/超时/重启；回执实走与视觉键盘矩阵 | 16 |
 | 6 情境 | `context-program/spec.md` AC-P01～06；`context-toolbar` T01～09；`quick-create` Q01～10；`side-shelf` AC-S01～15，主40条，补SLOT-01/02和49附属编号共91行，按 §9、§16 分已合入与后续 | 动作目录→浮条→创建/放置→侧栏；选区变化、双页签、无权限、关闭项目；三宽度/深色/键盘/中英文 | 12 |
-| 7 防腐 | `repository-anti-corruption/` spec、roadmap、privileges 与 `RUNTIME-MIGRATION.md` 的已合入验收项 | 逐项对照已定决定、实现与拒绝测试；复核 PG-001～PG-109 去处；机器门禁；尚未实现的核对 BL 或决定 | 0 |
+| 7 防腐 | `repository-anti-corruption/` spec、roadmap、privileges与`RUNTIME-MIGRATION.md`；RAC-01～62、359个W/SHF与215个短编号共636行 | 逐项对照已定决定、实现与拒绝测试；复核 PG-001～PG-111（含后续新增）去处；机器门禁；尚未实现的核对 BL 或决定 | 0 |
 
 预算按实际发往模型端点的请求计，含重试与 Agent 内部轮次，总上限 102；每条线计数独立，不挪用，不够则记录未验证及原因，扩大前需用户授权。模型没有请求计数或可靠硬上限的入口不开跑。先核对现有评测规则，优先复用有效记录；模型能力弱不靠修改提示词来修。
 
-所有 UI 条目均核对 1440 / 1024 / 390 宽度、深色、键盘、中英文、空/加载/出错/无权限/撤销状态；未覆盖逐项写明。截图只存已忽略的 `.impeccable/qa/review/`，关键截图上传报告 PR 评论并链接。
+所有UI条目均以1440/1024/390、深色、键盘、中英文及空/加载/出错/无权限/撤销为核对范围；实际覆盖见各线实走记录，未完成的矩阵不由工程测试代替。截图只存已忽略的 `.impeccable/qa/review/`，关键截图上传报告 PR 评论并链接。
 
 机器检查：`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm test:security`、`pnpm lint`；先读脚本确认隔离与副作用。`node scripts/check-spec-coverage.mjs` 仅作引用定位，不能证明断言充分或执行通过。定向测试运行器使用 `node scripts/run-tests.mjs <文件> --test-name-pattern=<编号>`；须核对实际匹配到的测试数，注释引用和测试名不一致时明确记录并运行对应测试名，不能把 0 个匹配当通过。
 
@@ -39,17 +39,19 @@
 
 ## 3. 总览
 
-交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；Computer Use 为1通过、9部分通过、1不通过、4未验证；回执为27通过、50部分通过、5未验证；情境91行为11通过、69部分、2不通过、9未验证；防腐继续，不以库存审读代替运行结果。
+942行均有判定、实际证据与SHA；454通过、424部分通过、9不通过、55未验证、按已定决定不做0。编号包含汇总与子项，不能视为942个互不重叠的能力。通过只归其标准范围；工程通过不等于产品实操或用户认可。
 
-| 线 | 能否归档 | 当前主要缺口 |
-| --- | --- | --- |
-| 交互 | 不能 | QA-001～003、已知 #709（修复在途 #759）/#775、P5 与 H4 2c 续做、完整产品状态矩阵及 BL-016 真人验收 |
-| 采用 | 不能 | 2 通过／22 部分／15 未验证；QA-004/005、BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6 与完整产品实走 |
-| 手册 | 不能 | 11通过／10部分／1不通过／1未验证；QA-006/007、ADH-19～23开发者实作、Coding小跑与真人验收 |
-| Computer Use | 不能 | 1通过／9部分／1不通过／4未验证；Helper三项权限未授予，真机未跑，QA-008 |
-| 回执 | 不能 | 27通过／50部分／5未验证；QA-009～012、Coding真模型/强杀/异常矩阵及R1、3e后续、阶段4～6 |
-| 情境 | 不能 | 91行11通过／69部分／2不通过／9未验证；QA-013～018、W1/W4后续、W5～W7及原生/完整状态矩阵 |
-| 防腐 | 不能据本报告归档 | 仍有大量在途切片；最后按新的 main 核对已合入部分 |
+| 线 | 通过 | 部分通过 | 不通过 | 未验证 | 按决定不做 | 能否归档／主要缺口 |
+| --- | ---: | ---: | ---: | ---: | ---: | --- |
+| 交互（54） | 7 | 38 | 1 | 8 | 0 | 不能：QA-002/003、P5/H4 2c、AC10-B、完整UI矩阵和BL-016；QA-001及#709原步骤已复验 |
+| 采用（39） | 2 | 22 | 0 | 15 | 0 | 不能：QA-004/005、BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6及完整实走 |
+| 手册（23） | 11 | 10 | 1 | 1 | 0 | 不能：QA-007、ADH-19～23开发者实作、Coding小跑与用户验收；QA-007复验仍有余项 |
+| Computer Use（15） | 1 | 10 | 0 | 4 | 0 | 不能：Helper三项权限及二十步真机、成本与实际裁剪/OCR；QA-008文档已复验 |
+| 回执（84） | 25 | 54 | 0 | 5 | 0 | 不能：QA-009～012、Coding模型/强杀/异常矩阵、R1与3e后续及阶段4～6 |
+| 情境（91） | 11 | 69 | 2 | 9 | 0 | 不能：QA-013～018、W1/W4后续、W5～W7及原生/完整状态矩阵；跨线多选另见QA-024 |
+| 防腐（636） | 397 | 221 | 5 | 13 | 0 | 不能：QA-019～024、已知PG-006/110的P1、剩余迁移、同SHA全量及完整产品矩阵 |
+
+新增问题共24项，均为P2/P3；没有确认新的P0或安全边界突破。已知安全P1 PG-006/110沿用原编号，修复#812仍待main复验，不能因安全集通过而关闭。QA-001/006/008已复验，QA-007保留余项，其余修复状态见问题表；没有用户接受不修的记录。
 
 ## 4. 各线逐条验收
 
@@ -57,7 +59,7 @@
 
 ### 4.1 交互
 
-本节 SHA 均为 `ebad9a223b84d28937df03393231381587b3193a`。`E1`：14 个定向工程文件，模式 `AC-|D25`，实际 64 项通过、0 跳过；`E2`：5 个浏览器文件，模式 `AC-`，28 项通过、0 跳过。浏览器使用脚本 provider 或独立组件页，仍标一级。`E3`：`form-draft-questions.test.ts --test-name-pattern=LOGIC-05`，两项保存失败恢复通过。日志在被测树已忽略的 `.impeccable/qa/review/interaction-{engineering,browser,form-save}.log`，摘要见本表；关键截图见[二级证据评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)。`E4`：I0 两文件 `--test-name-pattern=AC-`，21 个单元及浏览器 1 父/9 子（TAP 10）通过；是 spec 明确的模拟原型，模型调用 0，不能冒充生产。
+本节初验SHA为`ebad9a223b84d28937df03393231381587b3193a`；AC-05在7d1补验，QA-001在06e7复验，后增编号另列§4.8。`E1`：14 个定向工程文件，模式 `AC-|D25`，实际 64 项通过、0 跳过；`E2`：5 个浏览器文件，模式 `AC-`，28 项通过、0 跳过。浏览器使用脚本 provider 或独立组件页，仍标一级。`E3`：`form-draft-questions.test.ts --test-name-pattern=LOGIC-05`，两项保存失败恢复通过。日志在被测树已忽略的 `.impeccable/qa/review/interaction-{engineering,browser,form-save}.log`，摘要见本表；关键截图见[二级证据评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)。`E4`：I0 两文件 `--test-name-pattern=AC-`，21 个单元及浏览器 1 父/9 子（TAP 10）通过；是 spec 明确的模拟原型，模型调用 0，不能冒充生产。
 
 `U1`：真实生产 Web Host、新临时 Home、示例项目，无模型；仅键盘进入项目、Tab 到助理、发送后输入保留并提供设置入口。1440/1024/390 浅色中文、深色英文已目视，英文新工作复现 QA-001。
 
@@ -71,7 +73,7 @@
 | AC-02 | 部分通过 | 一级 | E2 助理输入仅进问卷草稿、Coding 同排入口复用卡片；完整焦点与阅读位置未验 | 已知：D24／情境线 | ebad9a223 |
 | AC-03 | 部分通过 | 一级、二级（Form） | E2 填草稿不提交、点卡才建一次 Goal；U2 补问未答不新增题目 | 批准与专业路径未全验 | ebad9a223 |
 | AC-04 | 部分通过 | 一级 | E1 interaction-examples、E2 typed questions：混合字段错误不调模型、修正后原 Run 收答案；真实四类字段未实走 | — | ebad9a223 |
-| AC-05 | 部分通过 | 一级 | E2 interaction-no-crosstalk：会话草稿、跨项目拒绝、固定选区；尚未按 #709 原步骤实走 | 已知 #709；§18 H4 2c | ebad9a223 |
+| AC-05 | 部分通过 | 一级、二级（原草稿路径） | E2交错隔离；7d1新增coding-session-first-read七项通过，FU真实A草稿→B首读等待→回A/刷新均保原稿，B不继承A，未触发Run。九入口与失败态未全实走 | 已知#709原步骤已复验；§18 H4 2c仍待补 | 7d1cc4bfa |
 | AC-06 | 部分通过 | 一级 | E1 interaction-components；E2 Coding 卡提交修改后的标题且只建一次 Goal；完整预览多入口未验 | 已知 §18 H4 2c | ebad9a223 |
 | AC-07 | 部分通过 | 一级 | E1 parked-answer：停放、重开 adapter、开轮失败留队、新消息保稿；同一内存 AssistantStore 不能证明完整 Host 重启 | 完整重启未验证 | ebad9a223 |
 | AC-08 | 部分通过 | 一级 | E1 recovery/parked、E2 双页签确定交错：只一份答案胜出、另一份明确拒绝且 Runtime 文件不变；未全面实走 | — | ebad9a223 |
@@ -176,7 +178,7 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 
 ### 4.3 手册
 
-本节基线为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`，重新 fetch 后 detached 检出、离线安装和整体构建通过。`H1`：8 个文件的 19 项定向用例全部通过，日志 `.impeccable/qa/review/handbook-engineering.log`。运行文件为 agent-definitions、assistant-undo、assistant-business-gateway、assistant-work-continuity、assistant-delegation、assistant-methods、assistant-memory、announce-guard；按实际测试名筛选，编号只在注释的不漏算。测试使用真实宿主/SDK 与受控 provider，仍是一级。
+本节初验基线为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`，ADH-07按ee6、ADH-16按3cac另标复验；重新 fetch 后 detached 检出、离线安装和整体构建通过。`H1`：8 个文件的 19 项定向用例全部通过，日志 `.impeccable/qa/review/handbook-engineering.log`。运行文件为 agent-definitions、assistant-undo、assistant-business-gateway、assistant-work-continuity、assistant-delegation、assistant-methods、assistant-memory、announce-guard；按实际测试名筛选，编号只在注释的不漏算。测试使用真实宿主/SDK 与受控 provider，仍是一级。
 
 `H2`：文档与源码逐项核对。手册仍有唯一入口；按场景分开固定合同、模型判断、材料和方法，不把权限交给 prompt；第 15 节有有界调用、Skill 和多步协作实例，第 16 节分清机制/真实 SDK/真实模型/人工质量。§9.5 的 A3②和 D1②确有任务、次数、成本、前后比较及设计/能力/拿不准分类，不能说没有记录；历史记录未在本机全量复跑。外部一手资料包括 [Anthropic context engineering](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents)、[building effective agents](https://www.anthropic.com/engineering/building-effective-agents)、[OpenAI harness engineering](https://openai.com/index/harness-engineering/)，本次已打开核对其相关主题；引用不覆盖仓库现行合同。
 
@@ -190,7 +192,7 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | ADH-04 | 通过 | 一级（文审） | H2 §15.2 按适用范围读方法，工具权限仍由宿主；不复制路由 | — | 8eedf2222 |
 | ADH-05 | 通过 | 一级（文审） | H2 来源、纠正、预算、摘要、交接案例及补材料原则 | — | 8eedf2222 |
 | ADH-06 | 通过 | 一级（文审） | H2 与安全合同一致：校验/幂等/取消/撤权/恢复保留在工程层 | — | 8eedf2222 |
-| ADH-07 | 不通过 | 一级（文审、源码） | H2 §14 的现状/证据/在途标记与本表及代码互相矛盾 | QA-007；control 版本另属已知 #793 | 8eedf2222 |
+| ADH-07 | 不通过 | 一级（文审、源码） | #809修正手册现状，但ee6复验手册§14称3行真实模型，需求书本条仍称2行；原能力目录/#560/#561问题已修 | QA-007；复验评论见§9 | ee6df47d8 |
 | ADH-08 | 部分通过 | 一级、二级（一个方法） | H2 三类实例有解释；HU 复现 Pages 方法，尚非全部开发案例 | 独立开发者走读未完成 | 8eedf2222 |
 | ADH-09 | 通过 | 一级（文审） | H2 §16.3 记录任务效果、适应性、方差和证据类型，历史样例不宣称一次稳定 | — | 8eedf2222 |
 | ADH-10 | 通过 | 一级（文审） | H2 诊断分上下文/工具/prompt/模型/运行时；手册范围没有新增强制审批/评分 | 不是整仓无违规结论 | 8eedf2222 |
@@ -199,7 +201,7 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | ADH-13 | 部分通过 | 一级 | H1 base 单句且无类别路由；A3②有 48 跑历史对比 | 本轮未重复真实模型“记一下”矩阵 | 8eedf2222 |
 | ADH-14 | 通过 | 一级、二级 | H1 v2 声明/正文无确认；HU 真读取并成功建 Pages，页面刷新后内容仍在 | 单任务实走，不推断稳定成功率 | 8eedf2222 |
 | ADH-15 | 通过 | 一级（记录核查） | A3②完整前后记录与分类存在，符合本条记录标准 | 不冒称本次独立复跑 | 8eedf2222 |
-| ADH-16 | 部分通过 | 一级 | H1 无工具核对、事实围栏、各种失实每轮拦一次、无效JSON放过；错误/超时未找到故障断言 | QA-006 | 8eedf2222 |
+| ADH-16 | 部分通过 | 一级 | H1原工程范围；3cac的QA-006三项通过，抛错/受控500/AbortError和加速生产截止保持原结尾、零续做/业务效果，挂起请求中止；完整产品实走与内部归档状态不外推 | QA-006已复验，完整实走仍缺 | 3cac91f73 |
 | ADH-17 | 部分通过 | 一级 | H1 只认给过标识、子任务不查、主工作仍查；真实各种内容未全走 | 用户可见结果仍缺二级矩阵 | 8eedf2222 |
 | ADH-18 | 部分通过 | 一级（记录核查） | D1②真模型对比及单次核对记录存在；把超时说成已有确定性证明不成立 | QA-006 | 8eedf2222 |
 | ADH-19 | 部分通过 | 一级（文审） | #787 已有渐进披露与选择字段说明；没有本次独立作者实作 | 手册后续开发情境走读 | 8eedf2222 |
@@ -210,11 +212,11 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 
 **轻做与代码质量。** QA-006/007 按新问题列出；ADH-12 的“只写一次”现有 helper 只能确认唯一层，不能证明同层不重复。H1 的方法测试只断言 v2 文字，实际建页面由 HU 补齐。没有用历史真实模型评测代替本次执行，也没有因模型第一次参数错误修改提示词。唯一模型接线在 agent-host，方法由插件声明注册；收尾核对的 catch 放过是明确已定行为，不能当空 catch 随意改。现有宿主私路与权限去向继续沿用防腐已登记项目。
 
-**归档结论：不能。** 11 通过、10 部分通过、1 不通过、1 未验证。QA-006/007、ADH-19～23 的开发者实作、Coding 真实模型小跑及三级体验仍未收口；HU 仅补齐 ADH-14 的这条完整路径。
+**归档结论：不能。** 11 通过、10 部分通过、1 不通过、1 未验证。QA-007、ADH-19～23 的开发者实作、Coding 真实模型小跑及三级体验仍未收口；HU 仅补齐 ADH-14 的这条完整路径。
 
 ### 4.4 Computer Use
 
-开线前再次 fetch，main 仍为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`；复用该干净 detached 树及同 SHA 构建。`C1`：reliability 13、act-loop 5、evaluation 1、gaps 9、task-done 2、S-25 selector 2/own-window 1，共33项通过；`C2`：local-entry 的 computer socket 与三入口合法本机名2项、gateway 60步上限1项、assistant-tool-words1项通过。日志 `.impeccable/qa/review/computer-{engineering,gateway-security}.log`。全部为一级，Helper/桌面树/图片/供应商是夹具，不能记作真机操作。
+开线前再次 fetch，main 仍为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`；复用该干净 detached 树及同 SHA 构建；CU-G14按ee6文档复验另标SHA。`C1`：reliability 13、act-loop 5、evaluation 1、gaps 9、task-done 2、S-25 selector 2/own-window 1，共33项通过；`C2`：local-entry 的 computer socket 与三入口合法本机名2项、gateway 60步上限1项、assistant-tool-words1项通过。日志 `.impeccable/qa/review/computer-{engineering,gateway-security}.log`。全部为一级，Helper/桌面树/图片/供应商是夹具，不能记作真机操作。
 
 `CU0`：新临时 Home，随机回环57506，真实 Helper经生产 GET `/api/computer/permissions` 启动并返回 `screen_recording=false, input_monitoring=false, accessibility=false`。只读检查没有请求权限；没有打开系统设置、操作密码框、启动真实桌面任务或配置模型，实际请求 **0/30**。网页实走个人空间→侧栏→电脑，显示“助理使用电脑：已关闭”，设置页总开关也未打开；界面观察本身不证明二十步或拒绝。没有 work/record/item id、操作步数、真实任务 token，原因是先决权限未满足，不伪造这些数据。三宽度/深色/中英文完整矩阵及运行、暂停、失败、撤销均未验；只留存1440浅色中文关闭态图，见[先决检查与截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265582085)。
 
@@ -233,12 +235,12 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | CU-G11 | 部分通过 | 一级 | C1名字/角色/部分名称与歧义拒绝、原始节点定位；S-25正则不编译、超时/600节点边界拒绝且零输入 | 真机同名/滚动/切窗未验证 | 8eedf2222 |
 | CU-G12 | 部分通过 | 一级 | C1十场景框架可运行，指标与拒绝有断言；回调人工改文件/窗口，tokens为字符估计 | 真实模型三个代表场景仍待跑，非成功率证据 | 8eedf2222 |
 | CU-G13 | 部分通过 | 一级 | 本SHA构建+C1/C2通过；boundary/health/security在ebad有运行，夜间全量为旧SHA | 当前SHA完整CI/门禁在防腐节收口；本机不跑全量 | 8eedf2222 |
-| CU-G14 | 不通过 | 一级（文审） | spec状态诚实留真机缺口，但runbook还把已选A称待定，open-decisions还称#721 draft | QA-008；不能归档 | 8eedf2222 |
+| CU-G14 | 部分通过 | 一级（文审） | ee6复验#809：已定A、#721状态、旧截图/OCR限制及历史提示词一致；QA-008文档问题已修。真机与归档条件仍缺 | QA-008已复验；不能归档 | ee6df47d8 |
 | CU-G15 | 未验证 | 无动态证据 | 可选文件/延迟/多显示器切片仍后续；不是已实现，也不是永久不做 | goal-prompt-wrapup阶段5；BL-021 | 8eedf2222 |
 
-**轻做与代码质量。** C1的task-done只改夹具窗口/文件列表，不能证明文件真实存在；OCR预设字和图片参数断言不能证明Vision实际识别与像素裁剪；evaluation不是真机成功率；Shelf回滚测试读生产函数但网络/条目全是假。以上在spec现行状态里明确待真机，不另立“没做也没有去处”。S-25 selector与own-window、S-04 socket已找到并跑过拒绝本身；不会把Helper输入0的夹具证据扩大到系统授权/真实注入。Shelf私路沿用PG-057，发布身份/多机沿用BL-021。D16旧“不进模型”及旧无OCR描述未清楚标记已被后续切片替代，纳入QA-008文档收口。
+**轻做与代码质量。** C1的task-done只改夹具窗口/文件列表，不能证明文件真实存在；OCR预设字和图片参数断言不能证明Vision实际识别与像素裁剪；evaluation不是真机成功率；Shelf回滚测试读生产函数但网络/条目全是假。以上在spec现行状态里明确待真机，不另立“没做也没有去处”。S-25 selector与own-window、S-04 socket已找到并跑过拒绝本身；不会把Helper输入0的夹具证据扩大到系统授权/真实注入。Shelf私路沿用PG-057，发布身份/多机沿用BL-021。初验D16旧限制未明确标历史，记为QA-008；ee6的#809复验已澄清，真机缺口仍保留。
 
-**归档结论：不能。** 1通过、9部分通过、1不通过、4未验证；CU-G02～04真机证据、G05/06/08/09/10/12实测数据、QA-008及用户体验仍缺。仅权限先决检查可以据实完成，不以它判CU功能通过。
+**归档结论：不能。** 1通过、10部分通过、0不通过、4未验证；CU-G02～04真机证据、G05/06/08/09/10/12实测数据及用户体验仍缺，QA-008文档问题已复验。仅权限先决检查可以据实完成，不以它判CU功能通过。
 
 ### 4.5 回执
 
@@ -258,7 +260,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | RC-04 | 通过 | 一级 | R1 agent-input-delivery：状态前进改变runViewVersion | 工程合同 | 8eedf2222 |
 | RC-05 | 通过 | 一级 | R1真实动作schema及处理器拒绝非法/取消/撤权/别会话，零运行和排队调用 | 拒绝工程证据 | 8eedf2222 |
 | RC-06 | 部分通过 | 一级、二级（RU范围） | R3 assistant-coding-executor保键/queued/carry/版本，端口为替身；RU补充保留问题 | Coding真模型待验；BL-144 | 8eedf2222 |
-| RC-07 | 通过 | 一级 | R3 coding-continuation列原任务与补充、明确未逐项核对 | 工程投影 | 8eedf2222 |
+| RC-07 | 部分通过 | 一级 | R3 coding-continuation列原任务与补充、明确未逐项核对；真实Coding计划提示未实走 | 工程投影 | 8eedf2222 |
 | RC-08 | 部分通过 | 一级 | R3 prologue-recovery重开adapter读队列，R2面板区分未知与空 | 没有强杀整个Host | 8eedf2222 |
 | RC-09 | 通过 | 一级 | R1/R3下一轮carry消费一次、第三轮不重复，读取真实SDK队列 | 工程接续 | 8eedf2222 |
 | RC-10 | 部分通过 | 一级 | R4 coding-input-receipts.e2e发送菜单/方式复位/回执提示 | Coding实走矩阵待验 | 8eedf2222 |
@@ -302,7 +304,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | RCPT-336 | 部分通过 | 一级、二级（RU范围） | R1真实队列撤回与R4端口；RU更正不启轮/撤回无新轮 | 其他失败与恢复缺 | 8eedf2222 |
 | RCPT-337 | 部分通过 | 一级 | R2两owner各自托盘且不串节点 | 同页面两展示面；非两个Chrome同步承诺 | 8eedf2222 |
 | RCPT-341 | 部分通过 | 一级 | R2真实保存报告，但夹具四状态/含终态applied，与spec五态不符 | QA-011 | 8eedf2222 |
-| RCPT-342 | 通过 | 一级 | R2 coding-report-persistence真实保存围栏/HTML恶意片段仍为数据 | 不扩大到全链安全 | 8eedf2222 |
+| RCPT-342 | 部分通过 | 一级 | R2 coding-report-persistence真实保存围栏/HTML恶意片段仍为数据；实际页面标题唯一性与显示未二级实走 | 不扩大到全链安全 | 8eedf2222 |
 | RCPT-343 | 部分通过 | 一级 | R2已存报告→格式器，R3泛材料→真实provider，未连成报告下一轮 | QA-012 | 8eedf2222 |
 | RCPT-344 | 部分通过 | 一级 | R2板报告引用/缺板不画/复用节点 | VM；真实板二级缺 | 8eedf2222 |
 | RCPT-345 | 部分通过 | 一级、二级（RU范围） | R2 link先调用方再聚焦summary，无回执不给按钮；RU当前约定定位 | Coding对话二级缺 | 8eedf2222 |
@@ -339,7 +341,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 
 **代码质量与安全。** 模型声明与运行事实分开；已读不等于遵循。真实SDK/Host路径已断言伪origin、撤回后竞争、非法ack、取消/撤权拒绝与板零改动；没有把处理器替身的零调用外推成业务持久化全链。共享回执按owner的WeakMap隔离，未给某插件新增名单。PG私路、BL-148/164、人工步骤归属与来源错误码沿用已知§10.27～29及#778；#793/#795属于在途或后续版本，不重复立项。QA-012只是连接证据不足，现有材料围栏/数据通道测试有效，未发现可据此认定的安全突破。
 
-**归档结论：不能。** 27通过、50部分通过、5未验证、0不通过、0按决定不做。四个新问题、上述生产/异常/质量矩阵、阶段后续和三级体验未收口。SIGTERM后记录7次请求但进程未退出，随后仅对本次PID54010发SIGKILL；确认退出，核对临时目录非软链后删除Home及密文。未把这次QA启动器关闭延迟未经归因就记为产品回归。
+**归档结论：不能。** 本节原82行25通过、52部分通过、5未验证；含§4.8新增两项后84行25通过、54部分通过、5未验证。四个新问题、上述生产/异常/质量矩阵、阶段后续和三级体验未收口。SIGTERM后记录7次请求但进程未退出，随后仅对本次PID54010发SIGKILL；确认退出，核对临时目录非软链后删除Home及密文。未把这次QA启动器关闭延迟未经归因就记为产品回归。
 
 
 ### 4.6 情境
@@ -459,31 +461,839 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 
 **归档结论：不能。** 主40项为5通过、28部分、2不通过、5未验证；加SLOT及49附属后共11通过、69部分、2不通过、9未验证。新QA-013～018、W4后续/W5～W7、W1-08/09、完整异常与真人体验尚未收口。未验证不等于“按已定决定不做”。
 
+### 4.7 防腐
+
+固定main：`7d1cc4bfade6c93cb1006e691da3e73b83316de1`（下文`7d1cc4bfa`）。库存按定义而非章节标题计：RAC-01～62、359个W/SHF编号、215个错误模型及整合短编号，共636行；PPT-STORE-02/03与DATASET-04按需求中的明确范围展开。PG是已知问题台账，不重复计为验收编号。逐条结果见下列636行；同一事实被复合标准引用时不算新的独立能力。
+
+**本次已完成证据。** `F0`为离线安装与完整构建成功、boundary通过、health对merge-base 7d1通过；`F1`为`pnpm test:security`：114次文件执行、113个不同文件，784/785项执行通过，1项真实公网HTTPS按未设置opt-in跳过，0失败。重复项为alchemist-resumption，不算两份独立证据。`F2`为36个RAC/专项定向文件、131项通过，含真实事务/目录回滚、route grant撤销、资源/API/动作快照、停机监视器及模型返回生命周期；具体文件和筛选记录在忽略目录`anti-supp-*.log`。模型调用0。
+
+`F3`的61个编号对应非浏览器文件中60个通过；plugin-sandbox的19项在Homebrew Node25下启动即失败。旧fbc干净基线同文件重现；使用完全相同生产Seatbelt规则诊断，dyld无法读取Node外部libnode动态库。没有改沙箱或测试；改用本机已有独立Node24.19.0后19/19通过。此结果区分运行时分发环境，不据旧基线同红直接判无问题。`F4`的116个编号对应文件中113个通过；agent-built-plugins-workflow、installed-plugin-execution、installed-plugin-host出现沙箱启动及其后续失败，旧fbc同文件重现。直接换Node24还遇到SQLite的141/137 ABI不符，未据此判通过；另一个同SHA干净工作树用Node24离线复制安装并重建依赖后，这三个文件67/67通过（FN24）。所有选中文件显式传给runner，每文件一次性Home，不使用无参数全量。
+
+`FS`为41个补充语义文件通过；`FW`为8个完整专项文件68项通过（`anti-semantic-w5.log`）。页面资源实测25项、7,489,180字节，与merge-base比较通过（`anti-assets-actual.log`）。`web-route-table` 1/1通过，实际旧PPT/Dataset路由404（`anti-web-routes.log`）。Alchemist包内Pulse recovery真实SQLite重开及两条撤权晚返回共3/3通过（`anti-pulse-recovery.log`），取消组合另见QA-023。
+
+`FB`浏览器54文件51通过；agent-studio在Node25因同一Seatbelt动态库问题1/3，清理仅按本次PID；同SHA干净Node24树复跑3/3通过（`anti-studio-node24.log`）。content-portable-regressions为2/3，PAGES-SOURCES停在多选focus；lingguang-plugin为3/4，停在多选栏。旧fbc基线同两个完整文件、同一位置失败（`anti-browser-baseline.log`），后两项不据旧基线同红而放行。补充6个浏览器文件33/33通过（anti-browser-extras.log），含small-ux 16/16。F5是上述FB及补充浏览器记录的统称。所有浏览器自动化仍为一级，实际用户路径另列二级。
+
+`pnpm lint`退出1：3717文件、722项；fbc旧基线3713文件同为722项，按文件+规则计数完全相同，仅行号随新增测试移动。health通过只说明相对基线未增长，不说明这些告警已清零。当前128个巨大单元、485处测试内部引用、9个兼容标记、187个typed能力站点、16个插件名宿主文件等仍沿原计划；不另造重复问题。
+
+夜间全量[39157724720](https://github.com/molis-ai/molis-work/actions/runs/39157724720)成功，SHA `739e6cb29b92a89dcc035b7db49c3afeec5a5ac3`；较新的[39238167301](https://github.com/molis-ai/molis-work/actions/runs/39238167301)为8eed且取消，汇总作业未能证明全分片通过。两者均不能当7d1全量结果；没有额外发起CI或本机全量。
+
+**已知项复核。** #788关闭PG-007阶段2的路由授权，不关闭PG-006/110的插件caller信任缺口；这两项仍由③S1与原②责任链共同承接。#792的材料cancel/stop/revoke/upgrade确实拒绝晚答，并验证替代实例存储无晚到；显式fencedMaterials有拒绝/围栏证据，灵光未采用仍为BL-183。PG-016版本跟随按安装信任决定保留；PG-048原缺口已完成、Shelf余项归PG-090；PG-059的Dataset/PPT根路由已删，Pages与隐藏授权分别归PG-088/013；PG-109旧PPT端口文件已删。新台账PG-111为其他插件合同迁出平台，归③阶段4，已有去处。PG-001～110及新增111逐项核过归属/阶段，不把未完成且有决定承接的迁移重复立项。
+
+**已知P1定向复验与二级实走（FU）。** #759已合入7d1；tests/coding-session-first-read.e2e.test.ts按AC-05筛选七项通过，日志anti-coding-first-read.log。新临时Home中真实创建A/B会话，服务器只暂缓B首个真实读取请求，释放后交回原处理器，不伪造业务响应。A草稿→新B首读等待→B空草稿→写B草稿→回A→刷新，A/B各自保留，未产生Run请求。等待时输入/模式/模型与已展开的上下文动作禁用；1440/1024/390浅色等待及深色恢复均核对。此Home未配置模型，发送本来禁用，不能以实走证明可用模型下发送禁用，也不扩大为九入口及所有失败态。#709原串稿/丢稿步骤已复验；完整AC-05仍部分通过。
+
+FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开对象，⌘点击却只开后台页签、没有多选栏；与两个失败文件及旧fbc基线一致，定为QA-024。灵光另用纯键盘创建、输入正文、返回后仍保存；浅色1440及深色1440/1024/390已看，中英文切换仅覆盖当前场景，IME/读屏和完整状态矩阵仍缺。截图见[防腐实走评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268983128)。模型0/0；服务已按自建PID停止并确认退出，临时Home删除。anti-s40-restart.log另有两个独立进程重开同一临时Home的S-40恢复通过记录，不能扩成所有插件重启。
+
+**轻做与代码质量。** 新增QA-019（PPT结果guard事务接缝）、QA-020（旧503与现行400文字冲突）、QA-021（RAC编号追溯）、QA-022（attention非空事实/局部失败断言）、QA-023（Pulse实际取消晚返回）、QA-024（Pages/灵光多选入口失效）。RAC-01～19明确标人工，合法复用W/S组合证据，不为这些项强造单测。RAC-01按“获批计划且样板合入”的标准分支裁决，不擅自加成必须全迁完；旧§12.4的历史17个构建期插件现为10，迁移余项保留。最终写入复核、沙箱服务缺口、文件服务私路和内置名单均按PG-017/047/102～104等既有台账，不由安全集全绿自动关闭。
+
+
+#### 防腐 W1/W2 逐条判定
+
+本表为 W1 的14项与 W2 的130项，共144项；每行按实际标准及本轮证据裁决。当前通过78、部分通过56、不通过1、未验证9、按已定决定不做0。54个浏览器文件最终51个通过；三个失败按对照结论记录，未把失败文件整体算过。
+
+证据日志均在各隔离工作树已忽略的 `.impeccable/qa/review/`：F1/F2/F3/F4沿上文；FS=`anti-semantic.log`（41个定向文件通过）；FB=`anti-browser.log`；FN24=`anti-native-node24.log`，来自同一SHA的干净Node24工作树，三个沙箱消费者文件67/67通过。F2动作快照只运行目录/Manifest一致性的所选四项，不声称整个文件全跑。每格列关键测试名、定位和文件级结果；“本用例通过”来自失败文件内的独立成功记录，不把同文件其他失败抹掉。
+
+本表的浏览器自动化仍记一级；“缺独立实走”表示尚无本轮最终交付物完整用户路径的二级证据，不能代替1440/1024/390、深色、纯键盘及中英文的完整核对。NSPasteboard原生用例虽使用私有剪贴板，当前未运行；胶囊几何、原生IPC拒绝和慢IO热键保留未验证。问题列的W/BL/S/F编号是已登记后续或原生验收去处，不是新立QA问题。四项ALL仍需其人工全范围核对，局部定向成功不能合成整体通过。
+
+| 编号 | 判定 | 证据等级 | 证据（测试、运行摘要与边界） | 问题编号／已知去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| W1-18-ALL-01 | 未验证 | 一级（文审） | 人工逐包审查71包及源码归属清单；机器门禁不能替代 | 已知（W1-18） | `7d1cc4bfa` |
+| W1-18-ALL-02 | 未验证 | 一级（文审） | 人工核每项必要修复实际diff、生产回归与未完归属 | 已知（W1-18、W2-18-TE） | `7d1cc4bfa` |
+| W1-18-CHARACTER-SCHEMA-01 | 通过 | 一级 | 用例“W1-18-CHARACTER-SCHEMA-01 an empty Character store initializes once and current drafts reopen”；`tests/characters-schema.test.ts:10`（F4 3/3）。现行库初始化重开；旧/未来schema拒绝且字节和权限不变 | — | `7d1cc4bfa` |
+| W1-18-GOAL-POLICY-01 | 部分通过 | 一级 | 用例“W1-18-GOAL-POLICY-01 Workbench mounts current rules and Goal requirements without a Goal override form”；`tests/goals-policy-ui.test.ts:19`（F4 5/5）；`tests/policy-form-binding.e2e.test.ts:6`（FB 1/1）。Goal不再呈现旧override；要求走事件；项目默认保存、失败输入保留；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W1-18-MCP-CONFIG-01 | 通过 | 一级 | 用例“W1-18-MCP-CONFIG-01 real duplicate records never reopen a withdrawn system default and preserve other exact grants”；`tests/mcp-preference-integrity.test.ts:47`（F1 3/3）；`tests/mcp-action-grants.test.ts:19`（F4 5/5）。冲突/损坏配置闭合拒绝，精确授权失效，文件和业务事实不变 | — | `7d1cc4bfa` |
+| W1-18-MEMORY-CANDIDATE-01 | 通过 | 一级 | 用例“a missing SDK candidate is refused unchanged, before and after restart”；`tests/memory-service.test.ts:721`（F1 22/22）。缺失SDK候选读取拒绝，账本和SDK候选不补写，重开仍拒绝 | — | `7d1cc4bfa` |
+| W1-18-MEMORY-TX-01 | 通过 | 一级 | 用例“W1-18-MEMORY-TX-01: a failed BEGIN leaves the ledger able to roll back and commit”；`tests/memory-ledger-transaction.test.ts:9`（F4 1/1）。真实SQLite事务锁在回调前拒绝；故障回滚；后续提交与重开一致 | — | `7d1cc4bfa` |
+| W1-18-MODEL-SCHEMA-01 | 通过 | 一级 | 用例“W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and invalid catalogs without changing them”；`tests/jelly-model.test.ts:58`（F4 12/12）。独立模型消费者拒绝旧/未来/非法目录，无修库或新建偏好副作用 | — | `7d1cc4bfa` |
+| W1-18-PIN-CURRENT-01 | 通过 | 一级 | 用例“W1-18-PIN-CURRENT-01 next pin retains a pending number and otherwise follows the current project line”；`tests/document-pin-after-move.test.ts:144`（F4 13/13）；`tests/pages-publication.test.ts:73`（F4 6/6）。当前项目版本线递增；保留待完成版本与原固定版本，不覆盖新草稿 | — | `7d1cc4bfa` |
+| W1-18-SECRET-KEY-01 | 通过 | 一级 | 用例“W1-18-SECRET-KEY-01 existing ciphertext refuses a ${fault} file key without changing credentials, and recovers with its original key”；`tests/secret-store-missing-key.test.ts:9`（F4 2/2）。缺失/损坏文件密钥拒绝轮换；密文不改，恢复原钥后可读 | — | `7d1cc4bfa` |
+| W1-18-SEMVER-01 | 通过 | 一级 | 用例“W1-18-SEMVER-01 preserves hyphens inside prerelease identifiers and follows literal precedence”；`tests/plugin-semver.test.ts:7`（F4 2/2）。预发布连字符按字面优先级比较；真实Runtime拒绝同版/降级 | — | `7d1cc4bfa` |
+| W1-18-SESSION-CONFIRM-01 | 通过 | 一级 | 用例“W1-18-SESSION-CONFIRM-01 a fresh Session only gets the exact workspace Project as a suggestion”；`tests/session-project-binding-router.test.ts:9`（F4 2/2）。新Session只建议项目；未经确认不绑定；同Session恢复且解绑不复活 | — | `7d1cc4bfa` |
+| W1-18-SHELF-FORMAT-01 | 通过 | 一级 | 用例“W1-18-SHELF-FORMAT-01 current Shelf data reopens, while wrong version and retired item shapes stay untouched”；`tests/shelf-current-format.test.ts:8`（F4 1/1）；`tests/shelf-settings.test.ts:163`（F4 11/11）。只读现行catalog；旧形状明确拒绝且原文件字节不变 | — | `7d1cc4bfa` |
+| W1-18-TAB-FORMAT-01 | 部分通过 | 一级 | 用例“W1-18-TAB-FORMAT-01: current grouped items and nested panes remain valid after serialization”；`tests/tab-workspace-ops.test.ts:234`（F4 45/45）；`tests/workbench-current-tabs.e2e.test.ts:5`（FB 1/1）。现行对象页签/分组/分栏重载；旧存储形状不转换；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ALCHEMIST-EFFECT-01 | 通过 | 一级 | 用例“W5-01-ALC-LIFE-01 / W2-18-ALCHEMIST-EFFECT-01: formal Host ${operation} rejects late foreground writes (${refusal})”；`tests/security-invariants-alchemist-lifecycle.test.ts:36`（F3 21/21）；`tests/alchemist-actions.test.ts:170`（F3 5/5）。取消/撤权/停用/关闭后无迟到前台业务写，已接受任务独立继续 | — | `7d1cc4bfa` |
+| W2-18-ALCHEMIST-EFFECT-02 | 通过 | 一级 | 用例“W2-18-ALCHEMIST-EFFECT-02: a genuine model failure remains explained and an explicit new discussion can recover”；`tests/alchemist-actions.test.ts:192`（F3 5/5）。受控模型故障按失败记账；显式新讨论恢复，取消不伪造失败回复 | — | `7d1cc4bfa` |
+| W2-18-ALCHEMIST-PARTIAL-01 | 部分通过 | 一级 | 用例“W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable publication and mount lifetime”；`tests/alchemist-client-boundaries.e2e.test.ts:14`（FB 1/1）。未连成果入口禁用发布并给原因；选定方法实际进入保存计划；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ALCHEMIST-UI-01 | 部分通过 | 一级 | 用例“W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable publication and mount lifetime”；`tests/alchemist-client-boundaries.e2e.test.ts:14`（FB 1/1）。对象选择与助理上下文一致；迟到列表不能改当前选择；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ALCHEMIST-UI-02 | 部分通过 | 一级 | 用例“W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable publication and mount lifetime”；`tests/alchemist-client-boundaries.e2e.test.ts:14`（FB 1/1）。隐藏停止轮询；卸载撤读；重挂只一个刷新处理器；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ALL-03 | 未验证 | 一级 | 用例“S6 Coding writes the actual workspace through the installed SDK, Git stages only its approved revision, and Diff reads the same fixed bytes”；`tests/coding-git-diff-product.test.ts:16`（F4 1/1）；`tests/coding-material-consumption.test.ts:9`（F4 1/1）。仅S5/S6补证；S1至S11组合须逐场景独立核，不能合并替身结果；缺独立实走 | 已知（W2-18-LC、W2-18-FR、W2-18-AC、W6-05） | `7d1cc4bfa` |
+| W2-18-ALL-04 | 未验证 | 一级（文审） | 同一最终整合head的diff/工程/实走汇总；不同树证据不能相加；缺独立实走 | 已知（W6-05） | `7d1cc4bfa` |
+| W2-18-ASSET-JS-01 | 通过 | 一级 | 用例“W2-18-ASSET-JS-01 / RAC-19: served JavaScript compacts trivia while preserving literals and automatic semicolon boundaries”；`tests/workbench-asset-cache.test.ts:45`（F4 2/2）。实际压缩JS执行后字面值/模板/正则/ASI语义保持，字节减少 | — | `7d1cc4bfa` |
+| W2-18-ASSET-JS-02 | 通过 | 一级 | 用例“W2-18-ASSET-JS-02: Workbench asset cache preserves locale, body, ETag and HEAD while avoiding repeated rendering”；`tests/workbench-asset-cache.test.ts:8`（F4 2/2）。实际HTTP按语言缓存、ETag/304/HEAD及渲染次数正确 | — | `7d1cc4bfa` |
+| W2-18-ASSISTANT-404-01 | 部分通过 | 一级 | 用例“W2-18-ASSISTANT-404-01: A's late 404 preserves B while deleting the work still in view exits it”；`tests/assistant-stale-refresh.e2e.test.ts:7`（FB 1/1）。A迟到真实404不清B草稿/材料；当前已删工作退出；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ATTENTION-TX-01 | 通过 | 一级 | 用例“W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion roll back facts and journal together”；`tests/attention-atomic-effects.test.ts:10`（F4 1/1）；`tests/goal-decision-attention.test.ts:169`（F4 6/6）。Feed/Goal注意力与journal真实故障原子回滚；纠错重试不重复 | — | `7d1cc4bfa` |
+| W2-18-BROWSER-GRANT-01 | 部分通过 | 一级 | 用例“W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant decides only A; B stays pending with no page effect, and a displayed site's button retains its origin”；`tests/workbench-browser-targets.e2e.test.ts:89`（FB 3/3）。A延迟授权不批准B；真实站点保存被拒时操作仍待确认；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-BROWSER-GRANT-02 | 部分通过 | 一级 | 用例“W2-18-BROWSER-GRANT-01 / W2-18-BROWSER-GRANT-02: A's delayed site grant decides only A; B stays pending with no page effect, and a displayed site's button retains its origin”；`tests/workbench-browser-targets.e2e.test.ts:89`（FB 3/3）。当前站点按钮保留显示时origin；A/B决策事实独立；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-BROWSER-UPLOAD-01 | 部分通过 | 一级 | 用例“W2-18-BROWSER-UPLOAD-01 / W2-18-BROWSER-UPLOAD-02: a delayed FileReader for A cannot give its bytes to B's real file input; multiple files, cancel and reselect work”；`tests/workbench-browser-targets.e2e.test.ts:53`（FB 3/3）。A延迟FileReader不把字节送入B真实上传接收器；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-BROWSER-UPLOAD-02 | 部分通过 | 一级 | 用例“W2-18-BROWSER-UPLOAD-01 / W2-18-BROWSER-UPLOAD-02: a delayed FileReader for A cannot give its bytes to B's real file input; multiple files, cancel and reselect work”；`tests/workbench-browser-targets.e2e.test.ts:53`（FB 3/3）。多文件字节/文件名准确；取消后重选同文件可用；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-BUILDER-LATE-01 | 通过 | 一级 | 用例“W2-18-BUILDER-LATE-01: real Host sandbox cleanup cannot delete the resumed build preview”；`tests/agent-built-plugins-workflow.test.ts:1066`（FN24 42/42）。真实Host旧sandbox清理不能删除恢复后预览/覆盖新ready构建；macOS用例须实际执行；Node25首轮环境失败由干净同SHA Node24实际42/42解除 | — | `7d1cc4bfa` |
+| W2-18-CAPSULE-01 | 未验证 | 一级（配置断言） | 用例“W2-18-CAPSULE: every command the capsule calls has its existing explicit permission”；`tests/security-invariants-desktop-ipc.test.ts:88`（F1 6/6）。当前只有客户端命令/权限配置证据，未证明原生252至476高度和锚点；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-CAPSULE-02 | 未验证 | 一级（配置断言） | 用例“W2-18-CAPSULE: every command the capsule calls has its existing explicit permission”；`tests/security-invariants-desktop-ipc.test.ts:88`（F1 6/6）。当前只核配置；错误窗口/外部Origin实际IPC拒绝仍待原生探针；缺独立实走 | 已知（S-14、W2-19、F15） | `7d1cc4bfa` |
+| W2-18-CARD-UNKNOWN-01 | 通过 | 一级 | 用例“W2-18-CARD-UNKNOWN-01 a real action ${outcome} is kept across restart with no duplicate effect”；`tests/assistant-card-outcomes.test.ts:45`（F4 7/7）。真实ActionService在已写后输出非法/结果未知时保留unknown，重开不重派 | — | `7d1cc4bfa` |
+| W2-18-CATALOG-01 | 通过 | 一级 | 用例“W2-18-CATALOG-01 + W2-18-CATALOG-02: Host-managed token connections reject non-Cloud destinations before health, whoami or sync can dispatch”；`tests/catalog-trust-boundaries.test.ts:12`（F4 4/4）。HTTP/IP/本机/伪后缀/账号端口路径注入在health/whoami/sync零派出 | — | `7d1cc4bfa` |
+| W2-18-CATALOG-02 | 通过 | 一级 | 用例“W2-18-CATALOG-01 + W2-18-CATALOG-02: Host-managed token connections reject non-Cloud destinations before health, whoami or sync can dispatch”；`tests/catalog-trust-boundaries.test.ts:12`（F4 4/4）。合法Cloud与可信OAuth base可用；非法base零派出且无凭据回显 | — | `7d1cc4bfa` |
+| W2-18-CATALOG-ERROR-01 | 通过 | 一级 | 用例“W2-18-CATALOG-ERROR-01: every business-error family produces a closed failure through Connector, Listener, Signals, Feed and journal”；`tests/catalog-trust-boundaries.test.ts:70`（F4 4/4）。各业务错误闭合分类；公开响应和所有SQL单元格无原/编码fixture凭据 | — | `7d1cc4bfa` |
+| W2-18-CHARACTER-LAUNCH-01 | 通过 | 一级 | 用例“native Character revoked during ${phase} creates no bundle/session/event/process, and a fresh request recovers”；`tests/characters-native-execution.test.ts:81`（F4 9/9）。真实动作/HTTP最后等待后取消/撤权/停角色/撤提供方零文件Session事件派出；新请求恢复 | — | `7d1cc4bfa` |
+| W2-18-CLIPBOARD-01 | 未验证 | 未达一级（仅静态审读） | 用例“typed_items_survive_copy_and_no_copy_never_reads_old_files”；`apps/desktop/adapters/tauri/src/shelf_clipboard_macos.rs:157`（本轮未运行，仅审断言）。真实私有NSPasteboard保存文本/RTF/图/文件URL；失败复制不改原字节，需本轮Rust执行记录；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-CLIPBOARD-02 | 未验证 | 未达一级（仅静态审读） | 用例“later_copy_is_not_overwritten_by_restoration”；`apps/desktop/adapters/tauri/src/shelf_clipboard_macos.rs:212`（本轮未运行，仅审断言）。无新复制不取旧文件；中文空格路径准确；较新复制不被恢复覆盖，需本轮Rust执行记录；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-CODING-BACKGROUND-01 | 通过 | 一级 | 用例“a failed SDK background read preserves the last actual command observation and marks it unreadable”；`tests/coding-runtime-regressions.test.ts:76`（F4 8/8）。实际SDK后台命令读失败保留最后事实并标不可读；恢复后重新可读 | — | `7d1cc4bfa` |
+| W2-18-CODING-CONTROL-VERSION-01 | 通过 | 一级 | 用例“Coding's business surface is redeemed by the project Runtime, owner-bound, and the same code answers its routes”；`tests/coding-actions.test.ts:11`（F4 1/1）；`tests/coding-run-control-contract.test.ts:23`（FS 10/10）。当前控制v6可调，旧固定版本拒绝；输入必填与受众合同拒绝 | — | `7d1cc4bfa` |
+| W2-18-CODING-CONTROL-VERSION-02 | 通过 | 一级 | 用例“the committed snapshot is what the built-in Manifests and the Host's action directory generate”；`tests/action-contract-snapshot.test.ts:75`（F2 所选四项 4/4）；`tests/coding-run-control-contract.test.ts:23`（FS 10/10）。构建Manifest/Host目录与动作快照一致；v6及调用方影响记在回执spec的3b-2a（:781），此处不把源码换模断言当实际模型效果 | — | `7d1cc4bfa` |
+| W2-18-CODING-DELEGATE-01 | 通过 | 一级 | 用例“delegation ${fault} preserves the original SDK letter and target for explicit retry”；`tests/coding-runtime-regressions.test.ts:28`（F4 8/8）。SDK发送落盘后丢回执/投递失败，重开显式重试沿原信件和目标；派出前失败不留孤儿 | — | `7d1cc4bfa` |
+| W2-18-CODING-DELIVERY-01 | 通过 | 一级 | 用例“30 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption”；`tests/coding-runtime-regressions.test.ts:162`（F4 8/8）。30材料上限拒绝不写接收回执；腾位后接收固定版本被下一真实SDK轮消费 | — | `7d1cc4bfa` |
+| W2-18-CODING-EFFECT-01 | 通过 | 一级 | 用例“Coding ${output} has no late commit after ${stop} during a real SDK read”；`tests/coding-effect-control.test.ts:20`（F4 9/9）；`tests/typed-effect-authority.test.ts:25`（F1 11/11）。真实动作HTTP及SDK等待后拒绝原失权调用；无新计划/报告/过程项且同权限peer不借权 | — | `7d1cc4bfa` |
+| W2-18-CODING-EFFECT-02 | 通过 | 一级 | 用例“typed start revocation at SDK commit rejects only its invocation; accepted work survives disconnect and restart”；`tests/agent-sdk-effects.test.ts:103`（F3 13/13）。SDK初始Run持久接受点拒绝原失权；已接受Run断连仍完成且可重开 | — | `7d1cc4bfa` |
+| W2-18-CODING-EFFECT-03 | 通过 | 一级 | 用例“new Session revoked at ${phase} leaves no unpublished SDK Session or index”；`tests/agent-sdk-effects.test.ts:160`（F3 13/13）。Session首次SDK提交或owner索引间失权不留不可接续半成品 | — | `7d1cc4bfa` |
+| W2-18-CODING-LIFETIME-01 | 部分通过 | 一级 | 用例“Coding stops hidden polling and releases every client listener before the same DOM is mounted again”；`tests/coding-client-lifecycle.e2e.test.ts:9`（FB 1/1）。隐藏停轮询，卸载释放监听，重挂单击只创建一个会话；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
+| W2-18-CODING-REPORT-01 | 通过 | 一级 | 用例“a real inserted SDK step and its verdict are saved in a fixed report that later evaluation cannot rewrite”；`tests/coding-runtime-regressions.test.ts:125`（F4 8/8）。真实SDK插步与用户评价进入固定报告；重开及后续评价不改原版本 | — | `7d1cc4bfa` |
+| W2-18-CODING-WAKE-01 | 通过 | 一级 | 用例“Coding activation resumes a persisted SDK wait without opening a page and keeps retrying transient owner failures”；`tests/coding-runtime-regressions.test.ts:95`（F4 8/8）。插件激活恢复已满足的持久SDK等待，不靠打开页面；临时读取失败持续重试且只续一次 | — | `7d1cc4bfa` |
+| W2-18-CODING-WAKE-02 | 通过 | 一级 | 用例“组合根把 Agent Host 接进宿主之后，插件经 Capability 够得到它”；`tests/agent-host-wiring.test.ts:72`（F4 4/4）。无任务图能力的runtime明确不可用，不伪装立即成功长轮询 | — | `7d1cc4bfa` |
+| W2-18-COGNIA-EFFECT-01 | 通过 | 一级 | 用例“W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real IO; no staged preview is written”；`tests/content-owner-regressions.test.ts:129`（F4 11/11）。真实目录IO等待中撤原授权无预览/材料/来源写入，重授权可正常提交 | — | `7d1cc4bfa` |
+| W2-18-COMPONENT-DRAFT-01 | 部分通过 | 一级 | 用例“W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts preserve newer drafts in forms, sheets and dialogs”；`tests/plugin-composition.e2e.test.ts:157`（FB 5/5）。表单sheet/dialog提交A时新写B；A回执不清B，B真实提交后才清；缺独立实走 | 已知（W2-18-FR、BL-125） | `7d1cc4bfa` |
+| W2-18-COMPONENT-DRAFT-02 | 部分通过 | 一级 | 用例“W2-18-COMPONENT-DRAFT-01, W2-18-COMPONENT-DRAFT-02: delayed receipts preserve newer drafts in forms, sheets and dialogs”；`tests/plugin-composition.e2e.test.ts:157`（FB 5/5）。失败保输入；销毁/换版旧回执不回写或关闭新浮层；缺独立实走 | 已知（W2-18-FR、BL-125） | `7d1cc4bfa` |
+| W2-18-CONCERN-EVIDENCE-01 | 部分通过 | 一级 | 用例“W2-18-CONCERN-EVIDENCE-01 ${action} sends subsequent evidence and retains refused input”；`tests/goal-event-document.e2e.test.ts:270`（FB 6/6）。真实Concern解决/推翻带后续证据；前序/外Goal证据拒绝保输入；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-CONTENT-CONTEXT-01 | 部分通过 | 一级 | 用例“W2-18-CONTENT-CONTEXT-01: Cognia Back/delete clear the actual declared object; another material reopens and the owner retains its fixed historical reference”；`tests/content-context-regressions.e2e.test.ts:16`（FB 2/2）。Cognia返回删除及Images返回清当前对象；重开对象与固定历史引用正确；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-CONTINUITY-QA-01 | 通过 | 一级 | 用例“W2-18-CONTINUITY-QA-01: the documented QA command starts, restores its owner and reconciles a lost real receipt”；`tests/cross-device-launcher.test.ts:80`（F4 3/3）。实际隔离QA启动命令，固定成果和进展读写，同键丢回执重试只一次 | — | `7d1cc4bfa` |
+| W2-18-DATASET-01 | 部分通过 | 一级 | 用例“W5-01-DATASET-04 / W2-18-DATASET-01/02: file ${phase} barrier keeps confirmed A target and rejects competing B selection”；`tests/dataset-file-import.e2e.test.ts:95`（FB 6/6）。非空A导入真实文件时尝试切B，A请求版本准确且B事实不变；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-DATASET-02 | 部分通过 | 一级 | 用例“W5-01-DATASET-04 / W2-18-DATASET-02: editor invalidation during file ${phase} does not reopen a stale table”；`tests/dataset-file-import.e2e.test.ts:127`（FB 6/6）。迟到回包不重开旧表；读取失败可重选同文件；409不覆盖；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-DATASET-SCHEMA-01 | 通过 | 一级 | 用例“W2-18-DATASET-SCHEMA-01: rejected CSV keeps the nonempty table and its public reads; the exact schema bound works”；`tests/content-owner-regressions.test.ts:40`（F4 11/11）。超长列CSV被拒且非空表不变；边界Unicode列名正常，公开读取有效 | — | `7d1cc4bfa` |
+| W2-18-DATASET-SCHEMA-02 | 部分通过 | 一级 | 用例“W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion atomically and keep answers and CSV”；`tests/content-owner-regressions.test.ts:55`（F4 11/11）；`tests/work-placement-plugins.e2e.test.ts:36`（FB 1/1）。合法超宽/长题Form转Dataset原子拒绝；保留答卷CSV，无表无回执，原键恢复 | — | `7d1cc4bfa` |
+| W2-18-DELEGATION-PLACED-01 | 通过 | 一级 | 用例“W2-18-DELEGATION-PLACED-01: a round in a finished sub-task that does not start leaves no open step behind”；`tests/assistant-delegation.test.ts:381`（F4 16/16）。已完成子任务的新轮未开始时关闭自建步骤，不留开放步骤孤儿 | — | `7d1cc4bfa` |
+| W2-18-DIFF-FILE-01 | 部分通过 | 一级 | 用例“W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and repeated paths; refresh, reopen and late responses keep the chosen index”；`tests/companion-client-lifecycle.e2e.test.ts:70`（FB 8/8）。真实固定Coding输出多文件与重路径按index选择，刷新重开迟到均保当前文件；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-DIRECTORY-PICKER-01 | 部分通过 | 一级 | 用例“W2-18-DIRECTORY-PICKER-01 the default runner keeps the picker busy until its actual child exits”；`tests/workspace-directory-picker.test.ts:17`（F3 5/5）。实际子进程退出前保持busy；成功取消失败缺程序超时区分；系统窗口未实走；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-FILE-PREVIEW-01 | 部分通过 | 一级 | 用例“W2-18-FILE-PREVIEW-01: same-id files from real Runtime sources retain B's content, title and open target after A's delayed ${first}; handed previews and returning invalidate reads”；`tests/workbench-async-targets.e2e.test.ts:148`（FB 6/6）。Runtime同ID不同source文件A迟到不改B正文标题打开目标；返回和转交预览失效旧读；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-FIXED-INPUT-01 | 通过 | 一级 | 用例“W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen”；`tests/plugin-fixed-input-sdk.test.ts:112`（F4 3/3）。成果库固定绑定经SDK reference/read进入Diff真实差异，固定版本不换最新 | — | `7d1cc4bfa` |
+| W2-18-FIXED-INPUT-02 | 通过 | 一级 | 用例“W2-18-FIXED-INPUT-01, W2-18-FIXED-INPUT-02: real library bindings reach SDK and Diff, stay exact, recover and reopen”；`tests/plugin-fixed-input-sdk.test.ts:112`（F4 3/3）。重绑归档撤权和重开读取状态一致；旧activation拒绝，缺旧版不选新版 | — | `7d1cc4bfa` |
+| W2-18-FOLLOWUP-DELETE-01 | 通过 | 一级 | 用例“W2-18-FOLLOWUP-DELETE-01 deletion during ${stage} stops future dispatch and cannot resurrect the row”；`tests/assistant-followup-deletion.test.ts:31`（F4 8/8）。读取/排程等待中删跟进，后续不派出不复活；已派出轮次按事实保留 | — | `7d1cc4bfa` |
+| W2-18-FORM-ANSWER-01 | 部分通过 | 一级 | 用例“W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an importable 4000 answer once; oversized text/multichoice retain input without a file, with browser question names”；`tests/content-portable-regressions.e2e.test.ts:34`（FB 本用例通过；全文件2/3）；`tests/content-owner-regressions.test.ts:76`（F4 11/11）。导出HTML拒空/4001及超长多选并保输入；4000答卷导回一次且SQL一致；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-FORM-LABEL-01 | 部分通过 | 一级 | 用例“W2-18-FORM-ANSWER-01 / W2-18-FORM-LABEL-01: exported HTML creates an importable 4000 answer once; oversized text/multichoice retain input without a file, with browser question names”；`tests/content-portable-regressions.e2e.test.ts:34`（FB 本用例通过；全文件2/3）；`tests/select-menu-interaction.e2e.test.ts:32`（FB 3/3）。实际浏览器问卷角色名称与required准确，预览和离线HTML有语义；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-FUNCTION-CHOICE-01 | 通过 | 一级 | 用例“W2-18-FUNCTION-CHOICE-01 raw out-of-enum answers cannot save a preview, publish, or persist a successful judgment”；`tests/functions-choice-validation.test.ts:11`（F4 1/1）。原始越枚举回答在预览发布和判断落库前拒绝；正常及待复核分类正确 | — | `7d1cc4bfa` |
+| W2-18-FUNCTION-LATE-01 | 部分通过 | 一级 | 用例“W2-18-FUNCTION-LATE-01: sample save captures A and its input before waiting for the draft; a previously opened B can finish while A is saving”；`tests/workbench-functions-late.e2e.test.ts:50`（FB 4/4）。规则A样本保存删除迟到不改B，原输入目标版本固定；同规则新编辑保留；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-GIT-CONFLICT-01 | 通过 | 一级 | 用例“W2-18-GIT-CONFLICT-01 refuses changed ${changed} and preserves disk, index and external sentinel”；`tests/git-operations.test.ts:237`（F1 16/16）。真实冲突准备后改正文，批准拒绝且新正文/index保留 | — | `7d1cc4bfa` |
+| W2-18-GIT-CONFLICT-02 | 通过 | 一级 | 用例“W2-18-GIT-CONFLICT-02 no-follow rejects a link installed at the final write-open boundary”；`tests/git-operations.test.ts:257`（F1 16/16）。准备后换symlink拒绝，隔离外部哨兵不变；正常解决暂存成功 | — | `7d1cc4bfa` |
+| W2-18-GIT-TARGET-01 | 通过 | 一级 | 用例“W2-18-GIT-TARGET-01 refuses a changed ${changed} with zero writes to either bare repository”；`tests/git-operations.test.ts:159`（F1 16/16）。临时bare A准备后remote/pushurl改B拒绝，B refs/objects不变；正常A推送 | — | `7d1cc4bfa` |
+| W2-18-GITHUB-PAGES-01 | 通过 | 一级 | 用例“W2-18-GITHUB-PAGES-01: the 20-page work bound rejects an unfinished response instead of issuing a complete cursor”；`tests/integration-pagination.test.ts:139`（F4 7/7）。分页全部入Signals/Feed；后页失败无游标前进；恶意Link不收凭据，20页未完拒绝 | — | `7d1cc4bfa` |
+| W2-18-GMAIL-01 | 通过 | 一级 | 用例“W2-18-GMAIL-01 + W2-18-GMAIL-02: one large history record drains across durable batches and restart; a detail failure retains its exact offset”；`tests/integration-pagination.test.ts:20`（F4 7/7）。跨页及单大history按offset完整排空；失败游标不前进，重复不漏不重 | — | `7d1cc4bfa` |
+| W2-18-GMAIL-02 | 通过 | 一级 | 用例“W2-18-GMAIL-01 + W2-18-GMAIL-02: one large history record drains across durable batches and restart; a detail failure retains its exact offset”；`tests/integration-pagination.test.ts:20`（F4 7/7）。持久批次重启恢复；首次最多25详情，失败后实际项目事实一致 | — | `7d1cc4bfa` |
+| W2-18-GOAL-PIN-01 | 通过 | 一级 | 用例“W2-18-GOAL-PIN-01 W2-18-GOAL-PIN-02 ${role.pin.capability_id} ${phase} ${interruption}: real Host/Pages preserve parent control and committed owner facts”；`tests/goal-pin-authority.test.ts:15`（F1 14/14）。真实Host/Pages在父授权取消停用时保证零派出或零新关联 | — | `7d1cc4bfa` |
+| W2-18-GOAL-PIN-02 | 通过 | 一级 | 用例“W2-18-GOAL-PIN-01 W2-18-GOAL-PIN-02 ${role.pin.capability_id} ${phase} ${interruption}: real Host/Pages preserve parent control and committed owner facts”；`tests/goal-pin-authority.test.ts:15`（F1 14/14）。归档Goal拒新关联；保留已提交owner固定成果；恢复不重复固定 | — | `7d1cc4bfa` |
+| W2-18-GOAL-PIN-RETRY-01 | 部分通过 | 一级 | 用例“W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled before retry, while a new explicit intent pins a new version”；`tests/goal-event-document.e2e.test.ts:338`（FB 6/6）。真实HTTP提交后丢回包，同意图重试一固定版一关联；新意图可增版；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-GOALS-01 | 通过 | 一级 | 用例“W2-18-GOALS-01/02 restore refuses ${graph.code} atomically and the same request recovers after a graph correction”；`tests/goals-lifecycle-actions.test.ts:25`（F3 5/5）。恢复part_of/depends_on/混合环明确拒绝，合法现有关系不损 | — | `7d1cc4bfa` |
+| W2-18-GOALS-02 | 通过 | 一级 | 用例“W2-18-GOALS-01/02 restore refuses ${graph.code} atomically and the same request recovers after a graph correction”；`tests/goals-lifecycle-actions.test.ts:25`（F3 5/5）。实际SQL事件故障全事务回滚；重开同请求仍拒绝，纠错后重放不重复 | — | `7d1cc4bfa` |
+| W2-18-HANDBACK-CURRENT-01 | 通过 | 一级 | 用例“W2-18-HANDBACK-CURRENT-01: archive during ${stage} prevents an automatic accepted run”；`tests/assistant-delegation.test.ts:464`（F4 16/16）。authority/before-start/SDK最终接受点归档，零自动Run模型派出；显式恢复正确 | — | `7d1cc4bfa` |
+| W2-18-HANDBACK-CURRENT-02 | 通过 | 一级 | 用例“W2-18-HANDBACK-CURRENT-02: ${change} invalidates an older prepared hand-back”；`tests/assistant-delegation.test.ts:521`（F4 16/16）。停止或新轮使旧交回续接失效，只有用户当前轮可被接受 | — | `7d1cc4bfa` |
+| W2-18-HOME-LOCALE-01 | 部分通过 | 一级 | 用例“W2-18-HOME-LOCALE-01: the Home document uses its request locale before mounting its client”；`tests/home-plugin-locale.test.ts:10`（F4 2/2）；`tests/issue-home-locale.e2e.test.ts:15`（FB 3/3）。Home级插件按本次界面语言取文案，不因首次装配固定语言；缺独立实走 | 已知（W2-18-FR、BL-118） | `7d1cc4bfa` |
+| W2-18-HOTKEY-IO-01 | 未验证 | 一级（文审） | 慢HTTP/自动化期间窗口胶囊热键可用、目标不漂移无重复须整App实操；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-IMAGES-SETUP-01 | 部分通过 | 一级 | 用例“W2-18-IMAGES-SETUP-01 / W2-18-CONTENT-CONTEXT-01: real empty-account settings link is keyboard reachable, preserves the service draft and generates through a controlled local provider; Back clears the job”；`tests/content-context-regressions.e2e.test.ts:37`（FB 2/2）。无账号设置入口键盘可达；跨设置保服务草稿，用受控本地服务生成一次；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ISSUE-01 | 部分通过 | 一级 | 用例“W2-18-ISSUE-01 ISSUE-15 ISSUE-37 repeated save clicks and shortcuts with a capture response held create one real record”；`tests/issue-manual-save.e2e.test.ts:45`（FB 4/4）。真实Chrome保存回包屏障下重复按钮快捷键submit只建一SQL事实；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-ISSUE-02 | 部分通过 | 一级 | 用例“W2-18-ISSUE-02 ISSUE-15 ISSUE-37 ${recovery} checks the same record after a committed capture loses its receipt”；`tests/issue-manual-save.e2e.test.ts:79`（FB 4/4）。已提交丢回包及未派出重试沿原持久身份，刷新保原文图片不重复；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-LINGGUANG-REVISION-01 | 部分通过 | 一级 | 用例“W2-18-LINGGUANG-REVISION-01: list metadata from B cannot acknowledge unshown A edits; the real save conflicts”；`tests/content-editing-regressions.e2e.test.ts:229`（FB 9/9）。B元数据不能确认未展示A编辑；真实保存CAS冲突保原草稿；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-MARKET-REFRESH-01 | 部分通过 | 一级 | 用例“W2-18-MARKET-REFRESH-01: reopening the market after a switcher membership change follows the Host and Dock; failed reads leave the last facts and permit retry”；`tests/workbench-async-targets.e2e.test.ts:73`（FB 6/6）。市场重开反映Host/Dock成员变化；失败保最后事实并可重试；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-MEMORY-EFFECT-01 | 通过 | 一级 | 用例“memory ${stop} during ${phase} leaves no SDK entry or ledger change, and a new call recovers”；`tests/memory-actions.test.ts:95`（F4 10/10）；`tests/memory-service.test.ts:739`（F1 22/22）。真实注册SDK在startup/screen/list/commit取消撤权，无SDK正文及ledger业务写 | — | `7d1cc4bfa` |
+| W2-18-MEMORY-EFFECT-02 | 通过 | 一级 | 用例“SDK memory already committed remains an explicit partial result when the ledger fails and the original call is revoked”；`tests/memory-service.test.ts:44`（F1 22/22）；`tests/memory-actions.test.ts:17`（F4 10/10）。独立并发控制不串；成功事实不被另一次拒绝或失败补偿抹掉，重开保留 | — | `7d1cc4bfa` |
+| W2-18-MODEL-SWITCH-01 | 部分通过 | 一级 | 用例“W2-18-MODEL-SWITCH-01/02: ${invalidation} during ${stage} keeps accepted B and its display”；`tests/agent-sdk-effects.test.ts:193`（F3 13/13）。配置凭据SDK接受点取消撤权均保已接受B和显示；实际后续请求只有START/B；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
+| W2-18-MODEL-SWITCH-02 | 部分通过 | 一级 | 用例“W2-18-MODEL-SWITCH-01/02: ${invalidation} during ${stage} keeps accepted B and its display”；`tests/agent-sdk-effects.test.ts:193`（F3 13/13）；`tests/agent-budget-prologue.test.ts:23`（F4 6/6）；`tests/coding-run-control-contract.test.ts:23`（FS 10/10）。实际切换只作用后续模型边界，不新建Run；预算冻结另由SDK请求断言；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
+| W2-18-NATIVE-BODY-01 | 通过 | 一级 | 用例“W2-18-NATIVE-BODY-01 native HTTP accepts Chinese within budget and refuses byte overflow before the owner or model”；`tests/native-plugin-body.test.ts:13`（F1 2/2）。真实HTTP中文限内成功；字节超限413且owner/DB/模型零效果，分块拒绝后不再转换解析 | — | `7d1cc4bfa` |
+| W2-18-ONBOARDING-GMAIL-01 | 通过 | 一级 | 用例“W2-18-ONBOARDING-GMAIL-01 generic OAuth ${mode} stays on the selected account and stops on disconnect”；`tests/context-onboarding.test.ts:229`（F4 23/23）。实际首次使用现行OAuth过期账号刷新一次并固定材料；不跨账号回退，断开不派出 | — | `7d1cc4bfa` |
+| W2-18-PAGE-CARDS-01 | 部分通过 | 一级 | 用例“W2-18-PAGE-CARDS-01: both page cards remain visible and executing or ignoring each survives rereading”；`tests/assistant-page-cards.e2e.test.ts:8`（FB 1/1）。同一工作两张页面卡均保留；执行忽略重读各自状态与Host一致；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-ACTIONS-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-ACTIONS-01: real candidate inserts exact unchecked tasks once and refuses a changed frozen passage”；`tests/content-editing-regressions.e2e.test.ts:176`（FB 9/9）。普通选区AI任务候选插后保原文；unchecked任务精确落SQL；范围变化拒绝无重复；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-CALLOUT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-CALLOUT-01: a callout popup belongs to its original document; the new document has working controls”；`tests/content-editing-regressions.e2e.test.ts:71`（FB 9/9）。真实编辑器旧callout弹层回调不能修改新文档；新控件正常；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-COMMENT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range and refuses a replaced document”；`tests/content-editing-regressions.e2e.test.ts:12`（FB 9/9）。真实编辑器评论锚点随文本映射；替换文档后旧弹层不能写新文档；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-CREATE-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-CREATE-01: ${operation} reply after new typing preserves the real draft and honest SQL outcome”；`tests/content-editing-regressions.e2e.test.ts:122`（FB 9/9）。真实创建/提取迟到回执保等待时新输入；SQL已提交事实与冲突提示如实；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-EXPORT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-EXPORT-01: real Markdown/HTML download and print-frame document preserve independent rich facts”；`tests/content-portable-regressions.e2e.test.ts:83`（FB 本用例通过；全文件2/3）；`tests/content-owner-regressions.test.ts:89`（F4 11/11）。实际Markdown/HTML Blob及打印iframe保表格多段卡片提及；原文不变，系统打印未验；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-READONLY-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-READONLY-01: real Back/import/publish/extract never save the empty placeholder; valid replacement reopens”；`tests/content-editing-regressions.e2e.test.ts:98`（FB 9/9）。未知文档只读占位，Back/导入/提取/发布不写空正文；有效替换恢复编辑；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PAGES-SOURCES-01 | 不通过 | 一级、二级 | tests/content-portable-regressions.e2e.test.ts:110在真实多选focus失败；旧fbc同位置，FU实走⌘点击只开后台页签，无法准备双来源。content-owner-regressions的1500摘录边界通过，不补足断开的入口 | QA-024；已知W2-18-FR | 7d1cc4bfa |
+| W2-18-PAGES-TRANSIENT-01 | 部分通过 | 一级 | 用例“W2-18-PAGES-TRANSIENT-01: delayed image/popup on A cannot write B; a read in the same document uses its mapped anchor”；`tests/content-editing-regressions.e2e.test.ts:146`（FB 9/9）；`tests/pages-clipboard.e2e.test.ts:114`（FB 3/3）。异步图片/弹层属于原文档；迟到不写新文档，同文档使用映射锚点；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PARSE-RESOURCES-01 | 通过 | 一级 | 用例“W2-18-PARSE-RESOURCES-01 successful and failed text extraction release owned resources while another image stays readable”；`tests/prologue-documents.test.ts:8`（F4 1/1）。真实SDK多批8MiB解析成功失败都释放自有资源；另一个图片仍可读 | — | `7d1cc4bfa` |
+| W2-18-PLACEMENT-01 | 通过 | 一级 | 用例“placement ${operation} retains its original ${stop} control while the owner reader waits”；`tests/work-placement-restart.test.ts:110`（F4 7/7）。真实Host/SQLite在owner读取等待后取消撤权，无关系和目标新增，原调用控制不丢 | — | `7d1cc4bfa` |
+| W2-18-PLACEMENT-02 | 通过 | 一级 | 用例“placement survives a restart: relations, a removed relation, a copy, a move, a failed move and collected answers”；`tests/work-placement-restart.test.ts:19`（F4 7/7）。正常复制移动绑定及重启持久事实正确；已发生部分结果不自动重派 | — | `7d1cc4bfa` |
+| W2-18-PLANNING-LATE-01 | 部分通过 | 一级 | 用例“W2-18-PLANNING-LATE-01 late A ${late} cannot replace B's draft, reopen a closed detail, or write after teardown”；`tests/goals-planning.e2e.test.ts:147`（FB 4/4）。规划A慢B快，新B草稿不被A成功/失败覆盖；关闭不重开；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PPT-01 | 通过 | 一级 | 用例“W2-18-PPT-01: local Pages outline preserves the original deck on ${refusal} during source reading”；`tests/content-owner-regressions.test.ts:153`（F4 11/11）。真实Pages读源等待中取消撤权停用/版本编辑，PPT和源文档保持原事实 | — | `7d1cc4bfa` |
+| W2-18-PPT-02 | 部分通过 | 一级 | 用例“W2-18-PPT-02: closing a generating dialog protects later typing and a reopened dialog from its late response”；`tests/content-editing-regressions.e2e.test.ts:197`（FB 9/9）。关闭生成对话撤请求；迟到不覆盖后续标题及重开对话输入，最终SQL保新稿；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-PPT-03 | 通过 | 一级 | 用例“W2-18-PPT-03: title-only slides survive append; a genuinely empty starter and explicit replace still work”；`tests/content-owner-regressions.test.ts:177`（F4 11/11）。append保只有标题的旧页；空starter仅填一页，显式replace有效 | — | `7d1cc4bfa` |
+| W2-18-REFERENCE-LATE-01 | 部分通过 | 一级 | 用例“W2-18-REFERENCE-LATE-01: closing A and opening B ignores A's delayed ${first} from the real file reader”；`tests/workbench-async-targets.e2e.test.ts:40`（FB 6/6）。真实文件A迟到成功/失败不改B标题正文下载目标；关闭后不回写；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-RSS-SOCKET-01 | 通过 | 一级 | 用例“W2-18-RSS-SOCKET-01: production HTTPS pins the checked address; rebinding, private and mixed answers never touch the private TCP trap”；`tests/rss-socket.test.ts:72`（F1 4/4）。真实TLS按审定地址建连；重绑定私网混合DNS和代理策略拒绝，私网陷阱零触达 | — | `7d1cc4bfa` |
+| W2-18-RSS-SOCKET-02 | 通过 | 一级 | 用例“W2-18-RSS-SOCKET-02: trusted TLS, validators, 304 and same-host redirects work; wrong certificates, foreign/extra redirects and body limits release sockets”；`tests/rss-socket.test.ts:88`（F1 4/4）。真实TLS证书及重定向/正文上限/取消边界，终态socket和监听归零 | — | `7d1cc4bfa` |
+| W2-18-RUNTIME-PIPE-01 | 通过 | 一级 | 用例“W2-18-RUNTIME-PIPE-01/02: a real broken stdin leaves its owner alive, fails the request and only explicitly restarts”；`tests/codex-transport.test.ts:147`（F3 6/6）。真实子进程stdin破管使请求失败但owner存活；原请求不自动重复 | — | `7d1cc4bfa` |
+| W2-18-RUNTIME-PIPE-02 | 通过 | 一级 | 用例“W2-18-RUNTIME-PIPE-01/02: a real broken stdin leaves its owner alive, fails the request and only explicitly restarts”；`tests/codex-transport.test.ts:147`（F3 6/6）。显式新请求重启transport；旧进程输出不串入新连接；close拒绝在途后续调用 | — | `7d1cc4bfa` |
+| W2-18-RUNTIME-ROLLBACK-01 | 通过 | 一级 | 用例“W2-18-RUNTIME-ROLLBACK-01 preserves later config edits and a user Skill link after failed validation”；`tests/runtime-integration-ownership.test.ts:26`（F4 12/12）。失败验证只回滚自身写入；较新config与Skill链接保留并明确冲突 | — | `7d1cc4bfa` |
+| W2-18-RUNTIME-TOML-01 | 通过 | 一级 | 用例“W2-18-RUNTIME-TOML-01 replaces the existing owned semantic table ${header}”；`tests/runtime-integration-ownership.test.ts:86`（F4 12/12）。真实配置现行语义表替换准确；多行/数组/字面点表保留，不支持重复定义拒写 | — | `7d1cc4bfa` |
+| W2-18-S8-TODO-01 | 通过 | 一级 | 用例“W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistant notice”；`tests/assistant-reminders.test.ts:86`（F4 3/3）。真实Todo到运行服务提醒timer产一通知，持久去重；只推进定时器时钟 | — | `7d1cc4bfa` |
+| W2-18-SCHEDULE-01 | 通过 | 一级 | 用例“W2-18-SCHEDULE-01: persistent and gateway-created jobs execute without visiting any project page”；`tests/schedule-reminder-recovery.test.ts:248`（F4 10/10）。真实服务启动加载持久任务/网关新建，无项目页面也自动写一次Todo及回执 | — | `7d1cc4bfa` |
+| W2-18-SCHEDULE-02 | 通过 | 一级 | 用例“W2-18-SCHEDULE-02: ${disposition} close revokes a real waiting handler before release”；`tests/schedule-reminder-recovery.test.ts:300`（F4 10/10）；`tests/scheduler.test.ts:556`（F3 23/23）。服务项目关闭删除撤销在途处理器；迟到无业务/失败回执，不重开已关项目 | — | `7d1cc4bfa` |
+| W2-18-SEND-01 | 部分通过 | 一级 | 用例“W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's selection, draft and materials”；`tests/assistant-send-intent.e2e.test.ts:6`（FB 5/5）。草稿HTTP屏障后切B，只有A收原文材料；B输入选择事实保持；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SEND-02 | 部分通过 | 一级 | 用例“W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once”；`tests/assistant-send-intent.e2e.test.ts:158`（FB 5/5）。选择页切项目及丢回包重试固定原scope材料request_id，只一次结果；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SETTINGS-LATE-01 | 部分通过 | 一级 | 用例“W2-18-SETTINGS-LATE-01: a delayed failed settings load cannot replace another category or its unsaved input”；`tests/workbench-async-targets.e2e.test.ts:13`（FB 6/6）。设置A延迟失败不替换B类别及未保存输入，恢复后可读；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SHELF-CACHE-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier file response cannot restore old bytes”；`tests/shelf-client-boundaries.e2e.test.ts:200`（FB 9/9）。owner同ID更新失效旧缓存；早先文件回包不恢复旧字节；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SHELF-LIFETIME-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing”；`tests/shelf-client-boundaries.e2e.test.ts:223`（FB 9/9）。全局事件只属于活挂载，卸载不读重挂只一次；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SHELF-OPEN-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted page and after remount”；`tests/shelf-client-boundaries.e2e.test.ts:183`（FB 9/9）；`tests/system-search-host.test.ts:27`（F4 1/1）。真实选定剪贴板ID打开原正文，重挂仍定位正确；搜索权限过滤；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-STOP-FEEDBACK-01 | 部分通过 | 一级 | 用例“W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection”；`tests/workbench-stop-feedback.e2e.test.ts:55`（FB 1/1）。真实后台子进程停止被拒/丢响应/成功分别显示；未知不自动重试；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
+| W2-18-THINKING-BUDGET-01 | 通过 | 一级 | 用例“real Prologue SDK enforces the declared ${mode} budget”；`tests/agent-budget-prologue.test.ts:23`（F4 6/6）。锁定SDK显式7与thinking请求/frozen/usage一致；各预算耗尽不再派出 | — | `7d1cc4bfa` |
+| W2-18-TODO-DATE-01 | 通过 | 一级 | 用例“W2-18-TODO-DATE-01: new and existing todos use the same literal date and time despite contradictory model dates”；`tests/todo-organize.test.ts:48`（F4 17/17）。原文日期优先于矛盾模型；已有手改字段保护，采用后SQL及历史准确 | — | `7d1cc4bfa` |
+| W2-18-TODO-DRAFT-01 | 部分通过 | 一级 | 用例“W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and block navigation or follow-up writes; retry and explicit discard recover”；`tests/todo-draft-recovery.e2e.test.ts:6`（FB 1/1）。待办草稿失败/重载恢复原输入，显式成功后清理；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-UPGRADE-SECRETS-01 | 部分通过 | 一级 | 用例“an upgrade with new consent secrets preserves ${choice === 'catalog-failure' ? 'the old release on catalog failure' : 'the newer ' + choice + ' choice'}”；`tests/installed-plugin-host.test.ts:602`（FN24 21/21）；`tests/agent-built-plugins-network.test.ts:55`（F1 7/7）；`tests/agent-studio.e2e.test.ts:407`（FB首轮1/3；同SHA干净Node24复跑3/3，`anti-studio-node24.log`）。批准值经升级供受控HTTPS；公开无密钥，失败回收不损旧版或较新选择；缺独立实走；Node24解除沙箱环境阻塞，浏览器工程通过仍不替代独立实走 | 已知（W2-18-FR、BL-125） | `7d1cc4bfa` |
+| W2-18-WF-OPEN-01 | 部分通过 | 一级 | 用例“W2-18-WF-OPEN-01: real search replaces B with A, object tabs reopen A, and the no-ID request returns to the directory”；`tests/workflows-open-object.e2e.test.ts:32`（FB 2/2）。正式搜索/懒挂载/恢复标签真打开目标A，标题正文助理上下文一致；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-WF-STOP-01 | 通过 | 一级 | 用例“W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait and no later station runs”；`tests/workflows-stop-effects.test.ts:48`（F4 2/2）。停止传到真实Form模型等待后的最后效果点；无晚题目版本或下一站 | — | `7d1cc4bfa` |
+| W2-18-WF-STOP-02 | 通过 | 一级 | 用例“W2-18-WF-STOP-02: an externally accepted result remains traceable and stopped/reopened runs never redispatch”；`tests/workflows-stop-effects.test.ts:79`（F4 2/2）。真实外部已接受事实保持可查；停止及重开不重派未知原请求 | — | `7d1cc4bfa` |
+| W2-18-WFSAVE-01 | 部分通过 | 一级 | 用例“W2-18-WFSAVE-01/02: two A saves retain their snapshots and revisions after opening ${target}”；`tests/workflows-save-ownership.e2e.test.ts:46`（FB 5/5）。连续A保存保各自快照版本；开B或返回目录不写B或重开A；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-WFSAVE-02 | 部分通过 | 一级 | 用例“W2-18-WFSAVE-02: title and link debounces belong to A when B opens before either timer”；`tests/workflows-save-ownership.e2e.test.ts:83`（FB 5/5）。标题连线防抖归A；真实CAS失败保稿跨B及刷新，显式重试才保存；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-WORK-EFFECT-01 | 通过 | 一级 | 用例“Work ${operation} preserves invocation control after a native wait (${refusal})”；`tests/work-session-actions.test.ts:16`（F4 14/14）。真实Host native等待后取消撤权停用，无迟到发现/链接/交接草稿和下一派发 | — | `7d1cc4bfa` |
+| W2-18-WORK-EFFECT-02 | 通过 | 一级 | 用例“Work ${operation} preserves invocation control after a native wait (${refusal})”；`tests/work-session-actions.test.ts:16`（F4 14/14）。已外部创建未知结果保持待核；恢复调用不自动重复创建，原Session事实保留 | — | `7d1cc4bfa` |
+| W2-18-WORK-RECEIPT-01 | 通过 | 一级 | 用例“W2-18-WORK-RECEIPT-01: Session message actions persist actual acceptance after revocation without returning or resending”；`tests/session-messages.test.ts:14`（F3 4/4）。已派出消息真实接受后撤权，回执窄例外持久一次但拒返回；恢复不重发 | — | `7d1cc4bfa` |
+| W2-18-WORK-RECEIPT-02 | 通过 | 一级 | 用例“W2-18-WORK-RECEIPT-02: refusal before dispatch calls nothing and a late rejection cannot replace an uncertain claim”；`tests/session-messages.test.ts:57`（F3 4/4）。派出前失权零调用；未知保持未知；不能借回执继续派出下一步 | — | `7d1cc4bfa` |
+
+#### 防腐 RAC 逐条判定
+
+一级包含本轮实际工程及人工代码/决定复核；未验证项的文审不冒充动态证据。F5浏览器状态以本节最终批次记录为准。
+
+| 编号 | 判定 | 证据等级 | 证据与实际边界 | 问题编号/去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| RAC-01 | 通过 | 一级 | F0；Form Runtime样板与获批迁移计划均在；按标准的计划分支裁决 | W4-04/W5-01（余项） | 7d1cc4bfa |
+| RAC-02 | 部分通过 | 一级 | F0及plugin-sample工程接入；只改自身包的全扩展探针未交付 | 已知W4-01/W5-02 | 7d1cc4bfa |
+| RAC-03 | 部分通过 | 一级 | 15方向与扩展计划已审；未完成路径仍有阶段依赖 | 已知W4/W5 | 7d1cc4bfa |
+| RAC-04 | 部分通过 | 一级 | F0只降门禁与热点清单；手工聚合未全退出 | 已知W5-02/03 | 7d1cc4bfa |
+| RAC-05 | 通过 | 一级 | F0 boundary核SSOT/CODEOWNERS；合同流程及CI产品子集配置一致 | — | 7d1cc4bfa |
+| RAC-06 | 通过 | 一级 | AGENTS入口与PARALLEL-DEVELOPMENT规则一致；本轮遵守独立Home/槽位 | — | 7d1cc4bfa |
+| RAC-07 | 部分通过 | 一级 | F0与门禁变异用例通过；插件版本回放工具未交付 | 已知W4-01 | 7d1cc4bfa |
+| RAC-08 | 通过 | 一级 | 术语表与统一动作的获批收敛计划已存在，按计划分支裁决 | 已知W3-07余项 | 7d1cc4bfa |
+| RAC-09 | 部分通过 | 一级 | 动作/错误回执定向通过；所有能力单一路径尚未完成 | 已知PG-006/110、W3-07/09 | 7d1cc4bfa |
+| RAC-10 | 通过 | 一级 | F0：巨大单元128、内部引用485，merge-base规则只许下降；不等于清零 | 已知巨大单元迁移 | 7d1cc4bfa |
+| RAC-11 | 未验证 | 一级（文审；动态未验） | 仅历史回放及本报告手册局部实走；最终创作台插件作者场景未跑 | 已知W6-03 | 7d1cc4bfa |
+| RAC-12 | 部分通过 | 一级 | F0与旧形状拒绝用例；9个标记有解释，未证明全仓无非标记兼容 | 已知W6-01 | 7d1cc4bfa |
+| RAC-13 | 部分通过 | 一级 | F0/F2 home-store-baselines/storage-baseline/store-versions实际拒错版；真实Home禁入 | 已知BL-157/维护八 | 7d1cc4bfa |
+| RAC-14 | 未验证 | 一级（文审；动态未验） | 本任务明确不读取或维护真实Home；历史维护不代替当前升级后逐表核对 | 已知维护八 | 7d1cc4bfa |
+| RAC-15 | 通过 | 一级 | F0 merge-base兼容/旧名/schema/vendor/doc门禁；只对已实施清理范围成立 | — | 7d1cc4bfa |
+| RAC-16 | 部分通过 | 一级 | 报告与附录各项有现状，仍有在途和未验证项，尚非完成态 | 已知W6 | 7d1cc4bfa |
+| RAC-17 | 部分通过 | 一级 | F1真实拒绝与零业务写通过；公网HTTPS条件跳过，已知caller缺口仍开放 | 已知PG-006/110、#812在途 | 7d1cc4bfa |
+| RAC-18 | 部分通过 | 一级 | F0与本轮定向回归；最近成功全量仅739e6cb29，非7d1 | 已知W6-05 | 7d1cc4bfa |
+| RAC-19 | 部分通过 | 一级 | 本轮完成已合入切片核对；整线W5/W6与原生用户验收仍待完成 | 已知W5/W6 | 7d1cc4bfa |
+| RAC-20 | 通过 | 一级 | F1 security-invariants-plugin-route-stream/home-route-project/plugin-model-progress：真实增量次序与唯一末行 | — | 7d1cc4bfa |
+| RAC-21 | 通过 | 一级 | F1 route-stream＋F4 plugin-declaration-rules：36000000及超1字节，派出前413 | — | 7d1cc4bfa |
+| RAC-22 | 通过 | 一级 | F1 route-stream：伪call_id/末行字段丢弃，单行/总量超限取消且唯一错误末行 | — | 7d1cc4bfa |
+| RAC-23 | 通过 | 一级 | F1 runtime-plugin-http-discovery/model-progress：8种实际断连/生命周期交错拒晚写 | — | 7d1cc4bfa |
+| RAC-24 | 通过 | 一级 | F2 plugin-route-stream-lifecycle：反复成功/抛错/取消后计时器归零，停用emit拒绝 | — | 7d1cc4bfa |
+| RAC-25 | 通过 | 一级 | F1 security-invariants-plugin-materials：真实Runtime拒未声明/沙箱/错作用域/串行调用 | — | 7d1cc4bfa |
+| RAC-26 | 通过 | 一级 | F1 materials：user明确同意与其他4受众逐一拒自动下载；缺模型拒绝 | — | 7d1cc4bfa |
+| RAC-27 | 通过 | 一级 | F1 materials/S-39：等待中cancel/stop/revoke/upgrade后拒返回与迟到写，新实例无污染 | 已知BL-183（灵光尚未采用fencedMaterials） | 7d1cc4bfa |
+| RAC-28 | 通过 | 一级 | F2 material-upload：路径/扩展/Base64/空/25MiB上限及正常提取 | — | 7d1cc4bfa |
+| RAC-29 | 部分通过 | 一级 | F1 jelly-source-providers等地址/重定向/容量拒绝通过；外网来源为受控网络 | 真实外网未验证 | 7d1cc4bfa |
+| RAC-30 | 部分通过 | 一级 | F1材料拒绝与只读字节检查；授权失效后的缓存写边界仍沿既有登记 | 已知BL-178/PG-097 | 7d1cc4bfa |
+| RAC-31 | 通过 | 一级 | F2 lingguang-plugin/actions/mcp：真实Runtime CRUD/材料/继续对话、旧路由404、伪项目拒绝 | 已知PG-060为视图余项 | 7d1cc4bfa |
+| RAC-32 | 通过 | 一级 | F2 lingguang-store/actions/mcp/project-deletion-owners：幂等/冲突/移动/搜索与删除 | — | 7d1cc4bfa |
+| RAC-33 | 通过 | 一级 | F1材料权限与F2 lingguang-material：读取不写业务、受众同意及36MB拒绝 | 已知BL-183 | 7d1cc4bfa |
+| RAC-34 | 通过 | 一级 | F1/F2灵光模型生命周期：受控晚答拒写、原库重开、恢复轮保存；非真模型质量 | — | 7d1cc4bfa |
+| RAC-35 | 通过 | 一级 | F2 ui-request-stream＋F1同源头拒绝：跨字节/跨行、唯一末行、解析错与取消 | — | 7d1cc4bfa |
+| RAC-36 | 不通过 | 一级、二级 | FB灵光3/4，批量选择处失败，旧fbc同位置；FU真实创建/编辑/键盘返回通过，⌘多选只开后台页签，无法批量丢弃。三宽深色已看，全部恢复仍未实走 | QA-024；已知§10.28 #729待核项已分类；原编号引用缺已登记 | 7d1cc4bfa |
+| RAC-37 | 通过 | 一级 | F1 Home/项目HTTP及声明拒绝：体积上限与超1字节，32MB批次正常 | — | 7d1cc4bfa |
+| RAC-38 | 通过 | 一级 | F1下载：HTML/SVG附件、空字节/中文文件名、原字节与JSON/NDJSON正确 | — | 7d1cc4bfa |
+| RAC-39 | 通过 | 一级 | F1模型标签/权限＋F2 cognia-prologue：发现不解密不请求，停用/撤权无标签 | — | 7d1cc4bfa |
+| RAC-40 | 部分通过 | 一级 | F2 cognia-runtime/store/http/actions/mcp：Home作用域、权限/原库/列表与跨入口事实；阅读/下载/导入完整用户路径未二级实走 | — | 7d1cc4bfa |
+| RAC-41 | 通过 | 一级 | F1内容授权＋F2 cognia-store/ai：固定来源、导入采纳幂等、冲突过期、原文件不改 | — | 7d1cc4bfa |
+| RAC-42 | 部分通过 | 一级 | F1/F2 cognia AI/Prologue生命周期与真实库拒晚写通过；未用MiniMax重走生成/采纳 | 真实模型本线预算0 | 7d1cc4bfa |
+| RAC-43 | 部分通过 | 一级 | FB cognia-actions 4/4与content-context-regressions 2/2通过；未完成全部三宽/深色/键盘与真实导入阅读动线 | 已知§10.28 #733 | 7d1cc4bfa |
+| RAC-44 | 部分通过 | 一级 | F0/F2 API/动作/资源/库与装配门禁通过；复合编号无测试引用，当前全量未取得 | QA-021 | 7d1cc4bfa |
+| RAC-45 | 通过 | 一级 | F1 plugin-private-files：可信owner/权限正确才发放，外owner/沙箱/预检拒绝 | 已知PG-102/104（现行范围） | 7d1cc4bfa |
+| RAC-46 | 通过 | 一级 | F1真实磁盘：读取不建目录、exclusive/删除/重开，旧字节不覆盖 | — | 7d1cc4bfa |
+| RAC-47 | 通过 | 一级 | F1真实越界/软链/FIFO/大小边界：拒绝前后外部目录及原字节不变 | — | 7d1cc4bfa |
+| RAC-48 | 部分通过 | 一级 | F1等待cancel/stop/revoke/close旧句柄拒绝及新实例；待升级组合仍有边界缺口 | 已知PG-104 | 7d1cc4bfa |
+| RAC-49 | 部分通过 | 一级 | F0/F1两执行器公共服务及API/边界通过；同SHA共享全量未取得 | 已知PG-104、W6-05 | 7d1cc4bfa |
+| RAC-50 | 通过 | 一级 | F1 action-background-authority：本安装并发command及声明/父授权；错作用域拒绝 | — | 7d1cc4bfa |
+| RAC-51 | 通过 | 一级 | F1实际HTTP/MCP断连后已受理工作完成；旧路由/原处理器不能再受理 | — | 7d1cc4bfa |
+| RAC-52 | 通过 | 一级 | F1原授权撤销/停用/替换/关闭/cancel后拒晚成功及throw，业务库/文件不变 | — | 7d1cc4bfa |
+| RAC-53 | 通过 | 一级 | F1后台模型保持原身份/注册；结束后控制/进度/继续启动均拒绝 | — | 7d1cc4bfa |
+| RAC-54 | 通过 | 一级 | F1/F2两执行器先撤权后清理、关闭/重开旧工作不活、计时器清零 | — | 7d1cc4bfa |
+| RAC-55 | 部分通过 | 一级 | F0/F2公开API/资源/边界及相关回归通过；无编号引用、同SHA全量未取得 | QA-021 | 7d1cc4bfa |
+| RAC-56 | 部分通过 | 一级 | F2 i18n与translation-check：当前主人稳定键/中英完整；未独立重建迁移前全部文字对照 | 历史逐项文字对照未重跑 | 7d1cc4bfa |
+| RAC-57 | 通过 | 一级 | F2 i18n：并行真实请求语言隔离与浏览器VM键表、参数替换 | — | 7d1cc4bfa |
+| RAC-58 | 部分通过 | 一级 | FB images-actions 4/4与content-context-regressions 2/2通过；受控provider不代替真实生成品质与完整三宽/深色/键盘动线 | 本线模型0 | 7d1cc4bfa |
+| RAC-59 | 通过 | 一级 | F2 translation-check：实际Git/门禁变异，断开目录登记失败，写基线不放行 | — | 7d1cc4bfa |
+| RAC-60 | 部分通过 | 一级 | F0/F2构建/边界/翻译/资源通过；无编号引用、当前共享全量未取得 | QA-021 | 7d1cc4bfa |
+| RAC-61 | 通过 | 一级 | F2 assistant-business-gateway RAC-61：真实SQLite排他锁，锁期间查询0，解锁同一步仅1次完成、模型0 | — | 7d1cc4bfa |
+| RAC-62 | 部分通过 | 一级 | F1 external-checks＋F2 work-jobs拒不存在/失权；缺本轮完整跨重启和所有外来图组合 | 保留组合证据边界 | 7d1cc4bfa |
+
+#### 防腐错误模型与整合短编号逐条判定
+
+以下FE索引均指本基线的实际文件；省略的后缀为 `.test.ts`，若实际为mjs则标明。F1/F3/F4/FS整文件结果结合逐项断言审读；03类组合条件保留同SHA全量缺口。测试模型端口受控，不作为MiniMax质量证据。
+
+| 证据索引 | 实际测试文件（tests/下） | 核对内容 |
+| --- | --- | --- |
+| FE-R1 | `goal-events.test.ts`、`mcp-goal-events.test.ts` | Goal事件归属、拒绝零事件 |
+| FE-R2 | `goals-lifecycle-actions.test.ts`、`proposal-entry-chain.test.ts` | 规划/提案事实与版本 |
+| FE-R3 | `management-door-identity.test.ts`、`goals-tree-actions.test.ts` | 管理身份与树事务回滚 |
+| FE-R4A1 | `session-messages.test.ts`、`session-handoff-recovery.test.ts` | Session消息/交接恢复与原状态 |
+| FE-R4A2 | `runtime-context-entry.test.ts`、`projects-module.test.ts`、`context-ledger.test.ts` | Runtime关联、项目与上下文账本 |
+| FE-R4A3 | `files-product-http.test.ts`、`workspace-directory.test.ts` | 文件路径/目录回滚与原cause |
+| FE-R4B | `artifacts-module.test.ts`、`artifact-document-import.test.ts` | 成果导入/固定版本与原数据 |
+| FE-R4C1 | `characters-actions.test.ts`、`characters-module.test.ts`、`characters-import.test.ts` | 角色权限/导入发布与版本 |
+| FE-R4C2 | `security-invariants-alchemist-lifecycle.test.ts`、`prologue-inference-native.test.ts`、`prologue-inference-images.test.ts`、`host-inference-completion.test.ts` | 推理/图片/补全的原错误与零迟到写 |
+| FE-R4C3 | `diff-plugin.test.ts`、`coding-artifacts.test.ts` | Diff/Coding成果拒绝与原事实 |
+| FE-R5B | `side-panel-browser.e2e.test.ts` | 侧栏Browser拒绝/恢复与原状态 |
+| FE-R5I | `install.test.ts`、`service.test.ts`、`uninstall.test.ts`、`runtime-integration.test.ts` | 安装/服务/卸载及Runtime接入回滚 |
+| FE-R5M | `model-provider-store.test.ts`、`model-providers.test.ts` | 模型目录/供应商拒绝与原配置 |
+| FE-R6 | `im-domain.test.ts`、`cross-device-continuity.test.ts` | IM/跨设备连续性与无重复发送 |
+| FE-J1A | `plugin-runtime-integration.test.ts` | Runtime状态和原入口拒绝 |
+| FE-J1B | `plugin-events.test.ts`、`plugin-event-recovery.test.ts`、`plugin-input-graph.test.ts` | 插件事件兑现/输入图/恢复 |
+| FE-J1C | `plugin-dependency-resolution.test.ts`、`plugin-runtime-integration.test.ts` | 依赖解析与Runtime拒绝 |
+| FE-J2A | `feed-receive-chain.test.ts` | Feed接收链的原错误和数据 |
+| FE-J2B | `connector-connections.test.ts` | 连接状态/凭据引用与拒绝 |
+| FE-J2C | `connector-mcp.test.ts` | Connector MCP的原错误和权限 |
+| FE-J3A | `feed-receive-chain.test.ts` | Feed接收/事务与零重复 |
+| FE-J3B | `feed-receive-chain.test.ts` | Feed归一化/来源事实 |
+| FE-J4 | `scheduler.test.ts`、`scheduler-plugin-identity.test.ts` | 持久调度/身份与恢复 |
+| FE-J5A | `alchemist-actions.test.ts` | Alchemist动作拒绝与真实库 |
+| FE-J3C | `feed-receive-chain.test.ts`、`feed-connectors.test.ts`、`connector-connections.test.ts` | 来源连接器及交付持久化 |
+| FE-J3D | `feed-contract.test.ts`、`home-event-actions.test.ts` | Feed合同与Home事件错误归属 |
+| FE-J3E | `feed-sources.test.ts`、`feed-connectors.test.ts` | 来源和Listener错误及外部码保持 |
+| FE-J6 | `plugin-sandbox.test.ts`、`plugin-sandbox-network.test.ts` | 真实Seatbelt及网络拒绝 |
+| FE-J5B | `alchemist-actions.test.ts`、`alchemist-resumption.test.ts` | Alchemist计划/预算/显式恢复 |
+| FE-J5C | `alchemist-structured-output.test.ts`、`alchemist-workbench.e2e.test.ts`、`security-invariants-alchemist-lifecycle.test.ts`、`security-invariants-alchemist-resumption.test.ts` | 结构输出、领域错误和生命周期 |
+| FE-J7A | `project-database-baseline.test.ts`、`project-deletion-service.test.ts` | 项目数据库错版零写/删除 |
+| FE-I1 | `artifacts-module.test.ts`、`artifacts-actions.test.ts`、`plugin-artifact-client.test.ts`、`personal-artifact-owner.test.ts` | 成果本人/外owner与固定版本 |
+| FE-I2 | `governance-provenance.test.ts`、`governance-collaboration-module.test.ts` | 治理/provenance和协作事务 |
+| FE-I3 | `goals-command-module.test.ts`、`goal-events.test.ts`、`goal-events-state.test.ts` | Goal命令/事件/状态物化 |
+| FE-I4 | `projects-module.test.ts`、`project-catalog.test.ts`、`project-deletion-service.test.ts` | 项目/目录缺项拒绝和删除 |
+| FE-I5 | `goals-tree-actions.test.ts`、`goal-tree-event-flow.test.ts` | 结构提案/真实树与原关系 |
+| FE-I6 | `agent-host.test.ts`、`prologue-approval-bridge.test.ts`、`agent-sdk-effects.test.ts` | Agent审批/SDK副作用及原错误 |
+| FE-I7 | `scheduler.test.ts`、`scheduler-plugin-identity.test.ts` | 调度缺项与权限/重启 |
+| FE-LEDGER | `context-ledger.test.ts` | scope/固定引用/幂等冲突零写 |
+| FE-CHAR | `characters-module.test.ts`、`characters-schema.test.ts`、`characters-import.test.ts`、`characters-publication-http.test.ts` | 个人owner/schema/CAS/导入 |
+| FE-DIFF | `diff-plugin.test.ts`、`coding-artifacts.test.ts` | Diff/Diagram事实和所属错误 |
+| FE-BIND | `project-catalog.test.ts`、`runtime-context-entry.test.ts`、`runtime-binding-ledger.test.ts` | 确认/重绑/异步准备与零重复 |
+| FE-SESSION | `session-registry.test.ts`、`session-messages.test.ts`、`session-handoff-recovery.test.ts`、`workspace-directory-picker.test.ts` | 关联/发送尝试/恢复与隐私 |
+| FE-SOURCE | `feed-receive-chain.test.ts`、`feed-sources.test.ts`、`plugin-runtime-integration.test.ts` | 来源状态/Listener lease/RawEvent |
+| FE-FAS | `feed-receive-chain.test.ts`、`feed-module-repositories.test.ts`、`feed-inbox-schedule-error-model.test.ts` | Feed/Attention/Signals事实和HTTP映射 |
+| FE-WSERR | `files-plugin.test.ts`、`files-product-http.test.ts`、`workspace-directory.test.ts` | 目录恢复/原cause与现行400 |
+| FE-PRERR | `plugin-runtime-integration.test.ts`、`plugin-manifest-v2.test.ts`、`plugin-sdk-exports.test.ts` | Runtime/SDK声明/grants精确拒绝 |
+| FE-SYSERR | `local-host.test.ts`、`action-service.test.ts`、`model-provider-store.test.ts`、`project-database-baseline.test.ts` | Kernel/Host/模型/错版库拒绝 |
+| FE-INSERR | `install.test.ts`、`service.test.ts`、`runtime-integration.test.ts`、`uninstall.test.ts` | 安装/runtime/service/uninstall恢复 |
+| FE-CONERR | `feed-receive-chain.test.ts`、`connector-connections.test.ts`、`connector-mcp.test.ts` | 连接授权、Feed/MCP原错误 |
+| FE-UIERR | `workbench-ui-platform.test.ts`、`plugin-host-executor.test.ts` | UI平台/Host执行拒绝与原回执 |
+| FE-GITERR | `git-worktrees.test.ts` | 真实Git工作树和回滚 |
+| FE-ALCERR | `alchemist-actions.test.ts`、`alchemist-host.test.ts`、`security-invariants-alchemist-lifecycle.test.ts` | Pulse/Lens/机会转换原错误 |
+| FE-CDSTORE | `coding-store.test.ts` | Coding Store真实持久化 |
+| FE-BROWERR | `side-panel-browser.e2e.test.ts` | 侧栏Browser运行错误和恢复 |
+| FE-ARTACC | `plugin-artifact-client.test.ts`、`shelf-coding-materials-http.test.ts` | 成果访问/跨owner原权限 |
+| FE-RTDIAG | `codex-transport.test.ts`、`runtime-host.test.ts`、`work-session-actions.test.ts` | Runtime transport/会话诊断 |
+| FE-HOSTOWN | `personal-planning-actions.test.ts`、`project-catalog.test.ts`、`workspace-directory.test.ts` | 个人规划/目录的事实owner |
+| FE-CONACC | `connector-account-actions.test.ts` | 连接账号的真实拒绝与状态 |
+| FE-K1 | `primitives.test.ts`、`workbench-ui-platform.test.ts` | 原语/UI平台现行错误 |
+| FE-K2 | `work-session-ui.test.ts`、`work-terminal-client.test.ts` | 会话/终端客户端原错误 |
+
+| 编号 | 判定 | 证据等级 | 证据与实际边界 | 问题编号/去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| R1-01 | 通过 | 一级 | FE-R1；Goal事件归属、拒绝零事件 | — | 7d1cc4bfa |
+| R1-02 | 通过 | 一级 | FE-R1；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R1-03 | 部分通过 | 一级 | FE-R1；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R2-01 | 通过 | 一级 | FE-R2；规划/提案事实与版本 | — | 7d1cc4bfa |
+| R2-02 | 通过 | 一级 | FE-R2；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R2-03 | 部分通过 | 一级 | FE-R2；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R3-01 | 通过 | 一级 | FE-R3；管理身份与树事务回滚 | — | 7d1cc4bfa |
+| R3-02 | 通过 | 一级 | FE-R3；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R3-03 | 部分通过 | 一级 | FE-R3；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4A1-01 | 通过 | 一级 | FE-R4A1；Session消息/交接恢复与原状态 | — | 7d1cc4bfa |
+| R4A1-02 | 通过 | 一级 | FE-R4A1；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4A1-03 | 部分通过 | 一级 | FE-R4A1；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4A2-01 | 通过 | 一级 | FE-R4A2；Runtime关联、项目与上下文账本 | — | 7d1cc4bfa |
+| R4A2-02 | 通过 | 一级 | FE-R4A2；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4A2-03 | 部分通过 | 一级 | FE-R4A2；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4A3-01 | 通过 | 一级 | FE-R4A3；文件路径/目录回滚与原cause | — | 7d1cc4bfa |
+| R4A3-02 | 通过 | 一级 | FE-R4A3；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4A3-03 | 部分通过 | 一级 | FE-R4A3；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4B-01 | 通过 | 一级 | FE-R4B；成果导入/固定版本与原数据 | — | 7d1cc4bfa |
+| R4B-02 | 通过 | 一级 | FE-R4B；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4B-03 | 部分通过 | 一级 | FE-R4B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4C1-01 | 通过 | 一级 | FE-R4C1；角色权限/导入发布与版本 | — | 7d1cc4bfa |
+| R4C1-02 | 通过 | 一级 | FE-R4C1；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4C1-03 | 部分通过 | 一级 | FE-R4C1；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R4C2-01 | 通过 | 一级 | FE-R4C2；推理/图片/补全的原错误与零迟到写 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| R4C2-02 | 通过 | 一级 | FE-R4C2；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| R4C2-03 | 部分通过 | 一级 | FE-R4C2；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| R4C3-01 | 通过 | 一级 | FE-R4C3；Diff/Coding成果拒绝与原事实 | — | 7d1cc4bfa |
+| R4C3-02 | 通过 | 一级 | FE-R4C3；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R4C3-03 | 部分通过 | 一级 | FE-R4C3；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R5B-01 | 部分通过 | 一级 | FE-R5B；侧栏Browser拒绝/恢复与原状态；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| R5B-02 | 部分通过 | 一级 | FE-R5B；现行声明/公开消费者和门禁；不引入旧类或读取兼容；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| R5B-03 | 部分通过 | 一级 | FE-R5B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R5I-01 | 通过 | 一级 | FE-R5I；安装/服务/卸载及Runtime接入回滚 | — | 7d1cc4bfa |
+| R5I-02 | 通过 | 一级 | FE-R5I；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R5I-03 | 部分通过 | 一级 | FE-R5I；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R5M-01 | 通过 | 一级 | FE-R5M；模型目录/供应商拒绝与原配置 | — | 7d1cc4bfa |
+| R5M-02 | 通过 | 一级 | FE-R5M；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R5M-03 | 部分通过 | 一级 | FE-R5M；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| R6-01 | 通过 | 一级 | FE-R6；IM/跨设备连续性与无重复发送 | — | 7d1cc4bfa |
+| R6-02 | 通过 | 一级 | FE-R6；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| R6-03 | 部分通过 | 一级 | FE-R6；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J1A-01 | 通过 | 一级 | FE-J1A；Runtime状态和原入口拒绝 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J1A-02 | 通过 | 一级 | FE-J1A；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J1A-03 | 部分通过 | 一级 | FE-J1A；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J1B-01 | 通过 | 一级 | FE-J1B；插件事件兑现/输入图/恢复 | — | 7d1cc4bfa |
+| J1B-02 | 通过 | 一级 | FE-J1B；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J1B-03 | 部分通过 | 一级 | FE-J1B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J1C-01 | 通过 | 一级 | FE-J1C；依赖解析与Runtime拒绝 | — | 7d1cc4bfa |
+| J1C-02 | 通过 | 一级 | FE-J1C；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J1C-03 | 部分通过 | 一级 | FE-J1C；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J2A-01 | 通过 | 一级 | FE-J2A；Feed接收链的原错误和数据 | — | 7d1cc4bfa |
+| J2A-02 | 通过 | 一级 | FE-J2A；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J2A-03 | 部分通过 | 一级 | FE-J2A；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J2B-01 | 通过 | 一级 | FE-J2B；连接状态/凭据引用与拒绝 | — | 7d1cc4bfa |
+| J2B-02 | 通过 | 一级 | FE-J2B；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J2B-03 | 部分通过 | 一级 | FE-J2B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J2C-01 | 通过 | 一级 | FE-J2C；Connector MCP的原错误和权限 | — | 7d1cc4bfa |
+| J2C-02 | 通过 | 一级 | FE-J2C；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J2C-03 | 部分通过 | 一级 | FE-J2C；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J3A-01 | 通过 | 一级 | FE-J3A；Feed接收/事务与零重复 | — | 7d1cc4bfa |
+| J3A-02 | 通过 | 一级 | FE-J3A；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J3A-03 | 部分通过 | 一级 | FE-J3A；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J3B-01 | 通过 | 一级 | FE-J3B；Feed归一化/来源事实 | — | 7d1cc4bfa |
+| J3B-02 | 通过 | 一级 | FE-J3B；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J3B-03 | 部分通过 | 一级 | FE-J3B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J4-01 | 通过 | 一级 | FE-J4；持久调度/身份与恢复 | — | 7d1cc4bfa |
+| J4-02 | 通过 | 一级 | FE-J4；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J4-03 | 部分通过 | 一级 | FE-J4；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J5A-01 | 通过 | 一级 | FE-J5A；Alchemist动作拒绝与真实库 | — | 7d1cc4bfa |
+| J5A-02 | 通过 | 一级 | FE-J5A；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J5A-03 | 部分通过 | 一级 | FE-J5A；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J3C-01 | 通过 | 一级 | FE-J3C；来源连接器及交付持久化 | — | 7d1cc4bfa |
+| J3C-02 | 通过 | 一级 | FE-J3C；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J3C-03 | 部分通过 | 一级 | FE-J3C；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J3D-01 | 通过 | 一级 | FE-J3D；Feed合同与Home事件错误归属 | — | 7d1cc4bfa |
+| J3D-02 | 通过 | 一级 | FE-J3D；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J3D-03 | 部分通过 | 一级 | FE-J3D；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J3E-01 | 通过 | 一级 | FE-J3E；来源和Listener错误及外部码保持 | — | 7d1cc4bfa |
+| J3E-02 | 通过 | 一级 | FE-J3E；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J3E-03 | 部分通过 | 一级 | FE-J3E；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J6-01 | 通过 | 一级 | FE-J6；真实Seatbelt及网络拒绝 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J6-02 | 通过 | 一级 | FE-J6；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J6-03 | 部分通过 | 一级 | FE-J6；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| J5B-01 | 通过 | 一级 | FE-J5B；Alchemist计划/预算/显式恢复 | — | 7d1cc4bfa |
+| J5B-02 | 通过 | 一级 | FE-J5B；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J5B-03 | 部分通过 | 一级 | FE-J5B；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J5C-01 | 通过 | 一级 | FE-J5C；结构输出、领域错误和生命周期 | — | 7d1cc4bfa |
+| J5C-02 | 通过 | 一级 | FE-J5C；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J5C-03 | 部分通过 | 一级 | FE-J5C；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| J7A-01 | 通过 | 一级 | FE-J7A；项目数据库错版零写/删除 | — | 7d1cc4bfa |
+| J7A-02 | 通过 | 一级 | FE-J7A；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| J7A-03 | 部分通过 | 一级 | FE-J7A；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I1-01 | 通过 | 一级 | FE-I1；成果本人/外owner与固定版本 | — | 7d1cc4bfa |
+| I1-02 | 通过 | 一级 | FE-I1；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I1-03 | 部分通过 | 一级 | FE-I1；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I2-01 | 通过 | 一级 | FE-I2；治理/provenance和协作事务 | — | 7d1cc4bfa |
+| I2-02 | 通过 | 一级 | FE-I2；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I2-03 | 部分通过 | 一级 | FE-I2；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I3-01 | 通过 | 一级 | FE-I3；Goal命令/事件/状态物化 | — | 7d1cc4bfa |
+| I3-02 | 通过 | 一级 | FE-I3；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I3-03 | 部分通过 | 一级 | FE-I3；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I4-01 | 通过 | 一级 | FE-I4；项目/目录缺项拒绝和删除 | — | 7d1cc4bfa |
+| I4-02 | 通过 | 一级 | FE-I4；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I4-03 | 部分通过 | 一级 | FE-I4；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I5-01 | 通过 | 一级 | FE-I5；结构提案/真实树与原关系 | — | 7d1cc4bfa |
+| I5-02 | 通过 | 一级 | FE-I5；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I5-03 | 部分通过 | 一级 | FE-I5；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I6-01 | 通过 | 一级 | FE-I6；Agent审批/SDK副作用及原错误 | — | 7d1cc4bfa |
+| I6-02 | 通过 | 一级 | FE-I6；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I6-03 | 部分通过 | 一级 | FE-I6；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| I7-01 | 通过 | 一级 | FE-I7；调度缺项与权限/重启 | — | 7d1cc4bfa |
+| I7-02 | 通过 | 一级 | FE-I7；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| I7-03 | 部分通过 | 一级 | FE-I7；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| LEDGER-01 | 通过 | 一级 | FE-LEDGER；scope/固定引用/幂等冲突零写 | — | 7d1cc4bfa |
+| LEDGER-02 | 通过 | 一级 | FE-LEDGER；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| LEDGER-03 | 部分通过 | 一级 | FE-LEDGER；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| CHAR-01 | 通过 | 一级 | FE-CHAR；个人owner/schema/CAS/导入 | — | 7d1cc4bfa |
+| CHAR-02 | 通过 | 一级 | FE-CHAR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| CHAR-03 | 部分通过 | 一级 | FE-CHAR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| DIFF-01 | 通过 | 一级 | FE-DIFF；Diff/Diagram事实和所属错误 | — | 7d1cc4bfa |
+| DIFF-02 | 通过 | 一级 | FE-DIFF；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| DIFF-03 | 部分通过 | 一级 | FE-DIFF；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| BIND-01 | 通过 | 一级 | FE-BIND；确认/重绑/异步准备与零重复 | — | 7d1cc4bfa |
+| BIND-02 | 通过 | 一级 | FE-BIND；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| BIND-03 | 部分通过 | 一级 | FE-BIND；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| SESSION-01 | 通过 | 一级 | FE-SESSION；关联/发送尝试/恢复与隐私 | — | 7d1cc4bfa |
+| SESSION-02 | 通过 | 一级 | FE-SESSION；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| SESSION-03 | 部分通过 | 一级 | FE-SESSION；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| SOURCE-01 | 通过 | 一级 | FE-SOURCE；来源状态/Listener lease/RawEvent | — | 7d1cc4bfa |
+| SOURCE-02 | 通过 | 一级 | FE-SOURCE；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| SOURCE-03 | 部分通过 | 一级 | FE-SOURCE；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| FAS-01 | 通过 | 一级 | FE-FAS；Feed/Attention/Signals事实和HTTP映射 | — | 7d1cc4bfa |
+| FAS-02 | 通过 | 一级 | FE-FAS；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| FAS-03 | 部分通过 | 一级 | FE-FAS；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| WSERR-01 | 通过 | 一级 | FE-WSERR；目录恢复/原cause与现行400 | — | 7d1cc4bfa |
+| WSERR-02 | 通过 | 一级 | FE-WSERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| WSERR-03 | 部分通过 | 一级 | FE-WSERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | QA-020（旧G4-05文档冲突） | 7d1cc4bfa |
+| PRERR-01 | 通过 | 一级 | FE-PRERR；Runtime/SDK声明/grants精确拒绝 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| PRERR-02 | 通过 | 一级 | FE-PRERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| PRERR-03 | 部分通过 | 一级 | FE-PRERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| SYSERR-01 | 通过 | 一级 | FE-SYSERR；Kernel/Host/模型/错版库拒绝 | — | 7d1cc4bfa |
+| SYSERR-02 | 通过 | 一级 | FE-SYSERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| SYSERR-03 | 部分通过 | 一级 | FE-SYSERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| INSERR-01 | 通过 | 一级 | FE-INSERR；安装/runtime/service/uninstall恢复 | — | 7d1cc4bfa |
+| INSERR-02 | 通过 | 一级 | FE-INSERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| INSERR-03 | 部分通过 | 一级 | FE-INSERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| CONERR-01 | 通过 | 一级 | FE-CONERR；连接授权、Feed/MCP原错误 | — | 7d1cc4bfa |
+| CONERR-02 | 通过 | 一级 | FE-CONERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| CONERR-03 | 部分通过 | 一级 | FE-CONERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| UIERR-01 | 部分通过 | 一级 | FE-UIERR；UI平台/Host执行拒绝与原回执；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| UIERR-02 | 部分通过 | 一级 | FE-UIERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| UIERR-03 | 部分通过 | 一级 | FE-UIERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| GITERR-01 | 通过 | 一级 | FE-GITERR；真实Git工作树和回滚 | — | 7d1cc4bfa |
+| GITERR-02 | 通过 | 一级 | FE-GITERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| GITERR-03 | 部分通过 | 一级 | FE-GITERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| ALCERR-01 | 通过 | 一级 | FE-ALCERR；Pulse/Lens/机会转换原错误 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| ALCERR-02 | 通过 | 一级 | FE-ALCERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| ALCERR-03 | 部分通过 | 一级 | FE-ALCERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | 已知PG迁移不据此关闭 | 7d1cc4bfa |
+| CDSTORE-01 | 通过 | 一级 | FE-CDSTORE；Coding Store真实持久化 | — | 7d1cc4bfa |
+| CDSTORE-02 | 通过 | 一级 | FE-CDSTORE；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| CDSTORE-03 | 部分通过 | 一级 | FE-CDSTORE；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| BROWERR-01 | 部分通过 | 一级 | FE-BROWERR；侧栏Browser运行错误和恢复；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| BROWERR-02 | 部分通过 | 一级 | FE-BROWERR；现行声明/公开消费者和门禁；不引入旧类或读取兼容；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| BROWERR-03 | 部分通过 | 一级 | FE-BROWERR；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| ARTACC-01 | 通过 | 一级 | FE-ARTACC；成果访问/跨owner原权限 | — | 7d1cc4bfa |
+| ARTACC-02 | 通过 | 一级 | FE-ARTACC；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| ARTACC-03 | 部分通过 | 一级 | FE-ARTACC；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| RTDIAG-01 | 通过 | 一级 | FE-RTDIAG；Runtime transport/会话诊断 | — | 7d1cc4bfa |
+| RTDIAG-02 | 通过 | 一级 | FE-RTDIAG；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| RTDIAG-03 | 部分通过 | 一级 | FE-RTDIAG；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| HOSTOWN-01 | 通过 | 一级 | FE-HOSTOWN；个人规划/目录的事实owner | — | 7d1cc4bfa |
+| HOSTOWN-02 | 通过 | 一级 | FE-HOSTOWN；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| HOSTOWN-03 | 部分通过 | 一级 | FE-HOSTOWN；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| CONACC-01 | 通过 | 一级 | FE-CONACC；连接账号的真实拒绝与状态 | — | 7d1cc4bfa |
+| CONACC-02 | 通过 | 一级 | FE-CONACC；现行声明/公开消费者和门禁；不引入旧类或读取兼容 | — | 7d1cc4bfa |
+| CONACC-03 | 部分通过 | 一级 | FE-CONACC；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| K1-01 | 部分通过 | 一级 | FE-K1；原语/UI平台现行错误；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| K1-02 | 部分通过 | 一级 | FE-K1；现行声明/公开消费者和门禁；不引入旧类或读取兼容；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| K1-03 | 部分通过 | 一级 | FE-K1；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| K2-01 | 部分通过 | 一级 | FE-K2；会话/终端客户端原错误；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| K2-02 | 部分通过 | 一级 | FE-K2；现行声明/公开消费者和门禁；不引入旧类或读取兼容；仅工程，完整三宽/深色/键盘实走未齐 | — | 7d1cc4bfa |
+| K2-03 | 部分通过 | 一级 | FE-K2；本轮构建/API/相关定向有效；同SHA完整CI尚缺 | — | 7d1cc4bfa |
+| GATEWAY-MODEL-CODE-01 | 通过 | 一级 | `assistant-cross-entry.test.ts`、`assistant-business-gateway.test.ts`；真实SDK收到owner原因，Host诊断与零事实一致 | — | 7d1cc4bfa |
+| BROWSER-FORMAT-01 | 通过 | 一级 | `health-gates-browser-fetch.test.ts`；纯formatter静态展开，保留片段来源 | — | 7d1cc4bfa |
+| BROWSER-FORMAT-02 | 通过 | 一级 | `health-gates-browser-fetch.test.ts`；真实门禁变异拒新增fetch/改写，基线不能放行 | — | 7d1cc4bfa |
+| ASSET-TRIM-01 | 未验证 | 一级（文审；动态未验） | 本轮未重建历史AST对照；历史逆名AST等价未在本轮重建，当前资源更小不代替此证明 | 历史机械等价待复核 | 7d1cc4bfa |
+| ASSET-TRIM-02 | 部分通过 | 一级 | `page-assets-budget.test.ts`；实际25资源7489180字节通过；相关浏览器在F5，历史所有选择器未逐项对照 | — | 7d1cc4bfa |
+| READFIX-01 | 通过 | 一级 | `action-read-compatibility.test.ts`；现行dependency_missing仅所属消费者接受，其余拒绝透传 | — | 7d1cc4bfa |
+| READFIX-02 | 通过 | 一级 | `action-read-compatibility.test.ts`；真实Host缺可选workspace为空，非缺项仍拒绝 | — | 7d1cc4bfa |
+| INTEGRATION-FIX72-01 | 通过 | 一级 | `connector-connections.test.ts`、`plugin-runtime-integration.test.ts`；合法fixture令牌/required grant达到原拒绝边界，未放宽安全入口 | — | 7d1cc4bfa |
+| INTEGRATION-FIX72-02 | 通过 | 一级 | `plugin-global-settings.test.ts`；旧Shelf输入明确拒绝且原内容不变；当前默认值正确 | — | 7d1cc4bfa |
+| FIX79-01 | 部分通过 | 一级 | `coding-effect-control.test.ts`、`coding-runtime-regressions.test.ts`；当前fixture进入合法真实状态；未把历史夹具修订等同产品新能力 | — | 7d1cc4bfa |
+| NETWORK-PULSE-01 | 部分通过 | 一级 | `network-notices.test.ts`、`alchemist-client-boundaries.e2e.test.ts`；静态中英文与F5实际仅Pulse显示notice；完整人工交互仍缺 | — | 7d1cc4bfa |
+| R-GOALS-OWNER-01 | 通过 | 一级 | `goals-planning-actions.test.ts`；planning缺方法精确owner码，版本与组合不变 | — | 7d1cc4bfa |
+| R-GOALS-OWNER-02 | 通过 | 一级 | `goal-events-state.test.ts`；真实Goal意图多余字段拒绝，事件/关系/幂等不变 | — | 7d1cc4bfa |
+| R-KERNEL-OWNER-01 | 通过 | 一级 | `action-authorship-dispatch.test.ts`、`action-gateway-session-authorship.test.ts`、`mcp-session-authorship-nested.test.ts`、`mcp-goal-events.test.ts`、`feed-promote-mcp.test.ts`；真实四入口可信身份、精确码、零额外事实 | — | 7d1cc4bfa |
+| R-MCP-OWNER-01 | 通过 | 一级 | `mcp-management-actions.test.ts`；真实管理MCP拒绝与原cause/状态 | — | 7d1cc4bfa |
+| R-INSTALLED-OWNER-01 | 通过 | 一级 | `installed-plugin-host.test.ts`、`plugin-sandbox.test.ts`；FN24真实安装/Seatbelt拒绝，保留可信Sandbox outcome | — | 7d1cc4bfa |
+| R-CODING-RECEIPT-01 | 通过 | 一级 | `coding-message-wait.test.ts`；原信件失败状态/原因和后续等待保持 | — | 7d1cc4bfa |
+| R-CODING-RECEIPT-02 | 通过 | 一级 | `coding-session-follow.test.ts`、`coding-effect-control.test.ts`；会话跟随与原调用控制失效后零新写 | — | 7d1cc4bfa |
+| S-18-102-01 | 通过 | 一级 | `action-retained-authority.test.ts`；被接受工作使用原授权，迟到失效不另写业务 | — | 7d1cc4bfa |
+| S-18-102-02 | 通过 | 一级 | `assistant-thread-reply.test.ts`；真实线程回复原身份与停止后拒绝 | — | 7d1cc4bfa |
+| S-18-102-03 | 通过 | 一级 | `assistant-thread-reply.test.ts`；线程reader等待后停用，无晚回复/失败业务记录 | — | 7d1cc4bfa |
+| HOST-CLOSE-01 | 通过 | 一级 | `local-host-close.test.ts`；打开失败已回原调用者，Host正常关闭成功打开的项目 | — | 7d1cc4bfa |
+| I5-ISSUE-INTERLEAVE-01 | 部分通过 | 一级 | `issue-page.e2e.test.ts`；新增Issue浏览器补集待运行；不能用树单测代替可见交错 | — | 7d1cc4bfa |
+| IME-SIM-01 | 部分通过 | 一级 | `issue-capture-page.e2e.test.ts`；新增浏览器补集待运行；CDP composition不能代替真实输入法候选窗 | — | 7d1cc4bfa |
+| BROWSER-CLEAN-01 | 部分通过 | 一级 | `assistant-dock-ime.e2e.test.ts`；新增浏览器补集待运行；本机Mac结果不能代替当前Linux清理 | — | 7d1cc4bfa |
+| CI-MCP-PIPE-01 | 通过 | 一级 | `runtime-integration.test.ts`；真实launcher闭stdin后不再写/EPIPE，父进程存活 | — | 7d1cc4bfa |
+| CI-MCP-PIPE-02 | 部分通过 | 一级 | `runtime-integration.test.ts`；公开接入失败回滚配置/Skill/receipt，恢复成功；当前Linux CI未取得 | — | 7d1cc4bfa |
+| PREP-108-01 | 通过 | 一级 | `action-call-log.test.ts`；调用日志入口保留可信归属/编号 | — | 7d1cc4bfa |
+| PREP-108-02 | 通过 | 一级 | `action-call-log.test.ts`；拒绝诊断不保存动作内容和伪输入身份 | — | 7d1cc4bfa |
+| PREP-108-03 | 通过 | 一级 | `action-call-log.test.ts`；真实调用记录与原事实边界保持 | — | 7d1cc4bfa |
+| PREP-108-04 | 部分通过 | 一级 | `action-call-log.test.ts`、`assistant-business-gateway.test.ts`；当前日志断言通过；助理组合未以本轮全部入口重走 | — | 7d1cc4bfa |
+| ADOPT-CONTROL-V2-01 | 通过 | 一级 | `coding-run-control-contract.test.ts`；按已定演进核现行control v6，旧固定版本拒绝；不恢复v2 | — | 7d1cc4bfa |
+
+**额外真实重启核对（S-40、Q08）。** 同一新Home的首个独立Node进程经生产公开动作创建Todo并取得内存撤销令牌，关闭Host并完全退出；第二个独立Node进程重开同Home，旧令牌明确拒绝 `contextual.stale`，撤销动作派出0，Todo逐字段不变。日志 `anti-s40-restart.log`，SHA 7d1cc4bfa，0模型。它补足§4.6 Q08的跨进程拒绝工程子项，不把fbc的其余UI证据搬成新SHA二级全通过。
+
+#### 防腐 W3/W4/W5 与 SHF 逐条判定
+
+本组共215项（W3 56、W4 24、W5 128、SHF 7），全部基于 `7d1cc4bfa`。F3/F4及 `anti-semantic.log`、`anti-semantic-w5.log` 均为显式列文件后整文件运行；F2仅指日志中实际筛选的用例，不外推整文件。下表F5引用 `anti-browser.log` 及 `anti-browser-extras.log` 已有终态的单文件，未把整批启动当作通过。浏览器自动化保留为一级；用户可见标准只有这些证据时判部分通过。原重构前后AST等价、当前完整CI与完整二级未得到的部分分别注明。
+
+**W3（56项）。**
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／既定去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| W3-02-G1-01 | 通过 | 一级 | `tests/platform-action-errors.test.ts`（F4 4/4）；`tests/security-invariants-gateway.test.ts`（F1 3/3）；`tests/project-deletion-service.test.ts`（F4 16/16）；真实HTTP分类/详情/已记录调用号与拒绝零业务写 | — | 7d1cc4bfa |
+| W3-02-G1-02 | 通过 | 一级 | `tests/action-availability-kind.test.ts`（F4 2/2）、`tests/personal-plugins-review-fixes.test.ts`（F4 16/16）、`tests/document-plugins-error-model.test.ts`（anti-semantic-w5.log 18/18）；真实 availability.kind 贯通 Kernel/SDK/HTTP，文档插件 missing/conflict/body-limit 拒绝矩阵 | — | 7d1cc4bfa |
+| W3-02-G1-03 | 通过 | 一级 | `tests/platform-action-errors.test.ts`（F4 4/4）；`tests/action-error-edges.test.ts`（F4 6/6）；`tests/system-search-host.test.ts`（F4 1/1）；`tests/contextual-interaction.test.ts`（F4 31/31）；`tests/work-placement-restart.test.ts`（F4 7/7）；真实HTTP literal状态、owner详情、拒绝前后事实；不是仅按错误码猜状态 | — | 7d1cc4bfa |
+| W3-02-G1-04 | 通过 | 一级 | `tests/platform-action-errors.test.ts`（F4 4/4）；`tests/security-invariants-home-body-limit.test.ts`（F1 1/1）；标题03/04为明确简写：256000 UTF-8字节、中文超限、空body、400/413及无调用行；Home12MiB另证 | — | 7d1cc4bfa |
+| W3-02-G1-05 | 通过 | 一级 | `tests/artifact-plugin-inputs-http.test.ts`（F4 2/2）；`tests/alchemist-actions.test.ts`（F3 5/5）；`tests/artifacts-actions.test.ts`（F4 4/4）；`tests/inbox-plugin.test.ts`（F4 2/2）；现行码消费者与原400/404；旧码/孤立出口清理由F0/API静态核对补充 | — | 7d1cc4bfa |
+| W3-02-G2-BODY-01 | 通过 | 一级 | `tests/action-error-model.test.ts`（F4 15/15）；Functions真实reader坏JSON400/超限413、原文与码，handler未执行；编号在注释 | — | 7d1cc4bfa |
+| W3-02-G3-01 | 通过 | 一级 | `tests/assistant-memory-error-model.test.ts`（F4 4/4）；坏SQLite实际500及原字节不变；owner码/kind不重写 | — | 7d1cc4bfa |
+| W3-02-G3-02 | 通过 | 一级 | `tests/assistant-memory-error-model.test.ts`（F4 4/4）；scope403、missing404、preview交错409、候选上限/forbidden后无新增正式记忆 | — | 7d1cc4bfa |
+| W3-02-G3-03 | 部分通过 | 一级 | `tests/assistant-memory-error-model.test.ts`（F4 4/4）、`tests/assistant-error-recovery.e2e.test.ts`（F5 1/1）；原 work/草稿/request_id 保存、重试一轮与实际恢复 DOM；模型为受控端点，仅一级，完整三宽/暗色及二级恢复待验 | — | 7d1cc4bfa |
+| W3-02-G3-04 | 部分通过 | 一级 | `tests/assistant-image-restart-http.test.ts`（F4 1/1）；真实Host关重开，旧句柄404/无虚构号、原材料保留expired；重新添加文案实走未补 | — | 7d1cc4bfa |
+| W3-02-G4-01 | 部分通过 | 一级 | `tests/coding-product-http.test.ts`（anti-semantic.log 1/1）；真实跨项目拒绝与草稿重开；尚缺session_unknown/busy/未知500完整矩阵；无本编号直接引用 | — | 7d1cc4bfa |
+| W3-02-G4-02 | 未验证 | 未达一级（仅静态） | 未找到64MiB保持409与整组Browser错误/下载边界的完整本轮断言；非宣称未实现 | — | 7d1cc4bfa |
+| W3-02-G4-03 | 部分通过 | 一级 | `tests/agent-review-http.test.ts`（anti-semantic.log 10/10）；真实404/409、坏note400、foreign零invoke/仍pending；Git恢复owner端口夹具，未覆盖整条正式恢复链 | — | 7d1cc4bfa |
+| W3-02-G4-04 | 部分通过 | 一级 | `tests/mcp-action-grants.test.ts`（F4 5/5）、`tests/mcp-access-browser.test.ts`（F5 1/1）；精确授权替换/撤销与真实界面入口反馈；一级自动化，完整三宽暗色/键盘与未知500矩阵未实走 | — | 7d1cc4bfa |
+| W3-02-G4-05 | 不通过 | 一级 | `tests/workspace-directory.test.ts` 的 rollback（F2 1/1）；真实目录恢复、cause 与现行 invalid/400 通过；旧 G4-05 要求 503，属文档冲突 | QA-020 | 7d1cc4bfa |
+| W3-02-G4-06 | 部分通过 | 一级 | `tests/home-plugin-platform.test.ts`（F1 7/7）；`tests/home-plugin-model-lifecycle.test.ts`（F1 8/8）；Home共享operation保护/断开取消/卸载边界有证据；Work未知500及完整恢复范围未补齐 | — | 7d1cc4bfa |
+| W3-02-G4-ANSWER-01 | 部分通过 | 一级 | `tests/assistant-page-written.e2e.test.ts`（F5 2/2）；真实问卷拒绝后修正，同一 pending/run 继续及写入结果；自动浏览器为一级，未代替人工三宽/键盘完整实走 | — | 7d1cc4bfa |
+| W3-02-H-01 | 通过 | 一级 | `tests/action-mcp.test.ts`（F4 6/6）；`tests/action-error-edges.test.ts`（F4 6/6）；`tests/personal-plugins-review-fixes.test.ts`（F4 16/16）；统一错误JSON、details不能覆盖可信code/实际记录号；旧出口退役结合F0/API | — | 7d1cc4bfa |
+| W3-02-H-02 | 通过 | 一级 | `tests/goal-event-http.test.ts`（F4 13/13）；真实HTTP400/409和current_version，注入未知owner异常500；完整events/state不变 | — | 7d1cc4bfa |
+| W3-02-H-03 | 部分通过 | 一级 | `tests/mcp-management-actions.test.ts`（F1 3/3）；`tests/action-mcp.test.ts`（F4 6/6）；实际CLI提案→Host关闭重开→MCP决定/重放零第二决定；无直接H03引用，所有错误/读体组合未一条穷尽 | — | 7d1cc4bfa |
+| W3-06-F-01 | 通过 | 一级 | `tests/home-plugin-platform.test.ts`（F1 7/7）；并发发现/动作/scene/HTTP同Home实例；跨scope/伪bundled拒绝 | — | 7d1cc4bfa |
+| W3-06-F-02 | 通过 | 一级 | `tests/home-plugin-platform.test.ts`（F1 7/7）；真实caller、null/project作用域，错owner/沙箱/权限在业务前拒绝；现行服务待遇后续已登记 | 已知 PG-017、PG-022 | 7d1cc4bfa |
+| W3-06-F-03 | 通过 | 一级 | `tests/home-plugin-model-lifecycle.test.ts`（F1 8/8）；`tests/plugin-model-service.test.ts`（F1 15/15）；真实共同模型入口+受控端点；取消/撤权/停用晚答不交付不落KV，非真实MiniMax质量证明 | — | 7d1cc4bfa |
+| W3-06-F-04 | 通过 | 一级 | `tests/home-plugin-private-store.test.ts`（F4 4/4）；两连接CAS仅一方提交、持久化/安装隔离、preflight只读、失败升级原KV恢复 | — | 7d1cc4bfa |
+| W3-06-F-05 | 通过 | 一级 | `tests/home-plugin-private-store.test.ts`（F4 4/4）；独立SQL非空v1/损坏v2公开Host拒绝，版本/schema/facts原样 | — | 7d1cc4bfa |
+| W3-06-F-06 | 通过 | 一级 | `tests/home-plugin-model-lifecycle.test.ts`（F1 8/8）；`tests/home-plugin-platform.test.ts`（F1 7/7）；stop hook前撤权；同ID新generation不复活旧storage/model/actions | — | 7d1cc4bfa |
+| W3-06-F-07 | 通过 | 一级 | `tests/home-plugin-platform.test.ts`（F1 7/7）；`tests/home-plugin-model-lifecycle.test.ts`（F1 8/8）；真实HTTP保护/revision/上限/卸载不回落；断开后晚模型不写业务 | — | 7d1cc4bfa |
+| W3-06-F-08 | 通过 | 一级 | `tests/home-plugin-private-store.test.ts`（F4 4/4）；损坏Home Runtime独立失败而Goals可用；普通ready不自行补库 | — | 7d1cc4bfa |
+| W3-06-G-01 | 部分通过 | 一级（文审） | F0构建/门禁与现行README/迁移接线核对；当前SHA全量未得证，真实Home维护不在本次范围 | 已定真实Home另行授权 | 7d1cc4bfa |
+| W3-07-4-01 | 通过 | 一级 | `tests/mcp-management-actions.test.ts`（F1 3/3）；`tests/management-door-identity.test.ts`（F3 12/12）；真实Goals命令一条action记录无typed，前置身份拒绝无业务事实/虚构号 | — | 7d1cc4bfa |
+| W3-07-4-02 | 通过 | 一级 | `tests/mcp-management-actions.test.ts`（F1 3/3）；`tests/mcp.test.ts`（F4 11/11）；`tests/goals-query-boundaries.test.mjs`（anti-semantic.log 6/6）；字段/schema/owner身份、重启与幂等决定；实际公开入口 | — | 7d1cc4bfa |
+| W3-07-5-01 | 通过 | 一级 | `tests/goal-management-identity.test.ts`（F4 10/10）；`tests/local-host-actions.test.ts`（F4 13/13）；`tests/goals-tree-actions.test.ts`（F1 2/2）；`tests/goals-query-boundaries.test.mjs`（anti-semantic.log 6/6）；固定退役literal经Host/SDK availability/invoke拒绝，伪描述符不能恢复 | — | 7d1cc4bfa |
+| W3-07-5-02 | 通过 | 一级 | `tests/goals-query-boundaries.test.mjs`（anti-semantic.log 6/6）；真实源文件mutation拒绝旧文件/导出/调用回流；F0 API/巨大单元只减；测试引用写5-01/9-01，非功能未做 | — | 7d1cc4bfa |
+| W3-07-6-01 | 通过 | 一级 | `tests/management-door-identity.test.ts`（F3 12/12）；`tests/plugin-development-artifacts.test.ts`（F4 2/2）；原开发路径与artifact/render；伪actor/错项目在执行前拒绝 | — | 7d1cc4bfa |
+| W3-07-6-02 | 通过 | 一级 | `tests/plugin-host-executor.test.ts`（F3 3/3）；`tests/management-door-identity.test.ts`（F3 12/12）；`tests/plugin-capability-availability.test.ts`（F4 6/6）；旧development literal不存在，声明consumes/伪描述符不能复活 | — | 7d1cc4bfa |
+| W3-07-7-01 | 通过 | 一级 | `tests/resident-management-actions.test.ts`（F4 4/4）；`tests/security-invariants-management.test.ts`（F1 4/4）；在线明确拒绝零fallback；离线/独立库原路径；真实保护与未知结果边界 | — | 7d1cc4bfa |
+| W3-07-7-02 | 通过 | 一级 | `tests/security-invariants-management.test.ts`（F1 4/4）；无/错Origin/token/key、重放、数据库错owner拒绝；断开后无提交 | — | 7d1cc4bfa |
+| W3-07-7-03 | 通过 | 一级 | `tests/resident-management-actions.test.ts`（F4 4/4）；真实CLI子进程与MCP共用resident，无第二executor；成功snapshot按现行决定不落持久行，命令恰一行 | 已定command/失败query日志口径 | 7d1cc4bfa |
+| W3-07-8-01 | 通过 | 一级 | `tests/runtime-provider-identity.test.ts`（F1 7/7）；`tests/coding-goal-context-http.test.ts`（F4 1/1）；实际provider解析及旧caller/spread副本/换actor拒绝；重开不复活旧身份 | 已知 PG-006、PG-110（后续待遇） | 7d1cc4bfa |
+| W3-07-8-02 | 通过 | 一级 | `tests/goal-management-identity.test.ts`（F4 10/10）、`tests/goal-progress-plugin-identity.test.ts`（F4 2/2）、`tests/coding-goal-context-http.test.ts`（F4 1/1）、`tests/installed-plugin-execution.test.ts`（anti-native-node24.log 4/4）；四桥退役、真实等待后零 Goal events/receipt；同 SHA 干净 Node24 排除 Node25 动态库故障 | 已知 PG-006、PG-110 | 7d1cc4bfa |
+| W3-07-9-01 | 通过 | 一级 | `tests/typed-registry-inventory.test.ts`（F4 2/2）；`tests/goals-query-boundaries.test.mjs`（anti-semantic.log 6/6）；真实完整Host与固定内部名单比较，缺workspace不注册动作；mutation拦退役桥 | — | 7d1cc4bfa |
+| W3-09-1-01 | 部分通过 | 一级 | `tests/action-cross-entry.test.ts`（F4 8/8）；`tests/assistant-cross-entry.test.ts`（F4 3/3）；跨页面/MCP/SDK/助理同owner事实、literal拒绝与真实号；模型只脚本化，Host/review/SQLite为真实；诊断页只核HTTP HTML，用户查询/复制未实走 | — | 7d1cc4bfa |
+| W3-09-2-01 | 通过 | 一级 | `tests/action-cross-entry.test.ts`（F4 8/8）；`tests/assistant-cross-entry.test.ts`（F4 3/3）；`tests/mcp-action-catalog.test.ts`（F4 6/6）；`tests/model-unavailable-declarations.test.ts`（F4 8/8）；精确授权但不可用按名调用由Host拒绝并一行；未授权零dispatch；助理preflight零review | — | 7d1cc4bfa |
+| W3-09-3-01 | 通过 | 一级 | `tests/action-version-precondition.test.ts`（F4 20/20）；`tests/action-cross-entry.test.ts`（F4 8/8）；缺/空/不全版本表零handler/零Todo历史；本人/workflow/plugin现行豁免保持 | — | 7d1cc4bfa |
+| W3-09-3-02 | 通过 | 一级 | `tests/action-version-precondition.test.ts`（F4 20/20）；仅required版本错归version_required；其余input_invalid；null创建CAS保留 | — | 7d1cc4bfa |
+| W3-09-3-03 | 通过 | 一级 | `tests/action-version-precondition.test.ts`（F4 20/20）；仅活跃dispatcher关系豁免；错session/独立顶层/timeout旧promise零facts | — | 7d1cc4bfa |
+| W3-09-AUTH-01 | 通过 | 一级 | `tests/mcp-effect-authority.test.ts`（F1 2/2）；真实A/B同权限，后续等待撤A留B，Form SQLite无晚写 | — | 7d1cc4bfa |
+| W3-09-AUTH-02 | 通过 | 一级 | `tests/action-authority-tail.test.ts`（F1 10/10）；重新授权恢复、合法异步validator继续可用，最终同步尾检拒绝 | — | 7d1cc4bfa |
+| W3-09-AUTH-03 | 通过 | 一级 | `tests/action-authority-tail.test.ts`（F1 10/10）；`tests/plugin-owner-effect-fence.test.ts`（F1 1/1）；`tests/mcp-effect-authority.test.ts`（F1 2/2）；`tests/typed-effect-authority.test.ts`（F1 11/11）；`tests/mcp-scene-effect-authority.test.ts`（F1 1/1）；bind/control/嵌套/scene保留来源与目标精确授权；业务零写与平台诊断分别核对 | — | 7d1cc4bfa |
+| W3-10-1B-INTERLEAVE-01 | 部分通过 | 一级 | `tests/global-ui-interaction.e2e.test.ts`（F5 3/3）；持真实响应→切 section→释放，不覆盖当前 DOM；自动浏览器为一级，未作该动线二级实走 | — | 7d1cc4bfa |
+| W3-10-2-01 | 部分通过 | 一级 | `tests/ui-request-client-pages.test.ts`（anti-semantic.log 7/7）、`tests/workbench-request-pages.e2e.test.ts`（F5 1/1）；统一helper单次嵌入，实际Functions失败保稿/调用号可查、修正后保存；一级自动化，完整二级待补 | — | 7d1cc4bfa |
+| W3-10-3A-01 | 部分通过 | 一级 | `tests/ui-request-client-pages.test.ts`（anti-semantic.log 7/7）；helper文本嵌入不能证明Feed/Inbox409收据、跨项目晚到DOM完整；缺本编号行为引用 | 已知 BL-134、PG-056 | 7d1cc4bfa |
+| W3-10-3B-01 | 部分通过 | 一级 | `tests/ui-request-client-pages.test.ts`（anti-semantic.log 7/7）；已有统一helper装配；五参数adapter、404渲染和读取/审批两种生命周期仍缺完整二级 | 已知 PG-056 | 7d1cc4bfa |
+| W3-10-4-01 | 部分通过 | 一级 | `tests/computer-use-gaps.test.ts`（F1 11/11）、`tests/assistant-send-intent.e2e.test.ts`（F5 5/5）；记录/截图入 Shelf、跨 work 晚响应及丢回复重用 request_id；受控动线为一级，完整二级未补 | — | 7d1cc4bfa |
+| W3-10-UI-01 | 部分通过 | 一级 | `tests/ui-request-client-pages.test.ts`（anti-semantic.log 7/7）、`tests/workbench-request-pages.e2e.test.ts`（F5 1/1）；可见错误反馈/保稿有工程证据；系统clipboard、390光暗/纯键盘/unknown完整矩阵仍待二级 | — | 7d1cc4bfa |
+| W3-10-5-01 | 通过 | 一级 | `tests/health-gates-browser-fetch.test.ts`（F4 44/44）；生产CLI+真实Git历史mutation：fetch别名/拆片/HTML/精确例外、baseline洗大均拒绝 | — | 7d1cc4bfa |
+
+**W4（24项）。**
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／既定去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| W4-02-01 | 通过 | 一级 | `tests/plugin-methods-runtime.test.ts`（F4 4/4）；两项目登记一次；仅声明且有body的方法进入，最后实例stop才撤回 | — | 7d1cc4bfa |
+| W4-02-02 | 通过 | 一级 | `tests/plugin-methods-runtime.test.ts`（F4 4/4）；disable/enable/uninstall/upgrade实际撤回与重登记，旧版本不能读 | — | 7d1cc4bfa |
+| W4-02-03 | 通过 | 一级 | `tests/plugin-methods-runtime.test.ts`（F4 4/4）；新版本先启动、旧实例后stop不撤新方法，最后实例退出为空 | — | 7d1cc4bfa |
+| W4-02-04 | 部分通过 | 一级 | `tests/plugin-methods-runtime.test.ts`（F4 4/4）；现行目录owner外来body拒绝/沙箱不登记；旧机制已验证，最终平等待遇未完成 | 已知 PG-017、PG-051 | 7d1cc4bfa |
+| W4-03-01 | 通过 | 一级 | `tests/plugin-default-bindings.test.ts`（F4 4/4）；逐行13个原连线+未列名probe按自己的声明绑定source/group | — | 7d1cc4bfa |
+| W4-03-02 | 通过 | 一级 | `tests/plugin-default-bindings.test.ts`（F4 4/4）；人选不覆盖；缺provider/port/错type不绑定 | — | 7d1cc4bfa |
+| W4-03-03 | 通过 | 一级 | `tests/plugin-declaration-rules.test.ts`（F4 267/267）；八类Manifest默认来源/组非法声明实际拒绝；编号在参数化数据注释 | — | 7d1cc4bfa |
+| W4-03-04 | 部分通过 | 一级 | `tests/plugin-default-bindings.test.ts`（F4 4/4）；现行非bundled/伪builtin默认连线拒绝有断言；最终人确认统一绑定待既定方案 | 已知 PG-005 | 7d1cc4bfa |
+| W4-03-05 | 部分通过 | 一级 | `tests/builtin-plugin-composition.test.ts`（F4 3/3）、`tests/workbench-deferred-clients.e2e.test.ts`（F5 2/2）；factory/bundle映射、真实Coding一次下载/companion无副本和唯一stage节点；一级自动化，三宽暗色完整二级待补 | — | 7d1cc4bfa |
+| W4-04-01 | 通过 | 一级 | `tests/plugin-host-services.test.ts`（F4 11/11）；真实成果SQLite自己的head，外owner和无artifact:read拒绝 | — | 7d1cc4bfa |
+| W4-04-02 | 通过 | 一级 | `tests/plugin-host-services.test.ts`（F4 11/11）；自己的已归档固定版本readOwn保留，普通read/外owner/无权限拒绝 | — | 7d1cc4bfa |
+| W4-04-03 | 部分通过 | 一级 | `tests/form-runtime-routes.test.ts`（F4 3/3）；真实HTTP编辑/收集/结果/CSV/填页/两次固定/SQLite计数及旧URL404；完整可见动线待二级 | — | 7d1cc4bfa |
+| W4-04-04 | 通过 | 一级 | `tests/form-runtime-routes.test.ts`（F4 3/3）；`tests/form-actions.test.ts`（F4 14/14）；伪项目拒绝且表不写；停止收集后仍允许原答案文件导入 | — | 7d1cc4bfa |
+| W4-05-01 | 通过 | 一级 | `tests/assistant-followups-collaborator.test.ts`（F4 5/5）；真实records SQLite，queue/clock替身；日任务只一次/排次日、取消归档撤队列；按本片协作者标准 | — | 7d1cc4bfa |
+| W4-05-02 | 通过 | 一级 | `tests/assistant-followups-collaborator.test.ts`（F4 5/5）；提醒逐provider去重、未答者重问、规则严格；homeActions替身，不代表完整Host后台恢复 | — | 7d1cc4bfa |
+| W4-05-03 | 通过 | 一级 | `tests/assistant-followups-collaborator.test.ts`（F4 5/5）；实际源码imports只依赖自身ports/共享错误；结构标准按源码断言 | — | 7d1cc4bfa |
+| W4-06-01 | 通过 | 一级 | `tests/prologue-node-start-order.test.ts`（F4 1/1）；真实AgentHost+SDK目录重叠在credential exchange前拒绝，runs为空，重开无plan | — | 7d1cc4bfa |
+| W4-09-01 | 部分通过 | 一级 | `tests/host-periodic-tasks.test.ts`（F4 2/2）；真实诊断HTML五任务/周期/完成状态；可见诊断面未独立实走 | — | 7d1cc4bfa |
+| W4-09-02 | 通过 | 一级 | `tests/host-periodic-tasks.test.ts`（F4 2/2）；实际server重复start/stop后登记interval全清 | — | 7d1cc4bfa |
+| W4-09-03 | 通过 | 一级 | `tests/plugin-platform-composition.test.ts`（F4 4/4）；真实两SQLite连接，提交才通知/未提交与别project不影响，关闭后停止，间隔>=30s | — | 7d1cc4bfa |
+| W4-09-04 | 通过 | 一级 | `tests/alchemist-studio-idle.test.ts`（F4 3/3）；真实Host缩短idle时钟；闲置关、下次动作重开、进行中job/action不关 | — | 7d1cc4bfa |
+| W4-10-01 | 部分通过 | 一级 | `tests/attention-route.test.ts`（F4 2/2）；实际HTTP只核空值和数组/number类型；非空精确notice/pending及单来源失败隔离缺断言 | QA-022 | 7d1cc4bfa |
+| W4-10-02 | 部分通过 | 一级 | `tests/idle-request-budget.e2e.test.ts`（F5 1/1）；可见首页真实一分钟总请求≤6且attention=4；自动Chrome一级，未作二级连续闲置实走 | — | 7d1cc4bfa |
+| W4-11-03 | 通过 | 一级 | `tests/plugin-project-database.test.ts`（F4 11/11）；fixture不能领Lingguang库；未start、owner库目录不存在；声明归属后续已登记 | 已知 PG-022 | 7d1cc4bfa |
+
+**W5（128项）。**
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／既定去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| W5-01-ALC-LIFE-01 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；正式 Host 前台模型/metadata 等待时 close/delete：立即拒绝新动作；原 promise 退出前 SQLite 仍开，迟到成功/失败零业务写且合法输入保留 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-02 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）、`tests/alchemist-runtime.test.ts`（F4 13/13）；worker 忽略 abort 的真实等待须退出才关闭 SQLite，未提前关库；原业务及恢复族保持；模型为受控端点 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-03 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；真实 studio.database.close 首次抛错后仍拒绝动作；重试实际关库且幂等 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-04 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；实际 ProjectDeletionService 关闭失败保留目录/回执/唯一 studio，重试同回执后清理；未声称第二常驻 Host 进程 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-05 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；public Host.close 并发/成功后均同一 promise；失败重试新 promise，只重试未完成资源、原成功资源不重复 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-06 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；close/delete 交错与失败后 clear 仍等待 live owner，原 foreground 退出后才删除 SQLite 目录 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-07 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）、`tests/alchemist-studio-idle.test.ts`（F4 3/3）；一个真实 Host 加第二 StudioOwner 共享同一实例；释放一个 owner 不取消另一个；idle/get 交错唯一实例且 idle 失败显式重试，无未处理拒绝 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-LIFE-08 | 通过 | 一级 | `tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）、`tests/search-evidence-runtime.test.ts`（F4 4/4）；真实 SEL 组合中失败 transport/SQLite close 仅重试失败项；foundation/DB 引用保留到成功 | 已知 PG-038、PG-106 | 7d1cc4bfa |
+| W5-01-ALC-RES01 | 通过 | 一级 | `tests/alchemist-worker-process.test.ts`（F4 1/1）、`tests/alchemist-runtime.test.ts`（F4 13/13）、`tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；真实 fork/SIGKILL 后保留任务/lease/checkpoint；重复 query 六类业务表零初始化/零 dispatch，首次 command 初始化 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES02 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；双击只一次登记与 dispatch；当前 Taste 固定，继续 A 不消费 B，等待 B 不占 lease，撤权零写 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES03 | 通过 | 一级 | `tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）、`tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；模型、搜索及提交等屏障后失权的迟到成功/失败零 SQLite 业务写；HTTP/MCP 原授权保留 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES04 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）、`tests/alchemist-worker-process.test.ts`（F4 1/1）；确认后模型/Taste 变化拒绝；safe checkpoint 不发现模型、不重复卡片，进程恢复要显式继续 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES05 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；四类未知 checkpoint 恢复累计预算不归零；缺计数/耗尽零 dispatch、零扩额；安全 checkpoint 可完成 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES06 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）、`tests/security-invariants-alchemist-lifecycle.test.ts`（F1 21/21）；空库 query 零 actor/seed，首 command 外键顺序与默认值一次；本次操作者不由历史 actorId 授权 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES07 | 部分通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）及 `plugins/native/alchemist/tests/jobs/pulse-recovery.test.ts`（anti-pulse-recovery.log，包内Vitest3/3）；SQLite重开后已采来源不再fetch，撤权晚成功/失败七表逐行不变、后续来源调用0；未直接造Pulse等待中cancel晚返回，保留证据缺口 | QA-023；相关已知 PG-038、PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES08 | 部分通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）、`tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）、`tests/alchemist-resumption.e2e.test.ts`（F5 1/1）；真实 Chrome 恢复确认/忙态/耗尽入口及 HTTP 响应后继续、断开/MCP 原授权；一级自动化，二级完整实走待补 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES09 | 部分通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；generating 未知调用：旧确认拒绝且零调用、新确认再调用一次；三宽暗色收费提示按 spec:284 用户决定暂停 | 已定 §4.4 待补浏览器验证 | 7d1cc4bfa |
+| W5-01-ALC-RES10 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；各拒绝明确核对 code/kind，含无后台授权入口和任务不存在 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES-AUTH-01 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）；两类单独权限成功；缺类别在 actor/job 初始化前拒绝；冻结参数与原到期仍有效 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES-AUTH-02 | 通过 | 一级 | `tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）；旧 MCP 来源撤权后，新 grant/version/provider 不能恢复旧 guard；父子权限互不恢复；F2 action-background-authority 6/6 补 subset 与父子守卫 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES-AUTH-03 | 通过 | 一级 | `tests/alchemist-resumption.test.ts`（anti-semantic-w5.log 13/13）、`tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）；正常 HTTP 返回后继续，受理前断开/stop/Host close/删除/provider 换代拒写；类别有效但模型离线的安全 checkpoint 零模型完成 | 已知 PG-108 | 7d1cc4bfa |
+| W5-01-ALC-RES-SEARCH-01 | 通过 | 一级 | `tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）、`tests/search-effect-authority.test.ts`（F1 2/2）、`tests/search-evidence-runtime.test.ts`（F4 4/4）；生产 AnySearch transport 的 DNS/TLS 等待屏障撤权，建请求与 req.end 紧前拒绝，extract 每次检查；DNS/socket 为受控替身 | — | 7d1cc4bfa |
+| W5-01-ALC-RES-SEARCH-02 | 通过 | 一级 | `tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）、`tests/search-effect-authority.test.ts`（F1 2/2）、`tests/search-evidence-runtime.test.ts`（F4 4/4）；真实 SEL/SQLite 的 opaque/blob/content 与 Studio facts 无迟到结果/失败；合法预约保留；同步 blob 拒绝，CAS 删除/GC 有检查 | — | 7d1cc4bfa |
+| W5-01-ALC-RES-SEARCH-03 | 部分通过 | 一级 | `tests/security-invariants-alchemist-resumption.test.ts`（F1 8/8）、`tests/search-effect-authority.test.ts`（F1 2/2）、`tests/search-evidence-runtime.test.ts`（F4 4/4）；无 scope 写入拒绝且 close 可完成，现 owner 关闭回归通过；未逐一核实无 hooks Feed/Search 全部既有回归，不能把受控网络当实网 | — | 7d1cc4bfa |
+| W5-01-AQD-01 | 通过 | 一级 | `tests/plugin-action-query.test.ts`（F1 20/20）；真实 Runtime 父动作到 Pages content/get/list，原 caller 不变；权限/allowed/底层 allowed/grant/consumes 任一不足，handler/事实零写 | — | 7d1cc4bfa |
+| W5-01-AQD-02 | 通过 | 一级 | `tests/plugin-action-query.test.ts`（F1 20/20）；父/目标授权等待及交付前撤权、停用、同 id 重装拒绝旧结果；旧 scope/timer/别安装不可复用 | — | 7d1cc4bfa |
+| W5-01-AQD-03 | 通过 | 一级 | `tests/plugin-action-query.test.ts`（F1 20/20）、`tests/action-query-only.test.ts`（anti-semantic-w5.log 3/3）；发现后同一 ref 被替换为 command 仍拒绝；同步及新 bound client 均传播 query-only，handler 零进入 | — | 7d1cc4bfa |
+| W5-01-AQD-04 | 通过 | 一级 | `tests/plugin-action-query-http.test.ts`（F1 7/7）、`tests/plugin-action-query-home-http.test.ts`（F1 6/6）；真实 root/catalog Runtime HTTP 保 caller；伪造/克隆 control、输入项目、断开/隐藏/停用拒绝；Home 无项目与未知项目拒绝且不新开库 | — | 7d1cc4bfa |
+| W5-01-AQD-05 | 通过 | 一级 | `tests/plugin-action-query-mcp.test.ts`（F1 1/1）；受限 MCP stdio 只授权父动作时拒绝，目标及底层齐备才成功；撤权不能被安装全 grants 补回 | — | 7d1cc4bfa |
+| W5-01-AQD-06 | 通过 | 一级 | `tests/plugin-action-query.test.ts`（F1 20/20）；Pages 未启用/无 grant 时文本分支仍成功，Pages 分支明确不可用，required_actions 不变成授权 | — | 7d1cc4bfa |
+| W5-01-AQD-07 | 通过 | 一级 | `tests/plugin-action-query.test.ts`（F1 20/20）、`tests/plugin-action-query-http.test.ts`（F1 7/7）、`tests/plugin-action-query-home-http.test.ts`（F1 6/6）、`tests/coding-goal-context-http.test.ts`（F4 1/1）；原 invoke 的 plugin audience/consumes 和 own route command 的取消/权限保持；无 scope 不能委托，实际 Coding late receipt/events 零写 | — | 7d1cc4bfa |
+| W5-01-D1-01 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；真实项目 client 的旧五动作走唯一工厂；返回/事件游标/replayed/身份白名单以及停止/撤权/旧 client 拒绝保持 | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-D1-02 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；process head/readOwn 的精确 store、null/最新/归档/unavailable 恢复、错 producer/签名/个人 owner 拒绝；artifact own 沿既定旧规则 | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-D1-03 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；真实两类多版本目录、标题过滤/引用碰撞及未连端口；逐 ref 读取 kind/type/version 相同，查询故障抛出、空库空列表 | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-D1-04 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；未声明类型/schema、跨 store 同 id、冲突版本/伪身份/非法输入均拒绝，版本/事件不增；author≠安装actor保留原 created_by/owner | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-D1-05 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；真实 SDK discovery 的三 query @1 完整 schema；别安装/无 grant/伪 audience 拒绝；旧五动作 schema 独立期望不变 | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-D1-06 | 通过 | 一级 | `tests/plugin-artifact-operations.test.ts`（F1 8/8）、`tests/plugin-artifact-client.test.ts`（F3 2/2）、`tests/plugin-host-services.test.ts`（F4 11/11）；真实 Host 暴露 process head/readOwn/listConsumable；record/select及producer停止后的固定版本可读；工厂不注册provider、client一份且可dispose | 已知 PG-107 | 7d1cc4bfa |
+| W5-01-DATASET-01 | 通过 | 一级 | `tests/dataset-actions.test.ts`（F4 11/11）；真实 Host 动作/SQLite/固定成果，CSV 版本与发布事务故障恢复、重开/跨actor/不覆盖后改；模型七态为受控 completeText | 已知 PG-047、PG-060 | 7d1cc4bfa |
+| W5-01-DATASET-02 | 通过 | 一级 | `tests/dataset-mcp.test.ts`（F4 1/1）；同进程 MCP adapter→HTTP gateway，Host 对象关闭重建后事实持久；遵循 spec 限定，非外部 MCP 进程/OS 重启 | — | 7d1cc4bfa |
+| W5-01-DATASET-03 | 部分通过 | 一级 | `tests/dataset-actions.e2e.test.ts`（F5 3/3）；真实 Chrome 1440/390 Dataset 创建/编辑/固定/恢复；本轮3/3，一级自动化；1024/暗色及二级完整实走未补 | 已知 PG-060 | 7d1cc4bfa |
+| W5-01-DATASET-04 | 部分通过 | 一级 | `tests/dataset-file-import.e2e.test.ts`（F5 6/6）；真实 FileReader 屏障A/B文档切换、409保稿重试及事实写入；6/6，一级自动化；完整三宽暗色及键盘二级待补 | — | 7d1cc4bfa |
+| W5-01-DATASET-05 | 部分通过 | 一级 | `tests/personal-plugins-review-fixes.test.ts`（F4 16/16）、`tests/document-plugins-error-model.test.ts`（anti-semantic-w5.log 18/18）；现行 Manifest URL 与真实 HTTP missing/conflict/body-limit；web-route-table 旧 URL404 已通过（anti-web-routes.log 1/1）；完整多入口矩阵未实走 | — | 7d1cc4bfa |
+| W5-01-DATASET-06 | 通过 | 一级 | `tests/dataset-promote-authority.test.ts`（F1 1/1）、`tests/dataset-actions.test.ts`（F4 11/11）；真实插件 SQLite 的五屏障×取消/撤权/provider替换，合法已提交阶段保留；发布计数替身与真实 artifacts 正常/回滚链组合 | 已知 §10.29 #749／#761 已修 | 7d1cc4bfa |
+| W5-01-FORM-01 | 通过 | 一级 | `tests/form-promote-authority.test.ts`（F1 1/1）；真实插件/SQLite 五屏障×三失效，原合法阶段保留，后续零新增；artifacts.publish为计数替身，限定原授权事务栅栏 | — | 7d1cc4bfa |
+| W5-01-HOME-STAGE-01 | 部分通过 | 一级 | `tests/workbench-deferred-clients.e2e.test.ts`（F5 2/2）、`tests/images-actions.e2e.test.ts`（F5 4/4）、`tests/jelly-actions.e2e.test.ts`（F5 2/2）；真实唯一root、原节点保留及单次资源下载，Images/Jelly动线通过；自动化一级，未代替完整二级 | — | 7d1cc4bfa |
+| W5-01-HPR-01 | 通过 | 一级 | `tests/home-plugin-project-routes.test.ts`（F1 1/1）；真实 HTTP 有项目抵达输入/动作，Home/隐藏/撤权拒绝；不能借别项目、body、query 增权且零 job | — | 7d1cc4bfa |
+| W5-01-IMAGES-LIFECYCLE-01 | 部分通过 | 一级 | `tests/ui-client-lifecycle.e2e.test.ts`（F5 3/3）；隐藏停轮询、重开刷新、移除取消、晚响应不覆盖及复用DOM单监听实际断言；HTTP为生命周期夹具，非真实生图二级 | — | 7d1cc4bfa |
+| W5-01-IMGHTTP-01 | 部分通过 | 一级 | `tests/security-invariants-plugin-route-attachments.test.ts`（F1 6/6）、`tests/images-service.test.ts`（F4 12/12）；真实 Home/project HTTP 三位图内联/下载及字节/文件名；HTML/SVG/伪头不能内联，nosniff/sandbox/no-store 保留；受控生成；真实生成→预览→下载UI未二级实走 | — | 7d1cc4bfa |
+| W5-01-IMGPORT-01 | 通过 | 一级 | `tests/plugin-image-generation.test.ts`（F1 8/8）、`tests/images-providers.test.ts`（F4 6/6）、`tests/images-service.test.ts`（F4 12/12）；真实 Host/连接 owner；失效绑定、错误服务/目标、disabled/removed、凭据/绑定变化拒绝；受控HTTP请求计数/返回可查 | 已知 PG-026、PG-102 | 7d1cc4bfa |
+| W5-01-IMGPORT-02 | 通过 | 一级 | `tests/plugin-image-generation.test.ts`（F1 8/8）、`tests/images-service.test.ts`（F4 12/12）；Runtime 当前安装/原后台授权，晚成功/失败零写；最多两项/幂等/取消释放槽；重开标 interrupted/孤儿文件清理不重派 | 已知 PG-038、PG-102、PG-104 | 7d1cc4bfa |
+| W5-01-IMGPORT-03 | 通过 | 一级 | `tests/images-service.test.ts`（F4 12/12）、`tests/home-plugin-project-cleanup.test.ts`（F1 6/6）；真实删除/固定id重建、模型等待和文件提交屏障，回执前同步取消；晚资产/记录不复活，孤儿文件按恢复清理 | 已知 PG-104、PG-106 | 7d1cc4bfa |
+| W5-01-JELLYHTTP-02 | 部分通过 | 一级 | `tests/jelly-actions.e2e.test.ts`（F5 2/2）；正式Chrome1440/390初载、创建编辑/手拆/复制日程/重载持久化；自动化一级，1024暗色及完整二级待验 | — | 7d1cc4bfa |
+| W5-01-JMC-01 | 通过 | 一级 | `tests/plugin-model-configuration.test.ts`（F1 4/4）、`tests/jelly-model.test.ts`（F4 12/12）、`tests/jelly-plugin.test.ts`（F4 6/6）、`tests/jelly-http-stream.test.ts`（F4 2/2）；Runtime 保原53动作与选择/preferences格式，配置保存不联网；配置不需模型调用grant | 已知 PG-102 | 7d1cc4bfa |
+| W5-01-JMC-02 | 通过 | 一级 | `tests/plugin-model-configuration.test.ts`（F1 4/4）；非设置动作/伪声明/跨安装/停用换代/撤权/旧回调拒绝；preferences、provider、连接零迟到写 | 已知 PG-102 | 7d1cc4bfa |
+| W5-01-JMC-03 | 通过 | 一级 | `tests/plugin-model-configuration.test.ts`（F1 4/4）、`tests/jelly-model.test.ts`（F4 12/12）；等待前冻结输入，失效显式选择不回退；文件失败回滚provider/preferences，首次origin pin按已定边界保留 | 已知 PG-102 | 7d1cc4bfa |
+| W5-01-SEL-01 | 通过 | 一级 | `tests/plugin-model-selection.test.ts`（F4 4/4）；两个受控 HTTP 模型，默认保持原选择、显式只命中目标，请求次数与标签核对 | — | 7d1cc4bfa |
+| W5-01-SEL-02 | 通过 | 一级 | `tests/plugin-model-selection.test.ts`（F4 4/4）；坏形状/缺目录/停用/断连均零模型请求，不因另一模型可用而回退 | — | 7d1cc4bfa |
+| W5-01-SEL-03 | 通过 | 一级 | `tests/plugin-model-selection.test.ts`（F4 4/4）；授权等待期间原输入变化不改快照，撤权/取消/连接变更拒绝派出或交付；拒后零业务写 | — | 7d1cc4bfa |
+| W5-01-SHM-01 | 通过 | 一级 | `tests/security-invariants-plugin-model-materials.test.ts`（F1 14/14）；真实 Runtime→Host→SDK→受控两协议：原图顺序/字节、prompt覆盖、成功/失败/JSON回执、0600/0700快照和清理；伪图/非vision零请求 | 已知 PG-047；BL-178 | 7d1cc4bfa |
+| W5-01-SHM-02 | 通过 | 一级 | `tests/security-invariants-plugin-model-materials.test.ts`（F1 14/14）；最终 beforeEffect 屏障改连接/模型、撤权、stop/restart，成功与失败guard均零迟到写；旧/跨调用guard不可复用，正常对照可提交 | 已知 PG-047 | 7d1cc4bfa |
+| W5-01-SHM-03 | 通过 | 一级 | `tests/security-invariants-plugin-model-materials.test.ts`（F1 14/14）、`tests/plugin-model-selection.test.ts`（F4 4/4）；choices 随目录状态变化且零请求/零解密，无地址/凭据引用；精确selection/availability/complete一致、不回退 | — | 7d1cc4bfa |
+| W5-01-SHM-04 | 通过 | 一级 | `tests/host-inference-completion.test.ts`（F4 12/12）；真实初始化barrier撤凭据，保原 connection_required、零dispatch、无执行事实/guard；成功和provider失败回归保持 | — | 7d1cc4bfa |
+| W5-01-PPT-01 | 通过 | 一级 | `tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）、`tests/ppt-store.test.ts`（F3 3/3）；项目 Runtime 装配、原 Home SQLite/旧数据重开、动作目录；F2 assembly 4/4 与F0包清单核对保持 | — | 7d1cc4bfa |
+| W5-01-PPT-02 | 部分通过 | 一级 | `tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）、`tests/document-plugins-error-model.test.ts`（anti-semantic-w5.log 18/18）、`tests/personal-plugins-review-fixes.test.ts`（F4 16/16）；现行11路由/SDK动作、unknown ppt.not_found、真实missing/conflict/body-limit；web-route-table旧URL404已通过（anti-web-routes.log 1/1），完整入口矩阵未全验 | — | 7d1cc4bfa |
+| W5-01-PPT-03 | 通过 | 一级 | `tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）；真实Host/SQLite/Artifacts的两阶段发布、固定内容/身份、故障恢复、actor隔离与关闭重开持久；非publish计数替身 | — | 7d1cc4bfa |
+| W5-01-PPT-04 | 通过 | 一级 | `tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）、`tests/plugin-action-query.test.ts`（F1 20/20）；Pages读保原caller/audience/allowlist；text-only未授权Pages仍可用，required_actions不无条件赋权 | — | 7d1cc4bfa |
+| W5-01-PPT-05 | 部分通过 | 一级 | `tests/document-plugins-limits.test.ts`（anti-semantic-w5.log 9/9）、`tests/security-invariants-plugin-model-materials.test.ts`（F1 14/14）；PPT用例 validateResult 为空，只验派发前撤权；共享SHM最终guard不能代替PPT首业务SQL的事务接缝。生产guard存在，未确认产品越权 | QA-019；相关 PG-047 | 7d1cc4bfa |
+| W5-01-PPT-06 | 通过 | 一级 | `tests/document-plugins-limits.test.ts`（anti-semantic-w5.log 9/9）；outline 1–39/40页与title-only/replace精确容量；40页拒绝零模型、replace和剩余裁切实际文稿结果，不靠模型文本字样 | — | 7d1cc4bfa |
+| W5-01-PPT-07 | 部分通过 | 一级 | `tests/ppt-promote-authority.test.ts`（F1 1/1）、`tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）、`tests/plugin-action-query.test.ts`（F1 20/20）、`tests/plugin-action-query-http.test.ts`（F1 7/7）、`tests/plugin-action-query-mcp.test.ts`（F1 1/1）；真实PPT五屏障×失权与SQLite零新阶段；共享HTTP/MCP/Agent caller及克隆control拒绝有效，但未逐入口串齐同一PPT命令，保留组合边界 | — | 7d1cc4bfa |
+| W5-01-PPT-08 | 部分通过 | 一级 | `tests/ppt-actions.test.ts`（anti-semantic-w5.log 5/5）、`tests/ppt-store.test.ts`（F3 3/3）；PPT定向与F0 build/boundary/health，F2 assets/API/action快照/assembly通过；PPT05接缝及07完整入口证据未齐，不能整体过 | — | 7d1cc4bfa |
+| W5-01-PPT-STORE-01 | 通过 | 一级 | `tests/ppt-store.test.ts`（F3 3/3）；Store 唯一 schema 与 Home baseline 逐项一致；ownPptStores 通过原 Store 读写，不开第二库 | — | 7d1cc4bfa |
+| W5-01-PPT-STORE-02 | 通过 | 一级 | `tests/ppt-store.test.ts`（F3 3/3）；真实原库 duplicate/receive 中途 SQL trigger 失败整事务回滚，无半份 deck/receipt | — | 7d1cc4bfa |
+| W5-01-PPT-STORE-03 | 通过 | 一级 | `tests/ppt-store.test.ts`（F3 3/3）；beforeEffect 拒绝时写回调进入数0、数据库原事实不变 | — | 7d1cc4bfa |
+| W5-01-WORKFLOWS-STORE-01 | 通过 | 一级 | `tests/workflows-store.test.ts`（F4 2/2）；真实Store SQL端口与revision冲突拒绝，原事实/版本不变；仅Store准备片 | 已知 PG-023 | 7d1cc4bfa |
+| W5-01-WORKFLOWS-STORE-02 | 通过 | 一级 | `tests/workflows-store.test.ts`（F4 2/2）；beforeEffect拒绝时回调0进入、SQL零变化；未扩大成Workflows完整Runtime迁移 | 已知 PG-023 | 7d1cc4bfa |
+| W5-01-RPC-01 | 通过 | 一级 | `tests/home-plugin-project-cleanup.test.ts`（F1 6/6）；真实Runtime当前代次同步cancel先于purge，close后恢复原owner；marker文件顺序可查 | 已知 PG-106 | 7d1cc4bfa |
+| W5-01-RPC-02 | 通过 | 一级 | `tests/home-plugin-project-cleanup.test.ts`（F1 6/6）；缺可信声明、变更原声明、async回调/抛错均拒绝或冻结身份；拒绝保marker且purge0，可重试 | 已知 PG-106 | 7d1cc4bfa |
+| W5-01-RPC-03 | 通过 | 一级 | `tests/home-plugin-project-cleanup.test.ts`（F1 6/6）、`tests/images-service.test.ts`（F4 12/12）；按spec复用IMGPORT-02/03的受理/文件提交屏障，旧任务晚到拒绝与重开孤儿清理；不需另造RPC03用例 | 已知 PG-106 | 7d1cc4bfa |
+| W5-01-STREAM-01 | 通过 | 一级 | `tests/security-invariants-plugin-route-stream.test.ts`（F1 12/12）、`tests/security-invariants-home-route-project.test.ts`（F1 6/6）、`tests/security-invariants-plugin-model-progress.test.ts`（F1 10/10）；真实HTTP进度先于唯一result/error终行；JSON无emit，Home可信project不变；模型仅文字增量保顺序 | — | 7d1cc4bfa |
+| W5-01-STREAM-02 | 通过 | 一级 | `tests/security-invariants-plugin-route-stream.test.ts`（F1 12/12）、`tests/plugin-declaration-rules.test.ts`（F4 267/267）；非法Manifest stream/体上限拒绝；36,000,000字节可进入，多1字节处理器前JSON413且handler0 | — | 7d1cc4bfa |
+| W5-01-STREAM-03 | 通过 | 一级 | `tests/security-invariants-plugin-route-stream.test.ts`（F1 12/12）；伪终行字段及插件call_id丢弃，JSON/流只Host号；单行/行数/总量超限取消且唯一错误末行 | — | 7d1cc4bfa |
+| W5-01-STREAM-04 | 通过 | 一级 | `tests/runtime-plugin-http-discovery.test.ts`（F1 17/17）、`tests/security-invariants-plugin-model-progress.test.ts`（F1 10/10）；Home/项目各断连、停用、撤权、升级8种实际HTTP中断先结束；释放旧handler后业务拒写、恢复库无晚到；旧文字回调拒绝 | — | 7d1cc4bfa |
+| W5-01-STREAM-05 | 通过 | 一级 | F2 `tests/plugin-route-stream-lifecycle.test.ts` 1/1：反复成功/抛错/取消/停用后watchers/timers归零，停用后emit同步拒绝 | — | 7d1cc4bfa |
+| W5-08-CTX-01 | 通过 | 一级 | `tests/private-work-context-module.test.ts`（F4 2/2）；公开出口无RuntimeContextBindingRepository，Host不构造/保存，owner工厂仍装配同一绑定服务 | — | 7d1cc4bfa |
+| W5-08-CTX-02 | 通过 | 一级 | `tests/private-work-context-module.test.ts`（F4 2/2）；真实公开Catalog确认绑定/事件、create+bind幂等、删除清理；缺确认绑定与事件均零新增 | — | 7d1cc4bfa |
+| W5-08-CTX-03 | 部分通过 | 一级 | `tests/private-work-context-module.test.ts`（F4 2/2）；F0/F2工程门禁与Runtime/MCP/Session/删除相关族有通过记录；尚未逐项核尽两个README必跑清单，不以局部替完整组合 | — | 7d1cc4bfa |
+| W5-08-CTX-04 | 通过 | 一级 | `tests/private-work-context-boundaries.test.mjs`（anti-semantic-w5.log 3/3）；实际源码变异：包出口/Host暴露Repository、直接SQL、缺owner工厂、新装配超长均触发门禁拒绝 | — | 7d1cc4bfa |
+| W5-08-MOD-01 | 通过 | 一级 | `tests/projects-module.test.ts`（F3 2/2）、`tests/governance-collaboration-module.test.ts`（F3 1/1）；两个公开包无存储实现导出，Module实例无repository；生产公开入口不是源码字符串存在断言 | — | 7d1cc4bfa |
+| W5-08-MOD-02 | 通过 | 一级 | `tests/projects-module.test.ts`（F3 2/2）、`tests/governance-collaboration-module.test.ts`（F3 1/1）、`tests/goal-events.test.ts`（F3 13/13）、`tests/planning-engine.test.ts`（F4 15/15）、`tests/project-deletion-service.test.ts`（F4 16/16）；公开项目确认拒绝后membership不变；真实提案owner故障令decision/item/目标事实同事务回滚；Goal事件重开、批量拒绝零事件、幂等/版本冲突与规划图约束 | — | 7d1cc4bfa |
+| W5-08-MOD-03 | 通过 | 一级 | `tests/goals-command-module.test.ts`（F3 2/2）、`tests/goals-query-module.test.ts`（F4 1/1）、`tests/artifacts-module.test.ts`（F3 3/3）；两个包无Repository导出，三个Module及返回服务均无公开repository；owner内部保同一服务 | — | 7d1cc4bfa |
+| W5-08-MOD-04 | 通过 | 一级 | `tests/goals-command-module.test.ts`（F3 2/2）、`tests/goals-query-module.test.ts`（F4 1/1）、`tests/artifacts-module.test.ts`（F3 3/3）、`tests/plugin-artifact-client.test.ts`（F3 2/2）；真实公开Goal创建/关系拒绝零事件、初始化trigger回滚/幂等、archive/trash/恢复；实际版本/游标/冲突拒绝与过程项固定版；Query旧结构比较外另有独立事实期望 | — | 7d1cc4bfa |
+| W5-10-PGC-01 | 部分通过 | 一级 | `tests/pages-plugin.test.ts`（F4 127/127）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；历史139声明/113签名保持的原记录不是本轮独立证据 | — | 7d1cc4bfa |
+| W5-10-PGC-02 | 通过 | 一级 | `tests/pages-plugin.test.ts`（F4 127/127）、`tests/pages-input-rules.test.ts`（anti-semantic-w5.log 7/7）、`tests/pages-conversion.test.ts`（anti-semantic-w5.log 10/10）；生产命令块/列表/容器/代码/格式/Markdown，实际文档、撤销、不适用拒绝；127/127+7/7+10/10，非函数存在断言 | — | 7d1cc4bfa |
+| W5-10-PGC-03 | 不通过 | 一级、二级（阻断点） | content-editing-regressions 9/9与plugin-small-ux 16/16通过；标准点名的content-portable-regressions仅2/3，FU确认SOURCES多选入口失效。不能证明当前完整往返保持；不推断命令重构本身造成 | QA-024 | 7d1cc4bfa |
+| W5-10-PGV-01 | 部分通过 | 一级 | `tests/pages-plugin.test.ts`（F4 127/127）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；历史94声明逐项等价未由本轮重复核查 | — | 7d1cc4bfa |
+| W5-10-PGV-02 | 不通过 | 一级、二级（阻断点） | pages-plugin 127/127、input-rules 7/7、conversion 10/10、content-editing 9/9、previews 2/2通过；同组portable来源入口多选失效，FU复现，当前组合不全通过；历史AST等价结论不因此被否定 | QA-024 | 7d1cc4bfa |
+| W5-10-PGF-01 | 部分通过 | 一级 | `tests/pages-find.e2e.test.ts`（F5 1/1）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；查找视图现有语义有Chrome结果，原63声明等价不是本轮证据 | — | 7d1cc4bfa |
+| W5-10-PGF-02 | 部分通过 | 一级 | `tests/pages-find.e2e.test.ts`（F5 1/1）；正式资源/真实ProseMirror：大小写查找、高亮计数、双向循环、单个/全部/空替换、undo/Escape/重开/销毁；公开mount夹具仅一级 | — | 7d1cc4bfa |
+| W5-10-PGH-01 | 部分通过 | 一级 | `tests/pages-block-drag.e2e.test.ts`（F5 2/2）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；原状态/事件/命令顺序和27出口历史比对未重做 | — | 7d1cc4bfa |
+| W5-10-PGH-02 | 部分通过 | 一级 | `tests/pages-block-drag.e2e.test.ts`（F5 2/2）；实际Chrome pointer：预览不写、释放移动、Alt复制、undo、Escape/正文改变取消/重挂；非系统拖放、仅一级 | — | 7d1cc4bfa |
+| W5-10-PGI-01 | 部分通过 | 一级 | `tests/pages-insert-plugins.e2e.test.ts`（F5 2/2）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；原实现除段间外层的逐声明等价未本轮重做 | — | 7d1cc4bfa |
+| W5-10-PGI-02 | 部分通过 | 一级 | `tests/pages-insert-plugins.e2e.test.ts`（F5 2/2）；真实slash过滤/键盘选择、@提及、退出正文不变与销毁清理；公开mount一级，完整工作台二级待补 | — | 7d1cc4bfa |
+| W5-10-PGI-03 | 部分通过 | 一级 | `tests/pages-insert-plugins.e2e.test.ts`（F5 2/2）；实际点段间条获焦，输入仅插两块之间、undo/Escape/重挂；CDP composition事件证明合成期间零写/提交一次，不是系统拼音候选窗 | — | 7d1cc4bfa |
+| W5-10-PGK-01 | 部分通过 | 一级 | `tests/pages-keyboard.e2e.test.ts`（F5 4/4）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；历史37键名顺序/handler等价未独立穷尽 | — | 7d1cc4bfa |
+| W5-10-PGK-02 | 部分通过 | 一级 | `tests/pages-keyboard.e2e.test.ts`（F5 4/4）；真实Mac Chrome格式/块转换/复制/历史、Enter删除、表格/代码/容器Tab；断言正文/邻居/选区/undo/focus，代表状态不是37键全矩阵 | — | 7d1cc4bfa |
+| W5-10-PGK-03 | 部分通过 | 一级 | `tests/pages-keyboard.e2e.test.ts`（F5 4/4）、`tests/pages-insert-plugins.e2e.test.ts`（F5 2/2）、`tests/pages-block-menu.e2e.test.ts`（F5 1/1）、`tests/pages-clipboard.e2e.test.ts`（F5 3/3）；setDoc及destroy/remount只影响当前实例，命令/菜单/剪贴板优先级；仅Mac Chrome一级，Windows/AltGr与二级未验 | — | 7d1cc4bfa |
+| W5-10-PGM-01 | 部分通过 | 一级 | `tests/pages-block-menu.e2e.test.ts`（F5 1/1）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；原AST/事件顺序历史对照未重做 | — | 7d1cc4bfa |
+| W5-10-PGM-02 | 部分通过 | 一级 | `tests/pages-block-menu.e2e.test.ts`（F5 1/1）；实际鼠标/键盘菜单及子菜单、颜色/转换/复制/删除/undo、多块/Escape/重挂；正文变化有断言，公开mount一级 | — | 7d1cc4bfa |
+| W5-10-PGP-01 | 部分通过 | 一级 | `tests/pages-clipboard.e2e.test.ts`（F5 3/3）；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同；27出口签名和搬移正文逐AST等价未独立重做 | — | 7d1cc4bfa |
+| W5-10-PGP-02 | 部分通过 | 一级 | `tests/pages-clipboard.e2e.test.ts`（F5 3/3）；正式bundle ClipboardEvent/DataTransfer→真实PM：HTML/Markdown多块copy/cut、邻块、undo及HTML/URL/结构化/纯文本优先级；非OS剪贴板 | — | 7d1cc4bfa |
+| W5-10-PGP-03 | 部分通过 | 一级 | `tests/pages-clipboard.e2e.test.ts`（F5 3/3）、`tests/content-editing-regressions.e2e.test.ts`（F5 9/9）；DOM图片paste/drop落点、等待映射锚点、换文档/销毁后零写、重挂；非系统文件拖入授权，完整二级未验 | — | 7d1cc4bfa |
+| W5-10-PGT-01 | 部分通过 | 一级 | `tests/pages-tools.e2e.test.ts`（F5 3/3）；14工具定义/分组/字段/译文顺序真实断言通过；F0 现行 build/health/API/boundary 与资源门禁通过；未独立重做原重构前后 AST/声明等价比较，仅证明当前结构和合同 | — | 7d1cc4bfa |
+| W5-10-PGT-02 | 部分通过 | 一级 | `tests/pages-tools.e2e.test.ts`（F5 3/3）；真实pressed、只读tools/screen零额外通知、正文/邻居/选区/undo/focus、tone/link/comment；未知id零改写/抢焦，公开mount一级 | — | 7d1cc4bfa |
+| W5-10-PGT-03 | 部分通过 | 一级 | `tests/pages-tools.e2e.test.ts`（F5 3/3）、`tests/pages-keyboard.e2e.test.ts`（F5 4/4）、`tests/content-context-regressions.e2e.test.ts`（F5 2/2）；setDoc/滚动/重挂的新文档与独立可见DOM Range矩形≤2px，旧实例不受新handle影响；small-ux本轮16/16通过，窄屏/二级尚不完整 | — | 7d1cc4bfa |
+| W5-10-PPV-01 | 部分通过 | 一级 | `tests/pages-previews.e2e.test.ts`（F5 2/2）；780×493公开mount中link/comment及重叠标记、空/非空选择、目标按钮/window.open参数、编辑取消；setDoc保既定刷新时点，仅一级 | — | 7d1cc4bfa |
+| W5-10-PPV-02 | 部分通过 | 一级 | `tests/pages-previews.e2e.test.ts`（F5 2/2）；实际focus/blur、scroll/resize/onScreen/release、旧timer/订阅与重挂；按钮/表单仍可用，未代替完整二级 | — | 7d1cc4bfa |
+| W5-10-PPV-03 | 部分通过 | 一级 | `tests/pages-previews.e2e.test.ts`（F5 2/2）；真实点击保存/取消后立即隐藏当前表单，编辑保持/取消零写、Escape、重开点击不被旧textarea挡；一级回归通过 | — | 7d1cc4bfa |
+| W5-13-01 | 通过 | 一级 | `tests/host-log.test.ts`（F4 5/5）；真实日志entry字段/时间/level/area/code结构，capture观察结构对象；未独立断言stderr最终字节为单行JSON | — | 7d1cc4bfa |
+| W5-13-02 | 通过 | 一级 | `tests/host-log.test.ts`（F4 5/5）；debug区域按选择开关，warn/error保留，调用范围含原call_id而非用户内容 | — | 7d1cc4bfa |
+| W5-13-03 | 通过 | 一级 | tests/host-log.test.ts（F4 5/5）：真实日志入口按精确对象核对，错误message/stack及字段中的私文/路径/秘密样本均未写入；形状过滤并非通用密钥检测，边界由W5-13-09另钉住 | — | 7d1cc4bfa |
+| W5-13-04 | 通过 | 一级 | `tests/host-log-catches.test.ts`（F4 6/6）；只吞预期not-found，其余同一Error原样抛出；不是统一空catch | — | 7d1cc4bfa |
+| W5-13-05 | 通过 | 一级 | `tests/host-log-catches.test.ts`（F4 6/6）；预览失败按owner/domain公开结果与诊断分离，不泄内部路径/内容 | — | 7d1cc4bfa |
+| W5-13-06 | 通过 | 一级 | `tests/host-log-catches.test.ts`（F4 6/6）；真实Coding损坏SQLite只报一次，恢复后再次故障重新报；数据库/状态实际检查 | — | 7d1cc4bfa |
+| W5-13-07 | 通过 | 一级 | `tests/connector-mcp.test.ts`（F1 48/48）；插件加载失败只含安装id诊断，其他连接仍实际登记可用；精确W5-13-07断言 | — | 7d1cc4bfa |
+| W5-13-08 | 通过 | 一级 | `tests/host-log-catches.test.ts`（F4 6/6）；重复故障helper节流/去重有计数断言；未实等30秒scheduler循环 | — | 7d1cc4bfa |
+| W5-13-09 | 通过 | 一级 | `tests/host-log.test.ts`（F4 5/5）；结构字段白名单不含用户文字/路径/stack，callsite采用enum/id/count；不是任意value中的秘密识别器 | — | 7d1cc4bfa |
+| W5-13-10 | 通过 | 一级 | tests/host-log.test.ts（F4 5/5）：search.refresh重复同码仅一条，search.reconcile及另一错误码各保留，精确核对三条记录；是遍次+错误码去重，不是call scope | — | 7d1cc4bfa |
+| W5-13-11 | 通过 | 一级 | `tests/host-log-catches.test.ts`（F4 6/6）、`tests/im-local-project.test.ts`（F4 2/2）；真实HTTP404/500后下一次请求仍成功；错误边界fixture有精确状态/次数；im-local-project补项目解析 | — | 7d1cc4bfa |
+
+**SHF（7项）。**
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／既定去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| SHF-IO-S01 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files-registration.test.ts`（F1 6/6）；坏尾项/跨scope同ID/伪owner/sandbox在目录和seed前拒绝；冻结声明不能改目标 | 已知 PG-102 | 7d1cc4bfa |
+| SHF-IO-S02 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files-lifecycle.test.ts`（F1 12/12）；grant后初始化先于start；旧writer过期、失败不登记动作、坏catalog保留 | 已知 PG-103 | 7d1cc4bfa |
+| SHF-IO-S03 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files.test.ts`（F1 5/5）；真实路径/软硬链/FIFO拒绝；坏末段不造父目录，坏子树预检零删除 | — | 7d1cc4bfa |
+| SHF-IO-S04 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files-lifecycle.test.ts`（F1 12/12）；真实beforeEffect屏障cancel/revoke/stop/新generation零create/update/delete/chmod；无scope/query/错安装拒绝 | 已知 PG-104（另一files服务） | 7d1cc4bfa |
+| SHF-IO-S05 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files-lifecycle.test.ts`（F1 12/12）；返回/throw/microtask/旧ALS/后续新动作不复活writer；非法promise有观察，保留已合法同步写 | — | 7d1cc4bfa |
+| SHF-IO-S06 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files.test.ts`（F1 5/5）；exclusive/replace/copy冲突；rename注入失败原bytes保留且清temp；Unicode/buffer隔离/>32MiB | 已知 PG-104 V-30（权限位） | 7d1cc4bfa |
+| SHF-IO-S07 | 通过 | 一级 | `tests/security-invariants-plugin-owner-files-registration.test.ts`（F1 6/6）；`tests/security-invariants-plugin-owner-files-lifecycle.test.ts`（F1 12/12）；项目/sandbox/替代definition不继承trusted服务，preflight无句柄、原文件保留 | 已知 PG-017、PG-102 | 7d1cc4bfa |
+
+本组结算：149通过、62部分通过、3不通过、1未验证；按已定决定不做0。不能据这些子项通过归档整条防腐线：QA-019/020/022/023/024、W5余项与PG既定迁移、历史等价/当前全量和完整二级仍需分别收口。Pulse缺口未混入QA-021；未确认产品发生越权或晚到业务写。
+
+### 4.8 各线基线后新增编号补核
+
+每线已冻结的结论不追随main自动改绿。防腐开工7d1时发现交互新增14、回执新增2个编号，本节补齐并计入总览：原926行加16行，共942行。此后main继续合入，不声称覆盖ee6及其后所有新需求；ee6用于指定文档问题复验，3cac仅补QA-006，不把更晚新增的SLOT/回执标准自动纳入旧线初验。
+
+L1：7d1的late-criteria.log，六个定向文件9项通过；按编号筛选实际匹配，不是零匹配退出0。AC-10-1～8为§15.10 AC10-B明确后续，#815当时在途，无本SHA精确引用，列未验证而非“做了却没证据”。其余可见行为仅一级，均部分通过。
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| AC-06-1 | 部分通过 | 一级 | L1 assistant-interaction-html:181，owner结果链接/步骤ID/标题及回退精确断言；真实卡点击未实走 | AC06新增卡二级待补 | 7d1cc4bfa |
+| AC-06-2 | 部分通过 | 一级 | L1同文件:190，最新卡、失败/未知/忽略/旧轮/无链接与运行/停止/重试状态；完整界面未实走 | 同上 | 7d1cc4bfa |
+| AC-06-3 | 部分通过 | 一级 | L1同文件:208，SLOT-01等待后只留结果；只含一种等待组合，邻接FLOW不作为本条所有组合证明 | 同上 | 7d1cc4bfa |
+| AC-06-4 | 部分通过 | 一级 | L1 assistant-step-row:94，真实客户端轻量DOM点击Open一次、Run零次、滚动一次；非真实浏览器 | 同上 | 7d1cc4bfa |
+| AC-06-5 | 部分通过 | 一级 | L1 coding-next-steps:64，最新选择器/优先级/终态与失败/无结果；真实Coding卡未实走 | 同上 | 7d1cc4bfa |
+| AC-10-1 | 未验证 | 未达一级（仅静态） | 三宽及44px精确标准未有本SHA引用；旧相邻尺寸不能替代 | 已定§15.10 AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-2 | 未验证 | 未达一级（仅静态） | 对比度精确标准未有本SHA断言或二级测量 | 已定AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-3 | 未验证 | 未达一级（仅静态） | 全键盘及焦点返回标准未有本SHA精确断言；Form局部不能覆盖全部 | 已定AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-4 | 未验证 | 未达一级（仅静态） | 本条IME组合无精确引用；合成事件也不能代替系统候选窗 | 已定AC10-B；BL-016用户验收 | 7d1cc4bfa |
+| AC-10-5 | 未验证 | 未达一级（仅静态） | 当前卡减动画标准未运行；I0原型结果不能替代 | 已定AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-6 | 未验证 | 未达一级（仅静态） | 轮询三次保节点/选择/滚动本条无精确引用，未实际复验 | 已定AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-7 | 未验证 | 未达一级（仅静态） | 390长文/长标签本条无精确引用，未补矩阵 | 已定AC10-B；在途#815 | 7d1cc4bfa |
+| AC-10-8 | 未验证 | 未达一级（仅静态） | ARIA与回执状态本条未精确引用；真实读屏更未验 | 已定AC10-B；BL-016 | 7d1cc4bfa |
+| AC-10-9 | 部分通过 | 一级 | L1 interaction-components:156与coding-question-card:81，可选单选清空按钮及中英字段；实际清空浏览器路径本轮未跑 | 旧#775实现已合；二级仍缺 | 7d1cc4bfa |
+| RCPT-366 | 部分通过 | 一级 | L1 input-receipts-client:430，真实客户端轻量DOM区分人工搁置/模型状态、owner变化及中英；非完整产品浏览器 | 二级待补 | 7d1cc4bfa |
+| RCPT-367 | 部分通过 | 一级 | L1同文件:511，一轮/两轮中英文整句与旧碎片移除；旧RCPT-361浏览器不替代两轮英文 | 二级待补 | 7d1cc4bfa |
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 已派 |
+| QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 已复验；#802／06e7ff4ac，见§9 |
 | QA-002 | 交互；P2；产品缺陷 | AC-26／S1；交互 §1 完整失败恢复、§3 状态连续、§5 生命周期与恢复 | ebad9a223b84d28937df03393231381587b3193a | 新临时 Home 配 MiniMax-M3；Form 创建问卷并生成 4 题；输入“另做一份培训反馈问卷，请先问我面向哪种学员和题量。”；首次补问结构校验失败；原要求重试获得合法三题卡 | 预期新卡可答且聚焦时旧生成错误撤下；实际旧错误与合法卡同时显示；原提示和 4 道业务题保留。首次拒绝本身不是缺陷，也不能推断响应具体哪字段错 | 二级：[同一页面错误与新卡截图，1440/390 深色](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；源码与实走一致。真实模型首轮结果有随机性，确定性复验需以受控供应商先无效后有效补问驱动同一生产页面 | `plugins/native/form/src/browser/draft.ts:37`、`:42`、`:45`；`browser/client.ts:77`；`browser/save.ts:24` | HANDOFF §3 ③ Form 文件 owner，⑨交互共同复验 | 第一次无效补问、重试有效补问后，新卡可见且首题获焦，旧生成错误隐藏；原提示保留，回答前业务题数不增 | 已派 |
 | QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 已派 |
 | QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 已派 |
 | QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 已派 |
-| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:52 设30秒、:56归档、:59 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 已派 |
-| QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 文审与源码；GitHub 两 PR 均 merged，且变更已在本 SHA；不同于已知control版本#793 | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 已派 |
-| QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 文审，当前实现与§9一致；没有因此放宽不同PID拒绝或改代码；已核PG§7与在途未找到本项 | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 已派 |
+| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1原缺口；3cac新main完整构建后QA-006定向3/3通过：抛错/受控500/AbortError/生产截止及停止；[复验与边界](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6269052189)，日志qa006-retest.log | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 已复验；#816／3cac91f73（一级；不扩成内部session归档或完整产品证明） |
+| QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 原文审与源码；ee6复验#809修了目录/PR状态，但手册:518称3行真实模型、需求书ADH-07:160仍称2行；[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268815118) | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 已修待复验（ee6df47d8复验未通过，剩3行/2行不一致） |
+| QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 原文审；ee6df47d8复验#809四份文档一致，保留不同PID拒绝与真机缺口；[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268815118) | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 已复验；#809／ee6df47d8（仅文档问题） |
 | QA-009 | 回执；P2；轻做或证据不足 | RC-02/11；§11阶段1c/1d | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；运行R1 agent-input-delivery与R4 coding-input-receipts.e2e对应编号；读同键重发和网络故障夹具 | 预期真实Coding已收下后丢回包、同键重发仍只一笔；实际去重Map在替身内，浏览器在原fetch之前抛错，仅比对重试键。助理RC-16另有真实覆盖，不扩大结论 | R1/R4均通过；历史SDK去重记录不等于当前Coding全链 | tests/agent-input-delivery.test.ts:55；tests/coding-input-receipts.e2e.test.ts:106；:122 | HANDOFF §3 ⑥回执，④采用协作 | 真实Host接受固定键后切断响应，重发返回原input_id/replayed，账里仅一条且provider只含一次、界面不重复 | 新 |
 | QA-010 | 回执；P2；轻做或证据不足 | RCPT-102；§20.3/20.5 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-history-requirements的RCPT-102；读coding-history-summary-http故障注入与host-inference-completion截止测试，检查下一轮请求 | 预期实际摘要超时后六条要求仍进入下一轮且不重复摘要；实际测试立即Error或空值，含“两分钟”的错误字样不构成超时。其他inference deadline测试不是此路径 | R1/R2通过；未复现产品挂住或丢要求 | tests/coding-history-requirements.test.ts:19；:91；tests/coding-history-summary-http.test.ts:43；tests/host-inference-completion.test.ts:120 | HANDOFF §3 ⑥回执与④agent-host | 真实摘要截止超时走回退，下一provider请求保六条要求，迟到摘要不替换且无额外摘要调用 | 新 |
 | QA-011 | 回执；P3；文档不符、测试夹具失真 | RCPT-341；§11阶段3d-1 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-report-persistence对应编号和prologue-input-receipts；对照spec五态及真实SDK结算投影 | 预期报告标准与真实终态一致；实际spec写五状态，夹具五输入仅四态、含终态applied且无received；生产结算会把received/applied归未读。不能靠再造一个received夹具补绿 | R2/R5通过；生产导出只取终态，静态链与真实投影一致 | specs/ai-input-receipts/spec.md:837；tests/coding-report-persistence.test.ts:123；plugins/native/coding/src/routes-changesets.ts:32 | HANDOFF §3 ⑥回执 | 用真实结算账生成固定报告，逐条状态与SDK一致；spec分别写清全生命周期五态与终态可出现集合 | 新 |
 | QA-012 | 回执；P2；轻做或证据不足 | RCPT-343；§11阶段3d-1 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时Home；跑coding-report-persistence的RCPT-343与prologue-materials；追踪存报告到下一provider请求 | 预期已存固定报告作为材料进入下一轮仍是数据；实际前者到格式器即止，后者用手写普通材料，未串起同一固定报告。并未观察到注入或安全突破 | R2/R3通过，围栏与泛材料真实provider测试均有效，缺连接组合 | tests/coding-report-persistence.test.ts:202；tests/prologue-materials.test.ts:34 | HANDOFF §3 ⑥回执与④采用 | 公开保存带恶意围栏的报告后交固定版本给下一Run，在真实provider请求中核正文和来源版本仅在数据通道、任务/系统不被替换 | 新 |
-
 | QA-013 | 情境；P2；产品缺陷 | AC-S01；side-shelf §3.1/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；新浏览器origin走首页→个人空间→首次侧栏；另一新origin直接入个人空间作对照 | 预期首开Shelf；实际经首页首开Issue，直接项目页首开Shelf。未先点Issue | KU一级代码/二级截图评论6267398284；shelf-plugin测试直接入项目未覆首页 | apps/workbench/src/arrival/shell.ts:84；home-plugin-navigation.ts:7；scripts/client/side-panel.ts:145、226 | HANDOFF §3④界面组／情境线（原⑧） | 新origin经首页与直接项目两路首次侧栏均Shelf；随后用户选格、重开保留所选 | 新 |
 | QA-014 | 情境；P2；产品缺陷 | T06；context-toolbar §6/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；Pages写入两段中文，选第一段；CSS宽390，浅/深色；浮条含长标题和owner徽标 | 预期文字清晰、各动作不交叠且44px目标；实际44px按钮内文字宽73/58px越界，与相邻文字覆盖，外框无横向溢出仍失败 | KU中文浅色/英文深色截图评论6267398284；读DOM按钮矩形，K3只量外框与触控高 | packages/design-system/src/context-toolbar.ts:26、31、50、131；plugins/native/pages/src/editor-tools.ts:43、58；tests/context-toolbar.e2e.test.ts:17 | HANDOFF §3④界面组／情境与设计系统 | 390真实Pages长中英标题/徽标均在自身控件内不交叠，规定入口可达且点击命中正确动作 | 新 |
 | QA-015 | 情境；P2；轻做或证据不足 | AC-P03/Q05；context-program §21.8 B1、AGENTS late effect | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑pages-landing-actions的cancelled用例，读validate_authority注入与调用次序；不改测试 | 预期已受理等待后撤权仍拒绝且所有业务事实不变；实际validate_authority第一次调用就抛错，未造等待期间撤权，完整document不变只证明入口拒绝 | K1通过；真实SDK前置拒绝有效，尚无此Pages落点晚到组合。不是已确认安全突破 | tests/pages-landing-actions.test.ts:68、82、84 | HANDOFF §3④情境／Pages，②动作授权配合 | 首次校验通过，写入前屏障暂停后取消/撤权再释放，断言准确拒绝码且文档、版本、change及失败业务记账均不变 | 新 |
 | QA-016 | 情境；P2；轻做或证据不足 | AC-S13/STRIP-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-context-strip.e2e的STRIP-03并读最后chip到达步骤 | 预期从普通焦点以键盘逐项到最后chip，焦点及可见区正确；实际直接DOM focus最后一枚，只证明被聚焦时滚动 | K3六项通过；滚轮/淡出是真实断言，键盘遍历未证明；§10防腐称键盘到最后 | tests/assistant-context-strip.e2e.test.ts:100；specs/context-program/spec.md:1285 | HANDOFF §3④界面组／情境 | 从正常输入焦点仅Tab/方向键到最后chip，每项焦点可见且最后一枚完整滚入；不得直接focus终点 | 新 |
 | QA-017 | 情境；P2；轻做或证据不足 | PICK-02；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-pick PICK-02，对照测试名、title点击及实际断言 | 预期标题打开对象、原按钮仍执行，并且不拿起；实际只断言reported为空，未断言打开/执行成功，错误preventDefault仍可能通过 | K4通过；标题与断言范围不符，未观察到产品按钮失效 | tests/assistant-pick.test.ts:97、100 | HANDOFF §3④界面组／情境，助理owner配合 | 真实结果卡标题打开正确owner对象、原按钮执行一次且不发拿起事件，文字选择也不拿起 | 新 |
 | QA-018 | 情境；P2；轻做或证据不足 | AC-S02/SHELF-LINK-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑shelf-side-links.e2e；读通知注入、入口显示及点击步骤 | 预期从用户可见通知入口打开指定Shelf项；实际手派通知，强行hidden=false后直点；不能证明真实通知生成与正常可见入口闭环 | K3真实Shelf目标打开有效；不是认定通知功能已坏。BL-009管铃铛重复，不覆盖此测试绕过 | tests/shelf-side-links.e2e.test.ts:55、60、63 | HANDOFF §3④情境／助理通知owner | 真实业务产生可查询通知，从产品正常可见入口打开它，Shelf对应项到位且主区不变，不强制修改hidden | 新 |
+| QA-019 | 防腐；P2；轻做或证据不足 | W5-01-PPT-05；repository-anti-corruption §4.4 PPT迁移 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行document-plugins-limits中AI actions of Form, Dataset, PPT用例；审读completeModel及outlineAi写事务 | 预期模型已成功返回后使结果guard失效，拒绝且版本/幻灯片/失败业务记录不变；实际validateResult为空，只在派出前撤权。生产确有guard，未确认越权写入 | F2 5项通过仅证明原断言；共享SHM不能替代PPT事务接缝；PG-047为相关平台余项，不覆盖本测试缺口 | tests/document-plugins-limits.test.ts:92、98；plugins/native/ppt/src/actions.ts:187 | HANDOFF §3③PPT迁移；②平台结果复核 | 模型返回后撤权，调用validateResult在首条业务SQL前拒绝，版本/幻灯片/失败记录均不变 | 新 |
+| QA-020 | 防腐；P3；文档不符 | W3-02-G4-05与WSERR-03；spec §10.9及错误模型整合 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行workspace-directory的rollback用例；比对两处标准 | 预期以已定现行invalid/400保持目录回滚和cause；实际代码/测试400，旧G4-05仍要求unavailable/503 | F2真实目录恢复及cause断言通过；是旧文字冲突，不重议后定400 | specs/repository-anti-corruption/spec.md:2306、4051；tests/workspace-directory.test.ts:57、72 | HANDOFF §3①规范收束／防腐错误模型owner | 同一补偿错误的现行标准、HTTP映射、真实目录恢复和cause断言一致 | 新 |
+| QA-021 | 防腐；P2；轻做或证据不足 | RAC-44/55/60；spec对应复合验收段，specs/README验收编号 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 在干净基线运行check-spec-coverage并检索全部tests对三个编号的引用；结合人工编号库存读各标准 | 预期现有行为/门禁测试能追到编号，不能自动证明的部分显式标人工；实际三个编号无测试名/注释引用且无人工标注 | F0/F2门禁实际通过，不等于三个复合标准已被完整证明；coverage仅识别防腐24条、报告退出0不是全覆盖 | specs/repository-anti-corruption/spec.md的RAC-44/55/60定义；specs/README.md:69 | HANDOFF §3①规范／②平台门禁 | 编号指向真正证明相应部分的测试并记录组合判据；不可只补无实质断言的注释 | 新 |
+| QA-022 | 防腐；P2；轻做或证据不足 | W4-10-01；repository-anti-corruption §4.4 attention聚合 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行attention-route两条用例，审读notices、pending及局部失败断言；结合workbench-stop-feedback | 预期真实非空提醒、待投递数准确，任一来源失败仅该段null；实际主要检查数组/number类型，未造独立来源失败。后台任务消失另有实测，不证明其余来源 | F4 attention-route通过；未确认产品接口出错。PG-087为归属、旧BL-116为轮询优化，都不覆盖此缺口；在途PR未覆盖 | tests/attention-route.test.ts:13、25；specs/repository-anti-corruption/spec.md:461 | HANDOFF §3②平台／Workbench | 种入真实提醒和待投递事件核对精确结果；四个来源逐个抛错，只有失败段为null，其余三段仍准确 | 新 |
+| QA-023 | 防腐；P2；轻做或证据不足 | W5-01-ALC-RES07；repository-anti-corruption Pulse恢复标准 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行Alchemist包的pulse-recovery三条Vitest；检索Pulse取消入口、lease-ownership及alchemist-actions的cancel，核对实际处理器与事实快照 | 预期已开始Source等待后真实取消，晚成功和晚失败均不记失败、不继续下一Source；实际Pulse两条只调用authority.revoke，actions里的cancel属于Lens，通用lease测试没进入Pulse collectSafely。生产有isCancelled检查，未确认取消后写入 | Pulse 3/3通过；恢复不重复及撤权七表不变均为有效证据，但不等于显式取消组合；PG-038/108分别为迁移/授权声明，不覆盖本缺口 | plugins/native/alchemist/tests/jobs/pulse-recovery.test.ts:147；plugins/native/alchemist/src/studio/server/jobs/pulse-job-handler.ts:84、143 | HANDOFF §3③Alchemist；②生命周期协作 | 暂停真实Pulse Source，执行实际取消后分别释放成功/异常；以取消已落库时为基点，七表无新增失败或结果且下一Source调用数零 | 新 |
+| QA-024 | 防腐、情境；P2；产品缺陷 | W2-18-PAGES-SOURCES-01、RAC-36、W5-10-PGC-03/PGV-02；防腐对应标准，context-toolbar§6 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home，启用Pages/灵光，各建A/B；Pages打开A后⌘点击B，灵光返回列表⌘点击A/B；检查选中数和操作栏 | 预期保留已定PTG-06后台开页签且仍有可访问的多选入口；实际只新增后台页签，插件多选处理收不到事件，无法双来源准备或批量丢弃；也未发现替代键盘/控件入口 | FB两文件同位置失败，旧fbc同红；FU真实页面复现，[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268983128)；已知§10.28 #729待核项本次分类，跨Pages共同原因新增，非旧迁移问题重复 | apps/workbench/src/scripts/client/plugin-tab-groups.ts:126；plugins/native/pages/src/client.ts:980；plugins/native/lingguang/src/client.ts:595 | HANDOFF §3④Workbench/情境；③Pages/灵光配合 | 保留⌘/Ctrl后台开页签，另从正常可达入口选中A/B并实际执行双来源准备/批量操作；按纯键盘也可达，单选/正文无误改 | 新 |
 
-QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知 P1 #709 继续沿用原编号，未新立项；尚待按原步骤复验。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。统筹已在[分诊评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265235773)确认 QA-001～003 并派交互线；#785 没有补测试编号，QA-003 保留。QA-009～012已核BACKLOG、防腐§10.27～29、PG及#631/#778/#789/#793/#795，未找到同一缺口的登记；候选只有独立核实并去重后才编号。
+QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知P1 #709继续沿用原编号，7d1原步骤已复验，完整AC-05不据此关闭。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。统筹已在[分诊评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265235773)确认 QA-001～003 并派交互线；#785 没有补测试编号，QA-003 保留。QA-009～012已核BACKLOG、防腐§10.27～29、PG及#631/#778/#789/#793/#795，未找到同一缺口的登记；候选只有独立核实并去重后才编号。
 
 ## 6. 跨线场景
 
@@ -491,15 +1301,32 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 已实走另一条跨线子链（RU）：助理提问→补充/撤回→真实模型→Pages固定文档→文件预览，见§4.5；不含Coding与情境落点。
 
-尚待实走：助理提问 → Coding 执行 → 固定结果进入成果库 → 情境浮条放进 Pages；核对同一事实的主人、输入回执、取消/撤权后的业务写入及恢复。须先确认当前各线承诺，缺失的链路只按其已有决定判定。
+尚未完成整条实走：助理提问→Coding执行→固定结果进入成果库→情境浮条放进Pages。现有测试与上述两条子链没有串起同一次任务；Coding完整模型运行、固定结果交接及取消/撤权晚返回组合无本轮二级记录，判未验证。归属沿HANDOFF④采用/交互、⑥回执、③成果库与④情境；不把子链或工程结果拼成全链通过。
+
+另一个跨线实际失败为FU的Workbench后台页签→Pages/灵光多选：统一手势有效，但原多选入口消失；QA-024由共同入口owner与两个插件共同复验。
 
 ## 7. 没验的范围和原因
 
-除 §4.1～4.6 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
+- **交互、回执、情境的完整UI矩阵**：实际三宽/深色/键盘/语言路径见U/KU/RU/FU，未把一个入口通过扩成所有插件与空/加载/失败/无权限/撤销组合。各表的部分通过明确保留缺项；新增AC10-B八项按已定后续未验证。
+- **采用与手册的全部模型场景**：实际请求依次为交互4/12、采用18/20、手册7/12、CU 0/30、回执7/16、情境5/12、防腐0/0，共41/102；预算未用完不等于验收已完成。多Agent、完整Coding、A2-2/A2-3、A3 structured、A5、ADH开发者实作与整条跨线场景没有本轮二级证据；已定后续/BL去处见逐条表，现有结果不证明模型质量普遍成立。
+- **Computer Use二十步真机**：Helper三项系统权限未授予；按“不碰系统设置”的任务边界只检查先决条件，没有运行或绕过。CU-G02～04及相关桌面产品证据仍缺，不能以HTTP/Swift单元替代。
+- **原生平台和设备**：真实IME候选、VoiceOver、胶囊几何、NSPasteboard Rust两项、桌面IPC真机、慢IO热键、Windows/AltGr、多显示器及其他Mac架构/系统未完整覆盖；各行分开标静态/工程/未验证，不泛称本机测试证明真机。
+- **防腐迁移与组合**：在途PG/W项有归属/阶段，不因尚未实现算新缺陷；当前SHA全量、部分重构前后逐AST历史对照、整套README必跑组合及全部插件重启未取得。夜间CI的成功只归其自己的SHA；未为补此证据跑本机全量或额外CI。
+- 真实Home、发布安装、真实数据迁移、他人账号及系统权限修改不在本次范围。正式助理模型配置按用户允许只在临时Home保存密文，已经随Home清除；这不再是其余路径的技术阻塞。
 
-## 8. 待用户验收
+## 8. 待用户验收（三级证据）
 
-中文 IME 候选过程、主观手感与视觉质感、VoiceOver 连续听感及各线明确要求的真人判断：UNVERIFIED，后续按编号细化。自动化工程结果与 QA 实走均不能代替用户认可。
+| 线／编号 | 需要用户判断的内容 | 本轮边界 |
+| --- | --- | --- |
+| 交互 AC-10、15、18、27-6、28-6、AC-10-4/8 | 真实中文IME候选及确认过程、连续键盘手感、VoiceOver字段/错误/数量播报、三宽视觉质感 | 合成composition、ARIA或文字断言不代表这些体验；BL-016保留 |
+| 采用 PA-06～08、12～15、20～22及P5/P6 | 相同真实任务下长会话约束保留、工具延后/模型切换质量及多Agent分工是否符合工作预期 | 工程接线及有限MiniMax样例不能给出普适质量认可；未实现项先由开发补齐 |
+| 手册 ADH-01～03、08～09、19～23 | 独立开发者按手册完成设计/实现/评测，能否据记录定位失败与维护自己的Skill | 文审及QA小样本不等于开发者走读或模型效果验收 |
+| Computer Use CU-G01～04、12～15 | 用户自行完成必要系统权限后，在runbook指定应用验证二十步任务、接手/停止、视觉与使用感受 | QA未操作权限；已定A保持，不用菜单或其他进程绕开；真机完成后再评归档 |
+| 回执 RC-07～19、RCPT-341～367中可见项 | 补充/撤回/未读/搁置等文字是否让用户准确理解本轮实际采用情况；报告固定版本是否满足留存需求 | 已实走RU范围以外及完整Coding尚缺，不能把回执存在等于用户理解 |
+| 情境 T01～09、Q01～10、AC-S01～15、STRIP-03 | 浮条位置、窄屏可读性、拿起/放入/撤销的可预期性、键盘与读屏连续感受 | QA-013/014等先修；KU局部成功不是整体体验认可 |
+| 防腐 RAC-36/40/43/58、W2-18原生/IME项及Pages W5-10可见项 | 迁移后的原使用习惯、内容编辑/导入/预览及原生复制动线保持，三宽深色与读屏不退化 | QA-024等先修；一级回归保持和用户体验分别判定 |
+
+以上均未获得用户认可；本报告不代签三级验收。表内后续工程缺口也不交由用户兜底，先由对应开发线完成并提交复验。
 
 ## 9. 决定与疑问
 
@@ -519,6 +1346,15 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 - Computer Use 的0/30请求仅权限先决检查；已按自建 PID 50894 停服务并核对删除本线临时 Home。没有修改系统权限；后续真机需权限由用户自行配置后再复验。
 
-- 统筹在[第二批分诊](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6266065707)确认并派出QA-004～008；尚未据此关闭或判复验通过。
+- 统筹在[第二批分诊](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6266065707)确认并派出QA-004～008；派发不等于通过；QA-006/008后续已复验，QA-007复验仍有余项，QA-004/005仍待修复复验。
 - 情境T01实测可见Range与浮条间距8.5～9.5px；源码优先owner的coordsAtPos，与总纲§19.3普通DOM选区优先的文字不同；动画位移/取整可能参与。未取得同一owner锚点的动态对照，不改8px标准、不把推断当根因；保留部分通过及待复核子项。
-- 防腐前重新fetch，固定新main 7d1cc4bfade6c93cb1006e691da3e73b83316de1；已含#759，原已知P1 #709改记已修待复验。旧线结论不因后续合入自动变绿；#802仍在途。防腐真实模型预算0。
+- 防腐前重新fetch，固定新main 7d1cc4bfade6c93cb1006e691da3e73b83316de1；已含#759，当时原已知P1 #709改记已修待复验，后按FU原步骤通过；#802随后合入并单独复验。旧线结论不因后续合入自动变绿。防腐真实模型预算0。
+
+- QA-001复验：#802已合main 06e7ff4acec717c1d1d819080c407580801b9cab；新Home、0模型，两条QA-001工程用例通过。真实英文发送拒绝、保稿、模型设置跳转/返回，三宽浅深色及中文回退通过；[复验截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6267904962)。仅此问题改已复验，原发现SHA与AC-10其他缺口保留。QA临时启动器SIGTERM未退出，核对自建PID后KILL；Home已删除，未操作真实Home/4207。
+
+- #809文档复验固定main ee6df47d819718c8cc4dc560105c13528a647b17：QA-008已复验，CU-G14仍部分；QA-007剩手册3行与需求书2行不一致，仍未通过。[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268815118)。本次未启动Home/模型。
+- QA-024保留PTG-06的既定后台页签手势，不建议恢复冲突手势来换测试变绿；需要明确且可访问的多选入口。旧fbc同红只说明不是7d单独引入，不能排除产品回归。
+- 完成标准尚未达到：已知PG-006/110的P1在途#812未在本报告基线上验证，完整二级/三级仍缺；本次只交付首轮报告，后续按QA编号、修复PR与新main复验，不合并本PR。
+
+- QA-006复验固定main 3cac91f73b46fa2de7d1caf7a2d6d809c7860d9a：离线安装、完整构建、定向3/3通过，已复验；ADH-16仍部分通过。500为受控fetch Response，生产30秒截止加速至300ms，未实等30秒；停止请求取消有效，精确停止终态、全文与内部session归档未独立观察。模型0，[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6269052189)。临时Home已删除。
+- QA被测detached工作树与忽略目录日志/截图保留用于后续复验核对；不包含运行Home和凭据密文，不清理他人工作树。

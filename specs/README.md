@@ -4,7 +4,7 @@
 
 ## 在做的
 
-- [qa-acceptance-2026-10](qa-acceptance-2026-10/spec.md)：已合入 main 的七条线独立 QA；计划准备中，只报告，不修复，不代替用户验收。
+- [qa-acceptance-2026-10](qa-acceptance-2026-10/spec.md)：已合入 main 的七条线独立 QA；首轮报告与逐编号判定，待修复复验和用户验收，只报告、不修复。
 - [logic-diagnosis-fixes](logic-diagnosis-fixes/spec.md)：2026-10-16 诊断确认的八个逻辑问题；实现中。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。

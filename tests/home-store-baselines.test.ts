@@ -42,6 +42,16 @@ for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HO
   });
 }
 
+// RAC-44 (library version and shape kept when Cognia moved to a Home Runtime): the cognia row above compares the library
+// Cognia's own Home Runtime entry declares with the real-Home fixture. The registry only carries that library while the
+// declaration exists, and the row would silently go with it, so its presence is asserted here.
+test("RAC-44: the cognia library is the one Cognia's Home Runtime declares, at version 1, so the row above checks its shape", () => {
+  const cognia = homeStores().stores.find(store => store.path === "cognia");
+  assert.equal(cognia?.owner, "io.molis.work.cognia");
+  assert.equal(cognia?.library?.baseline.version, 1);
+  assert.ok(libraries.some(([name]) => name === "cognia") && !WITHOUT_REAL_HOME_FIXTURE.includes("cognia"));
+});
+
 test("W3-06-F-04 Home Runtime created by the public Host is the complete independent v2 baseline", async () => {
   const home = mkdtempSync(join(tmpdir(), "home-runtime-baseline-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   let db: DatabaseSync | undefined;

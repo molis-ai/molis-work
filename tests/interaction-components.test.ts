@@ -153,6 +153,16 @@ test("AC-17: an other answer is a free text slot; whether it is chosen is whethe
     fields: [{ id: "f", label: "方式", control: { kind: "choice", options: [{ value: "1", label: "一" }], other: { label: "其他", value: "自己写的" } } }] });
   assert.match(html, /<input[^>]*value="自己写的"[^>]*data-ix-other="f"/);
 });
+test("AC-10-9: only an optional single pick gets a button that empties it, in the caller's words; the sheet hides it while nothing is picked", () => {
+  const choice = (id: string, optional: boolean, multiple = false): InteractionField => ({ id, label: id, optional, control: { kind: "choice", multiple, options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] } });
+  const html = renderInteractionQuestion({ id: "u", kicker: "k", title: "t", footer: { note: "", actions: [] }, clearLabel: "Clear choice",
+    fields: [choice("tone", true), choice("format", false), choice("topics", true, true)] });
+  assert.equal(html.match(/data-ix-clear/g)?.length, 1, "a required pick can only change, several picks toggle off one by one");
+  assert.match(html, /data-ix-field="tone"[\s\S]*?<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-ix-clear aria-describedby="u-tone-label"><span data-slot="button-label">Clear choice<\/span><\/button>[\s\S]*?id="u-tone-error"/,
+    "the button sits in its own field and is read with the field's name");
+  assert.match(renderInteractionQuestion({ id: "d", kicker: "k", title: "t", footer: { note: "", actions: [] }, fields: [choice("tone", true)] }), /data-ix-clear[^>]*><span data-slot="button-label">清除选择</, "the default words");
+  assert.ok(INTERACTION_QUESTION_STYLES.includes('.mw-ix-row:not(:has([aria-checked="true"])) [data-ix-clear] { display: none; }'), "nothing to clear, nothing shown");
+});
 
 // RING-07: explicit receipt meaning wins over the badge's visual tone.
 test("RING-07 interaction cards distinguish unknown results from waiting for a person", () => {

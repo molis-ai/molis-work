@@ -139,7 +139,7 @@
 
 - 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
 - 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。
-- 现状代码（上面的决定还没落地）：`plugins/native/characters` 仍是经 Plugin Runtime 装配的插件（`kind: "app"`，`plugin_id` 为 `io.molis.work.characters`），在内置插件清单里带 `personal: true`（`apps/workbench/src/builtin-plugins.ts`），宿主侧另有 4 个文件：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:12-13`），`plugins/native/characters/src/plugin.ts:36` 读取时核对；并入宿主时这两个值保留还是迁移，由并入的切片定，不属于术语改名。
+- 现状代码（上面的决定还没落地）：`plugins/native/characters` 仍是经 Plugin Runtime 装配的插件（`kind: "app"`，`plugin_id` 为 `io.molis.work.characters`），在自己的 `registration` 里带 `personal: true`（`plugins/native/characters/src/registration.ts`），宿主侧另有 4 个文件：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:12-13`），`plugins/native/characters/src/plugin.ts:36` 读取时核对；并入宿主时这两个值保留还是迁移，由并入的切片定，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
 - 注意：设置的「角色」页同时列出 Character（「我的角色」）和 Agent role（「系统与插件带来的角色」）。界面把两者统称「角色」，文档分开写：个人的叫 Character，声明出来的叫 Agent role。裸写「角色」只用于引用这个界面标签。
 
@@ -244,7 +244,7 @@
 
 - 讲产品时先写界面显示名；要精确指代时写 `project_plugin_id`。路径、包名、`plugin_id` 只在讲代码或身份时写。
 - `manifest.name` 应与界面显示名一致，因为上面几处会把它直接显示出来。现在只有 `characters` 不一致（名称 Characters，界面「角色」）；它按 2.3 的决定并入宿主后这个差异随之消失。
-- 内置插件清单以 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 为准（现行代码共 25 个：项目插件 11 个，个人插件 14 个；Characters 按 2.3 的决定并入宿主后，是 24 个，个人插件 13 个）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
+- 内置插件清单以各包 `src/registration.ts` 为准，`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 从它们生成（现行代码共 26 个：项目插件 11 个，个人插件 15 个；Characters 按 2.3 的决定并入宿主后，是 25 个，个人插件 14 个）。官方集成的 `plugin_id` 是 `io.molis.work.integration.<连接器>`（`plugins/official-integrations/*/src/index.ts`）。
 
 ### 3.3 内置插件的名字对照
 

@@ -37,6 +37,7 @@ tests/goals-web-actions.test.ts
 tests/home-event-actions.test.ts
 tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
+tests/issue-naming.test.ts
 tests/jelly-actions.test.ts
 tests/home-plugin-project-cleanup.test.ts
 tests/home-plugin-project-routes.test.ts

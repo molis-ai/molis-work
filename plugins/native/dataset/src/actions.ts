@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
@@ -68,8 +68,15 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const { read, write } = ports;
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteDataset(ports, caller, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead });
+  // Each step of a pin (the intent, the 成果, the record of it) asks the original caller again after its own wait, inside the
+  // write or right before the publish: a call cancelled or revoked between them leaves only the steps already done.
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
+    const current = () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); };
+    const checked: DatasetStores = { read, write: (writer, run) => write(writer, store => { current(); return run(store); }) };
+    return promoteDataset(checked, caller, id, project(caller), value => { current(); return ports.publishArtifact!(value, caller); },
+      { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead,
+        beforePublish: async () => { await caller.beforeEffect(); current(); } });
+  };
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "dataset.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   return [
     datasetArtifactPreviewHandler,

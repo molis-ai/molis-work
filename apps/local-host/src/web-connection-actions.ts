@@ -13,7 +13,9 @@ export async function handleConnectionActionsHttp(request: IncomingMessage, resp
     if (request.method === "POST" && match[2] === "verify") json(response, 200, await actions.invoke(connectorManagementActions.check, { connection_id }));
     else if (request.method === "POST" && match[2] === "manage") {
       const body = await readLocalWebBody(request);
-      json(response, 200, await actions.invoke(connectorManagementActions.control, { connection_id, action: body.action, expected_revision: body.expected_revision }));
+      json(response, 200, body.action === "remove"
+        ? await actions.invoke(connectorManagementActions.remove, { connection_id, expected_revision: body.expected_revision })
+        : await actions.invoke(connectorManagementActions.control, { connection_id, action: body.action, expected_revision: body.expected_revision }));
     } else if (request.method === "GET" && !match[2] || request.method === "POST" && match[2] === "preview") {
       const connection = (await actions.invoke(connectorManagementActions.list, {})).connections.find(row => row.connection_id === connection_id);
       json(response, connection ? 200 : 404, connection ? { connection, ...(connection.source === "project_mcp" ? { tools: connection.tools } : {}) } : { error: "没有这条项目 MCP 连接" });

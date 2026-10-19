@@ -52,11 +52,10 @@ function errorLine(error: unknown): PluginRouteStreamLine {
   return refusalLine({ status: refusal.status, body: refusal.body });
 }
 
-/** The same fields a JSON route's refusal carries, as one line. */
+/** The same fields a JSON route's refusal carries, as one line. Its `call_id` is the Host's recorded number, never one the plugin's body names. */
 function refusalLine(result: Pick<PluginRouteResponse, "status" | "body">): PluginRouteStreamLine {
-  const body = (result.body ?? {}) as { code?: unknown; error?: unknown; call_id?: unknown; details?: unknown };
-  const callId = typeof body.call_id === "string" ? { call_id: body.call_id } : recordedCallIdField();
+  const body = (result.body ?? {}) as { code?: unknown; error?: unknown; details?: unknown };
   return { type: "error", status: result.status, code: typeof body.code === "string" ? body.code : "actions.execution_failed",
-    error: typeof body.error === "string" ? body.error : "能力执行失败", ...callId,
+    error: typeof body.error === "string" ? body.error : "能力执行失败", ...recordedCallIdField(),
     ...(body.details && typeof body.details === "object" ? { details: body.details as Readonly<Record<string, unknown>> } : {}) };
 }

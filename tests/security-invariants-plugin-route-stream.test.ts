@@ -87,6 +87,31 @@ test("W5-01-STREAM-03 a plugin cannot forge a result or extra fields in progress
   assert.deepEqual(lines, [{ type: "progress", stage: "working", progress: 0.5, text_delta: "text" }, { type: "result", result: "real result" }]);
 });
 
+for (const exit of ["ndjson", "json"] as const) {
+  test(`S-03 W5-01-STREAM-03 a plugin cannot name the call its ${exit} refusal belongs to`, { timeout: 60_000 }, async t => {
+    const probe = streamProbe(); let ran = false;
+    if (exit === "json") delete probe.definition.manifest.routes!.find(route => route.route_id === "direct")!.stream;
+    probe.behavior.route = async request => {
+      if (request.body === "after a call") { await probe.contexts.at(-1)!.services!.actions!.invoke(probe.action, {}); ran = true; }
+      return { status: 409, body: { code: "stream-home.stale", error: "已变化", call_id: "forged" } };
+    };
+    const { request, host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const refusal = async (body: string) => {
+      const response = await request(`/api/plugins/${probe.id}/direct`, { method: "POST", body });
+      if (exit === "json") { assert.equal(response.status, 409); return { ...await response.json() as Record<string, unknown>, header: response.headers.get("x-molis-work-call-id") }; }
+      return (await streamLines(response)).at(-1)!;
+    };
+    const unrecorded = await refusal("no call");
+    assert.equal(unrecorded.code, "stream-home.stale");
+    assert.equal(Object.hasOwn(unrecorded, "call_id"), false, "a refusal that left no row carries no number");
+    const recorded = await refusal("after a call");
+    assert.equal(ran, true); assert.equal(recorded.code, "stream-home.stale");
+    assert.equal(typeof recorded.call_id, "string"); assert.notEqual(recorded.call_id, "forged");
+    assert.ok(host.callLog!.find(String(recorded.call_id)).some(row => row.capability_id === probe.action.capability_id), "only the Host's recorded number");
+    if (exit === "json") assert.equal(recorded.call_id, recorded.header);
+  });
+}
+
 test("W5-01-STREAM-01 an action failure after progress ends with the shared error and leaves no business value", { timeout: 60_000 }, async t => {
   const probe = streamProbe();
   probe.behavior.action = async caller => {

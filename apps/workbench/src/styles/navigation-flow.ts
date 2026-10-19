@@ -45,7 +45,7 @@ export const NAVIGATION_FLOW_STYLES = `
   }
   /* The switcher shares the left tray with the Dock and gives way to it: 项目首页 and the +N fold always keep their
      room, and a long place name ends in an ellipsis. Where no name fits beside them, the switcher is its glyph alone,
-     as on a phone; the location chip above the page still names where you are. */
+     as on a phone; the plugin tab above the page still names where you are. */
   @media (min-width: 601px) {
     ${BAR} .bar-start .plugin-picker { max-width: calc(100% - var(--dock-btn) * 2 - 28px); }
     ${BAR} .bar-start .plugin-picker-current span { min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }

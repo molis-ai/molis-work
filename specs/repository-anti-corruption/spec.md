@@ -419,6 +419,16 @@ W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #55
 - 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
 - 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
 
+Form 发布授权补漏（2026-10-19，§10.29 统筹追加的 P1，③；分支 `fix/form-promote-authority`）：
+- 问题：Form 的「存成成果」与修复前的 Dataset 逐行同构（`plugins/native/form/src/promote.ts`、`actions.ts` 的 `promote`）。`begin` 提交后到 `artifacts.publish` 之间不再问原调用方，被取消、撤权的调用仍会多写一份成果（S-18）。
+- 修法：照 Dataset（`W5-01-DATASET-06`）与 PPT（`W5-01-PPT-07`）：
+  - 两个业务写入在事务里、第一条 SQL 之前，同步检查原调用方的 `signal` 与 `assert_authority_current`；
+  - 发布前 `beforePublish` 先等原调用方的 `beforeEffect` 再查；
+  - 真正调用发布的包装里紧前再查一次。
+- 验收 `W5-01-FORM-01`（`tests/form-promote-authority.test.ts`）：真实 `createFormPlugin` 与 SQLite，五个交错点（入口到 begin、begin 到发布、异步检查通过后到真实发布、成果写出后到完成、完成记录的 `beforeEffect` 通过后到它的 SQL），每个点分别取消、撤权、提供方被替换（`actions.provider_changed`），只留已经合法提交的阶段；另有正常对照。
+- 同一片：`W5-01-PPT-07`、`W5-01-DATASET-06` 补上第五个交错点与提供方被替换；三份用例登记进 `docs/system/SECURITY-INVARIANTS.md` S-18 的 CI 列，并加进 `test:security`。
+- Pages 不用改：`promotePagesDocument` 从 begin 经发布到完成都是同步的，中间没有 `await`，取消或撤权插不进这三步之间。
+
 W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
 - 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。
 - 大小：宿主不再发 `files.js`、`git.js`、`diff.js`、`text-stats.js`（共 1,736,113 字节）；加载器多带四个包名，同片把它里面重复三次的失败文字和两处收尾合成一处，`molis-work-workbench.js` 净降 8 字节。`tooling/gates/page-assets.json` 删掉四条、降一条。
@@ -530,6 +540,7 @@ W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选
 - 测试：`dataset-actions` 经宿主动作；`dataset-mcp` 改一个常驻 Host + 网关；e2e 路径更新；公开 action id/version/schema/provider 不变。验收编号 `W5-01-DATASET-01` 起。
 - 证据（2026-10-18，本地；未推、未开 PR）：整体构建通过（machine-slot，37.6 s；增量 15.9 s）；`tests/dataset-actions.test.ts` 11/11（`W5-01-DATASET-01`）、`tests/dataset-mcp.test.ts` 1/1（`W5-01-DATASET-02`；同一测试进程内构造 MCP gateway/adapter，关闭并重建 Host 对象验证持久化重开，不是外部 MCP 子进程或 OS 重启）、`tests/dataset-actions.e2e.test.ts` 3/3 与 `tests/dataset-file-import.e2e.test.ts` 6/6（`W5-01-DATASET-03/-04`）、`tests/creative-tools-plugins.test.ts` 8/8、`tests/builtin-plugin-assembly-gate.test.ts` 6/6；`pnpm boundary:check` 通过；health 对 merge-base `aceffff86` 通过；`tests/action-contract-snapshot.test.ts` 25/25、`tests/page-assets-budget.test.ts` 71/71；`page-assets` 里 `dataset.js` 25,832 → 25,632 字节（低于 merge-base，已 `--update` 降预算）。动作快照多 5 条 `sdk.artifacts.<Dataset 安装>.{publish,read,own,head,record}@1` 宿主行，来自 Dataset 的 Runtime 安装；Dataset 自己的动作 id/版本/schema/提供方不变。`package-inventory --table` 的 Dataset 行已从构建期改为 Runtime。
 - 未验证：全量回归（按 Codex 与本线规则交 CI/统筹）、真实 Home、`#684` 合入后的 main 重跑；等 Codex 在 `to-dsh/w5-dataset.md` 给出空位与基线后再推送。
+- 发布授权补漏（2026-10-19，§10.29 的 P1，③；分支 `fix/dataset-promote-authority`）：#749 合入的发布在 `begin` 提交后到 `artifacts.publish` 之间不再问原调用方。现照 PPT（`W5-01-PPT-07`）补齐：两个业务写入在事务里第一条 SQL 前同步检查原调用方的 `signal` 与 `assert_authority_current`；发布前 `beforePublish` 先等原调用方的 `beforeEffect` 再查；真正调用发布的包装里紧前再查一次。验收 `W5-01-DATASET-06`（`tests/dataset-promote-authority.test.ts`）：真实 `createDatasetPlugin` 和 SQLite，四个交错点（入口到 begin、begin 到发布、异步检查通过后到真实发布、成果写出后到完成）分别取消、撤权，只留已合法提交的阶段；另有正常对照。
 
 W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `feature/w5-01-workflows-store`，基于 `origin/main 7faaa027c`，未推、未开 PR）：
 - 范围：Workflows 仍按每个项目一个 Runtime 实例；本片只改 `plugins/native/workflows/src/store.ts` 的窄 SQL 端口（`WorkflowsSql`/`WorkflowsStores`/`ownWorkflowsStores`）与唯一 `WORKFLOWS_DATABASE`（`store_name: "workflows"`、version 1、原 schema/两表形状不变），`openWorkflowsStore` 保留 `{home}/workflows/workflows.db`、WAL、`applySqliteBaseline` 与关闭归属；`WORKFLOWS_HOME_STORE`、`project-data.ts` 与发布库版本表引用同一份，删除 `WORKFLOWS_STORE_BASELINE` 别名。
@@ -588,7 +599,7 @@ W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保
 | --- | --- | --- |
 | RAC-20 | `W5-01-STREAM-01`：真实动作进度先于唯一结果或错误末行；JSON 路由不获得 emit；Home 路由的可信项目身份保持；模型文字增量按原顺序交给插件，非文字事件不转发 | 路由：`tests/security-invariants-plugin-route-stream.test.ts`、`tests/security-invariants-home-route-project.test.ts` 通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
 | RAC-21 | `W5-01-STREAM-02`：Manifest 拒绝非法 stream 和请求体上限；36,000,000 字节可进入，超一字节在处理器前以 JSON 413 拒绝 | `tests/security-invariants-plugin-route-stream.test.ts`、`tests/plugin-declaration-rules.test.ts`，通过 |
-| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
+| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃，插件在拒绝里写的 `call_id` 也是（流与 JSON 两个出口只带 Host 记录的号）；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
 | RAC-23 | `W5-01-STREAM-04`：Home 与项目流在断连、停用、撤权和升级后结束；原处理器仍被阻塞时连接已结束，释放后业务写入被拒；恢复后存储无晚到数据；模型文字回调在取消/停用/撤权/请求结束后拒绝 | 路由：`tests/runtime-plugin-http-discovery.test.ts`，8 种真实 HTTP 中断通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
 | RAC-24 | `W5-01-STREAM-05`：反复成功、抛错、取消、停用后计时器均回到零；停用后 emit 当场拒绝 | `tests/plugin-route-stream-lifecycle.test.ts`，通过 |
 
@@ -3022,7 +3033,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 | #746 项目成果与过程项的恢复查询 / `dfa3914be` | 通过，有 P3 | P3：成果的 `head`、`readOwn` 只比 `producer_plugin_id`，过程项还比签名和 owner。这是旧行为，本 PR 没改，但两套口径并存。 | ③（按裁定 14 以后归平台） |
 | #747 Alchemist 执行队列排空与显式恢复 / `dee72e041` | 有问题 | P2：`runs.continue` 拒绝时抛普通 `Error`，六个码（`alchemist.job_lease_active`、`resume_context_changed` 等）没有用 `defineErrorCodes` 声明，调用方只收到 `actions.execution_failed`，原码混在 message 里（`plugins/native/alchemist/src/studio/server/services/job-resumption.ts:84,102-104,111,118`）；测试只写裸的 `assert.rejects`，没核对码。P2（统筹裁定 9）：Exploration 在模型结果未知的 `generating` 检查点上继续时会再调一次模型，`ResumeView.unknownCall` 却只对 Lens 置位。P3：`runs.list` 先取最近 100 条再按状态过滤，更早的待恢复任务看不到；`runs.continue` 运行时按任务类别另要 `alchemist:generate`、`alchemist:collect`，声明里没有（统筹裁定 10）；`runs.resume` 实为只读查询，名字像命令；`scripts/gates/page-assets.mjs:243` 用完的 workbench 放行条目没删。 | ③；门禁条目 ② |
 | #748 PPT 迁到 Runtime / `a0ceae7e3` | 有问题 | P2：`apps/local-host/src/creative-artifacts.ts` 仍导出 PPT 的三个旧端口（`:21,28,57`），并 import PPT 插件（`:6`），已没有调用方。同一文件里 Dataset 的三个端口 #749 已删。P2：工作台仍在构建期按插件名装配 PPT 的界面（`apps/workbench/src/ui-composition.ts:36-45,109,282`、`renderer.ts:94-104`、`goals-page-renderer.ts`），Runtime 声明的 `views` 没用上，与 §10.28 对 Lingguang 记的 P2 同类。P3：`docs/system/RUNTIME-MIGRATION.md` 的状态与数字过时。 | 旧端口 ③；按 `views` 挂载的通道 ②；文档 ① |
-| #749 Dataset 迁到 Runtime / `25dfd479a` | 有问题 | P1（需复现）：推广在 begin 提交之后、`artifacts.publish` 之前不再核对原调用者的取消和撤权（`plugins/native/dataset/src/promote.ts:51-63`）；`publish` 以插件身份执行，complete 才再过一次 `beforeEffect`。PPT 在 #748 用 `current()` 与 `beforePublish` 补了这个窗口，Dataset 没跟上。两步之间可能只隔几个微任务，交错能否真的落进来要靠用例证明。不管能不能复现，都照 PPT 补齐。需复现：仿 `tests/ppt-promote-authority.test.ts` 新建 Dataset 的同类用例，在 begin 之后、publish 之前撤权或取消，预期成果数为 0、发布不进入 completed。P2：模型结果只取 `.text`，丢了 `validateResult()`（统筹裁定 5）。P2：工作台构建期装配 Dataset 的界面，同 #748。 | ③；通道 ② |
+| #749 Dataset 迁到 Runtime / `25dfd479a` | 有问题 | P1（已复现，2026-10-19 由 #761 `975686cc7` 修好，`W5-01-DATASET-06`：撤掉修复时，在入口到 begin 之间撤权就多写一份 intent）：推广在 begin 提交之后、`artifacts.publish` 之前不再核对原调用者的取消和撤权（`plugins/native/dataset/src/promote.ts:51-63`）；`publish` 以插件身份执行，complete 才再过一次 `beforeEffect`。PPT 在 #748 用 `current()` 与 `beforePublish` 补了这个窗口，Dataset 没跟上。两步之间可能只隔几个微任务，交错能否真的落进来要靠用例证明。不管能不能复现，都照 PPT 补齐。需复现：仿 `tests/ppt-promote-authority.test.ts` 新建 Dataset 的同类用例，在 begin 之后、publish 之前撤权或取消，预期成果数为 0、发布不进入 completed。P2：模型结果只取 `.text`，丢了 `validateResult()`（统筹裁定 5）。P2：工作台构建期装配 Dataset 的界面，同 #748。 | ③；通道 ② |
 | #750 Workflows 改用 store 端口 / `beffc61d8` | 通过，有 P3 | P3：`ownWorkflowsStores` 只有测试在用，生产的 `actions.ts` 仍走 `withStore`；`list()` 每处理一行都重新 prepare 一次计数查询。另有旧问题：`docs/releases/v0.3.0.md` 的 Todo 行还写 `TODO_STORE_BASELINE`。 | ③；发版文档 ① |
 | #751 Images 稳定翻译键 / `b80d3f789` | 有问题 | P2：稳定词典登记在 `BUILTIN_PLUGIN_CATALOG` 的 `messages` 字段，翻译门禁的 `MESSAGES_ROOT` 写死这份文件（`scripts/gates/translations.mjs:66,258,537-541`），第三方或生成的插件给不了稳定键词典。P3：`images/src/client.ts:226` 借用别的主人的键，拼成碎句。 | ②（并入 W5-02；门禁要改，先问用户）；Images ③ |
 | #752 Module 存储收到服务边界后面 / `45a7762f2` | 通过，有 P3 | P3：入口仍导出没有外部消费者的装配件（`modules/private-work-context/src/index.ts:40,44,46`）；`GovernanceEventDecisions` 直接写 `goal_event_trusted_decisions`；门禁只按名字认 Repository、Store。P3：改了门禁脚本 `scripts/check-package-boundaries.mjs`，没在 PR 里写，也没问用户。改动只收紧。 | ② |
@@ -3044,8 +3055,8 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 
 **还没做的**
 
-- 主线全量的红。重跑（同一 run 的第 2 次）第 2 片又红在 `tests/side-shelf-in-hand.e2e.test.ts` 的 W3-C AC-S04：Shelf 侧栏 iframe 里的选中条没出来，焦点停在 Pages 编辑器上，片内重试也红。其余片被 fail-fast 取消，还有没有别的红不知道。两处都交 ③，用 `739e6cb29` 的干净基线工作树比对。
-- 「需复现」的三条：#744 的路由层拒绝、#745 的权限位、#749 推广窗口里的撤权。
+- 主线全量的红。重跑（同一 run 的第 2 次）第 2 片又红在 `tests/side-shelf-in-hand.e2e.test.ts` 的 W3-C AC-S04：Shelf 侧栏 iframe 里的选中条没出来，焦点停在 Pages 编辑器上，片内重试也红。其余片被 fail-fast 取消，还有没有别的红不知道。两处都交 ③，用 `739e6cb29` 的干净基线工作树比对。2026-10-19 更新：AC-05 由 #760（`12017cc87`，关闭项目时结束它的等待，不再等到超时）修好；main 加 #760 的集成全量 run 39194646754 十六片全绿，main 的 CI 也绿。AC-S04 判为既有的时序偶发，不是这 14 个合入引入的；③ 在 #763 加了超时时记下页面现场的诊断，根因定下后派给情境栏的主人修。
+- 「需复现」的三条：#744 的路由层拒绝、#745 的权限位、#749 推广窗口里的撤权。#749 那条已复现并由 #761 修好（见上表），另两条还没有运行证据。
 - 合入时间核对：14 个 PR 全由 yijunw0212 自己入队合入，首个 #738 在 19:27 UTC，最后一个 #754 在 00:23 UTC。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）

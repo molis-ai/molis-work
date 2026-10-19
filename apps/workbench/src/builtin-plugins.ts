@@ -61,6 +61,11 @@ export interface BuiltinPluginWorkbench {
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;
   readonly searchRow?: PluginSearchRow;
+  /**
+   * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
+   * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).
+   */
+  readonly recordRow?: PluginSearchRow;
 }
 
 /** One build-shipped plugin and its already exported implementations. This declaration grants no authority. */
@@ -189,6 +194,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       goalsDialogsUiContribution,
       goalsSettingsUiContribution,
     ],
+      recordRow: { selector: "[data-tree-item][data-goal-id]", idDataset: "goalId" },
     },
   },
   {
@@ -198,6 +204,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     workbench: {
       order: 17,
       contributions: [workUiContribution, workTerminalUiContribution],
+      recordRow: { selector: "[data-operation-select]", idDataset: "operationSelect" },
     },
   },
   {
@@ -207,6 +214,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     workbench: {
       order: 6,
       contributions: [inboxUiContribution],
+      recordRow: { selector: "[data-inbox-row][data-inbox-entry-id]", idDataset: "inboxEntryId" },
     },
   },
   {
@@ -230,6 +238,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 5,
       contributions: [feedUiContribution],
       stylesheet: FEED_STYLES,
+      recordRow: { selector: "[data-feed-entry-id]", idDataset: "feedEntryId" },
     },
   },
   {

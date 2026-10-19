@@ -203,7 +203,7 @@ function craftSection(): string {
       </div>
       <div class="mw-craft-stage" data-craft-demo-target><span class="mw-craft-stage__title">让第一次使用的人顺利完成一轮目标协作</span><span class="goal-status goal-status--in_progress" data-craft-demo-status>${icon("play")}<span>正在推进</span></span></div>`)}
       ${specimen("项目徽标 · 首字母 + 由 id 决定的色", `<div class="mw-craft-row">${monograms}</div>`)}
-      ${specimen("位置芯片 · 标签 · 提示", `<div class="mw-craft-row mw-craft-strip"><button type="button" class="tab-view-chip" data-plugin="goals" aria-current="page">${icon("target")}<span>Goals</span></button><span class="tab-view-divider" aria-hidden="true"></span><span class="mw-craft-tab">${icon("home")}<span>项目首页</span></span><span class="craft-tip mw-craft-tip" data-shown>Inbox<kbd>⌥5</kbd></span></div>`)}
+      ${specimen("标签 · 提示", `<div class="mw-craft-row mw-craft-strip"><span class="mw-craft-tab">${icon("home")}<span>项目首页</span></span><span class="craft-tip mw-craft-tip" data-shown>Inbox<kbd>⌥5</kbd></span></div>`)}
     </div>`);
 }
 

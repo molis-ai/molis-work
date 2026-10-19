@@ -17,16 +17,26 @@ export interface WriteCheckerPorts<C extends Call> {
 }
 
 const FILE = "{file}";
+/**
+ * The SDK's protected metadata directories (`PROTECTED_SEGMENTS` in its workspace paths, not exported): it refuses a command
+ * whose working directory is in one, so a checker that would run there is refused when it is saved, not each time it runs.
+ */
+const PROTECTED = [".git", "node_modules", ".prologue"];
 const invalid = (checker: AgentWriteChecker, why: string) => agentErrors.write_checker_invalid(`检查器「${checker.display_name}」${why}`);
 
 /** What the actions' schema cannot say about one checker, and the defaults the stored list carries (§6.0p.2, §6.0p.3). */
 function checkedChecker(checker: AgentWriteChecker): Required<AgentWriteChecker> {
+  // A bare name found on the Host's PATH (S-38): the Host runs no paths, so one with a path would be kept and never run.
+  if (/[\\/]/.test(checker.executable) || !checker.executable.trim() || [".", ".."].includes(checker.executable)) {
+    throw invalid(checker, "的可执行文件要写成程序名（在 PATH 上找），不能带路径");
+  }
   // One file per check (§6.0p.9): a command without the file would check the whole project and call that a diagnosis.
   if (checker.args.filter(arg => arg === FILE).length !== 1) throw invalid(checker, "的参数里要有一个、也只能有一个 {file}");
   if (checker.args.some(arg => arg !== FILE && arg.includes(FILE))) throw invalid(checker, "的 {file} 要单独作为一个参数，不能嵌在别的文字里");
   const cwd = posix.normalize(checker.cwd ?? ".");
   if (posix.isAbsolute(cwd) || cwd === ".." || cwd.startsWith("../") || cwd.includes("\\")) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
-  return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000, env_allowlist: [...checker.env_allowlist ?? []] };
+  if (cwd.split("/").some(segment => PROTECTED.includes(segment))) throw invalid(checker, "的工作目录不能在 .git、node_modules 或 .prologue 里");
+  return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000 };
 }
 
 /**

@@ -1785,15 +1785,17 @@ Prologue 一刀另外要做到：
 
 - **只认人保存的项目配置。** 每个项目、每个已授权的工作区，一份检查器清单，带版本号。每个检查器写：
   - `checker_id`、显示名；
-  - `executable` 与 `args`（数组，不经 shell）；
+  - `executable`：程序名（裸名），在 Host 的 `PATH` 上找（S-38，Host 不跑带路径的可执行文件）；带 `/` 或 `\`、写成 `.`、`..` 或只有空白的，保存时拒（`agent.write_checker_invalid`，§6.0p.11）；
+  - `args`（数组，不经 shell）；
   - `applies_to`：扩展名清单，例如 `[".js", ".mjs"]`；
-  - `cwd`：相对工作区根，默认 `.`；
-  - `timeout_ms`（§6.0p.3）；
-  - `env_allowlist`：默认空。
+  - `cwd`：相对工作区根，默认 `.`；出根的、落在 SDK 的受保护目录（`.git`、`node_modules`、`.prologue`）里的，保存时拒（§6.0p.11）；
+  - `timeout_ms`（§6.0p.3）。
+  - 没有 `env_allowlist`：SDK 跑写后检查时不带人挑的环境变量，答复里带这一项会被 SDK 拒，存进来也用不上（§6.0p.11）。
 - **文件怎样进命令**：`args` 里恰好一个元素整个写成 `{file}`（没有 `{file}` 的保存时拒，见 §6.0p.9），执行时换成这次写入的、相对工作区根的路径，作为一个完整参数。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
-- **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。存在 Prologue Runtime 的存储里（kind `molis-write-checkers`，每个项目、每个工作区一条），版本就是存储自己的版本，从 1 起；不建表。两个动作：`agent.write_checkers.list.v1`（query）与 `agent.write_checkers.save.v1`（command，带 `expected_version`），受众都只有 `user`。按「新能力注册成动作」，不加 typed 条目。代码与存储里叫 write-checker，和等待用的条件检查器（`prologue-checkers.ts`）分开（统筹 10-18 定，见 §6.0p.10）。设置页放在 Coding 的设置里（`CODING_SETTINGS_UI_CONTRIBUTION_ID`），和方法、MCP 并列。
+- **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。存在 Prologue Runtime 的存储里（kind `molis-write-checkers`，每个项目、每个工作区一条），版本就是存储自己的版本，从 1 起；不建表。两个动作：`agent.write_checkers.list.v1`（query）与 `agent.write_checkers.save.v1`（command，带 `expected_version`），受众都只有 `user`。按「新能力注册成动作」，不加 typed 条目。代码与存储里叫 write-checker，和等待用的条件检查器（`prologue-checkers.ts`）分开（统筹 10-18 定，见 §6.0p.10）。设置页放在平台自己的项目设置节里，和工作区授权在一起，不挂在 Coding 的设置页（`CODING_SETTINGS_UI_CONTRIBUTION_ID`）上：检查器是 agent-host 的平台事实，挂在已授权的工作区上（统筹 10-19 定，§6.0p.11）。
+- **哪些轮会查**：按这一轮的会话声明启用，不按插件名认 Coding：这一轮的包声明了写后检查、工作区此刻已授权并存了检查器，执行器就接上（统筹 10-19 定）。
 - **谁能改**：
-  - 只有人，在 Coding 设置页里改。`agent.write_checkers.save.v1` 的受众只有 `user`，权限 `projects:settings`，和项目设置的动作一样（`packages/contracts/src/modules/projects.ts`）。页面直接调这个动作，不经 Coding 的插件路由转调（转调的受众是 `plugin`）。
+  - 只有人，在项目设置里改。`agent.write_checkers.save.v1` 的受众只有 `user`，权限 `projects:settings`，和项目设置的动作一样（`packages/contracts/src/modules/projects.ts`）。页面直接调这个动作，不经 Coding 的插件路由转调（转调的受众是 `plugin`）。
   - 不登记 `agent`、`mcp`、`workflow`、`plugin`：模型、MCP 客户端、工作流和别的插件都改不了。
   - 操作者从调用上下文来（S-17），不从输入读。
 - **只给已授权的工作区**：保存时工作区必须是这个项目此刻已授权、`realpath_verified` 的（`projectSettingsCapabilities.workspaces`，和 MCP 的 stdio 工作区同一处）。
@@ -1853,7 +1855,7 @@ Prologue 一刀另外要做到：
 
 这一行随 Molis 那一刀加进 `docs/system/SECURITY-INVARIANTS.md`，取那时的下一个空号，不在这里写死（S-33 已给交互线 BL-156 的 Molis 半边）。测试 `tests/security-invariants-checkers.test.ts`。内容：
 
-> 写后检查器的命令只来自人在 Coding 设置里保存的配置：模型、MCP 客户端、工作流和别的插件都存不了（受众只有 `user`）；文件路径只作为一个完整参数，以 `-` 开头的写成 `./…`，不经 shell；没有命令审查的批准就不起进程；配置改了，旧的「本会话不再询问」规则对不上新命令。
+> 写后检查器的命令只来自人在项目设置里保存的配置：模型、MCP 客户端、工作流和别的插件都存不了（受众只有 `user`）；文件路径只作为一个完整参数，以 `-` 开头的写成 `./…`，不经 shell；没有命令审查的批准就不起进程；配置改了，旧的「本会话不再询问」规则对不上新命令。
 
 四条拒绝各有一个用例（PA-25、PA-28、PA-29、PA-30）。
 
@@ -1863,10 +1865,10 @@ Prologue 一刀另外要做到：
 
 | 编号 | 标准 | 拒绝或反例 | 用例 |
 | --- | --- | --- | --- |
-| PA-25 | 人在 Coding 设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、工作流、别的插件调 `agent.write_checkers.save.v1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
+| PA-25 | 人在项目设置里存检查器，版本从 1 起，带 `expected_version` 改 | Agent 一轮里的工具、MCP 客户端、工作流、别的插件调 `agent.write_checkers.save.v1` 都被拒，配置不变；版本过时的保存被拒 | `tests/coding-checkers-settings.test.ts` |
 | PA-26 | 只能给此刻已授权、`realpath_verified` 的工作区存；撤回授权后写入观察写「未检查：工作区授权已撤回」，不起审查 | 给没授权的工作区存被拒；撤回后零审查、零进程 | `tests/coding-checkers-settings.test.ts` |
 | PA-27 | 检查用的 argv 与配置逐项相同，只把 `{file}` 换成写入回执里的路径 | 写入的文件里写着 `// checker: rm -rf .`、`package.json` 里有 scripts，argv 照旧；写入调用多带 `command` 字段被写入工具的合同拒 | `tests/coding-diagnose-after-write.test.ts` |
-| PA-28 | `{file}` 作为一个完整参数；`-rf.js` 写成 `./-rf.js`；带空格、`;` 的路径原样是一个参数 | `--file={file}`、`{file}` 出现两次、配置带 `grants`、时长超出 1,000–60,000 的保存都被拒 | `tests/coding-checkers-settings.test.ts`、`tests/security-invariants-checkers.test.ts` |
+| PA-28 | `{file}` 作为一个完整参数；`-rf.js` 写成 `./-rf.js`；带空格、`;` 的路径原样是一个参数 | `--file={file}`、`{file}` 出现两次、配置带 `grants` 或 `env_allowlist`、时长超出 1,000–60,000、`executable` 带路径、`cwd` 落在 `.git`、`node_modules`、`.prologue` 里的保存都被拒 | `tests/coding-checkers-settings.test.ts`、`tests/security-invariants-checkers.test.ts` |
 | PA-29 | 每次检查恰好一张命令审查卡，内容与配置相同，带「写后检查：<名>（配置 v<n>）」，名和版本按执行器记下的（run，`operationKey`）读；批准后才跑 | 拒绝或过期：进程没起（夹具检查器会写一个标记文件，断言它不存在），观察写「被拒」「没有获批（过期）」 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
 | PA-30 | 选「本会话不再询问」后，同一文件再写，经同一决定路径自动批准 | 换一个文件（argv 不同）要再审；改了配置（argv 不同）要再审 | `tests/coding-diagnose-after-write.test.ts`、`tests/security-invariants-checkers.test.ts` |
 | PA-31 | 超过时长的检查被停，观察写「超时（2 秒）」，文件内容是新的 | 审查等了 3 秒才批，时长 2 秒的检查照样跑完（审查等待不计入） | `tests/coding-diagnose-after-write.test.ts` |
@@ -1915,6 +1917,18 @@ A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `
 - 存储在 `horizontal/agent-host/src/adapters/prologue-write-checkers.ts`；登记和保存时的校验在 `horizontal/agent-host/src/write-checker-actions.ts`，照 `session-actions.ts` 的 `register(definition, handler)` 写法。
 - 工作区由 local-host 读项目目录给（和起跑授权同一处 `workspacesFor`），只认此刻已授权、`realpath_verified` 的。
 - 撤回授权后列表里不再有它，保存被拒；配置留着，授权回来后照旧。PA-26 的「未检查：工作区授权已撤回」和 PA-28 的 `./` 前缀在执行器里，属于 A2-2。
+
+#### 6.0p.11 统筹 10-19 定：存得进的都跑得了；设置放平台的项目设置
+
+§10.28 防腐复查发现 A2-1 收的配置里有几样存得进、跑不了：合同说 `executable` 可以是绝对路径，保存时不查，而 SDK 只认裸名（S-38），带路径的（含 `node_modules/.bin/eslint` 这种根里的文件）每次执行都被拒；`cwd` 指向 `.git` 这类受保护目录也只在执行时才拒；`env_allowlist` 存得进，SDK 却拒收带它的答复。A2-2 的执行器要建在这份配置上，所以在它之前改：
+
+- **`executable` 只收裸名。** 保存时拒带 `/` 或 `\` 的、`.`、`..` 和只有空白的，错误码 `agent.write_checker_invalid`，说「要写成程序名（在 PATH 上找），不能带路径」。合同注释改成「裸名，在 Host 的 PATH 上找（S-38）」。
+- **`cwd` 不进受保护目录。** 保存时拒落在 `.git`、`node_modules`、`.prologue` 里的。这三个名字是 SDK 的 `PROTECTED_SEGMENTS`，SDK 没有导出，`write-checker-actions.ts` 先抄一份并注明出处；SDK 导出以后改成读它（BL-220）。
+- **去掉 `env_allowlist`。** 合同、schema、存储的形状里都删掉；带它的保存是 `actions.input_invalid`。存储只认现行的字段，存量里带这一项的记录读不了（A2-1 没有页面，开发机之外没有存量）。
+- **两个动作升到第 2 版，id 不变。** 输入输出的形状变了（少了 `env_allowlist`），按 `docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条升 `version`；不留第 1 版（阶段一不留兼容期），id 照 `agent.project-work.queue.v1` 的先例不改。受众只有 `user`、还没有页面调它，没有工作流步骤、MCP 工具或 Skill 固定过第 1 版。
+- **设置放平台的项目设置。** A2-3 的设置页放在平台自己的项目设置节里，和工作区授权在一起，不挂在 Coding 的设置页上；执行器按会话的声明启用，不按插件名（§6.0p.2 跟着改）。
+
+用例：`tests/coding-checkers-settings.test.ts` 的 PA-28 加了这几种拒绝。
 
 #### 6.0p.9 不做的
 

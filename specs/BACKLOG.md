@@ -123,6 +123,7 @@
 | BL-164 | Coding 的 TaskBoard 和计划卡把同一种步骤状态说成两样：未开始在 TaskBoard 是「等待前置」（`plugins/native/coding/src/taskboard-client.ts` 的 `STATE`），在计划卡和回执是「等待前一步」（`RECEIPT_WORDS.STEP`，3d-4 起计划卡经 `host.receipts.step` 取）。TaskBoard 的表把措辞、图标和色调绑在一起，还有跳过、验收、返工这些不是板状态的行 | [ai-input-receipts](ai-input-receipts/spec.md) 3d-4 RCPT-356（统筹 10-18 定） | 已知缺口 | TaskBoard 的板状态那几行改从 `host.receipts.step` 取措辞，图标与色调留在 TaskBoard；先定未开始用哪一种说法 | 无 | 低 | 回执线 |
 | BL-166 | 技能包定制：把一份通用角色包改成公司自己的工具、术语、流程（替换 `~~` 占位符、更新 URL/配置、连接 MCP、重新打包），不是从零生成；对应 Anthropic 的 `cowork-plugin-customizer` | [Anthropic 评估 §9 N4](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有 [skill-packs](skill-packs/spec.md) 的格式与安装；属于创作台/助理的作者流程 | skill-packs | 中 | 未分配 |
 | BL-167 | 插件目录的审核流水线：自动安全扫描（权限、网络、脚本、路径）、人工审核记录、官方/第三方分层、上架/下架；今天市场只列本地注册表（BL-058） | [Anthropic 评估 §9 N6/N7](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 需要先定第三方信任模型；审核规则与扫描器另立设计 | plugin-platform-v2 | 中 | 未分配 |
+| BL-245 | 生成插件不能「先问几个问题再接着做」：沙箱里的操作结果原样包在 `value` 里交给部件，不经宿主的问卷出口（`withPluginInteraction`），返回 `needs_input` 也画不成问卷卡；沙箱里也没有 Agent 的 `ask-user`、`suggest-action`。现在只能把要人补的信息做成提交部件的字段，输入不够以声明的错误码失败（AC-12 已写进插件开发 Skill） | [ai-interaction-experience §14.3、AC-12](ai-interaction-experience/spec.md) | 已知缺口 | 要让沙箱的操作结果走同一个问卷出口；按「插件一视同仁」（2026-10-18）补进平台，不给某个插件开私路 | 无 | 中 | 交互线 |
 
 ## 6. 连接、来源与 Onboarding
 

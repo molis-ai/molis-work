@@ -107,9 +107,14 @@ test("D24 a list that picks several keeps ⌘-click for picking; a middle click 
   await waitFor(`(${selected}) === ${JSON.stringify([a, b].sort().join())} && document.querySelectorAll('[data-pages-rows] .pages-doc-row.is-picked').length === 2`);
   assert.equal(await evaluate(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${b}"]')`), null, "a ⌘-click in the list opens no tab");
 
-  // D24 a middle click on C still opens it behind in the Pages group; the picks and the open page stay.
+  // D24 a middle click on C still opens it behind in the Pages group; the picks and the open page stay. The page was
+  // opened with openItem, so the current tab is A's item tab (or the Pages tab): whichever it is, it stays current.
+  const current = `(() => { const tab = document.querySelector('[data-titlebar-tabs] .tab-item[aria-current]'); return tab ? tab.dataset.tabKind + ":" + (tab.dataset.itemId ?? tab.dataset.plugin) : null; })()`;
+  const before = await evaluate<string | null>(current);
+  assert.ok(before === `item:${a}` || before === "plugin:pages", `the pane is on Pages before the middle click (${before})`);
   await press(c, "middle", 0);
   await waitFor(`document.querySelector('[data-plugin-group=pages] .tab-item[data-tab-kind=item][data-item-id="${c}"]')`);
-  assert.equal(await evaluate(`document.querySelector('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=pages]')?.getAttribute('aria-current')`), "page", "the pane stays on the Pages page");
+  assert.equal(await evaluate(current), before, "the pane stays where it was");
+  assert.equal(await evaluate("document.querySelector('[data-pages-title]')?.value"), "Page A", "A stays open in the editor");
   assert.equal(await evaluate(selected), [a, b].sort().join(), "the middle click leaves the picks alone");
 });

@@ -51,17 +51,15 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
       setTrashPending(true);
       let redirecting = false;
       try {
-        const response = await fetch(route("/api/goals/" + encodeURIComponent(intent.goalId) + "/trash"), {
+        const result = await molisWorkRequest(route("/api/goals/" + encodeURIComponent(intent.goalId) + "/trash"), {
           method: "POST",
-          headers: molisWorkControlHeaders(),
-          body: JSON.stringify({
+          body: {
             trashed: intent.trashed,
             reason,
             user_confirmed: true,
-          }),
+          },
+          fallback: L("操作失败"),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("操作失败"));
         const expected = intent.trashed
           ? ["trashed", "already_trashed"]
           : ["restored", "already_active"];
@@ -153,13 +151,12 @@ const GOALS_CREATE_SUBMIT_SCRIPT = `    form?.addEventListener("change", updateR
       try {
         const key = form.dataset.idempotencyKey || (globalThis.crypto?.randomUUID?.() || (String(Date.now()) + Math.random()));
         form.dataset.idempotencyKey = key;
-        const response = await fetch(route("/api/goals"), {
+        const result = await molisWorkRequest(route("/api/goals"), {
           method: "POST",
-          headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": key },
-          body: JSON.stringify({ ...payload, idempotency_key: key }),
+          key,
+          body: { ...payload, idempotency_key: key },
+          fallback: "创建失败",
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "创建失败");
         delete form.dataset.idempotencyKey;
         clearCurrentGoalUiState();
         navigate(result.goal_path);
@@ -181,7 +178,7 @@ const GOALS_DIALOG_ESCAPE_SCRIPT = `      if (event.key === "Escape" && dialog.o
 
 /** Dialog-local intent and draft state; Host supplies shared refresh, storage and navigation. */
 export const GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { dialog, form, route, controlHeaders: molisWorkControlHeaders, refreshBoard,
+    const { dialog, form, route, refreshBoard,
       updateRelationPreviews, currentLocale, translate: L, clearCollectionUiState, clearCurrentGoalUiState, navigate } = host;
     const formError = document.querySelector("[data-create-error]");
     const trashDialog = document.querySelector("[data-goal-trash-dialog]");
@@ -275,16 +272,14 @@ const GOALS_LIFECYCLE_CLICK_SCRIPT = `      const archiveAction = target.closest
         const archived = archiveAction.dataset.goalArchive === "true";
         const goalId = archiveAction.dataset.goalId;
         try {
-          const response = await fetch(route("/api/goals/" + encodeURIComponent(goalId) + "/archive"), {
+          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(goalId) + "/archive"), {
             method: "POST",
-            headers: molisWorkControlHeaders(),
-            body: JSON.stringify({
+            body: {
               archived,
               reason: archived ? "用户在 Molis Work 手动归档已完成 Goal" : "用户在 Molis Work 恢复归档 Goal",
-            }),
+            },
+            fallback: "操作失败",
           });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "操作失败");
           navigate(route((archived ? "/archive/goals/" : "/goals/") + encodeURIComponent(goalId)));
         } catch (error) {
           archiveAction.disabled = false;
@@ -296,7 +291,7 @@ const GOALS_LIFECYCLE_CLICK_SCRIPT = `      const archiveAction = target.closest
 
 /** Archive and restore-from-archive use the existing Host HTTP. */
 export const GOALS_LIFECYCLE_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { route, controlHeaders: molisWorkControlHeaders, showToast, navigate } = host;
+    const { route, showToast, navigate } = host;
     const handleMatchedLifecycleClick = async (target) => {
 ${GOALS_LIFECYCLE_CLICK_SCRIPT}    };
     const handleGoalLifecycleClick = (target) => target.closest("[data-goal-archive]")

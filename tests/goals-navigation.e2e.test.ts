@@ -42,7 +42,8 @@ test("Goal navigation preserves history, keyboard focus, failed selection recove
 
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/document*"] }, sessionId);
   await click('.tree-node[data-select-goal="CORE"]');
-  await waitFor(selected("RELEASE") + " && !document.querySelector('#goal-document-pane').hasAttribute('aria-busy') && document.querySelector('[data-toast]').textContent.includes('Failed to fetch')");
+  // PG094-09: the read goes through the page's request helper, which names an unreachable Host in its own words.
+  await waitFor(selected("RELEASE") + " && !document.querySelector('#goal-document-pane').hasAttribute('aria-busy') && document.querySelector('[data-toast]').textContent.includes('连不上 Molis Work 服务')");
   assert.equal(await evaluate("location.pathname"), "/goals/RELEASE");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click('.tree-node[data-select-goal="CORE"]');

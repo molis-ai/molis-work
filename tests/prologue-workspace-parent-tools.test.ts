@@ -43,7 +43,8 @@ test("RCPT-365, 3e-0b: the writers parent still cannot hold a tool that writes o
   for (const tool of ["write", "run-command"]) {
     const manifest = structuredClone(codingAgentManifest), role = manifest.roles.find(one => one.role_id === "writers")!;
     role.host_tools = [...role.host_tools!, tool];
-    await assert.rejects(host.start("prologue", await request(), authority(manifest)), `RCPT-365 a writers parent holding ${tool} is refused`);
+    await assert.rejects(host.start("prologue", await request(), authority(manifest)), (error: Error & { code?: string }) => error.code === "agent.role_execution_exceeded" && /独立目录协调者只能读取和分派/u.test(error.message),
+      `RCPT-365 a writers parent holding ${tool} is refused as a role exceeding what it may hold`);
   }
   assert.equal(calls, 0, "RCPT-365 refused before any model call");
 

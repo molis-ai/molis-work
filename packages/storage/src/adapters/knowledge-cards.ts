@@ -3,7 +3,7 @@ import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/acti
 import { KNOWLEDGE_RECEIPT_DAYS, KNOWLEDGE_RECEIPT_MAX, type KnowledgeCardMatch, type KnowledgeCardRecord, type KnowledgeCardStorePort, type KnowledgeReadReceipt } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { clearInExistingHomeSqlite, openBaselineHomeSqlite, type SqliteBaseline } from "../sqlite-baseline.js";
-import { normalizeSearchText, searchQueryPlan, searchTokens } from "./text-search-index.js";
+import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } from "./text-search-index.js";
 
 /**
  * Project knowledge's own records (specs/project-knowledge §4.3): one card per piece, with what organizing wrote and what the
@@ -64,6 +64,11 @@ export function openKnowledgeCards(options: { homeDirectory: string }): Knowledg
     remove: (projectId, subject) => transaction(() => { const existing = idOf(projectId, subject); if (existing !== undefined) drop(existing); }),
     removeProject: projectId => transaction(() => removeProjectCards(db, projectId)),
     search: (projectId, query, limit) => searchCards(db, projectId, query, limit),
+    related: (projectId, query, limit) => {
+      const plan = relatedQueryPlan(query);
+      return plan ? (db.prepare(`SELECT c.kind, c.object_id FROM knowledge_cards_fts JOIN knowledge_cards c ON c.card_id = knowledge_cards_fts.rowid
+        WHERE knowledge_cards_fts MATCH ? AND c.project_id = ? ORDER BY bm25(knowledge_cards_fts, 4.0, 1.0) LIMIT ?`).all(plan, projectId, limit) as Row[]).map(row => ({ kind: String(row.kind), id: String(row.object_id) })) : [];
+    },
     usage: (projectId, day) => {
       const row = db.prepare("SELECT * FROM knowledge_usage WHERE project_id = ? AND day = ?").get(projectId, day) as Row | undefined;
       return { day, pieces: Number(row?.pieces ?? 0), chars: Number(row?.chars ?? 0), extra_pieces: Number(row?.extra_pieces ?? 0), extra_chars: Number(row?.extra_chars ?? 0) };

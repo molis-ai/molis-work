@@ -25,7 +25,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { agentActions, capabilityDirectory, knowledgeFact, type AssistantRoundFactPorts } from "./assistant-directory.js";
+import { agentActions, capabilityDirectory, knowledgeDirectory, knowledgeFact, type AssistantRoundFactPorts } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
 import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -1468,7 +1468,7 @@ export class AssistantService {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))));
+    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));

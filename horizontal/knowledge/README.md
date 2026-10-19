@@ -6,12 +6,14 @@
 
 ## 一次典型调用
 
-Agent 像在代码库里找东西一样一步步找（spec §6.2）：`knowledge.list` 看项目里有什么，`knowledge.search` 按词拿卡片，`knowledge.grep` 找确切的行（不点名资料就查全项目，也可只要哪几份有、各几行），`knowledge.outline` 看分节树，`knowledge.read` 按节（连同子节）或从某一行起读原文；`knowledge.glob` 找工作目录里的文件。Host（[apps/local-host/src/knowledge-actions.ts](../../apps/local-host/src/knowledge-actions.ts)）把这些动作注册成提供方 `system.knowledge`，与系统搜索同一处装配。
+Agent 像在代码库里找东西一样一步步找（spec §6.2）：`knowledge.list` 看项目里有什么，`knowledge.search` 按词拿卡片，`knowledge.grep` 找确切的行（不点名资料就查全项目，也可只要哪几份有、各几行），`knowledge.outline` 看分节树，`knowledge.read` 按节（连同子节）或从某一行起读原文；`knowledge.locate` 让项目的文字模型看几份资料的分节树、按问题选节（`src/locate.ts`）；`knowledge.glob` 找工作目录里的文件。Host（[apps/local-host/src/knowledge-actions.ts](../../apps/local-host/src/knowledge-actions.ts)）把这些动作注册成提供方 `system.knowledge`，与系统搜索同一处装配。
 
 | 文件 | 用途 |
 | --- | --- |
 | [src/index.ts](src/index.ts) | `KnowledgeService`：查找、结构、读取、逐行查找 |
 | [src/text.ts](src/text.ts) | 分节（Markdown 标题，没有标题时按段落切）、读取范围、逐行查找；都是纯函数 |
+| [src/related.ts](src/related.ts) | 宽松召回：索引正文与卡片文字两份「有其中一些词」的排序按名次合起来（spec §6.4） |
+| [src/locate.ts](src/locate.ts) | `knowledge.locate`：把分节树交给模型选节，只收回确实存在的节（spec §6.4） |
 | [src/errors.ts](src/errors.ts) | `knowledgeErrors` |
 
 ## 本地开发

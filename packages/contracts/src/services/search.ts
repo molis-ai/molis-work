@@ -243,6 +243,12 @@ export interface SearchIndexPort {
   /** Every document indexed for one project: the catalog project knowledge organizes (specs/project-knowledge §5). */
   documents(projectId: string): SearchIndexDocument[];
   search(query: SearchIndexQuery): { matches: SearchIndexMatch[]; total: number };
+  /**
+   * One project's documents that hold some of the words of a question (CJK adjacent pairs and words), best first: the loose
+   * ranking project knowledge fills a search and orders its catalog with (specs/project-knowledge §6.4). Not the system search,
+   * and not filtered by caller: the knowledge service applies its own visibility rule before anything is shown.
+   */
+  related(projectId: string, query: string, limit: number): Array<{ kind: string; object_id: string }>;
   clear(): number;
   close(): void;
 }

@@ -8,6 +8,12 @@ export declare const KNOWLEDGE_CARD_MAX_KEYWORDS = 10;
 
 export declare const KNOWLEDGE_CARD_STATES: readonly ["pending", "ready", "listed", "failed", "over_quota", "missing"];
 
+export declare const KNOWLEDGE_CATALOG_RELATED = 20;
+
+export declare const KNOWLEDGE_CATALOG_WHOLE_CHARS = 8000;
+
+export declare const KNOWLEDGE_CATALOG_WHOLE_PIECES = 40;
+
 export declare const KNOWLEDGE_GLOB_MAX_FILES = 500;
 
 export declare const KNOWLEDGE_GLOB_MAX_FOLDERS = 400;
@@ -21,6 +27,8 @@ export declare const KNOWLEDGE_GREP_MAX_SUBJECTS = 20;
 export declare const KNOWLEDGE_KEYWORD_MAX_CHARS = 30;
 
 export declare const KNOWLEDGE_LIST_MAX = 100;
+
+export declare const KNOWLEDGE_LOCATE_MAX_SUBJECTS = 5;
 
 export declare const KNOWLEDGE_MANAGE_PERMISSION = "knowledge:manage";
 
@@ -103,6 +111,7 @@ export interface KnowledgeCardStorePort {
     remove(projectId: string, subject: ActionSubject): void;
     removeProject(projectId: string): number;
     search(projectId: string, query: string, limit: number): KnowledgeCardMatch[];
+    related(projectId: string, query: string, limit: number): ActionSubject[];
     usage(projectId: string, day: string): KnowledgeUsage;
     addReceipt(receipt: KnowledgeReadReceipt): void;
     receipts(projectId: string, options: {
@@ -227,6 +236,7 @@ export interface KnowledgeListRequest {
     kinds?: string[];
     limit?: number;
     offset?: number;
+    related_to?: string;
 }
 
 export interface KnowledgeListResponse {
@@ -240,7 +250,30 @@ export interface KnowledgeListResponse {
     listing: boolean;
 }
 
-export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
+export interface KnowledgeLocateRequest {
+    question: string;
+    subjects: ActionSubject[];
+}
+
+export interface KnowledgeLocateResponse {
+    sections: KnowledgeLocatedSection[];
+    unread: Array<{
+        subject: ActionSubject;
+        reason: string;
+    }>;
+    unsummarized: ActionSubject[];
+}
+
+export interface KnowledgeLocatedSection {
+    subject: ActionSubject;
+    revision: string;
+    anchor: string;
+    title: string;
+    line: number;
+    reason: string;
+}
+
+export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card" | "related";
 
 export interface KnowledgeOrganizeRequest {
     subjects?: ActionSubject[];
@@ -368,7 +401,18 @@ export declare const knowledgeActions: {
     read: ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>;
     grep: ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>;
     glob: ActionDefinition<KnowledgeGlobRequest, KnowledgeGlobResponse>;
+    locate: ActionDefinition<KnowledgeLocateRequest, KnowledgeLocateResponse>;
 };
+
+export declare function knowledgeCatalogLine(piece: KnowledgeListEntry): string;
+
+export declare function knowledgeCatalogText(catalog: {
+    total: number;
+    whole: boolean;
+    pieces: readonly KnowledgeListEntry[];
+}): string;
+
+export declare function knowledgeCatalogWhole(list: Pick<KnowledgeListResponse, "pieces" | "total">): boolean;
 
 export declare const knowledgeManageActions: {
     cards: ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>;

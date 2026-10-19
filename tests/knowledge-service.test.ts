@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KNOWLEDGE_READ_MAX_CHARS, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeListEntry, type KnowledgeListRequest, type KnowledgeListResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
+import { knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KnowledgeService, PLAIN_SECTION_CHARS, outlineOf } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
@@ -22,9 +22,9 @@ async function fixture(t: import("node:test").TestContext) {
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
 
-test("PMAT-01 the six knowledge actions are reads every audience reaches through the directory", () => {
+test("PMAT-01 PMAT-38 the seven knowledge actions are reads every audience reaches through the directory", () => {
   const definitions = Object.values(knowledgeActions);
-  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.list", "knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob"]);
+  assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.list", "knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob", "knowledge.locate"]);
   assert.deepEqual(inspectActionDeclarations(definitions, undefined), []);
   for (const item of definitions) {
     assert.equal(item.action.kind, "query");
@@ -119,4 +119,30 @@ test("PMAT-24 a Coding round carries the knowledge open to its Agent now, inside
   assert.deepEqual(withKnowledgeTools([], directory, [{ capability_id: "knowledge.read", version: 1, provider_id: "system.knowledge" }]).map(ref => ref.capability_id), ["knowledge.read"],
     "a Character only narrows");
   assert.deepEqual(withKnowledgeTools([{ capability_id: "knowledge.read", version: 1, provider_id: "system.knowledge" }], directory).map(ref => ref.capability_id), ["knowledge.read", "knowledge.search"], "no duplicates");
+});
+
+test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the catalog: whole when small, otherwise the pieces related to its words", async () => {
+  const piece = (index: number): KnowledgeListEntry => ({ subject: { kind: "page", id: `p${index}` }, revision: "1", title: `资料 ${index}`, plugin_id: "pages", plugin_title: "Pages",
+    updated_at: null, brief: `第 ${index} 份的简介`, keywords: [], sections: 0, open: null });
+  const asked: KnowledgeListRequest[] = [];
+  const actions = (total: number, fail = false) => ({ invoke: async <Input, Output>(_definition: unknown, input: Input): Promise<Output> => {
+    asked.push(input as KnowledgeListRequest);
+    if (fail) throw new Error("来源暂时读不到");
+    const limit = (input as KnowledgeListRequest).limit ?? 30;
+    const response: KnowledgeListResponse = { total, sources: [], listing: false, pieces: Array.from({ length: Math.min(total, limit) }, (_, index) => piece(index + 1)) };
+    return response as Output;
+  } });
+  const list = [{ capability_id: "knowledge.list", version: 1, provider_id: "system.knowledge" }];
+
+  assert.equal(await knowledgeCatalogMaterial(actions(3), [], "仓库着火", "s1"), null, "a round without the list tool gets none");
+  const small = await knowledgeCatalogMaterial(actions(3), list, "仓库着火", "s1");
+  assert.ok(small?.text.startsWith("这个项目的资料一共 3 份，都列在下面。") && small.text.includes("「资料 2」（Pages）：第 2 份的简介"), small?.text);
+  assert.deepEqual([small!.title, asked.length], ["项目资料目录", 1]);
+
+  asked.length = 0;
+  const large = await knowledgeCatalogMaterial(actions(50), list, "仓库着火", "s1");
+  assert.match(large!.text, /一共 50 份，下面是与这一轮最相关的 20 份/);
+  assert.deepEqual(asked, [{ limit: 40 }, { related_to: "仓库着火", limit: 20 }]);
+  assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火", "s1"), null, "nothing listed, nothing given");
+  assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火", "s1"), null, "a listing that fails does not stop the round");
 });

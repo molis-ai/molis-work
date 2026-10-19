@@ -38,6 +38,10 @@ export const KNOWLEDGE_GREP_MAX_ALTERNATIVES = 4;
 export const KNOWLEDGE_READ_MAX_LINES = 2_000;
 /** Most cards one `knowledge.list` returns. */
 export const KNOWLEDGE_LIST_MAX = 100;
+/** A round's catalog (§6.4): the whole of it up to this many pieces and characters, otherwise this many related to the round. */
+export const KNOWLEDGE_CATALOG_WHOLE_PIECES = 40;
+export const KNOWLEDGE_CATALOG_WHOLE_CHARS = 8_000;
+export const KNOWLEDGE_CATALOG_RELATED = 20;
 /** Most workspace files one `knowledge.grep` with a `glob` reads. */
 export const KNOWLEDGE_GREP_MAX_FILES = 50;
 /** Most paths one `knowledge.glob` returns, and the most folders it lists to find them. */
@@ -45,7 +49,8 @@ export const KNOWLEDGE_GLOB_MAX_FILES = 500;
 export const KNOWLEDGE_GLOB_MAX_FOLDERS = 400;
 
 /** Which layer a card was found in: its title, the summary its owner allows, its text, or what organizing wrote on its card. */
-export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card";
+/** Where a search found the piece; `related` is a piece that holds only some of the words, added when too few hold them all (§6.4). */
+export type KnowledgeMatchLayer = "title" | "summary" | "content" | "card" | "related";
 /**
  * One piece of knowledge as search found it: enough to decide whether to read further, never a quotable passage.
  * `hint` is a short window around the match; what the piece says is read with `knowledge.read`.
@@ -82,9 +87,33 @@ export interface KnowledgeListEntry {
   sections: number;
   open: SearchOpenTarget | null;
 }
-export interface KnowledgeListRequest { plugins?: string[]; kinds?: string[]; limit?: number; offset?: number }
-/** Newest first. `sources` counts every listed piece by plugin; `listing` says a source is still being listed for the first time. */
+export interface KnowledgeListRequest { plugins?: string[]; kinds?: string[]; limit?: number; offset?: number; related_to?: string }
+/** Newest first, or with `related_to` those that hold some of its words first. `sources` counts every listed piece by plugin; `listing` says a source is still being listed for the first time. */
 export interface KnowledgeListResponse { pieces: KnowledgeListEntry[]; total: number; sources: Array<{ plugin_id: string; plugin_title: string; count: number }>; listing: boolean }
+/** One piece in a round's catalog (§6.4): its card's words and the subject to copy as it is, never its text. */
+export function knowledgeCatalogLine(piece: KnowledgeListEntry): string {
+  return `- 「${piece.title}」（${piece.plugin_title}${piece.sections ? `，${piece.sections} 节` : ""}）${piece.brief ? `：${piece.brief}` : ""}\n  subject ${JSON.stringify(piece.subject)}`;
+}
+/** A round's catalog as the model reads it (§6.4): how much of the project it is, what it is for, then one line per piece. */
+export function knowledgeCatalogText(catalog: { total: number; whole: boolean; pieces: readonly KnowledgeListEntry[] }): string {
+  return [catalog.whole ? `这个项目的资料一共 ${catalog.total} 份，都列在下面。` : `这个项目的资料一共 ${catalog.total} 份，下面是与这一轮最相关的 ${catalog.pieces.length} 份，其余用「${knowledgeActions.search.action.title}」或「${knowledgeActions.grep.action.title}」找。`,
+    `标题和简介是整理时写的，只用来挑：挑出可能有答案的几份，用「${knowledgeActions.outline.action.title}」看分节、「${knowledgeActions.read.action.title}」读原文。subject 照抄这里给的。`,
+    "", ...catalog.pieces.map(knowledgeCatalogLine)].join("\n");
+}
+/** Whether a listing of up to `KNOWLEDGE_CATALOG_WHOLE_PIECES` is the project's whole catalog and short enough to give whole. */
+export function knowledgeCatalogWhole(list: Pick<KnowledgeListResponse, "pieces" | "total">): boolean {
+  return list.total <= KNOWLEDGE_CATALOG_WHOLE_PIECES && list.pieces.map(knowledgeCatalogLine).join("\n").length <= KNOWLEDGE_CATALOG_WHOLE_CHARS;
+}
+/** At most this many pieces' section trees go to the model at once (§6.4). */
+export const KNOWLEDGE_LOCATE_MAX_SUBJECTS = 5;
+export interface KnowledgeLocateRequest { question: string; subjects: ActionSubject[] }
+/** A section the model judged likely to hold the answer, from titles and section notes only: where to read and why, never the text. */
+export interface KnowledgeLocatedSection { subject: ActionSubject; revision: string; anchor: string; title: string; line: number; reason: string }
+/**
+ * `unread`: pieces whose section tree could not be read, with why. `unsummarized`: pieces with no section notes for their current
+ * text (not organized yet, or short), chosen from by headings alone.
+ */
+export interface KnowledgeLocateResponse { sections: KnowledgeLocatedSection[]; unread: Array<{ subject: ActionSubject; reason: string }>; unsummarized: ActionSubject[] }
 export interface KnowledgeSearchResponse {
   /** As for `search.query`: `partial` or `indexing` say some pieces may not be found yet. */
   status: SearchQueryStatus;
@@ -255,6 +284,8 @@ export interface KnowledgeCardStorePort {
   removeProject(projectId: string): number;
   /** Cards whose title, brief, keywords or section notes hold every term of the query, best first. */
   search(projectId: string, query: string, limit: number): KnowledgeCardMatch[];
+  /** Cards whose own words hold some of the words of a question, best first (the loose ranking of §6.4). */
+  related(projectId: string, query: string, limit: number): ActionSubject[];
   usage(projectId: string, day: string): KnowledgeUsage;
   addReceipt(receipt: KnowledgeReadReceipt): void;
   /** Newest first; of one piece when `subject` is given. */
@@ -289,7 +320,7 @@ const roundLeft = { type: ["integer", "null"], minimum: 0 };
 const keywords = { type: "array", maxItems: KNOWLEDGE_CARD_MAX_KEYWORDS, items: { type: "string", minLength: 1, maxLength: KNOWLEDGE_KEYWORD_MAX_CHARS } };
 const openTarget = { anyOf: [{ type: "null" }, SEARCH_OPEN_TARGET_SCHEMA] };
 const card = { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, plugin_id: text, plugin_title: text, updated_at: nullableText,
-  matched: { enum: ["title", "summary", "content", "card"] }, hint: text, brief: nullableText, keywords, open: openTarget },
+  matched: { enum: ["title", "summary", "content", "card", "related"] }, hint: text, brief: nullableText, keywords, open: openTarget },
   required: ["subject", "revision", "title", "plugin_id", "plugin_title", "updated_at", "matched", "hint", "brief", "keywords", "open"], additionalProperties: false };
 const section = { type: "object", properties: { anchor: text, title: text, level: { type: "integer", minimum: 0, maximum: 6 }, parent: nullableText, start: count,
   line: { type: "integer", minimum: 1 }, length: count, summary: nullableText }, required: ["anchor", "title", "level", "parent", "start", "line", "length", "summary"], additionalProperties: false };
@@ -307,14 +338,14 @@ const metadata = {
 /** Registered once by the Host as `system.knowledge`; every agent, page, workflow and MCP client reaches them through the shared directory. */
 export const knowledgeActions = {
   list: { capability_id: "knowledge.list", version: 1, operation: "query", action: { ...metadata,
-    title: "列出项目资料", description: "看项目里有哪些资料：按来源列出每份资料的卡片（标题、简介、关键词、整理出的分节数、更新时间），最新的在前，可按来源插件或类型过滤、翻页，并给出各来源的份数。不返回原文，不占本轮读原文的额度；只列调用者现在能读的。",
+    title: "列出项目资料", description: "看项目里有哪些资料：按来源列出每份资料的卡片（标题、简介、关键词、整理出的分节数、更新时间），最新的在前（给了 related_to 时，含有这段话里一些词的在前），可按来源插件或类型过滤、翻页，并给出各来源的份数。不返回原文，不占本轮读原文的额度；只列调用者现在能读的。",
     input_schema: { type: "object", properties: { plugins: { type: "array", maxItems: 50, items: token }, kinds: { type: "array", maxItems: 50, items: token },
-      limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_LIST_MAX }, offset: count }, additionalProperties: false },
+      limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_LIST_MAX }, offset: count, related_to: { type: "string", minLength: 1, maxLength: 2000 } }, additionalProperties: false },
     output_schema: { type: "object", properties: { pieces: { type: "array", items: listEntry }, total: count,
       sources: { type: "array", items: { type: "object", properties: { plugin_id: text, plugin_title: text, count }, required: ["plugin_id", "plugin_title", "count"], additionalProperties: false } },
       listing: { type: "boolean" } }, required: ["pieces", "total", "sources", "listing"], additionalProperties: false } } } as ActionDefinition<KnowledgeListRequest, KnowledgeListResponse>,
   search: { capability_id: "knowledge.search", version: 1, operation: "query", action: { ...metadata,
-    title: "查找项目资料", description: "按词在项目资料的标题、卡片和正文里找，返回卡片（标题、来源、命中位置附近的一小段），不是原文。找不到时换个说法、英文或编号再找，或用 knowledge.grep 查原话。只返回调用者现在能读的。",
+    title: "查找项目资料", description: "按词在项目资料的标题、卡片和正文里找，返回卡片（标题、来源、命中位置附近的一小段），不是原文。每个词都有的不够时，补上只有其中一些词的（matched 为 related，可能不相关，看简介再决定读不读）。找不到时换个说法、英文或编号再找，或用 knowledge.grep 查原话。只返回调用者现在能读的。",
     input_schema: { type: "object", properties: { query: queryText, kinds: { type: "array", maxItems: 50, items: token }, plugins: { type: "array", maxItems: 50, items: token },
       limit: { type: "integer", minimum: 1, maximum: 30 } }, required: ["query"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { enum: ["complete", "partial", "indexing", "empty_scope"] }, cards: { type: "array", items: card } },
@@ -355,6 +386,16 @@ export const knowledgeActions = {
         required: ["subject", "workspace_id", "workspace_name", "path"], additionalProperties: false } }, more: { type: "boolean" },
       unread: { type: "array", items: { type: "object", properties: { workspace_id: text, path: text, reason: text }, required: ["workspace_id", "path", "reason"], additionalProperties: false } } },
       required: ["files", "more", "unread"], additionalProperties: false } } } as ActionDefinition<KnowledgeGlobRequest, KnowledgeGlobResponse>,
+  locate: { capability_id: "knowledge.locate", version: 1, operation: "query", action: { ...metadata,
+    title: "按问题选资料分节", description: `给一个问题和至多 ${KNOWLEDGE_LOCATE_MAX_SUBJECTS} 份资料，由项目的文字模型看这几份的分节树（标题和整理时写的每节摘要，不看正文），回最可能有答案的几节：subject、anchor、起始行和理由。再用 knowledge.read 按 anchor 读原文核对；理由只是猜测，不是资料内容。没整理过的资料只按标题选。`,
+    input_schema: { type: "object", properties: { question: { type: "string", minLength: 1, maxLength: 1000 },
+      subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_LOCATE_MAX_SUBJECTS, items: ACTION_SUBJECT_SCHEMA } }, required: ["question", "subjects"], additionalProperties: false },
+    output_schema: { type: "object", properties: {
+      sections: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, anchor: text, title: text, line: { type: "integer", minimum: 1 }, reason: text },
+        required: ["subject", "revision", "anchor", "title", "line", "reason"], additionalProperties: false } },
+      unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } },
+      unsummarized: { type: "array", items: ACTION_SUBJECT_SCHEMA } },
+      required: ["sections", "unread", "unsummarized"], additionalProperties: false } } } as ActionDefinition<KnowledgeLocateRequest, KnowledgeLocateResponse>,
 };
 
 const cardRecord = { type: "object", properties: { project_id: text, subject: ACTION_SUBJECT_SCHEMA, source_key: text, provider_id: text, plugin_id: text, plugin_title: text,

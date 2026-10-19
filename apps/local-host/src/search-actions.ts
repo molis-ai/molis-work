@@ -6,7 +6,7 @@ import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
-import { createKnowledgeHost } from "./knowledge-actions.js";
+import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
@@ -45,6 +45,7 @@ export interface SearchHost {
   readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
   /** How many pieces of project knowledge a caller whose directory is `views` would see listed (specs/project-knowledge PMAT-33). */
   knowledgeTally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
+  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeHost["catalog"]>;
   close(): Promise<void>;
 }
 
@@ -102,6 +103,7 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
     readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
     knowledgeTally: (projectId, views) => knowledge.tally(projectId, views),
+    knowledgeCatalog: (projectId, views, words) => knowledge.catalog(projectId, views, words),
     close: async () => { closed = true; for (const dispose of disposers) dispose(); await knowledge.close(); await service.close(); index.close(); },
   };
 }

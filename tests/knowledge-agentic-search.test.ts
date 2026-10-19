@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, knowledgeCutPieces, type KnowledgeDraft, type KnowledgeDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, knowledgeCutPieces, locateSections, type KnowledgeDraft, type KnowledgeDraftInput,
+  type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
@@ -21,7 +22,8 @@ async function fixture(t: import("node:test").TestContext, budget?: RoundBudget)
   const writer = async (input: KnowledgeDraftInput): Promise<KnowledgeDraft> =>
     ({ title: input.title, brief: `讲的是${input.title}。`, keywords: [input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) });
   const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
-  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, cut: projectId => knowledgeCutPieces(f.index, projectId), ...(budget ? { budget } : {}) });
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, cut: projectId => knowledgeCutPieces(f.index, projectId),
+    related: (projectId, query, limit) => f.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })), ...(budget ? { budget } : {}) });
   const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); await organizer.reconcile("a"); };
   return { ...f, cards, organizer, knowledge, manage: new KnowledgeCards(cards, organizer), indexAll };
 }
@@ -146,4 +148,78 @@ test("PMAT-32 a grep over the whole project finds a wording past what the index 
   f.manage.exclude(owner, { subject: { kind: "page", id: "p9" }, excluded: true });
   const kept = await f.knowledge.grep(f.access(agent()), { pattern: "7075" });
   assert.deepEqual([kept.matches, kept.unread], [[], []]);
+});
+
+const FIRE = "库房里着火了，员工第一步该做什么？";
+
+test("PMAT-34 a whole question no piece holds word for word is filled with pieces that hold some of its words, marked related; kept or unreadable ones stay out", async t => {
+  const f = await fixture(t);
+  f.pages.set("p2", { id: "p2", title: "仓库安全", body: "库房起火时先按下警铃并报警，再按路线疏散。", version: 1 });
+  await f.indexAll();
+  await f.organizer.kick("a");
+  const strict = await f.search.query(f.access(agent()), { query: FIRE, scope: "project", limit: 10 });
+  assert.deepEqual(strict.hits, [], "the system search still wants every word: search.query is unchanged");
+  const found = await f.knowledge.search(f.access(agent()), { query: FIRE });
+  assert.equal(found.cards[0]?.subject.id, "p2", JSON.stringify(found.cards.map(card => card.subject.id)));
+  assert.deepEqual([found.cards[0]!.matched, found.cards[0]!.hint], ["related", "讲的是仓库安全。"], "marked related, with the card's brief instead of a passage");
+  assert.ok(!JSON.stringify(found).includes("警铃"), "no original text");
+
+  // A search every word of which a piece holds comes first, unmarked.
+  const exact = await f.knowledge.search(f.access(agent()), { query: "库房起火" });
+  assert.deepEqual([exact.cards[0]?.subject.id, exact.cards[0]?.matched], ["p2", "content"]);
+
+  const noPages = await f.knowledge.search(f.access(agent(undefined, ["goals:read", "search:read"])), { query: FIRE });
+  assert.ok(!noPages.cards.some(card => card.subject.kind === "page"), "a caller who cannot read pages is not shown one");
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p2" }, excluded: true });
+  assert.ok(!(await f.knowledge.search(f.access(agent()), { query: FIRE })).cards.some(card => card.subject.id === "p2"), "one kept from agents is not added");
+});
+
+test("PMAT-35 PMAT-36 a round's catalog is whole when small, otherwise the pieces related to the round first; list orders by related_to the same way", async t => {
+  const f = await fixture(t);
+  f.pages.set("p2", { id: "p2", title: "仓库安全", body: "库房起火时先按下警铃并报警，再按路线疏散。", version: 1 });
+  for (let index = 0; index < 45; index += 1) f.pages.set(`q${index}`, { id: `q${index}`, title: `周报 ${index + 1}`, body: `第 ${index + 1} 周：销售照常。`, version: 1 });
+  await f.indexAll();
+  const views = async (caller = agent()) => f.actions.discover(caller);
+  // A caller who cannot read pages sees only the three goals (the rule list applies): the whole catalog.
+  const small = f.knowledge.catalog("a", await views(agent(undefined, ["goals:read", "search:read"])), FIRE);
+  assert.deepEqual([small.whole, small.total, small.pieces.map(piece => piece.subject.kind)], [true, 3, ["goal", "goal", "goal"]]);
+  assert.ok(!JSON.stringify(small).includes("十月内部试用"), "cards only");
+
+  const large = f.knowledge.catalog("a", await views(), FIRE);
+  assert.deepEqual([large.whole, large.total, large.pieces.length], [false, 50, 20]);
+  assert.equal(large.pieces[0]!.subject.id, "p2", "the piece related to the round's words comes first");
+  const listed = await f.knowledge.list(f.access(agent()), { related_to: FIRE, limit: 3 });
+  assert.deepEqual([listed.total, listed.pieces[0]!.subject.id], [50, "p2"]);
+});
+
+test("PMAT-38 locate shows the model section trees without text and returns only sections that are there, with the line to read from", async t => {
+  const f = await fixture(t);
+  // Long enough to be organized with section notes; p2 is short, so it has none.
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: `${MANUAL}\n${"附录里的其他说明。".repeat(300)}`, version: 2 });
+  f.pages.set("p2", { id: "p2", title: "仓库安全", body: "# 消防\n库房起火先报警。\n\n# 疏散\n按路线走。", version: 1 });
+  await f.indexAll();
+  await f.organizer.kick("a");
+  const shown: KnowledgeLocateDraftInput[] = [];
+  const locator = async (input: KnowledgeLocateDraftInput) => {
+    shown.push(input);
+    return { sections: [{ piece: 2, anchor: "h1", reason: "消防一节讲起火" }, { piece: 2, anchor: "h1", reason: "重复" }, { piece: 1, anchor: "h99", reason: "编造的节" },
+      { piece: 7, anchor: "h1", reason: "没有这一份" }, { piece: 1, anchor: "h3", reason: "编号一节" }] };
+  };
+  const asked = f.access(agent());
+  const outline = (subject: { kind: string; id: string }) => f.knowledge.outline(asked, { subject });
+  const subjects = [{ kind: "page", id: "p1" }, { kind: "page", id: "p2" }, { kind: "page", id: "nope" }];
+  const found = await locateSections({ question: "库房着火第一步做什么？", subjects }, outline, locator);
+  assert.deepEqual(found.sections.map(section => [section.subject.id, section.anchor, section.title, section.line, section.reason]),
+    [["p2", "h1", "消防", 1, "消防一节讲起火"], ["p1", "h3", "编号", 7, "编号一节"]], "a repeated, invented or unknown piece's section is left out");
+  assert.deepEqual(found.unread.map(row => row.subject.id), ["nope"]);
+  assert.deepEqual(found.unsummarized.map(subject => subject.id), ["p2"], "p2 has no section notes: chosen by headings alone");
+  assert.equal(shown[0]!.pieces[0]!.sections.find(section => section.anchor === "h2")?.summary, "账号这一节", "section notes go to the model");
+  assert.ok(!JSON.stringify(shown).includes("MW-0042") && !JSON.stringify(shown).includes("先报警"), "no text goes to the model");
+
+  await assert.rejects(() => locateSections({ question: "q", subjects }, outline, null), (error: unknown) => error instanceof ActionError && error.code === "knowledge.no_model");
+  const revoked = async () => { throw new ActionError("actions.authority_revoked", "已撤销"); };
+  await assert.rejects(() => locateSections({ question: "q", subjects }, outline, locator, revoked), (error: unknown) => error instanceof ActionError && error.code === "actions.authority_revoked",
+    "a call no longer current when the model answers returns nothing");
+  const noPages = await locateSections({ question: "q", subjects: [{ kind: "page", id: "p1" }] }, subject => f.knowledge.outline(f.access(agent(undefined, ["goals:read", "search:read"])), { subject }), locator);
+  assert.deepEqual([noPages.sections, noPages.unread.length], [[], 1], "a tree the caller cannot read is not shown to the model");
 });

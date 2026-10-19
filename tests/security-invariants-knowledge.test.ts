@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 import { knowledgeWorkspace } from "./fixtures/knowledge-workspace.js";
@@ -90,4 +90,26 @@ test("S-41 PMAT-13 the linked folder is read only with the caller's own grant, n
   const elsewhere = f.access(f.agent(["workspace:read"], "b"));
   await assert.rejects(() => f.knowledge.glob(elsewhere, { pattern: "**/*" }), refused("knowledge.unreadable"));
   await assert.rejects(() => f.knowledge.read(elsewhere, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), refused("knowledge.unreadable"));
+});
+
+test("S-41 PMAT-34 PMAT-35 PMAT-38 pieces added for some of the words, a round's catalog and the trees locate shows the model are only what the caller may read, in its own project", async t => {
+  const f = await fixture(t);
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards: f.cards,
+    related: (projectId, query, limit) => f.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })) });
+  const organizer = new KnowledgeOrganizer({ store: f.cards, catalog: async projectId => knowledgeCatalog(f.index, projectId),
+    writer: () => async input => ({ title: input.title, brief: "内测试用的说明", keywords: [], sections: [] }) });
+  await f.search.query(f.access(person("a")), { query: "试用", scope: "project", limit: 30 });
+  await organizer.kick("a");
+  const question = "试用这件事最后定下来怎么安排的？";
+  const pagesOnly = agent("a", ["pages:read", "search:read"]);
+  const related = await knowledge.search(f.access(pagesOnly), { query: question, limit: 10 });
+  assert.ok(related.cards.length > 0 && related.cards.every(card => card.subject.kind === "page"), "no goal is added for a caller who cannot read goals");
+  assert.ok(!(await knowledge.search(f.access(agent("b")), { query: question })).cards.some(card => card.subject.id !== "gb"), "nor project a's pieces from project b");
+  const catalog = knowledge.catalog("a", await f.actions.discover(pagesOnly), question);
+  assert.deepEqual(catalog.pieces.map(piece => piece.subject.kind), ["page"], "a round's catalog follows the same rule");
+  const shown: KnowledgeLocateDraftInput[] = [];
+  const located = await locateSections({ question, subjects: [{ kind: "goal", id: "g1" }, { kind: "goal", id: "gb" }, { kind: "page", id: "p1" }] },
+    subject => knowledge.outline(f.access(pagesOnly), { subject }), async input => { shown.push(input); return { sections: [] }; });
+  assert.deepEqual(located.unread.map(row => row.subject.id), ["g1", "gb"], "a tree the caller cannot read, or of another project, is refused");
+  assert.deepEqual(shown.flatMap(input => input.pieces.map(piece => piece.title)), ["试用说明"], "and never shown to the model");
 });

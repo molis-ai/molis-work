@@ -13,12 +13,15 @@ import {
 import {
   KNOWLEDGE_GREP_MAX_FILES,
   KNOWLEDGE_GREP_MAX_SUBJECTS,
+  KNOWLEDGE_CATALOG_RELATED,
+  KNOWLEDGE_CATALOG_WHOLE_PIECES,
   KNOWLEDGE_LIST_MAX,
   KNOWLEDGE_PROVIDER_ID,
   KNOWLEDGE_TEXT_MAX_CHARS,
   KNOWLEDGE_READ_DEFAULT_CHARS,
   KNOWLEDGE_READ_MAX_CHARS,
   knowledgeActions,
+  knowledgeCatalogWhole,
   type KnowledgeCard,
   type KnowledgeCardRecord,
   type KnowledgeCardStorePort,
@@ -26,7 +29,9 @@ import {
   type KnowledgeGlobResponse,
   type KnowledgeGrepRequest,
   type KnowledgeGrepResponse,
+  type KnowledgeListEntry,
   type KnowledgeListRequest,
+  type KnowledgeMatchLayer,
   type KnowledgeListResponse,
   type KnowledgeOutline,
   type KnowledgeOutlineRequest,
@@ -41,6 +46,7 @@ import { knowledgeErrors } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
 import { RoundBudget } from "./budget.js";
+import { RELATED_POOL, relatedCards, relatedFirst } from "./related.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
@@ -49,6 +55,7 @@ export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWL
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
+export { locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-knowledge",
@@ -84,6 +91,8 @@ export interface KnowledgeServiceOptions {
    * past what the index holds would otherwise never make its piece a candidate (PMAT-32).
    */
   cut?(projectId: string): readonly ActionSubject[];
+  /** The project's indexed pieces that hold some of the words of a question, best first (the loose ranking of §6.4). */
+  related?(projectId: string, query: string, limit: number): readonly ActionSubject[];
   budget?: RoundBudget;
   clock?: () => Date;
 }
@@ -97,6 +106,13 @@ const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind &&
 const reasonOf = (error: unknown) => (error instanceof Error ? error.message : String(error)).slice(0, REASON_CHARS);
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
+/** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
+const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, revision: card.revision, title: card.title,
+  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
+
+/** A card as `list` shows it: no text, and section notes only when organized from this revision. */
+const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, revision: card.revision, title: card.title, plugin_id: card.plugin_id,
+  plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords, sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open });
 
 /**
  * Whether a caller may be shown a card, by the rule the system search applies to its index (system-search §5): the source
@@ -150,13 +166,13 @@ export class KnowledgeService {
     const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
       .filter((card): card is KnowledgeCardRecord => !!card && !card.excluded && card.state !== "missing" && !cards.some(item => sameSubject(item.subject, card.subject))
         && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
-    if (more.length && cards.length < limit) {
-      const visible = await this.visible(access);
-      for (const card of more.filter(visible).slice(0, limit - cards.length)) {
-        cards.push({ subject: card.subject, revision: card.revision, title: card.title, plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at,
-          matched: "card", hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
-      }
-    }
+    if (cards.length >= limit) return { status: found.status, cards };
+    const visible = await this.visible(access);
+    for (const card of more.filter(visible).slice(0, limit - cards.length)) cards.push(cardHit(card, "card"));
+    // Too few hold every word (a whole question rarely does): those that hold some of them, marked so (§6.4).
+    const shown = this.listed(project, visible).filter(card => !cards.some(item => sameSubject(item.subject, card.subject))
+      && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
+    for (const card of this.related(project, shown, input.query).slice(0, limit - cards.length)) cards.push(cardHit(card, "related"));
     return { status: found.status, cards };
   }
 
@@ -185,12 +201,21 @@ export class KnowledgeService {
       source.count += 1;
       sources.set(card.plugin_id, source);
     }
-    const all = seen.filter(card => (!input.plugins?.length || input.plugins.includes(card.plugin_id)) && (!input.kinds?.length || input.kinds.includes(card.subject.kind)))
-      .sort((a, b) => (b.updated_at ?? "").localeCompare(a.updated_at ?? ""));
+    const kept = seen.filter(card => (!input.plugins?.length || input.plugins.includes(card.plugin_id)) && (!input.kinds?.length || input.kinds.includes(card.subject.kind)));
+    const all = relatedFirst(kept, input.related_to ? this.related(project, kept, input.related_to) : []);
     const offset = input.offset ?? 0, limit = Math.min(KNOWLEDGE_LIST_MAX, input.limit ?? DEFAULT_LIST);
-    return { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(card => ({ subject: card.subject, revision: card.revision,
-      title: card.title, plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords,
-      sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open })) };
+    return { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(entryOf) };
+  }
+
+  /**
+   * A round's catalog of the project's knowledge for a caller whose directory is `views` (§6.4): the whole of it when it is small,
+   * otherwise the pieces most related to the round's words. Cards only; `total` says how many there are in all.
+   */
+  catalog(projectId: string, views: readonly ActionView[], words: string): { total: number; whole: boolean; pieces: KnowledgeListEntry[] } {
+    const shown = this.listed(projectId, visibility(views, projectId));
+    const newest = relatedFirst(shown, []).slice(0, KNOWLEDGE_CATALOG_WHOLE_PIECES).map(entryOf);
+    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) return { total: shown.length, whole: true, pieces: newest };
+    return { total: shown.length, whole: false, pieces: relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED).map(entryOf) };
   }
 
   /**
@@ -334,6 +359,11 @@ export class KnowledgeService {
   private async visible(access: KnowledgeAccess): Promise<(card: KnowledgeCardRecord) => boolean> {
     const reader = knowledgeReader(access);
     return visibility(await access.client.discover(reader), reader.project_id ?? null);
+  }
+
+  /** Those of `shown` that hold some of the words, by the indexed text and the cards' own words together. */
+  private related(project: string, shown: readonly KnowledgeCardRecord[], words: string): KnowledgeCardRecord[] {
+    return relatedCards(shown, [this.options.related?.(project, words, RELATED_POOL) ?? [], this.options.cards.related(project, words, RELATED_POOL)]);
   }
 
   /** The project's pieces as `list` shows them: not kept from agents, still in the catalog, and visible to the caller. */

@@ -77,7 +77,8 @@ const definition = (capability_id: string, operation: "query" | "command", kind:
 });
 
 /** Read-only lookups a round can be given on top of the four job actions ("Lookup alpha" …), each counted apart. */
-const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"];
+export const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima", "mike", "november",
+  "oscar", "papa", "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey", "xray", "yankee", "zulu"];
 
 export async function externalChecks(t: TestContext, script: (turn: number, messages: string, tools: readonly OfferedTool[]) => ModelReply, live?: LiveModel,
   more: { readonly lookups?: number } = {}) {

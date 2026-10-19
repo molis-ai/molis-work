@@ -7,7 +7,7 @@ import { CONTINUATION_MARKER } from "./continuation.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
-import { withKnowledgeTools } from "./knowledge-tools.js";
+import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
@@ -136,6 +136,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
   if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
+  if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);

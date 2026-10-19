@@ -11,6 +11,7 @@ import {
   type KnowledgeGlobRequest,
   type KnowledgeGrepRequest,
   type KnowledgeListRequest,
+  type KnowledgeLocateRequest,
   type KnowledgeOrganizeRequest,
   type KnowledgeOutlineRequest,
   type KnowledgeReadRequest,
@@ -18,10 +19,11 @@ import {
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeReader, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeReader, locateSections, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeLocateDraft,
+  type KnowledgeLocator, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
-import { KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
+import { KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
 import { resolveModelPrompt } from "./agent-definitions/instructions.js";
 import { hostTextGeneration } from "./host-complete-text.js";
 
@@ -29,12 +31,14 @@ export interface KnowledgeHostPorts {
   homeDirectory: string;
   search: Pick<SearchService, "query">;
   /** The search index: the catalog of each project is what it holds (spec §4.4). */
-  index: Pick<SearchIndexPort, "documents" | "sources">;
+  index: Pick<SearchIndexPort, "documents" | "sources" | "related">;
   clientFor(caller: ActionCallContext): ActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
   /** The project's text model now (tests give their own); by default the Home's configured text model. */
   writer?(): KnowledgeWriter | null;
+  /** The text model `knowledge.locate` asks (tests give their own); by default the Home's configured text model. */
+  locator?(): KnowledgeLocator | null;
   quota?: { pieces: number; chars: number };
   onError?(error: unknown, where: string): void;
 }
@@ -47,6 +51,8 @@ export interface KnowledgeHost {
   projectDeleted(projectId: string): void;
   /** How many pieces a caller whose directory is `views` would see listed in a project, by source (no titles, no text). */
   tally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
+  /** A round's catalog for that caller (specs/project-knowledge §6.4): whole when small, otherwise the pieces related to `words`. */
+  catalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeService["catalog"]>;
   close(): Promise<void>;
 }
 
@@ -71,6 +77,22 @@ export function knowledgeModelWriter(homeDirectory: string): KnowledgeWriter | n
   };
 }
 
+const LOCATE_SCHEMA = { type: "object", properties: { sections: { type: "array", items: { type: "object",
+  properties: { piece: { type: "integer" }, anchor: { type: "string" }, reason: { type: "string" } } } } }, required: ["sections"] } as const;
+
+/** The Home's text model choosing sections for `knowledge.locate` with the registered instruction; null when none is configured. */
+export function knowledgeModelLocator(homeDirectory: string): KnowledgeLocator | null {
+  const generate = hostTextGeneration({ homeDirectory });
+  if (!generate) return null;
+  return async input => {
+    const result = await generate(resolveModelPrompt(homeDirectory, instructed(KNOWLEDGE_LOCATE, JSON.stringify(input)), KNOWLEDGE_LOCATE.prompt_id), {
+      structured: { mode: "local", name: "knowledge_sections", schema: LOCATE_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 2000 });
+    const draft = result.structured as KnowledgeLocateDraft | undefined;
+    if (!draft || typeof draft !== "object") throw new Error("模型没有给出合格式的选节结果");
+    return draft;
+  };
+}
+
 /**
  * Host wiring for project knowledge (specs/project-knowledge): the provider `system.knowledge` over the system search it rides
  * on, the Home's card store, and organizing in the background. It is registered and closed together with search
@@ -81,7 +103,8 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const organizer = new KnowledgeOrganizer({ store, catalog: async projectId => knowledgeCatalog(ports.index, projectId),
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,
-    cut: projectId => knowledgeCutPieces(ports.index, projectId) });
+    cut: projectId => knowledgeCutPieces(ports.index, projectId),
+    related: (projectId, query, limit) => ports.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })) });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let closed = false;
@@ -120,6 +143,9 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeActions.read, handle: async (caller, input) => service.read(await access(caller, knowledgeActions.read), input as KnowledgeReadRequest) },
     { ...knowledgeActions.grep, handle: async (caller, input) => service.grep(await access(caller, knowledgeActions.grep), input as KnowledgeGrepRequest) },
     { ...knowledgeActions.glob, handle: async (caller, input) => service.glob(await access(caller, knowledgeActions.glob), input as KnowledgeGlobRequest) },
+    // Waits on the model: the section trees are read with the caller's authority, and a call no longer current answers nothing.
+    { ...knowledgeActions.locate, handle: async (caller, input) => { const asked = await access(caller, knowledgeActions.locate);
+      return locateSections(input as KnowledgeLocateRequest, subject => service.outline(asked, { subject }), (ports.locator ?? (() => knowledgeModelLocator(ports.homeDirectory)))(), caller.beforeEffect); } },
     { ...knowledgeManageActions.cards, handle: async (caller, input) => cards.list(caller, input as KnowledgeCardsRequest, await caughtUp(caller)) },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },
@@ -133,6 +159,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     changed,
     projectDeleted: projectId => { clearTimeout(timers.get(projectId)); timers.delete(projectId); store.removeProject(projectId); },
     tally: (projectId, views) => service.tally(projectId, views),
+    catalog: (projectId, views, words) => service.catalog(projectId, views, words),
     close: async () => {
       closed = true;
       for (const timer of timers.values()) clearTimeout(timer);

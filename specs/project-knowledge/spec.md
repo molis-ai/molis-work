@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已本地提交，第三轮评测见 §14 末节。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -33,6 +33,11 @@
 | §12 Q1–Q5 | — | 用户「行，开始吧」：全部按推荐 |
 | 这一期的重点（10-19，K2 之后） | 用户原话：「K4 拆一个后续 todo 的文档吧，和本次需求拆开，我们这次核心聚焦参考 claude code，codex agentic search，page index 的做法」 | 向量召回（原 K4、PMAT-19–21、Q4）移到 [vector-recall-todo.md](vector-recall-todo.md)；这一期把检索做成 Agent 一步步找的工具（§6.2、§7），评测比的是「只搜一次」与「Agent 自己找」（§10.1） |
 | 资料选择器的代码（10-19，弹窗） | 单独资源（推荐）；并进工作台脚本 | **单独资源** `/assets/molis-work-knowledge.js`，工作台、设置页和插件侧栏文档各用 `<script src>` 引用 |
+| 检索第二期（10-19，K4 复测之后） | 用户原话：「除了向量，其他可以先做，同时我希望，还可以在一些情况下把文档内容和简介发给模型，让模型来主动选择需要的文档，通过工具拉取资料内容」，随后更正为「文档标题和简介」 | 做 §6.4 的四件，向量仍在后续待办 |
+| 资料目录什么时候给（10-19，弹窗） | 少时整份，多时取相关（推荐）；每轮都给整份；只在问题像在问资料时给 | **少时整份，多时取相关**：≤ 40 份且标题加简介 ≤ 8,000 字给整份；否则给与这一轮问题最相关的 20 份并写明总数，其余用工具找 |
+| 给哪些 Agent（10-19，弹窗） | 助理与 Coding（推荐）；只给助理 | **助理与 Coding** |
+| 工具常驻（10-19，弹窗） | 提门槛 + 目录写明标识（推荐）；只提门槛；不动 | **提门槛 + 目录写明标识**：`deferToolSchemasBeyond` 20 → 32，助理的 22 件工具都带参数格式；资料目录写明 `knowledge.*` 的准确标识与输入，不必先 find-capabilities |
+| 按问题选节（10-19，弹窗） | 新动作 `knowledge.locate`（推荐）；并进 `outline`；不做 | **新动作 `knowledge.locate`** |
 
 更正：对齐时我说这件事可以接着 W5-01 的「材料读取归平台（`services.materials`）」做。核对后，`packages/contracts/src/services/materials.ts` 是**正文提取**（OCR、PDF、转写、读网页），不是资料库。本服务会用它从 PDF、DOCX 里读出正文，但不能再叫 `materials`，见 §4.1。
 
@@ -156,18 +161,33 @@
 
 向量召回与 embedding 设置见 [后续待办](vector-recall-todo.md)。
 
+### 6.4 第二期：宽松召回、资料目录与按问题选节（K5，用户 10-19 定，§2）
+
+第二轮召回评测（§14）里 44% 的工具调用花在找工具上，整句问题按词「全都要有」常常一份也搜不到，模型也常不知道项目里有哪些资料就凭常识答。第二期不加向量，做四件：
+
+1. **宽松召回**。`knowledge.search` 先按现在的规则（每个词都在）找；不够条数时，再按「有其中一些词」补：中文取相邻两字（一个字的不算）、其他取词，在索引正文与卡片自己的文字里找，按命中的多少与稀有程度（bm25）排，补上的卡片 `matched` 为 `"related"`，`hint` 是卡片简介。只补调用者按 `list` 的规则能看到的资料（不给 Agent 用的、读不到来源的不补）。系统搜索 `search.query` 不变：宽松只在项目资料里，经索引端口的另一个方法（`related`），不改 `search.query` 的输入。
+2. **资料目录**（模型看标题与简介自己挑，再用工具拉原文）。个人助理在项目里、本轮有「列出项目资料」时，每轮的材料里多一份「项目资料目录」：
+   - 项目资料 ≤ `KNOWLEDGE_CATALOG_WHOLE_PIECES`（40）份、且各条加起来 ≤ `KNOWLEDGE_CATALOG_WHOLE_CHARS`（8,000）字时给整份；否则给与这一轮问题（工作标题加这一轮的话）最相关的 `KNOWLEDGE_CATALOG_RELATED`（20）份（按第 1 条的宽松规则排，不够的按最近更新补齐），写明一共几份、这里列了几份、其余用 `knowledge.search` / `grep` 找。
+   - 每条：标题、来源、分节数、简介、准确的 subject（JSON 原样）。只有卡片的字，没有原文。口径与 `knowledge.list` 相同（PMAT-26）。
+   - 写明 `knowledge.*` 的准确标识（`capability_id`、`version`、`provider_id`）与输入格式，经 read-capability 直接调用，不必先 find-capabilities（第 3 条）。
+   - Coding 每轮开始时自己调 `knowledge.list` 取同一份目录（先取 40 份，放不下就带 `related_to` 取 20 份），放进本轮材料；Coding 的资料工具本来就是逐项工具，不用写标识。
+   - 「本轮情况」里的份数（PMAT-33）保留。
+3. **工具常驻**。agent-host 的 `deferToolSchemasBeyond` 从 20 提到 32：个人助理一轮的 22 件工具（9 件常驻加能力网关 5 件、委托 4 件、记忆 4 件）都直接带参数格式，不再先 find-tools。网关的语义不变。
+4. **按问题选节** `knowledge.locate`：给一个问题和至多 5 份资料，由项目的文字模型读这几份的分节树（标题、层级、每节一句摘要，不读正文），回最可能有答案的几节（subject、anchor、标题、起始行、为什么），Agent 再按节 `read`。PageIndex 在目录树上推理的做法。它等模型，声明 `scheduling: "concurrent"`，提交前 `beforeEffect()`；不读原文、不花本轮原文额度、不留回执；没整理过分节的资料照分节树的标题选，说明没有摘要；项目没有文字模型时回 `knowledge.no_model`。提示词登记在宿主的提示词表里，与整理的提示词同一处。
+
 ## 7. 给 Agent 的动作
 
 都注册成平台动作，进共同动作目录，助理、Coding、插件 Agent、工作流、MCP 用同一份（`specs/action-architecture/spec.md` §3）。可信身份从调用上下文来；每次读都按调用者的授权重新问主人插件。
 
 | 动作 | 输入 | 返回 | 说明 |
 | --- | --- | --- | --- |
-| `knowledge.list` | 可选过滤（来源插件、类型）、条数、翻页 | 卡片列表（subject、版本、标题、简介、关键词、分节数、更新时间）与各来源的份数 | 看项目里有什么；不给原文 |
+| `knowledge.list` | 可选过滤（来源插件、类型）、条数、翻页；可选 `related_to`（一段话，按 §6.4 的宽松规则先排与它相关的） | 卡片列表（subject、版本、标题、简介、关键词、分节数、更新时间）与各来源的份数 | 看项目里有什么；不给原文 |
 | `knowledge.search` | 查询文本、可选过滤（来源、类型）、条数 | 卡片列表（subject、版本、出处、命中层、关键词） | 按词召回卡片 |
 | `knowledge.outline` | subject | 分节树（节锚点、父节、层级、起始行、长度、每节一句摘要） | 决定读哪节 |
 | `knowledge.read` | subject，加节锚点（连同子节）、或起始行与行数、或字符位置，字数上限 | 原文段（标明这是原文）、起止行与总行数、实际读到的版本或指纹、还剩多少 | L2/L3；超上限分页 |
 | `knowledge.grep` | 文字（不分大小写、不是正则）与至多 4 个备选词；范围：点名的资料、工作区路径模式，都不给就是全项目；`output` 是行（默认）或只给哪几份 | 命中行与前后几行，或每份的命中行数；查过几份、哪几份读不到 | 精确查找；工作区文件主要靠它 |
 | `knowledge.glob` | 路径模式 | 工作区文件路径列表 | 只在项目授权的工作区里 |
+| `knowledge.locate` | 问题、1–5 份资料的 subject | 最可能有答案的节（subject、anchor、标题、起始行、理由），没整理的资料与读不到的说明 | 由项目的文字模型读分节树选节，不读原文（§6.4） |
 | `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize`、`knowledge.receipts` | 管理页用：列卡片与额度；看使用记录；改标题、简介、关键词或采用建议；设「不给 Agent 用」；重新整理（可确认超额） | 卡片记录、额度 | 只对本人（audience `user`），权限 `knowledge:manage`；不默认开放给 Agent |
 
 存量 Agent 怎样拿到这些工具：
@@ -229,6 +249,7 @@
 | K2 界面 | 侧栏「资料」、导入（含 PDF/DOCX 正文）、管理页、统一选择器 | e2e、规格板、桌面与 390 宽走查 |
 | K3 存量迁移 | Coding、Shelf、助理接到统一体系，删旧路 | 受影响用例；存量数据维护 |
 | K4 工具式检索 | §6.2 的几件工具：`knowledge.list`；分节树与按节连同子节读；按行读；全项目 `grep`、只给哪几份的输出与备选词；工具说明与两份提示词写清找法（原 K4「向量」拆到 [后续待办](vector-recall-todo.md)） | 服务测试；召回评测（§10.1）「只搜一次」与「Agent 自己找」对比 |
+| K5 检索第二期 | §6.4：宽松召回、资料目录（助理与 Coding）、工具常驻、`knowledge.locate` | 服务与宿主测试；召回评测同一份 40 题与第二轮（30/40）比 |
 
 ### 10.1 召回评测
 
@@ -291,6 +312,11 @@
 31. **PMAT-31** 点名的资料项目资料里没有（没有它的卡片，也没有主人接它：种类没人读、id 主人解析不了、读回来不是它）时，`read`、`outline`、点名 `grep` 回 `knowledge.unknown`，说明这一份不在项目资料里、subject 要照抄 `list`、`search`、`grep` 给的那一个；有卡片的资料被主人拒绝时仍是主人自己的原因（召回评测里 subject 写坏后被说成「输入不符合合同」，§14）。
 32. **PMAT-32** 全项目 `knowledge.grep` 的候选除了索引里有这段文字的资料，还有索引只收了开头的长资料（索引的正文到 `SEARCH_INDEX_CONTENT_CHARS` 为止），所以只出现在长资料后半部的词也找得到；这些长资料按 `list` 的规则筛（不给 Agent 用的、调用者读不到来源的不查，也不出现在读不到的名单里），仍受一次 20 份的上限（第二轮召回评测 c18，§14）。
 33. **PMAT-33** 个人助理每轮的「本轮情况」写明这个项目的资料有几份、按来源各几份（与这一轮 `knowledge.list` 能列出的同一口径：不给 Agent 用的不算），只写数，不写标题与内容；个人工作、这一轮没有「列出项目资料」、或一份也没数到（来源可能还在登记）时不写（第二轮召回评测 c08、c09，§14）。
+34. **PMAT-34** `knowledge.search` 按「每个词都在」找到的不够条数时，用「有其中一些词」的资料补（中文相邻两字、其他词；索引正文与卡片文字；bm25 排），补上的 `matched` 为 `"related"`；不给 Agent 用的、调用者读不到来源的不补；`search.query` 的结果不变（§6.4 第 1 条）。
+35. **PMAT-35** 个人助理在项目里、本轮有「列出项目资料」时，材料里有「项目资料目录」：≤ 40 份且 ≤ 8,000 字给整份，否则给与这一轮问题最相关的 20 份并写明总数与「其余用工具找」；每条有标题、来源、分节数、简介和照抄即可用的 subject；写明 `knowledge.*` 的准确标识与输入；不给 Agent 用的不列；个人工作、没有这项能力、一份也没有时没有这份材料（§6.4 第 2 条）。
+36. **PMAT-36** `knowledge.list` 带 `related_to` 时先列与这段话相关的（同 PMAT-34 的规则），再按最近更新；Coding 每轮开始用它按 PMAT-35 的同一规则取目录放进材料（§6.4 第 2 条）。
+37. **PMAT-37** 个人助理一轮的工具都带参数格式（agent-host 的 `deferToolSchemasBeyond` 为 32），不需要先 find-tools（§6.4 第 3 条）。
+38. **PMAT-38** `knowledge.locate` 由项目的文字模型读至多 5 份资料的分节树，回节的 subject、anchor、标题、起始行与理由，不返回原文、不花原文额度、不留回执；被取消或撤权的调用不提交结果；没有文字模型时回 `knowledge.no_model`；调用者读不到的资料列为读不到，不交给模型（§6.4 第 4 条）。
 
 ## 14. 进度与证据
 
@@ -379,6 +405,16 @@
 - 测试：`tests/knowledge-agentic-search.test.ts`（PMAT-26～29）、`tests/agent-definitions.test.ts`（PMAT-25、30）、`tests/knowledge-service.test.ts`、`tests/knowledge-workspace.test.ts`、`tests/security-invariants-knowledge.test.ts`（list 与全项目查找的拒绝）。
 - 验证（K3+K4 合起来，2026-10-19）：非浏览器回归 676 个文件里，因本改动而红的都已修好（Coding 夹具的 grants 加 `knowledge:read`，`tests/fixtures/coding-sdk-runtime.ts` 加一个从成果库与过程项读固定版本的 `knowledge.read` 替身；「30 份材料」用例改用资料的 subject；`plugin-private-storage` 的安装 grants 补上 `knowledge:read`。内置插件按 bundled 安装，拿到全部必需权限，所以真实 Home 升级后 Coding 不会因缺 grant 起不来）。按 `affected-tests` 选的 32 个相关文件（27 个浏览器用例）全过；`shelf-client-boundaries.e2e` 在批次里一次 CDP 导航超时，单独重跑 9/9 通过。`check-health-gates --base origin/main`、`boundary:check`、`typecheck`、`page-assets --base origin/main`、动作合同快照都过。全量回归留给统筹在整合分支跑。
 - 召回评测见下一节。
+
+### K5 检索第二期（2026-10-19，同一分支，本地提交）
+
+- 宽松召回（PMAT-34）：索引端口与卡片库各加 `related`（中文相邻两字与词用 OR 连，bm25 排；`packages/storage/src/adapters/text-search-index.ts` 的 `relatedQueryPlan`），两份排序在 `horizontal/knowledge/src/related.ts` 按名次合起来，只留按 `list` 规则看得到的；`knowledge.search` 每个词都有的不够条数时补上，`matched` 为 `related`、`hint` 用卡片简介。`search.query` 不变（测试里同一句整句问题系统搜索仍是 0 条）。
+- 资料目录（PMAT-35、36）：`KnowledgeService.catalog` 按 40 份、8,000 字、20 份的规则（常数与每条的写法 `knowledgeCatalogLine`、`knowledgeCatalogText` 在合同里，助理和 Coding 共用）；助理经搜索宿主的 `knowledgeCatalog` 端口在每轮材料里放「项目资料目录」，并写明 `knowledge.*` 的标识与 input 字段（取自动作的 input schema）；`assistant-service.ts` 净增 0 行。Coding 在 `start-round.ts` 里调 `knowledge.list`（先 40 份，放不下再带 `related_to` 取 20 份），列不出时这一轮照常开始。`knowledge.list` 加 `related_to`。
+- 工具常驻（PMAT-37）：`deferToolSchemasBeyond` 20 → 32。PA-12 与 S-28 的延后用例原来靠 21–25 件工具触发延后，改成各给足 33 件以上，断言不变；BL-145 记下新门槛。测试里先把门槛临时改回 20，PMAT-37 的断言会失败，确认它测到了。
+- `knowledge.locate`（PMAT-38）：`horizontal/knowledge/src/locate.ts` 的 `locateSections`，宿主经 `knowledgeModelLocator` 用 Home 的文字模型与新提示词 `knowledge.locate` v1；分节树经 `outline` 以调用者的授权读，模型编的节、重复的节、不存在的那份都丢掉，最多 8 节；模型答完先 `beforeEffect()` 再返回；没有文字模型回 `knowledge.no_model`。
+- 两份基础提示词各加一句（assistant-base v31、coding-base v14 都还没出过这个分支，原地改）：材料里有「项目资料目录」时先从中挑。
+- 安全不变量 S-41 的说明补上宽松补充、资料目录和 `locate` 交给模型的分节树，加拒绝用例「S-41 PMAT-34 PMAT-35 PMAT-38 …」。
+- 验证：新测与改过的用例通过；受影响的 212 个非浏览器文件里，唯一失败的 S-28 延后用例已按上面改好、重跑通过；8 个受影响的浏览器文件通过；`check-health-gates --base origin/main`、`boundary:check`、`typecheck` 通过；API 快照（`services/knowledge`、`services/search`）与动作快照（`knowledge.list` 输入、`knowledge.search` 输出原地改，新增 `knowledge.locate@1`；`knowledge.*` 还没出过这个分支）已刷新。
 
 ### 召回评测（§10.1，2026-10-19，MiniMax-M3，一次性隔离 Home，跑完即删）
 

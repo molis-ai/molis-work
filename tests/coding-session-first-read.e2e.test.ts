@@ -21,9 +21,9 @@ async function openCoding(t: TestContext) {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId, homeDirectory } = browser;
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
-    window.hold={what:null,fail:false,except:'',seen:0,release:null};window.stateReads=0;window.posts=[];const originalFetch=window.fetch;
+    window.hold={what:null,fail:false,except:'',seen:0,release:null};window.stateReads=0;window.posts=[];window.patches=[];const originalFetch=window.fetch;
     window.fetch=(input,init)=>{const path=String(input?.url||input),method=init?.method||'GET';
-      if(method==='POST')posts.push({path,body:typeof init?.body==='string'?init.body:''});
+      if(method==='POST'||method==='PATCH')(method==='POST'?posts:patches).push({path,body:typeof init?.body==='string'?init.body:''});
       if(method==='GET'&&path.endsWith('/api/plugins/io.molis.work.coding/state'))stateReads++;
       const read=/\\/api\\/plugins\\/io\\.molis\\.work\\.coding\\/sessions\\/([^/?]+)\\?window=6$/.exec(path);
       const create=method==='POST'&&path.endsWith('/api/plugins/io.molis.work.coding/sessions');
@@ -174,4 +174,54 @@ test("AC-05: when「新会话」reuses the session shown, or making one fails, t
   assert.equal(await current(), first, "making the session failed: the one shown stays");
   assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "with its words");
   assert.deepEqual(await someOpen(), open);
+});
+
+test("AC-05: until a new session's first read lands, no choice saved for it carries the words of the session before it: the context buttons and the palette's materials and methods are shut, and a method dialog left open across「新会话」saves its choice without the box", { timeout: 90_000 }, async t => {
+  const opened = await openCoding(t); if (!opened) return;
+  const { evaluate, waitFor, box, current, start, afterAStateRead } = opened;
+  const CONTEXT = ["goal", "material", "method", "mcp", "actions", "character"];
+  const shut = () => evaluate<boolean[]>(`${JSON.stringify(CONTEXT)}.map(name=>document.querySelector('${coding} [data-coding-'+name+'-open]').disabled)`);
+  /** Presses ⌘ with these keys on the page, as the shortcuts read them. */
+  const press = (keys: string) => evaluate(`document.dispatchEvent(new KeyboardEvent('keydown',{${keys},ctrlKey:true,bubbles:true,cancelable:true}))`);
+  /** The commands the palette offers now (⌘⇧P opens it and closes it again). */
+  const offered = async () => {
+    await press("key:'p',code:'KeyP',shiftKey:true");
+    const shown = await evaluate<string[]>(`[...document.querySelectorAll('${coding} [data-coding-palette-list] .coding-palette-detail')].map(node=>node.textContent)`);
+    await press("key:'p',code:'KeyP',shiftKey:true");
+    return shown;
+  };
+  /** What the page saved into this session with PATCH. */
+  const saved = (id: string) => evaluate<Array<Record<string, unknown>>>(`patches.filter(one=>one.path.endsWith('/sessions/'+${JSON.stringify(encodeURIComponent(id))})).map(one=>JSON.parse(one.body))`);
+  const first = await start();
+
+  // The method dialog opened on the first session stays open: ⌘⌥N makes the new session past it.
+  await evaluate(`document.querySelector('${coding} [data-coding-method-open]').click()`);
+  await waitFor(`document.querySelector('${coding} [data-coding-method-dialog]').open`);
+  await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read'`);
+  await press("key:'n',code:'KeyN',altKey:true");
+  await waitFor("hold.seen === 1 && typeof hold.release === 'function'");
+  await afterAStateRead();
+  const second = await current();
+  assert.notEqual(second, first);
+  assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the box still shows the first session's words");
+  assert.deepEqual(await shut(), CONTEXT.map(() => true), "goal, materials, methods, MCP, capabilities and role wait for the new session's first read");
+  const early = await offered();
+  assert.ok(!early.includes("/materials") && !early.includes("/methods"), `the palette offers neither: ${early.join(" ")}`);
+
+  assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-method-dialog]').open`), true);
+  await evaluate(`document.querySelector('${coding} [data-coding-method-form]').requestSubmit()`);
+  await waitFor(`!document.querySelector('${coding} [data-coding-method-dialog]').open`);
+  const choice = await saved(second);
+  assert.equal(choice.length, 1, "the method choice is saved to the new session");
+  assert.deepEqual(choice[0]!.methods, []);
+  assert.equal("draft" in choice[0]!, false, "without the box: it still holds the first session's words");
+
+  await evaluate("hold.release()");
+  await waitFor(`!${box}.disabled`);
+  assert.equal(await current(), second);
+  assert.equal(await evaluate<string>(`${box}.value`), "", "the new session's box holds its own (empty) draft");
+  assert.ok((await saved(second)).every(body => body.draft !== FIRST_WORDS), "the first session's words were never saved as the new one's draft");
+  assert.deepEqual(await shut(), CONTEXT.map(() => false));
+  const later = await offered();
+  assert.ok(later.includes("/materials") && later.includes("/methods"), `the palette offers both again: ${later.join(" ")}`);
 });

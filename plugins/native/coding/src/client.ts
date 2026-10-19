@@ -298,14 +298,14 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
-    rememberDraft(id,value);
-    const body={draft:value, ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
+    const own=id!==current||draftOwner===id;if(own)rememberDraft(id,value);
+    const body={...(own?{draft:value}:{}), ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
     const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
     draftWrites.set(id,next);
-    return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
+    return next.then(() => { if (own && current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
-  // The box is a session's once its first read put its draft in (draftOwner): only then is it saved. Typing and sending also wait for a new session.
-  const flushDraft = () => { lifetime.clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); };
+  // The box is a session's once its first read put its draft in (draftOwner): only then is it typed in, sent or saved.
+  const flushDraft = () => { lifetime.clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); }, saveChoices = id => saveDraft(id,id===current?input.value:localDraft(id) || '');
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
@@ -343,7 +343,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const controls = () => {
     if(!lifetime.alive)return;
     const active = lastRun && !terminal(lastRun.phase);
-    const off = !current || sending, unread = creating || draftOwner!==current, shut = off || unread;
+    const unread = creating || draftOwner!==current, shut = !current || sending || unread;
     input.disabled = shut;
     q('[data-coding-send]').disabled = shut || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
     q('[data-coding-send]').textContent = sending ? '正在提交…' : '发送';q('[data-coding-mode]').hidden=!active;
@@ -357,11 +357,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     composerModels.controls({active,sending:sending || unread,run:lastRun});
     q('[data-coding-rename]').hidden = !current;
     q('[data-coding-archive]').hidden = !current;
-    for(const name of ['goal','material','method','mcp','actions'])q('[data-coding-'+name+'-open]').disabled=off;
+    for(const name of ['goal','material','method','mcp','actions','character'])q('[data-coding-'+name+'-open]').disabled=shut;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
-    const character=characterSelections.get(current),characterButton=q('[data-coding-character-open]');
-    characterButton.disabled=off;contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
-    characterButton.title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
+    const character=characterSelections.get(current);
+    contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
+    q('[data-coding-character-open]').title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
     const actionCount=(actionSelections.get(current) || []).length;contextLabel('[data-coding-actions-open]','能力'+(actionCount?' · '+actionCount:''),actionCount);
     const mcpCount=(mcpSelections.get(current) || []).length+(mcpSourceSelections.get(current) || []).length; contextLabel('[data-coding-mcp-open]','MCP'+(mcpCount?' · '+mcpCount:''),mcpCount);
     const writable=['edit','execute'].includes(q('[data-coding-intent]').value);
@@ -373,9 +373,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const count=(methodSelections.get(current) || []).length;
     contextLabel('[data-coding-method-open]','方法'+(count?' · '+count:''),count);
   };
-  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
+  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:saveChoices,controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
   (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
-    save:id=>saveDraft(id,id===current?input.value:localDraft(id) || ''),controls,status});
+    save:saveChoices,controls,status});
   // Saved results read like the session rows: what it is by its icon, the title, when it was saved, and its version.
   const renderArtifacts = () => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
@@ -1484,8 +1484,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(current && runtimeSessionId),
         run:async()=>{const id=current;await api(sessionPath(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
       {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
-      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:Boolean(current) && !sending,run:()=>openMaterials()},
-      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:Boolean(current) && !sending,run:()=>openMethods()},
+      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:!input.disabled,run:()=>openMaterials()},
+      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:!input.disabled,run:()=>openMethods()},
       {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:Boolean(current),run:()=>cooperationUi.openDialog()},
       {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:Boolean(current),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},
       {slash:'workspace',label:'选择工作区',hint:'下一轮在哪个目录工作',keywords:['目录','folder'],enabled:Boolean(current),run:()=>q('[data-coding-workspace-dialog]').showModal()},

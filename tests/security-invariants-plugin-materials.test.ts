@@ -24,6 +24,7 @@ test("S-39 RAC-26 runtime material authority strips download permission from eve
         return answer;
       },
       readSource: async (_url, options) => { await options.beforeEffect(); seen.push(options.allowModelDownload); return { ...answer, source_url: "https://example.com", provider: "article" }; },
+      readDocuments: () => Promise.reject(new Error("not read here")),
     }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
     const request = { allowModelDownload: true, audience: "user", helperPath: "/untrusted", whisperHelperPath: "/untrusted", modelDirectory: "/untrusted", platform: "darwin" };
     await service.extract!({ file_name: "a.txt", bytes: Buffer.from("authorized") }, request);
@@ -39,7 +40,7 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   const probes = [materialsProbe("onlyread", { permissions: ["materials:read"] }), materialsProbe("onlyfetch", { permissions: ["materials:fetch"] }), materialsProbe("nomaterials", { permissions: [] })];
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: probes.map(probe => probe.definition) } });
   for (const probe of probes) await grantMaterials(host, probe);
-  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract"]);
+  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments"]);
   assert.deepEqual(Object.keys(probes[1]!.contexts.at(-1)!.services!.materials!), ["readSource"]);
   assert.equal(probes[2]!.contexts.at(-1)!.services!.materials, undefined);
   const probe = probes[0]!, client = host.homeActionClient(), caller = person(probe.permissions);
@@ -49,6 +50,21 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   await assert.rejects(client.invoke(caller, probe.plain, {}), { code: "plugin.materials_permission_undeclared" });
   await assert.rejects(probe.contexts.at(-1)!.services!.materials!.extract!({ file_name: "note.txt", bytes: Buffer.from("outside") }), { code: "plugin.materials_action_required" });
   await assert.rejects(host.homeActionClient().invoke(person(probes[1]!.permissions), probes[1]!.source, {}), { code: "material.source.private_address" });
+});
+
+test("W5-01-PAGES-01 a document batch is read by the Host under materials:read, inside the plugin's own concurrent action, and a bad upload is refused before parsing", async t => {
+  const probe = materialsProbe("documentbatch", { permissions: ["materials:read"] }), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await grantMaterials(host, probe);
+  const upload = (name: string, text: string) => ({ file_name: name, data_base64: Buffer.from(text).toString("base64") });
+  probe.behavior.read = (context): Promise<unknown> => context.services!.materials!.readDocuments!([upload("one.md", "# 标题\n正文"), upload("two.txt", "第二份")]);
+  const client = host.homeActionClient(), caller = person(probe.permissions);
+  const batch = await client.invoke(caller, probe.read, {}) as { documents: Array<{ name: string; format: string; content: string }> };
+  assert.deepEqual(batch.documents.map(item => [item.name, item.format]), [["one.md", "markdown"], ["two.txt", "text"]]);
+  assert.match(batch.documents[0]!.content, /正文/);
+  probe.behavior.read = (context): Promise<unknown> => context.services!.materials!.readDocuments!([{ file_name: "bad.txt", data_base64: "YR==" }]);
+  await assert.rejects(client.invoke(caller, probe.read, {}), { code: "material.invalid_document" });
+  await assert.rejects(client.invoke(caller, probe.serial, {}), { code: "plugin.materials_action_not_concurrent" });
+  await assert.rejects(probe.contexts.at(-1)!.services!.materials!.readDocuments!([upload("outside.md", "x")]), { code: "plugin.materials_action_required" });
 });
 
 test("RAC-25 a sandboxed definition receives no Host material service", async t => {
@@ -123,6 +139,7 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
           return { text: "late material", extractor: "waiting-port", pages: [], coverage: { status: "sufficient" as const, processed_pages: 0, total_pages: 0, issues: [] } };
         },
         readSource: () => Promise.reject(new Error("not read here")),
+        readDocuments: () => Promise.reject(new Error("not read here")),
       }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
       try {
         const result = await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") });

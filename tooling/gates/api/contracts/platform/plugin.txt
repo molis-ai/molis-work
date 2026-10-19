@@ -2977,12 +2977,15 @@ export interface PluginManifest {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
 
+export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
+
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
 export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
 
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
+    readDocuments?(files: readonly MaterialUpload[], request?: PluginMaterialDocumentsRequest): Promise<MaterialDocumentBatch>;
     readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
 }
 

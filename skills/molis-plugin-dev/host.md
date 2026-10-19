@@ -208,7 +208,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 
 ### 已授权材料的提取
 
-插件需要文字/HTML/PDF/OCR/媒体材料时，Host 执行的 Runtime 插件声明 `materials:read`，用 `context.services.materials.extract({ file_name, bytes }, options)`；取公开链接另声明 `materials:fetch`，用 `readSource(url, options)`。两项方法独立暴露，沙箱与升级预检没有材料服务。只能在自己安装的、声明对应权限且 `scheduling: "concurrent"` 的动作内使用；身份、signal 和 beforeEffect 由运行时取，不从业务参数提供。上传的 Base64 用 SDK `decodeMaterialUpload` 解成已授权字节，不在插件再写校验。合同为 `contracts/services/materials`。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载的 `allowModelDownload: true` 仅在可信 user 调用时生效，agent/mcp/workflow/plugin 一律按 false。灵光的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。
+插件需要文字/HTML/PDF/OCR/媒体材料时，Host 执行的 Runtime 插件声明 `materials:read`，用 `context.services.materials.extract({ file_name, bytes }, options)`（上传的文档文件一批读出用 `readDocuments`，同属 `materials:read`）；取公开链接另声明 `materials:fetch`，用 `readSource(url, options)`。两项方法独立暴露，沙箱与升级预检没有材料服务。只能在自己安装的、声明对应权限且 `scheduling: "concurrent"` 的动作内使用；身份、signal 和 beforeEffect 由运行时取，不从业务参数提供。上传的 Base64 用 SDK `decodeMaterialUpload` 解成已授权字节，不在插件再写校验。合同为 `contracts/services/materials`。输入已授权字节，系统解析器/原生进程归 Host；原件、SHA 引用、业务转换和引用规则留给消费者。检查 coverage 和 truncated，不能把扫描空页或截断当作全文。传递取消，异步返回后与业务写入前复查 beforeEffect；媒体模型下载的 `allowModelDownload: true` 仅在可信 user 调用时生效，agent/mcp/workflow/plugin 一律按 false。灵光的 Host 适配与 onboarding 是当前接入示例，不在插件复制解析器或绕过 Prologue 生成摘要。
 
 Shelf 的 PDF 预览和 OCR 同样复用公共提取口。语言放在 `ocrLanguages`，逐行置信度读取页面的 `lines`；不能拿页平均值冒充每行置信度。用户提示与结果命名留在消费者，多选材料逐项提取，不按第一项忽略其他内容。异步提取完成后先复查原执行与输入 hash，再写结果；取消/撤权也不能被 catch 成失败成果。已终止执行的历史 running 标签不代表进程仍在运行，不自动恢复外部工作。
 

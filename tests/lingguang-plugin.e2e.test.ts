@@ -77,12 +77,19 @@ test("灵光主路径：记下、刷新还在、改字不丢光标、丢掉、�
 
   await evaluate(`document.querySelector("[data-lingguang-back]").click()`);
   await waitFor("document.querySelector('[data-lingguang=workbench]')?.dataset.expanded !== 'true'");
+  // D24, QA-024 the list picks several (listbox, aria-multiselectable), so the plugin tab group leaves ⌘-click to it.
+  const itemTabs = "document.querySelectorAll('.tab-item[data-tab-kind=item]').length";
+  const tabsBefore = await evaluate<number>(itemTabs);
   await evaluate(`(() => {
     const rows = [...document.querySelectorAll("[data-lingguang-id]")];
     rows[0].dispatchEvent(new MouseEvent("click", { bubbles: true, metaKey: true }));
     rows[1].dispatchEvent(new MouseEvent("click", { bubbles: true, metaKey: true }));
   })()`);
   await waitFor("document.querySelector('[data-lingguang-selection]:not([hidden])')");
+  assert.deepEqual(await evaluate(`(() => { const list = document.querySelector("[data-lingguang-rows]"); return [list.getAttribute("role"), list.getAttribute("aria-multiselectable"),
+    ...[...list.querySelectorAll("[data-lingguang-id]")].map((row) => row.getAttribute("role") + ":" + row.getAttribute("aria-selected"))]; })()`),
+    ["listbox", "true", "option:true", "option:true", "option:false"], "D24 both ⌘-clicked sparks are picked, the third is not");
+  assert.equal(await evaluate<number>(itemTabs), tabsBefore, "D24 a ⌘-click in the list opens no tab");
   await evaluate(`document.querySelector("[data-lingguang-discard]").click()`);
   await waitFor("document.querySelector('[data-lingguang-confirm]')?.open");
   await evaluate(`document.querySelector("[data-lingguang-confirm] [data-confirm-ok]").click()`);

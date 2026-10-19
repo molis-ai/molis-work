@@ -37,7 +37,7 @@ test("every action that waits on a model runs beside the serial queue unless it 
   const serial = [...found].filter(([, scheduling]) => scheduling !== "concurrent").map(([id]) => id).sort();
   assert.deepEqual(serial, Object.keys(SERIAL_BY_DESIGN).sort());
   assert.equal(found.get("images.jobs.start@2"), "concurrent", "Runtime background acceptance uses a concurrent model-authorized action");
-  assert.ok(found.has("alchemist.reuse.assess@2"), "custom AI permissions must also enter the scheduling check");
+  assert.ok(found.has("alchemist.reuse.assess@1"), "custom AI permissions must also enter the scheduling check");
 });
 
 test("real Native AI declarations reach the Builder catalog and stop metered automatic queries", async () => {

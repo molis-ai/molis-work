@@ -93,13 +93,6 @@ const followedJob = (id: string) => ({ status: { capability_id: "alchemist.runs.
  * with permissions of their own (like Images' `connections.*`), and the Host serves them without opening any project's studio.
  */
 const homeChoices = new Set(["pulse.github", "pulse.github.configure"]);
-/**
- * Actions whose contract changed after version 1 (docs/system/CONTRACT-CHANGES.md §3): research.cancel also stops a market pulse (D27).
- * The four model actions now also declare the platform's `model:invoke`: a grant (an MCP client's, an agent's) records the exact permission
- * set of one `capability@version`, so a wider set under the same version would leave every granted client refused as "changed" with no new
- * name to grant; a new version is the new grant, and a workflow step pinned to @1 reports the missing version instead of running unnoticed.
- */
-const revisedVersions = new Map([["research.cancel", 2], ["reuse.assess", 2], ["conversation.send", 2], ["explorations.start", 2], ["research.start", 2]]);
 
 /** The permission an action declares when it runs a model. The plugin gates exactly the actions that carry it, for every caller but the person's own page. */
 export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
@@ -108,6 +101,8 @@ export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
  * `alchemist:generate`, which stays: that one is Alchemist's own, what MCP clients, agents and workflows are granted for model work here
  * and what the availability gate and the retained background authority name; this one is what the Host checks for any plugin's model call.
  * Optional in the Manifest, like Form's and Dataset's: switched off, only the four actions that carry it are unavailable.
+ * The four actions gain one permission and keep their shape, so their version stays 1: a client or agent granted before sees "the capability's
+ * permissions changed" (`mcp-action-access.ts`, stale) and grants again once in settings.
  */
 export const ALCHEMIST_MODEL_PERMISSION = "model:invoke";
 const MODEL_ACTION_PERMISSIONS = [ALCHEMIST_GENERATE_PERMISSION, ALCHEMIST_MODEL_PERMISSION] as const;
@@ -117,7 +112,7 @@ function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title
   const home = homeChoices.has(name);
   const permissions = home ? [kind === "query" ? "alchemist:connections:read" : "alchemist:connections:write"] : ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : [])];
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
-    capability_id: `alchemist.${name}`, version: revisedVersions.get(name) ?? 1, operation: kind,
+    capability_id: `alchemist.${name}`, version: 1, operation: kind,
     action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: home ? "home" : "project", audiences: home ? ["user"] : ["user", "workflow", "agent", "mcp"],
       subject_kinds: ["alchemist"], permissions: [...permissions, ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),

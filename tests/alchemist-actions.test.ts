@@ -217,13 +217,13 @@ test("W5-01-ALC-LIFE-09: a job's events are read by cursor through the action; t
   assert.deepEqual((await f.call(a.runEvents, { id: receipt.jobId!, after: read.cursor })).events, []);
 });
 
-test("W5-01-ALC-RES-AUTH-04: exactly the four model actions declare model:invoke beside alchemist:generate, at version 2; without it only they are refused", async t => {
+test("W5-01-ALC-RES-AUTH-04: exactly the four model actions declare model:invoke beside alchemist:generate; without it only they are refused", async t => {
   const modelActions = [a.reuseAssess, a.conversationSend, a.explorationStart, a.researchStart];
   for (const definition of modelActions) {
     assert.ok(definition.action.permissions.includes("model:invoke") && definition.action.permissions.includes("alchemist:generate"), definition.capability_id);
     assert.equal(definition.action.execution?.cost, "metered", definition.capability_id);
     assert.equal(definition.action.scheduling, "concurrent", definition.capability_id);
-    assert.equal(definition.version, 2, definition.capability_id);
+    assert.equal(definition.version, 1, definition.capability_id);
   }
   assert.deepEqual(Object.values(a).filter(definition => definition.action.permissions.includes("model:invoke")).map(definition => definition.capability_id).sort(), modelActions.map(definition => definition.capability_id).sort(),
     "the Pulse collects sources and runs no model: it does not carry it");

@@ -34,10 +34,12 @@ test("RAC-32 all Lingguang business actions register before UI, enforce identity
     await assert.rejects(client.invoke({ ...caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["lingguang:read"] }, actions.create, { title: "Forbidden" }), { code: "actions.forbidden" });
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
-    const received = await bound.invoke(content.receive, { payload: { title: "Workflow", body: "Written via business action" }, context: { instance_id: "workflow-1", step: 1 } });
+    const delivery = { title: "Workflow", body: "Written via business action", request_id: "workflow:workflow-1:1" };
+    const received = await bound.invoke(content.receive, delivery);
+    assert.equal((await bound.invoke(content.receive, delivery)).item_id, received.item_id, "W4-6-02 the same request id returns the spark it made");
     assert.equal((await bound.invoke(actions.get, { id: received.item_id })).spark.body, "Written via business action");
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
-      { payload: { title: "Bypass", body: "Must not write" }, context: { instance_id: "workflow-1", step: 2 } }), { code: "actions.forbidden" });
+      { title: "Bypass", body: "Must not write", request_id: "workflow:workflow-1:2" }), { code: "actions.forbidden" });
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 2);
     const edited = (await bound.invoke(actions.update, { id: spark.id, body: "Edited", expected_updated_at: spark.updated_at })).spark;
     await assert.rejects(bound.invoke(actions.update, { id: spark.id, body: "Lost update", expected_updated_at: spark.updated_at }), { code: "lingguang.conflict" });

@@ -134,7 +134,7 @@
 | BL-063 | 群聊：手机真机与公网部署 | [molis-work-im](archive/molis-work-im/spec.md) | 明确后续做 | 依赖 Server 与成员身份 | 团队能力 | 低 | 未分配 |
 | BL-106 | 选择页项目简介里的材料数、文档数与「助理在做」：设计稿里有，现在按「不猜」不显示（个人空间那一行的「灵光、Shelf、待办」计数同理） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 已知缺口 | 没有公开读口，要读各插件私有存储或跨项目汇总 | 各插件的公开读口 | 低 | 未分配 |
 | BL-107 | 新建项目引导的「在后台继续」：离开页面后整理仍在继续，回来接着看（现在整理本来就在 Host 后台跑，只是没有登记成后台任务入口） | [project-arrival-flow · 与设计稿的差异](archive/project-arrival-flow/spec.md) | 明确后续做 | 登记成后台任务没有 owner | 无 | 低 | 未分配 |
-| BL-180 | 接入请求的取消与读取不核发起者：`connectors.authorization.cancel` 与 `connectors.authorization.read`（`apps/local-host/src/connector-authorization-status.ts` 的取消与读取）只要授权请求 id，不像四个继续动作那样走 `requireConnectorInitiator`。main 上一直如此；读到的不含一次性的协议内容，取消别人的请求只会让对方重新准备。要不要收紧到同一用户、项目与会话，由 S-37 的主人判断 | #762 统筹评审（2026-10-19） | 待判断 | 不是这一片的 P2，另记 | 无 | 低 | ② 平台 |
+| BL-180 | 接入请求的取消与读取不核发起者：`connectors.authorization.cancel` 与 `connectors.authorization.read`（`apps/local-host/src/connector-authorization-status.ts` 的取消与读取）只要授权请求 id，不像四个继续动作那样走 `requireConnectorInitiator`。main 上一直如此；读到的不含一次性的协议内容，取消别人的请求只会让对方重新准备。要不要收紧到同一用户、项目与会话，由 S-37 的主人判断 | #762 统筹评审（2026-10-19） | 已知缺口 | 不是这一片的 P2，另记 | 无 | 低 | ② 平台 |
 | BL-181 | 本机 MCP 的 loader 环境变量名单还可以补：`ZDOTDIR`、`GCONV_PATH`、`DOTNET_STARTUP_HOOKS`、`PHPRC`、`LUA_INIT`、`NPM_CONFIG_*` 等。属于纵深防御：可执行文件本来由准备方选，真正的闸门是人的批准。要补就加在 `apps/local-host/src/connector-local-mcp.ts` 同一条前缀正则里，S-36 那一行和 `tests/security-invariants-local-mcp.test.ts` 的族表一起改 | #762 统筹评审（2026-10-19） | 明确后续做 | 纵深防御，不挡这一片 | 无 | 低 | ② 平台 |
 
 ## 7. 平台与架构

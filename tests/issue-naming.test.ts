@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
-  issueActionHandlers, issuesActions, issuesManifest, issuesMethods, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_SCREENSHOTS_UNREAD, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
+  issueActionHandlers, issuesActions, issuesManifest, issuesMethods, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -32,7 +32,7 @@ function model(answer: (call: Call) => unknown, state: PluginModelAvailability =
   };
   return { client, calls, onValidate: (check: () => void) => { validate = check; } };
 }
-const data = (call: Call) => JSON.parse(/\nBEGIN_ISSUE_[0-9a-f]+\n(.*)\nEND_ISSUE_/s.exec(call.prompt.data)![1]!) as { description: string; page: string | null; screenshots: { count: number; attached: boolean } };
+const data = (call: Call) => JSON.parse(/\nBEGIN_ISSUE_[0-9a-f]+\n(.*)\nEND_ISSUE_/s.exec(call.prompt.data)![1]!) as { description: string; page: string | null; title_language: "zh" | "en"; screenshots: { count: number; attached: boolean } };
 
 async function issues(t: TestContext) {
   const home = await mkdtemp(join(tmpdir(), "issue-naming-")), db = openPluginDatabase(home, ISSUES_DATABASE, () => {});
@@ -58,25 +58,75 @@ test("ISSUE-50 one bounded model call names a page draft and saves it once: the 
   // Issue's own registered instruction, the words as fenced data, and a bounded JSON call.
   const [call] = fake.calls;
   assert.equal(call!.prompt.instruction.prompt_id, ISSUES_NAME.prompt_id); assert.equal(call!.prompt.instruction.owner_id, ISSUES_PLUGIN_ID);
-  assert.deepEqual(data(call!), { description: "  点保存没反应\n", page: "Goals · Molis", screenshots: { count: 2, attached: false } });
+  assert.deepEqual(data(call!), { description: "  点保存没反应\n", page: "Goals · Molis", title_language: "zh", screenshots: { count: 2, attached: false } });
   assert.deepEqual({ ...call!.request, signal: undefined }, { output: "json", timeout_ms: 90_000, max_output_tokens: 4_000, signal: undefined });
   // Naming it again finds the record; the model is not asked twice.
   assert.deepEqual(await drafts.name(draft_id, caller, fake.client), { status: "saved", issue: saved }); assert.equal(fake.calls.length, 1); assert.equal(count(), 1);
 });
 
-test("ISSUE-50 screenshots go to the model only when the model in use declares that it reads images", async t => {
+test("ISSUE-50 screenshots go to the model only when the model in use declares that it reads images; the words alone still go on without them", async t => {
   const { drafts } = await issues(t);
-  for (const vision of [true, false, undefined]) {
+  for (const vision of [true, false, undefined]) for (const description of ["", "列表里的按钮显示错位"]) {
+    if (description === "" && vision !== true) continue; // screenshots alone for a model that cannot read them: the next test
     const draft_id = crypto.randomUUID();
-    await drafts.prepare({ draft_id, description: "", images: shots }, caller);
+    await drafts.prepare({ draft_id, description, images: shots }, caller);
     const fake = model(() => ({ status: "named", title: "列表截图里的按钮显示错位", type: "bug" }), { available: true, ...(vision === undefined ? {} : { vision }) });
-    await drafts.name(draft_id, caller, fake.client);
+    assert.equal((await drafts.name(draft_id, caller, fake.client)).status, "saved");
     const [call] = fake.calls;
+    assert.equal(fake.calls.length, 1, "one call whatever the model reads");
     assert.equal(data(call!).screenshots.attached, vision === true, String(vision)); assert.equal(data(call!).screenshots.count, 2);
     if (vision !== true) { assert.equal(call!.request!.images, undefined); continue; }
     const bytes = Buffer.from(png.slice(png.indexOf(",") + 1), "base64");
     assert.deepEqual(call!.request!.images!.map(image => [image.label, Buffer.from(image.bytes).equals(bytes)]), [["截图 1", true], ["截图 2", true]]);
   }
+});
+
+test("ISSUE-50 screenshots alone for a model not declared to read images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
+  const { store, drafts, count } = await issues(t);
+  // It says what happened, why and what to do, in one line the page can show as a question.
+  for (const part of ["没有声明能看图", "截图没有交给它", "写一句话"]) assert.ok(ISSUE_SCREENSHOTS_UNREAD.includes(part), part);
+  assert.ok(ISSUE_SCREENSHOTS_UNREAD.length <= 200 && !/[\r\n]/.test(ISSUE_SCREENSHOTS_UNREAD));
+  for (const vision of [false, undefined]) for (const description of ["", "  \n "]) {
+    const draft_id = crypto.randomUUID(), state = { available: true as const, ...(vision === undefined ? {} : { vision }) };
+    await drafts.prepare({ draft_id, description, images: shots }, caller);
+    const off = model(() => assert.fail("a model that cannot read the screenshots is not asked about nothing but screenshots"), state);
+    assert.deepEqual(await drafts.name(draft_id, caller, off.client), { status: "needs_input", question: ISSUE_SCREENSHOTS_UNREAD }, `${vision} ${JSON.stringify(description)}`);
+    assert.equal(off.calls.length, 0); assert.equal(count(), 0);
+    // A revoked or cancelled call gets no answer either, and a retired draft is gone.
+    await assert.rejects(drafts.name(draft_id, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }, off.client), /revoked/);
+    await drafts.cancel(draft_id, caller);
+    await assert.rejects(drafts.name(draft_id, caller, off.client), { code: "actions.conflict" });
+    // The editor's suggestion is the same: nothing to name from, nothing asked of the model, nothing written.
+    const suggest = issueActionHandlers(store, off.client).find(binding => binding.capability_id === issuesActions.suggestName.capability_id)!;
+    assert.deepEqual(await suggest.handle(caller, { description, images: [shots[0]] }), { status: "needs_input", question: ISSUE_SCREENSHOTS_UNREAD });
+    assert.equal(off.calls.length, 0); assert.equal(count(), 0);
+  }
+  // A model that is not there at all is still reported as that, not as the screenshots.
+  const draft_id = crypto.randomUUID(); await drafts.prepare({ draft_id, description: "", images: shots }, caller);
+  const gone = model(() => assert.fail("an unavailable model is never asked"), { available: false, reason: "请先在「模型设置」里连接文字模型" });
+  await assert.rejects(drafts.name(draft_id, caller, gone.client), { code: "actions.connection_required" });
+  assert.equal(count(), 0);
+});
+
+test("ISSUE-50 ISSUE-51 the title's language is decided from the person's words and handed over as data; the instruction says to follow it", async t => {
+  const { drafts } = await issues(t);
+  // English: Latin letters and no CJK. Everything else, mixed words and words with none at all included, is Chinese.
+  const languages: [string, "zh" | "en"][] = [["The save button does nothing on the Goals page", "en"], ["Export to CSV drops the last row.", "en"], ["点保存没反应", "zh"], ["保存按钮 does nothing on Goals", "zh"],
+    ["Save 按钮没反应", "zh"], ["The list is empty。", "zh"], ["保存ボタンが効かない", "zh"], ["저장 버튼이 안 눌려요", "zh"], ["111", "zh"], ["", "zh"], ["  \n", "zh"]];
+  for (const [description, language] of languages) assert.equal(titleLanguage(description), language, JSON.stringify(description));
+  for (const [description, language] of languages.filter(([text]) => text.trim())) {
+    const draft_id = crypto.randomUUID();
+    await drafts.prepare({ draft_id, description, page: { url: "/projects/p-1/?plugin=goals", title: "Goals · Molis 体验验证" } }, caller);
+    const fake = model(() => ({ status: "named", title: "标题", type: "bug" }));
+    await drafts.name(draft_id, caller, fake.client);
+    assert.equal(data(fake.calls[0]!).title_language, language, description); assert.equal(data(fake.calls[0]!).page, "Goals · Molis 体验验证");
+  }
+  // Screenshots alone are Chinese as well; the page's Chinese name does not make English words Chinese.
+  const draft_id = crypto.randomUUID(); await drafts.prepare({ draft_id, description: "", images: shots }, caller);
+  const reads = model(() => ({ status: "named", title: "截图里的报错", type: "bug" }), { available: true, vision: true });
+  await drafts.name(draft_id, caller, reads.client); assert.equal(data(reads.calls[0]!).title_language, "zh");
+  assert.ok(ISSUES_NAME.body.includes("title_language"));
+  assert.ok(!ISSUES_NAME.body.includes("title 和 description 用同一种语言"), "the language is the data's, not a guess of the model's");
 });
 
 test("ISSUE-50 too little to go on, an unusable answer, no model, a refused write or a draft retired meanwhile write nothing", async t => {
@@ -125,7 +175,7 @@ test("ISSUE-51 suggesting a name for a saved record's edit writes nothing", asyn
   const fake = model(() => ({ status: "named", title: "补充后点保存没有反应", type: "bug" }), { available: true, vision: true });
   const suggest = issueActionHandlers(store, fake.client).find(binding => binding.capability_id === issuesActions.suggestName.capability_id)!;
   assert.deepEqual(await suggest.handle(caller, { description: "补充后保存没反应", images: [shots[0]], page: { title: "Issue" } }), { status: "named", title: "补充后点保存没有反应", type: "bug" });
-  assert.deepEqual(data(fake.calls[0]!), { description: "补充后保存没反应", page: "Issue", screenshots: { count: 1, attached: true } });
+  assert.deepEqual(data(fake.calls[0]!), { description: "补充后保存没反应", page: "Issue", title_language: "zh", screenshots: { count: 1, attached: true } });
   assert.deepEqual(store.read(original.id), original); assert.equal(count(), 1);
   // The words are checked as a capture's are, before the model is asked.
   await assert.rejects(suggest.handle(caller, { description: "  " }), { code: "actions.input_invalid" });
@@ -152,6 +202,8 @@ test("ISSUE-50 ISSUE-51 only the person's page calls the naming actions, each on
     ["issues.name_draft", 1, "write", ["user"], ["issues:write", "model:invoke"], "concurrent"]);
   assert.deepEqual([suggestName.capability_id, suggestName.version, suggestName.action.effect, suggestName.action.audiences, suggestName.action.permissions, suggestName.action.scheduling],
     ["issues.suggest_name", 1, "read", ["user"], ["issues:read", "model:invoke"], "concurrent"]);
+  // A metered model call is not a query that may be replayed: a command whose effect is read, as pages.ai is.
+  assert.deepEqual([suggestName.operation, suggestName.action.kind, nameDraft.operation, nameDraft.action.kind], ["command", "operation", "command", "operation"]);
   assert.deepEqual(capture.action.audiences, ["user"], "only the page's manual save makes a record from a draft with a given name");
   assert.deepEqual(issuesManifest.permissions.find(row => row.permission === "model:invoke")?.required, false);
   for (const [route_id, path, permission] of [["issues.name_draft", "/name-draft", "issues:write"], ["issues.suggest_name", "/suggest-name", "issues:read"]]) {
@@ -171,7 +223,7 @@ test("ISSUE-50 ISSUE-51 through the Host: the page's draft is named by the Host'
   answers.push('```json\n{"status":"named","title":"Goals 里点保存没有反应","type":"bug"}\n```');
   const saved = await call<{ status: string; issue: Issue }>("name-draft", { draft_id });
   assert.deepEqual([saved.status, saved.issue.id, saved.issue.title, saved.issue.entered_via, saved.issue.context.caller.audience], ["saved", draft_id, "Goals 里点保存没有反应", "assistant", "user"]);
-  assert.ok(prompts[0]!.includes("点保存没反应"));
+  assert.ok(prompts[0]!.includes("点保存没反应")); assert.ok(prompts[0]!.includes("title_language"));
   const asked = crypto.randomUUID();
   await call("prepare", { draft_id: asked, description: "test" });
   answers.push(JSON.stringify({ status: "needs_input", question: ISSUE_ASK }));

@@ -25,13 +25,13 @@ export const ISSUE_REVIEW_CLIENT_SCRIPT = String.raw`
     catch (error) {
       if (error.name === 'AbortError' || !active()) return;
       await stopReview();
-      flag(['actions.connection_required', 'plugin.model_failed'].includes(error.code) ? L('模型暂时不可用，点开手动保存，或检查模型设置') : L('没能重新整理，修改已保留，可以重试或直接保存。'));
+      flag(['actions.connection_required', 'plugin.model_failed'].includes(error.code) ? L('模型暂时不可用，可以直接保存，或检查模型设置') : L('没能重新整理，修改已保留，可以重试或直接保存。'));
       return;
     }
     if (!active()) return;
     await stopReview();
     if (JSON.stringify(values()) !== JSON.stringify(data) || importing) { flag(L('内容已变化，请重新整理。')); return; }
     if (result.status === 'named') { fill({ ...data, title: result.title, type: result.type }); flag(L('已重新整理，确认后保存。')); }
-    else flag(L('需要补充：') + result.question);
+    else flag(L('需要补充：') + L(result.question));
   };
 `;

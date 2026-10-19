@@ -65,9 +65,9 @@ export class IssueCaptures {
     if (!held || held.expires < Date.now()) throw missing();
     const already = await this.already(held, caller);
     if (already) return { status: "saved", issue: already };
-    const { naming, result } = await nameIssue(model, held.input, caller.signal);
+    const { naming, validate } = await nameIssue(model, held.input, caller.signal);
     if (naming.status === "needs_input") { await caller.beforeEffect(); return naming; }
-    return { status: "saved", issue: await this.capture({ draft_id: draftId, title: naming.title, type: naming.type }, caller, () => result.validateResult()) };
+    return { status: "saved", issue: await this.capture({ draft_id: draftId, title: naming.title, type: naming.type }, caller, validate) };
   }
   private async already(held: HeldDraft, caller: ActionExecutionContext): Promise<Issue | null> {
     if (held.saved) { await caller.beforeEffect(); return this.store.read(held.saved); }

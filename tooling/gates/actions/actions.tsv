@@ -363,7 +363,7 @@ issues.list	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	
 issues.name_draft	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	concurrent	user	issues:write,model:invoke	issue	-	-	7b7bf2a96001	69491868827a	613063238287
 issues.prepare	3	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	user	issues:write	issue	-	-	2667a3f27734	7b7bf2a96001	-
 issues.read	2	io.molis.work.issues	io.molis.work.issues	query	query	home	read	-	agent,mcp,user	issues:read	issue	-	-	9f23bf271216	3efd82b4a94d	-
-issues.suggest_name	1	io.molis.work.issues	io.molis.work.issues	query	query	home	read	concurrent	user	issues:read,model:invoke	issue	-	-	89b8c0532249	9c60dde76da0	613063238287
+issues.suggest_name	1	io.molis.work.issues	io.molis.work.issues	command	operation	home	read	concurrent	user	issues:read,model:invoke	issue	-	-	89b8c0532249	9c60dde76da0	613063238287
 issues.update	2	io.molis.work.issues	io.molis.work.issues	command	operation	home	write	-	agent,mcp,user	issues:write	issue	-	-	8b3cda5211a5	3efd82b4a94d	-
 jelly.calendar.list	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	f46e1e6ef6be	87511b1e26fc	-
 jelly.calendar.progress	1	io.molis.work.jelly	io.molis.work.jelly	query	query	home	read	-	agent,mcp,user,workflow	jelly:read	jelly_workspace	-	-	bb854a0acb45	7fcdf44fcce1	-

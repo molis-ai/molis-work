@@ -36,9 +36,11 @@ const question = object({ status: { const: "needs_input" }, question: { type: "s
 const nameDraft = action<{ draft_id: string }, IssueNamed>("name_draft", "整理并保存录入的问题", "write", object({ draft_id: id }),
   { anyOf: [object({ status: { const: "saved" }, issue }), question] }, 1, ["user"],
   { ...naming("issues:write"), description: "按 Issue 的规则给页面录入的草稿起标题、判类型，并一次存成新记录（可撤销）；依据不足时只返回一句追问，不写入。调用当前文字模型。" });
-const suggestName = action<IssueNamingInput, IssueNaming>("suggest_name", "重新整理标题和类型", "read", object({ description, images, page }, ["description"]),
+// Writes nothing, but a metered model call is not a query that may be replayed or run where no cost is allowed: a command whose effect is read, as pages.ai is.
+const asCommand = <I, O>(definition: ActionDefinition<I, O>): ActionDefinition<I, O> => ({ ...definition, operation: "command", action: { ...definition.action, kind: "operation" } });
+const suggestName = asCommand(action<IssueNamingInput, IssueNaming>("suggest_name", "重新整理标题和类型", "read", object({ description, images, page }, ["description"]),
   { anyOf: [object({ status: { const: "named" }, title, type }), question] }, 1, ["user"],
-  { ...naming("issues:read"), description: "按 Issue 的规则给编辑中的问题描述和截图建议标题与类型，不写入；依据不足时只返回一句追问。调用当前文字模型。" });
+  { ...naming("issues:read"), description: "按 Issue 的规则给编辑中的问题描述和截图建议标题与类型，不写入；依据不足时只返回一句追问。调用当前文字模型。" }));
 
 export const issuesActions = {
   prepare, cancel, nameDraft, suggestName,

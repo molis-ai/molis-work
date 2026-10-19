@@ -23,7 +23,7 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
   const home = $('home'), detail = $('detail'), composer = $('composer'), editor = $('editor'), list = $('list'), toastBox = $('toast');
   const desc = composer.elements.description, titleInput = editor.elements.title, detailInput = editor.elements.description;
   const kinds = { bug: 'Bug', experience: '体验问题', feature: '功能需求' };
-  const via = { assistant: '助理整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
+  const via = { assistant: '自动整理', manual: '手动记录', mcp: '外部客户端' }, mac = /Mac|iP/.test(navigator.platform);
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const KEY = 'molis:issue-draft';
   let rows = [], next = null, pending = [], current = null, editing = false, saving = false, images = [], edits = [], fresh = null, listEpoch = 0, readEpoch = 0, toastTimer, toastRun;

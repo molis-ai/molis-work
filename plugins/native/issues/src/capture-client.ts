@@ -24,9 +24,12 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     drop(item); add(issue); render();
     toast(L('已记录：') + issue.title, L('撤销'), () => undo(issue, item));
   };
-  // Why naming did not work, as the person reads it on the row; the words and pictures are kept either way.
+  // Why naming did not work, as the person reads it on the row; the words and pictures are kept either way. A refusal with
+  // its own reason (a picture over the limit, too many unsaved captures, a model reply Issue cannot use) says it in its own
+  // words; a failure with no code of ours, an internal one, or a model answer that was not JSON has no wording worth showing.
   const failure = error => ['actions.connection_required', 'plugin.model_failed'].includes(error.code) ? L('模型暂时不可用，点开手动保存，或检查模型设置')
-    : error.code === 'actions.timeout' ? L('整理超时，点开补全标题和类型') : error.code === 'issues.model_reply_invalid' ? error.message : L('没能自动整理，点开补全标题和类型');
+    : error.code === 'actions.timeout' ? L('整理超时，点开补全标题和类型')
+    : error.code && !['actions.execution_failed', 'plugin.model_output_invalid'].includes(error.code) ? error.message : L('没能自动整理，点开补全标题和类型');
   const organize = async item => {
     item.state = 'organizing'; item.note = ''; item.at = Date.now(); render();
     let over = false;
@@ -44,7 +47,7 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
       await api('prepare', { draft_id: item.id, description: item.text, images: item.images, ...(item.page ? { page: item.page } : {}) });
       const result = await api('name-draft', { draft_id: item.id });
       if (!live()) return;
-      if (result.status === 'saved') saved(item, result.issue); else attention(item, L('需要补充：') + result.question, 'question');
+      if (result.status === 'saved') saved(item, result.issue); else attention(item, L('需要补充：') + L(result.question), 'question');
     } catch (error) {
       if (error.name === 'AbortError' || !live()) return;
       // The answer was lost on the way back: the record may be there already.

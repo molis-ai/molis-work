@@ -24,6 +24,8 @@
   - 声明：command，`scheduling: "concurrent"`，权限 `issues:write` 加 `model:invoke`，只给 `user` 调。
   - 读草稿的原文和截图，经 `services.model.complete` 调一次模型，`output: "json"`。截图只在所选模型声明 `vision` 时作为 `images` 传。
   - 插件检查返回的形状：标题长度、类型枚举。依据不足时返回一句追问、不写入。
+  - 只有截图、没有文字，而所选模型没有声明 `vision`：不调模型，返回固定的一句追问（写一句话说明问题，再整理），不写入。有文字时照常起标题，截图不附，传给模型的数据里写明没有附。
+  - 标题用什么语言由代码定：描述里没有中日韩文字、且有英文字母，`title_language` 为 `en`，否则为 `zh`；它放在传给模型的数据里，规则要求照它写，模型不自己判。
   - 写入：`beforeEffect()` 之后，按读到的草稿版本走 `issues.capture` 的写入路径，一次写好。写入人取调用上下文里的 actor，不从输入或模型输出读（③ 10-19 的要求）。
   - 页面行为照 ISSUE-35～41 不变：输入框立刻清空、可以撤销；要补充、模型不可用、超时都留在列表顶部，点开是带原文原图的编辑器。
 - **ISSUE-51** 重新整理（ISSUE-48 改走这条路）：同样调一次有界模型，只返回标题和类型，填回编辑器，不写入；由人点保存，走 `issues.update`。ISSUE-49 的「迟到结果不能写回」不变。
@@ -52,14 +54,14 @@
 **实现记录（2026-10-19）。** 两个新动作都只给 `user` 调，`scheduling: "concurrent"`，权限加 `model:invoke`，`execution.cost: "metered"`：
 - `issues.name_draft@1`（写）：读草稿，调一次模型，存成新记录或返回一句追问。`issues.suggest_name@1`（读）：给编辑中的原文和截图建议标题和类型，什么都不写。
 - 模型调用：上限 90 秒、4000 个输出 token。传给模型的数据里写截图有几张、这次附上没有，模型不会以为自己看过截图。
-- 截图只在所选模型声明能看图时附上。为此 `PluginModelAvailability` 多一个可选的 `vision`，宿主按模型目录里那个模型的 `vision` 填（`apps/local-host/src/plugin-model-service.ts`、`packages/contracts/src/platform/plugin-model.ts`）。日常 Home 要在「模型设置」里给模型勾上「看图」，截图才会到起标题这一步；评测两臂都按勾上跑（`MODEL_VISION=1`）。
+- 截图只在所选模型声明能看图时附上。为此 `PluginModelAvailability` 多一个可选的 `vision`，宿主按模型目录里那个模型的 `vision` 填（`apps/local-host/src/plugin-model-service.ts`、`packages/contracts/src/platform/plugin-model.ts`）。模型要带 `vision: true`，截图才会到起标题这一步。界面上现在还没有「看图」的开关：`vision` 只能经模型设置接口的 `models[].vision` 写入，开关由跟进 PR 补上；在那之前，日常 Home 里多数模型收不到截图。截图没有交给模型时，页面直接说明（见 ISSUE-50）。评测两臂都按有 `vision` 跑（`MODEL_VISION=1`）。
 - 模型回答只认两种形状：`named`（一行标题，1～200 字；类型在枚举里）和 `needs_input`（一行追问，1～200 字）。其他回答报 `issues.model_reply_invalid`（类别 upstream），提示「模型没有给出可用的标题和类型，点开补全后保存」，不修补成记录。`result.validateResult()` 在写入事务里、提交前再查一次。
 - 写入人取调用上下文的 actor。起标题存下的记录 `entered_via` 仍记 `assistant`：标题和类型是模型给的，人只写了原文。
 - `issues.capture` 只剩 `user`（页面的手动保存）。助理在对话里记问题用 `issues.create`，测试 `tests/issue-assistant.test.ts` 的 ISSUE-25 那条覆盖。
 
 页面上的处理：
 - 两分钟兜底：服务端模型上限 90 秒，页面在两分钟后仍没等到就自己收尾。录入先撤掉草稿（`cancel_capture`）再提示超时，迟到的回答找不到草稿，不会在人手动存的那条旁边再存一条。重新整理直接丢掉迟到的回答，编辑器原样还给人（ISSUE-49 不变）。
-- 出错提示：没有模型（`actions.connection_required`）和上游失败（`plugin.model_failed`，比如 503）都显示「模型暂时不可用，点开手动保存，或检查模型设置」。超时（`actions.timeout`）显示「整理超时，点开补全标题和类型」。`issues.model_reply_invalid` 显示它自己的话。其他（含 `plugin.model_output_invalid`，回答不是 JSON）显示「没能自动整理，点开补全标题和类型」。
+- 出错提示：没有模型（`actions.connection_required`）和上游失败（`plugin.model_failed`，比如 503）都显示「模型暂时不可用，点开手动保存，或检查模型设置」。超时（`actions.timeout`）显示「整理超时，点开补全标题和类型」。带我们自己错误码的拒绝（截图超限、没存的录入太多、`issues.model_reply_invalid` 等）显示它自己的话。没有错误码的、内部失败（`actions.execution_failed`）和 `plugin.model_output_invalid`（回答不是 JSON）显示「没能自动整理，点开补全标题和类型」，这几种的原话不是给人看的。编辑器里重新整理遇到没有模型或上游失败，显示「模型暂时不可用，可以直接保存，或检查模型设置」（人已经在编辑器里，不再说「点开」）；需要补充的追问，两处都经翻译显示，固定的那一句也有英文。
 - 回答在路上丢了（没有 HTTP 状态）时，先按草稿 ID 读一次，记录已经在就当存好。
 
 规则文本在 `plugins/native/issues/src/prompts.ts`：`issues.name`（v1，owner `io.molis.work.issues`）登记在目录条目上，方法 `issues-capture` v11 用同一份文本拼。已知的限制：人在「Prompt 与 Character」里改了 `issues.name`，只影响页面起标题，不影响方法；方法里的规则仍是代码里那一份。

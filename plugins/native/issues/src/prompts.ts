@@ -6,7 +6,7 @@ import { defineInstructionPrompt, type InstructionPrompt } from "@molis-ai/molis
  * Neither says how to reach a tool: that is the gateway's and the Host's business.
  */
 export const ISSUE_TOO_LITTLE = [
-  "用户提交了就是要记下来，追问会让这条停在那里等人补充。描述里有一句能看懂的话就照常记录，不设字数门槛（如“点保存没反应”“希望列表能按类型筛选”）。",
+  "用户提交了就是要记下来，追问会让这条停在那里等人补充。描述里有一句能看懂的话就照常记录，不设字数门槛（如“点保存没反应”“想要深色模式”）。",
   "没说在哪个页面、哪个列表、怎么操作，或者没有截图，都不是追问的理由：记录时所在页面另有记录。",
   "只有截图没有文字时，截图里看得到报错、弹窗或明显的异常，就概括看得到的那部分照常记录：写成用户看到的现象（如“导出时提示磁盘空间不足”），不照抄报错原文和错误码，仍守标题的字数。",
   "依据不足只有一种情况：描述只有数字、单个字母或词、乱码、测试字样（如“111”“test”“asdf”），截图里也看不出问题。",
@@ -47,12 +47,13 @@ export const ISSUES_NAME = defineInstructionPrompt({
     "【标题】",
     ...bullets(ISSUE_TITLE_RULES),
     "- 数据里的 page 是记录时所在页面的名字，可能为空。",
+    "- 数据里的 title_language 是标题要用的语言：zh 写中文，en 写英文。程序已按描述的文字定好，照它写，不要自己改判。",
     "",
     "【类型】",
     ...bullets(ISSUE_TYPE_RULES),
     "",
     "【输出】只输出一个 JSON 对象，不输出解释或代码块。",
-    "依据够时输出 {\"status\":\"named\",\"title\":\"标题\",\"type\":\"bug\"}，title 和 description 用同一种语言，type 取 bug、experience 或 feature。",
+    "依据够时输出 {\"status\":\"named\",\"title\":\"标题\",\"type\":\"bug\"}，title 用数据里 title_language 指定的语言，type 取 bug、experience 或 feature。",
     `依据不足时输出 {"status":"needs_input","question":"${ISSUE_ASK}"}：只问一句，不写内部编号。`,
   ].join("\n"),
 });

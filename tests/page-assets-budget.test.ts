@@ -686,7 +686,7 @@ for (const [asset, old] of [
 // from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
 // baseline still fails.
 test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1128662, 1129269], "/assets/molis-work-workbench.css": [1593165, 1602525],
+  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129251], "/assets/molis-work-workbench.css": [1593165, 1602525],
     "/assets/molis-work-settings.css": [982397, 988933] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

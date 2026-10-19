@@ -241,7 +241,7 @@ const headErrors = (measured, budget, base) => {
 // panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed. Each is spent once from exactly
 // main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1128662, 1129269],
+  "/assets/molis-work-workbench.js": [1128644, 1129251],
   "/assets/molis-work-workbench.css": [1593165, 1602525],
   "/assets/molis-work-settings.css": [982397, 988933],
 };

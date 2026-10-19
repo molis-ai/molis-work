@@ -21,7 +21,7 @@ function material(messages: unknown, title: string): string {
   return "";
 }
 
-test("PMAT-33 PMAT-35 PMAT-37 本轮情况 counts the project's documents the round could list; kept-from-agents ones and a round without list get none", { timeout: 90_000 }, async t => {
+test("PMAT-33 PMAT-35 PMAT-37 PMAT-39 本轮情况 counts the project's documents the round could list; kept-from-agents ones and a round without list get none", { timeout: 90_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("资料", ["artifacts"]);
   const prefix = `/projects/${project.project_id}`;
   const model = await connectorAssistantModel(t, home.home, () => "好。");
@@ -51,8 +51,8 @@ test("PMAT-33 PMAT-35 PMAT-37 本轮情况 counts the project's documents the ro
   const two = await ask(empty.work_id);
   assert.match(two.text, /这个项目的资料有 2 份（[^）]+ 2）。/, two.text);
   assert.ok(two.catalog.includes("一共 2 份，都列在下面") && two.catalog.includes("「安全生产制度") && two.catalog.includes("「差旅标准"), two.catalog);
-  assert.match(two.catalog, /capability_id knowledge\.read，version 1；input 字段 subject（必填）/, "the identity and input to call it with");
-  assert.match(two.catalog, /subject \{"kind":"[^"]+","id":"[^\n]+"\}/, "the subject to copy");
+  assert.match(two.catalog, /capability_id knowledge\.read，version 1；input 字段 subject（必填）、anchor/, "the identity and input to call it with");
+  assert.match(two.catalog, /^- k[0-9a-f]{7}「/m, "each piece with its ref to name it by (PMAT-39)");
   assert.ok(!two.catalog.includes("600 元"), "titles and briefs, not the text");
   // PMAT-37: the round's every tool comes with its shape, so read-capability is called as the catalog says, without find-tools.
   const roster = two.tools.find(tool => tool.name === "find-tools")?.description?.match(/^- \S+: /gm) ?? [];

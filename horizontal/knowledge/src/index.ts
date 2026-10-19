@@ -35,6 +35,7 @@ import {
   type KnowledgeListResponse,
   type KnowledgeOutline,
   type KnowledgeOutlineRequest,
+  type KnowledgePieceName,
   type KnowledgeReadRequest,
   type KnowledgeReadResponse,
   type KnowledgeSearchRequest,
@@ -47,6 +48,7 @@ import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from ".
 import { KnowledgeWorkspace } from "./workspace.js";
 import { RoundBudget } from "./budget.js";
 import { RELATED_POOL, relatedCards, relatedFirst } from "./related.js";
+import { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
@@ -55,6 +57,7 @@ export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWL
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
+export { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
 export { locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
 
 export const packageDescriptor = {
@@ -107,11 +110,11 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
-const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, revision: card.revision, title: card.title,
+const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title,
   plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
 
 /** A card as `list` shows it: no text, and section notes only when organized from this revision. */
-const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, revision: card.revision, title: card.title, plugin_id: card.plugin_id,
+const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title, plugin_id: card.plugin_id,
   plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords, sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open });
 
 /**
@@ -159,7 +162,7 @@ export class KnowledgeService {
       if (hit.project_id !== project) continue;
       const stored = this.stored(project, hit.subject, hit.plugin_id);
       if (stored?.excluded) continue;
-      cards.push({ subject: hit.subject, revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
+      cards.push({ subject: hit.subject, ref: knowledgeRef(hit.subject), revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
         updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
     }
     // What only a card's own words match (its brief, keywords, section notes), for a caller who may see the piece.
@@ -229,7 +232,7 @@ export class KnowledgeService {
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
-    const context = await this.owner(access, input.subject, knowledgeActions.outline);
+    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.outline);
     const card = this.stored(access.caller.project_id!, context.subject);
     // Section notes are for this very text only: a card organized from another revision says nothing about it.
     const notes = new Map(card?.organized_revision === context.revision ? card.outline.map(note => [note.anchor, note.summary]) : []);
@@ -239,7 +242,7 @@ export class KnowledgeService {
 
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
     if (input.line !== undefined && (input.anchor !== undefined || input.offset !== undefined)) throw knowledgeErrors.invalid("按行读（line）时不再给 anchor 或 offset");
-    const context = await this.owner(access, input.subject, knowledgeActions.read);
+    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
     const lines = lineStarts(context.content);
     if (input.line !== undefined && input.line > lines.length) throw knowledgeErrors.invalid(`这份资料现在只有 ${lines.length} 行`, { line: input.line, total_lines: lines.length, revision: context.revision });
     const range = input.line !== undefined ? { start: lines[input.line - 1]!, end: context.content.length } : rangeOf(context.content, input.anchor);
@@ -260,7 +263,7 @@ export class KnowledgeService {
 
   async grep(access: KnowledgeAccess, input: KnowledgeGrepRequest): Promise<KnowledgeGrepResponse> {
     const project = this.project(access);
-    const named = input.subjects ?? [];
+    const named = namedSubjects(this.options.cards, project, input.subjects);
     if (named.length > KNOWLEDGE_GREP_MAX_SUBJECTS) throw knowledgeErrors.invalid(`一次最多查 ${KNOWLEDGE_GREP_MAX_SUBJECTS} 份资料`);
     const patterns = [input.pattern, ...input.alternatives ?? []].map(pattern => pattern.trim()).filter(Boolean);
     if (!patterns.length || !input.pattern.trim()) throw knowledgeErrors.invalid("请给出要查找的文字");
@@ -285,7 +288,7 @@ export class KnowledgeService {
       if ("error" in outcome) { result.unread.push({ subject: subjects[index]!, reason: reasonOf(outcome.error) }); return; }
       result.searched += 1;
       const { hits, more, count } = grepLines(outcome.context.content, patterns, input.context_lines ?? 1, lines ? Math.max(0, left) : 0);
-      if (count) result.found.push({ subject: outcome.context.subject, revision: outcome.context.revision, title: outcome.context.title, lines: count });
+      if (count) result.found.push({ subject: outcome.context.subject, ref: knowledgeRef(outcome.context.subject, "allow"), revision: outcome.context.revision, title: outcome.context.title, lines: count });
       if (!lines) return;
       result.more ||= more;
       let taken = 0;
@@ -293,7 +296,7 @@ export class KnowledgeService {
         const size = [hit.text, ...hit.before, ...hit.after].join("\n").length;
         if (fill !== null && chars + size > fill) { result.more = true; break; }
         chars += size; taken += size; left -= 1;
-        result.matches.push({ subject: outcome.context.subject, revision: outcome.context.revision, ...hit });
+        result.matches.push({ subject: outcome.context.subject, ref: knowledgeRef(outcome.context.subject, "allow"), revision: outcome.context.revision, ...hit });
       }
       given.push({ context: outcome.context, via: "grep", chars: taken });
     });
@@ -361,6 +364,11 @@ export class KnowledgeService {
     return visibility(await access.client.discover(reader), reader.project_id ?? null);
   }
 
+  /** The pieces a call names by subject or ref, in the caller's own project (none: refused before anything is read). */
+  named(access: KnowledgeAccess, names: readonly KnowledgePieceName[]): ActionSubject[] {
+    return namedSubjects(this.options.cards, this.project(access), names);
+  }
+
   /** Those of `shown` that hold some of the words, by the indexed text and the cards' own words together. */
   private related(project: string, shown: readonly KnowledgeCardRecord[], words: string): KnowledgeCardRecord[] {
     return relatedCards(shown, [this.options.related?.(project, words, RELATED_POOL) ?? [], this.options.cards.related(project, words, RELATED_POOL)]);
@@ -409,7 +417,7 @@ export class KnowledgeService {
       // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id
       // for a fault in its other arguments. A kind the caller may not read keeps the directory's own refusal (S-41).
       if (!known && error instanceof ActionError && UNKNOWN_SUBJECT_CODES.has(error.code) && await this.readable(caller, access, subject)) {
-        throw knowledgeErrors.unknown(`项目资料里没有这一份。subject 要原样用 knowledge.list、search 或 grep 给的那一个：kind 与整串 id 照抄，不改写、不截取（这次收到 kind ${JSON.stringify(subject.kind.slice(0, 40))}，id ${JSON.stringify(subject.id.slice(0, 80))}）`);
+        throw knowledgeErrors.unknown(`项目资料里没有这一份。subject 最好直接写 ref（目录、knowledge.list、search、grep 给的 k 开头的编号）；写对象就要原样照抄那里给的：kind 与整串 id 不改写、不截取（这次收到 kind ${JSON.stringify(subject.kind.slice(0, 40))}，id ${JSON.stringify(subject.id.slice(0, 80))}）`);
       }
       if (error instanceof ActionError) throw error;
       throw knowledgeErrors.unreadable(`这份资料现在读不到：${reasonOf(error)}`);

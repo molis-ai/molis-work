@@ -122,7 +122,7 @@ test("PMAT-24 a Coding round carries the knowledge open to its Agent now, inside
 });
 
 test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the catalog: whole when small, otherwise the pieces related to its words", async () => {
-  const piece = (index: number): KnowledgeListEntry => ({ subject: { kind: "page", id: `p${index}` }, revision: "1", title: `资料 ${index}`, plugin_id: "pages", plugin_title: "Pages",
+  const piece = (index: number): KnowledgeListEntry => ({ subject: { kind: "page", id: `p${index}` }, ref: `k000000${index % 10}`, revision: "1", title: `资料 ${index}`, plugin_id: "pages", plugin_title: "Pages",
     updated_at: null, brief: `第 ${index} 份的简介`, keywords: [], sections: 0, open: null });
   const asked: KnowledgeListRequest[] = [];
   const actions = (total: number, fail = false) => ({ invoke: async <Input, Output>(_definition: unknown, input: Input): Promise<Output> => {
@@ -136,7 +136,7 @@ test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the cata
 
   assert.equal(await knowledgeCatalogMaterial(actions(3), [], "仓库着火", "s1"), null, "a round without the list tool gets none");
   const small = await knowledgeCatalogMaterial(actions(3), list, "仓库着火", "s1");
-  assert.ok(small?.text.startsWith("这个项目的资料一共 3 份，都列在下面。") && small.text.includes("「资料 2」（Pages）：第 2 份的简介"), small?.text);
+  assert.ok(small?.text.startsWith("这个项目的资料一共 3 份，都列在下面。") && small.text.includes("- k0000002「资料 2」（Pages）：第 2 份的简介"), small?.text);
   assert.deepEqual([small!.title, asked.length], ["项目资料目录", 1]);
 
   asked.length = 0;

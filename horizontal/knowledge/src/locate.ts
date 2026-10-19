@@ -1,6 +1,7 @@
 import type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { KnowledgeLocateRequest, KnowledgeLocateResponse, KnowledgeLocatedSection, KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { KNOWLEDGE_LOCATE_MAX_SUBJECTS, type KnowledgeLocateResponse, type KnowledgeLocatedSection, type KnowledgeOutline } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { knowledgeErrors } from "./errors.js";
+import { knowledgeRef } from "./refs.js";
 
 /** What the model is shown: the question and each piece's section tree by number, headings and notes only. */
 export interface KnowledgeLocateDraftInput {
@@ -23,10 +24,11 @@ const sameSubject = (a: ActionSubject, b: ActionSubject) => a.kind === b.kind &&
  * text is sent or returned. `outline` reads each tree with the caller's authority; `beforeEffect` is checked before answering, so
  * a call cancelled or revoked while the model thought answers nothing.
  */
-export async function locateSections(input: KnowledgeLocateRequest, outline: (subject: ActionSubject) => Promise<KnowledgeOutline>, locator: KnowledgeLocator | null,
+export async function locateSections(input: { question: string; subjects: readonly ActionSubject[] }, outline: (subject: ActionSubject) => Promise<KnowledgeOutline>, locator: KnowledgeLocator | null,
   beforeEffect?: () => Promise<void>): Promise<KnowledgeLocateResponse> {
   if (!locator) throw knowledgeErrors.no_model("没有可用的文字模型来选节：用「查看资料结构」看分节和每节摘要，自己选要读的节");
   const subjects = input.subjects.filter((subject, index, all) => all.findIndex(other => sameSubject(other, subject)) === index);
+  if (!subjects.length || subjects.length > KNOWLEDGE_LOCATE_MAX_SUBJECTS) throw knowledgeErrors.invalid(`用 refs 或 subjects 给 1 到 ${KNOWLEDGE_LOCATE_MAX_SUBJECTS} 份资料`);
   const trees: KnowledgeOutline[] = [], unread: KnowledgeLocateResponse["unread"] = [];
   for (const subject of subjects) {
     try { trees.push(await outline(subject)); }
@@ -41,7 +43,7 @@ export async function locateSections(input: KnowledgeLocateRequest, outline: (su
     const tree = trees[Number(chosen?.piece) - 1], section = tree?.sections.find(item => item.anchor === chosen.anchor);
     // A section the model named that is not in that tree, or one already given, is left out: what comes back can be read.
     if (!tree || !section || sections.some(item => sameSubject(item.subject, tree.subject) && item.anchor === section.anchor)) continue;
-    sections.push({ subject: tree.subject, revision: tree.revision, anchor: section.anchor, title: section.title, line: section.line, reason: String(chosen.reason ?? "").slice(0, REASON_CHARS) });
+    sections.push({ subject: tree.subject, ref: knowledgeRef(tree.subject, "allow"), revision: tree.revision, anchor: section.anchor, title: section.title, line: section.line, reason: String(chosen.reason ?? "").slice(0, REASON_CHARS) });
     if (sections.length === MAX_SECTIONS) break;
   }
   await beforeEffect?.();

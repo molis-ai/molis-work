@@ -48,6 +48,8 @@ export declare const KNOWLEDGE_RECEIPT_DAYS = 30;
 
 export declare const KNOWLEDGE_RECEIPT_MAX = 5000;
 
+export declare const KNOWLEDGE_REF_PATTERN = "^[kK][0-9a-fA-F]{7}$";
+
 export declare const KNOWLEDGE_ROUND_READ_CHARS = 60000;
 
 export declare const KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS = 200;
@@ -58,6 +60,7 @@ export declare const KNOWLEDGE_TITLE_MAX_CHARS = 120;
 
 export interface KnowledgeCard {
     subject: ActionSubject;
+    ref: string;
     revision: string;
     title: string;
     plugin_id: string;
@@ -180,6 +183,7 @@ export interface KnowledgeGlobResponse {
 
 export interface KnowledgeGrepFound {
     subject: ActionSubject;
+    ref: string | null;
     revision: string;
     title: string;
     lines: number;
@@ -187,6 +191,7 @@ export interface KnowledgeGrepFound {
 
 export interface KnowledgeGrepMatch {
     subject: ActionSubject;
+    ref: string | null;
     revision: string;
     line: number;
     text: string;
@@ -197,7 +202,7 @@ export interface KnowledgeGrepMatch {
 export interface KnowledgeGrepRequest {
     pattern: string;
     alternatives?: string[];
-    subjects?: ActionSubject[];
+    subjects?: KnowledgePieceName[];
     glob?: string;
     workspace_id?: string;
     context_lines?: number;
@@ -220,6 +225,7 @@ export interface KnowledgeGrepResponse {
 
 export interface KnowledgeListEntry {
     subject: ActionSubject;
+    ref: string;
     revision: string;
     title: string;
     plugin_id: string;
@@ -252,7 +258,7 @@ export interface KnowledgeListResponse {
 
 export interface KnowledgeLocateRequest {
     question: string;
-    subjects: ActionSubject[];
+    subjects: KnowledgePieceName[];
 }
 
 export interface KnowledgeLocateResponse {
@@ -266,6 +272,7 @@ export interface KnowledgeLocateResponse {
 
 export interface KnowledgeLocatedSection {
     subject: ActionSubject;
+    ref: string | null;
     revision: string;
     anchor: string;
     title: string;
@@ -295,8 +302,10 @@ export interface KnowledgeOutline {
 }
 
 export interface KnowledgeOutlineRequest {
-    subject: ActionSubject;
+    subject: KnowledgePieceName;
 }
+
+export type KnowledgePieceName = ActionSubject | string;
 
 export interface KnowledgeQuota {
     day: string;
@@ -322,7 +331,7 @@ export interface KnowledgeReadReceipt {
 }
 
 export interface KnowledgeReadRequest {
-    subject: ActionSubject;
+    subject: KnowledgePieceName;
     anchor?: string;
     offset?: number;
     line?: number;

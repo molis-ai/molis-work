@@ -145,7 +145,8 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     { ...knowledgeActions.glob, handle: async (caller, input) => service.glob(await access(caller, knowledgeActions.glob), input as KnowledgeGlobRequest) },
     // Waits on the model: the section trees are read with the caller's authority, and a call no longer current answers nothing.
     { ...knowledgeActions.locate, handle: async (caller, input) => { const asked = await access(caller, knowledgeActions.locate);
-      return locateSections(input as KnowledgeLocateRequest, subject => service.outline(asked, { subject }), (ports.locator ?? (() => knowledgeModelLocator(ports.homeDirectory)))(), caller.beforeEffect); } },
+      const { question, subjects } = input as KnowledgeLocateRequest;
+      return locateSections({ question, subjects: service.named(asked, subjects) }, subject => service.outline(asked, { subject }), (ports.locator ?? (() => knowledgeModelLocator(ports.homeDirectory)))(), caller.beforeEffect); } },
     { ...knowledgeManageActions.cards, handle: async (caller, input) => cards.list(caller, input as KnowledgeCardsRequest, await caughtUp(caller)) },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, knowledgeCutPieces, locateSections, type KnowledgeDraft, type KnowledgeDraftInput,
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, knowledgeCutPieces, knowledgeRef, locateSections, type KnowledgeDraft, type KnowledgeDraftInput,
   type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -222,4 +222,29 @@ test("PMAT-38 locate shows the model section trees without text and returns only
     "a call no longer current when the model answers returns nothing");
   const noPages = await locateSections({ question: "q", subjects: [{ kind: "page", id: "p1" }] }, subject => f.knowledge.outline(f.access(agent(undefined, ["goals:read", "search:read"])), { subject }), locator);
   assert.deepEqual([noPages.sections, noPages.unread.length], [[], 1], "a tree the caller cannot read is not shown to the model");
+});
+
+test("PMAT-39 every listed piece has a short ref, the same one wherever it is given, and read, outline, grep and locate take it in place of the subject", async t => {
+  const f = await fixture(t);
+  f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 2 });
+  await f.indexAll();
+  const asked = f.access(agent());
+  const page = { kind: "page", id: "p1" }, ref = knowledgeRef(page);
+  assert.match(ref, /^k[0-9a-f]{7}$/);
+  assert.equal((await f.knowledge.list(asked, {})).pieces.find(piece => piece.subject.id === "p1")?.ref, ref);
+  assert.equal((await f.knowledge.search(asked, { query: "试用手册" })).cards.find(card => card.subject.id === "p1")?.ref, ref);
+  const grep = await f.knowledge.grep(asked, { pattern: "MW-0042", subjects: [ref], context_lines: 0 });
+  assert.deepEqual(grep.matches.map(match => [match.ref, match.line]), [[ref, 8]], "grep takes refs and gives them back");
+  assert.equal((await f.knowledge.outline(asked, { subject: ref })).subject.id, "p1");
+  assert.ok((await f.knowledge.read(asked, { subject: ref.toUpperCase(), line: 8, max_lines: 1 })).text.includes("MW-0042"), "a ref is read without regard to case");
+  const located = await locateSections({ question: "通行证编号", subjects: f.knowledge.named(asked, [ref]) }, subject => f.knowledge.outline(asked, { subject }),
+    async () => ({ sections: [{ piece: 1, anchor: "h3", reason: "编号" }] }));
+  assert.deepEqual(located.sections.map(section => [section.ref, section.anchor]), [[ref, "h3"]]);
+
+  await assert.rejects(() => f.knowledge.read(asked, { subject: "k0000000" }), (error: unknown) => error instanceof ActionError && error.code === "knowledge.unknown" && /ref 照抄/.test(error.message));
+  // A ref names the piece; it opens nothing the subject would not: the owner still decides with the caller's authority.
+  await assert.rejects(() => f.knowledge.read(f.access(agent(undefined, ["goals:read", "search:read"])), { subject: ref }), (error: unknown) => error instanceof ActionError);
+  f.manage.exclude(owner, { subject: page, excluded: true });
+  await assert.rejects(() => f.knowledge.read(asked, { subject: ref }), (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded");
+  assert.throws(() => f.knowledge.named(f.access({ ...agent(), project_id: null }), [ref]), (error: unknown) => error instanceof ActionError && error.code === "knowledge.scope");
 });

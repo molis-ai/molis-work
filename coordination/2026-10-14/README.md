@@ -1187,3 +1187,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ②：#741、#755 变基到 `7e6955b93`；§10.29 的裁定 2～6 和文件服务合一、`views` 挂载通道；两处合同注释；#717 的 docs 门禁；之后按 privileges.md §2 的阶段排。
   - ③：主线两处红当天修；#749 的 P1 照 PPT 补齐并写用例；§10.29 里归 ③ 的 P2、P3；三处过时注释。
   - ④：#757 等 main 变绿后进批；G5 的三处残留。
+- 03:20 UTC：用户定「从现在开始，所有任务都用 extra 吧」，extra 即 xhigh。② ③ ④ 已改成 xhigh，从各自下一轮生效；统筹以后开的子代理和会话都传 `effort: "xhigh"`，各会话自己的子代理也一样。统筹自己这个会话的 effort 只能由用户在应用里改，工具拒绝改自己。
+- 03:25 UTC：#758 合入（`b3688266b`），§10.28、§10.29 和 `privileges.md` 进了 main。
+- 03:30 UTC：统筹审 ③ 的 #760（关项目时结束长轮询，head `8c2531104`）。结论：改后可合。PR 评论 https://github.com/molis-ai/molis-work/pull/760#issuecomment-6258990912 。
+  - 修法对：Coding 唤醒循环经插件端口的 `agent.collaboration.await.v1` 现在在 closing 的同一刻就放开，不再把 `closeProject` 拖 20～25 s。
+  - 要改的一处：`actionClient(reference).invoke` 没有合上关闭信号。页面、MCP、助理 HTTP、Home 插件路由来的 `agent.run.wait.v1` 长轮询，关项目时还会被等满。PR 正文说「各入口都一样」，与代码不符。
+  - 另请 ③ 查 Home 范围的 `wait` 动作：它们进 HomeLine 串行队列，`close()` 会等它们。
+  - 小意见：为不让巨大单元变大而压行，以后改成抽出类外函数。
+  - 为看 main 的两处红，推了 `integration/main-fix-20261019`（main `b3688266b` + #760 `8c2531104`），full suite run 39194646754。
+- 03:35 UTC：四个评审子代理并行开出，都是 xhigh：#759、#757 的当前 head `f6a0e7b31`、Prologue #51、#52。#741、#755 等 ② 报 Verify 绿。#631（feat/unified-input-voice，草稿）在自己跑 workflow_dispatch 全量，不归这几条线。

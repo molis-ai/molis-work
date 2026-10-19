@@ -107,6 +107,19 @@ fetch后固定最新main `bfe19439f855094167538ce9df94e7566c5ed3f1`。本轮只�
 
 目标路径未变时不重复构建和动态测试，不把新main SHA写成旧证据的执行SHA。其他修复通知仅登记合入与待复验状态，不扩大本轮验收范围；结果见E11。
 
+### 2.7 #833及指定余项复验计划（2026-10-20 04:42 JST）
+
+fetch后固定 `5160c3bbc81b24b9d6d5e5f807dfba5df41ffd1a`，新建干净detached工作树。#833已合；新增#841已修QA-020两处文字并删除无现行producer的workspace前缀分支。先复验采用，再复验防腐指定项；各项真实模型请求上限0，使用真实SDK与受控模型响应，不读取密钥。
+
+| 范围 | 本轮方法 | 真实模型上限 |
+| --- | --- | ---: |
+| QA-004／PA-08 | 审读双子结果与人工继续的屏障位置，确认实际父Session Run数、交回材料、continuation状态、重开后无重复；整文件运行assistant-delegation-handback，含真实子进程SIGKILL恢复；区分新服务重开与完整Host进程重启 | 0 |
+| QA-005／PA-17 | 核对计量来自生产Run用量投影且先有非零正例；整文件运行prologue-external-checks，验证多次pending/unknown零增量、满足后恰好一轮、重复通知及重开不再启动；额外跑共用夹具的external-checks安全拒绝文件 | 0 |
+| QA-020／#841 | 核对G4-05现行owner码、HTTP注释和映射；按原精确名称运行workspace-directory的workspace repair and unlink及workspace-project-actions的folder membership and the browsing choice；recovery_required无独立动态证据的边界保留 | 0 |
+| #812／PG-110、QA-021 | 前者仍OPEN，只有合入才重走E7原六场景；后者核对RAC-44说明与启动次数断言，修复合入才定向复验；保留各原执行SHA | 0 |
+
+按仓库要求先离线安装、完整构建，再串行运行上述定向文件及boundary、merge-base health、lint。当前main全量只查远端CI，本机不跑全量；临时Home在进程退出并核对后删除。结果补入E12。
+
 ## 3. 总览
 
 942行均有判定、实际证据与SHA；458通过、422部分通过、7不通过、55未验证、按已定决定不做0。编号包含汇总与子项，不能视为942个互不重叠的能力。通过只归其标准范围；工程通过不等于产品实操或用户认可。

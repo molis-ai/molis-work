@@ -38,7 +38,7 @@
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
 | BL-111 | 首页一屏与侧栏间距：首页在一屏内放下、侧栏间距对齐 | [home-one-screen](archive/home-one-screen/spec.md) | 无 | 低 | 用户 |
-| BL-174 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1](quick-create/spec.md)、[context-program §21.5](context-program/spec.md)（W4-1，统筹 10-18） | W4-1 合入 | 中 | 情境线 |
+| BL-174 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1、§11.6](quick-create/spec.md)、[context-program §21.5](context-program/spec.md)（W4-1，统筹 10-18；§11.6 的计划随 #804 进 main） | 无（W4-1 已合入） | 中 | 未分配 |
 
 ## 2. 待你决定
 
@@ -74,6 +74,13 @@
 | BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
 | BL-165 | 设计/无障碍内容包：把 design 角色包的 accessibility-review（WCAG 2.1 AA）、design-critique、design-handoff、design-system、ux-copy 做成可安装的技能包，供个人助理、Coding 的 UI 任务与 Pages 使用；不新增平台能力，走 [skill-packs](skill-packs/spec.md) | [Anthropic 评估 §9 N10](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有技能包格式与注册表；内容由设计线提供 | skill-packs | 低 | 未分配 |
 | BL-246 | Coding 问卷卡收下回答后的回执只在页面上留一瞬（宿主收下回答就撤题，页面随后马上重读、撤卡），读屏读不读得完整未验证；要不要让回执多留一次重读，由真机读屏的结果（BL-016）决定 | [ai-interaction-experience AC-10-8](ai-interaction-experience/spec.md) | 已知缺口 | 要真机读屏的结果（BL-016 的 VoiceOver 验收）才能定；读不完整时，改成已答的卡在清理时多留一轮，并在用例里断言重读之后回执还在 | BL-016 | 低 | 交互线 |
+| BL-330 | 创建入口的「✦ 一句话新建」（W4-3）：插件页标题栏与右栏插件格各一个，一行输入 → 起草服务 → 同一张卡或直接建；C10「主人声明的撤销此刻可用就直接建，否则出卡片」在这条路上照同一规则 | [context-program §9 W4、§13 C9/C10、§21.4 W4-3](context-program/spec.md)、[quick-create §5、§8](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | #801（W4-2）合入 | 中 | 未分配 |
+| BL-332 | 批量创建（F3，W4-5）：`intake` 的 `multiple`，一张批量卡片逐条取消、逐条请求号；Todo「提取待办」先做 | [context-program §9 W4、§21.4 W4-5](context-program/spec.md)、[quick-create F3](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | BL-330（卡片组件） | 中 | 未分配 |
+| BL-335 | 拖放（W5）：把手上的东西拖到落点，浮条出现在松手处 | [context-program §9 W5](context-program/spec.md)、[side-shelf P4](side-shelf/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工 | 无（W3 已合入） | 低 | 未分配 |
+| BL-336 | W6：Shelf 的动作进动作池；左→右（Shelf、灵光的创建入口）；F8 材料篮 = Shelf 多选交给助理；F12 讨论输入框作为落点 | [context-program §9 W6](context-program/spec.md)、[side-shelf P5、P6](side-shelf/spec.md)、[context-toolbar F8、F12](context-toolbar/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工 | W4（BL-330～BL-333） | 低 | 未分配 |
+| BL-337 | W7 起：F4（先做 G1）、F13 运行工作流；F6、F7、F10；旁问与分叉；F9；各插件专属动作与存量补齐；Coding 专属的去处（放进下一轮、补充这一轮、放进输入框、新开会话、收进 Shelf，K1～K3） | [context-program §9 W7 起、§16.5 C5/C6/K1～K4](context-program/spec.md)、[context-toolbar §10.7、§11.6](context-toolbar/spec.md)、[quick-create §6.2](quick-create/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工；每项独立小 PR | W4～W6 | 低 | 未分配 |
+| BL-338 | 情境线的浏览器走查与截图欠账：§21.9「待补浏览器验证」三条、§21.10 W4-2、quick-create §11.10 W4-6a、#830 的三个浏览器文件与 390 宽中英浅深截图、#831 的三个浏览器文件；W3、W4 各片在隔离 Home 的 1440/1024/800/390 与深色截图 | [context-program §21.6、§21.9、§21.10、交接（2026-10-20）](context-program/spec.md)、[quick-create §11.10](quick-create/spec.md) | 已知缺口 | 用户 2026-10-19 暂停浏览器验证 | 浏览器验证恢复；#801、#804、#830、#831 合入 | 中 | 未分配 |
+| BL-339 | 情境总纲收尾：§16.5 需求对照表按现在的代码重核（停在 2026-10-14），核出的缺口另拆行；真实 Home 全面验证；全量回归对照基线；两组真实 Jev 评估（R15，要用户授权）；桌面原生拖出；一骏本人验收；三份子需求书（side-shelf、context-toolbar、quick-create）与总纲归档 | [context-program §9「收尾」、§16.5、状态句](context-program/spec.md) | 明确后续做 | 各波还没做完 | BL-330～BL-338 | 低 | 未分配 |
 
 ## 4. 搜索、放置与工作流
 
@@ -87,6 +94,8 @@
 | BL-045 | 问卷外网公开链接与托管填写；PPT 富排版（图片、图表、母版） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 与本机优先定位不符 / 非本期 | 无 | 低 | 未分配 |
 | BL-046 | 图片插件真实厂商生成未测；图生图、蒙版编辑、多图批处理、厂商异步协议 | [work-placement §13](archive/work-placement/spec.md)、[images-plugin](archive/images-plugin/spec.md) | 明确后续做 | 本机没配图像厂商 | 无 | 低 | 未分配 |
 | BL-112 | 全局搜索：工具行先出现，内容结果稍后到达并排在上面，结果在指针下移动，刚瞄准的一行可能被挤开（产品动线用例因此间歇失败，用例已改为等结果稳定） | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | 「内容在前」是搜索的设计；可改为给内容预留位置，或已显示的行不再移动，要搜索负责人定 | 无 | 低 | 未分配 |
+| BL-331 | `attach` 的 `find`（F2，W4-4）：用 `search.references@1` 取候选，目标不在落点时一律放末尾或建关联；Pages「追加到文档」先做，要改 `ItemAttach.find` 的形状（改合同） | [context-program §21.4 W4-4、§21.8](context-program/spec.md)、[quick-create F2](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | #801（W4-2）合入 | 中 | 未分配 |
+| BL-333 | 内容站派生创建入口与「放进 Inbox」（W4-6b）：内容站的声明派生出创建入口，Inbox 用它加「放进 Inbox」，Pages 与 Inbox 共用 SDK 里的段落工具（SDK 新增，算共享核心） | [quick-create §11.5](quick-create/spec.md)（随 #804 进 main） | 未实现 | 计划已写，没实施 | #804（W4-6a）、#801（W4-2）合入；排在 BL-174 之后 | 中 | 未分配 |
 
 ## 5. 插件
 
@@ -171,6 +180,7 @@
 | BL-178 | 平台材料服务的模型缓存放在一个插件的目录下：`apps/local-host/src/material-home.ts` 的 `{home}/lingguang/models`（语音转写模型等）是平台服务用的缓存，路径却沿用灵光插件的目录名；这是已批准的过渡，W5-01 材料前置片只改服务归属与调用、不搬目录（`docs/system/HOME-DATA.md` 的缺口清单说「今后改路径单列维护」）。要搬到平台自己的位置，需要单独的维护：在拷贝上演练、核对已有授权和缓存、再动真实 Home（先弹窗问用户），读取时不留两条查找路径 | [HOME-DATA](../docs/system/HOME-DATA.md)、[repository-anti-corruption §1](repository-anti-corruption/spec.md)（插件不分官方、不占私路，用户 2026-10-18） | 明确后续做 | 过渡期故意不搬，搬目录要碰真实 Home，需要单列维护 | W5-01 材料前置片合入 | 低 | ② 平台 |
 | BL-220 | 保存写后检查器时，Molis 抄了 SDK 判定一条检查跑不跑得了的几样规则（`horizontal/agent-host/src/write-checker-actions.ts`，每样注明出处）：`prepareCommand` 拒可执行文件里的空白和 shell 字符；Host 的 `runCommand` 只跑裸名、任何档位都拒 `NEVER_RUN` 里的名字；`normalizeRelativePath` 先 trim 目录，拒盘符、根外和 `PROTECTED_SEGMENTS`。`@prologue/sdk` 一样也没导出，SDK 改了其中任何一样，Molis 这边又会存得进、跑不了 | [prologue-adoption §6.0p.11](prologue-adoption/spec.md)，统筹复审 #757（10-19） | 明确后续做 | 统筹 10-19 定先抄一份带出处，不等换包。规则放在它的主人那里（防腐复查 §3 第 8 条）：请 Prologue 从包入口导出一个判定函数（例如 `checkAfterWriteCommand({ executable, argv, cwd, timeoutMs })`，返回跑不了的原因），Molis 保存时直接调它，抄来的几样随之删掉；只导出受保护目录名单不够。另请 Prologue 复现、修一处：SDK 的 `NEVER_RUN`（`host/plugin/node-processes`）和 `PROTECTED_SEGMENTS`（`host/core/workspace-path`）都按整串、区分大小写比，在默认大小写不敏感的 APFS 上 `RM`、`SUDO` 经 PATH 落到 `/bin/rm`，`cwd: ".GIT"` 指向 `.git`，Windows 上还有 `rm.exe`；导出的判定函数要按大小写不敏感比、去掉 `.exe` 后缀。Molis 这边和 SDK 保持一致，不单独做大小写折叠（统筹复审 #757，10-19） | Prologue 导出判定函数、换包 | 低 | 采用线 |
 | BL-221 | Agent 宿主的组装和写后检查器的存储抛普通 `Error`，没有 `<主人>.<原因>` 的错误码：`apps/local-host/src/agent-host-composition.ts:341`（Agent 运行时没有启动，读不到写后检查器）、:133 和 :155（Git 宿主审查执行方尚未接通）、:173（模型执行方尚未接通）；`horizontal/agent-host/src/adapters/prologue-write-checkers.ts` 的「记录不是现行形状」（#757 之后，开发用的 Home 上 A2-1 留下的旧记录会碰到它：那个项目的 `list` 和 `save` 都失败）。调用方和页面分不出是哪一种失败；同一个组装文件里还有一批同样写法（工作区已取消授权、操作标识无效等） | [repository-anti-corruption §10.28](repository-anti-corruption/spec.md) #728 行（④ P3），统筹复审 #757（10-19） | 明确后续做 | 不在 #757 里改：是另一个文件里的一批，改成码要逐个定类别和页面上怎么说；改法是按文件主人 `defineErrorCodes`，不新写 Error 子类 | 无 | 低 | 采用线 |
+| BL-334 | 情境覆盖率门禁（C13，W4-7，原 W1-8）：按内置目录算「对象声明 / 创建入口 / 选区动作」覆盖表，冻结「待补」名单、只许减少；`skills/molis-plugin-dev/contextual.md` 补页面端辅助函数与落点 | [context-program §13 C13、§18.7 W1-8、§21.4 W4-7](context-program/spec.md)、[context-toolbar §11.5–§11.6](context-toolbar/spec.md) | 未实现 | 新门禁要先问用户；要等 W4 的入口都声明了 `intake` | BL-330～BL-333 | 低 | 未分配 |
 
 ## 8. 交给第二步（防腐整理）
 

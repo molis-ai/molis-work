@@ -2,6 +2,7 @@ import type { ActionDefinition, ActionExecutionContext, ActionResultPresentation
 import type { WorkflowContentPorts, WorkflowsActionPorts, workflowsActions } from "./actions.js";
 import { advanceInstance, isActionStation, nextUpdatedAt, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
 import { recordStoppedDelivery, type WorkflowsStore } from "./store.js";
+import { workflowRequestId } from "./content-client.js";
 import { workflowsErrors } from "./error.js";
 
 type Input = typeof workflowsActions.continue extends ActionDefinition<infer I, unknown> ? I : never;
@@ -40,7 +41,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
     if (isActionStation(target)) ({ instance: current, arrived, arrival } = await d.runActionStep(caller, reach, current, from, pending, target, input.retry_action === true));
     else {
       current = await d.commit(caller, store => store.saveInstance(current, withPending(current, from, { ...pending, attempted_at: new Date().toISOString() })));
-      arrived = await content.receive(target.plugin, pending.output, { instance_id: current.instance_id, step: from + 1, title: current.title }, target.content);
+      arrived = await content.receive(target.plugin, pending.output, workflowRequestId(current.instance_id, from + 1), target.content);
     }
     // Stop cancels uncommitted work. Actual returned results may settle the original attempt, never revive the run.
     await original.beforeEffect();

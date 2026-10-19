@@ -1,7 +1,7 @@
 import { escapeHtml, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderWorkbenchDocument } from "./document-shell.js";
-import type { BuiltinPluginEntry } from "./builtin-plugins.js";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
@@ -19,7 +19,7 @@ const SIDE_PAGE_SCRIPT = String.raw`() => {
 }`;
 
 /** A Home plugin can be opened before any project exists. The same contribution and client also mount in Workbench. */
-export function renderHomePluginPage(entry: BuiltinPluginEntry, html: string | null, message: string | null, controlToken: string,
+export function renderHomePluginPage(entry: PluginRegistration, html: string | null, message: string | null, controlToken: string,
   locale: Pick<WorkbenchRendererPorts["locale"], "L" | "htmlLang" | "clientI18nScript">, retry = false, side = false): string {
   const { L, htmlLang, clientI18nScript } = locale;
   const name = escapeHtml(entry.manifest.name), id = entry.project_plugin_id;

@@ -143,6 +143,25 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
     `Runtime plugins with hand-written Host code. A new one joins nothing: put the code in the plugin package. One that is clean leaves HYBRID_RUNTIME_PLUGINS.`);
 });
 
+// RAC-44 (Cognia moved to a Home Runtime, specs/repository-anti-corruption): Cognia reaches the product only through its
+// catalog entry's Home Runtime declaration and the public plugin contract; the old Host wiring is gone and none comes back.
+// The hybrid check above reads the project supervisor's list only, so the Host side is asserted here for Cognia: no Host
+// file named after it, no provider registered for it, no Host source that imports its package. That it really starts
+// from the declaration is the next test.
+test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its Home Runtime declaration", async () => {
+  const runtime = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia")?.runtime;
+  assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
+  assert.equal(runtime.scope, "home");
+  assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
+  assert.ok(!BUILD_TIME_ASSEMBLED.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
+  const sources = await hostSourceFiles();
+  assert.deepEqual(sources.filter(file => file.slice(file.lastIndexOf("/") + 1).startsWith("cognia")), [], "no Host file is named after Cognia");
+  const importing: string[] = [];
+  for (const file of sources) if ((await readFile(join(repoRoot, file), "utf8")).includes("@molis-ai/molis-work-plugin-cognia")) importing.push(file);
+  assert.deepEqual(importing, [], "no Host source imports the Cognia package; it is reached through the catalog and the Runtime");
+  assert.doesNotMatch(await readFile(join(repoRoot, "apps/local-host/src/project-host.ts"), "utf8"), /registerProvider\(\s*cognia/i);
+});
+
 // A catalog declaration only counts as Runtime assembly when the real Home supervisor activates its exact factory.
 test("Home Runtime declarations resolve shipped factories and start once without a project", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-assembly-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

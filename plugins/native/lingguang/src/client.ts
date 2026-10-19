@@ -247,22 +247,24 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     syncSelectionBar();
     publishContext(false);
   };
+  // A row is selected while it is picked or open, and the list (a listbox that picks several) says so.
+  const paintRow = (row, on) => {
+    row.classList.toggle("is-selected", on);
+    row.setAttribute("aria-selected", String(on));
+  };
   const markSelected = (id) => {
-    rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => {
-      const on = picks.has(row.dataset.lingguangId) || row.dataset.lingguangId === id;
-      row.classList.toggle("is-selected", on);
-      row.setAttribute("aria-selected", String(on));
-    });
+    rowsEl.querySelectorAll("[data-lingguang-id]").forEach((row) => paintRow(row, picks.has(row.dataset.lingguangId) || row.dataset.lingguangId === id));
   };
   const renderRow = (record) => {
     const item = document.createElement("article");
     item.className = "feed-stage-item";
+    item.setAttribute("role", "none");
     const row = document.createElement("button");
     row.type = "button";
-    const on = picks.has(record.id) || selected?.id === record.id;
-    row.className = "feed-stage-entry directory-list-row" + (on ? " is-selected" : "");
+    row.setAttribute("role", "option");
+    row.className = "feed-stage-entry directory-list-row";
     row.dataset.lingguangId = record.id;
-    row.setAttribute("aria-selected", String(on));
+    paintRow(row, picks.has(record.id) || selected?.id === record.id);
     const leading = document.createElement("span");
     leading.className = "feed-stage-leading";
     const title = document.createElement("strong");
@@ -399,31 +401,22 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     await loadList();
   };
   let shownMessages = [];
+  /** A brainstorm line or a spark in context: who or what it is, then its text. */
+  const textCard = (head, text, className) => {
+    const card = document.createElement("article"), title = document.createElement("strong"), body = document.createElement("p");
+    if (className) card.className = className;
+    title.textContent = head;
+    body.textContent = text;
+    card.append(title, body);
+    return card;
+  };
   const renderMessages = (messages) => {
     shownMessages = messages || [];
-    messagesEl.replaceChildren();
-    (messages || []).forEach((message) => {
-      const card = document.createElement("article");
-      card.className = "lingguang-message";
-      const head = document.createElement("strong");
-      head.textContent = message.role === "assistant" ? L("灵光") : message.role === "stub" ? L("本地记录") : L("记下");
-      const body = document.createElement("p");
-      body.textContent = message.body;
-      card.append(head, body);
-      messagesEl.append(card);
-    });
+    messagesEl.replaceChildren(...shownMessages.map((message) => textCard(
+      message.role === "assistant" ? L("灵光") : message.role === "stub" ? L("本地记录") : L("记下"), message.body, "lingguang-message")));
   };
   const renderContext = (sparks) => {
-    contextEl.replaceChildren();
-    (sparks || []).forEach((spark) => {
-      const card = document.createElement("article");
-      const title = document.createElement("strong");
-      title.textContent = spark.title;
-      const body = document.createElement("p");
-      body.textContent = spark.body || "";
-      card.append(title, body);
-      contextEl.append(card);
-    });
+    contextEl.replaceChildren(...(sparks || []).map((spark) => textCard(spark.title, spark.body || "")));
   };
   /*
    * Handing this spark to the Assistant: the spark itself and only the last few brainstorm lines, named as such —

@@ -51,18 +51,26 @@ test("S-37 a prepared CLI installs and connects only for the person, project and
   for (const { who, client, caller, request } of refused) for (const step of [connectorCliActions.install, connectorCliActions.connect])
     await assert.rejects(client.invoke(caller, step, request), { code: "connector.setup.foreign_request" }, `${who}: ${step.capability_id}`);
   assert.equal(source.downloads(), 0, "a refused install downloads nothing");
+  assert.deepEqual(withConnectorConnections(home.home, store => store.list()), [], "a refused continuation connects and saves nothing");
   const installed = await actions.invoke(preparer, connectorCliActions.install, fromHome) as { status: string };
   assert.equal(installed.status, "needs_person"); assert.equal(source.downloads(), 1);
 });
 
 test("S-37 a prepared credential-free MCP connects only for the person, project and session that prepared it", { timeout: 60_000 }, async t => {
-  const home = await openTestHome(t);
+  const home = await openTestHome(t), actions = home.host.homeActionClient();
   // Nothing listens here: a continuation that got past the initiator check would fail on connecting, not with foreign_request.
-  const { refused } = await continuations(home, (client, caller) => client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp",
+  const { fromHome, refused } = await continuations(home, (client, caller) => client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp",
     display_name: "Prepared MCP", expected_revision: null, endpoint: "http://127.0.0.1:9/mcp", authentication: "none", transport: "http" }));
   for (const { who, client, caller, request } of refused)
     await assert.rejects(client.invoke(caller, connectorSetupExecuteAction, request), { code: "connector.setup.foreign_request" }, who);
   assert.deepEqual(withConnectorConnections(home.home, store => store.list()), [], "a refused continuation saves nothing");
+  // The preparer gets past the initiator check and only then fails on connecting: without this, a request that stopped recording its
+  // initiator would be refused for everyone, and every refusal above would still pass.
+  await assert.rejects(actions.invoke(preparer, connectorSetupExecuteAction, fromHome), (error: { code?: string }) => {
+    assert.notEqual(error.code, "connector.setup.foreign_request", "the request was left for its own preparer");
+    assert.match(String(error.code), /^connector\.mcp\./, "it failed on connecting to the endpoint nothing listens on");
+    return true;
+  });
 });
 
 test("S-36 project MCP management sees and changes only the caller's own project; Home management sees every project", { timeout: 60_000 }, async t => {

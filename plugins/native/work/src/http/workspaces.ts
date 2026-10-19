@@ -9,12 +9,12 @@ const actions = (context: WorkSessionHttpContext) => {
   if (!context.actions) throw new Error("Session 服务尚未接通动作调用");
   return context.actions;
 };
-/** The same answers the page had before: unknown folder 404, a change that had to roll back or needs recovery 503. */
+/** Unknown folder 404; a declared Session error, or an action service that is down or not redeemed, 503; everything else 400, including a change that rolled back or needs recovery (WSERR-03). */
 function respondMembershipError(context: WorkSessionHttpContext, error: unknown): void {
   const code = error instanceof ActionError ? error.code : "";
   context.respond(code === "host.workspace_not_found" ? 404
     : (error instanceof ActionError && code.startsWith("work.session.") && Object.hasOwn(sessionErrors, code.slice("work.session.".length)))
-      || code.startsWith("workspace.") || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
+      || code === "actions.service_unavailable" || code === "actions.unredeemed" ? 503 : 400,
   { error: error instanceof Error ? error.message : String(error) });
 }
 

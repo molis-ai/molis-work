@@ -41,7 +41,8 @@ const SNAPSHOT = `(() => {
     workspaceMode: workspace?.dataset.workspaceMode || "",
     directory: document.querySelector(".tree-pane")?.dataset.desktopDirectory || "",
     drawer: Boolean(workspace?.classList.contains("is-directory-drawer-open")),
-    containerTab: document.querySelector(".tab-item.is-active")?.dataset.tabKind || document.querySelector("[data-container-tab][aria-current]")?.dataset.containerTab || "",
+    activeTab: document.querySelector(".tab-item.is-active")?.dataset.tabKind || "",
+    containerTab: document.querySelector("[data-container-tab][aria-current]")?.dataset.containerTab || "",
     hasMobileSwitch: Boolean(document.querySelector(".mobile-switch")),
     tree: measure(document.querySelector(".tree-pane")),
     list: measure(document.querySelector(".goal-list-view")),
@@ -66,6 +67,7 @@ type PaneSnapshot = {
   workspaceMode: string;
   directory: string;
   drawer: boolean;
+  activeTab: string;
   containerTab: string;
   hasMobileSwitch: boolean;
   tree: { display: string; hidden: boolean; inert: boolean; x: number; y: number; w: number; h: number } | null;
@@ -98,7 +100,7 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
 
   let state = await snap();
   assert.equal(state.hasMobileSwitch, false);
-  assert.equal(state.containerTab, "item");
+  assert.equal(state.activeTab, "item");
   assert.equal(state.drawer, false);
   assert.ok(await evaluate("document.querySelector('[data-goal-node-workspace]')?.hidden === false || document.querySelector('[data-goal-frame-surface]')?.hidden === false"));
   assert.equal(await evaluate("document.querySelector('[data-goal-event-document]')?.dataset.goalView"), "INTERFACES");
@@ -133,7 +135,8 @@ test("narrow Goal drawer shows the list, restores the stored view, and keeps wor
   await command("Network.setBlockedURLs", { urls: [origin + "/api/goals/CORE/document*"] }, sessionId);
   await showGoalStageList();
   await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
-  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('Failed to fetch') || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
+  // PG094-09: the read goes through the page's request helper, which names an unreachable Host in its own words.
+  await waitFor("document.querySelector('[data-toast]')?.textContent.includes('连不上 Molis Work 服务') || document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await evaluate("document.querySelector('.tree-node[data-select-goal=\"CORE\"]')?.click()");
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' || document.querySelector('[data-goal-event-document]')?.dataset.goalView === 'CORE'");
@@ -185,7 +188,7 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(state.overflowX, false);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hasMobileSwitch, false);
-  assert.equal(state.containerTab, "item");
+  assert.equal(state.activeTab, "item");
   await click("[data-plugin-picker-toggle]");
   await waitFor(`document.querySelector("[data-plugin-picker-popover]").hidden`);
 
@@ -202,6 +205,8 @@ test("narrow list, graph return and desktop side-by-side keep usable geometry", 
   assert.equal(isShown(state.graph), true);
   assert.equal(isHiddenFromUse(state.tree), true);
   assert.equal(state.hit, "graph");
+  // Opening the Goals plugin opens its plugin tab (specs/plugin-tab-groups PTG-01～10); the canvas is the container tab inside it.
+  assert.equal(state.activeTab, "plugin");
   assert.equal(state.containerTab, "canvas");
 
   await click("[data-plugin-picker-toggle]");

@@ -165,6 +165,53 @@ test("SLOT-01: the outcome slot follows whatever waits on the person; the row st
   assert.deepEqual(assistantOutcomeSteps(missing, say), [], "a result that is gone or cannot be opened is not a step");
 });
 
+// specs/ai-interaction-experience §15.11: the card that ran last puts its result in the outcome slot.
+const RESULT = { summary: "接入方案已准备", title: "知识库", link: { label: "继续接入", href: "/capabilities/connections?setup=request-1" } };
+const ranCard = (id: string, status: AssistantCard["status"], at: string, extra: Partial<AssistantCard> = {}): AssistantCard =>
+  ({ ...card(status), card_id: id, updated_at: at, ...(status === "done" ? { presentation: RESULT } : {}), ...extra });
+const roundMade: AssistantWorkView["objects"][number] = { relation: "result", open: { surface: "pages", id: "a" }, state: "current", subject: { kind: "page", id: "a" }, title: "周报",
+  recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" };
+/** A work whose latest round began at 01:00 and is now `phase`, with these cards and one result of its own. */
+const afterCards = (cards: AssistantCard[], phase = "completed"): AssistantWorkView => {
+  const shown = view(phase, { cards, objects: [roundMade] });
+  shown.rounds[0]!.started_at = "2026-10-13T01:00:00.000Z";
+  return shown;
+};
+
+test("AC-06-1: the card's result offers its 「打开」 to the row, and the step presses exactly that control", () => {
+  const done = ranCard("c1", "done", "2026-10-13T01:05:00.000Z");
+  assert.deepEqual(assistantOutcomeSteps(afterCards([done]), say), [{ id: "card:c1:open", label: "打开「知识库」", source: "来自操作卡" }]);
+  assert.match(assistantCardHtml(done, say), /<a href="\/capabilities\/connections\?setup=request-1"[^>]*data-ix-press="open"[^>]*>[\s\S]*?继续接入/,
+    "the card draws the control the step names, on the result's own link");
+  const plain = assistantOutcomeSteps(afterCards([{ ...done, presentation: { ...RESULT, title: undefined } }]), say);
+  assert.equal(plain[0]?.label, "打开「新建待办」", "a result without a title of its own is named by its card");
+});
+
+test("AC-06-2: only the card that ran last counts, and only when its result can be opened and the round is over", () => {
+  const ids = (shown: AssistantWorkView) => assistantOutcomeSteps(shown, say).map(step => step.id);
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "done", "2026-10-13T01:09:00.000Z")])), ["card:c2:open"], "the later of two");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "dismissed", "2026-10-13T01:09:00.000Z"), ranCard("c3", "stale", "2026-10-13T01:09:00.000Z")])),
+    ["card:c1:open"], "a card put away or gone stale did not run");
+  const failedLast = afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "failed", "2026-10-13T01:09:00.000Z")]);
+  assert.deepEqual(ids(failedLast), ["open:page:a"], "the card that ran last failed: no card result, the round's own comes");
+  assert.ok([...assistantStepRow(failedLast, say).next_all_html.matchAll(/data-ix-step-id="([^"]*)"/g)].some(match => match[1] === "card:c2"), "the failed card is reached among what waits");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "unknown", "2026-10-13T01:05:00.000Z")])), ["open:page:a"], "nor an unconfirmed one");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T00:59:00.000Z")])), ["open:page:a"], "a card that ran before this round began is not its outcome");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z", { presentation: { summary: "已建好" } })])), ["open:page:a"], "a result with nothing to open");
+  for (const phase of ["running", "awaiting-input", "reconcile-required", "unknown"]) assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], phase)), [], phase);
+  const stopped = afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "stopped");
+  assert.deepEqual(ids(stopped), ["card:c1:open"], "a round the person stopped is over too");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "failed")), ["retry"], "a failed round leaves the slot to its retry alone (context-program §21.9)");
+  assert.deepEqual(ids({ ...stopped, rounds: [] }), ["card:c1:open"], "a page's card, with no round at all");
+});
+
+test("AC-06-3, SLOT-01: the card's result takes the outcome slot alone, after what waits, before the round's own result", () => {
+  const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
+  const shown = afterCards([card("ready"), ranCard("c1", "done", "2026-10-13T01:05:00.000Z")]);
+  assert.deepEqual(ids(assistantStepRow(shown, say).next_all_html), ["card:card-1:run", "card:c1:open"], "one outcome at a time: the round's 「周报」 waits for the next");
+  assert.deepEqual(ids(assistantStepRow(afterCards([card("ready")]), say).next_all_html), ["card:card-1:run", "open:page:a"]);
+});
+
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
   const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
     reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],

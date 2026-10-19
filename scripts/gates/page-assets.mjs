@@ -239,10 +239,10 @@ const headErrors = (measured, budget, base) => {
 // folder the person picked to the project (`POST /api/workspaces`, user_confirmed) became the generic plugin host's
 // `addWorkspace`, so no plugin names Work's route; `api` takes the failure text as an optional fourth argument, keeping
 // 「无法关联工作区」. As served (esbuild-tightened) that adds 116 B to workbench.js, spent once from exactly this start;
-// later growth stays frozen. The plugin tab groups' spent 1,115,299 → 1,129,869 start on workbench.js
-// and 1,589,812 → 1,593,201 on workbench.css are refused, like every spent start before them.
+// later growth stays frozen. The outcome slot's spent 1,130,033 → 1,130,475 start (#789) and the receipts review fixes'
+// spent 1,129,841 start are refused, like every spent start before them.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129841, 1129957],
+  "/assets/molis-work-workbench.js": [1128644, 1128760],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

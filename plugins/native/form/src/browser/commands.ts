@@ -221,28 +221,26 @@ const fill: Command = {
   async run(page) { await save(page); openFillPage(page, open(page)); },
 };
 
+/** An export from the menu: store the editor, save the form's file on this computer and say what it is. */
+const exportFile = async (page: FormPage, target: Element, tail: string, type: string, format: (file: FormFile) => string) => {
+  closeMenu(target);
+  await save(page);
+  const sel = open(page);
+  const file = await page.request<FormFile>("GET", path(sel.id, tail));
+  download(file.filename, new Blob([file.content], { type }));
+  placed({ verb: "exported", title: sel.title, file: { name: file.filename, format: format(file) } });
+};
+
 const exportFill: Command = {
   find: on("[data-form-export-fill]"),
-  async run(page, _found, target) {
-    closeMenu(target);
-    await save(page);
-    const sel = open(page);
-    const file = await page.request<FormFile>("GET", path(sel.id, "/fill-page"));
-    download(file.filename, new Blob([file.content], { type: "text/html;charset=utf-8" }));
-    placed({ verb: "exported", title: sel.title, file: { name: file.filename, format: page.L("填写页 · 发给对方在自己的浏览器里填，填完得到答卷文件发回，在“结果”里导入") } });
-  },
+  run: (page, _found, target) => exportFile(page, target, "/fill-page", "text/html;charset=utf-8",
+    () => page.L("填写页 · 发给对方在自己的浏览器里填，填完得到答卷文件发回，在“结果”里导入")),
 };
 
 const exportCsv: Command = {
   find: on("[data-form-export-csv]"),
-  async run(page, _found, target) {
-    closeMenu(target);
-    await save(page);
-    const sel = open(page);
-    const table = await page.request<FormFile>("GET", path(sel.id, "/results.csv"));
-    download(table.filename, new Blob([table.content], { type: "text/csv;charset=utf-8" }));
-    placed({ verb: "exported", title: sel.title, file: { name: table.filename, format: page.L("{count} 份答卷 · Excel、Numbers 可以打开", { count: table.count }) } });
-  },
+  run: (page, _found, target) => exportFile(page, target, "/results.csv", "text/csv;charset=utf-8",
+    (table) => page.L("{count} 份答卷 · Excel、Numbers 可以打开", { count: table.count })),
 };
 
 const importFiles: Command = {

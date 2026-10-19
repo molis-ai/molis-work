@@ -1,5 +1,5 @@
 {
-  "giantUnits": 128,
+  "giantUnits": 127,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -81,7 +81,7 @@
       "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
-      "lines": 400,
+      "lines": 399,
       "methods": 28
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 233,
@@ -103,8 +103,8 @@
       "methods": 29
     },
     "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 559,
-      "methods": 35
+      "lines": 547,
+      "methods": 34
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
       "lines": 534,
@@ -114,10 +114,6 @@
     "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
       "lines": 408,
       "methods": 30
-    },
-    "class modules/goals/src/event-state.ts#GoalEventState": {
-      "lines": 351,
-      "methods": 21
     },
     "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
       "lines": 332,
@@ -215,7 +211,7 @@
     },
     "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": 187,
     "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": 236,
-    "file plugins/native/pages/src/client.ts": 1117,
+    "file plugins/native/pages/src/client.ts": 1115,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
       "lines": 374,
@@ -662,16 +658,9 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 84,
+  "rawFetchInScriptsTotal": 65,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
-    "plugins/native/goals/src/relation-client.ts": 2,
-    "plugins/native/goals/src/policy-client.ts": 1,
-    "plugins/native/goals/src/dialogs-client.ts": 3,
-    "plugins/native/goals/src/momentum-client.ts": 1,
-    "plugins/native/goals/src/event-document-client.ts": 6,
-    "plugins/native/goals/src/document-client.ts": 1,
-    "plugins/native/goals/src/proposal-client.ts": 1,
     "plugins/native/artifacts/src/import-client.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
     "plugins/native/artifacts/src/works-client.ts": 1,
@@ -698,8 +687,6 @@
     "plugins/native/workflows/src/client.ts": 1,
     "plugins/native/coding/src/client.ts": 2,
     "plugins/native/shelf/src/settings-client.ts": 4,
-    "plugins/native/goals/src/planning-client.ts": 3,
-    "plugins/native/goals/src/project-policy-client.ts": 1,
     "packages/im-ui/src/browser/transport.ts": 1,
     "plugins/native/work/src/ui/content-client.ts": 2,
     "plugins/native/work/src/ui/session-add-client.ts": 2,

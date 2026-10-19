@@ -1,4 +1,4 @@
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pptErrors } from "./error.js";
 import type { PptStores } from "./store.js";
@@ -58,9 +58,9 @@ export function createPptContentHandlers(stores: PptStores): ActionHandlerBindin
   return bindWorkflowContentHandlers(pptContentActions, {
     list: caller => stores.read(store => store.list(project(caller)).map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
     read: ({ item_id }, caller) => stores.read(store => { const deck = store.get(item_id, project(caller)); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),
-    receive: ({ payload, context }, caller) => stores.write(caller, store => {
-      const outline = slidesFromMarkdown(payload.body, payload.title);
-      const deck = store.receive(project(caller), workflowDeliveryKey(context), outline.title, outline.slides);
+    receive: ({ title, body, request_id }, caller) => stores.write(caller, store => {
+      const outline = slidesFromMarkdown(body, title);
+      const deck = store.receive(project(caller), request_id, outline.title, outline.slides);
       return { plugin: "ppt", item_id: deck.id, title: deck.title };
     }),
     create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title, project_id: project(caller) }); return { plugin: "ppt", item_id: deck.id, title: deck.title }; }),

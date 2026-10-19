@@ -205,6 +205,7 @@ test("一次实例按每段衔接走完 Feed → Inbox → Pages → 灵光，�
     const feed = createLocalFeedApplication(db.db);
     const entry = feed.getInboxEntry(PROJECT, afterManual.steps[1]!.item!.item_id);
     assert.equal(entry.subject_id, items[0]!.item_id);
+    // W4-6-03, W4-6-05: a workflow's handoff is still recorded as the workflow's, now read from the call's audience.
     assert.equal(entry.detail.added_by, "workflow");
     const [ui] = buildInboxUiEntries([entry], () => ({ title: items[0]!.title, source_label: "Feed", available: true, open: null }) as never, (value, values) => value.replace(/\{(\w+)\}/g, (_, key) => String(values?.[key] ?? "")));
     assert.equal(ui!.kind_label, "Inbox · 工作流程");

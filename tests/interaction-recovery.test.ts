@@ -63,7 +63,7 @@ const answer = (pending: AgentPendingQuestion) => {
   return { kind: "answer" as const, pending_id: pending.pending_id, pending_revision: pending.pending_revision, answers: read.answers };
 };
 
-test("AC-08: two places answering the same question at once: one answer is taken, the other is refused, and the model hears once", { timeout: 60_000 }, async t => {
+test("AC-08, AC-11: two places answering the same question at once: one answer is taken, the other is refused, and the model hears once", { timeout: 60_000 }, async t => {
   const { bodies, open } = await fixture(t, "race");
   const adapter = await open();
   t.after(() => adapter.close());

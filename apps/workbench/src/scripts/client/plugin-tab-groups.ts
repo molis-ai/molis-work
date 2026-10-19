@@ -54,8 +54,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   const undoLabel = (record) => L("撤销关闭 {plugin}", { plugin: L(ops.pluginTitle(record.plugin)) });
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
-  live.setAttribute("role", "status");
-  live.style.cssText = "position:absolute;width:1px;height:1px;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;";
+  live.setAttribute("role", "status"); live.className = "mw-sr-only";
   if (!embedded) document.body.append(live);
   /** Close a plugin's group and keep a way back: the strip offers it for a few seconds, ⌘⇧T / Ctrl+Shift+T after that. */
   const close = (paneId, plugin) => {
@@ -110,8 +109,8 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     pane.activeTabId = before.activeTabId; pane.viewPlugin = before.viewPlugin;
     apply(); persist();
   };
-  /* ⌘/Ctrl-click or a middle click on a record in a plugin's page opens it that way. Each plugin declares its record row
-     in its catalog entry (recordRow, else searchRow). */
+  /* ⌘/Ctrl- or middle-click on a record row (each plugin's catalog recordRow, else its searchRow) opens it behind;
+     a list that picks several (aria-multiselectable) keeps ⌘/Ctrl-click. */
   const openInBackground = (event) => {
     if ((event.type === "click" && !(event.metaKey || event.ctrlKey)) || (event.type === "auxclick" && event.button !== 1)) return;
     const target = event.target?.nodeType === 1 ? event.target : null;
@@ -122,7 +121,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     const spec = rows.find(([id]) => id === plugin);
     const row = spec ? target.closest(spec[1]) : null;
     const itemId = row && scope.contains(row) ? row.dataset[spec[2]] : "";
-    if (!itemId) return;
+    if (!itemId || event.type === "click" && scope.contains(row.closest("[aria-multiselectable=true]"))) return;
     event.preventDefault(); event.stopImmediatePropagation();
     openBehind(plugin, itemId, row.getAttribute("data-frame-asset-title") || row.querySelector("strong")?.textContent?.trim() || itemId);
   };

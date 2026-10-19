@@ -1575,3 +1575,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 「记住我不喜欢周五下午开会」这类混合请求，改之前 3/3 落进 Alchemist，改之后 0/3；
     - 普通的「以后周报都按三段写」，4/4 仍落在 remember。
     - 也试过改 Goals 的标题，结果 7 条普通请求里有 4 条被拉进 Goals，已撤回。
+- 12:30 UTC：⑥ 的 3e-2a 开成 #803，已交 ⑤。
+  - base 是 `context/outcome-slot-bindtext`，按方案 A 和 #789 一起合，共用一次放行（`workbench.js` +470 B）。
+  - 门禁都绿。浏览器用例本机不跑，由 ⑤ 进批时跑。
+  - `workbench.js` 的放行顺序照 D24 第 7 条：D24 → #778 → #789 加 #803。
+  - ⑥ 接下来审 S2-1 并开 PR，再做 D32-b。

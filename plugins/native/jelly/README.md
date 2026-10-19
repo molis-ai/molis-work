@@ -27,7 +27,7 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
   - `delete_preview` 只保存确认凭证（显式声明为写），真正删除是另一个动作。
   - 模型对话框里的「打开模型设置」链接先关掉对话框（它是模态的，留着会压在设置上）。`molis-work:model-ready` 上只有「去过设置」的标记还在、且 Jelly 此刻真在屏幕上才重开模型对话框，标记在第一次事件上就用掉；写法与原因见 `skills/molis-prologue-ai/SKILL.md` 步骤 6。守住它的是 `tests/model-ready-surfaces.e2e.test.ts`（「界面改动加跑」里）。
   - 改一个对象的命令声明结果对象（`result_subject`），输出附带改后的这一个，可由该种类的 `subject.read` 读回：日程（事项，或重复系列整体）是 `jelly_item`（`item` 或 `series`），笔记是 `jelly_note`（`note`）。恢复让对象重新可读，结果就是这个对象。作用于多条或整个工作区的命令，以及归档与删除，仍是 `jelly_workspace`：读取动作把归档的对象当作不存在，结果刚记下就会显示为已不在。
-  - 失败使用 `jellyErrors` 的 `jelly.<原因>` 声明，状态只由 kind 推出；Runtime、模型与授权错误保留其 owner 码，不包装成另一份状态表。
+  - 失败使用 `jellyErrors` 的 `jelly.<原因>` 声明，状态只由 kind 推出；Runtime、模型与授权错误保留其 owner 码，不包装成另一份状态表。Host 里读公开来源的失败是 `material.source.<原因>`（`materialSourceErrors`，`apps/local-host/src/material-source-reader.ts`），读上传文件的是 `material.<原因>`（`materialErrors`，`apps/local-host/src/material-text.ts`；上传入口在 `apps/local-host/src/material-upload.ts`）：这两组归 Host 的素材服务，不带 `jelly.` 前缀。灵光靠 `material.model_required` 按名字问「要不要下载语音模型」，大小在 `details.approximate_bytes`（`plugins/native/lingguang/src/client.ts`）。
   - `services.model.configuration` 独占原 preferences.json v1 的模型选择；设置 read/save 只在声明的动作里使用，保存不调用模型，无效选择不回退。SQL 仍经插件的 database 事务，模型等待前后复查授权。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-jelly run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/jelly-actions.test.ts tests/jelly-content.test.ts tests/jelly-mcp.test.ts tests/jelly-model.test.ts tests/plugin-model-configuration.test.ts tests/jelly-http-stream.test.ts tests/jelly-plugin.test.ts tests/lingguang-material.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts`

@@ -12,7 +12,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 ### 个人 Home 插件
 
-个人数据跨项目一致、无项目也可用时，目录条目声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files?, model_configuration?, image_generation? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
+个人数据跨项目一致、无项目也可用时，目录条目声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files?, model_configuration?, image_generation? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
@@ -151,7 +151,7 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 
 缺一条或多一条都是启动失败，只影响自己。`stop` 不消耗崩溃恢复额度。
 
-Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
+Text stats 是最小完整 app：一个必选输入口、一个 `navigator` 入口加一个 `stage` 视图、无存储、无事件。新端口消费者先抄它的声明形状，再抄 Diff 的 `input_groups`。默认连线把它的输入口接到 Files 的 `before` 快照（它的输入口声明 `default_source`）；默认连线现在只在随 Host 发布的插件之间生效：已安装的插件即使照抄 `default_source` 也不会自己接上（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议；2026-10-18 改：这是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行，改完之前仍按此）；不写 `default_source`，新插件的输入口也不会自己接上，要接就由人在成果库详情把某一版接给插件输入。端口何时投递见 [elements.md](elements.md)。
 
 Kernel `registerCapability` 是 Module/Host 的事（Goals、Agent Host），不是插件包自己登记一份。插件只 `requires` / `capabilities.consumes`，由 Host 注入 `services.capabilities.invoke`。
 

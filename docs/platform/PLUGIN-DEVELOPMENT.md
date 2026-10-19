@@ -88,7 +88,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 - **都在本插件里**：这些引用只认本 Manifest 的 `actions`，同时核对种类与 `operation`（预览、比较是查询，固定、继续是命令）；指向别的插件的动作、不存在的动作、种类不对的动作都被拒绝。
 - **v1 不能产出成果类型**：v1 Manifest 不能声明动作，也就没有预览，所以要进成果库就用 `schema_version: 2`。只在插件之间交换数据、不需要人留存的，声明成 `process_items`（过程项），不进成果库，也就不要名称和预览。
 
-跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。校验的测试在 `tests/action-artifact-references.test.ts`。
+跨插件的规则（一种类型一个 owner、一种对象至多一个固定者、哪些类型可以没有「继续」）仍只对内置插件，由 `tests/artifact-type-gate.test.ts` 守。2026-10-18 改：插件不分官方与第三方、待遇一样，这条「只对内置」的做法要在防腐线里改成对所有插件一致，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按此。校验的测试在 `tests/action-artifact-references.test.ts`。
 
 ## 作者 API 与公共测试入口
 
@@ -130,7 +130,7 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 - `BoundActionClient.invoke` 的第三个控制参数仅限 Host 内部传递取消、`beforeEffect` 和带来源的 `page_context`；不会进入业务 JSON。父调用和子调用的取消信号都保留。 Home 消费宿主动作的 `HostPluginCaller` 同样来自执行器，项目为 `null`，插件、安装和操作者仍为真实值；项目和 Agent 入口拒绝这份身份，业务参数不能给它补项目。
 - 浏览器同源 Referrer 与助理页面快照当前标为 `client_reported`，不代表屏幕内容已经核实；缺页面时为空，不从用户正文推断。
 
-公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。宿主渲染 Home 视图时给的 model 和工作台给内置舞台的一样：`{ primitives: { escape, text } }`（`text` 按页面语言翻译）。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
+公共页面 `/plugins/<短名>` 在没有项目时也能打开；项目工作台挂同一运行实例的 contribution。宿主渲染 Home 视图时，`view.render({ contribution_id, surface, model })` 的 `model` 和工作台给内置舞台的一样，形状是 `{ primitives: { escape, text } }`：`escape(value: unknown): string` 把 `String(value)` 做 HTML 转义，`text` 是当前页面语言的翻译函数（`apps/local-host/src/web-locale.ts` 的 `L`）。这个形状现在只是 `apps/local-host/src/home-plugin-http.ts` 里 `homeViewModel()` 的返回值，合同里的 `UiRenderRequest<TModel>` 把 `model` 留成泛型，还没有命名的合同类型；补一个公开类型（归 ② 平台）之前，不要依赖多出来的字段，也不要假定它一直只有这两项。Manifest 路由在 `/api/plugins/<plugin_id>/` 转调公共动作，经过统一 Host / Origin / token 检查。插件页面的启用与停用是显式操作；停用跨重启保留，正常 Host 退出只释放运行实例并保留启用意图。 已声明的 Home 条目卸载后，其 API 以 `actions.missing` 和 404 拒绝；读取、重试与启用入口不重建安装，也不借项目前缀落到另一个实例。外部 MCP 仍须逐客户端逐动作授权，安装插件不等于授权外部客户端。
 
 Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbench.side` surface。Host 用 `/plugins/<短名>?side=<view_id>` 渲染正在运行的 contribution，拒绝未声明的视图；客户端收到 `side: true`。首页及项目右上角的 Home 工具由目录声明派生，在既有侧栏打开该文档，保留主页面。侧栏按需加载，收起及切换标签不销毁文档；插件自行决定初次展示什么内容，位置和宽度仍归 Host。Home 侧栏不要求创建或授权一个假项目。
 

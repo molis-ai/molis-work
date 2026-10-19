@@ -1726,3 +1726,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 告诉 ⑥：S3-2 里新写的 Goals 客户端直接用 `molisWorkRequest`；S7b 排在 S3-2 之后；
     - D24 还在 ⑨ 手上；
     - D25 等 ⑧ 的整套演练报告。
+- 13:54 UTC：
+  - **合入：** #789 @ `c5213bc2c`（13:47:35Z），带着 #803 一起进。内容是 ⑧ 的 SLOT-03 和 ⑥ 的 3e-2a。
+    - `workbench.js` 用掉一次放行：1,130,033 → 1,130,475。
+    - 之后再动 `workbench.js` 的（D24 也在内），都以这个数为 merge-base。
+  - **给 ⑥ 的话写在了 `receipts-s2-s3-plan.md` 顶部**，没发消息（本轮消息额度快用完了）。要点：
+    - S3-2 新写的 Goals 客户端直接用 `molisWorkRequest`；
+    - S3-2 照计划改 `http/`；
+    - S7b 排在 S3-2 之后。
+  - **⑤ 的进度：**
+    - 排队合入：#816；
+    - 评审在跑：#810、#812、#813、#814、#815。

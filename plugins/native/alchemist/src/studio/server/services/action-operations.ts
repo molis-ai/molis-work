@@ -107,7 +107,7 @@ function implementations(d: ApiDependencies): Implementations {
       return { jobId: job.id, kind: job.kind, status: job.status, accepted: d.jobResumption.isAccepted(job.id), errorCode: job.errorCode,
         directionId: typeof input.directionId === "string" ? input.directionId : undefined, ideaId: plan?.key.ideaId };
     }) }),
-    runResume: input => d.jobResumption.view(input.id),
+    runContinuation: input => d.jobResumption.view(input.id),
     runContinue: (input, _signal, control) => d.jobResumption.continue(input.id, input.confirmation, control),
     runEvents: input => {
       // The original SQLite transaction gives events and terminal status one consistent snapshot.
@@ -147,11 +147,11 @@ function businessError(error: unknown): never {
   if (error instanceof ResearchPlanError) throw new AlchemistOperationError(error.code,
     error.code === "alchemist.idea_version_not_found" ? "只有正式 Idea 版本可以开始研究。" : error.code === "alchemist.runtime_model_not_found" ? "没有找到所选模型。" : "预算上限无效。", error.code === "alchemist.idea_version_not_found" ? 404 : 422);
   if (error instanceof ActionError && ["alchemist.research_plan_not_found", "alchemist.research_plan_mismatch", "alchemist.lens_run_exists"].includes(error.code)) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
+  if (error instanceof ActionError && error.code === "alchemist.job_not_found") throw new AlchemistOperationError("alchemist.run_not_found", error.message, 404);
   if (error instanceof Error) {
     const message = workspaceProblems[error.message];
     if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("_not_found") ? 404 : 409);
     if (error.message === "alchemist.idea_version_not_found") throw new AlchemistOperationError(error.message, "没有找到这个 Idea 版本。", 404);
-    if (error.message === "alchemist.job_not_found") throw new AlchemistOperationError("alchemist.run_not_found", "没有找到这次运行。", 404);
     if (["alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured"].includes(error.message)) throw new AlchemistOperationError(error.message,
       error.message === "alchemist.runtime_model_unavailable" ? "所选模型已不可用，请重新选择；系统不会自动换模型。" : "请在 Molis Work 全局设置中配置模型，再回来重试。");
   }

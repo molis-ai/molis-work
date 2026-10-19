@@ -38,7 +38,7 @@ export async function promoteForm(
   id: string,
   projectId: string,
   publishArtifact: FormPublishArtifactPort,
-  options: { actorId: string; expectedVersion?: number; readArtifact?: FormReadArtifactPort; lineHead?: FormLineHeadPort },
+  options: { actorId: string; expectedVersion?: number; readArtifact?: FormReadArtifactPort; lineHead?: FormLineHeadPort; beforePublish?: () => Promise<void> },
 ): Promise<{ form: FormRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }> {
   const current = stores.read(store => store.get(id, projectId));
   const head = options.lineHead?.({ project_id: projectId, record_id: id }) ?? null;
@@ -50,6 +50,7 @@ export async function promoteForm(
   if (written > 0) options.readArtifact?.({ project_id: projectId, record_id: id, version: written });
   const intent = await stores.write(caller, store => store.beginPublication(id, projectId, options.actorId, options.expectedVersion ?? current.version, existing ?? undefined, version));
   if (existing && !isDeepStrictEqual(existing, intent.content)) throw formErrors.publication_conflict("成果与原发布快照不同，问卷及快照已保留");
+  if (!existing) await options.beforePublish?.();
   const published = existing ? { artifact_id: "form-" + id, version: intent.version } : publishArtifact({
     project_id: projectId,
     record_id: current.id,

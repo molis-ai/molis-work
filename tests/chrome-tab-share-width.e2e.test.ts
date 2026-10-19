@@ -14,6 +14,10 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true'");
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('.tab-item[aria-current][data-plugin=goals][data-tab-kind=item][data-item-id=CORE]')");
+  await click('[data-titlebar-tabs] .tab-item[data-tab-kind=plugin][data-plugin=goals] .tab-item-trigger');
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current][data-tab-kind=plugin][data-plugin=goals]')");
+  await openGoalFrame('.tree-node[data-select-goal="RELEASE"]');
+  await waitFor("document.querySelectorAll('[data-titlebar-tabs] .tab-item[data-tab-kind=item]').length === 2");
 
   const compact = await evaluate<{ widths: number[]; lastRight: number; addLeft: number }>(`(() => {
     const tabs = [...document.querySelectorAll('[data-titlebar-tabs] .tab-item:not([data-pinned])')];
@@ -29,10 +33,11 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   assert.ok(compact.widths.some((width) => width < 140), "short titles must hug below the old 172px capsule: " + JSON.stringify(compact));
   assert.ok(compact.lastRight <= compact.addLeft + 1, "tabs stay left of the plus control: " + JSON.stringify(compact));
 
-  // Narrow enough that the actual two titles exceed the available strip.
+  // Narrow enough that the two Goal titles exceed the available strip. Home and the plugin tab keep their names;
+  // the item tabs share what is left.
   await command("Emulation.setDeviceMetricsOverride", { width: 340, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
   await waitFor(`(() => {
-    const tabs = [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-scroll] .tab-item:not([data-pinned])')];
+    const tabs = [...document.querySelectorAll('[data-titlebar-tabs] [data-tab-scroll] .tab-item[data-tab-kind=item]:not([data-pinned])')];
     if (tabs.length < 2) return false;
     const widths = tabs.map((tab) => Math.round(tab.getBoundingClientRect().width));
     const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]').getBoundingClientRect();
@@ -45,7 +50,7 @@ test("titlebar tabs hug short titles and share width when they overflow the stri
   await evaluate(`new Promise(resolve => { let frames=0; const next=()=>{if(++frames===10)resolve(true);else requestAnimationFrame(next);};requestAnimationFrame(next); })`);
   const packed = await evaluate<{ widths: number[]; tabRight: number; scrollRight: number; count: number }>(`(() => {
     const scroll = document.querySelector('[data-titlebar-tabs] [data-tab-scroll]');
-    const tabs = [...scroll.querySelectorAll('.tab-item:not([data-pinned])')];
+    const tabs = [...scroll.querySelectorAll('.tab-item[data-tab-kind=item]:not([data-pinned])')];
     const box = scroll.getBoundingClientRect();
     return {
       widths: tabs.map((tab) => Math.round(tab.getBoundingClientRect().width)),

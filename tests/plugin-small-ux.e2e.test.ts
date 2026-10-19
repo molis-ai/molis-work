@@ -246,7 +246,7 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
   await click("[data-plugin-strip] [data-plugin-id=pages]");
   await waitFor("document.body.dataset.desktopSurface === 'pages' && document.querySelector('[data-pages-new]')", 20_000);
   const before = titles();
-  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's name on the tab strip", () => click("[data-tab-view=pages]")]] as const) {
+  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's tab on the tab strip", () => click('[data-tab-kind="plugin"][data-plugin="pages"] .tab-item-trigger')]] as const) {
     await openBlankPage();
     assert.equal(titles().length, before.length + 1, `made at once, as before (${how})`);
     assert.ok(await object("[data-pages=workbench]"), "named while it is open");
@@ -272,7 +272,7 @@ test("Pages and 灵光: going back with the workbench's own Back button or the p
   await click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
   await waitFor(`document.body.dataset.desktopSurface === 'lingguang' && document.querySelector('[data-lingguang-capture]') && ${CLIENTS_READY}`, 20_000);
   const keptSparks = sparks().length;
-  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's name on the tab strip", () => click("[data-tab-view=lingguang]")]] as const) {
+  for (const [how, leave] of [["the titlebar Back button", () => click("[data-workspace-history=back]")], ["the plugin's tab on the tab strip", () => click('[data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger')]] as const) {
     await openBlankSpark();
     assert.equal(sparks().length, keptSparks + 1, `made at once, as before (${how})`);
     assert.ok(await object("[data-lingguang=workbench]"), "named while it is open");

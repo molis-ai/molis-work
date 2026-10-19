@@ -5,7 +5,7 @@
     "description": "Inter, Roboto, Fraunces, Geist, Plus Jakarta Sans, and Space Grotesk are used on so many sites they no longer feel distinctive. Each new wave of AI-generated UIs converges on the same handful of faces. Choose a face that gives your interface personality.",
     "severity": "warning",
     "category": "slop",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 1,
     "snippet": "font-family:Inter"
   },
@@ -15,7 +15,7 @@
     "description": "Animating width, height, padding, or margin causes layout thrash and janky performance. Use transform and opacity instead, or grid-template-rows for height animations.",
     "severity": "warning",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 8,
     "snippet": "transition: width"
   },
@@ -25,7 +25,7 @@
     "description": "A font is used that is not declared in DESIGN.md typography. Use the documented type system or update DESIGN.md if this is an intentional brand addition.",
     "severity": "warning",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 2,
     "snippet": "font-family: Noto is not declared in DESIGN.md typography",
     "ignoreValue": "Noto"
@@ -36,7 +36,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 6,
     "snippet": "font-size: 11px is off the DESIGN.md type ramp",
     "ignoreValue": "11px"
@@ -47,7 +47,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 7,
     "snippet": "border-radius: 4px is outside the DESIGN.md rounded scale",
     "ignoreValue": "4px"
@@ -58,7 +58,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 7,
     "snippet": "border-radius: 5px is outside the DESIGN.md rounded scale",
     "ignoreValue": "5px"
@@ -69,7 +69,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 7,
     "snippet": "font-size: 14px is off the DESIGN.md type ramp",
     "ignoreValue": "14px"
@@ -80,7 +80,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 7,
     "snippet": "font-size: 17px is off the DESIGN.md type ramp",
     "ignoreValue": "17px"
@@ -91,7 +91,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 7,
     "snippet": "font-size: 10px is off the DESIGN.md type ramp",
     "ignoreValue": "10px"
@@ -102,7 +102,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 8,
     "snippet": "border-radius: 2px is outside the DESIGN.md rounded scale",
     "ignoreValue": "2px"
@@ -113,7 +113,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 8,
     "snippet": "border-radius: 9px is outside the DESIGN.md rounded scale",
     "ignoreValue": "9px"
@@ -124,7 +124,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 8,
     "snippet": "font-size: 18px is off the DESIGN.md type ramp",
     "ignoreValue": "18px"
@@ -135,7 +135,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 9,
     "snippet": "border-radius: 6px is outside the DESIGN.md rounded scale",
     "ignoreValue": "6px"
@@ -146,7 +146,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 9,
     "snippet": "font-size: 31px is off the DESIGN.md type ramp",
     "ignoreValue": "31px"
@@ -157,7 +157,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 9,
     "snippet": "font-size: 11px is off the DESIGN.md type ramp",
     "ignoreValue": "11px"
@@ -168,7 +168,7 @@
     "description": "A border-radius value is outside the DESIGN.md rounded scale. Use a documented radius token or update the design system if the new shape is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 10,
     "snippet": "border-radius: 7px is outside the DESIGN.md rounded scale",
     "ignoreValue": "7px"
@@ -179,7 +179,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 10,
     "snippet": "font-size: 14px is off the DESIGN.md type ramp",
     "ignoreValue": "14px"
@@ -190,7 +190,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 10,
     "snippet": "font-size: 29px is off the DESIGN.md type ramp",
     "ignoreValue": "29px"
@@ -201,7 +201,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 10,
     "snippet": "font-size: 17px is off the DESIGN.md type ramp",
     "ignoreValue": "17px"
@@ -212,7 +212,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 11,
     "snippet": "font-size: 23px is off the DESIGN.md type ramp",
     "ignoreValue": "23px"
@@ -223,7 +223,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 12,
     "snippet": "font-size: 32px is off the DESIGN.md type ramp",
     "ignoreValue": "32px"
@@ -234,7 +234,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 13,
     "snippet": "font-size: 11px is off the DESIGN.md type ramp",
     "ignoreValue": "11px"
@@ -245,7 +245,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 13,
     "snippet": "font-size: 10px is off the DESIGN.md type ramp",
     "ignoreValue": "10px"
@@ -256,7 +256,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 13,
     "snippet": "font-size: 15px is off the DESIGN.md type ramp",
     "ignoreValue": "15px"
@@ -267,7 +267,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 13,
     "snippet": "font-size: 27px is off the DESIGN.md type ramp",
     "ignoreValue": "27px"
@@ -278,7 +278,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 13,
     "snippet": "font-size: 25px is off the DESIGN.md type ramp",
     "ignoreValue": "25px"
@@ -289,7 +289,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 14,
     "snippet": "font-size: 14px is off the DESIGN.md type ramp",
     "ignoreValue": "14px"
@@ -300,7 +300,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 14,
     "snippet": "font-size: 26px is off the DESIGN.md type ramp",
     "ignoreValue": "26px"
@@ -311,7 +311,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 14,
     "snippet": "font-size: 9px is off the DESIGN.md type ramp",
     "ignoreValue": "9px"
@@ -322,7 +322,7 @@
     "description": "A literal font-size is off the type ramp documented in DESIGN.md typography. Use a documented size step or update the design system if the new step is intentional.",
     "severity": "advisory",
     "category": "quality",
-    "file": "/Users/yijunwang/code/goalboard/docs/design/molis-work-onboarding/prototype/style.css",
+    "file": "docs/design/molis-work-onboarding/prototype/style.css",
     "line": 14,
     "snippet": "font-size: 21px is off the DESIGN.md type ramp",
     "ignoreValue": "21px"

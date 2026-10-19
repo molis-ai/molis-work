@@ -25,7 +25,7 @@
 
 完整目标原文由用户在本轮重新提供：
 
-`/Users/oreal/.codex/attachments/80a6b70e-1e70-4fe1-96fa-77a85ec2b0eb/已粘贴的文本.txt`
+`~/.codex/attachments/80a6b70e-1e70-4fe1-96fa-77a85ec2b0eb/已粘贴的文本.txt`
 
 这份附件是本交接的逐项核对基准。它要求端到端实现全部既定 Coding 能力，能力对齐 FlyLeaf，使用 Molis 自己的 UI，并验证真实任务、恢复、协作和成果回到 Goal。不能把“控制复杂度”用来删减已有要求，也不能把 SDK 有能力当作产品接通。
 
@@ -45,16 +45,16 @@
 
 | 对象 | 本次核对结果 |
 | --- | --- |
-| 实现工作树 | `/Users/oreal/.codex/worktrees/molis-work-goal-continue/molis-work` |
+| 实现工作树 | `~/.codex/worktrees/molis-work-goal-continue/molis-work` |
 | 分支 | `codex/molis-work-goal-continue` |
 | 本文记录的实现 HEAD | `e24454b6e5f952ab8c199a5fab630e1a4c4d52b2` |
 | 基础主线 | `0387c9b8405246884b4e496372f1291fc253003b` |
 | 远端 | `https://github.com/molis-ai/molis-work.git` |
 | 本次远端只读核对 | `git ls-remote` 确认功能分支为 e24454b，main 为 0387c9b；没有在交接时拉取、合并或改写代码 |
 | 文档写入前工作树 | 干净 |
-| 主 checkout | `/Users/oreal/adeptify-home/repos/molis-work`，main 在 `6930912`；不是这次实现工作树 |
+| 主 checkout | `~/adeptify-home/repos/molis-work`，main 在 `6930912`；不是这次实现工作树 |
 | 主 checkout 未跟踪文件 | `docs/acceptance-handoff-codex-2026-09-22.md`、`docs/plugin-builder-handoff-2026-09-23.md`，本任务没有更改 |
-| 旧 Coding 工作树 | `/Users/oreal/.codex/worktrees/molis-coding-complete/molis-work` 已不存在；不能直接沿用旧命令或假定证据目录仍在 |
+| 旧 Coding 工作树 | `~/.codex/worktrees/molis-coding-complete/molis-work` 已不存在；不能直接沿用旧命令或假定证据目录仍在 |
 
 主 checkout 落后于本次实现基础，不要在那里直接继续写代码，也不要为了“恢复环境”覆盖用户文档。其他 worktree、prunable 登记、基线副本均未清理；接手时重新看 `git worktree list` 和状态。
 
@@ -63,7 +63,7 @@
 - URL：<http://127.0.0.1:4198/projects/project-4f6275b5-24a0-4ad6-a6e2-f55dd3b04335/>
 - 项目：**Molis Work 自开发**。
 - 会话：**自开发续作：低高度导航修复**，App Session `3b53c655-8113-4f43-a5d9-c7a53ffd5f44`。
-- 当前服务 Home：`/Users/oreal/.codex/working-data/molis-coding-selfhost-20260924`，与生产数据隔离。
+- 当前服务 Home：`~/.codex/working-data/molis-coding-selfhost-20260924`，与生产数据隔离。
 - 本次只读检查：4198 有 Node 监听，正式会话 API 可读；4 轮状态为 stopped / completed / completed / completed，没有这条会话仍在跑的证据。
 - 旧诊断会话 `0237ed91-a288-465a-abc4-86b5907c926f`，标题“自开发：修复插件栏入口遮挡”，保留失败/停止历史，不删除、不改写为成功。
 - 服务日志：`/tmp/molis-coding-selfhost-server.log`。当前服务由上一轮启动，本次交接没有重启。
@@ -73,11 +73,11 @@
 如后续需要重启，先确认没有活动 Run、保存证据并识别本服务进程；不要按端口猜测并杀别人的进程。既有启动方式如下（只适用于上述隔离 Home，不能用于切换生产后端）：
 
 ```sh
-cd /Users/oreal/.codex/worktrees/molis-work-goal-continue/molis-work
+cd ~/.codex/worktrees/molis-work-goal-continue/molis-work
 task_state=$(cat /tmp/molis-goal-continue-state-path)
 PATH="$task_state/guard:$PATH" MOLIS_WORK_SECRET_BACKEND=file \
   node dist/web/server.js \
-  --home /Users/oreal/.codex/working-data/molis-coding-selfhost-20260924 \
+  --home ~/.codex/working-data/molis-coding-selfhost-20260924 \
   --port 4198 > /tmp/molis-coding-selfhost-server.log 2>&1
 ```
 
@@ -87,9 +87,9 @@ PATH="$task_state/guard:$PATH" MOLIS_WORK_SECRET_BACKEND=file \
 
 | 对象 | 当前只读检查 |
 | --- | --- |
-| FlyLeaf | `/Users/oreal/adeptify-home/repos/flyleaf`，main `a0267d3`，干净；完整参考提交 `a0267d39d5860575efd0ab080fb0f6887234759b` |
-| Prologue 主 checkout | `/Users/oreal/adeptify-home/repos/prologue`，main `a8ac8e1e`，干净 |
-| SDK 实现工作树 | `/Users/oreal/.codex/worktrees/molis-coding-receipts/prologue`，`codex/molis-coding-receipts`，HEAD `a7e785b8`，干净 |
+| FlyLeaf | `~/adeptify-home/repos/flyleaf`，main `a0267d3`，干净；完整参考提交 `a0267d39d5860575efd0ab080fb0f6887234759b` |
+| Prologue 主 checkout | `~/adeptify-home/repos/prologue`，main `a8ac8e1e`，干净 |
+| SDK 实现工作树 | `~/.codex/worktrees/molis-coding-receipts/prologue`，`codex/molis-coding-receipts`，HEAD `a7e785b8`，干净 |
 | Molis 实际声明依赖 | `horizontal/agent-host/package.json` → `vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-compaction-growth.tgz` |
 | tgz SHA256 | `a00d705a28b94894682a5dea78887ac295e78dfc21fd08e8555307a3400cf61f` |
 | 安装位置 | 当前 Molis 工作树 `node_modules/.pnpm/@prologue+sdk@file+vendor+prologue-sdk+prologue-sdk-0.0.0-rc.1-compaction-growth.tgz/node_modules/@prologue/sdk` |
@@ -179,7 +179,7 @@ PATH="$task_state/guard:$PATH" MOLIS_WORK_SECRET_BACKEND=file \
 
 ### 5.7 Harness 研究与架构规范（Goal 4/6/7）
 
-10 个要求的 reference 仓库均在 `/Users/oreal/reference/`，本次只读 git HEAD 与 spec 记录吻合：
+10 个要求的 reference 仓库均在 `~/reference/`，本次只读 git HEAD 与 spec 记录吻合：
 
 | 目录 | 提交短值 | 来源性质 |
 | --- | --- | --- |

@@ -43,7 +43,7 @@ async function useInstalled(t: test.TestContext, home: Awaited<ReturnType<typeof
   assert.deepEqual(JSON.parse(readFileSync(join(work, "mcp-notes.jsonl"), "utf8").trim()), { note: "installed package really ran" });
   removeManagedConnectorTool(home.home, installed.id); assert.equal(existsSync(installed.directory), true, "an active connection owns this installation reference");
   const revision = withConnectorConnections(home.home, store => store.require(connected.connectionId).updated_at);
-  await home.host.homeActionClient().invoke(caller, connectorManagementActions.control, { connection_id: connected.connectionId, expected_revision: revision, action: "remove" });
+  await home.host.homeActionClient().invoke(caller, connectorManagementActions.remove, { connection_id: connected.connectionId, expected_revision: revision });
   removeManagedConnectorTool(home.home, installed.id);
   assert.equal(existsSync(installed.directory), false); assert.equal(existsSync(join(work, "mcp-notes.jsonl")), true);
   assert.equal(existsSync(installed.runtime_path[0]!), installed.source.kind === "npm", "shared Node stays; a connection's private Python environment is removed");
@@ -132,7 +132,7 @@ test("ASC-17 ASC-19 ASC-34: managed update failures preserve the active package;
   await actions.invoke(caller, connectorSetupIntentAction, { authorization_id: kept.authorization_id, intent_revision: "keep-version", decision: "retain" });
   assert.equal(directories().length, 1); assert.notDeepEqual(directories(), owned);
   await actions.invoke(caller, { capability_id: `mcp.connector.${original.connectionId}.record_review_note`, version: 1, provider_id: `system.connectors#mcp:${original.connectionId}` }, { note: "updated package" });
-  await actions.invoke(caller, connectorManagementActions.control, { connection_id: original.connectionId, expected_revision: revision(), action: "remove" });
+  await actions.invoke(caller, connectorManagementActions.remove, { connection_id: original.connectionId, expected_revision: revision() });
   assert.deepEqual(directories(), []); assert.deepEqual(JSON.parse(readFileSync(join(home.home, "mcp-notes.jsonl"), "utf8")), { note: "updated package" });
 });
 

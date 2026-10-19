@@ -60,7 +60,7 @@ test("S-36 ASC-07 ASC-14 ASC-19 ASC-22: an installed CLI keeps its own login, co
       assert.equal(history.filter(args => args[0] === "project").length, 1);
       writeFileSync(join(home.home, "business-result.txt"), "keep");
       const revision = withConnectorConnections(home.home, store => store.require(connected.connection_id).updated_at);
-      await restored.homeActionClient().invoke(caller, connectorManagementActions.control, { connection_id: connected.connection_id, expected_revision: revision, action: "remove" });
+      await restored.homeActionClient().invoke(caller, connectorManagementActions.remove, { connection_id: connected.connection_id, expected_revision: revision });
       assert.equal(existsSync(directory), false); assert.equal(readFileSync(join(home.home, "business-result.txt"), "utf8"), "keep");
     } finally { await served.close(); await restored.close(); }
   } finally { if (previous === undefined) delete process.env.ASC_PRIVATE_HOST_VALUE; else process.env.ASC_PRIVATE_HOST_VALUE = previous; }

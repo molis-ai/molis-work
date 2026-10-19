@@ -8,6 +8,7 @@ const TEXT_FILE = /\.(md|markdown|txt|html|htm)$/iu;
 const SLOW_FILE = /\.(pdf|png|jpe?g|webp|heic|heif|tiff?|bmp|gif|mp3|wav|m4a|aac|aiff?|flac|mp4|mov|m4v|webm)$/iu;
 const skipped = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 interface Picked { file: File; path: string }
+interface Imported { title: string; reused: boolean; warnings?: string[]; model_required?: { approximate_bytes: number | null } }
 interface ImportSources { sources: Record<string, boolean>; connections: Array<{ connection_id: string; service_id: string; display_name: string; state: string }> }
 
 /** A folder's files keep their path inside it; hidden ones and build or dependency folders are left out, as the workspace listing does. */
@@ -45,6 +46,62 @@ async function bodyOf(file: File): Promise<Record<string, unknown>> {
   return { source: "file", filename: file.name, original_file: { filename: file.name, mime: file.type || "application/octet-stream", data_base64: btoa(binary) } };
 }
 
+/** A row's note, cut to one line; the whole of it on hover. */
+const note = (mark: HTMLElement | null | undefined, text: string) => { if (mark) { mark.textContent = text; mark.title = text; } };
+const FAILED = () => L("导入失败。请检查文件、链接、文档权限和连接器配置后重试。");
+type Untranscribed = { item: Picked; row: HTMLElement | undefined };
+
+/**
+ * The speech model is downloaded only on the person's yes, asked in the import dialog with 灵光's words; then each audio or video
+ * file is imported again with that yes, its download's and transcription's progress shown (specs/project-knowledge PMAT-48).
+ */
+function bindModelConsent(dialog: HTMLDialogElement, base: string, exclusive: (run: () => Promise<void>) => Promise<void>) {
+  const $ = <T extends Element = HTMLElement>(selector: string) => dialog.querySelector<T>(selector)!;
+  const model = $("[data-knowledge-import-model]"), text = $("[data-knowledge-import-model-text]"), status = $("[data-knowledge-import-status]");
+  const bar = $<HTMLProgressElement>("[data-knowledge-import-model-progress]"), choices = $("[data-knowledge-import-model-choices]");
+  let waiting: Untranscribed[] = [];
+  const reset = () => { waiting = []; model.hidden = true; };
+  async function transcribe() {
+    const queue = waiting;
+    waiting = []; choices.hidden = true; bar.hidden = false; bar.removeAttribute("value");
+    let done = 0;
+    for (const { item, row } of queue) {
+      const mark = row?.querySelector("small");
+      text.textContent = L("正在转写：{name}", { name: item.path });
+      try {
+        const saved = await request().stream<Imported>(base + "/import", { body: { ...await bodyOf(item.file), allow_model_download: true },
+          headers: { accept: "application/x-ndjson" }, fallback: FAILED(), onProgress: event => {
+            text.textContent = event.stage === "downloading" || event.stage === "model_download" ? L("正在下载转写模型（只下载这一次）")
+              : event.stage === "loading" ? L("正在加载模型") : L("正在转写：{name}", { name: item.path });
+            bar.value = Math.max(0, Math.min(1, event.progress));
+          } });
+        if (!saved.model_required) { done += 1; row?.classList.add("is-done"); }
+        note(mark, saved.warnings?.[0] ?? L("已导入"));
+      } catch (error) {
+        row?.classList.add("is-failed");
+        note(mark, request().text(error));
+      }
+    }
+    model.hidden = true;
+    status.textContent = done === queue.length ? L("转写好了 {done} 个，正在整理。", { done }) : L("转写好了 {done} 个，{failed} 个没有转成（原因见上面）。", { done, failed: queue.length - done });
+  }
+  $("[data-knowledge-import-model-yes]").addEventListener("click", () => void exclusive(transcribe));
+  $("[data-knowledge-import-model-no]").addEventListener("click", () => {
+    reset();
+    status.textContent = L("音视频只保存了原件。以后要转写，重新导入它时同意下载就行。");
+  });
+  return {
+    reset,
+    ask(files: Untranscribed[], bytes: number | null) {
+      waiting = files;
+      const size = bytes ? Math.round(bytes / 1024 / 1024) : 0;
+      text.textContent = (files.length > 1 ? L("{count} 个音视频还没有转成文字。", { count: files.length }) : "")
+        + (size ? L("转写需要下载本机语音模型（{size} MB），只在这台机器上用。现在下载并继续？", { size }) : L("转写需要下载本机语音模型，只在这台机器上用。现在下载并继续？"));
+      bar.hidden = true; choices.hidden = false; model.hidden = false;
+    },
+  };
+}
+
 /**
  * The side panel's import (specs/project-knowledge PMAT-14): several files, a folder or files dropped on the list, and online
  * documents through a connected account. Each is saved by the 成果库's import, one at a time, and organized after.
@@ -59,6 +116,16 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const pickedList = $("[data-knowledge-import-picked]");
   const submit = $<HTMLButtonElement>("[data-knowledge-import-submit]");
   let picked: Picked[] = [], busy = false, sources: ImportSources | null = null, connected = false;
+  // Audio and video saved without text because the speech model is not downloaded yet: asked about once the batch is done (PMAT-48).
+  const consent = bindModelConsent(dialog, base, async run => {
+    if (busy) return;
+    busy = true; submit.disabled = true; dialog.setAttribute("aria-busy", "true");
+    try { await run(); }
+    finally {
+      busy = false; submit.disabled = !picked.length; dialog.removeAttribute("aria-busy");
+      root.querySelector<HTMLButtonElement>("[data-side-files-action=refresh]")?.click();
+    }
+  });
   const kind = () => (dialog.querySelector<HTMLInputElement>("input[name=kind]:checked")?.value ?? "files");
 
   const drawPicked = () => {
@@ -97,12 +164,13 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     if (kind() === "online") submit.disabled = busy || !connected;
   }
 
-  const one = async (body: Record<string, unknown>) => request()<{ title: string; reused: boolean; warnings?: string[] }>(base + "/import", { body, fallback: L("导入失败。请检查文件、链接、文档权限和连接器配置后重试。") });
+  const one = async (body: Record<string, unknown>) => request()<Imported>(base + "/import", { body, fallback: FAILED() });
   async function importFiles() {
     const queue = picked.slice(0, MAX_FILES);
     if (!queue.length) return;
-    let done = 0, failed = 0;
-    const rows = [...pickedList.children] as HTMLElement[];
+    let done = 0, failed = 0, bytes: number | null = null;
+    const rows = [...pickedList.children] as HTMLElement[], untranscribed: Untranscribed[] = [];
+    consent.reset();
     for (const [index, item] of queue.entries()) {
       const mark = rows[index]?.querySelector("small");
       status.textContent = SLOW_FILE.test(item.path) ? L("正在导入 {at} / {count}：{name}（识别文字或转写要一会儿）", { at: index + 1, count: queue.length, name: item.path })
@@ -111,17 +179,21 @@ export function bindKnowledgeImport(root: HTMLElement): void {
         if (item.file.size > MAX_BYTES) throw new Error(L("超过 6 MB"));
         const saved = await one(await bodyOf(item.file));
         done += 1;
-        rows[index]?.classList.add("is-done");
-        if (mark) mark.textContent = saved.reused ? L("没有变化") : saved.warnings?.length ? saved.warnings[0]! : L("已导入");
+        if (saved.model_required) { untranscribed.push({ item, row: rows[index] }); bytes ??= saved.model_required.approximate_bytes; }
+        // A file still waiting on the speech model is not done yet: its note stays neutral until it is transcribed.
+        if (!saved.model_required) rows[index]?.classList.add("is-done");
+        note(mark, saved.model_required ? L("还没转成文字") : saved.reused ? L("没有变化") : saved.warnings?.length ? saved.warnings[0]! : L("已导入"));
       } catch (error) {
         failed += 1;
         rows[index]?.classList.add("is-failed");
-        if (mark) mark.textContent = request().text(error);
+        note(mark, request().text(error));
       }
     }
     status.textContent = failed ? L("导入了 {done} 个，{failed} 个没有导入（原因见上面）。", { done, failed }) : L("导入了 {done} 个，正在整理。", { done });
     picked = queue.filter((_, index) => rows[index]?.classList.contains("is-failed"));
+    if (untranscribed.length) consent.ask(untranscribed, bytes);
   }
+
   async function importOnline() {
     const url = $<HTMLInputElement>("[data-knowledge-import-url]").value.trim();
     if (!/^https:\/\//u.test(url)) { status.textContent = L("请输入文档的 HTTPS 链接。"); return; }
@@ -148,7 +220,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     input.addEventListener("change", () => { take([...input.files ?? []].map(file => ({ file, path: file.webkitRelativePath || file.name }))); input.value = ""; });
   }
   dialog.querySelectorAll("[data-knowledge-import-close]").forEach(control => control.addEventListener("click", () => dialog.close()));
-  dialog.addEventListener("close", () => { if (!busy) { picked = []; drawPicked(); } });
+  dialog.addEventListener("close", () => { if (!busy) { picked = []; consent.reset(); drawPicked(); } });
   // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
   const drop = $("[data-knowledge-import-drop]");
   const accept = (target: HTMLElement, opens: boolean) => {

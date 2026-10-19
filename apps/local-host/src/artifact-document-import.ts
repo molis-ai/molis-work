@@ -47,6 +47,9 @@ export function documentImportConnectionStatus(): Record<string, boolean> {
 
 export function importLocalArtifactDocument(input: Record<string, unknown>, ports: Omit<ArtifactDocumentImportPorts, "readExternal" | "readHtml"> & {
   beforeDispatch?(): void | Promise<void>;
+  /** Decided by the Host from the caller (a person's explicit yes, S-39), never read from the input here (PMAT-48). */
+  allowModelDownload?: boolean;
+  onProgress?: (progress: { stage: string; progress: number }) => void;
 }) {
   const home = resolveMolisWorkHome();
   let usedConnection: string | undefined;
@@ -67,7 +70,8 @@ export function importLocalArtifactDocument(input: Record<string, unknown>, port
       try { const parsed = await readMaterialHtml(html, { signal: ports.signal, timeoutMs: 12_000 }); return { title: parsed.title ?? "", content: parsed.text }; }
       catch { ports.signal?.throwIfAborted(); throw artifactImportErrors.html_invalid("无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出"); }
     },
-    readFileText: file => readOriginalText(file, home, ports.signal),
+    readFileText: file => readOriginalText(file, home, { ...ports.signal ? { signal: ports.signal } : {},
+      ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
     async readExternal(document) {
       const service = CONNECTOR_IDS[document.source];
       const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");

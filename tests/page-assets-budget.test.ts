@@ -686,7 +686,7 @@ for (const [asset, old] of [
 // from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
 // baseline still fails.
 test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1602629],
+  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1603154],
     "/assets/molis-work-settings.css": [982397, 988933] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
@@ -717,9 +717,9 @@ test("PMAT the approved knowledge asset may be added once at its measured size; 
   const asset = "/assets/molis-work-knowledge.js";
   branch("knowledge-base", () => { putBudget(sizes); });
   git("checkout", "-q", "-B", "knowledge-change");
-  (sizes as Record<string, number>)[asset] = 23980;
+  (sizes as Record<string, number>)[asset] = 26362;
   assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "a byte over the approved size");
-  (sizes as Record<string, number>)[asset] = 23979;
+  (sizes as Record<string, number>)[asset] = 26361;
   assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
   assert.equal(gate("--base", "knowledge-base").code, 0);
   (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
@@ -727,7 +727,7 @@ test("PMAT the approved knowledge asset may be added once at its measured size; 
   delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
   assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
   commit("budget the approved knowledge asset"); git("branch", "-f", "knowledge-frozen");
-  (sizes as Record<string, number>)[asset] = 23979 + 1; putBudget(sizes);
+  (sizes as Record<string, number>)[asset] = 26361 + 1; putBudget(sizes);
   assert.equal(gate("--base", "knowledge-frozen").code, 1, "once budgeted it only falls");
   assert.equal(gate("--update", "--base", "knowledge-frozen").code, 1);
 });

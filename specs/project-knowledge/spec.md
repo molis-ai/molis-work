@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已提交，第三轮评测见 §14；之后按评测加了短编号 ref（PMAT-39）与 grep 接着找（PMAT-40），第五轮 38/40，剩下的错是模型能力。全部已推送，开 PR 交统筹（10-19）。之后用户要求复查代码、界面与策略，四项按推荐定（§2 末四行），修复与验证见 §14「代码与界面复查」（PMAT-41–46）。用户随后要导入读更多文件（§2 末两行）：Office、OpenDocument、RTF、EPUB 经开源的 officeparser 转成 Markdown，图片与扫描 PDF 识别文字、音视频转写用 Host 已有的 macOS 组件，见 §14「导入读更多格式」（PMAT-47）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已提交，第三轮评测见 §14；之后按评测加了短编号 ref（PMAT-39）与 grep 接着找（PMAT-40），第五轮 38/40，剩下的错是模型能力。全部已推送，开 PR 交统筹（10-19）。之后用户要求复查代码、界面与策略，四项按推荐定（§2 末四行），修复与验证见 §14「代码与界面复查」（PMAT-41–46）。用户随后要导入读更多文件（§2 末两行）：Office、OpenDocument、RTF、EPUB 经开源的 officeparser 转成 Markdown，图片与扫描 PDF 识别文字、音视频转写用 Host 已有的 macOS 组件，见 §14「导入读更多格式」（PMAT-47）；导入处就地同意下载语音模型见 §14「导入时同意下载语音模型」（PMAT-48）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -335,6 +335,7 @@
 45. **PMAT-45** 分节认 Windows 换行（`\r\n`）的 Markdown 标题；没有 Markdown 标题时认「第X章/节/条」「一、」「（一）」一类编号标题（至少两个、≤ 40 字、不以句读结尾）；grep 的长行以命中处为中心截取。
 46. **PMAT-46** 宽松召回补上的卡片，给本人的搜索带命中的一小段原文作提示；给 Agent 的仍只有卡片简介（PMAT-09）。
 47. **PMAT-47** 导入 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB 时读出 Markdown 正文（表格是 Markdown 表格、标题是标题，没有 YAML 头与 HTML）；图片读出识别的文字、没有文字层的 PDF 读出识别的文字、音视频读出转写，都写明「可能有错字」；做不到时（不是 macOS、没有识别组件、语音模型没下载、超时、没有文字）只存原件，导入处写明原因与 Agent 只能看到名字。安装包不带工作区用 override 去掉的依赖（`tesseract.js`），从 release 再安装也一样。
+48. **PMAT-48** 导入音视频时本机还没有语音模型：结果里给出机器可读的 `model_required`（模型大小），不写进保存的版本；导入对话框在这批导入完之后就地问（灵光的说法与「下载并继续」），同意才带 `allow_model_download` 重新导入并显示下载与转写进度（NDJSON），不同意只存原件并说怎么再转写。下载只认可信的人亲自导入且明确为 true（S-39）：Agent、MCP、工作流带 true 也不下载；同意下载的那次转写时限 30 分钟。
 
 ## 14. 进度与证据
 
@@ -648,7 +649,7 @@ Bug
   DOCX PPTX XLSX ODT ODS ODP RTF EPUB  officeparser 8.1.1 → Markdown，工作线程（256 MB、60 秒、解压 64 MB / 5,000 项），不开 OCR、不取附件与批注
   PDF                                  先读文字层；不够时整份识别（macOS Vision，120 秒），哪个读出的字多用哪个
   图片（png jpg heic tiff …）           macOS Vision 识别（中英，60 秒）
-  音视频（mp3 m4a wav mp4 mov …）       Host 的 Whisper（300 秒）；语音模型没下载时不下载，写明要先在灵光里下载
+  音视频（mp3 m4a wav mp4 mov …）       Host 的 Whisper（300 秒）；语音模型没下载时不下载，导入处问（PMAT-48）
   其他                                  合法 UTF-8 就是正文；否则只存原件
   Word 以前经 mammoth 读成 HTML 放进资料，现在同样走 officeparser，得到 Markdown（分节与查找按标题走）。
 
@@ -665,5 +666,28 @@ Bug
   molis-work-knowledge.js 再 +232 B（APPROVED_NEW_ASSETS 23,979）。
 测试：artifact-document-import 的 PMAT-47（手工拼出最小的 xlsx、pptx、odt、epub、rtf，不需要办公软件；空白 PNG 在 macOS 上是「没有识别出文字」、
   别处是「不能识别文字」）；runtime-dependency-flatten 的 PMAT-47（tesseract.js 不进安装包）；install、runtime-payload、npm-package 通过。
-没做：导入时同意下载语音模型（现在要先在灵光里下载一次）；旧格式 .doc .xls .ppt（二进制格式，officeparser 不读）。
+没做：旧格式 .doc .xls .ppt（二进制格式，officeparser 不读）。导入时同意下载语音模型见下一节（PMAT-48）。
+```
+
+### 导入时同意下载语音模型（2026-10-19，用户要求，同一 PR #839，PMAT-48）
+
+```text
+信号   artifacts.import.file 的结果加可选的 model_required: { approximate_bytes }（帮手报的大小，没有就是 null）；只交给这次导入的人，
+       不进保存的版本（payload 里没有，同一文件下回带着文字导入是新版本）。警告改成「…转写要先下载本机语音模型（约 N MB），同意下载后重新导入即可。」
+同意   输入加可选的 allow_model_download。Host 在 artifact-actions.ts 的 importDocument 里定：caller.audience === "user" 且明确 true 才传给
+       readOriginalText → extractHomeMaterial({ allowModelDownload })，只用于音视频；时限 300 秒 → 30 分钟。插件代码与输入都提供不了身份（S-39 加了这一条）。
+进度   POST /api/artifacts/import 带 accept: application/x-ndjson 时用宿主同一个流式回复（answerPluginRouteStream）：caller.on_progress 把帮手的
+       downloading / loading / transcribing 进度写成 progress 行，最后一行是结果；不带这个头的调用方照旧拿 JSON。
+界面   导入对话框：一批导入完后，有音视频缺模型就在对话框里问「转写需要下载本机语音模型（626 MB），只在这台机器上用。现在下载并继续？」
+       （多个时先说「N 个音视频还没有转成文字。」），按钮「先不转写」「下载并继续」。同意后逐个重新导入，进度条与「正在下载转写模型（只下载这一次）」
+       「正在转写：<文件名>」；那一行在等模型时写「还没转成文字」（中性色），转写好后是绿色的说明。行内说明改为一行省略、悬停看全文。
+       knowledge.js 26,361 B（APPROVED_NEW_ASSETS 由 23,979 调到实测）、workbench.css +525 B（APPROVED_CEILINGS 到 1,603,154）。
+合同   动作快照：artifacts.import.file@1 的输入与输出、artifacts.import.external@1 的输出变了形状，都只加可选字段，固定到 @1 的引用不会被拒，所以不升版本。
+测试   tests/artifact-import-model-download.test.ts「S-39 PMAT-48 …」（只在 macOS，用 MOLIS_JELLY_WHISPER_HELPER 指向假的帮手）：人不带 true →
+       model_required、不下载；Agent、MCP、工作流带 true → 仍 model_required、不下载；人带 true 并要 NDJSON → 有 downloading、transcribing 进度行，
+       最后是第 2 版、正文是转写、没有 model_required；两版的 payload 里都没有 model_required。artifact-document-import、
+       security-invariants-plugin-materials、artifacts-actions、knowledge-fresh-catalog、action-contract-snapshot、page-assets-budget 通过。
+实走   一次性 Home + 假帮手（下载 8 秒、转写 3 秒）在内置浏览器里走：两份音视频一批 → 问一次 → 先不转写只留原件；一份音视频加一份 md →
+       下载并继续 → 进度条走完、那一行变成「正文是转写出的文字…」、状态「转写好了 1 个，正在整理。」。Home 与脚本用完即删。
+没做   下载中途停止（关对话框不会停下 Host 那边的下载与转写，做完照样存进新版本）；没有真下载模型重走（上一节已在一次性 Home 里下载实测过）。
 ```

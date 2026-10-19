@@ -64,6 +64,14 @@ function renderKnowledgeImportDialog(L: SidePanelPrimitives["L"]): string {
             <label>${L("文档链接")}<input class="mw-input" name="url" type="url" autocomplete="off" spellcheck="false" placeholder="https://" data-knowledge-import-url></label>
           </div>
           <p class="knowledge-import-status" data-knowledge-import-status role="status" aria-live="polite"></p>
+          <div class="knowledge-import-model" data-knowledge-import-model hidden>
+            <p data-knowledge-import-model-text role="status" aria-live="polite"></p>
+            <progress max="1" data-knowledge-import-model-progress hidden></progress>
+            <div class="knowledge-import-model-choices" data-knowledge-import-model-choices>
+              <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-import-model-no>${L("先不转写")}</button>
+              <button class="mw-btn mw-btn--primary mw-btn--sm" type="button" data-knowledge-import-model-yes>${L("下载并继续")}</button>
+            </div>
+          </div>
           <footer><button class="mw-btn mw-btn--secondary mw-btn--md" type="button" data-knowledge-import-close>${L("取消")}</button>
             <button class="mw-btn mw-btn--primary mw-btn--md" type="button" data-knowledge-import-submit>${L("导入")}</button></footer>
         </form>
@@ -148,13 +156,18 @@ dialog.mw-dialog.knowledge-import{width:min(520px,calc(100vw - 32px));max-height
 .knowledge-import-drop.is-over{border-color:var(--action,var(--accent));background:var(--nav-hover)}
 .knowledge-import-picked{display:grid;gap:2px;max-height:180px;margin:0;padding:0;overflow:auto;list-style:none;font-size:12px}
 .knowledge-import-picked li{display:flex;justify-content:space-between;gap:8px;padding:3px 0}
-.knowledge-import-picked li span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.knowledge-import-picked li small{flex:none;color:var(--muted)}
+.knowledge-import-picked li span{flex:none;max-width:60%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.knowledge-import-picked li small{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--muted)}
 .knowledge-import-picked li.is-failed small{color:var(--tone-blocked,var(--red))}
 .knowledge-import-picked li.is-done small{color:var(--tone-done,var(--green))}
 .knowledge-import-online label{display:grid;gap:6px;font-size:13px}
 .knowledge-import-online :is(.mw-select,.mw-input){width:100%}
 .knowledge-import-status{margin:0;min-height:1em;color:var(--muted);font-size:12px}
+.knowledge-import-model{display:grid;gap:10px;padding:12px;border-radius:10px;background:var(--wash,var(--nav-hover));font-size:13px;line-height:1.6}
+.knowledge-import-model[hidden],.knowledge-import-model [hidden]{display:none}
+.knowledge-import-model p{margin:0}
+.knowledge-import-model progress{width:100%;height:4px;accent-color:var(--action,var(--accent))}
+.knowledge-import-model-choices{display:flex;justify-content:flex-end;gap:8px}
 .knowledge-import-form footer{display:flex;justify-content:flex-end;gap:8px}
 @container side-panel (min-width:720px){
  .side-files{grid-template-columns:minmax(220px,300px) minmax(0,1fr)}

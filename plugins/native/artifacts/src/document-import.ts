@@ -57,19 +57,30 @@ export interface ArtifactDocumentImportPorts {
   readExternal(input: { source: ExternalDocumentSource; url: string; connection_id?: string }): Promise<ImportedArtifactDocument>;
   readHtml(html: string): { title: string; content: string } | Promise<{ title: string; content: string }>;
   /** The text of a file kept as its original (PDF, DOCX), read by the Host's extraction; null for a kind it does not read. */
-  readFileText?(file: { filename: string; data_base64: string }): Promise<{ text: string; warnings: string[] } | null>;
+  readFileText?(file: { filename: string; data_base64: string }): Promise<{ text: string; warnings: string[]; model_required?: ModelRequired } | null>;
   signal?: AbortSignal;
   now?: () => string;
   /** Trusted Host checks cancellation/revocation again after external reads and before writes. */
   beforeSave?: () => void | Promise<void>;
 }
 
+/** A transcription that needs the local speech model first (specs/project-knowledge PMAT-48); its size when the helper said it. */
+export interface ModelRequired { approximate_bytes: number | null }
+
 /** An explicit import creates a personal snapshot of the person; no scheduler or source write-back. */
 export async function importArtifactDocument(input: Record<string, unknown>, ports: ArtifactDocumentImportPorts) {
   const source = input.source;
   let document: ImportedArtifactDocument;
+  // Said to whoever imports, never kept in the snapshot: once the model is there the same file imports again with its text.
+  let modelRequired: ModelRequired | undefined;
+  const readFileText = ports.readFileText && (async (file: { filename: string; data_base64: string }) => {
+    const read = await ports.readFileText!(file);
+    modelRequired = read?.model_required;
+    return read;
+  });
+  const told = () => modelRequired ? { model_required: modelRequired } : {};
   ports.signal?.throwIfAborted();
-  if (source === "file") document = await readFileDocument(input, ports);
+  if (source === "file") document = await readFileDocument(input, { readHtml: ports.readHtml, ...readFileText ? { readFileText } : {} });
   else if (EXTERNAL_DOCUMENT_SOURCES.includes(source as ExternalDocumentSource)) {
     const url = requiredString(input.url, "请输入文档链接", 4096);
     const connection_id = input.connection_id === undefined ? undefined : requiredString(input.connection_id, "请选择有效连接", 100);
@@ -91,7 +102,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     && Object.entries(document).every(([key, value]) => key === "source_url" || isDeepStrictEqual(previous[key], value));
   if (latest && sameContent && latest.lifecycle_state === "active" && latest.availability === "available") {
     return { artifact_id: artifactId, version: latest.version, title: latest.title, reused: true,
-      url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings };
+      url: ports.routePrefix + artifactVersionPath(latest), warnings: document.warnings, ...told() };
   }
   const result = ports.artifacts.commands.registerVersion({
     project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
@@ -109,7 +120,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
       : document.format === "text" ? "text/plain" : "text/markdown",
   });
   return { artifact_id: artifactId, version: result.artifact.version, title: result.artifact.title, reused: false,
-    url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings };
+    url: ports.routePrefix + artifactVersionPath(result.artifact), warnings: document.warnings, ...told() };
 }
 
 async function readFileDocument(input: Record<string, unknown>, ports: Pick<ArtifactDocumentImportPorts, "readHtml" | "readFileText">): Promise<ImportedArtifactDocument> {

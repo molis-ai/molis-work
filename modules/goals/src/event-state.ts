@@ -21,11 +21,13 @@ import type {
   SubmitGoalEventClosureInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
-import type { GoalEventFactsRepository, StoredWorkEvent } from "./event-facts-repository.js";
+import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { requiredText } from "./event-facts-validation.js";
 import { GoalEventStateEffects } from "./event-state-effects.js";
+import { type GoalEventStateWriteDeps, mutateGoalEventState, requireOwnedWritableGoal } from "./event-state-write.js";
 import type { GoalEventStateHost } from "./event-state-host.js";
 import { currentEffectiveDecisions } from "./event-state-authorization.js";
+import { insertGoalSystemEvent } from "./event-system-insert.js";
 import {
   GoalEventStateRepository,
   agreementView,
@@ -36,6 +38,7 @@ export type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.
 
 export class GoalEventState {
   private readonly effects: GoalEventStateEffects;
+  private readonly writes: GoalEventStateWriteDeps;
 
   constructor(
     private readonly context: GoalsCommandContext,
@@ -43,10 +46,11 @@ export class GoalEventState {
     private readonly records: GoalEventStateRepository,
     private readonly host: GoalEventStateHost,
   ) {
+    this.writes = { context, records, host };
     this.effects = new GoalEventStateEffects(context, facts, records, host, {
-      mutate: this.mutate.bind(this),
+      mutate: (input, operation, hash, write) => mutateGoalEventState(this.writes, input, operation, hash, write),
       insertSystem: this.insertSystem.bind(this),
-      requireOwnedWritable: this.requireOwnedWritable.bind(this),
+      requireOwnedWritable: (projectId, goalId) => requireOwnedWritableGoal(this.writes, projectId, goalId),
       requireLocalScope: this.requireLocalScope.bind(this),
       assertConfigVersion: this.assertConfigVersion.bind(this),
       assertAgreementVersion: this.assertAgreementVersion.bind(this),
@@ -183,7 +187,7 @@ export class GoalEventState {
       ...(input.source ? { source: input.source } : {}),
       ...(input.expected_goal_cursor === undefined ? {} : { expected_goal_cursor: input.expected_goal_cursor }),
     });
-    return this.mutate(input, "record_goal_progress", hash, (goal, actorKind) => {
+    return mutateGoalEventState(this.writes, input, "record_goal_progress", hash, (goal, actorKind) => {
       const summary = requiredText(input.summary, "goals.event_progress.summary_required", "进展摘要需要原文");
       if (!Number.isInteger(input.based_on_cursor) || input.based_on_cursor < 0) {
         throw goalErrors["goals.event_progress.invalid_cursor"]("摘要必须依据当前 Goal 已存在的事件游标");
@@ -248,7 +252,7 @@ export class GoalEventState {
       goal_id: input.goal_id,
       body: input.body,
     });
-    return this.mutate(input, "record_goal_note", hash, (goal, actorKind) => {
+    return mutateGoalEventState(this.writes, input, "record_goal_note", hash, (goal, actorKind) => {
       const body = requiredText(input.body, "goals.event_note.body_required", "补充需要原文");
       const event = this.insertSystem(goal, input.actor_id, actorKind, body.slice(0, 80), {
         operation: "observation_note",
@@ -302,35 +306,6 @@ export class GoalEventState {
     }
   }
 
-  private requireOwnedWritable(projectId: string, goalId: string): GoalRecord {
-    const goal = this.host.requireWritableGoal(projectId, goalId);
-    if (!this.records.isOwner(projectId, goalId)) {
-      throw goalErrors["goals.event_state.not_owner"]("这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用");
-    }
-    return goal;
-  }
-
-  private mutate<T extends { event_id: string; observed_event_cursor: number; recorded: true }>(
-    input: { project_id: string; goal_id: string; actor_id: string; actor_kind?: "user" | "runtime"; idempotency_key: string },
-    operation: string,
-    hash: string,
-    write: (goal: GoalRecord, actorKind: "user" | "runtime" | null) => T,
-  ): T & { replayed: boolean } {
-    return this.context.repository.immediate(() => {
-      const replay = this.context.replay<T>(input.project_id, input.actor_id, operation, input.idempotency_key, hash);
-      if (replay) return { ...replay, replayed: true };
-      const goal = this.requireOwnedWritable(input.project_id, input.goal_id);
-      const cancelled = this.records.workStatus(goal.project_id, goal.goal_id) === "cancelled";
-      const ordinaryRecord = operation === "record_goal_note" || operation === "record_goal_progress";
-      if (cancelled && !ordinaryRecord && operation !== "resume_goal_event_work") {
-        throw goalErrors["goals.event_closure.cancelled"]("已取消的 Goal 不会被普通记录自动恢复，需要显式继续");
-      }
-      const outcome = write(goal, this.host.actorKind(input.actor_kind));
-      this.context.remember(goal.project_id, input.actor_id, operation, input.idempotency_key, hash, outcome, this.context.now().toISOString());
-      return { ...outcome, replayed: false };
-    });
-  }
-
   insertSystem(
     goal: GoalRecord,
     actorId: string,
@@ -338,50 +313,6 @@ export class GoalEventState {
     title: string,
     payload: GoalEventSystemPayload,
   ): GoalSystemWorkEventRecord {
-    const eventId = `gevt-${randomUUID()}`;
-    const at = this.context.now().toISOString();
-    const cursor = this.context.repository.appendEvent({
-      eventId,
-      projectId: goal.project_id,
-      actorId,
-      type: `goal.event_state.${payload.operation}`,
-      objectType: "goal_work_event",
-      objectId: eventId,
-      reason: title,
-      payload,
-      at,
-    });
-    const stored: StoredWorkEvent = {
-      event_id: eventId,
-      project_id: goal.project_id,
-      goal_id: goal.goal_id,
-      kind: "system",
-      type_id: null,
-      type_version: null,
-      title,
-      payload,
-      actor_id: actorId,
-      actor_kind: actorKind,
-      received_at: at,
-      journal_seq: cursor,
-      config_version: this.facts.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
-    };
-    this.facts.insertWorkEvent(stored);
-    return {
-      event_id: eventId,
-      project_id: goal.project_id,
-      goal_id: goal.goal_id,
-      title,
-      actor_id: actorId,
-      actor_kind: actorKind,
-      received_at: at,
-      journal_seq: cursor,
-      config_version: stored.config_version,
-      kind: "system",
-      type: null,
-      payload,
-      judgments: [],
-    };
+    return insertGoalSystemEvent(this.context, this.facts, goal, actorId, actorKind, title, payload);
   }
-
 }

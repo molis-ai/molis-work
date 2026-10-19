@@ -27,6 +27,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const templateDialog = el("[data-pages-template-dialog]");
   const Editor = window.MolisWorkPagesEditor;
   const ICON = (name) => '<svg aria-hidden="true"><use href="#icon-' + name + '"></use></svg>';
+  const make = (tag, className) => {
+    const node = document.createElement(tag);
+    node.className = className;
+    return node;
+  };
   const moreMenu = el("[data-pages-more-menu]"), moreButton = el("[data-pages-more]");
   const createMenu = el("[data-pages-create-menu]");
   const createMore = el("[data-pages-create-more]");
@@ -259,6 +264,8 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Several documents picked in the list (⌘ or Ctrl + click): they are in hand together, to compare or combine.
   // Nothing is written in place for them, so the bar hands their actions to the Assistant as cards.
   const picked = new Set();
+  // What the list (a listbox that picks several) says is selected: the picked documents, else the open one.
+  const chosen = (id) => (picked.size ? picked.has(id) : sel?.id === id);
   const pickedRect = () => {
     const boxes = [...rowsEl.querySelectorAll(".pages-doc-row[data-page-id]")].filter((row) => picked.has(row.dataset.pageId)).map((row) => row.getBoundingClientRect());
     const edge = (side, pick) => pick(...boxes.map((box) => box[side]));
@@ -281,7 +288,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     rowsEl.querySelectorAll(".pages-doc-row[data-page-id]").forEach((row) => {
       const on = picked.has(row.dataset.pageId);
       row.classList.toggle("is-picked", on);
-      row.querySelector("button[data-page-id]")?.setAttribute("aria-pressed", String(on));
+      row.querySelector("button[data-page-id]")?.setAttribute("aria-selected", String(chosen(row.dataset.pageId)));
     });
   };
   const clearPicked = () => {
@@ -336,19 +343,18 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     rowsEl.querySelectorAll("[data-page-id]").forEach((row) => {
       const on = row.dataset.pageId === id;
       row.classList.toggle("is-selected", on);
-      row.setAttribute("aria-selected", String(on));
     });
+    paintPicked();
   };
   const fixedCell = (record) => {
     if (!record.publication_pending && !(record.artifact_version > 0)) return null;
-    const node = document.createElement("span");
-    node.className = "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done");
+    const node = make("span", "mw-status mw-status--plain feed-entry-status " + (record.publication_pending ? "mw-status--attention" : "mw-status--done"));
     node.dataset.mwState = record.publication_pending ? "unsaved" : "saved"; node.textContent = record.publication_pending ? L("固定版本未存完") : L("固定版本") + " v" + record.artifact_version;
     return node;
   };
   const renderRow = (record) => {
-    const item = document.createElement("article");
-    item.className = "feed-stage-item pages-doc-row creative-artifact-row";
+    const item = make("article", "feed-stage-item pages-doc-row creative-artifact-row");
+    item.setAttribute("role", "none");
     item.draggable = folders.length > 0;
     item.dataset.pageId = record.id;
     const row = document.createElement("button");
@@ -356,27 +362,23 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     row.draggable = folders.length > 0;
     row.className = "feed-stage-entry directory-list-row" + (sel?.id === record.id ? " is-selected" : "");
     row.dataset.pageId = record.id;
-    row.setAttribute("aria-selected", String(sel?.id === record.id));
-    row.setAttribute("aria-pressed", String(picked.has(record.id)));
+    row.setAttribute("role", "option");
+    row.setAttribute("aria-selected", String(chosen(record.id)));
     if (picked.has(record.id)) item.classList.add("is-picked");
-    const leading = document.createElement("span");
-    leading.className = "feed-stage-leading";
-    const mark = document.createElement("span");
-    mark.className = "pages-doc-mark";
+    const leading = make("span", "feed-stage-leading");
+    const mark = make("span", "pages-doc-mark");
     mark.setAttribute("aria-hidden", "true");
     mark.innerHTML = ICON("note");
     const title = document.createElement("strong");
     title.title = record.title;
     title.textContent = record.title;
     leading.append(mark, title);
-    const meta = document.createElement("span");
-    meta.className = "plugin-stage-meta";
+    const meta = make("span", "plugin-stage-meta");
     meta.textContent = formatTime(record.updated_at);
     row.append(leading, meta);
     const fixed = fixedCell(record);
     if (fixed) row.append(fixed);
-    const actions = document.createElement("span");
-    actions.className = "pages-row-actions";
+    const actions = make("span", "pages-row-actions");
     if (folders.length) {
       const move = document.createElement("button");
       move.type = "button";
@@ -400,13 +402,11 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     return item;
   };
   const renderFold = (key, label, items, actions) => {
-    const fold = document.createElement("details");
-    fold.className = "goal-collection-fold";
+    const fold = make("details", "goal-collection-fold");
     fold.open = true;
     fold.dataset.folderId = key;
     const summary = document.createElement("summary");
-    const caret = document.createElement("span");
-    caret.className = "goal-collection-caret";
+    const caret = make("span", "goal-collection-caret");
     caret.setAttribute("aria-hidden", "true");
     caret.innerHTML = ICON("chevron-down");
     const strong = document.createElement("strong");
@@ -418,16 +418,14 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (key !== "starred") fold.dataset.pagesDrop = "folder";
     fold.append(summary);
     if (!items.length) {
-      const vacant = document.createElement("p");
-      vacant.className = "goal-collection-empty";
+      const vacant = make("p", "goal-collection-empty");
       vacant.textContent = L("还没有文档");
       fold.append(vacant);
     } else items.forEach((record) => fold.append(renderRow(record)));
     return fold;
   };
   const folderActions = (folder) => {
-    const wrap = document.createElement("span");
-    wrap.className = "pages-folder-actions";
+    const wrap = make("span", "pages-folder-actions");
     const add = document.createElement("button");
     add.type = "button";
     add.dataset.pagesFolderNew = folder.id;

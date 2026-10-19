@@ -1,6 +1,6 @@
 import type { ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunControl } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { AGENT_INPUT_KEY_PATTERN, AGENT_STEER_MODES, type AgentInputSend, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { AGENT_INPUT_KEY_PATTERN, AGENT_INPUT_SOURCES, AGENT_STEER_MODES, type AgentInputSend, type AgentInputSource, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { QUESTION_LIMITS, questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
@@ -54,7 +54,8 @@ export const codingRunControlInput: ActionSchema = {
       pending_id: words(200), pending_revision: { type: "integer", minimum: 1 },
       answers: { type: "array", minItems: 1, maxItems: 10, items: answerItem },
     }, ["pending_id", "pending_revision", "answers"]),
-    controlBranch("steer", { text: words(100_000), key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
+    controlBranch("steer", { text: words(100_000), source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN },
+      mode: { enum: [...AGENT_STEER_MODES] }, about: words(200) }, ["text"]),
     controlBranch("withdraw", { input_id: words(200) }, ["input_id"]),
     controlBranch("stop", {}, []),
     controlBranch("pause", {}, []),
@@ -139,13 +140,15 @@ export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInp
 
 /**
  * A control the person sends to the round. A switch names only a model the Host offers this plugin; whether the round
- * can carry it is the Host's check. A supplement's key, mode and `about` were checked against the action's schema; its
+ * can carry it is the Host's check. A supplement's source, key, mode and `about` were checked against the action's schema; its
  * key is the page's, so one sent again after a lost answer is the same supplement to the runtime. A correction names the
- * input it is about; what changes is in its words (specs/ai-input-receipts D34).
+ * input it is about; what changes is in its words (specs/ai-input-receipts D34). `host`: the Host relaying words the
+ * person did not write (a page's own wording), which the round keeps as a note, never as theirs (BL-144).
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
   if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "补充要求", 100_000),
+    ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
     ...(typeof body.about === "string" ? { about: body.about } : {}) } };
   if (body.kind === "withdraw") return { kind: "withdraw", input_id: text(body.input_id, "补充引用") };

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { jellyErrors } from "./error.js";
 import { JELLY_NOTE_SUBJECT_KIND } from "./search.js";
 import type { JellyStores } from "./store.js";
@@ -20,12 +20,12 @@ export function createJellyContentHandlers(stores: JellyStores): ActionHandlerBi
       return { title: note.title, body: note.blocks.map(block => block.text).join("\n"), source: "Jelly", feed_item_id: null };
     }),
     // One delivery is one note: a retried handoff finds the note it made the first time.
-    receive: ({ payload, context }, caller) => stores.write(caller, store => {
-      const id = `note-${createHash("sha256").update(workflowDeliveryKey(context)).digest("hex").slice(0, 32)}`;
+    receive: ({ title, body, url, source, request_id }, caller) => stores.write(caller, store => {
+      const id = `note-${createHash("sha256").update(request_id).digest("hex").slice(0, 32)}`;
       const existing = store.read().notes.find(note => note.id === id);
       if (existing) return ref(existing);
-      const markdown = [payload.body, payload.url ? `来源：${payload.url}` : "", payload.source ? `来自：${payload.source}` : ""].filter(part => part?.trim()).join("\n\n");
-      const state = store.execute({ type: "note.create", id, title: payload.title, category_id: "uncategorized", markdown });
+      const markdown = [body, url ? `来源：${url}` : "", source ? `来自：${source}` : ""].filter(part => part?.trim()).join("\n\n");
+      const state = store.execute({ type: "note.create", id, title, category_id: "uncategorized", markdown });
       return ref(state.notes.find(note => note.id === id)!);
     }),
   });

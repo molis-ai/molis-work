@@ -3,15 +3,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 /** The catalog is one array shared by the process: a test that adds entries to it takes them out again. */
-const catalog: BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG as BuiltinPluginEntry[];
+const catalog: PluginRegistration[] = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
 
 /** An entry for the test: a real entry's other parts (the deletion reads only `project_data`), under its own id. */
-function declaringEntry(id: string, data: ProjectDataDeclaration): BuiltinPluginEntry {
+function declaringEntry(id: string, data: ProjectDataDeclaration): PluginRegistration {
   const template = catalog.find(entry => entry.project_plugin_id === "pages");
   assert.ok(template);
   return { ...template, project_plugin_id: id, project_data: data };

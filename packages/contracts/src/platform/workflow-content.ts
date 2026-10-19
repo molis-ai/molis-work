@@ -24,16 +24,15 @@ export interface WorkflowPayload {
 }
 export interface WorkflowItemRef { readonly plugin: string; readonly item_id: string; readonly title: string }
 export interface WorkflowStartItem { readonly item_id: string; readonly title: string; readonly caption: string; readonly at: string | null }
-export interface WorkflowReceiveInput {
-  readonly payload: WorkflowPayload;
-  /** `instance_id` + `step` is one delivery. A receiver returns the same item when it is delivered again (a retry after a crash
-   * or a lost race), and never creates a second one. The workflow fixes the payload of a delivery before sending it. */
-  readonly context: { readonly instance_id: string; readonly step: number; readonly title?: string };
-}
+/** The version each role of the protocol is at now. A role changes shape only by raising its own number here: a station declares
+ * every role at this version (the platform refuses another), so a saved reference to an older one stays pinned and reports why. */
+export const WORKFLOW_CONTENT_VERSIONS = { list: 1, read: 1, receive: 2, create: 1 } as const;
 
-/** Stable request identity a receiver may pass to its own idempotent write. */
-export function workflowDeliveryKey(context: WorkflowReceiveInput["context"]): string {
-  return `workflow:${context.instance_id}:${context.step}`;
+export interface WorkflowReceiveInput extends WorkflowPayload {
+  /** One delivery. A receiver makes one object for a request id and returns that same object when the id arrives again (a retry
+   * after a crash or a lost race). The entry point that makes the delivery gives it, never a drafter or a model; who delivered is
+   * read from the trusted call context (`caller.audience`), never from this input. 1 to 160 characters. */
+  readonly request_id: string;
 }
 
 const text = { type: "string" };
@@ -41,11 +40,13 @@ const nullableText = { type: ["string", "null"] };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema =>
   ({ type: "object", properties, required, additionalProperties: false });
 const item = object({ plugin: { type: "string", pattern: "^[a-z][a-z0-9-]{1,40}$" }, item_id: { type: "string", minLength: 1 }, title: text });
-const payload = object({ title: text, body: text, url: nullableText, source: nullableText, feed_item_id: nullableText }, ["title", "body"]);
+const requestId = { type: "string", minLength: 1, maxLength: 160 };
+const payloadProperties = { title: text, body: text, url: nullableText, source: nullableText, feed_item_id: nullableText };
+const payload = object(payloadProperties, ["title", "body"]);
 export const WORKFLOW_CONTENT_SCHEMAS = {
   list: { input: object({}), output: { type: "array", items: object({ item_id: { type: "string", minLength: 1 }, title: text, caption: text, at: nullableText }) } },
   read: { input: object({ item_id: { type: "string", minLength: 1 } }), output: payload },
-  receive: { input: object({ payload, context: object({ instance_id: { type: "string", minLength: 1 }, step: { type: "integer", minimum: 0 }, title: text }, ["instance_id", "step"]) }), output: item },
+  receive: { input: object({ ...payloadProperties, request_id: requestId }, ["title", "body", "request_id"]), output: item },
   create: { input: object({ title: text }), output: item },
 } as const;
 
@@ -62,6 +63,35 @@ interface WorkflowStationSpec { id: string; title: string; icon: string; create?
   /** `concurrent` for a station whose receive waits for a model (the next-step judgment) after saving: it then runs beside the project's queue. */
   receive_scheduling?: "concurrent" }
 
+const ROLE_TITLE = { list: "可交接内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" } as const;
+const ROLE_SUMMARY = { list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" } as const;
+const isQueryRole = (role: WorkflowContentRole) => role === "read" || role === "list";
+
+/** What a role takes and returns is named by its own version; what it returns stays at `output.v1` until a role changes it. */
+function roleTypes(role: WorkflowContentRole) {
+  return { input_type: `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}`, output_type: `molis.workflow.content.${role}.output.v1` };
+}
+
+function roleStation(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): WorkflowContentStation {
+  return { id: station.id, title: station.title, icon: station.icon, role, protocol: 1, ...(station.receive === false ? { receives: false as const } : {}) };
+}
+
+/** One role of one station, at the role's current version. Every station gets its roles from here, so a version moves for all of them at once. */
+function defineRole<I, O>(station: WorkflowStationSpec & { receive?: boolean }, role: WorkflowContentRole): ActionDefinition<I, O> {
+  const query = isQueryRole(role);
+  return {
+    capability_id: `${station.id}.content.${role}`, version: WORKFLOW_CONTENT_VERSIONS[role], operation: query ? "query" : "command",
+    action: { title: `${station.title} · ${ROLE_TITLE[role]}`, description: `按工作流内容合同${ROLE_SUMMARY[role]}`,
+      kind: query ? "query" : "operation", scope: "project",
+      ...(role === "receive" && station.receive_scheduling ? { scheduling: station.receive_scheduling } : {}),
+      audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.subject_kind],
+      permissions: query ? station.read_permissions : station.write_permissions,
+      input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,
+      ...roleTypes(role), workflow_content: roleStation(station, role),
+    },
+  };
+}
+
 /**
  * A plugin declares the protocol once; all consumers use these very definitions. `subject_kind` names the kind of object
  * the station's content is, the kind its subject reader reads back (`tests/workflow-station-kinds.test.ts`); a station id
@@ -71,22 +101,9 @@ interface WorkflowStationSpec { id: string; title: string; icon: string; create?
 export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive: false }): WorkflowSourceContentActions;
 export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive?: true }): WorkflowContentActions;
 export function defineWorkflowContentActions(station: WorkflowStationSpec & { receive?: boolean }): WorkflowContentActions | WorkflowSourceContentActions {
-  const define = <I, O>(role: WorkflowContentRole): ActionDefinition<I, O> => ({
-    capability_id: `${station.id}.content.${role}`, version: 1,
-    operation: role === "read" || role === "list" ? "query" : "command",
-    action: { title: `${station.title} · ${{ list: "可交接内容", read: "读取内容", receive: "接收内容", create: "新建空白内容" }[role]}`,
-      description: `按工作流内容合同${{ list: "列出全部可选内容", read: "读取现有内容", receive: "写入交接内容", create: "创建空白内容" }[role]}`,
-      kind: role === "read" || role === "list" ? "query" : "operation", scope: "project",
-      ...(role === "receive" && station.receive_scheduling ? { scheduling: station.receive_scheduling } : {}),
-      audiences: ["user", "agent", "workflow", "mcp"], subject_kinds: [station.subject_kind],
-      permissions: role === "read" || role === "list" ? station.read_permissions : station.write_permissions,
-      input_schema: WORKFLOW_CONTENT_SCHEMAS[role].input, output_schema: WORKFLOW_CONTENT_SCHEMAS[role].output,
-      input_type: `molis.workflow.content.${role}.input.v1`, output_type: `molis.workflow.content.${role}.output.v1`,
-      workflow_content: { id: station.id, title: station.title, icon: station.icon, role, protocol: 1, ...(station.receive === false ? { receives: false as const } : {}) },
-    },
-  });
-  return { list: define("list"), read: define("read"), ...(station.receive === false ? {} : { receive: define<WorkflowReceiveInput, WorkflowItemRef>("receive") }),
-    ...(station.create ? { create: define<{ title: string }, WorkflowItemRef>("create") } : {}) };
+  return { list: defineRole(station, "list"), read: defineRole(station, "read"),
+    ...(station.receive === false ? {} : { receive: defineRole<WorkflowReceiveInput, WorkflowItemRef>(station, "receive") }),
+    ...(station.create ? { create: defineRole<{ title: string }, WorkflowItemRef>(station, "create") } : {}) };
 }
 
 export interface WorkflowContentHandlers {

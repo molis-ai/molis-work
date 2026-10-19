@@ -577,12 +577,12 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 
 实现边界：Images 在自己的 `src/messages.ts` 声明中英并排的稳定键，在现有 `BUILTIN_PLUGIN_CATALOG` 条目登记；Workbench 按页面语言派生词典，服务端与浏览器沿用同一调用接口。现有其他主人的中文键继续按现行入口查找，保留仍被使用的 Images 中文条目，删除无人使用的旧条目。稳定键不另建中心 import 清单、不加新的公开 SDK/Manifest 合同。英文以迁移前实际 `EN` 的结果为准，中文与交互保持不变。Images 的生成、连接、任务、持久化与授权，以及 W5-01 Runtime 迁移均不在本片改动范围内；#661 未改动这两份 UI/客户端源文件。
 
-验收与证据：
+#### 验收与证据（RAC-56～60）
 - **RAC-56**：插件的两条翻译路径使用主人稳定键，键在主人词典中只定义一次、中英完整；保留其他消费者实际需要的中文条目，迁移前后同语言可见文字相同。由 `tests/i18n.test.ts` 的实际服务词典/Images 渲染断言及现有翻译扫描证明。
 - **RAC-57**：服务端请求交错时语言隔离，浏览器收到当前语言的稳定键表，中文、英文和参数替换均正确，现有中文键调用正常；由 `tests/i18n.test.ts` 运行真实脚本与公开 Host 入口证明。
 - **RAC-58**：真实浏览器中的 Images 空态、服务管理、提交与生成结果在中英两种语言均不显示稳定键，受控 provider 的原有调用次数、图片字节及授权失败路径保持；由 `tests/images-actions.e2e.test.ts` 与 `tests/content-context-regressions.e2e.test.ts` 证明。
 - **RAC-59**：给现有翻译检查补上“稳定词典实际登记到目录”的拒绝条件，断开登记时明确失败，且不放宽已有规则。该门禁改动已于 2026-10-17 经用户弹窗批准，按可审补丁落实；`tests/translation-check.test.ts` 的变异场景证明。
-- **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。
+- **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 定向用例：两包 README 必跑列表在该提交上全部通过，其中证明本片行为的是 RAC-56～59 的用例（`tests/i18n.test.ts`、`tests/images-actions.e2e.test.ts`、`tests/content-context-regressions.e2e.test.ts`、`tests/translation-check.test.ts`）；② 静态资源逐项实测：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源（含 `images.js`）等于已提交的预算、没有未登记的新资源；③ [人工] 内联翻译脚本：资源门禁不量页内 `<script>`（`scripts/gates/page-assets.mjs` 开头写明），2026-10-17 的实测数字记在下面的本地证据里，那次增长经用户弹窗批准；④ [人工] 整体构建、对 merge-base 的 health 与资源只降、boundary：没有测试证明「在这个提交上通过」，看该提交 CI 作业记录；⑤ [人工] 共享运行时的完整回归交统筹 CI。
 
 验证命令：`pnpm build`、`pnpm workspace:build`（机器 build 槽位串行）；`node scripts/run-tests.mjs` 加上述测试与两包 README 的必跑列表（浏览器走 browser 槽位）；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main`。2026-10-17 本地证据：整体构建及 workspace 构建通过；翻译 2 文件 73 项、两包必跑 24 文件 185 项、真实浏览器 2 文件 6 项、门禁集成 2 文件 136 项全部通过（合计 30 文件 400 项）。85 条英文逐条与迁移前实际 EN 比较相同；中英桌面/窄屏生成返回的 provider 次数与图片字节通过。health 对 merge-base `4726820a8` 与 boundary 通过。Images 静态脚本 22,546→21,978 B（−568 B），预算随实测下调；内联翻译脚本中文 952→5,920 B（+4,968 B）、英文 683,136→681,991 B（−1,145 B）。RAC-56/57/58 已验证。2026-10-17 用户分别批准“允许新增检查”和“允许这项内联增长”：登记检查仅增加拒绝、不放宽已有规则；中文内联增长限于上述 +4,968 B，其他静态预算不增长。RAC-59 已按获准补丁落实并验证：未登记、只有 import、无关对象与错误字段四种场景均拒绝；两种 `--update` 写过基线后仍拒绝；导入别名通过；断开真实 Images 目录登记也被发现。登记识别按导出名字、不解析模块路径，边界与现有英文词典检查一致。RAC-60 的本地构建与门禁已通过，最终集成与 CI 仍待。未宣称整个 W5-03 完成。
 
@@ -694,6 +694,8 @@ W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保
 
 Manifest 声明现有各 HTTP 行为，客户端和仓库消费者一并改用完整插件 id 路径；删除旧原生路由、Host 动作/模型/目录适配和构建期舞台，保留目录元数据、样式与客户端。跨项目看到同一库，带项目的路由继续受 S-31 约束。工作台样式及交互结构保持；若资源实测增长，按具体差值再提批准，不预先提高预算。
 
+#### 验收（RAC-37～44）
+
 | 编号 | 验收 | 验证 |
 | --- | --- | --- |
 | RAC-37 | 显式体积上限按用户决定；缺省不变，超过声明一字节在执行动作前拒绝，原 32 MB 批次可上传 | SDK 声明用例、真实 Home/项目 HTTP 请求体拒绝；安全表 S-03 |
@@ -703,7 +705,7 @@ Manifest 声明现有各 HTTP 行为，客户端和仓库消费者一并改用�
 | RAC-41 | 固定来源版本、导入与采纳幂等、预览冲突/过期和源文件不改；目录权限失效后无预览 | Cognia store/ai、内容授权、真实目录与 Runtime 中断测试 |
 | RAC-42 | 生成预览草稿、明确采纳、有效引用、指令覆盖、180 秒模型选项保持；取消/失败/停用/撤权无晚到草稿，恢复及重开正常 | Cognia AI/Prologue 与延迟模型交错，重开库检查 |
 | RAC-43 | 桌面/窄屏真实导入、阅读、生成审阅采纳与模型停用/恢复可操作，现有显示名保持 | Cognia 浏览器、model-ready、content-context 用例 |
-| RAC-44 | 仅公共合同接入；库版本与形状未变、旧宿主接线删除；API/动作快照与资源/健康/包边界通过 | 整体 build、workspace build、api/actions 更新、boundary、merge-base health/page-assets、包 README 定向回归；全量由统筹排 CI |
+| RAC-44 | 仅公共合同接入；库版本与形状未变、旧宿主接线删除；API/动作快照与资源/健康/包边界通过 | 分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 只经公共合同接入、旧宿主接线删除：`tests/builtin-plugin-assembly-gate.test.ts` 的「RAC-44: the Host keeps no Cognia wiring of its own…」（目录条目是 Home Runtime 声明；宿主源码没有以 Cognia 命名的文件、不为它注册 provider、不 import 它的包）与紧接的「Home Runtime declarations resolve shipped factories and start once…」（真实 Home 监督器按出厂工厂只启动一次）；项目旧路径 404 见 RAC-40（`tests/cognia-http.test.ts`）；② 库版本与形状：`tests/home-store-baselines.test.ts` 的 cognia 行（版本 1，逐表等于真实 Home 取下的结构）与「RAC-44: the cognia library is the one Cognia's Home Runtime declares…」（被比对的正是 Cognia 的 Home Runtime 声明的那份库）；③ 动作快照：`tests/action-contract-snapshot.test.ts` 的「the committed snapshot is what the built-in Manifests and the Host's action directory generate」；④ 资源：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源（含 `cognia.js`）等于已提交的预算、没有未登记的新资源；⑤ [人工] 公开 API 快照、对 merge-base 的 health 与资源只降、包边界、整体与 workspace 构建：没有测试证明「在这个提交上通过」，看该提交 CI 的 Verify 与 page-assets 作业记录；全量由统筹排 CI |
 
 范围边界：平台片只改 contracts/plugin-sdk/plugin-runtime/local-host 的共同能力及对应测试/手册；插件片改 Cognia 包、目录/路由装配和已有消费者。安全上限已获用户批准，平台前置与插件片按依赖顺序实施。两片保持独立提交，在本线空出在途名额且前序合入后才推送/开 PR；不以本地工程通过代替最终产物与人工验收。
 
@@ -747,6 +749,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 修改边界：contracts、Kernel 的授权捕获、Runtime 的一次执行与两个 Host 执行器、HTTP/MCP 与绑定客户端的授权组合、既有 S-18 和开发手册。公共 API 快照随新可选字段更新；当前业务动作 schema、库版本、页面资源上限与安全上限不变。#661 仍仅作为后续连接合同依赖；本片不改其连接实现。共享安全文档与 #675/#681 逐块合并，保留 main S-32/S-33，材料服务用 S-34；本片自身不新占编号。
 
+#### 验收（RAC-50～55）
+
 | 编号 | 验收 | 验证 |
 | --- | --- | --- |
 | RAC-50 | 只有本安装正在执行且声明后台结果的并发 command 可受理；没有父授权不能变成插件自身权限 | 真实 Kernel/Runtime 拒绝用例，含启动/路由/过期/外来安装/嵌套调用 |
@@ -754,7 +758,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | RAC-52 | 原 MCP 授权撤销、安装撤权/停用/替换、Host 关闭、显式取消均停止等待；迟到成功与失败不写记录或文件 | 实际授权文件/Runtime 生命周期交错，未配合取消的提供方与同步尾检 |
 | RAC-53 | 后台模型调用保留原身份、项目、声明权限与注册；结束后的模型进度、控制与进一步后台启动拒绝 | 实际 Host 模型端口、原调用结束及后台结束边界 |
 | RAC-54 | 执行器撤销先于插件清理；重启不复活旧工作；无计时器/未处理拒绝残留 | 两执行器公开生命周期、关闭与新实例恢复；包要求与安全回归 |
-| RAC-55 | API、包边界、merge-base health/资源检查及适用回归通过；全量交统筹 CI | 整体 build、api:update、相关 Kernel/Runtime/Host 用例和现有合同回放 |
+| RAC-55 | API、包边界、merge-base health/资源检查及适用回归通过；全量交统筹 CI | 分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 适用回归：RAC-50～54 的用例全部通过（主要是 `tests/action-background-authority.test.ts`，另有 `tests/security-invariants-plugin-background.test.ts`、`tests/plugin-model-service.test.ts`、`tests/runtime-plugin-http-discovery.test.ts`）；② 现有合同回放：`tests/action-contract-snapshot.test.ts` 的「the committed snapshot is what the built-in Manifests and the Host's action directory generate」；③ 资源：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源等于已提交的预算、没有未登记的新资源（本片不改页面）；④ [人工] 公开 API 快照（contracts 新增的可选字段 `retain_background_authority`）、包边界、对 merge-base 的 health 与资源只降、整体构建：没有测试证明「在这个提交上通过」，看该提交 CI 的 Verify 与 page-assets 作业记录；⑤ [人工] 共享核心全量交统筹 CI |
 
 项目 HTTP 的正向用例暴露既有授权缺口：`coding-surface` 未传路由分发器要求的 `granted`，因此带 `permission` 的路由即使安装已授权也返回 403，尚未进入动作。本片让可信本地 HTTP 入口读取目标安装的现行 grants，保持分发器的权限断言；RAC-51/52 同时验证授权时能受理、撤销该权限后进入处理器之前拒绝，不从请求体补权限。
 

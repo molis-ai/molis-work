@@ -213,6 +213,7 @@ tests/goal-momentum.test.ts
 tests/goal-tree-event-flow.test.ts
 
 # goals
+tests/goals-client-request.test.ts
 tests/goals-command-module.test.ts
 tests/goals-context-ui.test.ts
 tests/goals-dialogs-ui.test.ts
@@ -337,6 +338,7 @@ tests/session-tui-capture.test.ts
 # Other areas
 tests/alchemist-actions.test.ts
 tests/alchemist-plugin.test.ts
+tests/alchemist-pulse-close.test.ts
 tests/alchemist-runtime.test.ts
 tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts

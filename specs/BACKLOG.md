@@ -73,6 +73,7 @@
 | BL-103 | 中文对话里，助理的过程文字夹英文句子（「I'll open the page in the sidebar browser.」），结尾还提到会话标识前缀和 `applied: false` | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 模型行为；与 BL-091 同类 | BL-091 | 低 | 未分配 |
 | BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
 | BL-165 | 设计/无障碍内容包：把 design 角色包的 accessibility-review（WCAG 2.1 AA）、design-critique、design-handoff、design-system、ux-copy 做成可安装的技能包，供个人助理、Coding 的 UI 任务与 Pages 使用；不新增平台能力，走 [skill-packs](skill-packs/spec.md) | [Anthropic 评估 §9 N10](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有技能包格式与注册表；内容由设计线提供 | skill-packs | 低 | 未分配 |
+| BL-246 | Coding 问卷卡收下回答后的回执只在页面上留一瞬（宿主收下回答就撤题，页面随后马上重读、撤卡），读屏读不读得完整未验证；要不要让回执多留一次重读，由真机读屏的结果（BL-016）决定 | [ai-interaction-experience AC-10-8](ai-interaction-experience/spec.md) | 已知缺口 | 要真机读屏的结果（BL-016 的 VoiceOver 验收）才能定；读不完整时，改成已答的卡在清理时多留一轮，并在用例里断言重读之后回执还在 | BL-016 | 低 | 交互线 |
 
 ## 4. 搜索、放置与工作流
 

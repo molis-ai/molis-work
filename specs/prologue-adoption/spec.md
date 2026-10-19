@@ -1206,7 +1206,7 @@ Molis 这边：
 
 §6.0e「未验证」第 3 条：助理网关的 `read-capability`、`change-capability`、`change-reversible`、`suggest-action` 共用一份参数，`input` 六种 JSON 类型都收，能力真正的形状只在 `find-capabilities` 的结果文字里。和 `board-wait` 的 `params` 是同一类设计问题。方案经统筹排期、用户弹窗批准上游与评测（2026-10-16）。
 
-- **做法**：工具个数、名字、调用形状都不变（BL-145：助理主轮正好 20 个，再多一个就整批延后）。这一轮找到的能力，下一次请求起在这几个工具的 `input` 上各有一支：标题是 `<capability_id>@<version>`，说明是「提供方 · 名称」，内容是目录里那份 `input_schema`；登记时那份通用的仍是其中一支。读的只在 `read-capability`，改的在 `change-capability`（可撤销的也在 `change-reversible`），`suggest-action` 两种都有。没有 `operate` 的角色不在改的工具上带。
+- **做法**：工具个数、名字、调用形状都不变（工具一多就整批延后；助理带侧栏的一轮现在 21 个，已经延后，评测见 `specs/ai-development-handbook/spec.md` §9.5 BL-145）。这一轮找到的能力，下一次请求起在这几个工具的 `input` 上各有一支：标题是 `<capability_id>@<version>`，说明是「提供方 · 名称」，内容是目录里那份 `input_schema`；登记时那份通用的仍是其中一支。读的只在 `read-capability`，改的在 `change-capability`（可撤销的也在 `change-reversible`），`suggest-action` 两种都有。没有 `operate` 的角色不在改的工具上带。
 - **上游**：[Prologue #31](https://github.com/molis-ai/prologue/pull/31)，会话给自己包里的工具参数加分支（`sessions.open` 的 `parameterBranches`，每次组请求时现问）。目录一个名字只登记一份形状，网关是一个固定的包，所以 Molis 自己做不到。Tool 那道门照旧按登记核，分支不放宽也不收紧能调什么。
 - **Molis**：`horizontal/agent-host/src/adapters/prologue-gateway-declared.ts` 记下 `find-capabilities` 找到的、现在用得了的能力，按效果分给各工具；两份参数（`CAPABILITY_PARAMETERS`、`SUGGEST_PARAMETERS`）也搬到这里，`prologueActionGateway` 因此短了 11 行。`prologue-run.ts` 开会话时把回调交给 SDK。
 - **上限**：每个工具最多 12 支，一支最多 8 KiB，一次请求所有分支合计最多 24 KiB；超出就从最早找到的去掉。依据：内置 479 个给 Agent 的动作，`input_schema` 的 p50 182 字节、p90 626、p99 2.3 KB、最大 5.3 KB（`goals.tree.submit@1`）、合计 155 KB，所以只能声明找过的。超出的照样调得动，`find-capabilities` 的结果里照样有它的 schema。

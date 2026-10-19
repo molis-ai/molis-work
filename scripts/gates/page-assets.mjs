@@ -235,13 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// A2-3 (specs/prologue-adoption §6.0p.12, PA-40–42): the after-write checkers in the project's workspaces settings. The
-// group list, the add/change form, move up, delete and the stale-version reread add 5,053 B to workbench.js: the page
-// program as TypeScript bundled with esbuild --minify (names shortened too; as a template string it was 6,212 B), and its
-// binding in the workspaces section. No shared DOM helper exists to reuse. Spent once, from exactly this start; later growth
-// stays frozen. Plugin tab groups' spent 1,115,299 → 1,129,869 (script) and 1,589,812 → 1,593,201 (sheet) starts are refused.
+// Reviewed 2026-10-19: receipts review fixes (#778, specs/ai-input-receipts): a step the person holds says so, and the
+// mark of what AI noted is one whole English sentence per holder, written once rather than per round, with both wordings
+// in the shared RECEIPT_WORDS table (first version +292 B). That adds 195 B to workbench.js, spent once from exactly
+// this start; later growth stays frozen. Plugin tab groups' spent starts (workbench.js 1,115,299, workbench.css 1,589,812)
+// are refused, like every spent start before them.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129841, 1134894],
+  "/assets/molis-work-workbench.js": [1129841, 1130036],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

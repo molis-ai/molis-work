@@ -22,7 +22,7 @@ function page(reply: (path: string, body: Record<string, unknown>) => Promise<un
   // The receipt itself is the design system's shared one (tests/input-receipts-client.test.ts); here it is a stand-in that
   // keeps one element per turn, as the shared one does.
   const made = new Map<string, Node>(), trays: unknown[][] = [], owners: Node[] = [], tray = new Node("details", "mw-receipt mw-tray");
-  // 「当前约定」 as the shared receipt would make it: what it is asked for, and a block whose words are those runs.
+  // 「AI 记下的约定」 as the shared receipt would make it: what it is asked for, and a block whose words are those runs.
   const asked: unknown[][] = [], pacts: Array<[Node | null, string]> = [];
   const agreements = (owner: Node, runs: string[]) => (asked.push([owner, runs]), runs.length ? Object.assign(new Node("div"), { textContent: runs.join(" "), querySelectorAll: () => runs }) : null);
   const shared = { agreements, tray: (owner: Node, queued: unknown, round: object, act?: Act) => (trays.push([owner, queued, round, act]), Array.isArray(queued) && !queued.length ? null : tray), line: (owner: Node, turn: { turn_id: string; kind: string; steer?: { state: string } }, _round: object, act?: Act) =>
@@ -126,7 +126,7 @@ test("RCPT-335, 3b-2c: after the rounds the Assistant places the shared tray of 
   assert.deepEqual(JSON.parse(JSON.stringify(calls)), [["/works/work%201/control", "POST", { kind: "withdraw", run_id: "run-2", input_id: "q-1" }]], "RCPT-335 the work's own control");
 });
 
-test("RCPT-360, 3e-1: after the rounds the Assistant puts 当前约定 in its side block, from the thread's receipts of the rounds it shows, redrawn only when it reads differently", () => {
+test("RCPT-360, 3e-1: after the rounds the Assistant puts AI 记下的约定 in its side block, from the thread's receipts of the rounds it shows, redrawn only when it reads differently", () => {
   const { ui, thread, put, asked, pacts } = page();
   const rounds = [{ run_id: "run-1", phase: "completed" }, { run_id: "run-2", phase: "running" }];
   ui.after(thread, put, { rounds });

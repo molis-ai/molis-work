@@ -235,15 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// User approved 2026-10-19: plugin tab groups (specs/plugin-tab-groups): a plugin's page becomes its tab and its tabs a coloured group.
-// The tab rules, the group client, the drag slot that opens and closes by width, the split-pane ⌘-click handoff and the
-// screen-reader text add 14,570 B to workbench.js and the group styles 3,389 B to workbench.css, after
-// the location chip, its drag path and its per-plugin tints were removed (−4,260 B on each stylesheet). Each increase is
-// spent once, from exactly these starts; later growth stays frozen. W5-01's spent 1,113,068 → 1,115,299 start and the
-// Alchemist continuation's spent 50,619 → 52,373 are refused.
+// Reviewed 2026-10-19: receipts review fixes (#778, specs/ai-input-receipts): a step the person holds says so, and the
+// mark of what AI noted is one whole English sentence per holder, written once rather than per round, with both wordings
+// in the shared RECEIPT_WORDS table (first version +292 B). That adds 195 B to workbench.js, spent once from exactly
+// this start; later growth stays frozen. Plugin tab groups' spent starts (workbench.js 1,115,299, workbench.css 1,589,812)
+// are refused, like every spent start before them.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1115299, 1129869],
-  "/assets/molis-work-workbench.css": [1589812, 1593201],
+  "/assets/molis-work-workbench.js": [1129841, 1130036],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

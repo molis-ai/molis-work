@@ -200,7 +200,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     decisions,
   });
   const startLensRun = createStartLensRunService({ database, clock, idFactory, jobs, research });
-  const cancelLensRun = createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) });
   const startPulseRun = createStartPulseRunService({
     database,
     pulse,
@@ -209,7 +208,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     clock,
     workspaceId: "workspace-local",
   });
-  const cancelPulseRun = createCancelPulseRunService({ database, jobs, pulse, now: clock.now, onCancel: id => worker.cancel(id) });
   const opportunityActions = createOpportunityActions({
     database,
     workspaceId: "workspace-local",
@@ -267,11 +265,11 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     listRuntimeModels: () => runtimeSettings.listModels(),
     createResearchPlan,
     startLensRun,
-    cancelLensRun,
+    cancelLensRun: createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) }),
     getResearchWorkspace,
     decisionWorkspace,
     startPulseRun,
-    cancelPulseRun,
+    cancelPulseRun: createCancelPulseRunService({ database, jobs, pulse, now: clock.now, onCancel: id => worker.cancel(id) }),
     opportunityActions,
     calibrationMemory,
     runtimeSettings,

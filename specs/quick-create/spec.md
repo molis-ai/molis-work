@@ -194,7 +194,7 @@ interface ItemIntake {
 
 ## 11. W4-6 与 BL-174 计划（2026-10-19）
 
-状态：计划，未实施。这一节由情境线 ⑧ 的规划会话写，对照的是 origin/main `ebad9a223` 的代码。W4-2 的代码（分支 `context/w4-2-create-entries`，写这一节时还没提交）只读过，没有改。实施之前，要先请统筹（①）回答 11.9 的两个问题。
+状态：W4-6a 实施中（分支 `context/w4-6a-receive-v2`，2026-10-19）；W4-6b 与 BL-174 仍是计划，未实施。这一节由情境线 ⑧ 的规划会话写，对照的是 origin/main `ebad9a223` 的代码。11.9 的两个问题已由用户在 2026-10-19 回答，答复记在 11.9。
 
 ### 11.1 三片与顺序
 
@@ -236,9 +236,9 @@ W4-6b 排在 BL-174 后面的理由：Inbox 不声明 `fits`。有了 BL-174，�
 - 放置的「转成」每次都按当前目录找 `receive`（`horizontal/placement/src/index.ts:361-364`），不固定版本。
 - 创作台生成的插件调不到 `receive`：它的受众里没有 `plugin`，所以创作台的目录（`apps/local-host/src/plugin-builder/catalog.ts:60-90`）不把它开放给插件，理由写「提供方没有开放给插件」（:86）。
 
-**还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，见 11.9 问题 2。
+**还会跟着变的东西：MCP 工具名带版本号。** 工具名是 `<capability_id>__v<version>`（`apps/mcp/src/action-tools.ts:8-21`），所以八个 `…content.receive__v1` 会变成 `__v2`。按 CONTRACT-CHANGES §3.5 这是产品决定，已定，见 11.9 第 2 条。
 
-**只能看真实 Home 才知道的**：真实 Home 里有没有用到这八个站的已存流程或运行中的实例。见 11.9 问题 1，本会话没有去看。
+**只能看真实 Home 才知道的**：真实 Home 里有没有用到这八个站的已存流程或运行中的实例。已定，见 11.9 第 1 条：由用户自己在编辑器里修。
 
 **一个已知的边角情况**：升级前发出、Feed 已经收下、但工作流崩溃没记上的那一次交接，升级后重试会在 Feed 里多出一条。原因是 Feed 的 `externalId` 从 `<实例>:<步骤>`（`plugins/native/feed/src/content-actions.ts:29-43`）变成了请求号 `workflow:<实例>:<步骤>`。另外六个站本来就用 `workflow:<实例>:<步骤>`，工作流继续发同一个值，所以不受影响；Inbox 自己不存键，跟着 Feed 走。不为这种情况写兼容。
 
@@ -310,7 +310,7 @@ interface WorkflowReceiveInput {          // molis.workflow.content.receive.inpu
    - `docs/system/CALL-CHAINS.md:162` 写明 Feed 的两个来源由受众决定。
    - 本文 §2 第 2 条是当时的现状，不改。
    - `skills/molis-plugin-dev/generated-design.md:21` 推荐生成插件调用 `feed.content.receive`，可这个动作不开放给插件。这是已有的问题，不在本片修，记为后续。
-7. **存量数据**：PR 里不带任何迁移代码，处理办法见 11.9 问题 1。
+7. **存量数据**：PR 里不带任何迁移代码，处理办法见 11.9 第 1 条：用户自己在编辑器里修。
 
 ### 11.5 W4-6b：内容站派生创建入口与「放进 Inbox」
 
@@ -500,15 +500,15 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 - **#779**（PPT 收尾）删宿主里的 PPT 端口，不碰 `plugins/native/ppt/src/content-actions.ts`。
 - **#768**（Form）已经合入（`dd1398d24`），不算冲突。
 
-### 11.9 要统筹（①）回答的问题
+### 11.9 已定的两件事（用户 2026-10-19 答复）
 
-1. **真实 Home 里有没有固定了 `receive@1` 的流程或运行中的实例？**（会挡住 W4-6a 合入后在真实 Home 上的使用。）本会话没有去看。
-   - 开发用的 Home：用放在会话临时目录的一次性脚本，把 `workflows.chain_json` 与 `instances.chain_json` 里八个站的 `actions.receive.version` 从 1 改成 2。调用时的输入形状由工作流当场拼，所以改引用不会改变语义。
-   - 真实 Home：如果有这样的数据，在两条路里选一条：
-     - (a) 只有已存流程、没有运行中的实例：用户在编辑器里把站点拿掉再加回来，也就是 action-architecture §3 说的「显式修复」；
-     - (b) 有运行中的实例：只能按 CONTRACT-CHANGES §3.4 做维护——整份备份，先在拷贝上演练，再改原库——要用户当次同意。
-   - 推荐：有运行中的实例就走 (b)，否则走 (a)。两条路都不在产品代码里加迁移机制，所以不用登记到 `specs/repository-anti-corruption`。
-2. **八个 MCP 工具改名，要用户同意。**（会挡住 W4-6a 合入。）`molis_work_v1_action_<站>.content.receive__v1` 会变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样。按 CONTRACT-CHANGES §3.5，外部在用的 MCP 工具名改动是产品决定：要先问用户，在 `specs/repository-anti-corruption/spec.md` §1 记一行，PR 里列出新旧名字。推荐：同意改名，不留别名（阶段一不留兼容）。
+W4-6a 合入之前原本要请统筹（①）回答两个问题；⑧ 在自己的会话里直接问了用户，答复如下，这里记为已定。
+
+1. **真实 Home 里固定了 `receive@1` 的已存流程与运行中的实例，由用户自己在编辑器里修**（用户 2026-10-19 定）：把站点拿掉再加回来，新引用固定 `receive@2`，也就是 action-architecture §3 说的「显式修复」。
+   - 产品里不写迁移代码，也不为开发用的 Home 写迁移脚本；W4-6a 的 PR 也不碰任何真实 Home 或真实数据。
+   - 修之前，这些流程与实例照现行规则报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何记录（`W4-6-04`）。
+   - 因为不加迁移机制，所以不用登记到 `specs/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
+2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
 
 ### 11.10 待补浏览器验证（用户 10-19 暂停）
 

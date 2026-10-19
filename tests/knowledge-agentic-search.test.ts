@@ -248,3 +248,28 @@ test("PMAT-39 every listed piece has a short ref, the same one wherever it is gi
   await assert.rejects(() => f.knowledge.read(asked, { subject: ref }), (error: unknown) => error instanceof ActionError && error.code === "knowledge.excluded");
   assert.throws(() => f.knowledge.named(f.access({ ...agent(), project_id: null }), [ref]), (error: unknown) => error instanceof ActionError && error.code === "knowledge.scope");
 });
+
+test("PMAT-40 a grep of one piece that stops before its last match says the line to go on from, and from_line goes on from there", async t => {
+  const f = await fixture(t);
+  const body = Array.from({ length: 75 }, (_, index) => `### 巡检 ${index + 1}｜成都太古里店\n得分 ${index === 74 ? 71 : 90}。`).join("\n");
+  f.pages.set("p1", { id: "p1", title: "巡检记录", body, version: 1 });
+  await f.indexAll();
+  const asked = f.access(agent()), ref = knowledgeRef({ kind: "page", id: "p1" });
+  const first = await f.knowledge.grep(asked, { pattern: "太古里", subjects: [ref], context_lines: 0 });
+  assert.deepEqual([first.matches.length, first.more, first.next_line, first.found[0]?.lines], [30, true, 60, 75], "30 of 75 matching lines, to line 59");
+  const second = await f.knowledge.grep(asked, { pattern: "太古里", subjects: [ref], context_lines: 0, limit: 100, from_line: first.next_line! });
+  assert.deepEqual([second.matches[0]?.line, second.matches.length, second.more, second.next_line, second.found[0]?.lines], [61, 45, false, null, 75]);
+  assert.match(second.matches.at(-1)!.text, /巡检 75/u, "the last record is reached");
+  // Where the round's fill stops it, the line to go on from is the first one not given.
+  const tight = await fixture(t, new RoundBudget(100));
+  tight.pages.set("p1", { id: "p1", title: "巡检记录", body, version: 1 });
+  await tight.indexAll();
+  const cut = await tight.knowledge.grep(tight.access(agent("r1")), { pattern: "太古里", subjects: [ref], context_lines: 0 });
+  assert.ok(cut.more && cut.matches.length > 0 && cut.matches.length < 30);
+  assert.equal(cut.next_line, cut.matches.at(-1)!.line + 2);
+  // from_line is a line of the one piece named; several pieces, a glob or the whole project have no one line to go on from.
+  for (const input of [{ subjects: [ref, { kind: "goal", id: "g1" }] }, {}, { subjects: [ref], glob: "**/*.md" }])
+    await assert.rejects(() => f.knowledge.grep(asked, { pattern: "太古里", from_line: 3, ...input }), (error: unknown) => error instanceof ActionError && error.code === "knowledge.invalid");
+  const several = await f.knowledge.grep(asked, { pattern: "太古里", subjects: [ref, { kind: "goal", id: "g1" }], context_lines: 0 });
+  assert.deepEqual([several.more, several.next_line], [true, null]);
+});

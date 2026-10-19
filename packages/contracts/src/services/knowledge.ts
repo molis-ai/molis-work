@@ -179,9 +179,9 @@ export interface KnowledgeReadResponse {
  * that `glob` matches (in `workspace_id`, or every linked folder), or both; with neither, in the pieces of the project's catalog
  * whose indexed text holds a wording, and the long pieces the index holds only the start of, so a wording past it is still found
  * (`catalog`; at most `KNOWLEDGE_GREP_MAX_SUBJECTS` pieces, `more` when some were left). `output: "subjects"` gives only which
- * pieces match and how many lines, no text.
+ * pieces match and how many lines, no text. `from_line` goes on from that line of the one piece named, as `next_line` gives it.
  */
-export interface KnowledgeGrepRequest { pattern: string; alternatives?: string[]; subjects?: KnowledgePieceName[]; glob?: string; workspace_id?: string; context_lines?: number; limit?: number; output?: "lines" | "subjects" }
+export interface KnowledgeGrepRequest { pattern: string; alternatives?: string[]; subjects?: KnowledgePieceName[]; glob?: string; workspace_id?: string; context_lines?: number; limit?: number; output?: "lines" | "subjects"; from_line?: number }
 export interface KnowledgeGrepMatch { subject: ActionSubject; ref: string | null; revision: string; line: number; text: string; before: string[]; after: string[] }
 /** A piece that has matching lines, and how many; most first. */
 export interface KnowledgeGrepFound { subject: ActionSubject; ref: string | null; revision: string; title: string; lines: number }
@@ -193,6 +193,8 @@ export interface KnowledgeGrepResponse {
   catalog: boolean;
   /** True when `limit` stopped the scan (more lines match), or there were more files or catalog pieces than one call reads. */
   more: boolean;
+  /** When one piece was searched and more of its lines match than were given: the `from_line` that goes on from there. */
+  next_line: number | null;
   /** Pieces that could not be read for the caller, and why (gone, not allowed, no reader). */
   unread: Array<{ subject: ActionSubject; reason: string }>;
   /** As for `knowledge.read`: when it is 0, `more` may be true because this round has read its fill. */
@@ -380,17 +382,17 @@ export const knowledgeActions = {
       required: ["subject", "revision", "title", "layer", "text", "start", "end", "start_line", "end_line", "total_lines", "remaining", "owner_truncated", "round_chars_left"],
       additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
   grep: { capability_id: "knowledge.grep", version: 1, operation: "query", action: { ...metadata,
-    title: "在资料里逐行查找", description: "在资料现在的原文里逐行找一段文字（不分大小写，不是正则；alternatives 里的说法任何一个命中也算）。范围：点名的几份资料（subjects，每项写 ref 或 subject 对象）、工作目录里路径匹配 glob 的文件，都不给就在全项目的资料里找（索引里有这段文字的资料，加上索引只收了开头的长资料；一次最多 20 份，没查完时 more 为真）。默认返回命中的行号与前后几行，行号可交给 knowledge.read 的 line；output 为 subjects 时只给哪几份有、各几行，不返回原文、不占本轮额度，适合先缩小范围。读工作目录要有读取它的授权。",
+    title: "在资料里逐行查找", description: "在资料现在的原文里逐行找一段文字（不分大小写，不是正则；alternatives 里的说法任何一个命中也算）。范围：点名的几份资料（subjects，每项写 ref 或 subject 对象）、工作目录里路径匹配 glob 的文件，都不给就在全项目的资料里找（索引里有这段文字的资料，加上索引只收了开头的长资料；一次最多 20 份，没查完时 more 为真）。默认返回命中的行号与前后几行，行号可交给 knowledge.read 的 line；output 为 subjects 时只给哪几份有、各几行，不返回原文、不占本轮额度，适合先缩小范围。只查一份时命中比给出的多，next_line 不为空：把它填进 from_line、其余照旧再调一次，就从那一行接着找（from_line 只用于 subjects 只点名一份）。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: grepText, alternatives: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_ALTERNATIVES, items: grepText },
       subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_SUBJECTS, items: pieceName }, glob: globPattern, workspace_id: workspaceId,
-      context_lines: { type: "integer", minimum: 0, maximum: 3 }, limit: { type: "integer", minimum: 1, maximum: 100 }, output: { enum: ["lines", "subjects"] } },
-      required: ["pattern"], additionalProperties: false },
+      context_lines: { type: "integer", minimum: 0, maximum: 3 }, limit: { type: "integer", minimum: 1, maximum: 100 }, output: { enum: ["lines", "subjects"] },
+      from_line: { type: "integer", minimum: 1 } }, required: ["pattern"], additionalProperties: false },
     output_schema: { type: "object", properties: { matches: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, ref: nullableRef, revision: text, line: { type: "integer", minimum: 1 },
       text, before: lines, after: lines }, required: ["subject", "ref", "revision", "line", "text", "before", "after"], additionalProperties: false } },
       found: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, ref: nullableRef, revision: text, title: text, lines: { type: "integer", minimum: 1 } },
         required: ["subject", "ref", "revision", "title", "lines"], additionalProperties: false } }, searched: count, catalog: { type: "boolean" }, more: { type: "boolean" },
-      unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } },
-      round_chars_left: roundLeft }, required: ["matches", "found", "searched", "catalog", "more", "unread", "round_chars_left"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
+      next_line: { type: ["integer", "null"], minimum: 1 }, unread: { type: "array", items: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, reason: text }, required: ["subject", "reason"], additionalProperties: false } },
+      round_chars_left: roundLeft }, required: ["matches", "found", "searched", "catalog", "more", "next_line", "unread", "round_chars_left"], additionalProperties: false } } } as ActionDefinition<KnowledgeGrepRequest, KnowledgeGrepResponse>,
   glob: { capability_id: "knowledge.glob", version: 1, operation: "query", action: { ...metadata,
     title: "按路径找工作目录里的文件", description: "在项目已关联的工作目录里按路径模式找文件（* 不跨目录，** 跨目录，?，{a,b}），返回路径与可交给 knowledge.read、knowledge.grep 的对象；node_modules、.git、dist 等目录和以点开头的目录只在模式点名时才进去。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: globPattern, workspace_id: workspaceId, limit: { type: "integer", minimum: 1, maximum: KNOWLEDGE_GLOB_MAX_FILES } },

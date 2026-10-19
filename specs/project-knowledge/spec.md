@@ -187,7 +187,7 @@
 | `knowledge.search` | 查询文本、可选过滤（来源、类型）、条数 | 卡片列表（subject、版本、出处、命中层、关键词） | 按词召回卡片 |
 | `knowledge.outline` | subject | 分节树（节锚点、父节、层级、起始行、长度、每节一句摘要） | 决定读哪节 |
 | `knowledge.read` | subject，加节锚点（连同子节）、或起始行与行数、或字符位置，字数上限 | 原文段（标明这是原文）、起止行与总行数、实际读到的版本或指纹、还剩多少 | L2/L3；超上限分页 |
-| `knowledge.grep` | 文字（不分大小写、不是正则）与至多 4 个备选词；范围：点名的资料、工作区路径模式，都不给就是全项目；`output` 是行（默认）或只给哪几份 | 命中行与前后几行，或每份的命中行数；查过几份、哪几份读不到 | 精确查找；工作区文件主要靠它 |
+| `knowledge.grep` | 文字（不分大小写、不是正则）与至多 4 个备选词；范围：点名的资料、工作区路径模式，都不给就是全项目；`output` 是行（默认）或只给哪几份；只点名一份时可带 `from_line` 接着找 | 命中行与前后几行，或每份的命中行数；查过几份、哪几份读不到；只点名一份而没给完时的 `next_line` | 精确查找；工作区文件主要靠它 |
 | `knowledge.glob` | 路径模式 | 工作区文件路径列表 | 只在项目授权的工作区里 |
 | `knowledge.locate` | 问题、1–5 份资料（每份写 ref 或 subject） | 最可能有答案的节（subject、anchor、标题、起始行、理由），没整理的资料与读不到的说明 | 由项目的文字模型读分节树选节，不读原文（§6.4） |
 | `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude`、`knowledge.organize`、`knowledge.receipts` | 管理页用：列卡片与额度；看使用记录；改标题、简介、关键词或采用建议；设「不给 Agent 用」；重新整理（可确认超额） | 卡片记录、额度 | 只对本人（audience `user`），权限 `knowledge:manage`；不默认开放给 Agent |
@@ -320,6 +320,7 @@
 37. **PMAT-37** 个人助理一轮的工具都带参数格式（agent-host 的 `deferToolSchemasBeyond` 为 32），不需要先 find-tools（§6.4 第 3 条）。
 38. **PMAT-38** `knowledge.locate` 由项目的文字模型读至多 5 份资料的分节树，回节的 subject、anchor、标题、起始行与理由，不返回原文、不花原文额度、不留回执；被取消或撤权的调用不提交结果；没有文字模型时回 `knowledge.no_model`；调用者读不到的资料列为读不到，不交给模型（§6.4 第 4 条）。
 39. **PMAT-39** list、search、grep、locate 与每轮目录给出的每份资料都带 ref（同一份资料处处相同）；read、outline 的 subject 与 grep、locate 的 subjects 每项可写 ref 或 subject 对象；ref 大小写不论；查不到的 ref 回 `knowledge.unknown` 并说照抄；ref 不放宽任何读取：读不到的来源、不给 Agent 用的照旧拒绝，没有项目的调用者先被拒（§6.4 第 5 条）。
+40. **PMAT-40** `knowledge.grep` 只点名一份资料（不带 glob）而命中比给出的多时（被 limit 或本轮额度截住），返回 `next_line`，带上 `from_line` 再调一次就从那一行接着找，直到最后一处；每份的命中行数始终是全份的；点名几份、带 glob 或全项目查找时 `next_line` 为空，带 `from_line` 拒绝为 `knowledge.invalid`。
 
 ## 14. 进度与证据
 

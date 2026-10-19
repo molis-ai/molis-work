@@ -208,6 +208,7 @@ export interface KnowledgeGrepRequest {
     context_lines?: number;
     limit?: number;
     output?: "lines" | "subjects";
+    from_line?: number;
 }
 
 export interface KnowledgeGrepResponse {
@@ -216,6 +217,7 @@ export interface KnowledgeGrepResponse {
     searched: number;
     catalog: boolean;
     more: boolean;
+    next_line: number | null;
     unread: Array<{
         subject: ActionSubject;
         reason: string;

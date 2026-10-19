@@ -267,8 +267,9 @@ export class KnowledgeService {
     if (named.length > KNOWLEDGE_GREP_MAX_SUBJECTS) throw knowledgeErrors.invalid(`一次最多查 ${KNOWLEDGE_GREP_MAX_SUBJECTS} 份资料`);
     const patterns = [input.pattern, ...input.alternatives ?? []].map(pattern => pattern.trim()).filter(Boolean);
     if (!patterns.length || !input.pattern.trim()) throw knowledgeErrors.invalid("请给出要查找的文字");
-    const catalog = !named.length && !input.glob, lines = input.output !== "subjects";
-    const result: Omit<KnowledgeGrepResponse, "round_chars_left"> = { matches: [], found: [], searched: 0, catalog, more: false, unread: [] };
+    const catalog = !named.length && !input.glob, lines = input.output !== "subjects", single = named.length === 1 && !input.glob;
+    if (input.from_line !== undefined && !single) throw knowledgeErrors.invalid("from_line 只用于 subjects 只点名一份资料、不带 glob 时（照抄上次给的 next_line）");
+    const result: Omit<KnowledgeGrepResponse, "round_chars_left"> = { matches: [], found: [], searched: 0, catalog, more: false, next_line: null, unread: [] };
     const found = input.glob ? await this.workspace.glob(access, { pattern: input.glob, ...(input.workspace_id ? { workspace_id: input.workspace_id } : {}), limit: KNOWLEDGE_GREP_MAX_FILES }, knowledgeActions.grep, KNOWLEDGE_GREP_MAX_FILES) : null;
     if (found) {
       result.more = found.more;
@@ -287,17 +288,18 @@ export class KnowledgeService {
     read.forEach((outcome, index) => {
       if ("error" in outcome) { result.unread.push({ subject: subjects[index]!, reason: reasonOf(outcome.error) }); return; }
       result.searched += 1;
-      const { hits, more, count } = grepLines(outcome.context.content, patterns, input.context_lines ?? 1, lines ? Math.max(0, left) : 0);
+      const { hits, more, count } = grepLines(outcome.context.content, patterns, input.context_lines ?? 1, lines ? Math.max(0, left) : 0, input.from_line);
       if (count) result.found.push({ subject: outcome.context.subject, ref: knowledgeRef(outcome.context.subject, "allow"), revision: outcome.context.revision, title: outcome.context.title, lines: count });
       if (!lines) return;
       result.more ||= more;
       let taken = 0;
       for (const hit of hits) {
         const size = [hit.text, ...hit.before, ...hit.after].join("\n").length;
-        if (fill !== null && chars + size > fill) { result.more = true; break; }
+        if (fill !== null && chars + size > fill) { result.more = true; result.next_line = single ? hit.line : null; break; }
         chars += size; taken += size; left -= 1;
         result.matches.push({ subject: outcome.context.subject, ref: knowledgeRef(outcome.context.subject, "allow"), revision: outcome.context.revision, ...hit });
       }
+      if (single && more && result.next_line === null) result.next_line = (hits.at(-1)?.line ?? (input.from_line ?? 1) - 1) + 1;
       given.push({ context: outcome.context, via: "grep", chars: taken });
     });
     result.found.sort((a, b) => b.lines - a.lines);

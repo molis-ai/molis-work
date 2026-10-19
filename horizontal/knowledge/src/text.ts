@@ -98,19 +98,21 @@ const LINE_CHARS = 400;
 const clip = (line: string) => line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS)}…` : line;
 
 /**
- * Lines containing any of `patterns` (literal, ignoring case), with up to `around` lines before and after, at most `limit`;
- * `count` is every matching line, past the limit too.
+ * Lines from line `from` on containing any of `patterns` (literal, ignoring case), with up to `around` lines before and after,
+ * at most `limit`; `more` when lines from `from` on match past the limit. `count` is every matching line, before `from` too.
  */
-export function grepLines(content: string, patterns: readonly string[], around: number, limit: number): { hits: Array<{ line: number; text: string; before: string[]; after: string[] }>; more: boolean; count: number } {
+export function grepLines(content: string, patterns: readonly string[], around: number, limit: number, from = 1): { hits: Array<{ line: number; text: string; before: string[]; after: string[] }>; more: boolean; count: number } {
   const lines = content.split("\n"), needles = patterns.map(pattern => pattern.toLocaleLowerCase());
   const hits: Array<{ line: number; text: string; before: string[]; after: string[] }> = [];
-  let count = 0;
+  let count = 0, later = 0;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!.toLocaleLowerCase();
     if (!needles.some(needle => line.includes(needle))) continue;
     count += 1;
+    if (index + 1 < from) continue;
+    later += 1;
     if (hits.length === limit) continue;
     hits.push({ line: index + 1, text: clip(lines[index]!), before: lines.slice(Math.max(0, index - around), index).map(clip), after: lines.slice(index + 1, index + 1 + around).map(clip) });
   }
-  return { hits, more: count > hits.length, count };
+  return { hits, more: later > hits.length, count };
 }

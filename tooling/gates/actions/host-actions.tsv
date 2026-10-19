@@ -70,7 +70,7 @@ knowledge.card.edit	1	system.knowledge	command	operation	project	write	-	user	kn
 knowledge.card.exclude	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	d3f54c851bfe	-
 knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	1b098be587c9	-
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
-knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	5d6b6f9c7e08	5c4fe955297a	-
+knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-
 knowledge.locate	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	2a5016a73c94	c273aa268581	-
 knowledge.organize	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	7a78f5bbadf8	a38e109b5b03	-

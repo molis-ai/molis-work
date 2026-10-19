@@ -1650,7 +1650,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - Codex 验收计数：编号 8 条，已修 1 条（QA-001）。
   - **#804：** ⑤ 按 D25 把用户决定写进 quick-create §11.9 第 3 条、anti-corruption §1 那一行和 PR 正文，附了原话（7b20d36d0）。MCP 改名和已存流程两问的原答也补上了。① 已核对。仍不合，等 ⑧ 的维护计划和演练。
   - **④：** A2-2 的相关用例跑到 26/84，全过；跑完后开 PR 交 ⑤。
-- 13:08 UTC：
+- 13:03 UTC：
   - **D25 维护计划已审**，审查意见写在 `coord-shared/review/d25-plan-review-1019.md`。结论：方向对，按 R1～R6 改。⑧ 的会话不能写 `coord-shared/`，所以计划放在共享笔记目录 `d25-receive-v2-maintenance-plan.md`。
     - **R1：** 角色发布版不由脚本代 Characters 去写。产品的 `publish` 会按 agent-host 的实时目录，逐个核对全部 `action_tools` 的受众和可用性，离线做不到；而且由脚本直接写，等于在插件之外再开一条发布路。所以分两段：
       - A 段：授权、草稿、Functions 映射，Host 停着做，可以整库回滚；

@@ -20,7 +20,8 @@ connectors.cli.connect	1	system.connectors	command	operation	home	write	concurre
 connectors.cli.install	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
 connectors.cli.prepare	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	b2081d792103	a2c799262a3c	-
 connectors.connection.check	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	319b056c62cd	a2c799262a3c	-
-connectors.connection.control	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	7880a29ba600	a2c799262a3c	-
+connectors.connection.control	2	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	b459aab0bc5b	a2c799262a3c	-
+connectors.connection.remove	1	system.connectors	command	operation	home	irreversible	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	9c86452104b7	a2c799262a3c	-
 connectors.connections.read	1	system.connectors	query	query	home	read	-	agent,mcp,user	connectors:management:read	connector	-	-	df77d647cdc2	a2c799262a3c	-
 connectors.local.cleanup	1	system.connectors	command	operation	home	write	-	agent,mcp,user	connectors:management:write	connector	-	-	850f3453833e	a2c799262a3c	-
 connectors.local.execute	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54

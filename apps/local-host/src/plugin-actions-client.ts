@@ -1,7 +1,7 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertCapturedPluginActionCurrent, currentPluginAction, type PluginActionScope } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
@@ -87,7 +87,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // is routed into), the only one the action gateway accepts (S-15). Its final check also asks the original caller of the
   // action the Plugin made this call in (`outer`, captured when the Plugin called): the consumed action's own write runs
   // in its own handler, under its own scope, so without this a cancelled or revoked outer call would still write (S-18).
-  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: PluginActionScope | undefined, providerId?: string): ActionCallContext => {
+  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: ReturnType<typeof currentPluginAction>, providerId?: string): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (_reference?: ActionReference, requiredPermissions?: readonly string[]) => {
       options.assertActive();

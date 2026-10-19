@@ -11,18 +11,29 @@ const TITLE_CHARS = 60;
 
 const firstLine = (value: string) => (value.split("\n").find(line => line.trim())?.trim() ?? "").slice(0, TITLE_CHARS);
 
-/** Markdown headings outside fenced code, each with the offset of the line it is on. */
+const NUMBER = "[一二三四五六七八九十百千零〇\\d]+";
+/** Chinese numbered headings, by level: 第一章, 第一节, 一、, （一）, 第一条. */
+const NUMBERED: ReadonlyArray<readonly [RegExp, number]> = [[new RegExp(`^第${NUMBER}[章编篇部]`, "u"), 1], [new RegExp(`^第${NUMBER}节`, "u"), 2],
+  [/^[一二三四五六七八九十]+[、．]/u, 2], [/^[（(][一二三四五六七八九十]+[）)]/u, 3], [new RegExp(`^第${NUMBER}条`, "u"), 3]];
+const NUMBERED_TITLE_CHARS = 40;
+
+/** Markdown headings outside fenced code, each with the offset of the line it is on (a CRLF line ends before its `\r`). */
 function headings(content: string): Array<{ start: number; level: number; title: string }> {
-  const found: Array<{ start: number; level: number; title: string }> = [];
+  const found: Array<{ start: number; level: number; title: string }> = [], numbered: typeof found = [];
   let offset = 0, fence: string | null = null;
-  for (const line of content.split("\n")) {
+  for (const raw of content.split("\n")) {
+    const line = raw.replace(/\r$/u, "");
     const opens = FENCE.exec(line.trimStart())?.[1];
     if (opens && (!fence || opens.startsWith(fence))) fence = fence ? null : opens.slice(0, 3);
     const heading = fence ? null : HEADING.exec(line);
     if (heading) found.push({ start: offset, level: heading[1]!.length, title: heading[2]!.slice(0, TITLE_CHARS) });
-    offset += line.length + 1;
+    // A short line of its own that starts with a Chinese section number, and is not a sentence, heads a section too.
+    const bare = line.trim(), level = !fence && bare.length <= NUMBERED_TITLE_CHARS && !/[。；;，,：:]$/u.test(bare) ? NUMBERED.find(([shape]) => shape.test(bare))?.[1] : undefined;
+    if (level !== undefined) numbered.push({ start: offset, level, title: bare.slice(0, TITLE_CHARS) });
+    offset += raw.length + 1;
   }
-  return found;
+  // Markdown headings when the text has them; the numbered ones when it has none and at least two of them.
+  return found.length || numbered.length < 2 ? found : numbered;
 }
 
 /** Cuts heading-less text at the last paragraph break before each limit, else at the limit. */
@@ -95,7 +106,14 @@ export function rangeOf(content: string, anchor: string | undefined): { start: n
 }
 
 const LINE_CHARS = 400;
+const LEAD_CHARS = 120;
 const clip = (line: string) => line.length > LINE_CHARS ? `${line.slice(0, LINE_CHARS)}…` : line;
+/** A long matching line, cut around its first match (a long paragraph's match is often past its first 400 characters). */
+const clipAround = (line: string, at: number) => {
+  if (line.length <= LINE_CHARS) return line;
+  const start = Math.max(0, Math.min(at - LEAD_CHARS, line.length - LINE_CHARS));
+  return `${start ? "…" : ""}${line.slice(start, start + LINE_CHARS)}${start + LINE_CHARS < line.length ? "…" : ""}`;
+};
 
 /**
  * Lines from line `from` on containing any of `patterns` (literal, ignoring case), with up to `around` lines before and after,
@@ -107,12 +125,13 @@ export function grepLines(content: string, patterns: readonly string[], around: 
   let count = 0, later = 0;
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!.toLocaleLowerCase();
-    if (!needles.some(needle => line.includes(needle))) continue;
+    const at = Math.min(...needles.map(needle => line.indexOf(needle)).filter(found => found >= 0));
+    if (at === Infinity) continue;
     count += 1;
     if (index + 1 < from) continue;
     later += 1;
     if (hits.length === limit) continue;
-    hits.push({ line: index + 1, text: clip(lines[index]!), before: lines.slice(Math.max(0, index - around), index).map(clip), after: lines.slice(index + 1, index + 1 + around).map(clip) });
+    hits.push({ line: index + 1, text: clipAround(lines[index]!, at), before: lines.slice(Math.max(0, index - around), index).map(clip), after: lines.slice(index + 1, index + 1 + around).map(clip) });
   }
   return { hits, more: later > hits.length, count };
 }

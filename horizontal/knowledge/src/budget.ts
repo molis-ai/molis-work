@@ -1,3 +1,4 @@
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_ROUND_READ_CHARS } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 const KEEP_MS = 2 * 60 * 60_000;
@@ -31,3 +32,10 @@ export class RoundBudget {
     }
   }
 }
+
+/**
+ * The round a call counts against: an agent's, an MCP client's or a workflow's operation. What the person reads with their own
+ * authority, or a plugin's own code reads for them (the pieces they picked for a round), is theirs to choose and counts against
+ * no round; each read is still at most `KNOWLEDGE_READ_MAX_CHARS`. The audience comes from the Host, never from the input.
+ */
+export const roundOf = (caller: ActionCallContext): string | undefined => caller.audience === "user" || caller.audience === "plugin" ? undefined : caller.call_id;

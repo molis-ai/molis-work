@@ -80,9 +80,15 @@ const keyOf = (subject: ActionSubject) => `${subject.kind}\u0000${subject.id}`;
 const clip = (value: unknown, max: number) => (typeof value === "string" ? value : "").replace(/\s+/gu, " ").trim().slice(0, max);
 const sameFields = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** A new card for a piece: a `summary` piece is listed as its owner describes it; the rest wait for organizing. */
+/**
+ * A piece organizing has nothing to read in: its owner shares only a title and summary, or no text could be read out of it (an
+ * image, a binary file). Its card is listed as its owner describes it, and nothing of it goes to the model.
+ */
+const bare = (piece: KnowledgePiece) => piece.content_policy === "summary" || !piece.content.trim();
+
+/** A new card for a piece: a bare piece is listed as its owner describes it; the rest wait for organizing. */
 export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCardRecord {
-  const listed = piece.content_policy === "summary";
+  const listed = bare(piece);
   return { project_id: projectId, subject: piece.subject, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
     content_policy: piece.content_policy, revision: piece.revision, organized_revision: null, state: listed ? "listed" : "pending",
     title: clip(piece.title, KNOWLEDGE_TITLE_MAX_CHARS), brief: listed ? clip(piece.summary, KNOWLEDGE_BRIEF_MAX_CHARS) : "", keywords: [], outline: [], edited: [], suggestion: null,
@@ -93,7 +99,7 @@ export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCard
 export function cardSeen(card: KnowledgeCardRecord, piece: KnowledgePiece): KnowledgeCardRecord {
   const next: KnowledgeCardRecord = { ...card, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
     content_policy: piece.content_policy, revision: piece.revision, updated_at: piece.updated_at, open: piece.open };
-  if (piece.content_policy === "summary") {
+  if (bare(piece)) {
     // Nothing of its text was organized: the owner's own title and summary, unless the person wrote their own.
     const own = { title: clip(piece.title, KNOWLEDGE_TITLE_MAX_CHARS), brief: clip(piece.summary, KNOWLEDGE_BRIEF_MAX_CHARS) };
     return { ...next, state: "listed", outline: [], organized_revision: null,
@@ -195,7 +201,7 @@ export class KnowledgeOrganizer {
     const named = subjects?.length ? new Set(subjects.map(keyOf)) : null;
     let queued = 0;
     for (const card of store.list(projectId)) {
-      if (card.state === "listed" || card.state === "missing") continue;
+      if (card.state === "listed" || card.state === "missing" || card.excluded) continue;
       if (named ? !named.has(keyOf(card.subject)) : card.state !== "failed" && card.state !== "over_quota") continue;
       store.put({ ...card, state: "pending", organized_revision: named ? null : card.organized_revision, error: null });
       queued += 1;
@@ -221,22 +227,23 @@ export class KnowledgeOrganizer {
     const writer = this.options.writer();
     if (!writer) return;
     const pieces = new Map((await this.options.catalog(projectId)).map(piece => [keyOf(piece.subject), piece]));
-    for (const waiting of this.options.store.list(projectId).filter(card => card.state === "pending")) {
+    // A piece kept from agents waits: its text goes to no model until the person lets agents have it again.
+    for (const waiting of this.options.store.list(projectId).filter(card => card.state === "pending" && !card.excluded)) {
       if (this.closed) return;
       const piece = pieces.get(keyOf(waiting.subject));
-      if (!piece || piece.revision !== waiting.revision || piece.content_policy !== "context") continue;
+      if (!piece || piece.revision !== waiting.revision || bare(piece)) continue;
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
         // Stop for the person: every card still waiting says so, and nothing more goes to the model today.
-        for (const card of this.options.store.list(projectId)) if (card.state === "pending") this.options.store.put({ ...card, state: "over_quota" });
+        for (const card of this.options.store.list(projectId)) if (card.state === "pending" && !card.excluded) this.options.store.put({ ...card, state: "over_quota" });
         return;
       }
       this.options.store.addUsage(projectId, this.day(), { pieces: 1, chars: input.text.length });
       const outcome = await writer(input).then(draft => ({ draft }), (error: unknown) => ({ error }));
       // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
       const now = this.options.store.get(projectId, waiting.subject);
-      if (!now || now.revision !== waiting.revision || now.state !== "pending") continue;
+      if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded) continue;
       this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
         : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
     }
@@ -244,5 +251,6 @@ export class KnowledgeOrganizer {
 
   private limits() { return this.options.quota ?? DEFAULT_KNOWLEDGE_QUOTA; }
   private clock(): Date { return this.options.clock?.() ?? new Date(); }
-  private day(): string { return this.clock().toISOString().slice(0, 10); }
+  /** The day the allowance counts, on this computer's calendar (the person's day, not UTC's). */
+  private day(): string { const at = this.clock(); return `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`; }
 }

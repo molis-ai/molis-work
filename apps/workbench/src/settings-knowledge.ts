@@ -24,10 +24,10 @@ export function renderKnowledgeSettings({ L, projectId }: { L(text: string): str
     </section>
     <section class="settings-section knowledge-items" aria-labelledby="knowledge-items-title">
       <div class="knowledge-items-head"><h2 id="knowledge-items-title">${L("全部资料")}</h2>
-        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-organize-all>${L("全部重新整理")}</button></div>
+        <button class="mw-btn mw-btn--secondary mw-btn--sm" type="button" data-knowledge-organize-all hidden>${L("重试没整理完的")}</button></div>
       <div class="knowledge-toolbar" role="group" aria-label="${L("筛选资料")}">
         <select class="mw-select" data-knowledge-filter="state" aria-label="${L("整理状态")}">
-          ${state("", L("全部状态"))}${state("pending", L("等待整理"))}${state("ready", L("已整理"))}${state("listed", L("只列标题"))}${state("failed", L("整理失败"))}${state("over_quota", L("等额度"))}${state("missing", L("暂时不在"))}${state("changed", L("原文已变"))}${state("excluded", L("不给 Agent 用"))}
+          ${state("", L("全部状态"))}${state("pending", L("等待整理"))}${state("ready", L("已整理"))}${state("listed", L("只列标题"))}${state("failed", L("整理失败"))}${state("over_quota", L("等额度"))}${state("missing", L("暂时不在"))}${state("changed", L("有新建议"))}${state("excluded", L("不给 Agent 用"))}
         </select>
         <input class="mw-input knowledge-search" type="search" data-knowledge-filter="query" placeholder="${L("按标题、来源或关键词筛选")}" aria-label="${L("按标题、来源或关键词筛选")}">
       </div>

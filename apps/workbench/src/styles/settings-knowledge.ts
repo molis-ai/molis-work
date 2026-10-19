@@ -67,8 +67,9 @@ export const KNOWLEDGE_PICKER_STYLES = `
   .knowledge-picker h2 { margin: 0; font-size: 15px; font-weight: var(--weight-title, 600); }
   .knowledge-picker-tools { display: flex; flex-wrap: wrap; gap: 8px; }
   .knowledge-picker-tools > .mw-input { flex: 1 1 200px; min-width: 0; }
-  .knowledge-picker-tools > .mw-select { flex: 0 1 auto; width: auto; max-width: 160px; }
-  .knowledge-picker-list { list-style: none; margin: 0; padding: 0; overflow: auto; min-height: 120px; max-height: 50dvh; display: flex; flex-direction: column; gap: 2px; }
+  .knowledge-picker-tools > .mw-select-picker { flex: 0 0 auto; width: auto; }
+  .knowledge-picker-tools > .mw-select-picker > .mw-select-picker__trigger { width: auto; min-width: 112px; max-width: 160px; }
+  .knowledge-picker-list { list-style: none; margin: 0; padding: 0; overflow: auto; height: min(50dvh, 420px); display: flex; flex-direction: column; gap: 2px; }
   .knowledge-picker-row label { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: start; padding: 8px; border-radius: 8px; cursor: pointer; }
   .knowledge-picker-row label:hover { background: var(--nav-hover); }
   .knowledge-picker-row .mw-check { margin-top: 2px; }

@@ -23,7 +23,7 @@ async function fixture(t: import("node:test").TestContext, budget?: RoundBudget)
     ({ title: input.title, brief: `讲的是${input.title}。`, keywords: [input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) });
   const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
   const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, cut: projectId => knowledgeCutPieces(f.index, projectId),
-    related: (projectId, query, limit) => f.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })), ...(budget ? { budget } : {}) });
+    related: (projectId, query, limit, snippets) => f.index.related(projectId, query, limit, snippets).map(document => ({ snippet: document.snippet, kind: document.kind, id: document.object_id })), ...(budget ? { budget } : {}) });
   const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); await organizer.reconcile("a"); };
   return { ...f, cards, organizer, knowledge, manage: new KnowledgeCards(cards, organizer), indexAll };
 }
@@ -163,6 +163,8 @@ test("PMAT-34 a whole question no piece holds word for word is filled with piece
   assert.equal(found.cards[0]?.subject.id, "p2", JSON.stringify(found.cards.map(card => card.subject.id)));
   assert.deepEqual([found.cards[0]!.matched, found.cards[0]!.hint], ["related", "讲的是仓库安全。"], "marked related, with the card's brief instead of a passage");
   assert.ok(!JSON.stringify(found).includes("警铃"), "no original text");
+  const asked = await f.knowledge.search(f.access({ ...owner, audience: "user" }), { query: FIRE });
+  assert.match(asked.cards.find(card => card.subject.id === "p2")?.hint ?? "", /起火|警铃/u, "the person is shown where the words meet in its text (PMAT-46)");
 
   // A search every word of which a piece holds comes first, unmarked.
   const exact = await f.knowledge.search(f.access(agent()), { query: "库房起火" });

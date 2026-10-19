@@ -75,7 +75,7 @@ knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,
 knowledge.locate	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	2a5016a73c94	c273aa268581	-
 knowledge.organize	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	7a78f5bbadf8	a38e109b5b03	-
 knowledge.outline	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	b743888f6375	3f0c83a834b4	-
-knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	0503b82b3a62	ee0b5e1554cb	-
+knowledge.read	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	0503b82b3a62	5b425e35cc2d	-
 knowledge.receipts	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	1ce2334483fc	c544c5812a1c	-
 knowledge.search	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	c67c4936298d	c4956f416fa3	-
 mcp.grants.usages	1	system.action-usages	query	query	home	read	concurrent	user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-

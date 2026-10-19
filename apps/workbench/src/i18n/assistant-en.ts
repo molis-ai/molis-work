@@ -485,6 +485,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "也可以拖入、粘贴": "or drop or paste it",
   "引用项目里的内容": "Bring in project content",
   "选择项目资料…": "Choose project knowledge…",
+  "可多选，读原文给助理": "Several at once; their text goes to the Assistant",
   "用一个能力或方法": "Use a capability or method",
   "添加文件、引用或能力": "Add a file, a reference or a capability",
   "全部插件与 Dock": "All plugins and the Dock",

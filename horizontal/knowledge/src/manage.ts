@@ -60,9 +60,11 @@ export class KnowledgeCards {
     return next;
   }
 
+  /** A piece let back to agents that waited is organized now; one kept back waits (its text goes to no model meanwhile). */
   exclude(caller: ActionCallContext, input: KnowledgeExcludeRequest): KnowledgeCardRecord {
     const next = { ...this.card(caller, input), excluded: input.excluded };
     this.store.put(next);
+    if (!next.excluded && next.state === "pending") void this.organizer.kick(next.project_id);
     return next;
   }
 

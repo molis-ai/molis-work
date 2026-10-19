@@ -94,9 +94,10 @@ export interface SearchIndexPort {
         matches: SearchIndexMatch[];
         total: number;
     };
-    related(projectId: string, query: string, limit: number): Array<{
+    related(projectId: string, query: string, limit: number, snippets?: boolean): Array<{
         kind: string;
         object_id: string;
+        snippet: string;
     }>;
     clear(): number;
     close(): void;

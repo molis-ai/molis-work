@@ -192,7 +192,8 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
     if(!next)return;event.preventDefault();next.focus();select(next.dataset.sideTab);
   });
-  panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open){event.preventDefault();setOpen(false);}});
+  // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
+  panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open&&!event.target.closest?.('dialog')){event.preventDefault();setOpen(false);}});
   frame?.addEventListener('load',imVisible);
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{

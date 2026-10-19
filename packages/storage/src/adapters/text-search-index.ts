@@ -91,13 +91,19 @@ export function searchQueryPlan(query: string): QueryPlan | null {
  * bm25 ranks by how many and how rare. Pairs are tokens of adjacent characters already, so there is nothing to check again.
  */
 export function relatedQueryPlan(query: string): string | null {
-  const terms = new Set<string>();
+  const terms = relatedTerms(query);
+  return terms.length ? terms.map(term => term.kind === "word" ? `"${term.text}"*` : `"${term.text}"`).join(" OR ") : null;
+}
+
+/** The terms of the loose ranking, as normalized text: CJK adjacent pairs, and words (matched by prefix). */
+function relatedTerms(query: string): Run[] {
+  const terms = new Map<string, Run>();
   for (const run of runs(normalizeSearchText(query).text)) {
-    if (run.kind === "word") { terms.add(`"${run.text}"*`); continue; }
+    if (run.kind === "word") { terms.set(run.text, run); continue; }
     const chars = [...run.text];
-    for (let index = 1; index < chars.length; index += 1) terms.add(`"${chars[index - 1]}${chars[index]}"`);
+    for (let index = 1; index < chars.length; index += 1) terms.set(`${chars[index - 1]}${chars[index]}`, { kind: "cjk", text: `${chars[index - 1]}${chars[index]}` });
   }
-  return terms.size ? [...terms].join(" OR ") : null;
+  return [...terms.values()];
 }
 
 type Row = Record<string, unknown>;
@@ -137,12 +143,41 @@ function snippetOf(original: string, around: number | null, ranges: Array<[numbe
   return { snippet: prefix + body + suffix, highlights };
 }
 
-/** One project's documents holding some of the question's terms, best first (`SearchIndexPort.related`). */
-function relatedDocuments(db: DatabaseSync, projectId: string, query: string, limit: number): Array<{ kind: string; object_id: string }> {
+/** How many of the best related documents get a snippet: about as many as one search can show. */
+const RELATED_SNIPPETS = 30;
+const MAX_SNIPPET_MARKS = 400;
+
+/**
+ * Where in a text most of the question's terms meet: the text around the occurrence that has the most different terms within
+ * one snippet after it. Empty when none occurs in the text itself.
+ */
+function relatedSnippet(content: string, terms: readonly Run[]): string {
+  const field = normalizeSearchText(content);
+  const marks = occurrences(field, terms.map(term => term.text)).slice(0, MAX_SNIPPET_MARKS);
+  if (!marks.length) return "";
+  let best = marks[0]!, most = 0;
+  for (const mark of marks) {
+    const near = new Set(marks.filter(([start, end]) => start >= mark[0] && end <= mark[0] + SNIPPET_LENGTH - SNIPPET_BEFORE).map(([start, end]) => content.slice(start, end).toLowerCase()));
+    if (near.size > most) { most = near.size; best = mark; }
+  }
+  return snippetOf(content, best[0], marks).snippet;
+}
+
+/**
+ * One project's documents holding some of the question's terms, best first (`SearchIndexPort.related`). With `snippets`, the
+ * first ones carry the text around where most terms meet; a document whose owner shares only its summary carries none.
+ */
+function relatedDocuments(db: DatabaseSync, projectId: string, query: string, limit: number, snippets: boolean): Array<{ kind: string; object_id: string; snippet: string }> {
   const plan = relatedQueryPlan(query);
   if (!plan) return [];
-  return (db.prepare(`SELECT d.kind, d.object_id FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
-    WHERE search_fts MATCH ? AND d.project_id = ? ORDER BY bm25(search_fts, 8.0, 1.0) LIMIT ?`).all(plan, projectId, limit) as Row[]).map(row => ({ kind: str(row.kind), object_id: str(row.object_id) }));
+  const rows = db.prepare(`SELECT d.doc_id, d.kind, d.object_id FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
+    WHERE search_fts MATCH ? AND d.project_id = ? ORDER BY bm25(search_fts, 8.0, 1.0) LIMIT ?`).all(plan, projectId, limit) as Row[];
+  const terms = relatedTerms(query), texts = new Map<string, string>();
+  const first = snippets ? rows.slice(0, RELATED_SNIPPETS).map(row => Number(row.doc_id)) : [];
+  if (first.length) for (const row of db.prepare(`SELECT doc_id, content FROM search_documents WHERE content_policy = 'context' AND doc_id IN (${first.map(() => "?").join(",")})`).all(...first) as Row[]) {
+    texts.set(str(row.doc_id), relatedSnippet(str(row.content), terms));
+  }
+  return rows.map(row => ({ kind: str(row.kind), object_id: str(row.object_id), snippet: texts.get(str(row.doc_id)) ?? "" }));
 }
 
 export interface TextSearchIndexOptions { homeDirectory: string }
@@ -296,7 +331,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       matches.sort((a, b) => b.score - a.score || String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")) || a.title.localeCompare(b.title));
       return { matches: matches.slice(input.offset, input.offset + input.limit), total: matches.length };
     },
-    related: (projectId, query, limit) => relatedDocuments(db, projectId, query, limit),
+    related: (projectId, query, limit, snippets = false) => relatedDocuments(db, projectId, query, limit, snippets),
     clear: () => transaction(() => {
       const removed = Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents").get() as Row).n);
       db.exec("INSERT INTO search_fts (search_fts) VALUES ('delete-all'); DELETE FROM search_documents; DELETE FROM search_sources;");

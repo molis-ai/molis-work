@@ -71,6 +71,23 @@ test("PMAT-11 a round gets at most its fill of original text; the rest is left w
   assert.deepEqual([unnumbered.text.length, unnumbered.round_chars_left], [12_000, null], "a call outside a round is bounded only by its own size");
 });
 
+test("PMAT-42 what the person, or a plugin's own code for them, reads in a round's operation counts against no round; an agent's reads still do", async t => {
+  const f = await fixture(t, new RoundBudget(5_000));
+  f.pages.set("p1", { id: "p1", title: "长文档", body: LONG, version: 2 });
+  const subject = { kind: "page", id: "p1" };
+  // Six pieces picked for one Coding round, read by the plugin in the request that starts it: each gets its whole page.
+  for (const audience of ["plugin", "user"] as const) {
+    const picked = { ...round("start-1"), audience };
+    for (let index = 0; index < 3; index++) {
+      const read = await f.knowledge.read(f.access(picked), { subject, offset: index * 4_000, max_chars: 4_000 });
+      assert.deepEqual([read.text.length, read.round_chars_left], [4_000, null], `${audience} read ${index + 1}`);
+    }
+  }
+  const agent = await f.knowledge.read(f.access(round("start-1")), { subject, max_chars: 4_000 });
+  assert.deepEqual([agent.text.length, agent.round_chars_left], [4_000, 1_000], "the agent's own reads in that operation still count, from zero");
+  assert.match(agent.ref ?? "", /^k[0-9a-f]{7}$/u, "a read names the piece's ref, to go on reading it with");
+});
+
 test("PMAT-12 each read and each piece grep found lines in leaves a receipt: who, which round, which revision, how much", async t => {
   const f = await fixture(t);
   f.pages.set("p1", { id: "p1", title: "试用说明", body: "第一行\n内测通行证 MW-0042\n第三行", version: 4 });

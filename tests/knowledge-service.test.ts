@@ -6,7 +6,7 @@ import { KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeListEntry, ty
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeService, PLAIN_SECTION_CHARS, outlineOf } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeService, PLAIN_SECTION_CHARS, grepLines, outlineOf } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
@@ -67,6 +67,25 @@ test("PMAT-06 text without headings is cut at paragraph breaks", () => {
     assert.ok(section.length <= PLAIN_SECTION_CHARS);
     assert.ok(text.slice(section.start, section.start + section.length).endsWith("\n\n"), "a cut falls on a paragraph break");
   }
+});
+
+test("PMAT-45 headings on CRLF lines keep no carriage return; text with Chinese numbered headings and no Markdown ones is cut at them", () => {
+  assert.deepEqual(outlineOf("# 第一节\r\n内容\r\n## 细节\r\n更多").map(section => section.title), ["第一节", "细节"]);
+  const rules = ["员工守则", "第一章 总则", "适用于全体员工。", "第一条 目的", "为了规范管理，制定本守则。", "第二章 考勤", "一、上班时间", "九点上班。", "（一）迟到", "迟到要记录。", "二、请假", "提前申请。"].join("\n");
+  const sections = outlineOf(rules);
+  assert.deepEqual(sections.map(section => [section.title, section.level]),
+    [["员工守则", 0], ["第一章 总则", 1], ["第一条 目的", 3], ["第二章 考勤", 1], ["一、上班时间", 2], ["（一）迟到", 3], ["二、请假", 2]]);
+  assert.equal(sections.find(section => section.title === "（一）迟到")?.parent, sections.find(section => section.title === "一、上班时间")?.anchor);
+  assert.deepEqual(outlineOf("一、只有一处编号\n正文。").map(section => section.anchor), ["p1"], "one numbered line is not a structure");
+  assert.deepEqual(outlineOf("# 标题\n一、列表一\n二、列表二").map(section => section.title), ["标题"], "Markdown headings win when the text has them");
+});
+
+test("PMAT-45 grep shows a long line around its match, not only its first 400 characters", () => {
+  const line = "前".repeat(1_000) + "口令是 MW-0042" + "后".repeat(1_000);
+  const [hit] = grepLines(line, ["mw-0042"], 0, 5).hits;
+  assert.ok(hit?.text.includes("MW-0042") && hit.text.startsWith("…") && hit.text.endsWith("…"), hit?.text);
+  assert.ok(hit.text.length <= 402);
+  assert.equal(grepLines("短行里的 MW-0042", ["MW-0042"], 0, 5).hits[0]?.text, "短行里的 MW-0042");
 });
 
 test("PMAT-06 PMAT-09 read returns the owner's original text of one section, with what is left", async t => {
@@ -142,7 +161,7 @@ test("PMAT-36 a Coding round that carries 「列出项目资料」 gets the cata
   asked.length = 0;
   const large = await knowledgeCatalogMaterial(actions(50), list, "仓库着火", "s1");
   assert.match(large!.text, /一共 50 份，下面是与这一轮最相关的 20 份/);
-  assert.deepEqual(asked, [{ limit: 40 }, { related_to: "仓库着火", limit: 20 }]);
+  assert.deepEqual(asked, [{ related_to: "仓库着火", limit: 40 }], "one listing, the related pieces first");
   assert.equal(await knowledgeCatalogMaterial(actions(0), list, "仓库着火", "s1"), null, "nothing listed, nothing given");
   assert.equal(await knowledgeCatalogMaterial(actions(3, true), list, "仓库着火", "s1"), null, "a listing that fails does not stop the round");
 });

@@ -343,6 +343,7 @@ export interface KnowledgeReadRequest {
 
 export interface KnowledgeReadResponse {
     subject: ActionSubject;
+    ref: string | null;
     revision: string;
     title: string;
     layer: "original";

@@ -246,9 +246,11 @@ export interface SearchIndexPort {
   /**
    * One project's documents that hold some of the words of a question (CJK adjacent pairs and words), best first: the loose
    * ranking project knowledge fills a search and orders its catalog with (specs/project-knowledge §6.4). Not the system search,
-   * and not filtered by caller: the knowledge service applies its own visibility rule before anything is shown.
+   * and not filtered by caller: the knowledge service applies its own visibility rule before anything is shown. With `snippets`,
+   * the best ones carry the indexed text around where most of the terms meet (empty for a summary-only document, and past the
+   * first few); without, `snippet` is empty.
    */
-  related(projectId: string, query: string, limit: number): Array<{ kind: string; object_id: string }>;
+  related(projectId: string, query: string, limit: number, snippets?: boolean): Array<{ kind: string; object_id: string; snippet: string }>;
   clear(): number;
   close(): void;
 }

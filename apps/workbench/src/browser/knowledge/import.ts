@@ -56,7 +56,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   const status = $("[data-knowledge-import-status]");
   const pickedList = $("[data-knowledge-import-picked]");
   const submit = $<HTMLButtonElement>("[data-knowledge-import-submit]");
-  let picked: Picked[] = [], busy = false, sources: ImportSources | null = null;
+  let picked: Picked[] = [], busy = false, sources: ImportSources | null = null, connected = false;
   const kind = () => (dialog.querySelector<HTMLInputElement>("input[name=kind]:checked")?.value ?? "files");
 
   const drawPicked = () => {
@@ -65,6 +65,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
       row.append(el("span", "", item.path), el("small", "", item.file.size > MAX_BYTES ? L("超过 6 MB") : ""));
       return row;
     }));
+    if (kind() !== "online") submit.disabled = busy || !picked.length;
     status.textContent = picked.length > MAX_FILES ? L("选了 {count} 个，一次只导入前 {max} 个。", { count: picked.length, max: MAX_FILES })
       : picked.length ? L("选了 {count} 个文件。", { count: picked.length }) : "";
   };
@@ -73,11 +74,12 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     picked = [...picked, ...items.filter(item => wanted(item.path) && !seen.has(item.path))];
     drawPicked();
   };
+  // Each kind says only its own state: the files picked (and whether there are any to import), or the chosen tool's connection.
   const switchKind = async () => {
     const online = kind() === "online";
     $("[data-knowledge-import-local]").hidden = online;
     $("[data-knowledge-import-online]").hidden = !online;
-    if (online) await connections();
+    if (online) { status.textContent = ""; await connections(); } else drawPicked();
   };
   async function connections() {
     const note = $("[data-knowledge-import-connection-note]");
@@ -89,13 +91,14 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     const select = $<HTMLSelectElement>("[data-knowledge-import-connection]");
     select.replaceChildren(...rows.map(row => new Option(row.display_name, row.connection_id)));
     note.textContent = rows.length ? L("用这个账号读取文档；它要有这份文档的读取权限。") : L("还没有连接这个文档工具。先在 能力 → 连接 里连接，再回来导入。");
-    submit.disabled = !rows.length;
+    connected = rows.length > 0;
+    if (kind() === "online") submit.disabled = busy || !connected;
   }
 
   const one = async (body: Record<string, unknown>) => request()<{ title: string; reused: boolean; warnings?: string[] }>(base + "/import", { body, fallback: L("导入失败。请检查文件、链接、文档权限和连接器配置后重试。") });
   async function importFiles() {
     const queue = picked.slice(0, MAX_FILES);
-    if (!queue.length) { status.textContent = L("请先选择文件。"); return; }
+    if (!queue.length) return;
     let done = 0, failed = 0;
     const rows = [...pickedList.children] as HTMLElement[];
     for (const [index, item] of queue.entries()) {
@@ -131,7 +134,7 @@ export function bindKnowledgeImport(root: HTMLElement): void {
     busy = true; submit.disabled = true; dialog.setAttribute("aria-busy", "true");
     try { await (kind() === "online" ? importOnline() : importFiles()); }
     finally {
-      busy = false; submit.disabled = false; dialog.removeAttribute("aria-busy");
+      busy = false; submit.disabled = kind() === "online" ? !connected : !picked.length; dialog.removeAttribute("aria-busy");
       root.querySelector<HTMLButtonElement>("[data-side-files-action=refresh]")?.click();
     }
   });

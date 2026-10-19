@@ -37,7 +37,7 @@ export async function codingSdkRuntime(t: TestContext) {
       const record = reference && (artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, reference) ?? processItems.query.getArtifactVersion(DEMO_PROJECT_ID, reference));
       if (!record) throw new ActionError("knowledge.unreadable", "这份资料现在读不到");
       const text = JSON.stringify(record.payload).slice(0, asked.max_chars ?? 6_000);
-      return { subject: asked.subject, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
+      return { subject: asked.subject, ref: null, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
         remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
     } }] });
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,

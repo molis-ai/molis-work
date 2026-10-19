@@ -132,24 +132,36 @@ export async function readArtifactImportBody(request: IncomingMessage): Promise<
   });
 }
 
+const UNREADABLE = "读不出这个文件的正文，只保存了原件；Agent 只能看到它的名字。";
+/** The bytes as text when they are valid UTF-8 with no NUL (a binary file almost always has one); null otherwise. */
+function utf8Text(bytes: Buffer): string | null {
+  if (!bytes.length || bytes.includes(0)) return null;
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(bytes).replace(/^\uFEFF/u, "").trim() || null; } catch { return null; }
+}
+
 /**
- * The text of an original the import keeps as it is (specs/project-knowledge PMAT-14): a PDF's text layer (no recognition) and a
- * Word document's content, by the Host's extraction. A file it cannot read is still imported, with a note and no text.
+ * The text of an original the import keeps as it is (specs/project-knowledge PMAT-14, PMAT-44): a PDF's text layer (no
+ * recognition) and a Word document's content, by the Host's extraction, and any other file that is plain UTF-8 text. A file it
+ * cannot read is still imported, with a note and no text (it then gets a card from its name and is not sent to a model).
  */
 async function readOriginalText(file: { filename: string; data_base64: string }, signal?: AbortSignal): Promise<{ text: string; warnings: string[] } | null> {
   const extension = file.filename.toLowerCase().match(/\.([a-z0-9]+)$/u)?.[1];
-  if (extension !== "pdf" && extension !== "docx") return null;
   const source = { file_name: file.filename, bytes: Buffer.from(file.data_base64, "base64") };
+  if (extension !== "pdf" && extension !== "docx") {
+    // Any other file that is plain UTF-8 text (a CSV, JSON, YAML, source code) is its own text; anything else keeps only its name.
+    const text = utf8Text(source.bytes);
+    return text !== null ? { text, warnings: [] } : { text: "", warnings: [UNREADABLE] };
+  }
   try {
     if (extension === "pdf") {
       const read = await extractMaterial(source, { ...(signal ? { signal } : {}), timeoutMs: 60_000, pdfMode: "text", textFormat: "markdown" });
       const thin = read.coverage.status !== "sufficient" ? ["PDF 里只读出了部分文字（扫描页没有文字层）；原件完整保存。"] : [];
-      return { text: read.text, warnings: read.text.trim() ? thin : ["这份 PDF 没有可读的文字层，只保存了原件。"] };
+      return { text: read.text, warnings: read.text.trim() ? thin : ["这份 PDF 没有可读的文字层，只保存了原件；Agent 只能看到它的名字。"] };
     }
     const batch = await readMaterialDocuments([source], { ...(signal ? { signal } : {}), timeoutMs: 60_000 });
     return { text: batch.documents.map(document => document.content).join("\n\n"), warnings: batch.warnings };
   } catch {
     signal?.throwIfAborted();
-    return { text: "", warnings: ["没能读出这个文件的正文，只保存了原件。"] };
+    return { text: "", warnings: [UNREADABLE] };
   }
 }

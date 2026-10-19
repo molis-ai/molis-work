@@ -58,14 +58,13 @@ export function requireArtifactAnalysisRecord(
 
 /**
  * An imported document is read as its text (specs/project-knowledge PMAT-14): what was read out of the file, a PDF's or a Word
- * document's included, never the original's bytes. Other types are read as their whole record.
+ * document's included, never the original's bytes. One no text was read out of is empty, so it is listed by its name and sent
+ * to no model (PMAT-44). Other types are read as their whole record.
  */
 function importedDocumentText(record: ArtifactVersionRecord): string | null {
   if (record.artifact_type_id !== DOCUMENT_ARTIFACT_TYPE) return null;
-  const payload = record.payload as { content?: unknown; original_file?: { filename?: unknown; mime?: unknown } } | null;
-  if (typeof payload?.content === "string" && payload.content.trim()) return payload.content;
-  const original = payload?.original_file;
-  return `（导入的原件 ${typeof original?.filename === "string" ? original.filename : record.title}${typeof original?.mime === "string" ? `，${original.mime}` : ""}，没有读出正文。）`;
+  const payload = record.payload as { content?: unknown } | null;
+  return typeof payload?.content === "string" ? payload.content.trim() ? payload.content : "" : "";
 }
 
 /** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */

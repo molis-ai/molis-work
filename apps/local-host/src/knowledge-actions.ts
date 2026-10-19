@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionSubject, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
@@ -104,13 +104,22 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,
     cut: projectId => knowledgeCutPieces(ports.index, projectId),
-    related: (projectId, query, limit) => ports.index.related(projectId, query, limit).map(document => ({ kind: document.kind, id: document.object_id })) });
+    related: (projectId, query, limit, snippets) => ports.index.related(projectId, query, limit, snippets).map(document => ({ kind: document.kind, id: document.object_id, snippet: document.snippet })) });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let closed = false;
+  // Something in the project changed with nobody searching: its sources are brought current with the owner's authority first, so
+  // the catalog (each round's directory and counts, the cards) holds the new piece before anyone asks for it.
+  const settle = async (projectId: string) => {
+    if (ports.ownerContext) {
+      const owner = await ports.ownerContext(projectId).catch(error => { ports.onError?.(error, "knowledge.catch_up"); return null; });
+      if (owner) await service.catchUp({ client: ports.clientFor(owner), caller: owner }).catch(error => ports.onError?.(error, "knowledge.catch_up"));
+    }
+    if (!closed) await organizer.kick(projectId);
+  };
   const changed = (projectId: string | null) => {
     if (closed || !projectId || timers.has(projectId)) return;
-    const timer = setTimeout(() => { timers.delete(projectId); void organizer.kick(projectId); }, KICK_DELAY_MS);
+    const timer = setTimeout(() => { timers.delete(projectId); void settle(projectId); }, KICK_DELAY_MS);
     (timer as { unref?: () => void }).unref?.();
     timers.set(projectId, timer);
   };
@@ -135,19 +144,28 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     changed(caller.project_id);
     return caught.listing;
   };
+  // What a search or grep hands back carries refs, which resolve through the cards: a piece found before its card was written gets
+  // one now, so the ref it was given reads it.
+  const known = async (projectId: string | null | undefined, subjects: readonly ActionSubject[]) => {
+    if (projectId && subjects.some(subject => !store.get(projectId, subject))) await organizer.reconcile(projectId).catch(error => ports.onError?.(error, "knowledge.reconcile"));
+  };
   const handlers: ActionHandlerBinding[] = [
     { ...knowledgeActions.list, handle: async (caller, input) => service.list(await access(caller, knowledgeActions.list), input as KnowledgeListRequest, await caughtUp(caller)) },
     // A search brings the project's sources current; what it found new is organized shortly after.
-    { ...knowledgeActions.search, handle: async (caller, input) => { const found = await service.search(await access(caller, knowledgeActions.search), input as KnowledgeSearchRequest); changed(caller.project_id); return found; } },
+    { ...knowledgeActions.search, handle: async (caller, input) => { const found = await service.search(await access(caller, knowledgeActions.search), input as KnowledgeSearchRequest);
+      await known(caller.project_id, found.cards.map(card => card.subject)); changed(caller.project_id); return found; } },
     { ...knowledgeActions.outline, handle: async (caller, input) => service.outline(await access(caller, knowledgeActions.outline), input as KnowledgeOutlineRequest) },
     { ...knowledgeActions.read, handle: async (caller, input) => service.read(await access(caller, knowledgeActions.read), input as KnowledgeReadRequest) },
-    { ...knowledgeActions.grep, handle: async (caller, input) => service.grep(await access(caller, knowledgeActions.grep), input as KnowledgeGrepRequest) },
+    { ...knowledgeActions.grep, handle: async (caller, input) => { const found = await service.grep(await access(caller, knowledgeActions.grep), input as KnowledgeGrepRequest);
+      await known(caller.project_id, found.found.map(piece => piece.subject)); return found; } },
     { ...knowledgeActions.glob, handle: async (caller, input) => service.glob(await access(caller, knowledgeActions.glob), input as KnowledgeGlobRequest) },
     // Waits on the model: the section trees are read with the caller's authority, and a call no longer current answers nothing.
     { ...knowledgeActions.locate, handle: async (caller, input) => { const asked = await access(caller, knowledgeActions.locate);
       const { question, subjects } = input as KnowledgeLocateRequest;
       return locateSections({ question, subjects: service.named(asked, subjects) }, subject => service.outline(asked, { subject }), (ports.locator ?? (() => knowledgeModelLocator(ports.homeDirectory)))(), caller.beforeEffect); } },
-    { ...knowledgeManageActions.cards, handle: async (caller, input) => cards.list(caller, input as KnowledgeCardsRequest, await caughtUp(caller)) },
+    // A page past the first comes from the same catch-up as the first: paging through every card catches up once.
+    { ...knowledgeManageActions.cards, handle: async (caller, input) => { const asked = input as KnowledgeCardsRequest;
+      return cards.list(caller, asked, asked.offset ? false : await caughtUp(caller)); } },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { await caller.beforeEffect(); return cards.edit(caller, input as KnowledgeEditRequest); } },
     { ...knowledgeManageActions.exclude, handle: async (caller, input) => { await caller.beforeEffect(); return cards.exclude(caller, input as KnowledgeExcludeRequest); } },

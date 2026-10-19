@@ -86,7 +86,8 @@ export function bindKnowledgePicker(): void {
         partial = found.more;
       } else if (text) {
         const found = await request()<KnowledgeSearchResponse>(base() + "/search?q=" + encodeURIComponent(text));
-        rows = found.cards.map(card => fromCard({ ...card, note: card.brief || card.hint }));
+        // Where the words were found says why a piece came up; its brief when there is no such passage.
+        rows = found.cards.map(card => fromCard({ ...card, note: card.hint || card.brief || "" }));
       } else {
         const listed = await request()<KnowledgeCardsResponse>(base() + "/overview");
         rows = listed.cards.filter(card => !card.excluded && card.state !== "missing")
@@ -126,7 +127,11 @@ export function bindKnowledgePicker(): void {
     if (!shown.length) $("list").append(el("li", "knowledge-picker-empty", L("没有找到相关的资料")));
     counted();
   }
-  const counted = () => { $("count").textContent = chosen.size ? L("已选 {count} 份", { count: chosen.size }) : ""; };
+  // Adding nothing is allowed only to clear what the asking input had (it handed its picks in `selected`).
+  const counted = () => {
+    $("count").textContent = chosen.size ? L("已选 {count} 份", { count: chosen.size }) : "";
+    $<HTMLButtonElement>("confirm").disabled = !chosen.size && !asked?.selected?.length;
+  };
 
   document.addEventListener("molis-work:knowledge-pick", event => {
     const detail = (event as CustomEvent<PickRequest>).detail;

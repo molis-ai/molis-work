@@ -27,7 +27,8 @@ export const KNOWLEDGE_READ_DEFAULT_CHARS = 6_000;
 export const KNOWLEDGE_TEXT_MAX_CHARS = 400_000;
 /**
  * Most original text one round of an agent gets from `knowledge.read` and `knowledge.grep` together (spec §7, PMAT-11). A round
- * is the Host's number for the operation (`call_id`); a call without one is counted on its own.
+ * is the Host's number for the operation (`call_id`); a call without one is counted on its own. What the person reads, or a
+ * plugin's own code reads for them (the pieces they picked for a round), counts against no round (PMAT-42).
  */
 export const KNOWLEDGE_ROUND_READ_CHARS = 60_000;
 /** Most objects one `knowledge.grep` reads, named or picked from the project's catalog. */
@@ -158,6 +159,8 @@ export interface KnowledgeReadRequest { subject: KnowledgePieceName; anchor?: st
  */
 export interface KnowledgeReadResponse {
   subject: ActionSubject;
+  /** The piece's ref, to go on reading it with; null for a workspace file. */
+  ref: string | null;
   revision: string;
   title: string;
   layer: "original";
@@ -376,10 +379,10 @@ export const knowledgeActions = {
     input_schema: { type: "object", properties: { subject: pieceName, anchor: { type: "string", minLength: 1, maxLength: 200 }, offset: count,
       line: { type: "integer", minimum: 1 }, max_lines: { type: "integer", minimum: 1, maximum: KNOWLEDGE_READ_MAX_LINES },
       max_chars: { type: "integer", minimum: 200, maximum: KNOWLEDGE_READ_MAX_CHARS } }, required: ["subject"], additionalProperties: false },
-    output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, revision: text, title: text, layer: { const: "original" }, text, start: count, end: count,
+    output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, ref: nullableRef, revision: text, title: text, layer: { const: "original" }, text, start: count, end: count,
       start_line: { type: "integer", minimum: 1 }, end_line: { type: "integer", minimum: 1 }, total_lines: { type: "integer", minimum: 1 }, remaining: count,
       owner_truncated: { type: "boolean" }, round_chars_left: roundLeft },
-      required: ["subject", "revision", "title", "layer", "text", "start", "end", "start_line", "end_line", "total_lines", "remaining", "owner_truncated", "round_chars_left"],
+      required: ["subject", "ref", "revision", "title", "layer", "text", "start", "end", "start_line", "end_line", "total_lines", "remaining", "owner_truncated", "round_chars_left"],
       additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
   grep: { capability_id: "knowledge.grep", version: 1, operation: "query", action: { ...metadata,
     title: "在资料里逐行查找", description: "在资料现在的原文里逐行找一段文字（不分大小写，不是正则；alternatives 里的说法任何一个命中也算）。范围：点名的几份资料（subjects，每项写 ref 或 subject 对象）、工作目录里路径匹配 glob 的文件，都不给就在全项目的资料里找（索引里有这段文字的资料，加上索引只收了开头的长资料；一次最多 20 份，没查完时 more 为真）。默认返回命中的行号与前后几行，行号可交给 knowledge.read 的 line；output 为 subjects 时只给哪几份有、各几行，不返回原文、不占本轮额度，适合先缩小范围。只查一份时命中比给出的多，next_line 不为空：把它填进 from_line、其余照旧再调一次，就从那一行接着找（from_line 只用于 subjects 只点名一份）。读工作目录要有读取它的授权。",

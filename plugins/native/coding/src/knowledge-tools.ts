@@ -33,9 +33,11 @@ export async function knowledgeCatalogMaterial(actions: Pick<PluginActionClient,
   const list = knowledgeActions.list;
   if (!actions || !tools.some(tool => tool.capability_id === list.capability_id && tool.version === list.version && tool.provider_id === KNOWLEDGE_PROVIDER_ID)) return null;
   try {
-    const first = await actions.invoke(list, { limit: KNOWLEDGE_CATALOG_WHOLE_PIECES }, control);
+    // One listing, the related pieces first: it is the whole catalog when small, otherwise its first 20 are the related ones.
+    const related = words.trim().slice(0, 2000);
+    const first = await actions.invoke(list, { ...(related ? { related_to: related } : {}), limit: KNOWLEDGE_CATALOG_WHOLE_PIECES }, control);
     const whole = knowledgeCatalogWhole(first);
-    const pieces = whole ? first.pieces : (await actions.invoke(list, { related_to: words.slice(0, 2000), limit: KNOWLEDGE_CATALOG_RELATED }, control)).pieces;
+    const pieces = whole ? first.pieces : first.pieces.slice(0, KNOWLEDGE_CATALOG_RELATED);
     if (!pieces.length) return null;
     return { material_id: "knowledge-catalog", source_artifact_id: sessionId, source_version: 1, title: "项目资料目录", text: knowledgeCatalogText({ total: first.total, whole, pieces }) };
   } catch (error) {

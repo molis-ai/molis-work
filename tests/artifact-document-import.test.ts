@@ -461,9 +461,10 @@ test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it
   assert.match((fromWord.record.payload as { content: string }).content, /保留事实：试点在三月开始/u);
   assert.match(artifactAnalysisContext(fromWord.record).content, /试点在三月开始/u);
 
-  // A file it cannot read is still imported: the original is kept, the import says so, and a reader is told there is no text.
+  // A file it cannot read is still imported: the original is kept, the import says so, and its text is empty, so project
+  // knowledge lists it by its name and sends it to no model (PMAT-44).
   const broken = await saved(original("scan.pdf", "application/pdf", Buffer.from("%PDF-1.4\nnot really a pdf\n%%EOF\n", "latin1")));
   assert.equal((broken.record.payload as { content: string }).content, "");
-  assert.ok(broken.result.warnings.length > 0, "the import says no text was read");
-  assert.match(artifactAnalysisContext(broken.record).content, /^（导入的原件 scan\.pdf，application\/pdf，没有读出正文。）$/u);
+  assert.match(broken.result.warnings.join("\n"), /Agent 只能看到它的名字/u, "the import says no text was read, and what that means");
+  assert.equal(artifactAnalysisContext(broken.record).content, "");
 });

@@ -180,7 +180,7 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
   const get=(path)=>molisWorkRequest(host.route(path),{fallback:L('文件没有读到')});
   const post=(path,body)=>molisWorkRequest(host.route(path),{body,fallback:L('操作没有完成')});
   // How far each piece's card is organized (project knowledge): only what needs the person's eye is shown on a row.
-  const stateText=(item)=>!item?'':item.excluded?L('不给 Agent 用'):item.state==='pending'?(modelReady?L('整理中'):L('等待整理')):item.state==='failed'?L('整理失败'):item.state==='over_quota'?L('等额度'):item.changed?L('原文已变'):'';
+  const stateText=(item)=>!item?'':item.excluded?L('不给 Agent 用'):item.state==='pending'?(modelReady?L('整理中'):L('等待整理')):item.state==='failed'?L('整理失败'):item.state==='over_quota'?L('等额度'):item.changed?L('有新建议'):'';
   const stateOf=(kind,id)=>states.get(kind+'\u0000'+id);
   const sizeText=(bytes)=>bytes==null?'':bytes<1024?bytes+' B':bytes<1048576?(bytes/1024).toFixed(bytes<10240?1:0)+' KB':(bytes/1048576).toFixed(1)+' MB';
   // While the project's sources are still being listed for the first time, the labels are read again shortly after.
@@ -232,9 +232,10 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
       return '<section class="side-files-group"><h3>'+esc(source.title)+'</h3>'+(held.error?'<p class="side-files-note">'+esc(held.error)+'</p>':'')+rows+(held.next&&!query?'<button class="mw-btn mw-btn--ghost mw-btn--sm side-files-more" type="button" data-side-files-more="'+esc(source.id)+'">'+esc(L('加载更多'))+'</button>':'')+'</section>';
     }).join('');
     // Pieces found by their content and cards (knowledge.search: what an agent asking the same words finds), above the names that match.
-    const hits=query&&found&&found.query===query?found.cards.map(card=>'<button class="side-files-row side-files-hit" type="button" data-knowledge-hit data-kind="'+esc(card.subject.kind)+'" data-id="'+esc(card.subject.id)+'" data-surface="'+esc(card.open?.surface||'')+'" data-open="'+esc(card.open?.id||'')+'">'+icons.file+'<span><strong>'+esc(card.title)+'</strong><em>'+esc(card.brief||card.hint||'')+'</em></span><small>'+esc(card.plugin_title)+'</small></button>').join(''):'';
+    const hits=query&&found&&found.query===query?found.cards.map(card=>'<button class="side-files-row side-files-hit" type="button" data-knowledge-hit data-kind="'+esc(card.subject.kind)+'" data-id="'+esc(card.subject.id)+'" data-surface="'+esc(card.open?.surface||'')+'" data-open="'+esc(card.open?.id||'')+'">'+icons.file+'<span><strong>'+esc(card.title)+'</strong><em>'+esc(card.hint||card.brief||'')+'</em></span><small>'+esc(card.plugin_title)+'</small></button>').join(''):'';
     const hitGroup=hits?'<section class="side-files-group"><h3>'+esc(L('按内容找到'))+'</h3>'+hits+'</section>':'';
-    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(query?L('没有找到相关的资料'):sources.length?L('这些插件里还没有资料'):L('这个项目里还没有提供资料的插件。Files、Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。'))+'</p>';
+    const searching=query&&query.length>=2&&(!found||found.query!==query);
+    list.innerHTML=(hitGroup+groups)||'<p class="side-files-note">'+esc(searching?L('正在按内容查找…'):query?L('没有找到相关的资料'):sources.length?L('这些插件里还没有资料'):L('这个项目里还没有提供资料的插件。Files、Pages、成果等插件启用后，它们的资料会出现在这里；也可以点上面的导入。'))+'</p>';
   };
   const find=(source,kind,id)=>(entries.get(source)?.items||[]).find(item=>item.subject.kind===kind&&item.subject.id===id);
   const show=(on)=>{preview.hidden=!on;browse.hidden=on&&!wide;};
@@ -328,11 +329,11 @@ export const SIDE_FILES_FACTORY_SCRIPT = String.raw`(host) => {
     if(action==='open'&&openButton.dataset.surface){host.openRecord?.(openButton.dataset.surface,openButton.dataset.id,title.textContent||'');return;}
     if(action==='source'){const url=target.closest('[data-url]')?.dataset.url;if(url)document.dispatchEvent(new CustomEvent('molis:side-open',{detail:{tab:'browser',target:{url},focus:true}}));return;}
   });
-  root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide){event.preventDefault();show(false);current=null;paint();}});
+  root.addEventListener('keydown',event=>{if(event.key==='Escape'&&!preview.hidden&&!wide&&!event.target.closest?.('dialog')){event.preventDefault();show(false);current=null;paint();}});
   filter.addEventListener('input',()=>{
     paint();clearTimeout(searchTimer);const query=filter.value.trim().toLowerCase();
     if(query.length<2){found=null;return;}
-    searchTimer=setTimeout(async()=>{try{const result=await get('/api/knowledge/search?q='+encodeURIComponent(query));if(filter.value.trim().toLowerCase()===query){found={query,cards:result.cards||[]};paint();}}catch{found=null;}},300);
+    searchTimer=setTimeout(async()=>{try{const result=await get('/api/knowledge/search?q='+encodeURIComponent(query));if(filter.value.trim().toLowerCase()===query){found={query,cards:result.cards||[]};paint();}}catch{if(filter.value.trim().toLowerCase()===query){found={query,cards:[]};paint();}}},300);
   });
   new ResizeObserver(()=>{wide=root.clientWidth>=720;if(!preview.hidden)browse.hidden=!wide;}).observe(root);
   document.addEventListener('molis:side-shown',async event=>{

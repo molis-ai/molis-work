@@ -44,7 +44,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
         if (!piece) throw new ActionError("knowledge.unreadable", "这份资料现在读不到");
         if (piece.refuse) throw new ActionError("knowledge.excluded", piece.refuse);
         const text = piece.text.slice(0, asked.max_chars ?? 6_000);
-        return { subject: asked.subject, revision: piece.revision, title: piece.title, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
+        return { subject: asked.subject, ref: null, revision: piece.revision, title: piece.title, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
           remaining: piece.text.length - text.length, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
       } }] });
     return actions;

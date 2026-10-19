@@ -46,7 +46,7 @@ import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modu
 import { knowledgeErrors } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
-import { RoundBudget } from "./budget.js";
+import { RoundBudget, roundOf } from "./budget.js";
 import { RELATED_POOL, relatedCards, relatedFirst } from "./related.js";
 import { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
 
@@ -95,7 +95,7 @@ export interface KnowledgeServiceOptions {
    */
   cut?(projectId: string): readonly ActionSubject[];
   /** The project's indexed pieces that hold some of the words of a question, best first (the loose ranking of §6.4). */
-  related?(projectId: string, query: string, limit: number): readonly ActionSubject[];
+  related?(projectId: string, query: string, limit: number, snippets?: boolean): ReadonlyArray<ActionSubject & { snippet?: string }>;
   budget?: RoundBudget;
   clock?: () => Date;
 }
@@ -175,7 +175,14 @@ export class KnowledgeService {
     // Too few hold every word (a whole question rarely does): those that hold some of them, marked so (§6.4).
     const shown = this.listed(project, visible).filter(card => !cards.some(item => sameSubject(item.subject, card.subject))
       && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
-    for (const card of this.related(project, shown, input.query).slice(0, limit - cards.length)) cards.push(cardHit(card, "related"));
+    // An agent is shown each one's brief, so what it quotes it reads first (§5); the person sees where most of the words meet in
+    // its text, when the index has that text, to tell which piece to open.
+    const person = access.caller.audience === "user", ranked = this.options.related?.(project, input.query, RELATED_POOL, person) ?? [];
+    const near = new Map(ranked.map(item => [`${item.kind}\u0000${item.id}`, item.snippet ?? ""]));
+    for (const card of relatedCards(shown, [ranked, this.options.cards.related(project, input.query, RELATED_POOL)]).slice(0, limit - cards.length)) {
+      const hit = cardHit(card, "related"), snippet = near.get(`${card.subject.kind}\u0000${card.subject.id}`);
+      cards.push(snippet ? { ...hit, hint: snippet.slice(0, HINT_CHARS) } : hit);
+    }
     return { status: found.status, cards };
   }
 
@@ -249,14 +256,14 @@ export class KnowledgeService {
     if (!range) throw knowledgeErrors.anchor_unknown("这份资料现在没有这个分节，先用 knowledge.outline 重新看它的结构", { anchor: input.anchor ?? null, revision: context.revision });
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
-    const round = access.caller.call_id, left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
+    const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
     const text = context.content.slice(start, end);
     await this.receipt(access, [{ context, via: "read", chars: text.length }]);
     this.budget.spend(round, text.length);
     const startLine = lineAt(lines, start);
-    return { subject: context.subject, revision: context.revision, title: context.title, layer: "original", text, start, end,
+    return { subject: context.subject, ref: knowledgeRef(context.subject, "allow"), revision: context.revision, title: context.title, layer: "original", text, start, end,
       start_line: startLine, end_line: end > start ? lineAt(lines, end - 1) : startLine, total_lines: lines.length,
       remaining: until - end, owner_truncated: context.truncated, round_chars_left: left === null ? null : left - text.length };
   }
@@ -282,7 +289,7 @@ export class KnowledgeService {
     const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
-    const round = access.caller.call_id, fill = lines ? this.budget.left(round) : null;
+    const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
     read.forEach((outcome, index) => {

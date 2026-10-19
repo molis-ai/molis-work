@@ -107,6 +107,24 @@ test("PMAT-04 a piece whose owner lets out only its title and summary is listed,
   assert.equal(f.manage.organize(owner, { subjects: [{ kind: "secret", id: "s1" }] }).queued, 0, "asking again does not send it either");
 });
 
+test("PMAT-43 a piece kept from agents and a piece with no readable text go to no model; letting the piece back organizes it", async t => {
+  const f = await fixture(t);
+  f.pages.set("p9", { id: "p9", title: "空白页", body: "", version: 1 });
+  await f.indexAll();
+  await f.organizer.reconcile("a");
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p1" }, excluded: true });
+  await f.organizer.kick("a");
+  assert.deepEqual([card(f, "p1").state, card(f, "p1").excluded], ["pending", true], "kept back, it waits");
+  assert.equal(card(f, "p9").state, "listed", "nothing to read in it: listed by its own title");
+  assert.ok(!f.written.some(input => input.title === "试用说明" || input.title === "空白页"), JSON.stringify(f.written.map(input => input.title)));
+  const used = f.organizer.quota("a").used_pieces;
+  assert.equal(f.manage.organize(owner, { subjects: [{ kind: "page", id: "p1" }] }).queued, 0, "asking to organize it does not send it either");
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p1" }, excluded: false });
+  await f.organizer.kick("a");
+  assert.equal(card(f, "p1").state, "ready");
+  assert.equal(f.organizer.quota("a").used_pieces, used + 1, "organized once it is let back");
+});
+
 test("PMAT-07 a field the person edited is not overwritten when the text changes; organizing's new wording waits as a suggestion to adopt", async t => {
   const f = await fixture(t);
   await f.indexAll();

@@ -6,6 +6,8 @@ import { drawQuota, drawReceipts, pageNotices } from "./settings-parts.js";
 type Overview = KnowledgeCardsResponse & { recent: KnowledgeReceiptsResponse };
 const POLL_MS = 4_000;
 const BACKEND_STATES = ["pending", "ready", "listed", "failed", "over_quota", "missing"];
+/** Waiting for organizing; a piece kept from agents waits for nothing (its text goes to no model). */
+const waiting = (card: KnowledgeCardRecord) => card.state === "pending" && !card.excluded;
 
 /**
  * Binds one 项目资料 page (a standalone settings page, or the same page placed into the settings cover). Everything is drawn
@@ -34,23 +36,33 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     const data = await api<Overview>("/overview?offset=" + offset + (state ? "&state=" + state : ""));
     cards = more ? [...cards, ...data.cards] : data.cards;
     total = data.total; recent = data.recent.receipts; modelReady = data.model_ready; listing = data.listing;
-    $("[data-knowledge-model]").hidden = modelReady || !cards.some(card => card.state === "pending");
+    $("[data-knowledge-model]").hidden = modelReady || !cards.some(waiting);
     errorBox.hidden = true;
     drawQuota(root, data.quota, data.quota.reached || cards.some(card => card.state === "over_quota"));
     drawList(); drawReceipts(root, recent, cards, data.recent.total);
     schedule();
   }
+  /** Loads again as far as the person had loaded (a refresh does not fold the list back to its first page). */
+  async function reload(): Promise<void> {
+    const had = cards.length;
+    await load();
+    while (cards.length < Math.min(had, total)) await load(true);
+  }
   // While anything waits for organizing, or the project's sources are still being listed, the page looks again now and then; it
-  // stops once nothing does or the page is gone.
+  // stops once nothing does or the page is gone. An open card the person is writing in is not redrawn under them.
   function schedule() {
     clearTimeout(timer);
-    if (!listing && (!modelReady || !cards.some(card => card.state === "pending"))) return;
+    if (!listing && (!modelReady || !cards.some(waiting))) return;
     timer = window.setTimeout(() => {
       if (!root.isConnected) return;
-      if (document.hidden || open) { schedule(); return; }
-      void load().catch(() => schedule());
+      if (document.hidden || (open && writing())) { schedule(); return; }
+      void reload().catch(() => schedule());
     }, POLL_MS);
   }
+  const writing = () => { const detail = list.querySelector("[data-knowledge-detail]"); return !!detail && (detail.contains(document.activeElement) || detail.hasAttribute("data-knowledge-dirty")); };
+  // The filters the page applies itself (changed, kept from agents, the words) look at every card, not only the loaded pages.
+  const whole = async () => { while (cards.length < total) { const had = cards.length; await load(true); if (cards.length === had) break; } };
+  const local = () => !!queryFilter.value.trim() || stateFilter.value === "changed" || stateFilter.value === "excluded";
 
   const visible = () => {
     const query = queryFilter.value.trim().toLowerCase();
@@ -62,7 +74,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   function drawList() {
     const shown = visible();
     const counts = { all: cards.length, ready: 0, pending: 0, failed: 0 };
-    for (const card of cards) if (card.state === "ready" || card.state === "pending" || card.state === "failed") counts[card.state] += 1;
+    for (const card of cards) if (card.state === "ready" || card.state === "failed" || waiting(card)) counts[card.state as "ready" | "pending" | "failed"] += 1;
     $("[data-knowledge-summary]").textContent = !total && listing ? L("正在清点项目里的资料…")
       : !total ? L("还没有资料。项目里的文档、页面、目标和导入的文件会出现在这里。")
       : backendState() ? L("{count} 份", { count: total })
@@ -70,6 +82,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     list.replaceChildren(...(shown.length ? shown.map(row) : [el("li", "settings-muted knowledge-empty", cards.length ? L("没有符合筛选的资料。") : L("这里还是空的。"))]));
     $("[data-knowledge-more]").hidden = cards.length >= total;
     $(".knowledge-select-all").hidden = !shown.length;
+    $("[data-knowledge-organize-all]").hidden = !cards.some(card => !card.excluded && (card.state === "failed" || card.state === "over_quota"));
     drawBatch();
   }
 
@@ -115,7 +128,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     try {
       const result = await api<KnowledgeOrganizeResponse>("/organize", { ...(subjects ? { subjects } : {}), ...(confirm ? { confirm_over_quota: true } : {}) });
       toast(result.queued ? L("已排进整理队列：{count} 份", { count: result.queued }) : L("没有要整理的资料"));
-      await load();
+      await reload();
     } catch (error) { fail(error); }
   }
   const detailHost: KnowledgeDetailHost = {
@@ -136,8 +149,8 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     } catch (error) { fail(error); }
   }
 
-  stateFilter.addEventListener("change", () => { selected.clear(); void load().catch(fail); });
-  queryFilter.addEventListener("input", () => drawList());
+  stateFilter.addEventListener("change", () => { selected.clear(); void load().then(() => local() ? whole() : undefined).then(() => drawList()).catch(fail); });
+  queryFilter.addEventListener("input", () => { drawList(); if (local() && cards.length < total) void whole().then(() => drawList()).catch(fail); });
   $("[data-knowledge-more]").addEventListener("click", () => void load(true).catch(fail));
   $("[data-knowledge-select-all]").addEventListener("change", event => {
     const on = (event.target as HTMLInputElement).checked;

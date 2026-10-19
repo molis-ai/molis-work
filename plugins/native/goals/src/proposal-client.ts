@@ -1,6 +1,6 @@
 /** Goal proposal decisions; Workbench supplies transport and cross-surface refresh/receipts. */
 export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { translate: L, route, controlHeaders: molisWorkControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
+    const { translate: L, route, decisionReceiptContext, refreshBoardWithDecisionReceipt } = host;
     const requireDecisionText = (decisionForm, errorBox, fieldName, message) => {
       const field = decisionForm.querySelector('[name="' + fieldName + '"]');
       if (String(field?.value || "").trim()) {
@@ -56,19 +56,18 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
       try {
         const key = goalTreeDecisionForm.dataset.idempotencyKey || (globalThis.crypto?.randomUUID?.() || (String(Date.now()) + Math.random()));
         goalTreeDecisionForm.dataset.idempotencyKey = key;
-        const response = await fetch(route("/api/goal-tree-proposals/" + encodeURIComponent(goalTreeDecisionForm.dataset.goalTreeProposalId) + "/decision"), {
+        const result = await molisWorkRequest(route("/api/goal-tree-proposals/" + encodeURIComponent(goalTreeDecisionForm.dataset.goalTreeProposalId) + "/decision"), {
           method: "POST",
-          headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": key },
-          body: JSON.stringify({
+          key,
+          body: {
             ...(decision === "confirm"
               ? { confirm_all_pending: true }
               : { decisions: itemIds.map((itemId) => ({ item_id: itemId, decision, reason })) }),
             reason,
             idempotency_key: key,
-          }),
+          },
+          fallback: L("方案决定提交失败"),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("方案决定提交失败"));
         if (Array.isArray(result.conflict_item_ids) && result.conflict_item_ids.length) {
           throw new Error(L("Molis Work 已经发生变化。请让 Runtime 更新方案后再决定。"));
         }

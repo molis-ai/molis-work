@@ -245,6 +245,7 @@ export { withPluginInteraction } from "./plugin-interaction-answer.js";
 export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
 export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
+export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type DeliveryNote } from "./assistant/assistant-delivery.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
@@ -273,6 +274,7 @@ export {
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";

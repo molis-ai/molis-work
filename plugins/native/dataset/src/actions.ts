@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { DATASET_NAME_COLUMN } from "./prompts.js";
-import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, bindWorkflowContentHandlers, defineObjectCopyAction, defineObjectMoveAction, defineWorkflowContentActions, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DATASET_ARTIFACT_TYPE_ID, DATASET_PROJECT_PLUGIN_ID, type DatasetRecord, type DatasetVersionRecord, type DatasetColumnInput, type DatasetRowInput } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { promoteDataset, type DatasetLineHeadPort, type DatasetPublishArtifactPort, type DatasetReadArtifactPort } from "./promote.js";
 import { toCsv, type DatasetStores } from "./store.js";
@@ -137,8 +137,8 @@ export function createDatasetContentHandlers(stores: DatasetStores): ActionHandl
   return bindWorkflowContentHandlers(datasetContentActions, {
     list: caller => read(store => store.list(project(caller)).map(dataset => ({ item_id: dataset.id, title: dataset.title, caption: dataset.rows.length + " 行", at: dataset.updated_at }))),
     read: ({ item_id }, caller) => read(store => { const dataset = store.get(item_id, project(caller)); return { title: dataset.title, body: toCsv(dataset), source: "数据表" }; }),
-    receive: ({ payload, context }, caller) => write(caller, store => {
-      const dataset = store.receiveCsv(project(caller), workflowDeliveryKey(context), payload.title, payload.body);
+    receive: ({ title, body, request_id }, caller) => write(caller, store => {
+      const dataset = store.receiveCsv(project(caller), request_id, title, body);
       return { plugin: "dataset", item_id: dataset.id, title: dataset.title };
     }),
     create: ({ title }, caller) => write(caller, store => { const dataset = store.create({ title, project_id: project(caller) }); return { plugin: "dataset", item_id: dataset.id, title: dataset.title }; }),

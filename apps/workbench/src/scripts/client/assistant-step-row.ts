@@ -8,7 +8,11 @@
  *
  * The outcome slot (§21.9): a delivery note or a result in the conversation is keyed by its own `data-ix-record`
  * (`<kind>:<id>`) or, for a card's result, by the card; a control in it that a step may press carries
- * `data-ix-press="<name>"` (a result's 「打开」, a delivery note's link), and the step's id is `<key>:<name>`.
+ * `data-ix-press="<name>"` (a result's 「打开」, a delivery note's link), and the step's id is `<key>:<name>`. Its result
+ * buttons are written as a reply's (`data-assistant-object`), and the row hands each record to the island's `bindText`
+ * once per drawing, so they open as a reply's do (SLOT-03). The owner writes such a button only for an object that opens,
+ * as `assistant-text-parts.ts` does, and anything else as text. A card writes none: its result uses the card's own
+ * controls, and neither the island nor the row binds a card.
  *
  * A page's suggestion (`molis:assistant-message`, purpose `suggest`, or a hand-over the page did not start from a press)
  * is one more step here: pressing it puts its words and materials in the input, nothing is sent. With the panel closed it
@@ -43,12 +47,14 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   };
   const paint = () => {
     const view = input.view(), open = input.open(), work = view?.work.work_id;
+    // An outcome's record is drawn whole by its owner; its result buttons open as a reply's do, bound once per drawing.
+    for (const node of thread.querySelectorAll("[data-ix-record]")) if (node.ixBound !== node.firstChild) { input.bindText(node); node.ixBound = node.firstChild; }
     if (work !== shownWork) { shownWork = work; unfolded = false; }
-    input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_index, button) => go(button.dataset.ixStepId) });
+    input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_, button) => go(button.dataset.ixStepId) });
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
-      if (!group) { group = el("div", "mw-ix-steps"); group.setAttribute("role", "group"); group.setAttribute("aria-label", L("下一步")); row.append(group); }
+      if (!group) { group = el("div", "mw-ix-steps"); group.role = "group"; group.ariaLabel = L("下一步"); row.append(group); }
       if (offerNode?.parentNode !== group) group.append(offerNode ||= offerStep());
     }
     row.hidden = !row.querySelector(".mw-ix-step");
@@ -58,5 +64,5 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     unfolded = true; paint();
     row.querySelector('[data-ix-step="3"]')?.focus();
   });
-  return { paint, offer(message, unconfirmed) { offerNode?.remove(); offer = { message, unconfirmed }; offerNode = null; paint(); } };
+  return { paint, offer(message, unconfirmed) { offerNode = offerNode?.remove(); offer = { message, unconfirmed }; paint(); } };
 }`;

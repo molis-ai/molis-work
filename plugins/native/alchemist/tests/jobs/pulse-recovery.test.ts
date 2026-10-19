@@ -169,3 +169,38 @@ for (const fail of [false, true]) it(`W5-01-ALC-RES03 W5-01-ALC-RES07: revoked P
     expect(facts()).toEqual(before); expect(laterCalls).toBe(0);
   } finally { release.resolve(); database.close(); temporary.cleanup(); }
 });
+
+// QA-023 W5-01-ALC-RES07: a real cancel, not a revoked grant. The job runner's cancel is written first (status `cancelled`, the
+// `cancelled` event, the lease let go), then the running execution is aborted: the pair Lens's cancel calls today, and the one
+// a Pulse cancel entry will call (D27; this test then goes through it). The source is waiting on the network when the cancel
+// lands; what it brings back afterwards, a result or a failure, is never recorded. The studio closing while a source waits is
+// the other half, in tests/alchemist-pulse-close.test.ts.
+for (const fail of [false, true]) it(`QA-023 W5-01-ALC-RES07: a Pulse cancelled while a source waits records nothing after the cancel, even on a late ${fail ? "failure" : "success"}`, async () => {
+  const temporary = createTempDatabase(), database = openDatabase(temporary.path);
+  const entered = Promise.withResolvers<AbortSignal>(), release = Promise.withResolvers<void>();
+  try {
+    applyStudioBaseline(database, ":memory:"); seedResearchIdea(database);
+    const clock = { now: () => new Date().toISOString() }, idFactory = { next: (prefix: string) => `${prefix}-${crypto.randomUUID()}` };
+    const pulse = new SqlitePulseRepository(database); pulse.ensureDefaultSourceSettings(clock.now());
+    const jobs = new SqliteJobRunner(database, { workerId: "current-pulse", clock, idFactory });
+    const run = createStartPulseRunService({ database, pulse, jobs, idFactory, clock, workspaceId: "workspace-local" })({ sourceIds: ["watcha", "github"] });
+    let laterCalls = 0;
+    const sources: SourcePort[] = [{ sourceId: "watcha", async collect(_query, signal) {
+      entered.resolve(signal); await release.promise;
+      if (fail) throw new Error("Source returned too late");
+      return { sourceId: "watcha", status: "completed", requestUrl: "https://watcha.cn/api/v2/hot/products", fetchedAt: clock.now(), signals: [] };
+    } }, { sourceId: "github", async collect() { laterCalls++; throw new Error("A cancelled Pulse cannot fetch another source"); } }];
+    const worker = new LocalWorker(jobs, createJobHandlers({ explorations: new SqliteExplorationRepository(database), runtime: new FixtureAiRuntimeAdapter(),
+      idFactory, clock, pulse: { repository: pulse, sources, synthesizer: new RuleBasedPulseSynthesizer() } }));
+    acceptTestJob(worker, run.jobId);
+    const work = worker.runNext(), signal = await entered.promise;
+    jobs.cancel(run.jobId); worker.cancel(run.jobId);
+    expect(jobs.get(run.jobId)?.status).toBe("cancelled");
+    expect(jobs.listEvents(run.jobId).at(-1)?.type).toBe("cancelled");
+    expect(signal.aborted).toBe(true); expect(String(signal.reason)).toMatch(/alchemist\.job_cancelled/u);
+    const facts = () => ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_signals", "pulse_reports", "activity_events"]
+      .map(table => database.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all());
+    const cancelled = facts(); release.resolve(); await work;
+    expect(facts()).toEqual(cancelled); expect(laterCalls).toBe(0);
+  } finally { release.resolve(); database.close(); temporary.cleanup(); }
+});

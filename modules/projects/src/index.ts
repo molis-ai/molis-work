@@ -43,8 +43,8 @@ export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
   now?: () => string;
   id?: (prefix: string) => string;
-  /** Installed Plugins. Defaults to the ids this build bundles. */
-  plugins?: ProjectPluginRegistry;
+  /** The Plugins a project may enable and their companions; the Host derives it from what it ships. */
+  plugins: ProjectPluginRegistry;
 }
 
 /**

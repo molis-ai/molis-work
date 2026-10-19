@@ -1,4 +1,5 @@
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { directEligible } from "./assistant-authority.js";
 
 /** Capabilities named as not usable now are capped; the rest are counted, so the directory stays short. */
@@ -44,4 +45,25 @@ function unavailableLines(unavailable: readonly ActionView[]): string[] {
   return ["", "现在用不了的能力（能力在，但还不能用；破折号后是提供方给的原因）：",
     ...[...reasons.values()].map(row => `- ${row.provider}：${row.titles.join("、")}——${row.reason}`),
     ...(more ? [`- 另有 ${more} 项现在用不了，未列出`] : [])];
+}
+
+/** What the Host reads for a round's situation besides the directory itself. */
+export interface AssistantRoundFactPorts {
+  /** How many pieces of project knowledge a round whose directory is `views` would see listed in a project, by source. */
+  knowledgeTally?(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> } | null;
+}
+
+/**
+ * The line 「本轮情况」 gives about the project's knowledge when the round may list it (specs/project-knowledge PMAT-33): a fact,
+ * so a question that sounds general is not answered from general knowledge only because nothing said the project holds documents.
+ * Empty for personal work, a round without 「列出项目资料」, a count the Host cannot read now, and none counted: a project whose
+ * sources are still being listed would otherwise be said to hold nothing.
+ */
+export function knowledgeFact(ports: AssistantRoundFactPorts, projectId: string | null, offered: readonly ActionView[]): string {
+  const list = knowledgeActions.list;
+  if (!projectId || !ports.knowledgeTally || !offered.some(view => view.capability_id === list.capability_id && view.provider.provider_id === KNOWLEDGE_PROVIDER_ID)) return "";
+  let tally: ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeTally"]>>;
+  try { tally = ports.knowledgeTally(projectId, offered); } catch { return ""; }
+  if (!tally?.total) return "";
+  return `这个项目的资料有 ${tally.total} 份（${tally.sources.map(source => `${source.plugin_title} ${source.count}`).join("、")}）。`;
 }

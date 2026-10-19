@@ -138,8 +138,9 @@ export interface KnowledgeReadResponse {
  * `pattern` and each of `alternatives` are literal text, matched without case; a line with any of them matches. There is no
  * regex (a pattern must not be able to stall the Host). It looks in the named `subjects`, in the project's linked-folder files
  * that `glob` matches (in `workspace_id`, or every linked folder), or both; with neither, in the pieces of the project's catalog
- * whose indexed text holds a wording (`catalog`; the index holds each piece's first 32,000 characters). `output: "subjects"`
- * gives only which pieces match and how many lines, no text.
+ * whose indexed text holds a wording, and the long pieces the index holds only the start of, so a wording past it is still found
+ * (`catalog`; at most `KNOWLEDGE_GREP_MAX_SUBJECTS` pieces, `more` when some were left). `output: "subjects"` gives only which
+ * pieces match and how many lines, no text.
  */
 export interface KnowledgeGrepRequest { pattern: string; alternatives?: string[]; subjects?: ActionSubject[]; glob?: string; workspace_id?: string; context_lines?: number; limit?: number; output?: "lines" | "subjects" }
 export interface KnowledgeGrepMatch { subject: ActionSubject; revision: string; line: number; text: string; before: string[]; after: string[] }
@@ -334,7 +335,7 @@ export const knowledgeActions = {
       required: ["subject", "revision", "title", "layer", "text", "start", "end", "start_line", "end_line", "total_lines", "remaining", "owner_truncated", "round_chars_left"],
       additionalProperties: false } } } as ActionDefinition<KnowledgeReadRequest, KnowledgeReadResponse>,
   grep: { capability_id: "knowledge.grep", version: 1, operation: "query", action: { ...metadata,
-    title: "在资料里逐行查找", description: "在资料现在的原文里逐行找一段文字（不分大小写，不是正则；alternatives 里的说法任何一个命中也算）。范围：点名的几份资料（subjects）、工作目录里路径匹配 glob 的文件，都不给就在全项目的资料里找（候选取自索引，每份只到前 32000 字）。默认返回命中的行号与前后几行，行号可交给 knowledge.read 的 line；output 为 subjects 时只给哪几份有、各几行，不返回原文、不占本轮额度，适合先缩小范围。读工作目录要有读取它的授权。",
+    title: "在资料里逐行查找", description: "在资料现在的原文里逐行找一段文字（不分大小写，不是正则；alternatives 里的说法任何一个命中也算）。范围：点名的几份资料（subjects）、工作目录里路径匹配 glob 的文件，都不给就在全项目的资料里找（索引里有这段文字的资料，加上索引只收了开头的长资料；一次最多 20 份，没查完时 more 为真）。默认返回命中的行号与前后几行，行号可交给 knowledge.read 的 line；output 为 subjects 时只给哪几份有、各几行，不返回原文、不占本轮额度，适合先缩小范围。读工作目录要有读取它的授权。",
     input_schema: { type: "object", properties: { pattern: grepText, alternatives: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_ALTERNATIVES, items: grepText },
       subjects: { type: "array", minItems: 1, maxItems: KNOWLEDGE_GREP_MAX_SUBJECTS, items: ACTION_SUBJECT_SCHEMA }, glob: globPattern, workspace_id: workspaceId,
       context_lines: { type: "integer", minimum: 0, maximum: 3 }, limit: { type: "integer", minimum: 1, maximum: 100 }, output: { enum: ["lines", "subjects"] } },

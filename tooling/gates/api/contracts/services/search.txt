@@ -4,6 +4,8 @@
 
 export declare const SEARCH_FRAGMENT_CHOICES: readonly FragmentOfferChoice[];
 
+export declare const SEARCH_INDEX_CONTENT_CHARS = 32000;
+
 export declare const SEARCH_MANAGE_PERMISSION = "search:manage";
 
 export declare const SEARCH_PERMISSIONS: readonly ["search:read", "search:manage"];

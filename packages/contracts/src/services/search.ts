@@ -189,6 +189,8 @@ export interface SearchIndexSourceRecord {
   synced_at: number | null;
   checked_at: number | null;
 }
+/** The most of a document's text the search index holds; words past it are found only by reading the piece itself. */
+export const SEARCH_INDEX_CONTENT_CHARS = 32_000;
 export interface SearchIndexDocument {
   source_key: string;
   kind: string;

@@ -44,7 +44,7 @@ import { RoundBudget } from "./budget.js";
 
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
-export { KnowledgeOrganizer, knowledgeCatalog, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
+export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
   type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
@@ -79,6 +79,11 @@ export interface KnowledgeServiceOptions {
   search(access: KnowledgeAccess, input: SearchQueryRequest): Promise<SearchQueryResponse>;
   /** The cards organizing wrote and the person edited (spec §5), and the receipts of what was read. */
   cards: KnowledgeCardStorePort;
+  /**
+   * Pieces whose text the search index holds only the start of: a grep over the whole project reads them as well, since a word
+   * past what the index holds would otherwise never make its piece a candidate (PMAT-32).
+   */
+  cut?(projectId: string): readonly ActionSubject[];
   budget?: RoundBudget;
   clock?: () => Date;
 }
@@ -98,12 +103,12 @@ const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.i
  * that lists the piece is in the caller's directory now, and when the card was written from the piece's text, the caller can
  * also read that kind from its owner.
  */
-function visibility(views: readonly ActionView[], caller: KnowledgeAccess["caller"]): (card: KnowledgeCardRecord) => boolean {
+function visibility(views: readonly ActionView[], projectId: string | null): (card: KnowledgeCardRecord) => boolean {
   const listed = new Map<string, Set<string>>(), readable = new Map<string, Set<string>>();
   for (const view of views) {
     if (!view.availability.available) continue;
     if (isSearchEntriesSource(view.action) && view.action.search_source?.kinds.length) {
-      const project_id = view.provider.project_id ?? (view.action.scope === "project" ? caller.project_id : null);
+      const project_id = view.provider.project_id ?? (view.action.scope === "project" ? projectId : null);
       listed.set(searchSourceKey({ project_id, provider_id: view.provider.provider_id, capability_id: view.capability_id, version: view.version }),
         new Set(view.action.search_source.kinds.map(entry => entry.kind)));
     }
@@ -146,7 +151,7 @@ export class KnowledgeService {
       .filter((card): card is KnowledgeCardRecord => !!card && !card.excluded && card.state !== "missing" && !cards.some(item => sameSubject(item.subject, card.subject))
         && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
     if (more.length && cards.length < limit) {
-      const visible = visibility(await access.client.discover(knowledgeReader(access)), knowledgeReader(access));
+      const visible = await this.visible(access);
       for (const card of more.filter(visible).slice(0, limit - cards.length)) {
         cards.push({ subject: card.subject, revision: card.revision, title: card.title, plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at,
           matched: "card", hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
@@ -173,8 +178,7 @@ export class KnowledgeService {
    */
   async list(access: KnowledgeAccess, input: KnowledgeListRequest, listing = false): Promise<KnowledgeListResponse> {
     const project = this.project(access);
-    const visible = visibility(await access.client.discover(knowledgeReader(access)), knowledgeReader(access));
-    const seen = this.options.cards.list(project).filter(card => !card.excluded && card.state !== "missing" && visible(card));
+    const seen = this.listed(project, await this.visible(access));
     const sources = new Map<string, { plugin_id: string; plugin_title: string; count: number }>();
     for (const card of seen) {
       const source = sources.get(card.plugin_id) ?? { plugin_id: card.plugin_id, plugin_title: card.plugin_title, count: 0 };
@@ -187,6 +191,16 @@ export class KnowledgeService {
     return { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(card => ({ subject: card.subject, revision: card.revision,
       title: card.title, plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords,
       sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open })) };
+  }
+
+  /**
+   * How many pieces `list` would show a caller whose directory is `views`, by source: a round starts knowing there is something
+   * here to look in (PMAT-33). Counts only, no titles or text.
+   */
+  tally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> } {
+    const counts = new Map<string, number>();
+    for (const card of this.listed(projectId, visibility(views, projectId))) counts.set(card.plugin_title, (counts.get(card.plugin_title) ?? 0) + 1);
+    return { total: [...counts.values()].reduce((sum, count) => sum + count, 0), sources: [...counts].map(([plugin_title, count]) => ({ plugin_title, count })) };
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
@@ -281,6 +295,14 @@ export class KnowledgeService {
       }
       more ||= found.hits.length === KNOWLEDGE_GREP_MAX_SUBJECTS;
     }
+    const cut = (this.options.cut?.(project) ?? []).filter(subject => !subjects.some(other => sameSubject(other, subject)));
+    if (cut.length) {
+      const visible = await this.visible(access);
+      for (const card of this.listed(project, visible).filter(card => cut.some(subject => sameSubject(subject, card.subject)))) {
+        if (subjects.length === KNOWLEDGE_GREP_MAX_SUBJECTS) { more = true; break; }
+        subjects.push(card.subject);
+      }
+    }
     return { subjects, more };
   }
 
@@ -306,6 +328,17 @@ export class KnowledgeService {
   private stored(project: string, subject: ActionSubject, pluginId?: string): KnowledgeCardRecord | null {
     const card = this.options.cards.get(project, subject);
     return card && (pluginId === undefined || card.plugin_id === pluginId) ? card : null;
+  }
+
+  /** The rule a caller may be shown a card by, from the directory of the authority it reads with. */
+  private async visible(access: KnowledgeAccess): Promise<(card: KnowledgeCardRecord) => boolean> {
+    const reader = knowledgeReader(access);
+    return visibility(await access.client.discover(reader), reader.project_id ?? null);
+  }
+
+  /** The project's pieces as `list` shows them: not kept from agents, still in the catalog, and visible to the caller. */
+  private listed(project: string, visible: (card: KnowledgeCardRecord) => boolean): KnowledgeCardRecord[] {
+    return this.options.cards.list(project).filter(card => !card.excluded && card.state !== "missing" && visible(card));
   }
 
   /** The caller's own project; knowledge has no personal or cross-project scope. */

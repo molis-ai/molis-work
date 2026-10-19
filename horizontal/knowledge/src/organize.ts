@@ -12,7 +12,7 @@ import {
   type KnowledgeQuota,
   type KnowledgeSectionNote,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
-import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_INDEX_CONTENT_CHARS, type SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
 import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
@@ -42,6 +42,11 @@ export function knowledgeCatalog(index: Pick<SearchIndexPort, "documents" | "sou
       plugin_title: source.title, revision: document.revision, title: document.title, summary: document.summary, content: document.content,
       content_policy: document.content_policy, updated_at: document.updated_at, open: document.open }];
   });
+}
+
+/** A project's pieces whose text the index holds only the start of: a word past that is found only by reading them (PMAT-32). */
+export function knowledgeCutPieces(index: Pick<SearchIndexPort, "documents">, projectId: string): ActionSubject[] {
+  return index.documents(projectId).filter(document => document.content.length >= SEARCH_INDEX_CONTENT_CHARS).map(document => ({ kind: document.kind, id: document.object_id }));
 }
 
 /** What the model is given for one piece: its title, its text (or each section's opening when it is long) and the section anchors. */

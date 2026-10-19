@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionClient, ActionExecutionContext, ActionHandlerBinding, ActionProviderRegistration, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import {
   KNOWLEDGE_PROVIDER_ID,
@@ -18,7 +18,7 @@ import {
   type KnowledgeSearchRequest,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchIndexPort } from "@molis-ai/molis-work-contracts/services/search";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeReader, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, knowledgeCutPieces, knowledgeReader, type KnowledgeAccess, type KnowledgeDraft, type KnowledgeWriter } from "@molis-ai/molis-work-service-knowledge";
 import type { SearchService } from "@molis-ai/molis-work-service-search";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { KNOWLEDGE_ORGANIZE } from "./agent-definitions/system-prompts.js";
@@ -45,6 +45,8 @@ export interface KnowledgeHost {
   /** Something in a project's catalog may have changed: organize it shortly after. */
   changed(projectId: string | null): void;
   projectDeleted(projectId: string): void;
+  /** How many pieces a caller whose directory is `views` would see listed in a project, by source (no titles, no text). */
+  tally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
   close(): Promise<void>;
 }
 
@@ -78,7 +80,8 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const store = openKnowledgeCards({ homeDirectory: ports.homeDirectory });
   const organizer = new KnowledgeOrganizer({ store, catalog: async projectId => knowledgeCatalog(ports.index, projectId),
     writer: ports.writer ?? (() => knowledgeModelWriter(ports.homeDirectory)), ...(ports.quota ? { quota: ports.quota } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
-  const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store });
+  const service = new KnowledgeService({ search: (access, input) => ports.search.query({ client: access.client, caller: knowledgeReader(access) }, input), cards: store,
+    cut: projectId => knowledgeCutPieces(ports.index, projectId) });
   const cards = new KnowledgeCards(store, organizer);
   const timers = new Map<string, ReturnType<typeof setTimeout>>();
   let closed = false;
@@ -129,6 +132,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     organizer,
     changed,
     projectDeleted: projectId => { clearTimeout(timers.get(projectId)); timers.delete(projectId); store.removeProject(projectId); },
+    tally: (projectId, views) => service.tally(projectId, views),
     close: async () => {
       closed = true;
       for (const timer of timers.values()) clearTimeout(timer);

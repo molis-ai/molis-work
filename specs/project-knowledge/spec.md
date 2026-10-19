@@ -146,7 +146,7 @@
 
 - **每一步都便宜**：只给卡片、行号、计数的步骤不花本轮的原文额度；花额度的只有原文（`knowledge.read` 的正文与 `knowledge.grep` 返回的行）。
 - **结果能接上下一步**：`grep` 的行号就是 `read` 的 `line`；`outline` 的 `anchor` 和起始行都能交给 `read`；`list`、`search` 给的 subject 交给其余几个动作。
-- **找不到也说清楚**：`grep` 返回查过几份、哪几份读不到及原因；全项目查找的候选来自索引（每份只索引前 32000 字），更长资料的后面部分要点名再查，返回里写明。
+- **找不到也说清楚**：`grep` 返回查过几份、哪几份读不到及原因；全项目查找的候选是索引里有这段文字的资料，加上索引只收了开头（前 32000 字）的长资料，所以长资料后半部的词不点名也找得到（PMAT-32）；一次最多查 20 份，没查完时返回里写明。
 - **不靠向量**：换个说法找不到时，由 Agent 换词再找（同义词、英文、编号）；`grep` 可以一次给几个备选词（`alternatives`），不收正则（Host 没有正则超时）。
 - 返回的每条都带 subject、版本或指纹、出处；**不带**可当引文的大段原文，除了 `read` 与 `grep` 的行。
 
@@ -286,9 +286,11 @@
 26. **PMAT-26** `knowledge.list` 按来源列出调用者此刻能看到、没被设为不给 Agent 用的资料卡片，可按来源与类型过滤、翻页，给出各来源的份数；不返回原文，不花本轮的原文额度。
 27. **PMAT-27** `knowledge.outline` 的每节带父节与起始行，按标题层级成树；按一个标题的锚点读，读到这一节连同它的子节，到下一个同级或更高级标题为止。
 28. **PMAT-28** `knowledge.read` 能按起始行与行数读，返回起止行与总行数；`knowledge.grep` 给的行号交给它，读到的就是那一行起的原文。
-29. **PMAT-29** `knowledge.grep` 不点名资料也不给路径模式时，在全项目里找（候选取自索引，返回查过几份、索引只到每份前 32000 字）；`output: "subjects"` 只给哪几份有、各几行，不返回原文、不花本轮额度；`alternatives` 里任何一个词命中都算。
+29. **PMAT-29** `knowledge.grep` 不点名资料也不给路径模式时，在全项目里找（候选取自索引与 PMAT-32 的长资料，返回查过几份）；`output: "subjects"` 只给哪几份有、各几行，不返回原文、不花本轮额度；`alternatives` 里任何一个词命中都算。
 30. **PMAT-30** 各工具的说明与两份基础提示词写清 §6.2 的找法（看有什么、缩小范围、看结构、定位、按行读原文、核对），各说一次，不加措辞禁令。
 31. **PMAT-31** 点名的资料项目资料里没有（没有它的卡片，也没有主人接它：种类没人读、id 主人解析不了、读回来不是它）时，`read`、`outline`、点名 `grep` 回 `knowledge.unknown`，说明这一份不在项目资料里、subject 要照抄 `list`、`search`、`grep` 给的那一个；有卡片的资料被主人拒绝时仍是主人自己的原因（召回评测里 subject 写坏后被说成「输入不符合合同」，§14）。
+32. **PMAT-32** 全项目 `knowledge.grep` 的候选除了索引里有这段文字的资料，还有索引只收了开头的长资料（索引的正文到 `SEARCH_INDEX_CONTENT_CHARS` 为止），所以只出现在长资料后半部的词也找得到；这些长资料按 `list` 的规则筛（不给 Agent 用的、调用者读不到来源的不查，也不出现在读不到的名单里），仍受一次 20 份的上限（第二轮召回评测 c18，§14）。
+33. **PMAT-33** 个人助理每轮的「本轮情况」写明这个项目的资料有几份、按来源各几份（与这一轮 `knowledge.list` 能列出的同一口径：不给 Agent 用的不算），只写数，不写标题与内容；个人工作、这一轮没有「列出项目资料」、或一份也没数到（来源可能还在登记）时不写（第二轮召回评测 c08、c09，§14）。
 
 ## 14. 进度与证据
 
@@ -372,7 +374,7 @@
 - `knowledge.list`（PMAT-26）：按来源列出卡片，不给原文、不花额度；可按来源与种类过滤、翻页。
 - 分节成树（PMAT-27）：每节带 `parent`、`line`，`length` 盖住子节；按标题锚点读到下一个同级或更高级标题为止。
 - 按行读（PMAT-28）：`knowledge.read` 收 `line`、`max_lines`（与 `anchor`、`offset` 互斥），返回 `start_line`、`end_line`、`total_lines`。
-- 全项目逐行查找（PMAT-29）：不点名资料也不给路径模式时，候选取自系统搜索的索引（覆盖每份前 32,000 字），最多查 `KNOWLEDGE_GREP_MAX_SUBJECTS` 份并说查了几份；`output: "subjects"` 只给哪几份、各几行，不花额度、不留回执；`alternatives` 最多 4 个别的说法。
+- 全项目逐行查找（PMAT-29）：不点名资料也不给路径模式时，候选取自系统搜索的索引（覆盖每份前 32,000 字；后来补上索引只收了开头的长资料，PMAT-32），最多查 `KNOWLEDGE_GREP_MAX_SUBJECTS` 份并说查了几份；`output: "subjects"` 只给哪几份、各几行，不花额度、不留回执；`alternatives` 最多 4 个别的说法。
 - 工具说明与两份基础提示词（assistant-base v31、coding-base v14，都还没出过这个分支，原地改）写清一步步找、换说法再找（PMAT-30）。
 - 测试：`tests/knowledge-agentic-search.test.ts`（PMAT-26～29）、`tests/agent-definitions.test.ts`（PMAT-25、30）、`tests/knowledge-service.test.ts`、`tests/knowledge-workspace.test.ts`、`tests/security-invariants-knowledge.test.ts`（list 与全项目查找的拒绝）。
 - 验证（K3+K4 合起来，2026-10-19）：非浏览器回归 676 个文件里，因本改动而红的都已修好（Coding 夹具的 grants 加 `knowledge:read`，`tests/fixtures/coding-sdk-runtime.ts` 加一个从成果库与过程项读固定版本的 `knowledge.read` 替身；「30 份材料」用例改用资料的 subject；`plugin-private-storage` 的安装 grants 补上 `knowledge:read`。内置插件按 bundled 安装，拿到全部必需权限，所以真实 Home 升级后 Coding 不会因缺 grant 起不来）。按 `affected-tests` 选的 32 个相关文件（27 个浏览器用例）全过；`shelf-client-boundaries.e2e` 在批次里一次 CDP 导航超时，单独重跑 9/9 通过。`check-health-gates --base origin/main`、`boundary:check`、`typecheck`、`page-assets --base origin/main`、动作合同快照都过。全量回归留给统筹在整合分支跑。

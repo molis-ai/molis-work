@@ -8,6 +8,7 @@ import type {
   SearchIndexQuery,
   SearchIndexSourceRecord,
 } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_INDEX_CONTENT_CHARS } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 
@@ -206,7 +207,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     count: key => Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents WHERE source_key = ?").get(key) as Row).n),
     upsert: documents => transaction(() => {
       for (const document of documents) {
-        const title = document.title.slice(0, 1000), summary = document.summary.slice(0, 4000), content = document.content.slice(0, 32000);
+        const title = document.title.slice(0, 1000), summary = document.summary.slice(0, 4000), content = document.content.slice(0, SEARCH_INDEX_CONTENT_CHARS);
         const openJson = document.open ? JSON.stringify(document.open) : null;
         const existing = selectDocId.get(document.source_key, document.kind, document.object_id) as Row | undefined;
         let docId: number;

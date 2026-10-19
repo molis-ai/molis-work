@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, type KnowledgeDraft, type KnowledgeDraftInput } from "@molis-ai/molis-work-service-knowledge";
+import { KnowledgeCards, KnowledgeOrganizer, KnowledgeService, RoundBudget, knowledgeCatalog, knowledgeCutPieces, type KnowledgeDraft, type KnowledgeDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
 
@@ -21,7 +21,7 @@ async function fixture(t: import("node:test").TestContext, budget?: RoundBudget)
   const writer = async (input: KnowledgeDraftInput): Promise<KnowledgeDraft> =>
     ({ title: input.title, brief: `讲的是${input.title}。`, keywords: [input.title], sections: input.sections.map(section => ({ anchor: section.anchor, summary: `${section.title}这一节` })) });
   const organizer = new KnowledgeOrganizer({ store: cards, catalog: async projectId => knowledgeCatalog(f.index, projectId), writer: () => writer, clock: () => new Date("2026-10-19T08:00:00Z") });
-  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, ...(budget ? { budget } : {}) });
+  const knowledge = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards, cut: projectId => knowledgeCutPieces(f.index, projectId), ...(budget ? { budget } : {}) });
   const indexAll = async () => { await f.search.query(f.access(owner), { query: "试用", scope: "project", limit: 30 }); await organizer.reconcile("a"); };
   return { ...f, cards, organizer, knowledge, manage: new KnowledgeCards(cards, organizer), indexAll };
 }
@@ -123,4 +123,27 @@ test("PMAT-31 a subject project knowledge does not have is refused as not a piec
   // A piece with a card that its owner now refuses keeps the owner's own reason.
   f.pages.set("p1", { id: "p1", title: "试用手册", body: MANUAL, version: 3, refuse: true });
   await assert.rejects(() => f.knowledge.read(f.access(agent()), { subject: { kind: "page", id: "p1" } }), (error: unknown) => error instanceof ActionError && error.code === "pages.locked");
+});
+
+test("PMAT-32 a grep over the whole project finds a wording past what the index holds of a long piece; kept or unreadable ones stay out", async t => {
+  const f = await fixture(t);
+  // A long log: the wording is only past the first 32,000 characters, so no search hit names the piece.
+  const filler = Array.from({ length: 2400 }, (_, index) => `第 ${index + 1} 次例会：库存与排班照常。`).join("\n");
+  f.pages.set("p9", { id: "p9", title: "例会纪要汇编", body: `${filler}\n第 2401 次例会：地钉换成 7075 铝合金，每枚加 1.2 元。`, version: 1 });
+  await f.indexAll();
+  assert.ok(f.index.documents("a").some(document => document.object_id === "p9" && document.content.length === 32_000), "the index holds only the start");
+  const plain = new KnowledgeService({ search: (access, input) => f.search.query(access, input), cards: f.cards });
+  assert.deepEqual((await plain.grep(f.access(agent()), { pattern: "7075" })).matches, [], "without the long pieces, the index alone never makes p9 a candidate");
+
+  const found = await f.knowledge.grep(f.access(agent()), { pattern: "7075" });
+  assert.deepEqual(found.matches.map(match => [match.subject.id, match.line]), [["p9", 2401]]);
+  assert.equal(found.catalog, true);
+  assert.deepEqual((await f.knowledge.grep(f.access(agent()), { pattern: "7075", output: "subjects" })).found.map(row => [row.subject.id, row.lines]), [["p9", 1]]);
+
+  // The same rule as list: a caller who cannot read pages is not shown it, and one kept from agents is not read at all.
+  const noPages = await f.knowledge.grep(f.access(agent(undefined, ["goals:read", "search:read"])), { pattern: "7075" });
+  assert.deepEqual([noPages.matches, noPages.unread], [[], []]);
+  f.manage.exclude(owner, { subject: { kind: "page", id: "p9" }, excluded: true });
+  const kept = await f.knowledge.grep(f.access(agent()), { pattern: "7075" });
+  assert.deepEqual([kept.matches, kept.unread], [[], []]);
 });

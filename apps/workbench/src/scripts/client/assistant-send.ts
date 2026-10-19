@@ -107,7 +107,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  */
 export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, api, work, reload, pact }) => {
   const CHOICES = { answer: "回答上面的问题", draft: "写进问卷", steer: "补充这一轮" };
-  let asked = "", ask = null, choice = "answer", pacted = null;
+  let asked = "", ask = null, choice = "answer", pacted = null, drawn = "", block = null;
   const question = (round) => {
     const waiting = round && round.phase === "awaiting-input" ? round.awaiting_input || [] : [];
     return waiting.find((item) => item.from_composer || item.draft_from_composer) || null;
@@ -144,6 +144,16 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     after(thread, put, view) {
       const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
       if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
+      // The delivery note (3e-2a): the Host's record, placed as it is after the tray and replaced whole only when its html changed, so the step row binds it again.
+      const note = view?.delivery_html || "";
+      if (note !== drawn) {
+        drawn = note; block?.remove(); block = null;
+        if (note) {
+          const box = document.createElement("div"); box.innerHTML = note; block = box.firstChild;
+          block.addEventListener("click", (event) => { const one = event.target.closest("[data-input]"); if (one) shared.link(thread, one.dataset.input)?.click(); });
+        }
+      }
+      if (block) put(block);
       const kept = view ? shared.agreements(thread, view.rounds.map((one) => one.run_id)) : null, read = kept ? kept.textContent : "";
       if (read !== pacted) { pacted = read; pact(kept, kept ? String(kept.querySelectorAll("li").length) : ""); }
     },

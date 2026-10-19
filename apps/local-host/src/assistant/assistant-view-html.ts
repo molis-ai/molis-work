@@ -5,6 +5,7 @@ import { agentQuestionHtml } from "../agent-question-card.js";
 import { interactionNextSteps } from "../agent-next-steps.js";
 import { composerQuestion } from "./assistant-inputs.js";
 import { assistantOutcomeSteps } from "./assistant-outcome.js";
+import { deliveryNote, deliveryNoteHtml } from "./assistant-delivery.js";
 
 /**
  * The conversation's next steps for the row above the input (specs/context-program §21.2, FLOW-01…05): what waits on the
@@ -32,7 +33,7 @@ const isView = (value: unknown): value is AssistantWorkView => Boolean(value) &&
 
 /**
  * A reply's work views and cards, drawn on the Host so the page only binds them (specs/ai-interaction-experience A1, H2):
- * each waiting question with the person's half-written answer (and whether words from the composer answer it or go into its draft), each card, text, review, and the next steps above the input.
+ * each waiting question with the person's half-written answer (and whether words from the composer answer it or go into its draft), each card, text, review, the next steps above the input, and the delivery note.
  * Read by the Assistant's own page; the records themselves are unchanged.
  */
 export function drawAssistantReply(body: unknown, ports: { say: (text: string, values?: Record<string, string | number>) => string; drafts(workId: string): Record<string, InteractionValues>; card(card: AssistantCard): string }): void {
@@ -52,6 +53,9 @@ export function drawAssistantReply(body: unknown, ports: { say: (text: string, v
       for (const review of candidate.reviews) Object.assign(review, { html: assistantReviewHtml(review, ports.say) });
       candidate.cards.forEach(drawCard);
       Object.assign(candidate, assistantStepRow(candidate, ports.say));
+      // The work's delivery note (receipts 3e-2a): drawn here, placed after the rounds by the page; empty when there is none.
+      const note = deliveryNote(candidate);
+      Object.assign(candidate, { delivery_html: note ? deliveryNoteHtml(note, ports.say) : "" });
     }
   }
   const card = isCard(body) ? body : (body as { card?: unknown } | null)?.card;

@@ -48,7 +48,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
-    ...workflowContentProblems(key, raw.operation, action),
+    ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
     ...contextDeclarationProblems(key, raw.operation, action),
   ];
@@ -199,7 +199,7 @@ function undoProblems(key: string, operation: unknown, a: ActionBody): string[] 
 
 // ---- workflow content stations, and the operation an action's kind implies -------------------------------------------------
 
-function workflowContentProblems(key: string, operation: unknown, a: ActionBody): string[] {
+function workflowContentProblems(key: string, version: unknown, operation: unknown, a: ActionBody): string[] {
   if (a.workflow_content === undefined) return [];
   const w = a.workflow_content;
   if (!isObject(w) || !/^[a-z][a-z0-9-]{1,40}$/.test(String(w.id)) || !isText(w.title) || !isText(w.icon)
@@ -208,13 +208,16 @@ function workflowContentProblems(key: string, operation: unknown, a: ActionBody)
   }
   const role = w.role as WorkflowContentStation["role"];
   const schemas = WORKFLOW_CONTENT_SCHEMAS[role];
-  // A role is declared at its current version only: an older shape is refused when the plugin registers, not met at a call.
-  const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
+  // A role is declared at its current version only, its action's own version included: an older shape is refused when the plugin
+  // registers, not met at a call, and a step saved against an older version finds nothing rather than a new shape under its number.
+  const current = WORKFLOW_CONTENT_VERSIONS[role];
+  if (version !== current) return [`能力 ${key} 按工作流内容协议 ${role} 的现行版本应声明为 ${current}`];
+  const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${current}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
   const outputOk = a.output_type === `molis.workflow.content.${role}.output.v1` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
   const shapeOk = a.scope === "project" && a.audiences.includes("workflow") && operation === (role === "list" || role === "read" ? "query" : "command");
   if (inputOk && outputOk && shapeOk) return [];
   const gap = shapeOk && outputOk ? "输入" : shapeOk && inputOk ? "输出" : "输入输出";
-  return [`能力 ${key} 没有兑现工作流内容协议 ${role} v${WORKFLOW_CONTENT_VERSIONS[role]} 的${gap}合同`];
+  return [`能力 ${key} 没有兑现工作流内容协议 ${role} v${current} 的${gap}合同`];
 }
 
 function operationKindProblems(key: string, operation: unknown, a: ActionBody): string[] {

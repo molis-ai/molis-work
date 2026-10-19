@@ -68,6 +68,9 @@ const receiveNow = { workflow_content: { ...workflowShape, role: "receive" }, ki
   input_schema: WORKFLOW_CONTENT_SCHEMAS.receive.input, output_schema: WORKFLOW_CONTENT_SCHEMAS.receive.output };
 const oldReceiveInput = { type: "object", additionalProperties: false, required: ["payload", "context"],
   properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } } };
+/** The key of a receive declared at the receive role's current version. */
+const RECEIVE_KEY = "example.read@2";
+const asReceive = { operation: "command", version: 2 };
 const { request_id: _requestId, ...flatWithoutRequestId } = (WORKFLOW_CONTENT_SCHEMAS.receive.input as { properties: Record<string, unknown> }).properties;
 
 const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unknown; expected: string[] }> = [
@@ -124,13 +127,15 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "a workflow content protocol other than 1", actions: [defined({ workflow_content: { ...workflowShape, protocol: 2 } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content that receives while it is the receiver", actions: [defined({ workflow_content: { ...workflowShape, role: "receive", receives: false } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 list v1 的输入输出合同`] },
-  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, { operation: "command" })], expected: [] },
-  { rule: "W4-6-01 a receive that still takes the v1 input", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
-  { rule: "W4-6-01 a receive whose flat input has no request id", actions: [defined({ ...receiveNow, input_schema: { ...WORKFLOW_CONTENT_SCHEMAS.receive.input, properties: flatWithoutRequestId, required: ["title", "body"] } }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
-  { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
-    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
+  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, asReceive)], expected: [] },
+  { rule: "W4-6-01 a receive in the current shape still declared as version 1", actions: [defined(receiveNow, { operation: "command" })],
+    expected: [`能力 ${KEY} 按工作流内容协议 receive 的现行版本应声明为 2`] },
+  { rule: "W4-6-01 a receive that still takes the v1 input", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, asReceive)],
+    expected: [`能力 ${RECEIVE_KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive whose flat input has no request id", actions: [defined({ ...receiveNow, input_schema: { ...WORKFLOW_CONTENT_SCHEMAS.receive.input, properties: flatWithoutRequestId, required: ["title", "body"] } }, asReceive)],
+    expected: [`能力 ${RECEIVE_KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, asReceive)],
+    expected: [`能力 ${RECEIVE_KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
   { rule: "a command whose kind is query", actions: [defined({}, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },

@@ -61,7 +61,7 @@ test("S-41 a check the person refused starts no process", { timeout: 60_000 }, a
   assert.equal(await readFile(join(round.project, "src/a.js"), "utf8"), "1;\n", "the write itself stands");
 });
 
-test("S-41 「本会话不再询问」 for one command does not approve the changed checker's command for the same file", { timeout: 90_000 }, async t => {
+test("S-41 “本会话不再询问” for one command does not approve the changed checker's command for the same file", { timeout: 90_000 }, async t => {
   const read = { tool: "read", input: { path: "a.js" } };
   const round = await afterWriteRound(t, { checkers: [NODE], turns: [write("a.js", "1;\n", "w1"), read, write("a.js", "2;\n", "w2"), say("done"), read, write("a.js", "3;\n", "w3"), say("done")] });
   const seen = new Set<string>();

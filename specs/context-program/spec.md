@@ -516,7 +516,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - **对象声明**：Inbox、Artifacts、Sessions 原表写「✗ 没有浮条」，其实工作台已按搜索来源给它们命名对象（打开为条目标签时）；Characters 声明了表面，但不在 `SEARCH_ITEM_TAB_SURFACES` 里，实际仍没有；Git、Diff 仍没有（context-toolbar §10.1）。
 - **动作池**：现在是选区动作 25 条（Pages 20、Goals 2、Todo 1、灵光 1、搜索 1）加对象动作 8 条（Feed 5、Inbox 3），共 33 条，不是「约 40 条」（side-shelf §2）。
 - **能力名**：`coding.create-session` → `coding.sessions.create`（不是只许本机本人）；`feed.out-rules.create` → `feed.rules.create`；`feed.capture` 是场景不是动作；炼金术士、Jelly、Schedule、Cognia、Images 的动作都带插件前缀；`reminders.add` 只对插件开放；`shelf.material.save` 是把已有的 Shelf 材料交给项目，不是「从文字建」（quick-create §7）。
-- **内容站**：`receive` 的输入是 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`；幂等键 `workflow:<实例>:<步骤>`（6 个插件用 `workflowDeliveryKey`，Feed、Inbox 各自做）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
+- **内容站**：`receive@2` 的输入是平铺的 `{ title, body, url?, source?, feed_item_id?, request_id }`，幂等键就是必填的 `request_id`（工作流传 `workflow:<实例>:<步骤>`，放置传 `placement:<请求号>`；W4-6a，quick-create §11）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
 - **工作流**：`instances.start` 的输入是 `{ id, item_id?, title? }`，至少两站，空白起步要第一站支持 `can_start_blank`（quick-create §6.2）。
 
 ### 15.6 与其他在做的任务的交界
@@ -668,7 +668,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | --- | --- | --- |
 | 2026-10-13 | `e7a51ff0`（#470）、`490251d1` | **通过，有三处记录。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base 通过（`client.ts` 1148 行 < main 的 1151、`craft-finish.ts` −65、`editor-browser.ts` `mount` 变短；测试引用包内部没有变大）；M4 API 快照已重新生成（`dom-events` 删两项并给 `context-panel-open` 加 `cancelable`/`keep`，合同删两个常量，SDK 加 `ActionIntake`/`ActionAttach`）；M6 页面资源预算已降到实测（`workbench.js` −607 字节，三份样式表各 −8.1～8.5 KB，`pages-editor.js` −5.1 KB，`pages.js` 不增）；M8、M9 随健康门禁通过；M5 `action-contract-snapshot` 通过；M15 无密钥。人工项：第 1 条无兼容代码（读取、别名、迁移都没加）；第 9 条无新巨大单元；第 11 条合同只删不加；第 12 条两个事件和常量的消费者（Pages、总线、用例、文档）同一提交改完；第 13 条快照与预算都由工具重新生成；第 18 条所有 `CustomEvent` 已登记；第 20 条新文案的英文在 `plugin-components.ts`；第 21 条没有新的浏览器请求；第 26、27 条没有开新 PR、没有放宽门禁（门禁脚本、`limits.json`、`biome.jsonc` 未动） |
 | | | **记录一：验收编号缺口。** 本 spec §19.4 的 W2-01、W2-02、W2-04、W2-05、W2-08 还没有证明它们的测试：W2-02（窗格里的浮条、悬停保位、Esc 记「忽略」）需要一条分屏用例；W2-04 改成了「等着的结果不丢」（§19.8），对应用例已在 `contextual-interaction.e2e`；W2-05（⌘K 打开链接面板）与 W2-08（开场建议报错改为提示条）待补。检查器目前只报告，不挡合并 |
-| | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
+| | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`apps/workbench/src/plugin-workbench.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
 | | | **记录三：整个 `workbench.js` 还没过压缩。** 工作台脚本里的缩进与注释行占相当大一部分，对拼装 `workbench.js` 的那一处用 `compactScript`，整个资源可以少几十 KB；已用「空白压缩后的 esbuild 输出相同」验证过情境脚本和 Pages 脚本不改语义，别的脚本需逐个验证 |
 | 2026-10-13 晚 | `fc18d5f6`（#471 Computer Use、#472 旧采用树）、`ee84a837`（#463、#473 文档）、`c33448f2`（#474、#475、#482、#483 测试改走公开入口与构建副本） | **通过，修了五处。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base `c33448f2` 通过，比 merge-base 小的是巨大单元、`as unknown as`、Error 子类，本地快查已降；M4、M5 快照与源码一致（只有本线有意的合同变化：`ActionIntake`/`ActionAttach`、`SurfaceFocus.place/side_tab/screen`、落点、`ContextTools`、去掉两个只为写作菜单存在的事件）；M6 页面资源每个文件都不比 main 大，按实测降了预算（见下）。**修的五处**：① W1-4 回归：`plugin-sdk` 的 `context-declarations.ts` 遇到形状不对的声明（`null`、数字、错的 `subject_kinds`）会抛 TypeError，改成先按形状过滤，问题交给形状规则报告（`f86f85dd`，加回归用例 `0534f47d`）；② 新用例里一处 `as unknown as`（门禁按文件计数）改成先声明为 `unknown` 再断言一次（`fa762b97`）；③ 页面资源：合 main 后 `workbench.js` 比 main 多 6,230 字节——main 的宿主现在用 esbuild 压空白，原来的底栏代码缩进与注释多、压得多，本线的浮条已经是 `compactScript` 压过的，压不出新空间。查到 esbuild 默认把每个中文字符写成 6 字节的 `\uXXXX`，而资源按 UTF-8 发（3 字节），main 的 `workbench.js` 里有 17,851 个；宿主的 `tightenServedJs` 加 `charset: "utf8"`，程序与名字不变（新用例 `served-script-text` 经包入口证明），`workbench.js` 比 main 少 47,531 字节，每个插件包都变小（几个共享的大包各少约 22.9 KB）（`1f278d01`、`161ba540`）；④ 全量抓到 W2 弄坏的 W0 原型：W2 去掉了 Pages 编辑器句柄上的 `toolbar`，原型还在删它、读它，载入文档时抛错，右栏 Shelf 一条材料都不出；改成读 `tools()`、调 `runTool()`（`c24fb961`）；⑤ 电脑格不再写「只留位置」，改成说明 main 上 #471 的真实格（`541ff17f`）。人工 27 条对照本线 diff 通过；第 16.4 前两行的记录二、三已被 main 的 esbuild 压缩取代。 |
 
@@ -776,7 +776,7 @@ W1 做第 9 节「W1 共享件」：浮条组件与定位上移、新合同、�
 ### 18.4 从 W1 挪出去的两件（理由与取舍）
 
 - **情境中枢接右栏、助理与落点的 DOM 线**（第 9 节原写在 W1）：挪到 W3 第一片，和 Pages 报告落点、右栏格转发焦点同一个 PR。原因：DOM 事件门禁要求登记时收发两端都在，W1 里只有接收方。W1 只做数据形状（W1-3）与派生（W1-5）。代价：W3 第一片变大一些，由它自己再拆。
-- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
+- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头，已由 W4-6a 做完（`receive@2`，保存的工作流按版本固定，旧版本报不可用；quick-create §11）。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
 
 ### 18.5 与其他线会撞的地方
 
@@ -1131,7 +1131,7 @@ W2 自己的验收（在 T01–T09 之外）：
 
 - **页面资源字节两个方向都不容差**：变大会被拒，比预算小也要在同一个 PR 里用 `--update --base origin/main` 降到实测值（所以合 main 后预算几乎一定要重新生成）。`workbench.js` 现在比 main 小 607 字节，`pages-editor.js` 小 5.1 KB；任何新增都要同时删等量。
 - **`pages-editor.js` 压线**：编辑器是巨大单元（`editor-browser.ts` 约 3870 行、`mount` 要继续变短），往里加行会被门禁拒。
-- **两个近似的压缩函数**：工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统的 `compactScript`（情境脚本，还去空行）。应并成一个，会动所有插件的资源，留给页面资源门禁的主人。对整个 `workbench.js` 拼装处用 `compactScript` 预计能少几十 KB，已证明情境脚本和 Pages 脚本压缩前后语义相同，别的脚本需逐个验证。
+- **两个近似的压缩函数**：工作台的 `served()`（`apps/workbench/src/plugin-workbench.ts`，插件客户端脚本）和设计系统的 `compactScript`（情境脚本，还去空行）。应并成一个，会动所有插件的资源，留给页面资源门禁的主人。对整个 `workbench.js` 拼装处用 `compactScript` 预计能少几十 KB，已证明情境脚本和 Pages 脚本压缩前后语义相同，别的脚本需逐个验证。
 - **批量全量里 W1 的浏览器失败还没归因**；`runtime-integration.test.ts` 在 CI 上败过一次，本机一次败一次过，疑似不稳。
 - 本机 `touch-targets.e2e` 有 4 个在干净 main 上也败的用例（不是本线）。
 - 本线没有往 `tests/ci-product-subset.txt` 加用例；W2-02 的分屏用例若又快又稳可以加。
@@ -1181,7 +1181,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | A7 | 输入框上方的「建议条」（`data-assistant-offer`） | 页面发来的建议（`purpose: suggest`）：「放进输入框 / 忽略」 | `molis:assistant-message`；各插件页面发，岛收 |
 | A8 | 对话里的操作卡 | 模型 `suggest-action` 或 A3 放的卡：可改字段、执行、结果、撤销 | `assistant-offers.ts` + `assistant-card-view.ts`（宿主画，交互线 H2） |
 | A9 | 对话里的问卷卡 | `ask-user` 的待答问题，共享问卷卡，带草稿 | `agent-question-card.ts`（宿主画，交互线 A1/A2） |
-| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-view-html.ts` 的 `assistantNextSteps`（交互线 D14） |
+| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-outcome.ts` 的 `assistantOutcomeSteps`（交互线 D14） |
 | A11 | 对话顶部条带（侧栏收起时）与左侧概况 | 状态、「去确认 / 去回答 / 去处理 / 去核对 / 看等你的子任务」按钮、暂停继续停止；两处各一份 | 岛的 `nextStep`、`paintStrip`、`paintSummary` |
 | A12 | 左侧概况的「还等你处理」 | 本工作等你的子任务与对象 | 岛的 `renderAttention` |
 | A13 | 输入框的铃铛「等你 N」 | 全部工作的通知（等你的、新消息） | `/notices`；岛 |
@@ -1396,12 +1396,16 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 全量（run 39115596523）在 `context-pick-result.e2e` 的 PICK-05 红：Esc 收起浮条，可是已经排上或在路上的判断回来后又把浮条画了出来（慢机上判断回来得晚）。不是 W3-C2 的改动造成的，是 Esc 原本的缺口：现在 Esc 和「换了手上的东西」用同一个 `bus.hush()`，把排着的计时、在路上的判断和规则的回复都作废。PICK-05 加了一步：把判断扣住，按 Esc 之后再放行，浮条不再出来（不修时这一步失败）。workbench.js 因此再加 38 字节，并进 W3-C2 的一次性放行。
 - 2026-10-18 W4-1 创建入口：记成待办、记下灵光（分支 `context/w4-1-intake-todo-lingguang`；统筹 10-18 认可，带四个条件）：
   - Todo 的 `todo.items.create` 与灵光的 `lingguang.create` 声明 `intake`（`prepare` 是各自的 `*.fragment.offers`，不经模型）；两个旧的片段动作选项连同只有它们用的代码删掉（页面上没有只给它们的文案、事件与翻译键）。灵光加 `lingguang.revert`，`create.undo` 指向它。`scripts/contextual-slice/*` 只有自己的静态样例，不调已删的选项，留着；design-system 的示例标签留着。
-  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件与助理相同（`directEligible`：撤销此刻可用），再加不是 `proposes`、不是 `multiple`、没有缺的字段。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌（S-40，`tests/security-invariants-contextual-undo.test.ts`：重复用、换项目、换操作者、过期、提供方换了安装或停用、页面自己写撤销，都拒）。
+  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件：主人声明的撤销此刻可用（与助理共用 `directEligible`），不是 `proposes`、不是 `multiple`、没有缺的字段。浮条新建是本人亲手点的，不读助理的逐项确认 `confirm_always`：在助理里设成「每次都确认」的动作，在浮条上照样直接建（统筹裁定第 2 条，`specs/repository-anti-corruption` §10.28；`contextual-todo.e2e` 第一条把 Todo 的新建设成每次确认后再建两次，都直接建）。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌（S-40，`tests/security-invariants-contextual-undo.test.ts`：重复用、换项目、换操作者、过期、提供方换了安装或停用、页面自己写撤销，都拒）。
   - 页面（`context-bus.ts` 的 `create`）：同一个选区与入口复用同一个请求号（连点两次只建一个，主人按请求号去重），在途时第二次点击不发；完成卡片用落点的卡片，「打开」走 `describe` + `openObject`，「撤销」失败时卡片说「没能撤销」。
   - 顺带修好：Goals「拆成目标步骤」的提案条目号原来固定是 `step-1` 一类，同一个项目的第二份提案被拒；改成按请求号区分（`plugins/native/goals/src/fragment-offers.ts`）。
   - 动作合同快照：Todo、灵光几个动作的 `traits` 哈希变了，输入输出 schema 不变，不升版本；新增 `lingguang.revert@1`（MCP 工具多一个）。
   - 页面资源：`workbench.js` +1,158 字节，一次性放行（`APPROVED_CEILINGS`，理由与试过的写在 `scripts/gates/page-assets.mjs`）。
-  - 用例：`tests/contextual-create.test.ts`（真 Host：两个入口直接建、一次请求只建一个、别处改过后撤销被拒且不删不改、令牌只能用一次、别的项目的令牌被拒；假目录：没有撤销、提案、多个、缺字段都出卡片，只调 `prepare`）、`tests/plugin-context-declarations.test.ts`、`tests/contextual-destinations.test.ts`（只有规则时一段文字一个去处、一个词没有）、`tests/contextual-fragment-offers.test.ts`（同项目第二份拆分提案）、`tests/contextual-todo.e2e.test.ts`（连点、重选、改后撤销被拒、撤销、打开；原来「卡片执行被拒、什么都不写、可以再执行」那一半改用 Goals「拆成目标步骤」的卡片留在同一个文件里）、`tests/lingguang-actions.test.ts` LG-REVERT-01；原来用「记成待办」「记下灵光」的三个浏览器用例改用「拆成目标步骤」，只改去哪里找，断言不变。
+  - 用例：`tests/contextual-create.test.ts`（真 Host：两个入口直接建、一次请求只建一个、别处改过后撤销被拒且不删不改、令牌只能用一次、别的项目的令牌被拒；假目录：没有撤销、提案、多个、缺字段都出卡片，只调 `prepare`）、`tests/plugin-context-declarations.test.ts`、`tests/contextual-destinations.test.ts`（只有规则时一段文字一个去处、一个词没有）、`tests/contextual-fragment-offers.test.ts`（同项目第二份拆分提案）、`tests/contextual-todo.e2e.test.ts`（连点、重选、改后撤销被拒、撤销、打开；原来「卡片执行被拒、什么都不写、可以再执行」那一半改用 Goals「拆成目标步骤」的卡片留在同一个文件里）、`tests/lingguang-actions.test.ts` LG-REVERT-01；原来用「记成待办」「记下灵光」的三个浏览器用例改用「拆成目标步骤」，只改去哪里找。
+  - 2026-10-19 补测（防腐 §10.28 对 #730 的复查）：原来写「断言不变」，不实，「卡片准备途中改选区，卡片仍按原选区」那条在 W4-1 里删掉了，没有替换。现在补回两条，都在 `contextual-todo.e2e`：Goals「拆成目标步骤」那条把这次点击发的 `/api/contextual/prepare` 扣在路上、选区换到第二段再放行，问的焦点、卡片摘要、work 和执行后的提案都只有第一段；直接新建那条把第一次 `/api/contextual/create` 扣在路上、换选区再放行，问的焦点、完成卡片和建出的待办都只有第一段。
+- 2026-10-19 手上的东西在哪里只看元素（防腐 §10.28 对 #712、#720 的 P3）：原来 `landing.place` 只在元素落在右栏格或助理里时盖掉焦点里的 `place`、`side_tab`，左边的文档（`molis:surface-focus`）和分屏窗格（`workbench-surface-focus`）自己报的 `place: "side"` 与随便一个格名会原样送到 Host，Host 就按右栏给落点、给「插入到光标处」，提示里也写成右栏的格。现在 `place` 一律由元素算出（右栏格 `side` 带格名、助理 `assistant`、其余 `main`），`side_tab` 只在右栏格里有，自己报的两样都不算数。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 §10.28 …」（分屏窗格与左边文档自称右栏、带伪造格名，Host 收到的是 `main`、没有格；Shelf 框自称助理、带伪造格名，收到的是右栏和 Shelf 自己的格）。
+  - 页面资源：`workbench.js` 少 4 字节（`tooling/gates/page-assets.json` 同步降）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 
@@ -1484,3 +1488,50 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **执行前重读落点对象（第 6 步）**：`/api/contextual/attach` 调动作之前，宿主用 H3 的 `confirmReferences`（经 `localHost.search`，本人在这个项目里的权限）读一次落点对象，种类限定为 `attach.item_kind`；不在、不能用，或宿主没有这道检查，都拒绝（`contextual.reference_unavailable`），什么也不写。之后版本仍由 Pages 的动作自己比对。证据：`tests/pages-landing-actions.test.ts`「W3-B1 step 6」。
 - **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
 - **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。
+
+### 21.9 下一步行的结果位（槽位接口，2026-10-19；DISPATCH-1019-0710 ⑧）
+
+版面归本线（`assistant-island.ts` 的布局属 ⑧）。回执线的交付说明（3e）与交互线的结果卡（AC-06 H4）都放进下一步行的同一个位置，不各开结构。
+
+**位置与顺序**：
+
+- 先放等你的（确认、问卷、操作卡、核对、等你的子任务），然后是结果位。
+- 结果位最多给 2 步（`OUTCOME_STEPS`）。整行仍只显示 3 步，其余收进「还有 N 项」，所以结果不会把等你的挤出前三。
+- 结果位一次只说一件事，取第一个有内容的：
+  1. 工作的交付说明（回执 3e，⑥ 加）。只在两件事同时成立时出现：最近一轮已经终止，且显示的轮里有人的补充（及为它问的问题）。出现时排第一，因为它的产出链接已经含了这几轮的结果；
+  2. 最近跑完的那张卡的结果（交互 AC-06，⑨ 加）。交付说明不出现的时候，它排第一；
+  3. 最近一轮做出的结果（「打开「…」」），这一轮失败时是「用同样的话再试一次」。
+
+  最近一轮失败时，前两支都不给步，结果位只给「再试一次」；交付说明和卡片结果在对话里照画。第一支的出现条件与这个顺序是 2026-10-19 统筹答回执线 Q1 定的，以这里写的为准。
+
+**接口**：
+
+- 宿主：`apps/local-host/src/assistant/assistant-outcome.ts` 的 `assistantOutcomeSteps(view, say)`。每个主人在这里加自己的一支，并在对话里画自己的记录；别处不画结果。`assistantStepRow` 把它接在等你的之后，经 `interactionNextSteps` 去重。
+- 记录：对话里的一条交付说明或结果，用自己的 `data-ix-record="<kind>:<id>"` 作键（`NEXT_STEP.record`）；卡片的结果用卡片自己的 `data-card` 作键。
+- 控件：记录里允许下一步按的控件带 `data-ix-press="<name>"`（结果的「打开」、交付说明里的链接、卡片结果的「打开」）。步的 id 是 `<键>:<name>`（`NEXT_STEP.press`）。
+- 页面：`assistant-step-row.ts` 只按记录自己的控件，和人按的一样，所以没有第二条执行路径（FLOW-01）。控件被禁用、记录有没发出的修改、记录里没有这个名字的控件，都只把记录带到眼前，原因由记录自己的控件说（FLOW-03）。只写键不写名字的步，也只带到眼前。键要整段相同，`delivery:w1` 不会接住 `delivery:w10:…`。对话里找不到记录的步交给岛自己的处理（`open:`、`check`、`work:`、`retry`）。
+- 结果按钮（2026-10-19 统筹 D10）：记录里打开某个结果的按钮写成 `data-assistant-object="<view.objects 的下标>"`，和回复里的对象按钮同一写法（`assistant-text-parts.ts`）；要让下一步按它，再加 `data-ix-press`。下一步行每次绘制时，把对话里每条 `data-ix-record` 记录交给岛的 `bindText` 接一次：加图标、点开（侧栏预览优先）。记录的主人只给有 `open` 的对象写 `data-assistant-object`，和 `assistant-text-parts.ts` 一样；没写按钮的显示为文字。记录由主人整块重画，行看第一个子节点换没换，换了才再接，所以轮询和缩放不会重复接。卡片里不写 `data-assistant-object`，卡片的结果用卡片自己的控件：岛画卡片时不调 `bindText`，行也不接卡片。卡片结果的「打开」是卡片自己的控件（`data-ix-press`），不经 `bindText`；以后卡片要放 `data-assistant-object` 写法的结果按钮（要行来加图标、点开），行的循环才要加上 `[data-card]`（约 12 字节）并补用例。不给回执工厂另加 `open` 端口（统筹 10-19 D11 先答加端口，10:08 更正为不加）：一处接住所有结果记录，⑥、⑨ 只写按钮不再碰岛；两处都接会给同一个按钮接两次；回执工厂在岛里先于 `bindText` 的声明调用，直接传 `bindText` 会在声明前取值而抛错。
+- 不改合同、不改设计系统、不改 `assistant-island.ts`（#631 在途，大面积改它）。
+
+**状态**：
+
+- 空：没有结果就不占位；整行没有步时行隐藏。
+- 进行中：一轮还没完不给结果步。
+- 失败：只给「再试一次」。
+- 不在了或打不开的结果不给步。
+- 没权限或已禁用：步只带到记录，由记录说明。
+- 能撤销：撤销是记录自己的控件，步按的就是它。
+
+**验收**：
+
+- **SLOT-01**：宿主端结果位排在等你的之后，至多 2 步，不把等你的挤出前三；不在了或打不开的结果不是步。证据：`tests/assistant-interaction-html.test.ts`。
+- **SLOT-02**：页面端只按记录自己的控件；禁用、未发出的修改、没有的名字只带到眼前；键不前缀误配；卡片的 `run` 与问卷的选项照旧。证据：`tests/assistant-step-row.test.ts`（真实下发的脚本在 `node:vm` 里跑）。
+- **SLOT-03**：页面端把每条结果记录交给岛的 `bindText` 接一次；没重画时再绘制不重复接；主人整块重画后再接；卡片不由行接。证据：`tests/assistant-step-row.test.ts`。
+
+**下发体积**：宿主发脚本前已用 esbuild 压空白（`tightenServedJs`），所以新增的分支只能靠把下一步行的脚本写短来抵：按属性找控件合成一个小函数 `at`，几支判断并在一起，去掉多余的初值。以宿主的压法量，这段脚本比改前少 6 字节，`workbench.js` 不变大。接上结果按钮（SLOT-03）是新功能，省不回来：以宿主的压法量，行脚本多 103 字节、岛的调用处多 4 字节，已用短名字、ARIA 属性直接赋值、调用处的可选链各省一点（共省约 50 字节）。比另加 `open` 端口少一条路径，体积相近。涨的部分由 ⑤ 按页面资源门禁一次放行。
+
+**待补浏览器验证**（用户 10-19 暂停）：
+
+- 一轮做出结果后，下一步行在等你的之后显示「打开「…」」，按下与按结果自己的「打开」相同。
+- 窄面板（小于 560px）时结果步随整行移到输入框上方。
+- 结果记录里的按钮带对象图标，点开先走侧栏预览；打不开的显示为「…」文字；轮询几次后按钮仍只有一个图标、点一次只开一次。

@@ -7,7 +7,7 @@ import { fillOptions } from "./questions.js";
 import { formRequest } from "./request.js";
 import { importAnswers, submitPreview } from "./results.js";
 import { queueSave, save } from "./save.js";
-import { showNote } from "./status.js";
+import { draftNote, showNote } from "./status.js";
 import type { FormClientHost } from "./types.js";
 
 /** Answers typed in the preview: remembered as unsent, and a required-field note goes once nothing required is empty. */
@@ -74,7 +74,7 @@ export function formClient(host: FormClientHost): void {
   const page = formPage(host, request, bench);
   page.draft = formDraft({ host, request, L: page.L, ask: page.one("[data-form-draft-ask]")!, prompt: page.aiPrompt,
     button: page.one<HTMLButtonElement>("[data-form-generate-ai]")!, form: () => page.sel, done: (record) => generated(page, record),
-    note: (text, isError) => showNote(page, text, isError) });
+    note: (text, isError) => draftNote(page, text, isError) });
   listen(page);
   void loadList(page).catch((error: Error) => { showNote(page, error.message, true); listFailed(page, error); });
 }

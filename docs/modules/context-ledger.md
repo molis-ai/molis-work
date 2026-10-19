@@ -34,4 +34,6 @@ Runtime 工作入口到 Project 的当前绑定保存为 `work.binding_project` 
 
 系统助理的工作关系（2026-09-28，`feature/system-assistant`）：助理作为语义所有者，在自己的 Home 级数据库事务资源里用 `createContextLedger` 写关系边，分区 `personal/assistant`。`ObjectRef` 新增命名空间 `assistant`（工作，`object_type: "work"`）与 `plugins`（插件拥有的对象，`object_type` 为对象种类，`project_id` 为所在项目），以及可选的不透明 `revision`（所有者版本不是计数时使用，按原样比较）。关系类型 `assistant.work.origin` / `material` / `result` / `session`；再次产出同一对象的新版本是同一条边的新 revision。对象内容与当前版本始终经所有者的对象上下文读取取得，边只保存引用与当时版本；用户手动修改由版本比较得知，不另记流水。约定见 [molis-plugin-dev · continuity.md](../../skills/molis-plugin-dev/continuity.md)。
 
+Agent 运行里的对象（2026-10-19，`specs/ai-input-receipts` S3）：`ObjectRef` 新增命名空间 `agent-host`，指 Agent 运行持有、Molis 不持有的对象。`object_type: "agent_input"` 是运行会话里的一条输入，`id` 为 `<session>/<input_id>`；`object_type: "runtime_session"` 是一个运行会话。Ledger 只保存引用，不读取、不核对这个对象存在，也没有它的对象上下文读取；Molis 不知道运行里的版本，所以 `version` 一律写 `null`（身份引用）。Ledger 比较引用时连 `version` 一起比，填了数字就成了另一个对象。第一个使用者是 Goals 的「来自对话的输入」：边由 Goals 作为语义所有者写在自己的分区，引用是 AI 的说法，页面标「AI 转述」。
+
 AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。

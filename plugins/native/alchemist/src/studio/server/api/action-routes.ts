@@ -40,7 +40,7 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   route("POST", "/ideas/:id/lenses/:lens/runs", "researchStart", c => body(c, lens(c)), 202);
   route("POST", "/runs/:id/cancel", "runCancel", identity);
   route("GET", "/runs", "runList", none);
-  route("GET", "/runs/:id/resume", "runResume", identity);
+  route("GET", "/runs/:id/continuation", "runContinuation", identity);
   route("POST", "/runs/:id/continue", "runContinue", c => body(c, identity(c)), 202);
   route("GET", "/settings/runtime", "settingsGet", none);
   route("PUT", "/settings/runtime", "settingsUpdate", body);

@@ -112,8 +112,8 @@ export interface WorkflowContentPorts {
   listStartItems(plugin: string): Promise<readonly WorkflowStartItem[]>;
   createBlank(plugin: string, title: string, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
   read(item: WorkflowItemRef, content?: WorkflowContentBinding): Promise<WorkflowPayload>;
-  /** Receivers return the same item for the same `instance_id` and `step`. */
-  receive(plugin: string, payload: WorkflowPayload, context: { instance_id: string; step: number; title?: string }, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
+  /** Receivers return the same item for the same request id: a workflow's is the one for an instance and a step (`workflowRequestId`). */
+  receive(plugin: string, payload: WorkflowPayload, requestId: string, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
 }
 
 /** Other registered actions, reached with the same caller's authority (a judgment rule on a link). */

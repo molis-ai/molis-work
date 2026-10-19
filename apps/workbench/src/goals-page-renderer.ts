@@ -181,7 +181,7 @@ function renderMolisWorkWeb(
     <section class="desktop-work-surface" data-work-surface="goal" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection);
-  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-board-view="list">
+  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
     <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
     <section class="goal-work-rules-pane settings-stage" data-goal-work-rules aria-label="${L("工作规则")}"></section>

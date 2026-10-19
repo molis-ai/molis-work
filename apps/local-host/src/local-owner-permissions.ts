@@ -14,10 +14,12 @@ import { MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memo
 
 /**
  * What the person at this computer holds over the Host's own native plugins, read from the actions those
- * manifests declare — a native plugin that declares a new action needs no change here. Runtime plugins are
- * not included: their installed grants are added per call by `localWebActionContext`.
+ * manifests declare — a native plugin that declares a new action needs no change here. A plugin the Plugin Runtime
+ * assembles is not the Host's own, whatever its `kind`: its actions reach the person only through its running
+ * installation's grants (`localWebActionContext`). The Home ones carry `runtime` in the catalog and are left out here;
+ * the project ones have no catalog mark yet, and their providers name an installation, which is judged by grants alone.
  */
-const NATIVE_OWNER_PERMISSIONS = [...new Set(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.kind === "native")
+const NATIVE_OWNER_PERMISSIONS = [...new Set(BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
   .flatMap(entry => (entry.manifest.actions ?? []).flatMap(definition => definition.action.permissions)))];
 
 /** Host-owned services and the native actions a Host registers outside a manifest (Shelf's personal store, content stores). */

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { HostSurfaceActReceipt, HostSurfaceAction } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
-import { ComputerDriver, isRefused, type DeskContext } from "@molis-ai/molis-work-app-local-host";
+import { ComputerDriver, type DeskContext } from "@molis-ai/molis-work-app-local-host";
 
 type Node = { role: string; name: string; depth: number; frame: [number, number, number, number]; secure?: boolean; subrole?: string };
 type Step = { kind?: string; summary?: string };
@@ -108,9 +108,9 @@ test("CU-G07: alternating actions do not count as the same stuck action", async 
 test("CU-G09: the Window menu names the app's other windows, and the typed menu action switches", async () => {
   const calls: Call[] = [];
   const driver = new ComputerDriver(desk({
-    windows: ["Notes", "Ideas", "确认 · Molis Work"],
+    windows: ["Notes", "Ideas"],
     menus: ["文件", "窗口", "帮助"],
-    windowMenuItems: [{ title: "Notes" }, { title: "Ideas" }, { title: "Minimize" }, { title: "确认 · Molis Work" }],
+    windowMenuItems: [{ title: "Notes" }, { title: "Ideas" }, { title: "Minimize" }],
     calls,
   }));
   const text = new TextDecoder().decode(await driver.surface().observe("accessibility-tree", { session_id: "s" }));
@@ -118,15 +118,11 @@ test("CU-G09: the Window menu names the app's other windows, and the typed menu 
   assert.match(text, /Notes/);
   assert.match(text, /Ideas/);
   assert.doesNotMatch(text, /Minimize/);
-  assert.doesNotMatch(text, /Molis Work/, "a window that shows Molis Work is not offered");
   const receipt = await acted(driver);
   assert.match(receipt.tree, /没有变化/, "the menu hint is not part of the tree the step compares against");
   await driver.surface().perform({ what: "menu", path: ["窗口", "Ideas"] }, { session_id: "s" });
   assert.deepEqual(calls.find(call => call.op === "input.menu")?.payload?.path, ["窗口", "Ideas"]);
-  await assert.rejects(() => driver.surface().perform({ what: "menu", path: ["窗口", "确认 · Molis Work"] }, { session_id: "s" }),
-    (error: unknown) => isRefused(error) && /Molis Work/.test(error.message));
-  const metadata = JSON.parse(new TextDecoder().decode(await driver.surface().observe("window-metadata", { session_id: "s" }))) as { windows: { title: string }[] };
-  assert.equal(metadata.windows.some(one => one.title.includes("Molis Work")), false);
+  // A window that shows Molis Work is neither offered nor reachable by menu: S-25, tests/security-invariants-computer-own-window.test.ts.
 });
 
 test("CU-G09: a sheet is named in the tree, not left as its raw accessibility role", async () => {

@@ -77,8 +77,8 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     const railCurrent = host.shownPlugin?.() || rail().find((node) => node.hasAttribute('aria-current'))?.dataset.pluginId || 'home';
     if (panes.length < 2) return [{ plugin: railCurrent, focused: true }];
     return panes.map((pane) => {
-      const mark = pane.querySelector('.tab-strip [aria-current], .tab-strip .tab-view-chip');
-      return { plugin: mark?.dataset.plugin || mark?.dataset.tabView || '', focused: pane.classList.contains('is-focused') };
+      const mark = pane.querySelector('.tab-strip .tab-item[aria-current]');
+      return { plugin: mark?.dataset.plugin || '', focused: pane.classList.contains('is-focused') };
     }).filter((entry) => entry.plugin);
   };
   const chipOf = (kind, glyph, words) => {

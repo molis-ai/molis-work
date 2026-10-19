@@ -2,16 +2,17 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runInNewContext } from 'node:vm';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
-import { createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS, type BuiltinPluginEntry } from '@molis-ai/molis-work-app-workbench';
+import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
+import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
 import { pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginWorkbenchSettingsStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
 
 const action: ActionDefinition = { capability_id: 'fixture.future.read', version: 1, operation: 'query',
   action: { title: 'Read', description: 'Read a fixture value', kind: 'query', scope: 'project', audiences: ['mcp'], permissions: ['fixture:read'], subject_kinds: [],
     input_schema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'], additionalProperties: false },
     output_schema: { type: 'string' } } };
-function futurePlugin(): BuiltinPluginEntry {
+function futurePlugin(): PluginRegistration {
   const id = 'io.molis.work.future', contribution = id + '.panel';
-  return { project_plugin_id: 'future', summary: 'Future plugin',
+  return { project_plugin_id: 'future', catalog_order: 1, summary: 'Future plugin',
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: '1.0.0', name: 'Future', kind: 'native',
       publisher: { publisher_id: 'fixture', signature: 'fixture' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }],
       permissions: [{ permission: 'fixture:read', required: false, reason: 'read fixture' }], actions: [action],
@@ -26,7 +27,7 @@ function futurePlugin(): BuiltinPluginEntry {
 }
 
 test('one unknown bundled entry supplies actual UI mounting, ordered assets, client initialization and search bindings', () => {
-  const entry = futurePlugin(), second: BuiltinPluginEntry = { ...entry, project_plugin_id: 'other', manifest: { ...entry.manifest, plugin_id: 'io.molis.work.other' },
+  const entry = futurePlugin(), second: PluginRegistration = { ...entry, project_plugin_id: 'other', catalog_order: 2, manifest: { ...entry.manifest, plugin_id: 'io.molis.work.other' },
     workbench: { order: 20, contributions: [], stylesheet: '.other{color:blue}' } };
   const packs = pluginWorkbenchPacks([second, entry]);
   const host = createWorkbenchUiHost(packs);
@@ -59,4 +60,19 @@ test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is serv
   }
   // Every other client is its own bundle.
   for (const client of clients.values()) if (!['files', 'git', 'diff', 'text-stats'].includes(client.id)) assert.equal(client.bundle, client.id, client.id);
+});
+
+test('a registration that sets clientServed is sent without its whole-line comments and indentation; one that does not, as written', () => {
+  const entry = futurePlugin(), script = "api => {\n  // mounts the panel\n  api.mountPluginClient('future', api.projectId());\n}";
+  const [served] = pluginWorkbenchPacks([{ ...entry, workbench: { ...entry.workbench, clientFactory: script, clientServed: true } }]);
+  assert.equal(served?.clientFactory, "api => {\napi.mountPluginClient('future', api.projectId());\n}");
+  assert.equal(Object.hasOwn(served!, 'clientServed'), false, 'the flag is the shell\'s, not part of the pack');
+  const [written] = pluginWorkbenchPacks([{ ...entry, workbench: { ...entry.workbench, clientFactory: script } }]);
+  assert.equal(written?.clientFactory, script);
+});
+
+test('W5-02 every registration has its own catalog_order, rising in catalog order', () => {
+  const orders = BUILTIN_PLUGIN_CATALOG.map(entry => entry.catalog_order);
+  assert.equal(new Set(orders).size, orders.length, 'no two registrations share a place');
+  assert.deepEqual(orders, [...orders].sort((a, b) => a - b), 'the derived lists keep the catalog\'s order');
 });

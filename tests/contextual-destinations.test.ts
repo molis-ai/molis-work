@@ -206,9 +206,9 @@ const waiting = (plan: ReturnType<typeof planContextualLayout>, candidates: read
   plan.more.flatMap(group => group.keys.map(key => [group.intent, candidates.find(item => item.key === key)!] as const))
     .filter(([, item]) => item.origin === "intake").map(([intent, item]) => [intent, item.action.capability_id]);
 
-test("W4-2-09: with rules only, an entry that always needs a card has no slot and waits under 更多 by its intent", () => {
+test("W4-2-09: with rules only, for a passage an entry that always needs a card has no slot and waits under 更多 by its intent", () => {
   const directory = [...ownFragments(4), proposing, batching, plain("one")];
-  for (const focus of [hand(), hand({ granularity: "word" })]) {
+  for (const focus of (["range", "block", "blocks"] as const).map(granularity => hand({ granularity }))) {
     const candidates = contextualCandidates(directory, focus), plan = planContextualLayout({ focus, candidates });
     assert.deepEqual(waiting(plan, candidates), [["capture", "goals.tree.submit"], ["capture", "notes.extract"]], `${focus.granularity}: in directory order, under their intent`);
     assert.equal(plan.primary.some(key => candidates.find(item => item.key === key)!.always_card === true), false, `${focus.granularity}: the rules give them no slot`);
@@ -236,6 +236,37 @@ test("W4-2-09: with a judgment, an entry it does not name waits under 更多, an
   const named = planContextualLayout({ focus: hand(), candidates, judgment: verdict({ [proposal]: 0.7 }) });
   assert.equal(named.primary[0], proposal);
   assert.deepEqual(waiting(named, candidates), [], "named, it has its slot and is not under 更多 as well");
+});
+
+/** Decision D-6: 更多 holds such an entry for a passage only; a word or whole objects never list one the judgment did not name. */
+test("W4-2-09: for a word or whole objects, an entry that always needs a card is not under 更多 and not listed, with rules only or with a judgment that does not name it", () => {
+  const directory = [...ownFragments(4), proposing, batching, plain("one"), plain("two"), plain("three")];
+  for (const granularity of ["word", "objects", "object"] as const) {
+    const focus = hand({ granularity }), candidates = contextualCandidates(directory, focus);
+    assert.deepEqual(candidates.filter(item => item.always_card === true).map(item => item.action.capability_id), ["goals.tree.submit", "notes.extract"], `${granularity}: they are candidates, so the judgment is asked about them`);
+    const rules = planContextualLayout({ focus, candidates });
+    assert.deepEqual(waiting(rules, candidates), [], `${granularity}: not under 更多`);
+    assert.equal(rules.candidates.some(item => item.always_card === true), false, `${granularity}: not listed`);
+    assert.equal(rules.primary.some(key => candidates.find(item => item.key === key)!.always_card === true), false, `${granularity}: no slot`);
+    // A judgment fills the slots by rank, so it names three: what it leaves out has no slot, and then it is not under 更多 and not listed.
+    const named = ["one", "two", "three"].map(id => capabilityOf(candidates, `notes.${id}`).key);
+    const judged = planContextualLayout({ focus, candidates, judgment: verdict({ [named[0]!]: 0.7, [named[1]!]: 0.6, [named[2]!]: 0.5 }) });
+    assert.equal(judged.basis, "judgment");
+    assert.deepEqual(judged.primary, named, `${granularity}: the slots are the judgment's`);
+    assert.deepEqual(waiting(judged, candidates), [], `${granularity}: a judgment that does not name them leaves 更多 without them`);
+    assert.equal(judged.candidates.some(item => item.always_card === true), false, `${granularity}: and does not list them`);
+  }
+});
+
+test("W4-2-09: for a word or whole objects, a judgment that names an entry that always needs a card gives it a slot, and it is listed", () => {
+  const directory = [...ownFragments(4), proposing, plain("one")];
+  for (const granularity of ["word", "objects", "object"] as const) {
+    const focus = hand({ granularity }), candidates = contextualCandidates(directory, focus), proposal = capabilityOf(candidates, "goals.tree.submit").key;
+    const named = planContextualLayout({ focus, candidates, judgment: verdict({ [proposal]: 0.7 }) });
+    assert.equal(named.primary[0], proposal, `${granularity}: named, it takes its slot`);
+    assert.equal(named.candidates.some(item => item.key === proposal), true, `${granularity}: and can be run`);
+    assert.deepEqual(waiting(named, candidates), [], `${granularity}: not under 更多 as well`);
+  }
 });
 
 test("W4-2-09: an entry that always needs a card but is unavailable is listed with its reason and is not under 更多", () => {

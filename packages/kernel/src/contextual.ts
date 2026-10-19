@@ -351,7 +351,7 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
   const judged = input.judgment && Object.keys(input.judgment.next).length ? input.judgment : null;
   const everything = input.candidates.filter(candidate => candidate.available && candidate.scope !== "object");
   const passage = PASSAGE_GRANULARITIES.has(input.focus.granularity);
-  // Rules alone give no slot to a destination that always needs a card (a proposal, a batch): the judgment may name it, or the person asks from 更多.
+  // Rules alone give no slot to a destination that always needs a card (a proposal, a batch): the judgment may name it, or for a passage the person asks from 更多.
   // For a passage they also leave out the entry of the plugin the passage is in when another plugin has one: that one is already a click away there.
   const away = !judged && passage && everything.some(candidate => candidate.origin === "intake" && !candidate.own && !candidate.always_card);
   const available = judged ? everything : everything.filter(candidate => !candidate.always_card && !(away && candidate.own));
@@ -385,8 +385,8 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
 
   const priors = intentPriors(input.focus);
   const intentScore = (intent: FragmentIntent) => judged ? (judged.intent[intent] ?? 0) + priors[intent] * 0.01 : priors[intent];
-  // A destination is only ever recommended: it takes a slot or is not shown, never “更多” (a long list of everywhere), except one that always needs a card.
-  const rest = [...ranked, ...held].filter(key => !primary.includes(key) && (!isDestination(byKey.get(key)!) || byKey.get(key)!.always_card));
+  // A destination is only ever recommended: it takes a slot or is not shown, never “更多” (a long list of everywhere), except one that always needs a card, for a passage.
+  const rest = [...ranked, ...held].filter(key => !primary.includes(key) && (!isDestination(byKey.get(key)!) || (passage && byKey.get(key)!.always_card)));
   const groups = new Map<FragmentIntent, string[]>();
   for (const key of rest) {
     const intent = byKey.get(key)!.intent;
@@ -405,7 +405,7 @@ export function planContextualLayout(input: PlanInput): ContextualLayoutPlan {
     const keys = ranked.filter(key => byKey.get(key)!.intent === topIntent).slice(0, 3);
     assistant = { form: judged.surface, intent: topIntent, keys: keys.length ? keys : [lead.key] };
   }
-  const listed = input.candidates.filter(candidate => !isDestination(candidate) || primary.includes(candidate.key) || candidate.always_card);
+  const listed = input.candidates.filter(candidate => !isDestination(candidate) || primary.includes(candidate.key) || (passage && candidate.always_card));
   return { context_id: input.focus.context_id, basis: judged ? "judgment" : "rules", primary, emphasis, more, assistant, candidates: listed };
 }
 

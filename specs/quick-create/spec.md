@@ -509,6 +509,7 @@ W4-6a 合入之前原本要请统筹（①）回答两个问题；⑧ 在自己�
    - 修之前，这些流程与实例照现行规则报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何记录（`W4-6-04`）。
    - 因为不加迁移机制，所以不用登记到 `specs/repository-anti-corruption` 的保留机制；只在其 §1 的决定表里记一行（见下一条）。
 2. **八个 MCP 工具改名，不留别名**（用户 2026-10-19 同意，⑧ 问的）：`molis_work_v1_action_<站>.content.receive__v1` 变成 `__v2`，各插件自己的 MCP 服务里的 `<站>.content.receive__v1` 也一样，八个站是 `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt`。按 CONTRACT-CHANGES §3.5，已在 `specs/repository-anti-corruption/spec.md` §1 记了一行（2026-10-19），W4-6a 的 PR 里列出新旧名字。
+3. **授权与角色里固定的 `receive@1`**（⑤ 评审 #804 补记，待用户确认）：按准确版本固定 `receive@1` 的另外两类引用也一样对不上，也不迁移：MCP 客户端与内置 Agent 的动作授权（`apps/local-host/src/mcp-action-grants.ts` 按版本配授权；授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（`plugins/native/characters/src/plugin.ts` 保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2）。
 
 ### 11.10 待补浏览器验证（用户 10-19 暂停）
 
@@ -528,7 +529,7 @@ W4-6a 合入之前原本要请统筹（①）回答两个问题；⑧ 在自己�
 | 只把 `receive` 升到 2，`protocol` 仍是 1，版本表 `WORKFLOW_CONTENT_VERSIONS` 放在合同包里 | 否：`protocol` 升到 2，所有站点的 list、read、create 快照行都会跟着变；而工作流只认 `protocol === 1`（`content-client.ts:19`），用旧 SDK 的站会悄悄从目录里消失，不给原因。否：v1、v2 并存，那是兼容期，阶段一不允许 |
 | `workflowDeliveryKey` 移到工作流插件里，格式不变 | 否：留在合同包里，「实例 + 步骤」是工作流自己的说法，别的入口不该看到它；格式不变，另外六个站的已有交付键才保持原样 |
 | 来源与归属按 `caller.audience` 定（Inbox 的 `added_by`、Feed 的来源） | 否：看请求号的前缀，输入不可信。否：一律记成工作流，放置和浮条放进来的东西会被标成「工作流程」 |
-| 存量的固定引用：产品代码里不迁移，开发用的 Home 用脚本，真实 Home 由 ① 定 | 否：工作流解析时自动把 v1 升成 v2，就是悄悄换版本，违反 action-architecture §3 的「不换成新版本」。否：给 v1 留别名，阶段一不留兼容 |
+| 存量的固定引用：产品代码和开发用的 Home 都不迁移；真实 Home 由用户在编辑器里修（用户 2026-10-19 定，见 §11.9）；授权页与角色里的 v1 见 §11.9 第 3 条 | 否：工作流解析时自动把 v1 升成 v2，就是悄悄换版本，违反 action-architecture §3 的「不换成新版本」。否：给 v1 留别名，阶段一不留兼容 |
 | 派生创建入口要作者在站点声明里写 `intake` 才有，派生在定义器里做 | 否：八个站全部自动派生。Dataset、Form、PPT 要的是 CSV、题目、提纲，选中的一段文字不是它们要的内容；Pages、灵光还会多出一个重复的去处。否：由内核从 `workflow_content` 现造候选，内核里会多一条只为内容站的路径 |
 | Inbox 走预填卡片，不声明撤销 | 否：只撤一部分（把事项忽略掉），Feed 里那一条还在，等于假装撤销过；而且 `undo.input` 只能写指向输出的路径，写不了常量 |
 | 动词是「放进 Inbox」 | 否：「放进收件箱」，与 GLOSSARY:281 的显示名不一致 |

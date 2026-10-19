@@ -972,6 +972,11 @@ interface AgentInputView {
 - 目标与验收类的影响走 Goals 提议（Candidate Goal、约定变更），本人决定后才生效。
 - 外部 Runtime：Goals 新动作让外部 Agent 对笔记、要求、决定说明「已读到 / 处理方式」（§8.4）。
 - 验收：Goal 页能回答「这条要求被哪个会话读到、怎么处理、改了什么」。
+- 验收（插件 Agent 一轮的会话，S3-3，D42；`tests/security-invariants-agent-run-session.test.ts`）：
+  - RCPT-391：一轮的工具调用带宿主核过的那条会话（`runtime_session_id`、`audit_actor_id` 为 `agent:<runtime_id>:<会话>`，`actor_id` 不变），启动请求里自带的会话或作者不算；Goals 记的作者与幂等按会话分开，同一插件另一条会话准备的接入继续不了（S-37）。
+  - RCPT-392：Runtime 自己的会话记录与请求不符（另一条会话、另一个插件、安装、人或项目）的启动被拒（`agent.session_unknown`），没有建出工具，没有写任何记录。
+  - RCPT-393：工具输入带会话或作者被拒（`actions.input_invalid`），动作没有运行，没有提案。
+  - RCPT-394：会话不授予权限：撤权后这一轮照样被拒，动作没有再运行，没有提案。
 
 ### 阶段 5：个人助理深化
 
@@ -1171,6 +1176,7 @@ interface AgentInputView {
 | # | 事项 | 结论 | 理由 |
 | --- | --- | --- | --- |
 | D41 | 助理侧栏那块约定叫什么 | 「AI 记下的约定」，英文 "What the AI noted as agreed"（原来叫「当前约定」）。§9.2 写明：AI 自称、未核对、不可编辑，要改就从那条发更正 | Goals 的「当前约定」是 Goals 记下的事实，这里只是 AI 的自称，哪里都没有记；同一个词指两样东西，人会把 AI 的自称当成已经记下的约定。GLOSSARY 记下两者的区别 |
+| D42 | 插件 Agent 一轮的工具调用带不带会话（P8 = A，S3-3） | 带，取宿主在 `agent.run.start` 核过归属的那条会话（Runtime 自己的会话记录，不取请求里的），所有插件一样，不只 Coding：`runtime_session_id` 为这条会话，`audit_actor_id` 为 `agent:<runtime_id>:<会话>`，`actor_id` 仍是授权的客户端 `agent:<runtime_id>` | S-17 只认宿主给的身份。不给会话时，同一插件的各个会话共用 `agent:prologue`，一个会话能继续另一个会话准备的接入，与 S-37「别的会话的一律拒」不符；给了之后变严。`connectors.setup.resolve` 从对 Coding 一律拒，变成只认同一会话自己发起的，与助理一样。Goals 的作者与幂等按会话分开。定的人是 ⑥（按防腐后果，① 指派 P8 给 ⑥） |
 
 **待办（归本线，D7 之后接 S3 时定；2026-10-12 统筹交来）：**
 

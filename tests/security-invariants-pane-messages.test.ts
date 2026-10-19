@@ -188,9 +188,11 @@ function contextPage() {
   const land = () => (documentListeners["molis:surface-landing"] ?? []).forEach(fn => fn({ target: editor, detail: { plugin_id: "io.molis.work.pages", object: { kind: "pages_document", id: "doc-1" }, position: "cursor", version: 1 } }));
   const hold = (source: unknown, pointed: unknown, context_id = focus.context_id) =>
     windowListeners.forEach(fn => fn({ origin: ORIGIN, source, data: { type: "workbench-context-hold", context_id, interacting: true, pinned: [], pointed } }));
-  // A surface in this document (not in the right panel or the Assistant) reports what it has in hand.
-  const focusHere = (claims: Record<string, unknown>) => (documentListeners["molis:surface-focus"] ?? []).forEach(fn => fn({ target: editor, detail: { ...focus, ...claims } }));
-  return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown, land, hold, flashes, focusHere };
+  // A card in the Assistant on this page.
+  const inAssistant = Object.setPrototypeOf(element({ closest: (selector: string) => selector === "[data-assistant-island]" ? {} : null }), PageElement.prototype);
+  // A surface in this document reports what it has in hand: by default one on the left (not in the right panel or the Assistant).
+  const focusHere = (claims: Record<string, unknown>, target: unknown = editor) => (documentListeners["molis:surface-focus"] ?? []).forEach(fn => fn({ target, detail: { ...focus, ...claims } }));
+  return { top, shelf, pane, stray, requests, told, send, settle, toolbarShown, land, hold, flashes, focusHere, inAssistant };
 }
 
 test("S-30 AC-S04 a workbench-surface-focus that is not from a side panel plugin frame (or a split pane) is dropped: nothing is asked, no toolbar", async () => {
@@ -240,6 +242,9 @@ test("S-30 §10.28 a place or side tab a surface reports of itself is replaced b
   const here = contextPage();
   here.focusHere(forged);
   assert.deepEqual(await asked(here), ["main", undefined], "this page's own surface is on the left, whatever it says");
+  const island = contextPage();
+  island.focusHere({ place: "main", side_tab: "plugin:forged/side" }, island.inAssistant);
+  assert.deepEqual(await asked(island), ["assistant", undefined], "a surface in the Assistant is in the Assistant, whatever it says");
   const shelf = contextPage();
   shelf.send(shelf.shelf.contentWindow, ORIGIN, { place: "assistant", side_tab: "plugin:forged/side" });
   assert.deepEqual(await asked(shelf), ["side", "plugin:shelf/side"], "the Shelf tab is in its own cell of the right panel, whatever it says");

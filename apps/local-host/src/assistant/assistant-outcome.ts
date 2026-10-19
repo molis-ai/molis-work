@@ -1,5 +1,7 @@
 import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { cardOutcomeSteps } from "../agent-next-steps.js";
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
@@ -15,7 +17,21 @@ export const OUTCOME_STEPS = 2;
  * the record's own control does.
  */
 export function assistantOutcomeSteps(view: AssistantWorkView, say: Say): InteractionNextStep[] {
-  return roundOutcome(view, say).slice(0, OUTCOME_STEPS);
+  for (const outcome of [cardOutcome, roundOutcome]) {
+    const steps = outcome(view, say);
+    if (steps.length) return steps.slice(0, OUTCOME_STEPS);
+  }
+  return [];
+}
+
+/**
+ * The result of the card that ran last, once the latest round is over, and only a card that ran since that round began.
+ * A failed round leaves the slot to its retry alone (context-program §21.9); the card still shows its result in the conversation.
+ */
+function cardOutcome(view: AssistantWorkView, say: Say): InteractionNextStep[] {
+  const last = view.rounds.at(-1);
+  if (last && (last.phase === "unknown" || last.phase === "failed" || !isTerminalAgentPhase(last.phase))) return [];
+  return cardOutcomeSteps(view.cards, last?.started_at ?? "", say);
 }
 
 /** What the latest round made, or the same words again when it failed. */

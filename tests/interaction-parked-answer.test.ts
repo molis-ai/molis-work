@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AssistantService, AssistantStore, LocalHost, assistantAuthority, hostQuestionTypes } from "@molis-ai/molis-work-app-local-host";
+import { AssistantService, AssistantStore, LocalHost, assistantAuthority, hostQuestionTypes, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 // specs/ai-interaction-experience AC-07 (§15.9, BL-156): a question the Assistant asked survives a restart. The round is parked
 // on it, the card takes the answer, and the next round carries it. A next round that cannot start leaves the answer queued
@@ -103,6 +103,15 @@ test("AC-07 a next round that cannot start leaves the answer queued and says why
   await fixture.service.send({ work_id: fixture.workId, request_id: randomUUID(), text: "继续" }, { project_ref: project });
   await until(() => fixture.bodies.length > calls, "the round the person started");
   assert.match(fixture.bodies[calls]!, /\\"value\\":45|"value":45/, "it carries the queued answer");
+});
+
+test("AC-10, QA-001: on an English page the reason a next round could not start after the answer is English throughout", { timeout: 60_000 }, async t => {
+  const fixture = await parkedWork(t, "refused-en");
+  t.mock.method(fixture.current().host, "start", async () => { throw new ActionError("agent.model_not_configured", "fixture: no model"); });
+  const view = await runWithLocale("en", () => fixture.answer());
+  assert.equal(view.problem?.message, "Answered, but the next round couldn't start: No usable model is configured yet, so the assistant can't start");
+  assert.doesNotMatch(view.problem?.message ?? "", /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
+  assert.equal(view.problem?.action, "说“继续”接着做", "the action stays the key the page translates");
 });
 
 test("AC-07 a session still being recovered is read once and the next round tried once more, never in a loop", { timeout: 60_000 }, async t => {

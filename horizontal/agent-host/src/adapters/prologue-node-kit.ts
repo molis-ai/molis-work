@@ -72,8 +72,10 @@ export interface RoundState {
   readonly actionToolSessions: Set<string>;
   /** The gateway a business session's latest round runs with, for describing a held change to the person. */
   readonly gatewayRuns: Map<string, NonNullable<PrologueStartInput["action_gateway"]> & { declare?(view: ActionView): void }>;
-  /** Per session, the capabilities the round now running has seen offered (so one gone later reads as taken away). */
+  /** Per session, the capability ids the round now running has seen offered (its replies do not show them to the person). */
   readonly gatewayKnown: Map<string, Set<string>>;
+  /** Per session, the exact identities the round now running has seen offered (so one gone later reads as taken away). */
+  readonly gatewayOffered: Map<string, Set<string>>;
   readonly gatewayHooks: Set<string>;
   /** Why each held ending was held, in order (the runtime's event does not say). */
   readonly heldLabels: Map<string, Array<{ target: string; summary: string }>>;
@@ -106,7 +108,7 @@ export interface RoundState {
 
 export function createRoundState(): RoundState {
   return {
-    registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(),
+    registeredMethods: new Map(), sessions: new Map(), actionToolSessions: new Set(), gatewayRuns: new Map(), gatewayKnown: new Map(), gatewayOffered: new Map(),
     gatewayHooks: new Set(), heldLabels: new Map(), memoryRounds: new Map(), changeRounds: new Map(),
     stopGuards: new Map(), stopHooks: new Set(), roundFacts: new Map(), actionControllers: new Map(), runRoots: new Map(), activeRuns: new Map(), runSessions: new Map(),
     runRefs: new Map(), reviewEffects: new Map(), deadlines: new Map(), commandEvents: new Map(), subagentBridgeErrors: new Map(),

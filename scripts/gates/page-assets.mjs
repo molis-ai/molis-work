@@ -235,15 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// User approved 2026-10-19: plugin tab groups (specs/plugin-tab-groups): a plugin's page becomes its tab and its tabs a coloured group.
-// The tab rules, the group client, the drag slot that opens and closes by width, the split-pane ⌘-click handoff and the
-// screen-reader text add 14,570 B to workbench.js and the group styles 3,389 B to workbench.css, after
-// the location chip, its drag path and its per-plugin tints were removed (−4,260 B on each stylesheet). Each increase is
-// spent once, from exactly these starts; later growth stays frozen. W5-01's spent 1,113,068 → 1,115,299 start and the
-// Alchemist continuation's spent 50,619 → 52,373 are refused.
+// A2-3 (specs/prologue-adoption §6.0p.12, PA-40–42): the after-write checkers in the project's workspaces settings. The
+// group list, the add/change form, move up, delete and the stale-version reread add 5,053 B to workbench.js: the page
+// program as TypeScript bundled with esbuild --minify (names shortened too; as a template string it was 6,212 B), and its
+// binding in the workspaces section. No shared DOM helper exists to reuse. Spent once, from exactly this start; later growth
+// stays frozen. Plugin tab groups' spent 1,115,299 → 1,129,869 (script) and 1,589,812 → 1,593,201 (sheet) starts are refused.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1115299, 1129869],
-  "/assets/molis-work-workbench.css": [1589812, 1593201],
+  "/assets/molis-work-workbench.js": [1129841, 1134894],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

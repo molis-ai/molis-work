@@ -144,5 +144,6 @@ export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, ar
 
 export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
+export { writeCheckerFromFields, writeCheckerFieldsOf, writeCheckersAfter, type WriteCheckerFields } from "./scripts/write-checkers.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

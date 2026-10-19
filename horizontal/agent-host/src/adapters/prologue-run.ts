@@ -5,6 +5,7 @@ import type { ExactRef, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentErrors } from "../errors.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
@@ -146,7 +147,7 @@ const WORKSPACE_PARENT_TOOLS: readonly string[] = ["read-file", "list", "search"
 async function childSetup(deps: RunDeps, input: PrologueStartInput) {
   const { runtime } = deps;
   const childRoots: PrologueSubagentRoot[] = [];
-  if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw new Error("独立目录协调者只能读取和分派，不能持有其他执行工具");
+  if (input.subagent_workspaces?.length && input.character.tools.some(tool => !WORKSPACE_PARENT_TOOLS.includes(tool))) throw agentErrors.role_execution_exceeded("独立目录协调者只能读取和分派，不能持有其他执行工具");
   for (const grant of input.subagent_workspaces ?? []) {
     const overlaps = (a: string, b: string) => { const relative = path.relative(a, b); return !relative || !relative.startsWith(`..${path.sep}`) && relative !== ".." && !path.isAbsolute(relative); };
     if ([input.root_path!, ...childRoots.map(root => root.path)].some(other => overlaps(other, grant.directory.canonical_path) || overlaps(grant.directory.canonical_path, other))) throw new Error("子任务目录必须与主目录及其他子目录互不包含");

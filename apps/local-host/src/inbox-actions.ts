@@ -63,7 +63,7 @@ export function inboxActionProvider(runtime: MolisWorkProjectRuntime, home: stri
       readSubject: async (subject, caller) => (await resolveActionSubject(services.actions, caller, subject)).context,
       readFeed: async (id, caller) => await services.actions.invoke(caller, feedContentActions.read, { item_id: id }) as WorkflowPayload,
       receiveFeed: async (input, caller) => await services.actions.invoke(caller, feedContentActions.receive, input) as WorkflowItemRef,
-      ensure: (id, instanceId) => feed.ensureInboxEntryForFeedItem(runtime.project_id, id, "manual", { added_by: "workflow", workflow_instance_id: instanceId }).entry,
+      ensure: (id, addedBy) => feed.ensureInboxEntryForFeedItem(runtime.project_id, id, "manual", { added_by: addedBy }).entry,
       reopen: entry => feed.setInboxEntryStatus(runtime.project_id, entry.entry_id, "open", entry.revision),
       flush: (caller, entryId) => feed.flushPendingInboxJudgments(caller, [entryId]),
     })],

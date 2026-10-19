@@ -9,11 +9,13 @@ const recordId = (projectId: string, workspaceId: string) => createHash("sha256"
 const stale = () => new ActionError("actions.conflict", "写后检查器在你读取之后改过了：请重新读取再保存");
 
 const strings = (value: unknown): value is string[] => Array.isArray(value) && value.every(item => typeof item === "string");
+/** A kept checker has exactly these fields, the defaults filled in; anything else is not the current shape. */
+const KEPT_FIELDS = ["applies_to", "args", "checker_id", "cwd", "display_name", "executable", "timeout_ms"].join();
 function keptChecker(value: unknown): value is Required<AgentWriteChecker> {
   if (typeof value !== "object" || value === null) return false;
   const row: Record<string, unknown> = { ...value };
-  return ["checker_id", "display_name", "executable", "cwd"].every(key => typeof row[key] === "string") && typeof row.timeout_ms === "number"
-    && strings(row.args) && strings(row.applies_to) && strings(row.env_allowlist);
+  return Object.keys(row).sort().join() === KEPT_FIELDS && ["checker_id", "display_name", "executable", "cwd"].every(key => typeof row[key] === "string")
+    && typeof row.timeout_ms === "number" && strings(row.args) && strings(row.applies_to);
 }
 
 /**

@@ -916,7 +916,7 @@ for (const sse of [false, true]) test(`ASC-05 ASC-09 ASC-12: prepared anonymous 
   const prepared = { authorization_id: (await client.invoke(caller, connectorSetupAction, { service_id: "mcp-bearer", method: "mcp", display_name: "Existing service", expected_revision: null,
     endpoint: remote.endpoint, authentication: "none", transport: sse ? "sse" : "http" }) as { authorization_id: string }).authorization_id };
   for (const change of [{ actor_id: "someone-else" }, { runtime_session_id: "other-session" }]) {
-    await assert.rejects(client.invoke({ ...caller, ...change }, connectorSetupExecuteAction, prepared), { code: "connector.setup.execute.denied" });
+    await assert.rejects(client.invoke({ ...caller, ...change }, connectorSetupExecuteAction, prepared), { code: "connector.setup.foreign_request" });
   }
   await assert.rejects(client.invoke({ ...caller, project_id: "other-project" }, connectorSetupExecuteAction, prepared), { code: "actions.scope_mismatch" });
   await assert.rejects(client.invoke({ ...caller, permissions: [] }, connectorSetupExecuteAction, prepared), { code: "actions.forbidden" });

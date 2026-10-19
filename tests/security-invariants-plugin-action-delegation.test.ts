@@ -20,7 +20,7 @@ const PAGE_PERMISSIONS = ["storage:private", "delegate:read"];
 interface Directive { op: "discover" | "invoke"; reference?: ActionReference; input?: unknown }
 
 /** A Home plugin whose one action does what the directive says through `services.actions.directory`, then stores what it got. */
-function delegateProbe(name: string, options: { declare?: boolean; consumes?: readonly string[] } = {}) {
+function delegateProbe(name: string, options: { declare?: boolean; consumes?: readonly string[]; permissions?: readonly string[] } = {}) {
   const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [], seen: ActionExecutionContext[] = [];
   const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
     title: "Use the action directory", description: "Reach another action as the original caller", kind: "operation", scope: "home", scheduling: "concurrent",
@@ -31,7 +31,8 @@ function delegateProbe(name: string, options: { declare?: boolean; consumes?: re
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `delegate-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "Keep what the delegated call returned" },
-      ...(options.declare === false ? [] : [{ permission: DELEGATE, required: false, reason: "Call other actions as the person who asked" }])],
+      ...(options.declare === false ? [] : [{ permission: DELEGATE, required: false, reason: "Call other actions as the person who asked" }]),
+      ...(options.permissions ?? []).map(permission => ({ permission, required: false, reason: "Use what the target needs" }))],
     capabilities: { provides: [], consumes: [...(options.consumes ?? [])] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],
   }, async start(context) {
     contexts.push(context);
@@ -98,6 +99,21 @@ test("W5-01-DELEGATE-01 S-41 a declared but not granted permission refuses disco
   await s.regrant(s.probe, GRANTED);
   assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }), "done");
   assert.deepEqual(s.ran, [OPEN.capability_id]);
+});
+
+test("W5-01-DELEGATE-01 S-41 without actions:delegate a guard retained as workflow reaches nothing: the plugin's own call to a workflow-only target is refused and the target never runs", async t => {
+  // The plugin holds the target's own permission, so what refuses it is the audience alone.
+  const plain = delegateProbe("plain", { declare: false, consumes: [NO_AGENT.capability_id], permissions: ["delegate:read"] });
+  const s = await setup(t, [plain], ["storage:private", "delegate:read"]); s.offer([NO_AGENT]);
+  plain.behavior.handle = async (context, caller) => {
+    // The kernel admits the target into a guard as workflow sees it; a guard checks and grants nothing.
+    const guard = caller.retainAuthority!([{ ...ref(NO_AGENT), provider_id: "delegation-targets" }], { audience: "workflow" });
+    await guard();
+    assert.equal(context.services!.actions!.directory, undefined);
+    return context.services!.actions!.invoke(NO_AGENT, {}, caller);
+  };
+  await assert.rejects(s.run({ op: "invoke" }), { code: "actions.dependency_missing" });
+  assert.deepEqual(s.ran, []); assert.equal(plain.delivered(), null);
 });
 
 test("W5-01-DELEGATE-02 S-41 outside a running action, from another installation's action, and after the action ended, the directory refuses", async t => {
@@ -185,13 +201,13 @@ test("W5-01-DELEGATE-05 S-41 discover lists what the delegated caller sees: not 
   for (const hidden of [NO_WORKFLOW, NEEDS_MORE]) assert.equal(listed.includes(hidden.capability_id), false);
 });
 
-test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow only, as for Workflows: an agent's call reaches a workflow-only target, not an agent-only one", async t => {
+test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow only, as for Workflows: an agent's call reaches a target open to workflow but not to agents, not one closed to workflow", async t => {
   const s = await setup(t); s.offer([NO_AGENT, NO_WORKFLOW]);
   const agent: ActionCallContext = { ...s.caller, audience: "agent", actor_id: "runtime:agent" };
   assert.equal(await s.run({ op: "invoke", reference: ref(NO_AGENT) }, agent), "done");
   assert.equal(s.targetsSeen.at(-1)!.audience, "workflow");
   s.ran.length = 0;
-  await assert.rejects(s.run({ op: "invoke", reference: ref(NO_WORKFLOW) }, agent), { code: "actions.forbidden" });
+  await assert.rejects(s.run({ op: "invoke", reference: ref(NO_WORKFLOW) }, agent), { code: "actions.dependency_missing" });
   assert.deepEqual(s.ran, []);
 });
 

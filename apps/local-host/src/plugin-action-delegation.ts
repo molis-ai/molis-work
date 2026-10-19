@@ -55,14 +55,16 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       return views;
     },
     invoke: async <Output>(reference: ActionReference, input: unknown, control?: PluginExecutionControl) => {
-      // No retained guard on the target: that would also require the target to be open to the original caller's own audience, a narrowing
-      // the user's decision does not make (Workflows calls as workflow without it). The kernel's own dispatch fences the target's effects.
-      const ref = checkedReference(reference), { caller, check } = delegate(originOf(), control);
+      const ref = checkedReference(reference), original = originOf(), { caller, check, source } = delegate(original, control);
       await check();
       const pinned = { ...ref, provider_id: await pluginActionProvider(options.client, caller, ref) };
       await check();
+      // The guard admits the target as workflow sees it, the audience it is called under: not narrowed to the original caller's own audience
+      // (user decision 2026-10-20), while a target reloaded or made unavailable during the call still keeps its result from the plugin.
+      const retained = original.retainAuthority!([pinned], { audience: "workflow" });
+      await retained(); source();
       const result = await options.client.invoke(caller, pinned, input);
-      await check();
+      await retained(); await check(); retained.assertCurrent(); source();
       return result as Output;
     },
   };

@@ -467,7 +467,9 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainAuthority?: (references: readonly ActionReference[], options?: {
+        readonly audience?: "workflow";
+    }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 

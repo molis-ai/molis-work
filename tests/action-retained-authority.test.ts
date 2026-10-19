@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionError, type RetainedActionAuthority, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type RetainedActionAuthority, type ActionAudience, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 
 const action: ActionDefinition = { capability_id: "fixture.deferred", version: 1, operation: "command", action: {
@@ -38,6 +38,34 @@ test("PAS-10: retained authority refuses a provider replaced while authorization
     hold = true;const checking = guard();const rejected = assert.rejects(checking, { code: "actions.provider_changed" });
     await entered.promise;dispose();dispose = register();release.resolve();await rejected;
   } finally { release.resolve();dispose(); }
+});
+
+test("PAS-10 S-41: a guard retained as workflow admits a target only workflow reaches, still refuses one workflow does not reach, and still rejects its replacement", async () => {
+  const service = new ActionService();
+  const reaching = (capability_id: string, audiences: ActionAudience[]): ActionDefinition => ({ ...action, capability_id, action: { ...action.action, audiences } });
+  const workflowOnly = reaching("fixture.workflow_only", ["workflow"]), userOnly = reaching("fixture.user_only", ["user"]);
+  const registerTargets = () => service.registerProvider({ provider: { provider_id: "targets", title: "Targets", kind: "system", project_id: "a" },
+    definitions: [workflowOnly, userOnly], handlers: [workflowOnly, userOnly].map(definition => ({ ...definition, handle: () => null })) });
+  let guard!: RetainedActionAuthority;
+  const refusals: unknown[] = [];
+  const holder = service.registerProvider({ provider: { provider_id: "holder", title: "Holder", kind: "system", project_id: "a" }, definitions: [action],
+    handlers: [{ ...action, handle: context => {
+      // The caller is a person (user audience): without the option a workflow-only target is not admitted; with it, a user-only one is not.
+      for (const attempt of [() => context.retainAuthority!([workflowOnly]), () => context.retainAuthority!([userOnly], { audience: "workflow" })]) {
+        try { attempt(); refusals.push(null); } catch (error) { refusals.push((error as ActionError).code); }
+      }
+      guard = context.retainAuthority!([workflowOnly], { audience: "workflow" });
+      return null;
+    } }] });
+  let targets = registerTargets();
+  try {
+    await service.invoke(caller, action, {});
+    assert.deepEqual(refusals, ["actions.forbidden", "actions.forbidden"]);
+    await guard(); guard.assertCurrent();
+    targets(); targets = registerTargets();
+    await assert.rejects(guard(), { code: "actions.provider_changed" });
+    assert.throws(() => guard.assertCurrent(), { code: "actions.provider_changed" });
+  } finally { holder(); targets(); }
 });
 
 test("PAS-10: retaining another project's or provider's action never grants authority", async () => {

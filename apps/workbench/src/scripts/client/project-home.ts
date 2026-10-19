@@ -80,7 +80,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     const pop = $("[data-home-talk]");
     const bar = $(".home-detail__primary") || $("[data-home-detail-act]");
     if (!pop || !bar || home.dataset.dock !== "open") return;
-    pop.removeAttribute("hidden");
+    pop.hidden = false;
     const ar = home.getBoundingClientRect();
     let r = bar.getBoundingClientRect();
     if (reveal === true && scroller) {
@@ -346,8 +346,10 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
     projectKey, openItem, openPlugin, layout: placeTalk });
   const offers = (${HOME_OFFERS_FACTORY_SCRIPT})({ root: home, current, translate: L, api: api,
     projectKey, refresh: () => sync() });
-  new ResizeObserver(placeTalk).observe($("[data-home-detail-act]"));
-  scroller?.addEventListener("scroll", () => { if (home.dataset.dock === "open") placeTalk(); }, { passive: true });
+  const talkSize = new ResizeObserver(placeTalk);
+  talkSize.observe($("[data-home-detail-act]"));
+  talkSize.observe(home);
+  scroller?.addEventListener("scroll", placeTalk, { passive: true });
   home.addEventListener("click", async (event) => {
     const start = event.target.closest('[data-home-start]');
     if (start) { openPlugin?.(start.dataset.homeStart); return; }

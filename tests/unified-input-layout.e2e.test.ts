@@ -50,7 +50,7 @@ async function dockRoundTrip(browser: LayoutBrowser) {
     await evaluate(`(() => { const field=document.querySelector('[data-assistant-input]'); field.value=${JSON.stringify(text)}; field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
     await waitFor("Math.abs(parseFloat(getComputedStyle(document.body).getPropertyValue('--dock-h'))-document.querySelector('.workbench-bar').getBoundingClientRect().height)<1");
   };
-  const height=()=>evaluate<number>("document.querySelector('.workbench-bar').getBoundingClientRect().height");
+  const height=()=>evaluate<number>("document.querySelector('[data-assistant-composer]').getBoundingClientRect().height");
   await setDraft('一行草稿');
   const short=await height();
   await setDraft(LONG_DRAFT);
@@ -60,15 +60,15 @@ async function dockRoundTrip(browser: LayoutBrowser) {
   await click('[data-assistant-expand]');
   await waitFor("document.querySelector('[data-system-tab] [data-assistant-input]') && !document.body.matches(':has(.workbench-bar form.uiv-composer)')");
   await waitFor("Math.abs(parseFloat(getComputedStyle(document.body).getPropertyValue('--dock-h'))-document.querySelector('.workbench-bar').getBoundingClientRect().height)<1");
-  assert.ok(await height()<short,'moving the composer out restores the dock to its original size');
+  assert.equal(await evaluate("document.querySelector('.workbench-bar').getBoundingClientRect().height"),76,'moving the composer out preserves the standard dock');
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]') === window.uivMovingField"),true);
   assert.equal(await evaluate("document.querySelector('[data-assistant-input]').value"),LONG_DRAFT);
   await click('[data-assistant-retract]');
   await waitFor("!!document.querySelector('.workbench-bar [data-assistant-input]')");
   await setDraft(LONG_DRAFT);
-  assert.ok(Math.abs(await height()-long)<1,'returning the same long draft restores the measured dock height');
+  assert.ok(Math.abs(await height()-long)<1,'returning the same long draft restores the composer height');
   await setDraft('一行草稿');
-  assert.ok(Math.abs(await height()-short)<1,'after returning, shorter text still shrinks the dock');
+  assert.ok(Math.abs(await height()-short)<1,'after returning, shorter text still shrinks only the composer');
   const panels=[];
   await setDraft(LONG_DRAFT);
   for(const [width,height] of [[1440,900],[390,844],[640,393],[320,640]]) {
@@ -135,10 +135,10 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
     assert.ok(long.scroll > long.client && long.after > 0, `${selector} long draft scrolls inside the field`);
     assert.equal(long.overflow, "auto");
     assert.equal(long.value, LONG_DRAFT);
-    if (shortDock !== null) assert.ok(await dockHeight() > shortDock + 10, 'floating consumers receive the growing dock height');
+    if (shortDock !== null) assert.ok(Math.abs(await dockHeight() - shortDock) < 1, 'UIV-11 user requirement: the dock itself stays fixed while writing expands upward');
     await setDraft(selector, "一行文字");
     await waitFor(`document.querySelector(${JSON.stringify(selector)}).clientHeight <= ${short} + 1`);
-    if (shortDock !== null) assert.ok(Math.abs(await dockHeight() - shortDock) < 1, 'clearing long text shrinks both the dock and its published height');
+    if (shortDock !== null) assert.ok(Math.abs(await dockHeight() - shortDock) < 1, 'clearing long text preserves the dock height');
   };
   const shared = await styleOf(ASSISTANT);
   assert.equal(shared.font, "16px");
@@ -185,7 +185,7 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
     await writeFile(new URL(`${width}x${height}.png`, captures), Buffer.from(shot.data, "base64"));
     await writeFile(new URL(`${width}x${height}.json`, captures), JSON.stringify(layout, null, 2));
     assert.ok(layout.bar.bottom <= height + 1 && layout.bar.top >= 0, `${width} dock remains in window: ${JSON.stringify(layout)}`);
-    assert.ok(layout.field.top >= layout.bar.top && layout.field.bottom <= layout.bar.bottom, `${width} writing area stays in dock`);
+    assert.ok(layout.field.top >= 0 && layout.field.bottom <= layout.form.bottom, `${width} writing area extends upward within the window`);
     assert.ok(layout.field.width >= layout.form.width * .7, `${width} writing area remains the primary surface`);
     assert.ok(layout.form.right - layout.controls.at(-1)!.right <= 9, `${width} send stays on the right during recording`);
     assert.ok(layout.overflow <= 1, `${width} no horizontal page overflow`);

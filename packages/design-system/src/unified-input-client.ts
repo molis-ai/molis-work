@@ -226,17 +226,26 @@ function uivApplyPending(form: HTMLFormElement, live: UivLive, host: UivPageHost
 }
 function uivResize(field: UivField): void {
   if (!(field instanceof HTMLTextAreaElement) || !field.getClientRects().length) return;
+  const form = field.closest("form[data-assistant-composer]");
+  form?.removeAttribute("data-uiv-expanded");
   const style = getComputedStyle(field);
   field.style.height = "0px";
+  if (form && field.value && field.scrollHeight > 44) {
+    form.setAttribute("data-uiv-expanded", "");
+    field.style.height = "0px";
+  }
   field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;
 }
-/** Publish the dock's measured height; CSS uses it only while this composer lives in the dock. */
+/** Reserve the composer extension without changing the fixed dock or its side entrances. */
 function uivWatchDock(host: UivPageHost): void {
   const bar = host.document.querySelector(".workbench-bar");
   if (!(bar instanceof HTMLElement)) return;
-  const measure = () => { const height = `${bar.getBoundingClientRect().height}px`; if (host.document.body.style.getPropertyValue("--uiv-dock-height") !== height) host.document.body.style.setProperty("--uiv-dock-height", height); };
+  const center = bar.querySelector(".bar-center");
+  const measure = () => { const rect = bar.getBoundingClientRect(); const height = `${Math.max(rect.height, rect.bottom - (center?.getBoundingClientRect().top ?? rect.top) + 6)}px`; if (host.document.body.style.getPropertyValue("--uiv-dock-height") !== height) host.document.body.style.setProperty("--uiv-dock-height", height); };
   let frame = 0;
-  new ResizeObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); }).observe(bar);
+  const observer = new ResizeObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); });
+  observer.observe(bar);
+  if (center) observer.observe(center);
   measure();
 }
 function uivRelease(live: UivLive, host: UivPageHost): void {

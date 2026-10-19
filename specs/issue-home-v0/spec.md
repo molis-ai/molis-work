@@ -4,7 +4,7 @@
 
 ## 页面录入改由 Issue 自己起标题（BL-149，2026-10-19 起草）
 
-状态：起草，未实现。方向 2026-10-19 与 ③ 对过，③ 同意，由 AI 手册线写 spec 并改；下面列出的文件 ③ 那边不碰。先按「先量」量现状，再动手。
+状态：起草，未实现。方向由方法与迁移线 ③ 对过（统筹 10-19 指定）；代码主人 @yijunw0212 经 CODEOWNERS 评审。由 AI 手册线写 spec 并改；下面列出的文件 ③ 那边不碰。先按「先量」量现状，再动手。
 
 **问题。** 页面录入现在交给个人助理。页面先 `issues.prepare` 存草稿，再经 `/api/assistant/send` 发「录入草稿 <ID>」，带上方法 `issues-capture`。助理起标题、判类型，用 `change-reversible` 调 `issues.capture` 存好（`capture-client.ts` 的 `sendWork`、`watch`）。
 

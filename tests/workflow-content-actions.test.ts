@@ -175,10 +175,10 @@ test("W4-6-01 receive is v2 with a flat input and a required request id; the oth
   assert.equal(stations.receive.action.input_type, "molis.workflow.content.receive.input.v2");
   assert.equal(stations.receive.action.output_type, "molis.workflow.content.receive.output.v1");
   assert.deepEqual(stations.list.action.input_type, "molis.workflow.content.list.input.v1");
-  const schema = stations.receive.action.input_schema as { properties: Record<string, any>; required: string[]; additionalProperties: boolean };
+  const schema = stations.receive.action.input_schema as { properties: Record<string, { minLength?: number; maxLength?: number } | undefined>; required: string[]; additionalProperties: boolean };
   assert.deepEqual(Object.keys(schema.properties).sort(), ["body", "feed_item_id", "request_id", "source", "title", "url"]);
   assert.deepEqual([...schema.required].sort(), ["body", "request_id", "title"]);
-  assert.deepEqual([schema.properties.request_id.minLength, schema.properties.request_id.maxLength], [1, 160]);
+  assert.deepEqual([schema.properties.request_id?.minLength, schema.properties.request_id?.maxLength], [1, 160]);
   assert.equal(schema.additionalProperties, false);
 
   const service = new ActionService();

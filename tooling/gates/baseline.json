@@ -81,7 +81,7 @@
       "methods": 51
     },
     "class horizontal/placement/src/index.ts#PlacementService": {
-      "lines": 400,
+      "lines": 399,
       "methods": 28
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 233,

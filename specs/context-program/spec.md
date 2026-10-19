@@ -1181,7 +1181,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | A7 | 输入框上方的「建议条」（`data-assistant-offer`） | 页面发来的建议（`purpose: suggest`）：「放进输入框 / 忽略」 | `molis:assistant-message`；各插件页面发，岛收 |
 | A8 | 对话里的操作卡 | 模型 `suggest-action` 或 A3 放的卡：可改字段、执行、结果、撤销 | `assistant-offers.ts` + `assistant-card-view.ts`（宿主画，交互线 H2） |
 | A9 | 对话里的问卷卡 | `ask-user` 的待答问题，共享问卷卡，带草稿 | `agent-question-card.ts`（宿主画，交互线 A1/A2） |
-| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-view-html.ts` 的 `assistantNextSteps`（交互线 D14） |
+| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-outcome.ts` 的 `assistantOutcomeSteps`（交互线 D14） |
 | A11 | 对话顶部条带（侧栏收起时）与左侧概况 | 状态、「去确认 / 去回答 / 去处理 / 去核对 / 看等你的子任务」按钮、暂停继续停止；两处各一份 | 岛的 `nextStep`、`paintStrip`、`paintSummary` |
 | A12 | 左侧概况的「还等你处理」 | 本工作等你的子任务与对象 | 岛的 `renderAttention` |
 | A13 | 输入框的铃铛「等你 N」 | 全部工作的通知（等你的、新消息） | `/notices`；岛 |

@@ -156,6 +156,10 @@ test("SLOT-01: the outcome slot follows whatever waits on the person; the row st
   const row = assistantStepRow(crowded, say);
   assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
   assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
+  const delegated = assistantStepRow(view("completed", { objects: done.objects, reviews: crowded.reviews,
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }] }), say);
+  assert.deepEqual(ids(delegated.next_all_html), ["review:r1", "work:child-1", "open:page:a", "open:page:b"]);
+  assert.deepEqual(ids(delegated.next_html), ["review:r1", "work:child-1", "open:page:a"], "nor a sub-task that waits on the person");
   const shut = made("b"); delete shut.open;
   const missing = view("completed", { objects: [{ ...made("a"), state: "missing" }, shut] });
   assert.deepEqual(assistantOutcomeSteps(missing, say), [], "a result that is gone or cannot be opened is not a step");

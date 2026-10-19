@@ -210,7 +210,8 @@ Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Sessi
 
 - **角色执行等级**（`packages/contracts/src/platform/plugin-agent.ts`）：`read-only`（缺省）、`text-edit`、`workspace-write`（要求 Runtime 支持 text-edit 与 command）。角色不能在启动时自行加宽；`workspace: "none"` 的纯推理角色不能带目录、工具或子任务。
 - **宿主工具**：角色声明 `host_tools`（如 `read-file`、`search`），实现和效果分类归 Host。
-- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和一开始就选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装，免得开新一轮时才被宿主拒绝。不写 `skills` 的角色照旧。
+- **用途的方法**（用户 2026-10-16 定）：同一个插件里不同用途（如规划、执行、讨论）是不同的角色，每个角色可以用 `skills: { allowed, default }` 声明这个用途能挑的方法和默认选上的方法。`allowed` 点名 agent 块 `skills` 里的方法，`default` 必须在 `allowed` 里，每个可选方法要的 `tools` 都得在这个角色的 `host_tools` 里。解析 Manifest 时这些都由 SDK 检查（`packages/plugin-sdk/src/agent-declarations.ts`），不合就拒绝安装。宿主那一半还没做：开新一轮时宿主还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了只过解析检查，不生效。不写 `skills` 的角色照旧。
+- **说明怎样处理补充**（`acknowledge-inputs`，`specs/ai-input-receipts` 3e-0）：一轮中途进来的补充，模型用它说自己怎样处理（马上照做、放到后面一步、不采纳、要问清楚……）、指向哪一步。展开 `BUSINESS_HOST_TOOLS` 的业务角色（助理的两个角色、Todo 整理）经这个常量自动带上；有目录的角色要自己在 `host_tools` 里列（Coding 里人直接对话的角色都列了，子任务的角色没列）。SDK 只把它当 AI 的自称记在输入账上，不改账本：不把补充标成做完，做没做看工具回执。补充的编号只在列了这个工具的一轮里给模型看。
 - **动作工具**：`action_tools` 只接受精确引用（capability_id + version + provider_id），调用仍走统一动作服务与逐客户端授权；动作的 `effect`（read/write/irreversible）决定是否要审查、是否对生成插件开放。
 - **审查**：写文件、跑命令、调用写入动作都进 `AgentReviewQueue`，由人批准；批准不等于已发生，执行前再复查授权。
 - **预算**：`AgentRunBudget`（`max_turns`、`max_output_tokens`、`max_total_tokens`、`max_duration_ms`），在 SDK 里真实执行（`tests/agent-budget-prologue.test.ts`）。
@@ -416,6 +417,8 @@ prompt 和执行机制「好」，是看得见的：
 这只是写法示意，没有评测过，不能直接替换现有正文。真要改，归项目上手的主人，按第 16 节做前后对比。
 
 **改了提示词之后。** 默认正文的含义变了就升 `version`：用户改过这段的，设置里会看到「默认已更新」（`InstructionPrompt.version` 的注释；判断依据是登记处的 `default_updated`）。Agent 提示词在 Manifest 的 `prompts` 声明和正文两处都写版本，两处一起升。判断题面（`system:contextual/*` 与创作台的 `choose.*`）还要在 `tests/prompt-registration.test.ts` 的 `WORDING_HISTORY` 加一行；其余提示词没有这张表。改创作台挂载的 Skill 章节或 `agent-prompts.ts` 跑 `pnpm studio:replay`；其余用第 16 节的真实模型小评测。
+
+**改了角色拿到的工具之后。** 角色实际拿到的工具集变了就升角色的 `version`，经共用常量（现在是 `BUSINESS_HOST_TOOLS`）变的也算（统筹 2026-10-19 裁定）：改常量的同一个改动里，展开它的每个角色都升一版，PR 里写出哪些角色多了或少了什么。冻结记录（第 16.4 节）里有角色版本也有 `host_tools`，版本不动而工具变了，按版本比前后两轮就以为角色没变，要逐项比工具列表才看得出来。`BUSINESS_HOST_TOOLS` 先后加过 `board-wait`（#661，业务角色从此能登记等外面的结果，只认 App 登记的只读检查器）和 `acknowledge-inputs`（#713），两次都没升角色版本，按这条补升。
 
 ### 13.2 Skill：可复用的方法与资料
 

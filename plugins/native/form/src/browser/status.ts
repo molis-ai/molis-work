@@ -1,7 +1,7 @@
 import type { FormRecord, FormStatus } from "@molis-ai/molis-work-contracts/modules/form";
 import { type FormPage, hasUnsaved } from "./page.js";
 
-/** The editor's one note line; `scope` says which later success may clear it (save, publication, required). */
+/** The editor's one note line; `scope` says which later success may clear it (save, publication, required, draft). */
 export const showNote = (page: FormPage, text: string, isError: boolean, scope = "") => {
   page.noteScope = text ? scope : "";
   const { note } = page;
@@ -11,6 +11,9 @@ export const showNote = (page: FormPage, text: string, isError: boolean, scope =
   note.classList.toggle("is-error", Boolean(isError && text));
   if (isError && text) note.scrollIntoView({ block: "nearest" });
 };
+
+/** The 「AI 生成题目」 words on the note line: they always show; `""` takes back only a note the draft put there, never a save's or a publication's. */
+export const draftNote = (page: FormPage, text: string, isError: boolean) => (text || page.noteScope === "draft") && showNote(page, text, isError, "draft");
 
 /** Tell the workbench what just happened, so it can say where the result is and what comes next. */
 export const placed = (detail: Record<string, unknown>) => { window.dispatchEvent(new CustomEvent("molis:placement-result", { detail })); };

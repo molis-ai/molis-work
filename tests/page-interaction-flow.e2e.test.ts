@@ -13,7 +13,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   const exclusive = "document.querySelector('[data-tab-workspace]').dataset.exclusive || ''";
-  const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] .tab-view-chip[aria-current][data-tab-view="${plugin}"]')`;
+  const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
   // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
@@ -120,8 +120,8 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await reloadPage();
   await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false, "history survives the reload");
-  // The location chip goes back to the list, and the list is what then stays.
-  await click('[data-titlebar-tabs] .tab-view-chip[data-tab-view="lingguang"]');
+  // The plugin's tab goes back to the list, and the list is what then stays.
+  await click('[data-titlebar-tabs] [data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger');
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
 
   // A record opened on the page is a step of history: Back from a second note is the first, then the list.

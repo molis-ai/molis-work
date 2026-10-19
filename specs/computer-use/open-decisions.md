@@ -1,6 +1,6 @@
 # Computer Use 待决事项（2026-10-18）
 
-状态：第 1 节已定（用户 2026-10-18 选 A：先拿真机事实，独立进程的面板继续拒绝）；第 2 节等真机数据。这不是任务书；两项能力在 draft PR [#721](https://github.com/molis-ai/molis-work/pull/721) 里明确标为部分，真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 晚点做。
+状态：第 1 节已定（用户 2026-10-18 选 A：先拿真机事实，独立进程的面板继续拒绝）；第 2 节等真机数据。这不是任务书；两项能力在 [#721](https://github.com/molis-ai/molis-work/pull/721)（2026-10-18 合入 main，`7509b10ad`）里明确标为部分，真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 晚点做。
 
 ## 1. 打开/保存面板（CU-G09）
 

@@ -104,7 +104,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=feed]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-goal-frame-surface]').hidden"), true);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
-  await waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('.tab-item[aria-current]')");
+  await waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('.tab-item[aria-current]')?.dataset.tabKind === 'plugin'");
   await evaluate("document.querySelector('[data-titlebar-tabs] .tab-item[data-item-id=CORE]').click()");
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item[data-plugin=goals][data-item-id=CORE][aria-current]') && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelectorAll('[data-frame-block]').length"), 4);

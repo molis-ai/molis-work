@@ -1,6 +1,6 @@
 # 文档引用与仓库形状门禁
 
-`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
+`pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
 入口引入四处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）和 `kernel-contextual.mjs`（内核的两半，见再下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
@@ -23,7 +23,25 @@
 | 根目录只放允许名单里的 | `root-entries.mjs` + `tooling/gates/root-allowlist.json` | `tracked files at the repository root outside the allow-list in <名>` | 放到合适的目录；确要放在根目录，把名字和理由写进允许名单。名单里的名字不在根目录了要删。名单之外的现存条目只许变少 |
 | `.impeccable/` 文件数只许减少 | `impeccable-files.mjs` | `tracked files under .impeccable in <组> n → m` | 评审截图默认写进被忽略的 `.impeccable/qa/review/`；原地覆盖已有图不改数量；删掉没有现行 spec、文档或测试引用的评审组 |
 | `contracts` 没有占位子路径 | `contract-placeholders.mjs` | `contract placeholder: descriptor-only, unused contracts subpath in ./<子路径>` | 占位子路径 = 源文件只导出一个 `ContractDescriptor` 常量，且仓内没有 import、也没有包的 `contract` 元数据指向它。没有基线，出现一个就失败（W2-01 已删掉原来的六个）。要用就放类型进去，不用就别加；`platform/kernel`、`platform/testing` 是描述符，但有包把它们声明为自己的合同入口，不算占位 |
+| `docs/` 下没有原始采集和开发机路径 | `doc-raw-data.mjs` + `tooling/gates/limits.json` 的 `docsJsonBytes` | `raw data in docs: docs/<文件> is <n> bytes, over the …` / `raw data in docs: docs/<文件>:<行>: /Users/<名> is a path on a developer's machine …` | 原始采集放在仓库之外；路径写成 `~/.molis-work`、`~/<路径>` 或仓库相对路径。`archive/` 也查，没有基线，没有例外名单。口径与阈值的依据见下面「文档里的原始数据」 |
 | 页面事件都登记了 | `dom-events.mjs` + `packages/contracts/src/platform/dom-events.ts` | `DOM events: <文件>:<行> dispatches "<名>", which is not registered` / `… listens to …` / `… is registered but no source dispatches or listens to it` / `… owned by "<主人>", but none of its files … it` | 新事件在合同的 `DOM_EVENTS` 里按名字顺序加一条，与发它的代码同一个改动，然后 `pnpm api:update`；名字写成字符串字面量（或「条件 ? 字面量 : 字面量」）。删了事件就删条目，主人的文件搬了就改 `PAGE_STATE_OWNERS`。不扫测试文件、`scripts/gates/`、夹具和构建产物。没有基线，直接挂在入口 `check-health-gates.mjs` 的 `absolute` 里（不经 `doc-gates.mjs`）；突变用例在 `tests/dom-events-contract.test.ts`（不在 `doc-reference-gates.test.ts`，CI 里单独一步）；`node scripts/gates/dom-events.mjs --report` 列出谁发谁听，并指出对不上的地方（那是线索不是失败，但真实代码里的每一条都要写进 UI Platform 的「现状与例外」，由同一个测试文件核对）。规则与登记含义见 [UI Platform](../../docs/platform/UI-PLATFORM.md#页面里的事件与状态归属) |
+
+## 文档里的原始数据
+
+`docs/` 下（含 `archive/`）不放原始采集，也不写开发机上的路径（`doc-raw-data.mjs`，用户 2026-10-18 定）。起因是 #717 把产品运营的两份原始采集（各约 1.5 MB 的 `.json`，满是一个私有仓库的本机路径）放进了 `docs/`，事情经过记在 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md#原始采集与开发机路径)。这条规则经 `doc-gates.mjs` 接进入口，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类），也没有例外名单。这是用户 2026-10-18 批准的门禁改动。
+
+| 项 | 说明 |
+| --- | --- |
+| 读什么 | `git ls-files` 里 `docs/` 下的每个文件，不分扩展名，`archive/` 也读 |
+| 大小 | `.json`（扩展名不分大小写）超过 `tooling/gates/limits.json` 的 `docsJsonBytes` 字节就失败。字节数按读出的文本以 UTF-8 计。`docs/` 里有 `.json` 而 `limits.json` 没有这个键，也失败：删掉这个键关不掉这条规则 |
+| 阈值从哪来 | 65,536（64 KiB），2026-10-19 在 main `4485ce809` 上量的：`docs/` 下有 6 个 `.json`，都是设计工具的记录。最大的是 28,822 字节（`docs/design/molis-work-onboarding/prototype/.impeccable/design.json`），其余在 1,577 到 26,622 之间。#717 的两份原始采集是 1,653,706 和 1,527,741 字节。64 KiB 是现存最大的两倍多，留给设计记录正常长大；又比原始采集小 23 倍以上。和别的阈值一样只许收紧：`--base` 拿它和 merge-base 的比，调大或删掉都失败（`limit "docsJsonBytes" loosened` / `removed`） |
+| 路径 | 指进某个人家目录的绝对路径：`/Users/` 或 `/home/` 后面跟一个名字。名字是一个以上的字符，不含斜杠、空白、引号、反引号、括号、`<>`、`*`、`$`、`%`、`\|`、`\`；末尾的 `.`、`,`、`;`、`:`、`!`、`?` 算句子的标点，不算进名字（报出来的路径也不带它）。所以 `/Users/<名>/`、`/home/$USER/`、`/home/*/` 这类占位写法，以及单独的 `/Users/`，都不算。`/Users`、`/home` 前一个字符是字母、数字、`.`、`_`、`~`、`-` 时也不算，所以带 `home/` 目录的仓库相对路径（`apps/x/home/y`）和 `~/home/y` 不会误报。`file:///Users/<名>`、`C:/Users/<名>`、`HOME=/Users/<名>` 都算 |
+| 量的时候 | main `4485ce809` 上 8 个文件命中 74 处：`archive/handoffs/` 下 4 份交接（33 处）、`docs/design/molis-work-onboarding/` 下 2 份 `detector.json`（33 处）、`docs/molis-work-bug-cards.md`（7 处）、一份评审记录（1 处）。产品运营的一份研究里有个新闻网址带 `/news/home/<数字>/`，前一个字符是字母，不算。统筹的文档 PR 删掉了这些路径，这条规则排在那个 PR 之后合入 |
+| 失败时说什么 | `raw data in docs: docs/<文件> is <n> bytes, over the 65536 a .json under docs/ may hold …` / `raw data in docs: docs/<文件>:<行>: /Users/<名> is a path on a developer's machine …` / `raw data in docs: tooling/gates/limits.json has no positive "docsJsonBytes" …` |
+| 怎么办 | 原始采集放在仓库之外。要指某台机器上的 Home 或工作树，写 `~/.molis-work`、`~/<路径>` 或仓库相对路径。设计记录真的需要超过阈值时，先拆小；拆不了就改阈值，这是改门禁，要过评审、先问用户 |
+| 读不到的（已知限制） | `docs/` 之外的文件（`specs/`、源码、测试里今天也有这类路径，不归这条规则管）；用反斜杠写的 Windows 路径；家目录的别种写法（`~user`、手写展开的 `/root/`、`/opt/<名>`）；扩展名不是 `.json` 的大文件（`.jsonl`、`.txt`、`.csv`）；内容是 JSON、扩展名不是 `.json` 的文件 |
+
+验证：`node scripts/run-tests.mjs tests/doc-reference-gates.test.ts`。每种写法都有一个违例用例：大 `.json`、`archive/` 里的路径、`.json` 里的路径、`/home/<名>`、`file:///Users/<名>`、阈值调大、删掉阈值。另有一个干净底子上的用例：占位写法、仓库相对路径、正好等于阈值的 `.json`、`docs/` 之外的路径都不报。
 
 ## 库与表的 owner（`table-owners.mjs`，W2-06）
 

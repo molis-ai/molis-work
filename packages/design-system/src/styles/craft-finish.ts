@@ -1,4 +1,3 @@
-import { MW_PLUGINS } from "../palette.js";
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 
@@ -40,10 +39,6 @@ const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialo
 
 /** Popovers and menus that drop from the control that opened them. */
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
-
-function viewChipTints(): string {
-  return MW_PLUGINS.map((plugin) => `${PAGES} .tab-view-chip[data-plugin="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`).join("\n  ");
-}
 
 const CRAFT_BASE_STYLES = `
   /* ─── Tokens ─── */
@@ -130,7 +125,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
   ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
 
-  /* Where am I: the plugin whose page this pane shows, ahead of the item tabs. */
+  /* A cover (market, settings) names itself ahead of the tabs. */
   ${PAGES} .tab-view-chip {
     flex: none; display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 4px 0 0; padding: 0 12px 0 8px;
     border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
@@ -147,7 +142,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
-  ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
   :root ${ASSIST} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {

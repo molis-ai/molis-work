@@ -1,6 +1,7 @@
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { RunStatus } from "../../domain/kernel/run.js";
 import type { SqliteDatabase } from "../db/open-database.js";
+import { alchemistStateErrors } from "../../errors.js";
 
 export interface PersistedJob {
   id: string;
@@ -242,7 +243,7 @@ export class SqliteJobRunner {
 
   private require(id: string): PersistedJob {
     const job = this.get(id);
-    if (!job) throw new Error("alchemist.job_not_found");
+    if (!job) throw alchemistStateErrors.job_not_found("没有找到这次运行。");
     return job;
   }
 }

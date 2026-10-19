@@ -4,7 +4,7 @@ import {
   SUBJECT_CONTEXT_INPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA, SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN,
   SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT, SUBJECT_CONTEXT_TYPE, SUBJECT_REFERENCE_TYPE,
   SUBJECT_OFFERS_INPUT_SCHEMA, SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_SCHEMA, SUBJECT_OFFERS_OUTPUT_TYPE,
-  WORKFLOW_CONTENT_SCHEMAS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
+  WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, validActionExecutionPolicy, validActionResultView, type WorkflowContentStation,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
@@ -208,14 +208,13 @@ function workflowContentProblems(key: string, operation: unknown, a: ActionBody)
   }
   const role = w.role as WorkflowContentStation["role"];
   const schemas = WORKFLOW_CONTENT_SCHEMAS[role];
-  if (a.scope !== "project" || !a.audiences.includes("workflow")
-    || a.input_type !== `molis.workflow.content.${role}.input.v1` || a.output_type !== `molis.workflow.content.${role}.output.v1`
-    || canonicalSchema(a.input_schema) !== canonicalSchema(schemas.input)
-    || canonicalSchema(a.output_schema) !== canonicalSchema(schemas.output)
-    || operation !== (role === "list" || role === "read" ? "query" : "command")) {
-    return [`能力 ${key} 没有兑现工作流内容协议 v1 的输入输出合同`];
-  }
-  return [];
+  // A role is declared at its current version only: an older shape is refused when the plugin registers, not met at a call.
+  const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${WORKFLOW_CONTENT_VERSIONS[role]}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
+  const outputOk = a.output_type === `molis.workflow.content.${role}.output.v1` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
+  const shapeOk = a.scope === "project" && a.audiences.includes("workflow") && operation === (role === "list" || role === "read" ? "query" : "command");
+  if (inputOk && outputOk && shapeOk) return [];
+  const gap = shapeOk && outputOk ? "输入" : shapeOk && inputOk ? "输出" : "输入输出";
+  return [`能力 ${key} 没有兑现工作流内容协议 ${role} v${WORKFLOW_CONTENT_VERSIONS[role]} 的${gap}合同`];
 }
 
 function operationKindProblems(key: string, operation: unknown, a: ActionBody): string[] {

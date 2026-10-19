@@ -9,6 +9,8 @@ import { createWorkbenchGoalsPlanningRenderer } from "./ui-composition.js";
 import { PROJECT_RULES_CLIENT_SCRIPT, PROJECT_GUIDANCE_CLIENT_SCRIPT } from "./browser-assets.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { PROJECT_SETTINGS_CLIENT_SCRIPT } from "./scripts/project-settings.js";
+import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js";
+import { renderWriteCheckersSection } from "./write-checkers-section.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 
 export interface ProjectSettingsPagePorts {
@@ -115,7 +117,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (section === "workspaces") return `<section class="project-settings-page" data-project-workspaces data-workspace-prefix="${escapeHtml(view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`)}">
       <header class="settings-page-heading"><h1>${L("工作目录")}</h1><p>${L("关联本机文件夹，并选择 Files 和 Git 浏览的目录。Coding 在每个会话中单独选择执行目录。")}</p></header>
       <section class="settings-section"><div class="settings-setting-row"><span class="setting-copy"><strong>${L("已关联目录")}</strong><span>${L("浏览选择对当前项目生效。")}</span></span><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-refresh>${L("刷新")}</button></div><div data-project-workspaces-list></div><p data-project-workspaces-status role="status" aria-live="polite"></p></section>
-      <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>${writeCheckersSection(L)}
+      <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>${renderWriteCheckersSection(L)}
     </section>`;
     if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
     if (section === "guidance") return renderProjectGuidanceDocument(guidance);
@@ -153,7 +155,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
 </body></html>`;
   }
 
@@ -208,24 +210,4 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     renderMolisWorkPlanningMethodPage,
     renderMolisWorkPlanningSettings,
   };
-}
-
-/**
- * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.12): one group per authorized folder, filled
- * by the bundled page program (src/browser/write-checkers.ts), and one form for adding and changing. No ids, since the
- * section can appear twice.
- */
-function writeCheckersSection(L: (text: string) => string): string {
-  const field = (label: string, input: string, hint = "") => `<label class="mw-field"><span class="mw-field__label">${label}</span>${input}${hint ? `<span class="mw-field__hint">${hint}</span>` : ""}</label>`;
-  return `<section class="settings-section" data-write-checkers><h2>${L("写后检查")}</h2><p class="mw-field__hint">${L("Agent 写入文件后，按扩展名在这个目录的检查器里取第一个适用的去跑，顺序就是这里的顺序。每次检查都经命令审查，程序在 PATH 上找，不经 shell。")}</p><div data-write-checkers-list></div><p data-write-checkers-status role="status" aria-live="polite"></p>
-      <dialog class="mw-dialog mw-dialog--form" data-write-checkers-dialog><form class="mw-form mw-dialog__shell"><header class="mw-form__header"><h2 data-write-checkers-title></h2></header><div class="mw-form__body">
-        ${field(L("名称"), `<input class="mw-input" name="display_name" required maxlength="80" autocomplete="off">`)}
-        ${field(L("程序名"), `<input class="mw-input" name="executable" required maxlength="255" autocomplete="off" spellcheck="false" placeholder="node">`, L("只写程序名，不带路径。"))}
-        ${field(L("参数"), `<input class="mw-input" name="args" required autocomplete="off" spellcheck="false" placeholder="--check {file}">`, L("用空格分开，带空格的参数加双引号；写入的文件写成单独一项 {file}。"))}
-        ${field(L("适用的扩展名"), `<input class="mw-input" name="applies_to" required autocomplete="off" spellcheck="false" placeholder=".js .mjs">`, L("用空格或逗号分开。"))}
-        ${field(L("运行目录"), `<input class="mw-input" name="cwd" autocomplete="off" spellcheck="false" placeholder=".">`, L("工作区根下的相对路径，空着就是根。"))}
-        ${field(L("时限（秒）"), `<input class="mw-input" name="timeout_seconds" type="number" min="1" max="60" placeholder="30">`, L("1 到 60 秒，空着是 30 秒。"))}
-        <p class="form-error" data-write-checkers-error role="alert" hidden></p>
-      </div><footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-write-checkers-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存")}</button></footer></form></dialog>
-    </section>`;
 }

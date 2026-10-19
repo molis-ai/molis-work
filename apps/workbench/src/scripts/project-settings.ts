@@ -1,19 +1,11 @@
-import { readFileSync } from "node:fs";
-
 /**
- * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.12): a factory `(host) => …` whose code is the
- * type-checked TypeScript in src/browser/write-checkers.ts, bundled by esbuild into dist/write-checkers-client.js when the
- * package builds (its banner and footer make the factory). The workspaces section hands it `{ section, prefix, translate }`
- * and calls the `load` it sets with the folders it has read. The path goes through the package root, so this file reads the
- * same bundle from dist/scripts/ and from src/scripts/ (tests load the source with tsx); either way the package must be built.
+ * Project operations initialize independently of the Runtime settings dialog. The after-write checkers below the workspaces
+ * (specs/prologue-adoption §6.0p.12) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
+ * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets.
  */
-const WRITE_CHECKERS_FACTORY = readFileSync(new URL("../../dist/write-checkers-client.js", import.meta.url), "utf8").trim();
-
-/** Project operations initialize independently of the Runtime settings dialog. */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
     const L = globalThis.L || ((text) => text);
-    const writeCheckers = ${WRITE_CHECKERS_FACTORY};
     const bindWorkspaces = (scope) => {
       const roots = scope?.matches?.('[data-project-workspaces]') ? [scope] : (scope || document).querySelectorAll('[data-project-workspaces]');
       roots.forEach(root => {
@@ -21,7 +13,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const list=root.querySelector('[data-project-workspaces-list]'), status=root.querySelector('[data-project-workspaces-status]');
         const form=root.querySelector('[data-project-workspaces-add]'), message=root.querySelector('[data-project-workspaces-add-status]');
         const refresh=root.querySelector('[data-project-workspaces-refresh]'), pick=root.querySelector('[data-project-workspaces-pick]');
-        const prefix=root.dataset.workspacePrefix, checkers={section:root.querySelector('[data-write-checkers]'),prefix,translate:L,load:null};writeCheckers(checkers);
+        const prefix=root.dataset.workspacePrefix, checkers={section:root.querySelector('[data-write-checkers]'),prefix,load:null};if(typeof molisWorkWriteCheckers==='function')molisWorkWriteCheckers(checkers);
         let busy=false;
         const api=(path,body)=>molisWorkRequest(prefix+path,{body,fallback:L('工作目录操作失败')});
         const load=async()=>{

@@ -5,131 +5,148 @@ import { writeCheckerFieldsOf, writeCheckerFromFields, writeCheckersAfter, type 
 /** The page's one request helper (packages/ui-host request-client): control headers, one origin, plain Errors with `code`. */
 declare const molisWorkRequest: UiRequest;
 
-type Translate = (text: string, vars?: Record<string, string | number>) => string;
 type Folder = { readonly workspace_id: string; readonly display_name: string };
 type Kept = AgentWriteCheckerList;
 type Checker = Kept["checkers"][number];
 
 /**
- * What the workspaces section hands the after-write checkers (specs/prologue-adoption §6.0p.12): its own part of the page,
- * the project's route prefix and the page's translate. The program sets `load`, which the section calls with the folders it
- * has just read.
+ * What the workspaces section hands the after-write checkers (specs/prologue-adoption §6.0p.12): its own part of the page and the
+ * project's route prefix. The program sets `load`, which the section calls with the folders it has just read.
  */
 export interface WriteCheckersHost {
-  readonly section: Element | null;
+  readonly section: HTMLElement | null;
   readonly prefix: string;
-  readonly translate: Translate;
-  load: ((folders: readonly Folder[]) => Promise<void>) | null;
+  load: ((folders: readonly Folder[]) => Promise<unknown>) | null;
 }
 
-const FIELDS = ["display_name", "executable", "args", "applies_to", "cwd", "timeout_seconds"] as const satisfies readonly (keyof WriteCheckerFields)[];
-
-function el<K extends keyof HTMLElementTagNameMap>(tag: K, className = "", text?: string): HTMLElementTagNameMap[K] {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  if (text !== undefined) node.textContent = text;
-  return node;
-}
-
-function actionButton(label: string, onClick: () => void, kind = "secondary"): HTMLButtonElement {
-  const node = el("button", "mw-btn mw-btn--" + kind, label);
-  node.type = "button";
-  node.addEventListener("click", onClick);
-  return node;
-}
-
-/** One kept checker: what it runs on which files, with change, move up (not on the first) and delete. */
-function checkerRow(L: Translate, checker: Checker, first: boolean, act: { edit(): void; up(): void; remove(): void }): HTMLElement {
-  const row = el("div", "settings-setting-row"), text = el("span", "setting-copy"), actions = el("span", "setting-value");
-  text.append(el("strong", "", checker.display_name), el("code", "", checker.executable + " " + writeCheckerFieldsOf(checker).args),
-    el("span", "", L("适用 {extensions} · 目录 {cwd} · 时限 {seconds} 秒", { extensions: checker.applies_to.join(" "), cwd: checker.cwd, seconds: checker.timeout_ms / 1000 })));
-  actions.append(actionButton(L("修改"), act.edit));
-  if (!first) actions.append(actionButton(L("上移"), act.up));
-  actions.append(actionButton(L("删除"), act.remove, "danger-outline"));
-  row.append(text, actions);
-  return row;
-}
+let sections = 0;
 
 /**
  * One group per workspace the list action returns (authorized, its real path verified). Every change saves the whole group
  * against the version read; a stale version reads them again and says so where the change was made.
+ *
+ * The program writes no sentence of its own: the host's section (src/write-checkers-section.ts) carries them all, in the page's
+ * language, as `data-say` and as `<template>`s with `{slots}`; the program clones a template and fills the slots with
+ * `textContent`, so nothing a person typed or a folder is called is ever read as markup. After every change, and whichever way a
+ * dialog closes, focus goes back to the button the person used, or to the group's "add" when that button is gone.
  */
 export function bindWriteCheckers(host: WriteCheckersHost): void {
   const section = host.section;
   if (!section) return;
-  const L = host.translate;
-  const list = section.querySelector("[data-write-checkers-list]") as HTMLElement;
-  const status = section.querySelector("[data-write-checkers-status]") as HTMLElement;
-  const dialog = section.querySelector("[data-write-checkers-dialog]") as HTMLDialogElement;
+  const say = JSON.parse(section.dataset.say as string) as Record<"loading" | "saved" | "none" | "stale" | "failed" | "gone" | "add" | "edit", string>;
+  const part = <T extends HTMLElement = HTMLElement>(name: string) => section.querySelector(`[data-wc=${name}]`) as T;
+  const list = part("list"), status = part("status"), error = part("error"), dialog = part<HTMLDialogElement>("dialog");
   const form = dialog.querySelector("form") as HTMLFormElement;
-  const error = dialog.querySelector("[data-write-checkers-error]") as HTMLElement;
-  const input = (name: keyof WriteCheckerFields) => form.elements.namedItem(name) as HTMLInputElement;
-  const call = <T>(body?: unknown) => molisWorkRequest<T>(host.prefix + "/api/project-settings/write-checkers", { body, fallback: L("写后检查器操作失败") });
+  // The section can be on a page twice, so the dialog's heading gets an id of its own here.
+  const heading = dialog.querySelector("h2") as HTMLElement;
+  heading.id += ++sections;
+  dialog.setAttribute("aria-labelledby", heading.id);
+  const call = <T>(body?: unknown) => molisWorkRequest<T>(host.prefix + "/api/project-settings/write-checkers", { body, fallback: say.failed });
   let folders: readonly Folder[] = [], lists: Kept[] = [], busy = false;
   let editing: { workspace_id: string; checker_id: string | null } | null = null;
 
+  // A copy of a template with its `{slots}` filled (once: a value is never read for slots again) and the `data-if` parts it does not use dropped.
+  const make = (name: string, values: Record<string, string | number> = {}, flags: Record<string, boolean> = {}): HTMLElement => {
+    const node = document.importNode(part<HTMLTemplateElement>(name).content.firstElementChild as Element, true) as HTMLElement;
+    const fill = (text: string) => text.replace(/\{(\w+)\}/g, (_, key: string) => String(values[key] ?? ""));
+    for (const piece of node.querySelectorAll<HTMLElement>("*")) {
+      if (piece.dataset.if && !flags[piece.dataset.if]) piece.remove();
+      if (!piece.firstElementChild && piece.textContent?.includes("{")) piece.textContent = fill(piece.textContent);
+      if (piece.ariaLabel?.includes("{")) piece.ariaLabel = fill(piece.ariaLabel);
+    }
+    return node;
+  };
+  // The button a person used, found again after the list was drawn anew; when it is gone (moved to the top, deleted) the group's "add".
+  const refocus = (workspace: string, checker: string | null, act: string) => {
+    const find = (css: string) => list.querySelector<HTMLElement>(`[data-workspace="${CSS.escape(workspace)}"] ${css}`);
+    (find(`[data-checker="${CSS.escape(checker ?? "")}"] [data-act=${act}]`) ?? find("[data-act=add]"))?.focus();
+  };
   const lock = (on: boolean) => { busy = on; list.querySelectorAll("button").forEach((node) => { node.disabled = on; }); };
-  const read = async () => {
-    status.textContent = L("正在读取写后检查器…");
-    try { lists = (await call<{ lists: Kept[] }>()).lists; render(); }
-    catch (caught) { list.replaceChildren(); molisWorkRequest.show(status, caught); }
+  const render = () => {
+    list.replaceChildren(...lists.map((kept) => {
+      const folder = folders.find((item) => item.workspace_id === kept.workspace_id);
+      const group = make("group", { folder: folder ? folder.display_name : kept.workspace_id, version: kept.version }, { saved: Boolean(kept.version), unsaved: !kept.version, empty: !kept.checkers.length });
+      group.dataset.workspace = kept.workspace_id;
+      group.append(...kept.checkers.map((checker, index) => {
+        const row = make("row", { name: checker.display_name, command: checker.executable + " " + writeCheckerFieldsOf(checker).args,
+          extensions: checker.applies_to.join(" "), cwd: checker.cwd, seconds: checker.timeout_ms / 1000 }, { movable: index > 0 });
+        row.dataset.checker = checker.checker_id;
+        return row;
+      }));
+      return group;
+    }));
+    status.textContent = lists.length ? "" : say.none;
+  };
+  const read = async (): Promise<boolean> => {
+    status.textContent = say.loading;
+    try { lists = (await call<{ lists: Kept[] }>()).lists; render(); return true; }
+    catch (caught) { list.replaceChildren(); molisWorkRequest.show(status, caught); return false; }
   };
   const save = async (kept: Kept, checkers: AgentWriteChecker[], target: HTMLElement): Promise<boolean> => {
-    if (busy) return false;
     lock(true);
     try {
       const saved = await call<Kept>({ workspace_id: kept.workspace_id, expected_version: kept.version, checkers });
       lists = lists.map((item) => item.workspace_id === saved.workspace_id ? saved : item);
-      render(); status.textContent = L("写后检查器已保存。");
+      render(); status.textContent = say.saved;
       return true;
     } catch (caught) {
-      if ((caught as { code?: unknown } | null)?.code === "actions.conflict") { await read(); target.textContent = L("这组检查器已在别处改过，已重新读取，请再改一次。"); }
-      else molisWorkRequest.show(target, caught);
+      // The stale-version note replaces the failure only once the groups were read again; if that fails too, its own failure stands.
+      molisWorkRequest.show(target, caught);
+      if ((caught as { code?: unknown } | null)?.code === "actions.conflict" && await read()) target.textContent = say.stale;
       target.hidden = false;
       return false;
     } finally { lock(false); }
   };
+  const change = async (kept: Kept, checkerId: string, how: "up" | "remove") => {
+    await save(kept, writeCheckersAfter(kept.checkers, checkerId, how), status);
+    refocus(kept.workspace_id, checkerId, how);
+  };
   const open = (kept: Kept, checker: Checker | null) => {
     editing = { workspace_id: kept.workspace_id, checker_id: checker ? checker.checker_id : null };
     form.reset(); error.hidden = true;
-    if (checker) { const fields = writeCheckerFieldsOf(checker); for (const name of FIELDS) input(name).value = fields[name]; }
-    const title = checker ? L("修改检查器") : L("添加检查器");
-    (dialog.querySelector("[data-write-checkers-title]") as HTMLElement).textContent = title;
-    dialog.setAttribute("aria-label", title);
+    for (const [name, value] of Object.entries(checker ? writeCheckerFieldsOf(checker) : {})) (form.elements.namedItem(name) as HTMLInputElement).value = value;
+    heading.textContent = checker ? say.edit : say.add;
     dialog.showModal();
   };
-  const group = (kept: Kept) => {
-    const folder = folders.find((item) => item.workspace_id === kept.workspace_id);
-    const node = el("div"), head = el("div", "settings-setting-row"), copy = el("span", "setting-copy");
-    node.dataset.writeCheckersWorkspace = kept.workspace_id;
-    copy.append(el("strong", "", folder ? folder.display_name : kept.workspace_id), el("span", "", kept.version ? L("第 {version} 版", { version: kept.version }) : L("还没有保存过")));
-    head.append(copy, actionButton(L("添加检查器"), () => open(kept, null)));
-    node.append(head);
-    if (!kept.checkers.length) node.append(el("p", "mw-field__hint", L("这个目录没有写后检查，写入后显示「未检查」。")));
-    kept.checkers.forEach((checker, index) => node.append(checkerRow(L, checker, index === 0, {
-      edit: () => open(kept, checker),
-      up: () => void save(kept, writeCheckersAfter(kept.checkers, checker.checker_id, "up"), status),
-      remove: () => { if (confirm(L("删除检查器「{name}」？", { name: checker.display_name }))) void save(kept, writeCheckersAfter(kept.checkers, checker.checker_id, "remove"), status); },
-    })));
-    return node;
-  };
-  const render = () => {
-    list.replaceChildren(...lists.map(group));
-    status.textContent = lists.length ? "" : L("先在上方关联目录，再给它配写后检查。");
+  // Deleting asks in the catalog's alert dialog; only its "delete" button (a method=dialog submit, returnValue "remove") goes on.
+  const ask = (kept: Kept, checker: Checker) => {
+    const question = make("remove", { name: checker.display_name }) as HTMLDialogElement;
+    question.addEventListener("close", () => {
+      question.remove();
+      if (question.returnValue === "remove") void change(kept, checker.checker_id, "remove");
+      else refocus(kept.workspace_id, checker.checker_id, "remove");
+    });
+    section.append(question);
+    question.showModal();
   };
 
+  list.addEventListener("click", (event) => {
+    const button = (event.target as Element).closest<HTMLElement>("[data-act]");
+    const kept = button && lists.find((item) => item.workspace_id === button.closest<HTMLElement>("[data-workspace]")?.dataset.workspace);
+    if (!button || !kept) return;
+    const id = button.closest<HTMLElement>("[data-checker]")?.dataset.checker ?? null;
+    const checker = kept.checkers.find((item) => item.checker_id === id) ?? null;
+    if (button.dataset.act === "add" || button.dataset.act === "edit") open(kept, checker);
+    else if (button.dataset.act === "up" && id) void change(kept, id, "up");
+    else if (button.dataset.act === "remove" && checker) ask(kept, checker);
+  });
+  section.addEventListener("click", (event) => {
+    const close = (event.target as Element).closest("[data-dialog-close]");
+    if (close && !busy) (close.closest("dialog") as HTMLDialogElement).close();
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const target = editing, kept = target && lists.find((item) => item.workspace_id === target.workspace_id);
-    if (!target || !kept) { error.textContent = L("这个目录已不在授权的目录里。"); error.hidden = false; return; }
-    const fields = Object.fromEntries(FIELDS.map((name) => [name, input(name).value])) as Record<keyof WriteCheckerFields, string>;
+    if (!target || !kept) { error.textContent = say.gone; error.hidden = false; return; }
+    const fields = Object.fromEntries(new FormData(form)) as unknown as WriteCheckerFields;
     const checker = writeCheckerFromFields(fields, kept.checkers.map((item) => item.checker_id).filter((id) => id !== target.checker_id), target.checker_id);
     const submit = form.querySelector("[type=submit]") as HTMLButtonElement;
     submit.disabled = true; error.hidden = true;
-    try { if (await save(kept, writeCheckersAfter(kept.checkers, target.checker_id, checker), error)) { dialog.close(); editing = null; } }
-    finally { submit.disabled = false; }
+    try { if (await save(kept, writeCheckersAfter(kept.checkers, target.checker_id, checker), error)) dialog.close(); }
+    finally { submit.disabled = false; if (dialog.open) submit.focus(); }
   });
-  (dialog.querySelector("[data-write-checkers-cancel]") as HTMLElement).addEventListener("click", () => { if (!busy) dialog.close(); });
   dialog.addEventListener("cancel", (event) => { if (busy) event.preventDefault(); });
+  // Closed any way (saved, cancelled, Esc): the list was drawn anew behind it, so the opener is gone; focus goes where the person was.
+  dialog.addEventListener("close", () => { if (editing) refocus(editing.workspace_id, editing.checker_id, "edit"); editing = null; });
   host.load = (next) => { folders = next; return read(); };
 }

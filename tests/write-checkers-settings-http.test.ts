@@ -2,7 +2,7 @@
 // requests go through the public web server, with the same local control guard in front; what may be saved is the action's
 // to say (tests/coding-checkers-settings.test.ts), so here the route only has to carry it there and back unchanged.
 import assert from "node:assert/strict";
-import { mkdir, mkdtemp, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -28,8 +28,8 @@ async function fixture() {
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`;
   let key = 0;
-  const request = async (projectId: string, path: string, body?: unknown, token: string | null = TOKEN) => {
-    const headers: Record<string, string> = { origin, accept: "application/json", "x-molis-work-idempotency-key": `write-checkers-${++key}` };
+  const request = async (projectId: string, path: string, body?: unknown, token: string | null = TOKEN, extra: Record<string, string> = {}) => {
+    const headers: Record<string, string> = { origin, accept: "application/json", "x-molis-work-idempotency-key": `write-checkers-${++key}`, ...extra };
     if (token) headers["x-molis-work-control-token"] = token;
     if (body !== undefined) headers["content-type"] = "application/json";
     const response = await fetch(`${origin}/projects/${encodeURIComponent(projectId)}${path}`, { method: body === undefined ? "GET" : "POST", headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) });
@@ -43,12 +43,17 @@ async function fixture() {
   };
   return {
     project: project.project_id, neighbour: neighbour.project_id, request, link,
+    /** A page or asset that is not under a project, as the browser asks for it. */
+    get: async (path: string) => { const response = await fetch(origin + path); return { status: response.status, text: await response.text() }; },
     lists: async () => ((await request(project.project_id, ROUTE)).body as { lists: AgentWriteCheckerList[] }).lists,
     save: (body: unknown, token: string | null = TOKEN) => request(project.project_id, ROUTE, body, token),
     async close() { await new Promise<void>(resolve => server.close(() => resolve())); await rm(directory, { recursive: true, force: true }); },
   };
 }
 
+// "Authorized" below is what the list action returns. A folder that is authorized but whose real path is not verified never gets a
+// group either, and that half is PA-26's (tests/coding-checkers-settings.test.ts, A2-1); this file only has the page ask the same two
+// actions and show what they give, so it adds the folders it links itself and takes one back.
 test("PA-40 the workspaces settings page has the after-write checks, one group per folder this project has authorized", { timeout: 120_000 }, async () => {
   const f = await fixture();
   try {
@@ -56,6 +61,7 @@ test("PA-40 the workspaces settings page has the after-write checks, one group p
     assert.equal(page.status, 200);
     assert.match(page.text, /data-write-checkers>/);
     for (const name of ["display_name", "executable", "args", "applies_to", "cwd", "timeout_seconds"]) assert.match(page.text, new RegExp(`name="${name}"`), name);
+    assert.match(page.text, /<input class="mw-input"[^>]*name="timeout_seconds"[^>]*step="0\.001"/, "a time limit in fractions of a second can be typed");
     assert.deepEqual(await f.lists(), [], "no folder linked yet: no group");
 
     const app = await f.link(f.project, "app");
@@ -72,6 +78,44 @@ test("PA-40 the workspaces settings page has the after-write checks, one group p
     const refused = await f.save({ workspace_id: app, expected_version: 1, checkers: [] });
     assert.equal(refused.status, 400, refused.text);
     assert.equal(refused.body?.code, "agent.directory_unauthorized");
+  } finally { await f.close(); }
+});
+
+test("PA-43 the page's markup holds every sentence; its program holds none, asks before deleting in a dialog, and only the pages with the section carry it", { timeout: 120_000 }, async () => {
+  const f = await fixture();
+  try {
+    const bundle = (await readFile(new URL("../apps/workbench/dist/write-checkers-client.js", import.meta.url), "utf8")).trim();
+    assert.match(bundle, /^const molisWorkWriteCheckers = \(host\) => \{/, "the build makes the program a page global the workspaces script can look for");
+    assert.doesNotMatch(bundle, /confirm\(|innerHTML|insertAdjacentHTML|outerHTML/, "no browser dialog of its own, and nothing a person typed is read as markup");
+    assert.doesNotMatch(bundle, /\p{Script=Han}/u, "no sentence of its own: the host writes them in the page's language");
+
+    const page = await f.request(f.project, "/settings/workspaces");
+    assert.equal(page.status, 200);
+    const section = page.text.slice(page.text.indexOf("<section class=\"settings-section\" data-say="), page.text.indexOf("</section>", page.text.indexOf("data-write-checkers>")));
+    assert.match(section, /<template data-wc="group">[\s\S]*<h3>\{folder\}<\/h3>[\s\S]*<template data-wc="row">[\s\S]*<template data-wc="remove">/, "the group's name is a heading; the rows and the delete question are templates");
+    assert.match(section, /<template data-wc="remove"><dialog class="mw-dialog mw-dialog--alert" data-slot="alert-dialog"[\s\S]*<h2 id="write-checkers-remove-title">删除检查器「\{name\}」？<\/h2>[\s\S]*value="remove"/, "deleting asks in the catalog's alert dialog");
+    for (const named of ["添加检查器（{folder}）", "修改 {name}", "上移 {name}", "删除 {name}"]) assert.ok(section.includes(`aria-label="${named}"`), `a button is read out with the name of what it changes: ${named}`);
+    assert.match(section, /<dialog class="mw-dialog mw-dialog--form"[^>]*data-wc="dialog"/, "adding and changing use the catalog's form dialog");
+    assert.ok(section.includes("&quot;stale&quot;:&quot;这组检查器已在别处改过，已重新读取，请再改一次。&quot;"), "the page's short sentences are carried as data");
+
+    const english = await f.request(f.project, "/settings/workspaces", undefined, TOKEN, { cookie: "molis_work_locale=en" });
+    assert.ok(english.text.includes('aria-label="Add checker ({folder})"') && english.text.includes('aria-label="Edit {name}"'), "the same markup in English");
+    assert.ok(english.text.includes("Delete checker “{name}”?") && english.text.includes("&quot;stale&quot;:&quot;These checkers were changed elsewhere"), "and the dialog and the data");
+
+    const inline = page.text.slice(page.text.indexOf("<script>", page.text.indexOf("data-settings-toast")));
+    assert.ok(inline.includes(bundle), "the project settings page carries the program");
+    assert.ok(inline.indexOf(bundle) < inline.indexOf("bindWorkspaces"), "before the script that looks for it");
+
+    const global = await f.get("/settings/models");
+    assert.equal(global.status, 200);
+    assert.ok(!global.text.includes("molisWorkWriteCheckers = ") && !global.text.includes("data-write-checkers>") && !global.text.includes("data-wc=\"list\""), "the global settings page has no such section and gets no such program");
+    assert.ok(global.text.includes("typeof molisWorkWriteCheckers==='function'"), "the workspaces script it shares binds only when the program is there");
+    const workbench = await f.get("/assets/molis-work-workbench.js");
+    assert.equal(workbench.status, 200);
+    // The host tightens the whitespace and syntax of every script it serves, so the bundle is not there byte for byte.
+    const made = workbench.text.search(/const molisWorkWriteCheckers ?= ?\(?host\)? ?=> ?\{/);
+    assert.ok(made >= 0 && workbench.text.includes("/api/project-settings/write-checkers"), "the Workbench program carries it, for the settings opened inside the workbench");
+    assert.ok(made < workbench.text.indexOf("typeof molisWorkWriteCheckers"), "ahead of the script that binds it");
   } finally { await f.close(); }
 });
 

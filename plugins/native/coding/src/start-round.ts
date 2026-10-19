@@ -33,7 +33,8 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
   const token = Symbol(sessionId);
   following.set(sessionId, token);
   const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
-  void (async () => {
+  // The activation's follower, not the request's: it outlives the action that started the round.
+  a.detach(() => void (async () => {
     let since: string | null = null;
     while (current()) {
       const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: stopped.signal });
@@ -58,7 +59,7 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
         break;
       }
     }
-  })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); });
+  })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); }));
 };
 
 /**

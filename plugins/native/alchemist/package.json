@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -46,7 +50,8 @@
     "capabilities": [
       "alchemist.ui-contribution.v1",
       "alchemist.http-routes.v1"
-    ]
+    ],
+    "registration": "./registration"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

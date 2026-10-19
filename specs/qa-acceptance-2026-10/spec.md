@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/006/007/008/019/022/023已复验，QA-020主要冲突已修但仍有文档余项。已知P1 #709原草稿路径已复验，已知P1 PG-110在959上复验仍不通过，PG-006同片待修；产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
+状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/004/005/006/007/008/019/022/023已复验，QA-020主要冲突已修但仍有文档余项。已知P1 #709原草稿路径已复验，已知P1 PG-110在959上复验仍不通过，PG-006同片待修；产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -127,14 +127,14 @@ fetch后固定 `5160c3bbc81b24b9d6d5e5f807dfba5df41ffd1a`，新建干净detached
 | 线 | 通过 | 部分通过 | 不通过 | 未验证 | 按决定不做 | 能否归档／主要缺口 |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
 | 交互（54） | 7 | 39 | 0 | 8 | 0 | 不能：P5/H4 2c、AC10-B、完整UI矩阵和BL-016；QA-001/002/003及#709原步骤已复验 |
-| 采用（39） | 2 | 22 | 0 | 15 | 0 | 不能：QA-004/005、BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6及完整实走 |
+| 采用（39） | 2 | 22 | 0 | 15 | 0 | 不能：QA-004/005原证据缺口已复验；BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6及完整实走仍缺 |
 | 手册（23） | 12 | 10 | 0 | 1 | 0 | 不能：ADH-19～23开发者实作、Coding小跑与用户验收；QA-006/007已复验 |
 | Computer Use（15） | 1 | 10 | 0 | 4 | 0 | 不能：Helper三项权限及二十步真机、成本与实际裁剪/OCR；QA-008文档已复验 |
 | 回执（84） | 25 | 54 | 0 | 5 | 0 | 不能：QA-009～012、Coding模型/强杀/异常矩阵、R1与3e后续及阶段4～6 |
 | 情境（91） | 11 | 69 | 2 | 9 | 0 | 不能：QA-013～018、W1/W4后续、W5～W7及原生/完整状态矩阵；跨线多选另见QA-024 |
 | 防腐（636） | 400 | 218 | 5 | 13 | 0 | 不能：QA-020/021/024、已知P1 PG-110及同片PG-006、剩余迁移、同SHA全量及完整产品矩阵 |
 
-新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，在959生产网关复现仍不通过，修复#812仍未合入；PG-006名单是同片依赖，不能因安全集通过而关闭。QA-001/002/003/006/007/008/019/022/023已复验，QA-020保留文档余项，其余修复状态见问题表；没有用户接受不修的记录。
+新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，在959生产网关复现仍不通过，修复#812仍未合入；PG-006名单是同片依赖，不能因安全集通过而关闭。QA-001/002/003/004/005/006/007/008/019/022/023已复验，QA-020保留文档余项，其余修复状态见问题表；没有用户接受不修的记录。
 
 ## 4. 各线逐条验收
 
@@ -208,7 +208,7 @@ U3：生产Web Host、两个新临时Home（首个准备试验后删除，正式
 
 ### 4.2 采用
 
-本节 SHA 均为 `f31801f5b53c9b520a6b86e12023e5dcdba7c1a9`。每线前重新 fetch，新 detached 树离线安装、整体构建通过；本线 MiniMax-M3 上限 20，实际 **18/20**（含正常连接检查一次）。正式模型配置仅在一次性 Home 保存密文，运行期间扫描未发现明文密钥文件；本次服务已按 PID 停止，Home 已核对并删除。
+本节初验 SHA 为 `f31801f5b53c9b520a6b86e12023e5dcdba7c1a9`，后续E12的PA-08/17复验单独标注5160。每线前重新 fetch，新 detached 树离线安装、整体构建通过；本线初验 MiniMax-M3 上限 20，实际 **18/20**（含正常连接检查一次），E12上限0、实际0。正式模型配置仅在一次性 Home 保存密文，运行期间扫描未发现明文密钥文件；本次服务已按 PID 停止，Home 已核对并删除。
 
 工程证据均为一级：`A1`＝`adoption-core.log`，7 文件 32 项；`A2`＝`adoption-collaboration.log`，14 文件 91 项；`A3`＝`adoption-integration.log`，12 文件 89 项；`A4`＝`adoption-gateway.log`，网关筛选 15 项；`A5`＝`adoption-vendor.log`，当前包记录 5 项。以上均通过。`AB`＝`adoption-browser.log`，model-controls / taskboard / handback / follow-live / timeline 五个浏览器文件 7 项通过；脚本 provider 与组件渲染仍属一级。日志在被测树已忽略的 `.impeccable/qa/review/`。除表内具名 PA 测试外，按真实测试名筛选；没有编号引用的已有行为不能冒充按编号追溯已经齐备。
 
@@ -225,7 +225,7 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | PA-05 | 部分通过 | 一级 | A2 session-messages/collab-handoff 核兄弟交接、跨项目与循环等待拒绝；伪身份/伪回复全部交错未全证 | P2/P4 | f31801f5b |
 | PA-06 | 部分通过 | 一级 | A2 work-waits、A3 background-wait：先派后等、早到、取消/失败及真实后台进程；all/any/超时完整组合未全证 | P2/P4 | f31801f5b |
 | PA-07 | 部分通过 | 一级 | A3 sdk-effects/action-tools/start-authority/budget 与 A4：当前授权复核、零新派发/零迟到写真实断言 | §4.6.10 共享预算预留留 P4；不称完整 | f31801f5b |
-| PA-08 | 部分通过 | 一级 | A2 handback 有真实 SIGKILL 后恢复一次；A3 有单子结果与人工轮屏障；两结果＋人工三方组合缺失 | QA-004；不是已复现双执行 | f31801f5b |
+| PA-08 | 部分通过 | 一级 | E12三方屏障竞争仅新增一个真实父Run、两份交回材料消费一次、新服务重开无重复；同文件另有真实子进程SIGKILL后恢复通过 | QA-004原缺口已复验；该竞争不是完整进程重启，全部崩溃窗口与二级未补齐 | 5160c3bbc |
 | PA-09 | 部分通过 | 一级 | A1 coordinator-board 与 A2 writer-authority：真实隔离目录/只读父/角色；AB 页面只证实际覆盖部分 | Coding 全产品批准/拒绝未二级实走 | f31801f5b |
 | PA-10 | 部分通过 | 一级、二级（部分） | A3 delegation/jobs/work-view 核唯一图与视图，AU 真子工作定位；App→Coding 目标授权端到端未走 | 无精确编号引用；P4 | f31801f5b |
 | PA-11 | 部分通过 | 一级、二级（部分） | A2 handback/PA-23、AB 自动交回；AU 同轮等结果并汇总，仅一父轮，不能证明自动续接 | 已知 BL-104/091；两产品完整动线仍缺 | f31801f5b |
@@ -234,7 +234,7 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | PA-14 | 未验证 | 一级（范围核对） | work-view 已拒旧字段进入投影，不能替代存量维护与旧链退出演练；本次不取真实 Home | P6、BL-157／维护八 | f31801f5b |
 | PA-15 | 未验证 | 一级（范围核对） | 两仓工程/当前 SHA 全量/完整重启实走尚未齐备；不标内部完整 | P6；用户验收另列 | f31801f5b |
 | PA-16 | 通过 | 一级 | A1 external-checks + S-27：外部条件的身份/字段、未授权脚本、写/AI 检查器、软链拒绝；A3 jobs 同图绑定 | 工程合同通过，不代替两产品实走 | f31801f5b |
-| PA-17 | 部分通过 | 一级 | A1 多次检查无新增请求、eligible；A3 后台真进程并手动下一轮；历史 MiniMax 记录存在 | QA-005：缺实际用量增量与恰好一次接续组合 | f31801f5b |
+| PA-17 | 部分通过 | 一级 | E12真实结果文件/生产查询等待：生产用量先有60/16非零正例，等待零增量，满足后同Session仅新增1 Run和30/8用量；重复通知与adapter重开无新增 | QA-005原缺口已复验；脚本模型响应、夹具执行接续动作，未覆盖完整Coding页面/wake-loop产品实走 | 5160c3bbc |
 | PA-18 | 部分通过 | 一级 | A1 四态/旧文件/缺标记/无效输出、A3 jobs；错误退避/截止/重复回调＋人工的完整组合未全证 | P2/P3；不把 unknown 当成功 | f31801f5b |
 | PA-19 | 部分通过 | 一级 | S-27 撤权/停用拒绝检查，A3 jobs 每次取工作授权，A4不可读保持未知；检查中及结果后全部交错未全证 | P3、共享预算后续 | f31801f5b |
 | PA-20 | 部分通过 | 一级 | A1 external-checks、A3 jobs、AB TaskBoard；两产品真实后台任务及提前继续/未读输入策略未全实走 | P4 | f31801f5b |
@@ -258,11 +258,19 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | PA-38 | 未验证 | 一级（范围核对） | JS/Python 真实语言检查样本尚未交付 | A2-2；不安装语言服务 | f31801f5b |
 | PA-39 | 未验证 | 一级（范围核对） | §6.0p.6 明确随执行器实现新增安全行；仅已存配置的拒绝已运行 | A2-2；未实现边界不报为现行安全测试遗漏 | f31801f5b |
 
-**轻做／证据不足。** QA-004 的 handback 用例先放行一个孩子，等 400ms 后才放另一个，却注释“同时”；不能证明三方并发。QA-005 的外部等待停在 eligible，非 live fixture 的 usage 根本不更新，直接断言它为零会产生假证据。A3 jobs 的“重启”是 adapter 重开，A2 handback 则确有独立进程 SIGKILL，二者不可混写。PA-02/04/08/10 无精确编号引用；spec 既有“新增方案 23 项引用缺口”记录已含这些项，需随现行实现收口，不新报未实现。浏览器切片/脚本 provider 保持一级。
+**E12：#833复验（2026-10-20，5160c3bbc81b24b9d6d5e5f807dfba5df41ffd1a）。** 新detached树离线复制安装、Node24完整构建成功；真实模型上限0、实际0。整文件运行 `tests/assistant-delegation-handback.test.ts`（7/7）、`tests/prologue-external-checks.test.ts`（4/4）、共用夹具的 `tests/security-invariants-external-checks.test.ts`（9/9），共20/20、0失败/跳过；命令为 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts tests/prologue-external-checks.test.ts tests/security-invariants-external-checks.test.ts --jobs 1 --verbose`，日志 `.impeccable/qa/review/latest-e12-adoption.log`。
+
+QA-004：同一时点释放两个真实SDK子Run的受控模型响应，将父自动接续卡在授权前，人工继续先完成后再放行自动路径。断言父Session从1增至2个Run、仅一份后续模型请求、含两份子结果、continuation为started；自动路径被拒，新AssistantService重开不再启动，下一人工轮不再重复交回材料。同文件另跑独立子进程在写步骤时SIGKILL并恢复一次。前者只是新服务重开，后者是具体崩溃窗口的进程恢复，不能合称三方竞争已覆盖全部进程崩溃窗口。QA-004原三方组合缺口已复验。
+
+QA-005：旧非live的独立usage计数没有更新；新 `spent()` 从生产adapter的Session Run列表和各Run usage读取，真实SDK usage-recorded经生产聚合后投影，未mock计量。两条等待先断言1 Run、input60/output16，随后真实文件的旧时间/缺marker与只读查询的pending/异常/未知状态均请求数不增、Run/用量不增；满足后同Session只多1 Run、input30/output8，Provider收到主轮与独立ending-review共2次请求。continuation变started，重复awaitReady及adapter持盘重开不再启动或消耗。全局fetch在模型边缘返回脚本SSE、查询owner为夹具，接续由夹具调用生产awaitReady与Host.start；未证明真实MiniMax账单、完整Coding wake-loop或页面动线。QA-005原计量和一次接续的组合缺口已复验。
+
+S-27九项拒绝同时通过：写类/判断/未给动作/模型查询、越界路径与链接、撤权/停用/目录撤权/adapter重开后拒绝，断言动作调用不增加、接续不eligible且没有额外模型请求。没有用这一个文件代替整份安全集。各测试及runner的一次性Home在退出后清理；源码和测试未改。
+
+**轻做／证据不足。** QA-004/005初验发现的顺序释放伪并发、eligible终点和无实际计量问题已由E12复验收口；PA-08精确编号引用也已补。A3 jobs的“重启”仍只是adapter重开，不能与进程SIGKILL混写。PA-02/04/10初验无精确编号引用，沿spec既有追溯缺口；完整产品动线仍缺，浏览器切片/脚本provider保持一级。
 
 **代码质量。** 未引入新私路或修改代码。当前真实执行仍经 Agent Host；有原调用方、当前授权、拒绝本身和零副作用断言。已知 shared budget 预留未齐、旧数据维护/私有路径退出、普通 Error 及 APFS 路径配置问题分别沿 P4/P6、BL-220/221，不以本轮定向全绿宣称清零。模型报告只当内容；业务事实/状态由公开详情和测试独立核对。
 
-**归档结论：不能。** 2 通过、22 部分通过、0 不通过、15 未验证、0 按决定整条不做。QA-004/005、BL-104/091、完整两产品动线和上述 A2/P5/P6 等续做仍缺。未来已排切片不是“按已定决定不做”。
+**归档结论：不能。** 2 通过、22 部分通过、0 不通过、15 未验证、0 按决定整条不做。QA-004/005原证据缺口已复验，PA-08/17仍部分通过；BL-104/091、完整两产品动线和上述A2/P5/P6等续做仍缺。未来已排切片不是“按已定决定不做”。
 
 ### 4.3 手册
 
@@ -1452,8 +1460,8 @@ L1：7d1的late-criteria.log，六个定向文件9项通过；按编号筛选实
 | QA-001 | 交互；P2；产品缺陷 | 外围错误态（不据此判问卷 AC-21 失败）；PRODUCT 界面语言承诺、本次任务 §4；交互 §14.1／§18 A1 作相关依据 | ebad9a223b84d28937df03393231381587b3193a | 新建临时 Home，生产 Web 绑定随机回环端口；不配置模型；进入示例项目；外观设置切 English；助理开始新工作，输入 `Plan a review next week.` 并发送 | 预期失败原因/保稿提示/设置入口完整英文且保留原输入；实际原因仍是“还没有配置可用的模型，助理无法开始工作。”，两侧 `Something went wrong` / `Your text is kept` 已翻译；输入与设置链接正常 | 二级实走；`interaction-english-new-work-error.png`，[截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；代码链与截图一致，renderer-gap-en 已有译文但链路没用 | `apps/local-host/src/assistant/assistant-error.ts:11`；`apps/workbench/src/scripts/client/assistant-send.ts:77`；`packages/ui-host/src/request-client.ts:194` | HANDOFF §3 交互⑨；与回执⑥协调 sender 文件 | 英文无模型 Home 真实发送失败后，原因与保稿提示全英文，草稿原文不变且模型设置链接有效 | 已复验；#802／06e7ff4ac，见§9 |
 | QA-002 | 交互；P2；产品缺陷 | AC-26／S1；交互 §1 完整失败恢复、§3 状态连续、§5 生命周期与恢复 | ebad9a223b84d28937df03393231381587b3193a | 新临时 Home 配 MiniMax-M3；Form 创建问卷并生成 4 题；输入“另做一份培训反馈问卷，请先问我面向哪种学员和题量。”；首次补问结构校验失败；原要求重试获得合法三题卡 | 预期新卡可答且聚焦时旧生成错误撤下；实际旧错误与合法卡同时显示；原提示和 4 道业务题保留。首次拒绝本身不是缺陷，也不能推断响应具体哪字段错 | 二级：[同一页面错误与新卡截图，1440/390 深色](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6264854212)；源码与实走一致。真实模型首轮结果有随机性，确定性复验需以受控供应商先无效后有效补问驱动同一生产页面 | `plugins/native/form/src/browser/draft.ts:37`、`:42`、`:45`；`browser/client.ts:77`；`browser/save.ts:24` | HANDOFF §3 ③ Form 文件 owner，⑨交互共同复验 | 第一次无效补问、重试有效补问后，新卡可见且首题获焦，旧生成错误隐藏；原提示保留，回答前业务题数不增 | 已复验；#810／053b16485，E5/U3及[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270311267) |
 | QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 已复验（原编号追溯缺口）；#810／053b16485，E5；Coding引用定位限制保留 |
-| QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 已修待复验；#833合入bfe19439f，E11仅核合入事实，尚未独立重跑 |
-| QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 已修待复验；#833合入bfe19439f，E11仅核合入事实，尚未独立重跑 |
+| QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | 初验A2 6/6、A3 delegation 16/16不证明缺失组合；E12在5160补验三方屏障与真实Run/接续/材料断言，同文件7/7通过；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 已复验；#833／5160c3bbc，E12原证据缺口收口（一级）；完整PA标准仍部分通过 |
+| QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | 初验A1/A3及live历史没有完整组合；E12在5160生产Run用量非零正例、等待零增量、满足仅一轮/精确用量、重复通知与adapter重开均通过，文件4/4；脚本模型边缘 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 已复验；#833／5160c3bbc，E12原证据缺口收口（一级）；完整PA标准仍部分通过 |
 | QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1原缺口；3cac新main完整构建后QA-006定向3/3通过：抛错/受控500/AbortError/生产截止及停止；[复验与边界](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6269052189)，日志qa006-retest.log | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 已复验；#816／3cac91f73（一级；不扩成内部session归档或完整产品证明） |
 | QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 原文审与源码；ee6复验#809修了目录/PR状态，但手册:518称3行真实模型、需求书ADH-07:160仍称2行；[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268815118) | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 已复验；#820／cdca7f748，3行/2行余项消除，[记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270323177) |
 | QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 原文审；ee6df47d8复验#809四份文档一致，保留不同PID拒绝与真机缺口；[复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268815118) | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 已复验；#809／ee6df47d8（仅文档问题） |

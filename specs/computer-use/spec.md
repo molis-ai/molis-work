@@ -127,7 +127,7 @@
 - 2026-10-18 CU-G11 跟进（#721 合入后统筹要求的修正）：`/正则/` 去掉。选择器来自模型、可被窗口文字引导，`new RegExp` 加 600 个节点让 `/(a+)+$/` 这类回溯写法能卡住 Host 的事件循环（ReDoS）。改成 `~片段`：名称里含这段字、不区分大小写、纯子串比较；斜杠写法只当普通名称，找不到就拒绝。contracts 注释、DESKTOP_GUIDANCE 与树头同步改，不改合同形状；拒绝由 `tests/security-invariants-computer-selector.test.ts`（S-25，`pnpm test:security`）断言。
 - 2026-10-18 第八个切片（CU-G08，部分）：树不够（截断或没有可点节点）时，交给模型的图从整窗 1x 改成动作落点周围 400×300 点的 2 倍裁剪（窗口更小就用整窗）；没有落点的动作仍给整窗；密码框/别的应用仍拒绝，裁剪失败就不附图。人看到的记录截图仍是整窗。不新增合同；密集 UI 的真实点击质量待机器空闲时验证。
 - 2026-10-18 用户决定：真机验收晚点，先完成开发任务并开 draft PR。CU-G02–G04 保持未勾，runbook 留待机器空闲；本分支的 PR 是工作草稿，不是完成声明。
-- 2026-10-19：这条线交给手册与 Computer Use 线收尾。CU-G13 改为已完成：不在本机跑全量（统筹 2026-10-19 的广播：全量只在 GitHub CI 上跑），证据取自 main 的夜间 Full suite 与 CI 的 `test:security`，见 §9.1。开头的状态句改写成现状，2026-10-11～12 的逐次记录留在 §7、§8。同一个改动把「菜单路径指向显示着 Molis Work 的窗口」的拒绝从 `tests/computer-use-reliability.test.ts` 的 CU-G09 用例挪进 `tests/security-invariants-computer-own-window.test.ts`（S-25，`pnpm test:security` 在 CI 跑；#721 评审 P2），CU-G09 用例只留切窗口本身。
+- 2026-10-19：这条线交给手册与 Computer Use 线收尾。CU-G13 改为已完成：不在本机跑全量（统筹 2026-10-19 的广播：全量只在 GitHub CI 上跑），证据取自 main 的夜间 Full suite 与 CI 的 `test:security`，见 §9.1。开头的状态句改写成现状，2026-10-11～12 的逐次记录留在 §7、§8。同一个改动把「菜单路径指向显示着 Molis Work 的窗口」的拒绝从 `tests/computer-use-reliability.test.ts` 的 CU-G09 用例挪进 `tests/security-invariants-computer-own-window.test.ts`（S-25，`pnpm test:security` 在 CI 跑；#721 评审 P2），CU-G09 用例只留切窗口本身。评审时把 `tests/computer-use-gaps.test.ts` 加进根 `package.json` 的 `test:security`（只是名单，CI 步骤不变），S-25 的四种拒绝也挪进 CI 一列。
 
 ### 9.1 验收状态（2026-10-18）
 

@@ -57,13 +57,17 @@
 | 范围 | 本次方法 | 真实模型请求上限 |
 | --- | --- | ---: |
 | QA-020／W3-02-G4-05、WSERR-03、HOSTOWN-01 | 逐句核对现行错误码、类别和 HTTP 映射；精确运行 `workspace repair and unlink`，另跑真实 HTTP 未知目录404和异项目403；没有独立 recovery_required 证据则继续明示 | 0 |
-| 已知 P1 PG-006/110／RAC-17 | 读取发行身份与网关拒绝链；跑现有身份定向测试；用真实 LocalHost 和虚构动作做无发行身份／伪造 caller／无权限负对照，观察是否进入处理器；不修改测试、不应用 #812 | 0 |
+| 已知 P1 PG-110／RAC-17，PG-006为同片P2依赖 | 读取发行身份与网关拒绝链；跑现有身份定向测试；用真实 LocalHost 和虚构动作做无发行身份／伪造 caller／无权限负对照，观察是否进入处理器；不修改测试、不应用 #812 | 0 |
 | 已知 P1 #709 | 核对已合 #759 及原复验记录；若相关路径没有新改，不重复模型或整套浏览器，不重开已复验项 | 0 |
 | #821／PG094-09 | 三条请求助手工程断言；明确注入网络与虚构 DOM 的证据边界，不据此宣称完整 Goals 实走 | 0 |
 
 机器检查按本轮固定 SHA 记录，运行 Home 均新建并在退出后核对删除。本次不触碰钥匙串、不调用真实模型；原真实调用总数41/102不增加。只运行定向文件，不额外派发全量 CI。
 
 恢复时发现上轮临时 QA 工作树已不在磁盘，原因未查明；已从远端报告提交 `51503cc8a` 恢复，历史截图与摘要仍可从 PR 评论核查。旧忽略目录日志/截图不再声称本地可取，本轮重新采集相关日志。该报告提交的 CI `39274719957` 已运行作业含 Verify 全通过，Linux probe 跳过；这不是最新 main 全量结果。
+
+### 2.3 再次检查合入状态（2026-10-20 01:03 JST）
+
+本次范围仅最新main、#812与QA-020两处余项，真实模型请求上限0。先fetch并核对合入SHA；#812合入才在新main重走E7原复现和修复后的拒绝测试。若main和修复提交均未变，沿用同SHA有效动态证据，仅追加本轮源码与远端状态核对，避免重复构建和运行相同测试。结果见E8。
 
 ## 3. 总览
 
@@ -549,6 +553,8 @@ try {
  console.log("QA_OBSERVED_UNISSUED_ACCEPTED",results.filter(x=>x.case!=="no-permission-control"&&x.outcome==="accepted").length);
 } finally {await host.close();console.log("QA_HOST_CLOSED");}
 ```
+
+**E8：再次核对，2026-10-20 01:03 JST（2026-10-19 16:03 UTC）。** fetch后main仍为 `95946d38c652ac001c0ffc7c1fda7e4d774c8271`，本次无新增合入；#812仍OPEN、mergedAt/mergeCommit均为空，head仍 `414b7372ec58a583ec163117e78cf7d18159ac9f`。PG-110维持不通过，沿用E7同SHA两次失败实证，本次未重复运行也未验在途分支。直接读取origin/main：G4-05第2306行仍是旧 `projects.workspace_not_found`，Work HTTP第12行仍称补偿503；第15行现行 `host.workspace_not_found` 映射404、补偿分支400保持，QA-020两处余项均未修，状态不变。main的 [CI 39276257948](https://github.com/molis-ai/molis-work/actions/runs/39276257948) 现已成功；这是普通CI，不是夜间Full suite，不能关闭未覆盖的PG-110。报告原提交fb439的CI当时pending，不能称通过。未启动产品服务、未读取密钥，真实模型0；942项判定及全部问题状态不变。
 
 **E6证据纠正与#820文审。** 原`anti-supp-workspace-directory.log`用`rollback`筛选没有命中实际名称，仅Node文件级成功，不能计为通过。本轮以`workspace repair and unlink`在053及旧7d分别重跑，实际各1项通过，包含repair/unlink两处400、目录恢复、cause同对象/不可枚举断言；日志`form810-workspace-repair.log`与`anti-corrected-workspace-repair.log`。F2总数仍131，因为用这1项实际执行替换原1项空跑，旧日志不再充当证据；FE-WSERR/FE-R4A3/FE-HOSTOWN的组合也按此修正。只读复核五棵QA树97份日志，没有新增同类单文件空跑候选；不把多文件摘要无名字当空跑。#820的`cdca7f748daa0a6430eaef6f6724ebb6e221ee25`仅改两行spec，工程代码/测试与053相同，文审和执行SHA分开记。G4-05主要400冲突已修，但旧owner码及源码503注释尚存，沿QA-020保留P3余项；没有把未独立测试的recovery_required补偿失败路径判通过。
 

@@ -74,7 +74,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
           chooseSent(data.work);
           if (!sameInput()) saveDraft(true);
         }
-        problem={...error,name:error.name,message:error.message+(unknown?"":"。"+L("输入已保留")),action:data.action};
+        problem={...error,name:error.name,message:error.message+(unknown?"":L("。输入已保留")),action:data.action};
         if (curId) await reload(); else render();
       } else host.showToast?.(error);
     } finally {

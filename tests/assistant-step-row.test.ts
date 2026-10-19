@@ -110,7 +110,7 @@ test("SLOT-02: a key never matches a longer one, a step with no record here goes
   assert.deepEqual([quoted.pressed, jumped.length], [1, 1], "a name is matched as written, quotes and all");
 });
 
-test("SLOT-03: the row binds an outcome's record once per drawing; a card is left to the island, which binds it as it draws it", () => {
+test("SLOT-03: the row binds an outcome's record once per drawing and never binds a card", () => {
   const note = node({ ixRecord: "delivery:w1" }, [node({ assistantObject: "0", ixPress: "open:page:a" })]);
   const empty = node({ ixRecord: "delivery:w2" }), card = node({ card: "c1" }, [node({ ixPress: "undo" })]);
   const { paint, bound } = row([note, empty, card]);

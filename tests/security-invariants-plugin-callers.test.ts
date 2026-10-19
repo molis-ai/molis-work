@@ -7,6 +7,7 @@ import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
+import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { CALLERS_READ as READ, CALLERS_WRITE as WRITE, callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins, type CallerPlugin, type CallerScope } from "./fixtures/plugin-callers.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -205,7 +206,7 @@ test("PG110-08 S-15 the artifacts SDK runs only under its own session's live cal
   const borrowing = (caller: HostPluginCaller, installId: string) => {
     const context: PluginStartContext = { install_id: installId, provider_id: installId, plugin_id: manifest.plugin_id, version: manifest.version,
       deployment: "local", grants: ["storage:private", READ, "artifact:read"], requireGrant: () => {} };
-    return createPluginArtifactClient({ assertInput: assertActionInput, ...modules, manifest, context, plugin_caller: caller, project_id: two.project_id, actor_id: caller.actor_id,
+    return createPluginArtifactClient({ assertInput: assertActionInput, ...modules, manifest, context, plugin_caller: caller, project_id: two.project_id, actor_id: caller.actor_id, assertCallerCurrent: assertPluginActionCurrent,
       actions: { registry: host.actionRegistry(two.reference), client: host.syncActionClient(two.reference), project_id: two.project_id } });
   };
   for (const [label, caller, code] of [["another session's live caller", live, "host.plugin_caller_mismatch"], ["a withdrawn caller", withdrawn, "host.plugin_caller_invalid"]] as const) {

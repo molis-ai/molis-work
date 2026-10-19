@@ -36,7 +36,7 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
     catch (error) { return denied((error as Error).message); }
   };
   const operations = createPluginArtifactOperations({ api: input.api, process: input.process, manifest,
-    project_id: input.project_id, actor_id, author: input.author, assertInput: input.assertInput,
+    project_id: input.project_id, actor_id, author: input.author, assertInput: input.assertInput, assertCallerCurrent: input.assertCallerCurrent,
     authorize: permission => context.requireGrant(permission) });
   const { providerId, read, head, own, publish, recordItem, processHead, processOwn, list } = sdkArtifactActions(context.install_id);
   const definitions = [read, head, own, publish, recordItem, processHead, processOwn, list];

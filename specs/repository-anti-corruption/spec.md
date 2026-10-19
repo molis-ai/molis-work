@@ -197,7 +197,7 @@ Host 只绑定 canonical Home 和声明，打开 port 不创建目录。受信 i
 
 作者合同新增 `PluginProcessItemHead { version: number }`；`PluginProcessItemClient.head(artifactId)` 与 `readOwn(reference)` 返回过程最新版本/固定记录或 null；校验 producer id、publisher signature，personal 还需 owner_actor_id 等于安装 actor_id，不比较 producer version，归档/unavailable 自恢复可读且不要求 consumes。record 的 owner/author 仍按现 Module 规则，不为恢复接口重写旧 owner；由其他 author 写下的个人过程项对安装 actor 的 own 读取明确拒绝。`PluginArtifactClient.listConsumable()` 返回 `PluginConsumableVersion extends ArtifactReference { kind: "artifact" | "process_item"; artifact_type_id; schema_version; title: string | null }[]`，不返回正文、metadata、owner 或路径。返回所有可消费固定版本（不限 latest/端口），成果在前、过程在后，分别保持 owner listArtifacts 顺序；过程 metadata.title 仅非空字符串原样返回，其余 null。与 read 共用消费判定，拒绝项过滤，查询错误抛出。同 id/version 碰撞时成果优先：用于排除过程引用的集合必须取全部成果记录，包括不可消费成果，保证列表随后 read 不会读到另一种类；集合仅为单次查询局部值。
 
-在 artifacts owner 包新增 `createPluginArtifactOperations({ api, process, manifest, project_id, actor_id, author?, authorize, assertInput })`，返回分开的 `{ client, process }`（两个 head/readOwn 不能交叉合成一个对象）。工厂 clone Manifest，每方法先核声明再调可信 authorize；不创建身份、不登记动作。共享输入投影/动作 schema 提取为一个包内文件，白名单先丢弃伪身份字段再校验，保留现客户端语义。Host 注入 kernel 已公开的 assertActionInput；项目 ActionService 与 owner 直调边界使用同一 schema/validator，不复制解析规则、不加 no-op 或调用方可开的跳过开关。owner 包不依赖 kernel，现 Host/client/test 调用点补 required validator。公开工厂只经 artifacts 包出口，作者从 contracts/platform/plugin 得新类型，本片不额外扩 SDK 的便利 type export。
+在 artifacts owner 包新增 `createPluginArtifactOperations({ api, process, manifest, project_id, actor_id, author?, authorize, assertInput, assertCallerCurrent })`，返回分开的 `{ client, process }`（两个 head/readOwn 不能交叉合成一个对象）。工厂 clone Manifest，每方法先核声明再调可信 authorize；不创建身份、不登记动作。共享输入投影/动作 schema 提取为一个包内文件，白名单先丢弃伪身份字段再校验，保留现客户端语义。Host 注入 kernel 已公开的 assertActionInput；项目 ActionService 与 owner 直调边界使用同一 schema/validator，不复制解析规则、不加 no-op 或调用方可开的跳过开关。owner 包不依赖 kernel，现 Host/client/test 调用点补 required validator。公开工厂只经 artifacts 包出口，作者从 contracts/platform/plugin 得新类型，本片不额外扩 SDK 的便利 type export。
 
 `createPluginArtifactClient` 保留安装匹配、一次 provider 注册、availability、caller allowlist、invokeSync 与 dispose，五项旧 handler 全委托共同工厂；同 provider 新增 `process-head`、`process-own`、`list` 三个 query @1，project scope、plugin audience、artifact:read、sync。旧 @1 的输入输出不变。Home 不提前接这份工厂。动态 SDK 动作可能不被当前无安装身份的 host snapshot 枚举到：按现 actions:update 实测记录，不为快照放开 availability；定向 discovery 固定新动作的 schema/版本/受众/权限。
 
@@ -442,6 +442,11 @@ Form 发布授权补漏（2026-10-19，§10.29 统筹追加的 P1，③；分支
 - 验收 `W5-01-FORM-01`（`tests/form-promote-authority.test.ts`）：真实 `createFormPlugin` 与 SQLite，五个交错点（入口到 begin、begin 到发布、异步检查通过后到真实发布、成果写出后到完成、完成记录的 `beforeEffect` 通过后到它的 SQL），每个点分别取消、撤权、提供方被替换（`actions.provider_changed`），只留已经合法提交的阶段；另有正常对照。
 - 同一片：`W5-01-PPT-07`、`W5-01-DATASET-06` 补上第五个交错点与提供方被替换；三份用例登记进 `docs/system/SECURITY-INVARIANTS.md` S-18 的 CI 列，并加进 `test:security`。
 - Pages 不用改：`promotePagesDocument` 从 begin 经发布到完成都是同步的，中间没有 `await`，取消或撤权插不进这三步之间。
+
+平台自查（2026-10-19，§10.29 的 P2，②；分支 `fix/platform-original-caller`）：上面 PPT、Dataset、Form 三段「修法」里插件手写的同步检查和发布包装都已删掉。
+- 插件经平台服务写入时，由服务自己在写入的同一回合查 Runtime 动作作用域里的原调用方（`packages/plugin-runtime/src/action-scope.ts` 的 `assertPluginActionCurrent`）：库事务在插件交来的等待前后、每条语句前和 `COMMIT` 前各查一次；成果 `publish` 与过程项 `record` 在登记版本之前查。插件只留各阶段的等待：`stores.write(caller, …)`，以及发布前的 `beforePublish: () => caller.beforeEffect()`。
+- `W5-01-PPT-07`、`W5-01-DATASET-06`、`W5-01-FORM-01` 三份用例改在真实的 `createPluginPlatform` 上跑（真库、真成果模块、Kernel 的调用）：五个交错点，每个点分别取消、撤权、提供方被替换。把平台的检查短路，三份都失败。
+- Characters 的发布在 `await beforeWrite()` 之后不再检查，由 `tests/security-invariants-plugin-original-caller.test.ts` 的 S-18 用例覆盖。
 
 W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
 - 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。

@@ -6,6 +6,7 @@ import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClien
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
+  assertPluginActionCurrent,
   createPluginCapabilityClient,
   createPluginInputsClient,
   createPluginOutputsClient,
@@ -55,7 +56,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
-      project_id: options.project_id, actor_id: options.actor_id,
+      project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: assertPluginActionCurrent,
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
       author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;

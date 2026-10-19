@@ -12,6 +12,8 @@ export interface PluginArtifactOperationsInput {
   actor_id: string;
   author?: () => string | undefined;
   authorize(permission: "artifact:read" | "artifact:write"): void;
+  /** Throws once the original caller of the action this runs for is cancelled or no longer authorized; asked right before a write. */
+  assertCallerCurrent(): void;
   assertInput(schema: ActionSchema, value: unknown): void;
 }
 
@@ -54,6 +56,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
       const projected = checked("publish", artifactInput(value));
       if (!declares(manifest.artifacts.produces, projected)) throw artifactsErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
       unused(process, projected.artifact_id, "过程项");
+      input.assertCallerCurrent();
       return api.commands.registerVersion(fixed(projected));
     },
     read(value) {
@@ -99,6 +102,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
       const projected = checked("record", processInput(value));
       if (!declares(manifest.process_items?.produces, projected)) throw artifactsErrors.plugin_incompatible("Manifest 未声明记下这种过程项");
       unused(api, projected.artifact_id, "成果");
+      input.assertCallerCurrent();
       return process.commands.registerVersion(fixed(projected));
     },
     head(artifactId) {

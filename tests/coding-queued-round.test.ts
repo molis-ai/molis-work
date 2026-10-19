@@ -19,9 +19,7 @@ test("a round told to wait for another session's work waits on it, starts on its
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
   sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at); sessions.setState(DEMO_PROJECT_ID, "a", "running", at);
   sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
   const work: any[] = [{ work_id: "wa", session_id: "sdk-a", run_id: "ra", title: "改标签格式", task: "改 src/label.ts 的格式", state: "running", directory: root, paths: ["src/label.ts"], updated_at_ms: 1 }];
   // The Host's side, as the plugin sees it: each session's wait and its step's continuation (the task graph's, not the plugin's).
   const waits: Array<Required<Pick<AgentCollaborationSessionView, "wait" | "continuation">> & { session_id: string }> = [], calls: Array<[string, unknown]> = [];
@@ -109,6 +107,12 @@ test("a round told to wait for another session's work waits on it, starts on its
   };
   const send = { task: "给 src/label.ts 加前缀", intent: "execute", workspace_id: "work", provider_id: "p", model_id: "m" };
   try {
+    // The plugin starts with no session tied to a runtime session, so nothing is resumed at start: the loop that takes the
+    // wait up is first set off by the person's send below, inside that send's action. It belongs to the activation and
+    // keeps starting rounds and writing after the send has returned (S-18).
+    assert.equal((await call("/sessions/b")).status, 200);
+    sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at); sessions.setState(DEMO_PROJECT_ID, "a", "running", at);
+    sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
     // Before sending: A is working on the same file in the same directory.
     const check = await call("/sessions/b/scope-check", send);
     assert.equal(check.status, 200, JSON.stringify(check.body));

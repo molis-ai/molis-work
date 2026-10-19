@@ -279,6 +279,7 @@ tests/plugin-private-storage.test.ts
 tests/plugin-rail-selection.test.ts
 tests/plugin-release-artifact.test.ts
 tests/plugin-runtime-integration.test.ts
+tests/plugin-tab-groups-multiselect.test.ts
 
 # project
 tests/project-arrival-chooser.test.ts

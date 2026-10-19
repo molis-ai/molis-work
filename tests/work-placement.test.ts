@@ -41,7 +41,7 @@ function unzipSync(bytes: Uint8Array): Record<string, Buffer> {
 const strFromU8 = (value: Buffer) => value.toString("utf8");
 
 /* ---------- A small plugin whose notes live in project partitions, like Pages or PPT ---------- */
-interface Note { id: string; project: string; title: string; body: string; version: number }
+interface Note { id: string; project: string; title: string; body: string; version: number; /** The audience of the call that made it by receive. */ by?: string }
 const reader = defineSubjectContextAction("notes.subject.read", "note", "笔记", ["notes:read"]);
 const mover = defineObjectMoveAction("notes.placement.move", ["note"], "笔记", ["notes:write"]);
 const copier = defineObjectCopyAction("notes.placement.copy", ["note"], "笔记", ["notes:write"]);
@@ -73,8 +73,8 @@ function notesPlugin(actions: ActionService, notes: Map<string, Note>, projects:
         ...bindWorkflowContentHandlers(station, {
           list: caller => [...notes.values()].filter(note => note.project === caller.project_id).map(note => ({ item_id: note.id, title: note.title, caption: "", at: null })),
           read: ({ item_id }, caller) => { const note = get(item_id, caller.project_id); return { title: note.title, body: note.body }; },
-          receive: ({ payload, context }, caller) => { const id = "received-" + context.instance_id; if (!notes.has(id)) notes.set(id, { id, project: caller.project_id!, title: payload.title, body: payload.body, version: 1 });
-            return { plugin: "notes", item_id: id, title: payload.title }; },
+          receive: ({ title, body, request_id }, caller) => { const id = "received-" + request_id; if (!notes.has(id)) notes.set(id, { id, project: caller.project_id!, title, body, version: 1, by: caller.audience });
+            return { plugin: "notes", item_id: id, title }; },
           create: ({ title }, caller) => { const id = "new-" + (notes.size + 1); notes.set(id, { id, project: caller.project_id!, title, body: "", version: 1 }); return { plugin: "notes", item_id: id, title }; },
         }),
       ] });
@@ -277,6 +277,13 @@ test("copying makes an independent object that remembers where it came from; con
   assert.equal(f.notes.get("n1")!.title, "访谈提纲", "the original is untouched");
   const converted = await f.service.convert({ source, to: { station: "notes" }, to_project_id: "q4", request_id: "c-1", payload: { title: "访谈要点", body: "要点" } });
   assert.equal(converted.object.kind, "note");
+  // W4-6-06: the station is given `placement:<request id>`, so one request makes one object and another request makes another.
+  assert.equal(converted.object.id, "received-placement:c-1");
+  assert.equal((await f.service.convert({ source, to: { station: "notes" }, to_project_id: "q4", request_id: "c-1", payload: { title: "访谈要点", body: "要点" } })).object.id, converted.object.id);
+  assert.deepEqual([...f.notes.keys()].filter(id => id.startsWith("received-")), ["received-placement:c-1"]);
+  assert.notEqual((await f.service.convert({ source, to: { station: "notes" }, to_project_id: "q4", request_id: "c-2", payload: { title: "访谈要点", body: "要点" } })).object.id, converted.object.id);
+  // W4-6-05: placement acts as the person, so the station sees a user audience, not a workflow with an invented instance and step.
+  assert.equal(f.notes.get(converted.object.id)!.by, "user");
   assert.equal(converted.location.title, "项目「Q4 新版发布」");
   const from = await f.service.describe(converted.object);
   assert.ok(from.associations.some(link => link.type === "derived_from" && link.label === "来自《访谈提纲》 · 笔记 · 项目「Q4 新版发布」"));

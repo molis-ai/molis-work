@@ -112,8 +112,12 @@ test("W2-18-PAGES-SOURCES-01: actual multi-selection focus and Host prepare keep
   const store = openPagesStore(b.homeDirectory);
   const pages = (() => { try { return ["A", "B"].map(letter => store.create({ project_id: b.projectId!, title: `Page ${letter}`, body: { type: "doc", content: [paragraph(`Prefix ${letter} ` + letter.repeat(1700) + ` OMITTED_${letter}`)] } })); } finally { store.close(); } })();
   await open(b, "pages", pages[0]!.id);
+  // D24 the Pages list picks several (aria-multiselectable), so the plugin tab group leaves this Ctrl-click to it.
   await b.evaluate(`(() => { document.addEventListener('molis:surface-focus',event=>window.contentObjectsFocus=event.detail);document.querySelector('button[data-page-id="${pages[1]!.id}"]').dispatchEvent(new MouseEvent('click',{bubbles:true,ctrlKey:true}));})()`);
   await b.waitFor("window.contentObjectsFocus?.granularity==='objects'");
+  // D24, QA-024: the Ctrl-click picked B beside the open A, opened no tab for it, and left A open in the editor.
+  assert.deepEqual(await b.evaluate(`[[...document.querySelectorAll('[data-pages-rows] button[data-page-id][aria-selected=true]')].map(row=>row.dataset.pageId).sort().join(),document.querySelectorAll('.tab-item[data-tab-kind=item][data-item-id="${pages[1]!.id}"]').length,document.querySelector('[data-pages-title]')?.value]`),
+    [pages.map(page => page.id).sort().join(), 0, "Page A"]);
   const focus = await b.evaluate<SurfaceFocus>("window.contentObjectsFocus");
   assert.equal(focus.targets.length, 2);
   for (const target of focus.targets) { assert.equal(target.text.length, 1500); assert.equal(target.truncated, true); assert.doesNotMatch(target.text, /OMITTED_/); }

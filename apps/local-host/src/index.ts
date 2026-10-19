@@ -243,8 +243,8 @@ export { interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
 export { assistantCardHtml } from "./assistant/assistant-card-view.js";
 export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
-export { assistantOutcomeSteps, isOpenable } from "./assistant/assistant-outcome.js";
-export { deliveryNote, deliveryNoteHtml, deliverySteps, type DeliveryNote } from "./assistant/assistant-delivery.js";
+export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
+export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type DeliveryNote } from "./assistant/assistant-delivery.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";

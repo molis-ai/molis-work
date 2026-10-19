@@ -1,16 +1,11 @@
 import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
-import type { AssistantWorkObject, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
-import { deliverySteps } from "./assistant-delivery.js";
+import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { deliverySteps, isOpenable } from "./assistant-delivery.js";
 
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 /** The most steps the outcome slot gives the row; the row shows three in all and folds the rest. */
 export const OUTCOME_STEPS = 2;
-
-/** Whether the person can open this object from where the work shows it: it has a place to open, and its owner still has it. One test for the delivery note and the round outcome. */
-export function isOpenable(object: AssistantWorkObject): boolean {
-  return Boolean(object.open) && object.state !== "missing";
-}
 
 /**
  * The outcome slot of the row above the input (specs/context-program §21.9, SLOT-01): what the latest finished thing came

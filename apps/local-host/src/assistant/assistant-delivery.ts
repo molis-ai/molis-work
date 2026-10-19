@@ -3,7 +3,11 @@ import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/ag
 import type { AgentInputModelClaim, AgentInputQuestion, AgentQueuedInput, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import type { AssistantActivity, AssistantRound, AssistantWorkObject, AssistantWorkState, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { NEXT_STEP } from "../agent-next-steps.js";
-import { isOpenable } from "./assistant-outcome.js";
+
+/** Whether the person can open this object from where the work shows it: it has a place to open, and its owner still has it. One test for the delivery note and the round outcome. */
+export function isOpenable(object: AssistantWorkObject): boolean {
+  return Boolean(object.open) && object.state !== "missing";
+}
 
 /** How the latest round ended, as the delivery note says it. */
 export type DeliveryEnd = "completed" | "failed" | "stopped" | "needs-check";

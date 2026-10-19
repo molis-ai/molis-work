@@ -98,7 +98,9 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
  * supplement the round has not put in the context (the work's control), or sends a correction naming it (Send with
  * `about`; the receipt's key is its request id, so words resent after a lost answer count once). After the rounds, the shared
  * tray lists what is still open (§4.4, stage 3b-2c): what waits in the work's session, read only while no round is live
- * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control.
+ * (`queued_inputs`), and what the latest round leaves open; one waiting is taken back through the same control. After the
+ * tray comes the work's delivery note (receipts 3e-2a): the Host's record as it is, replaced whole only when its html changed,
+ * so the step row binds it again; a supplement in it opens that supplement's receipt.
  *
  * While the round waits on its one free-text question (the Host marks it `from_composer`: specs/ai-interaction-experience D34), the composer shows what the next Send does, with the default on
  * the chip: answer the question, or add to the round. One click switches it; the Host never decides it. When the round
@@ -144,7 +146,6 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     after(thread, put, view) {
       const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;
       if (tray) put(tray); else thread.querySelector(":scope > .mw-tray")?.remove();
-      // The delivery note (3e-2a): the Host's record, placed as it is after the tray and replaced whole only when its html changed, so the step row binds it again.
       const note = view?.delivery_html || "";
       if (note !== drawn) {
         drawn = note; block?.remove(); block = null;

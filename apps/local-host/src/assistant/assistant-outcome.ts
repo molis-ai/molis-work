@@ -24,10 +24,13 @@ export function assistantOutcomeSteps(view: AssistantWorkView, say: Say): Intera
   return [];
 }
 
-/** The result of the card that ran last, once the latest round is over, and only a card that ran since that round began. */
+/**
+ * The result of the card that ran last, once the latest round is over, and only a card that ran since that round began.
+ * A failed round leaves the slot to its retry alone (context-program §21.9); the card still shows its result in the conversation.
+ */
 function cardOutcome(view: AssistantWorkView, say: Say): InteractionNextStep[] {
   const last = view.rounds.at(-1);
-  if (last && (last.phase === "unknown" || !isTerminalAgentPhase(last.phase))) return [];
+  if (last && (last.phase === "unknown" || last.phase === "failed" || !isTerminalAgentPhase(last.phase))) return [];
   return cardOutcomeSteps(view.cards, last?.started_at ?? "", say);
 }
 

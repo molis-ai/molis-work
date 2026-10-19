@@ -201,6 +201,7 @@ test("AC-06-2: only the card that ran last counts, and only when its result can 
   for (const phase of ["running", "awaiting-input", "reconcile-required", "unknown"]) assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], phase)), [], phase);
   const stopped = afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "stopped");
   assert.deepEqual(ids(stopped), ["card:c1:open"], "a round the person stopped is over too");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "failed")), ["retry"], "a failed round leaves the slot to its retry alone (context-program §21.9)");
   assert.deepEqual(ids({ ...stopped, rounds: [] }), ["card:c1:open"], "a page's card, with no round at all");
 });
 

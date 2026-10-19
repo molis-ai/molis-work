@@ -10,9 +10,6 @@ import { computerRecordFileSource } from "../computer/computer-record-source.js"
 
 export const ASSISTANT_RULES_PROVIDER = "io.molis.work.assistant.rules";
 
-/** Where a rule can apply: the plugin pages people know, by the ids the Host matches. */
-const SURFACES: ReadonlyArray<[string, string]> = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"],
-  ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
 const KINDS: ReadonlyArray<[string, string]> = [["failed", "一轮失败"], ["needs-decision", "需要你确认或回答"], ["completed", "你不在时做完"], ["result", "插件交回结果"], ["material", "与工作目标相关的新资料"], ["reminder", "你在插件里设的提醒到时间"]];
 
 const rulesOutput: ActionSchema = { type: "object", properties: { rules: { type: "array", title: "现在的提醒规则", items: { type: "object" } } }, required: ["rules"] };
@@ -29,7 +26,8 @@ export const ASSISTANT_RULE_ACTIONS = {
     "按用户的话添加一条提醒规则：quiet 表示在所列插件页面（不列则处处）不提醒；pause 表示暂停提醒到 until。except 里的情况仍然提醒（例如“失败除外”写 failed）。label 用用户原话。“这次先别提醒”用 pause，并给出结束时间。",
     { type: "object", additionalProperties: false, required: ["kind", "label"], properties: {
       kind: { type: "string", title: "规则类型", enum: ["quiet", "pause"], description: "quiet：在某些页面不提醒；pause：暂停提醒到某时" },
-      surfaces: { type: "array", title: "在哪些页面", items: { type: "string", enum: SURFACES.map(([id]) => id) }, description: SURFACES.map(([id, name]) => `${id}=${name}`).join("，") },
+      surfaces: { type: "array", title: "在哪些页面", maxItems: 20, items: { type: "string", pattern: "^[a-z0-9][a-z0-9-]{0,80}$" },
+        description: "页面 id。home 是项目首页，其余是已安装插件在工作台侧栏里的页面 id；写了没有安装的页面会被拒绝，回复里列出现有的页面。" },
       except: { type: "array", title: "仍然提醒的情况", items: { type: "string", enum: KINDS.map(([id]) => id) }, description: KINDS.map(([id, name]) => `${id}=${name}`).join("，") },
       until: { type: "string", format: "date-time", title: "到什么时候", description: "暂停必填；quiet 可不填（长期有效）" },
       label: { type: "string", title: "规则说法", maxLength: 200, description: "用户的原话，例如“写文档时不要提醒，失败除外”" },
@@ -76,7 +74,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
   const handlers: ActionHandlerBinding[] = [
     ...records.handlers, ...extra.handlers,
     { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().followUps.rules() }) },
-    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: service().followUps.saveRule(input as AssistantRuleInput) }) },
+    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
     { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().followUps.removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
     { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps.list(callingWork(context) ?? undefined) }) },
     { capability_id: "assistant.followups.add", version: 1, handle: async (context, input) => {

@@ -239,6 +239,7 @@ export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemis
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
+export { installedPagesPort, PROJECT_HOME_PAGE } from "./assistant/assistant-pages.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
 export { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview, type OutcomeCard } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";

@@ -80,6 +80,8 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   setSetting(key: string, value: string): void;
   rules(): AssistantRule[];
   setRules(rules: readonly AssistantRule[]): void;
+  /** The page ids installed now, read from the catalog when a rule is written (PG-036). Absent: a rule may name any page id. */
+  pages?(): Promise<readonly string[]>;
   /** Absent: no reminders are asked for. */
   homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
@@ -269,6 +271,21 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   }
 
   rules(): AssistantRule[] { return this.ports.rules(); }
+
+  /**
+   * Add or change a rule on the person's word (PG-036). A page it names has to be one that is installed, read from the
+   * catalog now, so the Host keeps no list of plugin names; one that is not is refused with the pages there are. Pages the
+   * rule being changed already names stay, so turning it on or off still works after a plugin was taken out.
+   */
+  async addRule(input: AssistantRuleInput, ruleId?: string): Promise<AssistantRule[]> {
+    const installed = this.ports.pages ? new Set(await this.ports.pages()) : null;
+    if (installed && input && input.kind !== "pause" && Array.isArray(input.surfaces)) {
+      const named = new Set(ruleId ? this.ports.rules().find(rule => rule.rule_id === ruleId)?.surfaces : []);
+      const missing = [...new Set(input.surfaces)].filter((page): page is string => typeof page === "string" && !installed.has(page) && !named.has(page));
+      if (missing.length) throw assistantErrors.invalid(`没有这样的页面：${missing.slice(0, 5).join("、")}。现有的页面：${[...installed].sort().join("、")}`);
+    }
+    return this.saveRule(input, ruleId);
+  }
 
   /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {

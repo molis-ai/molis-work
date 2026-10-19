@@ -122,3 +122,21 @@ test("the person's rules are the Assistant's own actions: found by agents, addin
     assert.deepEqual(removed.rules, []);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
+
+test("PG-036: the add action's page field names no plugin, and the action refuses a page that is not installed", async () => {
+  const home = await mkdtemp(join(tmpdir(), "molis-assistant-rules-pages-"));
+  try {
+    const actions = new ActionService();
+    const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); },
+      pages: async () => ["home", "pages"] }, "web-user");
+    registerAssistantRuleActions(actions, () => service, home);
+    const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
+    const field = (ASSISTANT_RULE_ACTIONS.add.action.input_schema.properties as Record<string, Record<string, unknown>>).surfaces!;
+    assert.equal((field.items as Record<string, unknown>).enum, undefined, "the pages are not a fixed list in the contract");
+    assert.doesNotMatch(JSON.stringify(field), /jelly|cognia|coding|dataset|lingguang|workflows/i, "no plugin is named in the field or its description");
+    const added = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["pages"], label: "写文档时不要提醒" }) as { rules: AssistantRule[] };
+    assert.deepEqual(added.rules.map(item => item.surfaces), [["pages"]]);
+    await assert.rejects(actions.invoke(caller, ASSISTANT_RULE_ACTIONS.add, { kind: "quiet", surfaces: ["jelly"], label: "x" }), /jelly/);
+    assert.equal(service.followUps.rules().length, 1, "the refused rule was not kept");
+  } finally { await rm(home, { recursive: true, force: true }); }
+});

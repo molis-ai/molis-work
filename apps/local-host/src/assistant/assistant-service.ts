@@ -4,7 +4,7 @@ import { isDeepStrictEqual } from "node:util";
 import { AssistantContinuations } from "./assistant-continuations.js";
 import { recordAssistantResultCard } from "./assistant-result-card.js";
 import { controlAssistantWork } from "./assistant-work-control.js";
-import { AssistantFollowUps } from "./assistant-followups.js";
+import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -54,7 +54,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
 
-export interface AssistantServicePorts extends AssistantLandingPorts {
+export interface AssistantServicePorts extends AssistantLandingPorts, Pick<AssistantFollowUpPorts<StoredWork>, "pages"> {
   /** Withdraw only unfinished setup requests owned by this work's session. */
   cancelSetups?(sessionId: string): void;
   retainSetups?(sessionId: string): Promise<void>;
@@ -358,7 +358,7 @@ export class AssistantService {
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
-      rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules),
+      rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), ...(ports.pages ? { pages: () => ports.pages!() } : {}),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
       ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),

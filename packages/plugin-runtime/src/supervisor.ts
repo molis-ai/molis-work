@@ -9,8 +9,8 @@ import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 
 import { buildEventContract, type PluginEventContract } from "./event-contract.js";
 import { pluginManifestDigest } from "./identity.js";
-import { persistReleaseArtifact } from "./supervisor-releases.js";
-import { defaultGrants, directlyUsable } from "./install-rules.js";
+import { persistReleaseArtifact, startInstallInput } from "./supervisor-releases.js";
+import { directlyUsable } from "./install-rules.js";
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import {
   type PluginRuntimeReleaseArtifactRepository,
@@ -35,15 +35,17 @@ export interface PluginSupervisorEntry {
   /** Latest Host-provided definition; kept as the manual upgrade candidate. */
   definition: PluginDefinition;
   deployment?: PluginDeployment;
-  /** Defaults to every required permission the Manifest declares. A `bundled` entry does not use it: it holds every permission the Manifest declares. */
+  /** Defaults to every required permission the Manifest declares. A `bundled` entry does not use it: it holds what `bundledGrants` leaves (every declared permission on a fresh install, the optional ones the person left on after that). */
   grants?: string[];
   /** Host-persisted initial enablement. False registers the entry without activating it. */
   enabled?: boolean;
   /**
    * Ships with the Host: on start the install record is moved onto this build whatever it holds (a higher or a lower version,
-   * or the same version with another Manifest digest, or this build with fewer permissions), it holds every permission the
-   * Manifest declares whatever `grants` says, and no stored release is restored for it. Every other entry keeps the rules that
-   * need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md section 7).
+   * or the same version with another Manifest digest, or this build without one of its required permissions), and no stored
+   * release is restored for it. Its grants follow `bundledGrants` whatever `grants` says: every declared permission on a fresh
+   * install, then the required ones plus the optional ones the person left on, and any optional one new to the plugin.
+   * Every other entry keeps the rules that need a person's confirmation or a declared upgrade source (docs/releases/POLICY.md
+   * section 7).
    */
   bundled?: boolean;
   /** Trusted Host adapter for retaining and restoring this Native factory. */
@@ -541,18 +543,12 @@ export class PluginSupervisor implements PluginHostLifecycle {
       return this.#fail(pluginId, null, "plugin_unknown", `没有登记过插件 ${pluginId}`);
     }
     const epoch = this.#epochs.get(pluginId) ?? 0;
-    const manifest = entry.definition.manifest;
     let installId: string | null = this.#states.get(pluginId)?.install_id ?? null;
     try {
       if (installId === null) {
         if (entry.definition.execution === "sandbox" && entry.grants === undefined) throw new Error("生成插件必须先确认安装权限，不能自动授予全部必需权限");
         await persistReleaseArtifact(entry, this.#releaseArtifacts);
-        const grants = entry.grants ?? defaultGrants(manifest, this.#runtime.list());
-        const installed = this.#runtime.install({
-          definition: entry.definition,
-          deployment: entry.deployment ?? "local",
-          grants, ...(entry.bundled ? { bundled: true } : {}),
-        });
+        const installed = this.#runtime.install(startInstallInput(entry, this.#runtime.list(), this.#releaseArtifacts));
         installId = installed.install.install_id;
         if (this.#revoked.has(pluginId) || (this.#epochs.get(pluginId) ?? 0) !== epoch) {
           return this.#revokedState(pluginId, installId);

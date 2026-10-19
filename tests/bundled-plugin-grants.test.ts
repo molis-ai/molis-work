@@ -11,9 +11,10 @@ import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-wo
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// A plugin that ships with the Host holds every permission its Manifest declares, "optional" ones included
-// (user decision 2026-10-10, W3-06 Q2; docs/releases/POLICY.md section 7.8). "Optional" only says the plugin still works in part
-// without the permission, and nothing in the product lets the person switch a built-in permission off one at a time.
+// A plugin that ships with the Host follows the rule every plugin does (user decision 2026-10-18, which replaced 2026-10-10 W3-06 Q2;
+// docs/releases/POLICY.md section 7.8): it always holds its Manifest's required permissions, and its optional ones as the person
+// leaves them. A fresh install has every optional permission switched on, so a built-in plugin works as it did; one the person
+// switches off stays off across starts and builds, and only the actions that need it are unavailable.
 
 const PLUGIN_ID = "io.molis.work.example.bundled-grants";
 const REQUIRED = { permission: "grants:required", required: true, reason: "插件没有它就不能运行" } as const;
@@ -34,6 +35,11 @@ function build(version: string, permissions: PluginManifest["permissions"]): Plu
     permissions, capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [USE_OPTIONAL],
   };
   return { manifest, async start() { return { kind: "app", views: [], actions: [{ ...USE_OPTIONAL, handle: () => "used" }] }; }, async stop() {} };
+}
+
+/** A start-list entry for a plugin that ships with the Host, with the release adapter every such entry has, so each start archives its build. */
+function bundled(definition: PluginDefinition, grants?: string[]) {
+  return { definition, bundled: true, ...grants ? { grants } : {}, releaseArtifact: { capture: () => `fixture-${definition.manifest.version}`, restore: () => definition } };
 }
 
 /** One Host process over the project database in `directory`: the platform the way a start builds it. */
@@ -83,83 +89,106 @@ test("a bundled plugin is installed with every permission its Manifest declares,
     } finally { other.store.close(); }
   }));
 
-test("a start of the same build whose record holds fewer permissions completes them, and does not refuse to start as a silent grant change",
+/** Switches the optional permission off the way Settings does: the plugin is stopped while its grants change, then started again. */
+async function switchTo(host: ReturnType<typeof hostProcess>, grants: string[]) {
+  const installId = host.installId();
+  await host.platform.runtime.stop(installId);
+  host.platform.runtime.grant(installId, grants);
+  await host.platform.runtime.start(installId);
+}
+
+test("an optional permission the person switched off stays off at every later start of the same build, which is not refused as a silent grant change",
   withDirectory(async directory => {
     const first = hostProcess(directory);
     try {
-      await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]) }]);
-      assert.deepEqual(first.grants(), [REQUIRED.permission], "the record an earlier build left holds the required permission only");
-    } finally { first.store.close(); }
-
-    const second = hostProcess(directory);
-    try {
-      const report = await second.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
-      assert.deepEqual(report.failed, [], "plugin.state_invalid would be the refusal of a changed grant by a repeated install");
-      assert.deepEqual(report.running, [PLUGIN_ID]);
-      assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission]);
-      assert.deepEqual(await second.availability(), { available: true });
-    } finally { second.store.close(); }
-  }));
-
-test("following a newer build of a bundled plugin grants everything the new Manifest declares, and the install stays the same one",
-  withDirectory(async directory => {
-    const first = hostProcess(directory);
-    let installId = "";
-    try {
-      await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]) }]);
-      installId = first.installId();
+      await first.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+      await switchTo(first, [REQUIRED.permission]);
       assert.deepEqual(first.grants(), [REQUIRED.permission]);
+      assert.equal((await first.availability())?.available, false, "while it is off the action that needs it is unavailable");
     } finally { first.store.close(); }
 
-    const second = hostProcess(directory);
-    try {
-      const report = await second.platform.start([{ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), bundled: true }]);
-      assert.deepEqual(report.running, [PLUGIN_ID]);
-      assert.equal(second.installId(), installId, "the same installation, so its private data stays attached");
-      assert.deepEqual(second.grants(), [NEWER.permission, OPTIONAL.permission, REQUIRED.permission]);
-      assert.deepEqual(await second.availability(), { available: true });
-    } finally { second.store.close(); }
+    for (let start = 2; start <= 4; start++) {
+      const next = hostProcess(directory);
+      try {
+        const report = await next.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+        assert.deepEqual(report.failed, [], `start ${start}: plugin.state_invalid would be the refusal of a changed grant by a repeated install`);
+        assert.deepEqual(report.running, [PLUGIN_ID], `start ${start}: the plugin runs without the optional permission`);
+        assert.deepEqual(next.grants(), [REQUIRED.permission], `start ${start}: the start does not switch it back on`);
+        assert.equal((await next.availability())?.available, false);
+      } finally { next.store.close(); }
+    }
   }));
 
-test("a bundled plugin whose permission the person narrowed with runtime.grant gets it back at the next start", withDirectory(async directory => {
+test("an optional permission the person switched back on stays on at the next start", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
-    await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
-    const installId = first.installId();
-    await first.platform.runtime.stop(installId);
-    first.platform.runtime.grant(installId, [REQUIRED.permission]);
-    await first.platform.runtime.start(installId);
-    assert.deepEqual(first.grants(), [REQUIRED.permission]);
-    assert.equal((await first.availability())?.available, false, "while it is narrowed the action is unavailable");
+    await first.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+    await switchTo(first, [REQUIRED.permission]);
+    await switchTo(first, [REQUIRED.permission, OPTIONAL.permission]);
   } finally { first.store.close(); }
 
   const second = hostProcess(directory);
   try {
-    const report = await second.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL]), bundled: true }]);
-    assert.deepEqual(report.failed, []);
+    const report = await second.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+    assert.deepEqual(report.running, [PLUGIN_ID]);
     assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission]);
     assert.deepEqual(await second.availability(), { available: true });
   } finally { second.store.close(); }
 }));
 
-test("a permission a newer bundled build no longer declares is dropped, and the others stay granted", withDirectory(async directory => {
+test("following a newer build keeps off what the person switched off, switches on an optional permission new to the plugin, and the install stays the same one",
+  withDirectory(async directory => {
+    const first = hostProcess(directory);
+    let installId = "";
+    try {
+      await first.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+      installId = first.installId();
+      await switchTo(first, [REQUIRED.permission]);
+    } finally { first.store.close(); }
+
+    const second = hostProcess(directory);
+    try {
+      const report = await second.platform.start([bundled(build("1.1.0", [REQUIRED, OPTIONAL, NEWER]))]);
+      assert.deepEqual(report.running, [PLUGIN_ID]);
+      assert.equal(second.installId(), installId, "the same installation, so its private data stays attached");
+      assert.deepEqual(second.grants(), [NEWER.permission, REQUIRED.permission], "NEWER starts switched on as on a fresh install; OPTIONAL stays off");
+      assert.equal((await second.availability())?.available, false);
+    } finally { second.store.close(); }
+  }));
+
+test("following a newer build that makes a switched-off optional permission required grants it again", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
-    await first.platform.start([{ definition: build("1.0.0", [REQUIRED, OPTIONAL, NEWER]), bundled: true }]);
+    await first.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL]))]);
+    await switchTo(first, [REQUIRED.permission]);
+  } finally { first.store.close(); }
+
+  const second = hostProcess(directory);
+  try {
+    const report = await second.platform.start([bundled(build("1.1.0", [REQUIRED, { ...OPTIONAL, required: true }]))]);
+    assert.deepEqual(report.running, [PLUGIN_ID]);
+    assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission], "a required permission is never the person's to switch off");
+    assert.deepEqual(await second.availability(), { available: true });
+  } finally { second.store.close(); }
+}));
+
+test("a permission a newer bundled build no longer declares is dropped, and the others stay as the person left them", withDirectory(async directory => {
+  const first = hostProcess(directory);
+  try {
+    await first.platform.start([bundled(build("1.0.0", [REQUIRED, OPTIONAL, NEWER]))]);
     assert.deepEqual(first.grants(), [NEWER.permission, OPTIONAL.permission, REQUIRED.permission]);
   } finally { first.store.close(); }
 
   const second = hostProcess(directory);
   try {
-    const report = await second.platform.start([{ definition: build("1.1.0", [REQUIRED, OPTIONAL]), bundled: true }]);
+    const report = await second.platform.start([bundled(build("1.1.0", [REQUIRED, OPTIONAL]))]);
     assert.deepEqual(report.running, [PLUGIN_ID]);
     assert.deepEqual(second.grants(), [OPTIONAL.permission, REQUIRED.permission]);
   } finally { second.store.close(); }
 }));
 
-// The list a Supervisor entry names for itself is not looked at when the entry is bundled: a first install that honoured it would be a
-// narrower record than the rule leaves, the next start would widen it (recordToFollow), and the start after that would meet a repeated
-// install whose own list differs from the record and refuse it as a silent grant change (plugin.state_invalid).
+// The list a Supervisor entry names for itself is not looked at when the entry is bundled: a fresh install has every optional
+// permission switched on, and switching one off is the person's (Settings), not the Host's start list.
 test("a bundled entry that names fewer grants than its Manifest declares is installed with every declared permission", withDirectory(async directory => {
   const first = hostProcess(directory);
   try {
@@ -206,6 +235,30 @@ test("PluginRuntime.install with bundled records every declared permission whate
     assert.throws(() => other.install({ definition, deployment: "local", grants: declared }),
       (error: unknown) => (error as { code?: string }).code === "plugin.state_invalid", "and a repeated install that names other grants is still a silent grant change");
   });
+
+test("PluginRuntime.install with bundled keeps a record's switched-off optional permission, and following a build switches on only what the record's own build did not declare",
+  () => {
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
+    const installId = runtime.install({ definition, deployment: "local", bundled: true }).install.install_id;
+    runtime.grant(installId, [REQUIRED.permission]);
+    const again = runtime.install({ definition, deployment: "local", bundled: true });
+    assert.equal(again.replayed, true, "the same build again is not a silent grant change");
+    assert.deepEqual(again.install.grants, [REQUIRED.permission]);
+
+    const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", bundled: true,
+      declared_before: [REQUIRED.permission, OPTIONAL.permission] });
+    assert.equal(followed.install.install_id, installId);
+    assert.deepEqual(followed.install.grants, [NEWER.permission, REQUIRED.permission]);
+  });
+
+test("PluginRuntime.install with bundled, not told what the record's own build declared, switches on no optional permission when it follows a build", () => {
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const installId = runtime.install({ definition: build("1.0.0", [REQUIRED, OPTIONAL]), deployment: "local", bundled: true }).install.install_id;
+  runtime.grant(installId, [REQUIRED.permission]);
+  const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", bundled: true });
+  assert.deepEqual(followed.install.grants, [REQUIRED.permission], "OPTIONAL may be one the person switched off, so neither it nor NEWER is switched on");
+});
 
 // Every permission without asking is for code the Host ships. Sandboxed code is generated or installed from outside and runs in
 // isolation: what it may do is what the person confirmed, never what its Manifest declares. A start list that marks such a

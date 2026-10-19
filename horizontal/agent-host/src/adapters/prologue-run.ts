@@ -152,7 +152,8 @@ async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: Sess
   const workspace = !declared || mode.none || mode.business || !input.root_path || !workspaceAt ? undefined : await workspaceAt(projectId, input.root_path);
   if (!workspace || !(await store.read(projectId, workspace)).checkers.length) return undefined;
   return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}),
-    note: (key, note) => deps.index.update(input.session_id, saved => { const held = saved.attempts[attempt.index]; if (held) (held.write_checks ??= {})[key] = note; }) });
+    // A round stopped while the index was being read keeps nothing either: the check is in the change itself, just before the write.
+    note: (key, note, signal) => deps.index.update(input.session_id, saved => { signal?.throwIfAborted(); const held = saved.attempts[attempt.index]; if (held) (held.write_checks ??= {})[key] = note; }) });
 }
 
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,

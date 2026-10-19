@@ -1,6 +1,7 @@
 // S-41 (docs/system/SECURITY-INVARIANTS.md): the command an after-write check runs comes only from what the person saved,
-// the written path is one argument that is never an option, nothing runs without the person's approval, and an approval
-// remembered for one command does not carry over to a changed checker (specs/prologue-adoption §6.0p.6, PA-39).
+// the written path is one argument that is never an option, nothing runs without the person's approval, an approval
+// remembered for one command does not carry over to a changed checker (specs/prologue-adoption §6.0p.6, PA-39), and the
+// executor asks again, before it answers, whether the round's authorization and the workspace's still stand.
 import assert from "node:assert/strict";
 import test from "node:test";
 import { access, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
@@ -59,6 +60,45 @@ test("S-41 a check the person refused starts no process", { timeout: 60_000 }, a
   assert.equal(await exists(join(round.project, "ran.txt")), false, "the checker never ran");
   assert.match(round.result("w1") ?? "", /\nnot checked: /);
   assert.equal(await readFile(join(round.project, "src/a.js"), "utf8"), "1;\n", "the write itself stands");
+});
+
+/** What a check turned away leaves: the write stands, the observation says why it was not checked, and no command was reviewed or run. */
+async function assertTurnedAway(round: Awaited<ReturnType<typeof afterWriteRound>>, reason: string) {
+  assert.match(round.result("w1") ?? "", new RegExp(`^wrote src/a\\.js[\\s\\S]*\\nnot checked: ${reason}$`));
+  assert.equal(round.queue.list("board").filter(row => row.document.kind === "command").length, 0, "no command was put up for review");
+  assert.equal(await exists(join(round.project, "ran.txt")), false, "the checker never ran");
+  assert.equal(await readFile(join(round.project, "src/a.js"), "utf8"), "1;\n", "the write itself stands");
+}
+
+// The note of which checker answered is kept after both checks, on the same path (prologue-after-write.ts), so the exact reason
+// in the observation is also what shows that none was kept: the index it would go to is not on the package's surface to read back.
+test("S-41 a workspace taken back by the time the check is asked for is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
+  const round = await afterWriteRound(t, { checkers: [MARK], turns: [write("src/a.js", "1;\n", "w1"), say("done")] });
+  const handle = await round.start();
+  const edit = await round.pending("text-edit");
+  round.authorize(false);
+  await round.approve(edit);
+  await round.ended(handle.ref);
+  await assertTurnedAway(round, "工作区授权已撤回");
+});
+
+test("S-41 a round whose authorization was taken back (its check before dispatch throws) is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
+  let armed = false, thrown = false, project = "";
+  // Throws once, for the first ask after the write has landed: the executor's, before it reads the workspace or the settings.
+  // The model's next request is not stopped, so the observation that says so is read back.
+  const round = await afterWriteRound(t, { checkers: [MARK], turns: [write("src/a.js", "1;\n", "w1"), say("done")], beforeDispatch: async () => {
+    if (!armed || thrown || !(await exists(join(project, "src/a.js")))) return;
+    thrown = true;
+    throw new Error("the plugin instance was stopped");
+  } });
+  project = round.project;
+  const handle = await round.start();
+  const edit = await round.pending("text-edit");
+  armed = true;
+  await round.approve(edit);
+  await round.ended(handle.ref);
+  assert.equal(thrown, true, "the executor asked the round's own check");
+  await assertTurnedAway(round, "这一轮的授权已收回");
 });
 
 test("S-41 “本会话不再询问” for one command does not approve the changed checker's command for the same file", { timeout: 90_000 }, async t => {

@@ -20,7 +20,9 @@ const until = async <T>(read: () => T | Promise<T>, what: string, limit = 400): 
 /** A checker as the person saves it, with the defaults the store keeps. */
 export const kept = (checker: AgentWriteChecker): Required<AgentWriteChecker> => ({ cwd: ".", timeout_ms: 30_000, ...checker });
 
-export async function afterWriteRound(t: TestContext, setup: { readonly checkers?: readonly AgentWriteChecker[]; readonly turns: readonly Turn[] }) {
+export async function afterWriteRound(t: TestContext, setup: { readonly checkers?: readonly AgentWriteChecker[]; readonly turns: readonly Turn[];
+  /** The round's own check before anything leaves for it (its plugin instance, its Character), as the Host gives it to `start`; absent, nothing is checked. */
+  readonly beforeDispatch?: () => void | Promise<void> }) {
   const root = await mkdtemp(join(tmpdir(), "after-write-")), project = join(root, "project");
   await mkdir(project);
   const requests: Array<{ messages: unknown[]; tools?: Array<{ name: string }> }> = [];
@@ -67,7 +69,8 @@ export async function afterWriteRound(t: TestContext, setup: { readonly checkers
     authorize(value: boolean) { authorized = value; },
     /** Starts a round; `turns` raises the round's tool turns above the default of 8. */
     start: (tools: readonly string[] = ["read-file", "write"], turns?: number) => adapter.start({ ...OWNER, directory, session, task: "Write the files.", role_id: "writer",
-      role: { role_id: "writer", version: 1, execution: "text-edit", prompts: [], host_tools: [...tools] }, ...(turns ? { budget: { max_turns: turns } } : {}) }),
+      role: { role_id: "writer", version: 1, execution: "text-edit", prompts: [], host_tools: [...tools] }, ...(turns ? { budget: { max_turns: turns } } : {}) },
+    setup.beforeDispatch ? { beforeDispatch: setup.beforeDispatch } : undefined),
     /** The next review not yet answered, of this kind. */
     pending: (kind: AgentReviewRequest["document"]["kind"], seen: ReadonlySet<string> = new Set()) =>
       until(() => queue.list(OWNER.project_id, "pending").find(row => row.document.kind === kind && !seen.has(row.review_id)), `a pending ${kind} review`),

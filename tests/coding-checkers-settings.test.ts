@@ -154,6 +154,14 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, e
       // What is kept is the normalized directory, so the same holds after normalizing brings the spaces or the drive to an end.
       [{ cwd: "./ /etc" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
       [{ cwd: "./C:/x" }, "agent.write_checker_invalid"],
+      // A trailing separator is dropped, as the SDK's is, after these are looked at: it cannot turn a path outside the root,
+      // a drive or one with spaces at an end into one that is kept.
+      [{ cwd: "/" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
+      [{ cwd: "/tmp/" }, "agent.write_checker_invalid"],
+      [{ cwd: "../" }, "agent.write_checker_invalid"],
+      [{ cwd: "C:/" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
+      [{ cwd: "src /" }, "agent.write_checker_invalid", /工作目录要写成工作区根下的相对路径/],
+      [{ cwd: ".git/" }, "agent.write_checker_invalid", /不能在 \.git、node_modules 或 \.prologue 里/],
     ];
     for (const [change, expected, says] of refused) {
       await assert.rejects(f.save({ workspace_id: "app", expected_version: 0, checkers: [{ ...NODE, ...change }] }), (error: unknown) => {
@@ -172,6 +180,17 @@ test("PA-28 saving refuses {file} inside other text, twice or missing, grants, e
     // directories only named like them are kept.
     const alike = [{ ...NODE, checker_id: "workflows", cwd: ".github/workflows" }, { ...NODE, checker_id: "cache", cwd: "node_modules_cache" },
       { ...NODE, checker_id: "colon", cwd: "C:x" }];
-    assert.deepEqual((await f.save({ workspace_id: "app", expected_version: 1, checkers: alike })).checkers, alike.map(checker => ({ ...KEPT, ...checker })));
+    const likeSaved = await f.save({ workspace_id: "app", expected_version: 1, checkers: alike });
+    assert.deepEqual(likeSaved.checkers, alike.map(checker => ({ ...KEPT, ...checker })));
+    // The directory is kept the way the SDK gives it back (it drops a trailing separator and reads `./` as `.`): the executor
+    // compares it with the written path, so `tools/` kept as it was typed would check no file at all.
+    const slashes: Array<[string, string]> = [["tools/", "tools"], ["./", "."], ["tools//", "tools"], ["./tools/", "tools"], ["a/b/", "a/b"]];
+    let version = likeSaved.version;
+    for (const [typed, stored] of slashes) {
+      const saved = await f.save({ workspace_id: "app", expected_version: version, checkers: [{ ...NODE, cwd: typed }] });
+      version = saved.version;
+      assert.equal(saved.checkers[0]?.cwd, stored, JSON.stringify(typed));
+      assert.deepEqual((await f.lists())[0]?.checkers.map(checker => checker.cwd), [stored], JSON.stringify(typed));
+    }
   } finally { await f.close(); }
 });

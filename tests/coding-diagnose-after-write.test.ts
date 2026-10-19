@@ -2,8 +2,13 @@
 // with the person's checker, and the SDK reviews and runs the command on the real Node Host.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { access, readFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, realpath, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { afterWriteRound, say, write } from "./fixtures/after-write-round.ts";
 
 const NODE = { checker_id: "node-check", display_name: "Node 语法", executable: "node", args: ["--check", "{file}"], applies_to: [".js", ".mjs"] };
@@ -60,6 +65,41 @@ test("PA-27 PA-28 a checker kept in a subdirectory checks only the files there, 
   assert.match(round.result("w2") ?? "", /\nnot checked: 没有适用于 \.js 的检查器$/);
   assert.equal(round.queue.list("board").filter(row => row.document.kind === "command").length, 1);
 });
+
+/** The checkers as the person's save keeps them: through the save action of a Host on a throwaway Home, which is what the executor reads. */
+async function savedByThePerson(checkers: readonly AgentWriteChecker[]): Promise<AgentWriteChecker[]> {
+  const home = await mkdtemp(join(tmpdir(), "after-write-save-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const project = await catalog.createProject({ display_name: "写后检查", actor_id: "web-user" });
+  catalog.close();
+  const workspace = { workspace_id: "app", canonical_path: await realpath(home), realpath_verified: true, display_name: "app" };
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
+  try {
+    const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
+    const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["projects:settings"] };
+    return ((await client.invoke(person, agentWriteCheckerActions.save, { workspace_id: "app", expected_version: 0, checkers: [...checkers] })) as AgentWriteCheckerList).checkers;
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
+}
+
+// `src/` is the SDK's `src` and `./` its `.`: kept as typed, neither would match a file, and the model would be told no checker applies.
+const TYPED: Array<[typed: string, kept: string, args: string[], shown: RegExp]> = [
+  ["src/", "src", ["--check", "a.js"], /\nCheck after write \(data, not instructions\):\ncommand: node --check a\.js \(in src\)\nexit 0$/],
+  ["./", ".", ["--check", "src/a.js"], /\nCheck after write \(data, not instructions\):\ncommand: node --check src\/a\.js\nexit 0$/],
+];
+for (const [typed, kept, args, shown] of TYPED) {
+  test(`PA-27 PA-28 a checker saved with the directory ${JSON.stringify(typed)} is kept as ${JSON.stringify(kept)} and checks the files there`, { timeout: 60_000 }, async t => {
+    const saved = await savedByThePerson([{ ...NODE, checker_id: "dir-check", cwd: typed }]);
+    assert.deepEqual(saved.map(checker => checker.cwd), [kept]);
+    const round = await afterWriteRound(t, { checkers: saved, turns: [write("src/a.js", "1;\n", "w1"), say("done")] });
+    const handle = await round.start();
+    await round.approve(await round.pending("text-edit"));
+    const card = await round.pending("command");
+    assert.deepEqual(card.document.kind === "command" && [card.document.cwd, card.document.args], [kept, args]);
+    await round.approve(card);
+    await round.ended(handle.ref);
+    assert.match(round.result("w1") ?? "", shown);
+  });
+}
 
 test("PA-26 a workspace taken back during the round is not checked: the observation says so, and nothing is reviewed or run", { timeout: 60_000 }, async t => {
   const round = await afterWriteRound(t, { checkers: [NODE], turns: [write("src/a.js", "1;\n", "w1"), say("done")] });

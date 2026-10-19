@@ -11,7 +11,7 @@ export interface AgentWriteChecker {
   display_name: string;
   /** A bare executable name, found on the Host's PATH (S-38: the Host runs no paths); run without a shell. */
   executable: string;
-  /** Exactly one element is the whole string `{file}`: the written path, relative to the workspace root, as one argument. */
+  /** Exactly one element is the whole string `{file}`: the written path, relative to the checker's `cwd`, as one argument. */
   args: string[];
   /** The extensions it checks, with the dot (`[".js", ".mjs"]`). */
   applies_to: string[];

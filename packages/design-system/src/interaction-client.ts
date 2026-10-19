@@ -93,13 +93,10 @@ export function interactionFields(root: HTMLElement) {
       const box = q(field, "[data-ix-references]");
       if (typeof value === "string") { put(q<HTMLInputElement>(field, "[data-ix-value]"), value); refreshWeekday(q(field, "[data-ix-date]")); }
       else if (box && Array.isArray(value)) referenceChips(box, value.filter((ref): ref is InteractionPicked => typeof ref === "object"));
-      else if (Array.isArray(value)) {
-        for (const item of optionsOf(field)) mark(item, (value as string[]).includes(item.dataset.ixOption ?? ""));
-        const group = q(field, "[data-ix-options]");
-        if (group) roving(group);
-      } else if ("picked" in value) {
-        for (const option of optionsOf(field)) mark(option, value.picked.includes(option.dataset.ixOption ?? ""));
-        if (value.other !== undefined) put(q<HTMLInputElement>(field, "[data-ix-other]"), value.other);
+      else if (Array.isArray(value) || "picked" in value) {
+        const picked = Array.isArray(value) ? value as string[] : value.picked;
+        for (const option of optionsOf(field)) mark(option, picked.includes(option.dataset.ixOption ?? ""));
+        if ("other" in value && value.other !== undefined) put(q<HTMLInputElement>(field, "[data-ix-other]"), value.other);
         const group = q(field, "[data-ix-options]");
         if (group) roving(group);
       } else {
@@ -109,6 +106,7 @@ export function interactionFields(root: HTMLElement) {
       }
     }
   };
+  const reveal = (target: HTMLElement) => { target.focus({ preventScroll: true }); target.scrollIntoView({ block: "nearest" }); };
   const showErrors = (errors: Record<string, string>, options: { focus?: boolean } = {}) => {
     let first: HTMLElement | null = null;
     for (const field of all(root, "[data-ix-field]")) {
@@ -117,12 +115,12 @@ export function interactionFields(root: HTMLElement) {
       for (const control of all(field, "input, textarea, [role=group], [role=radiogroup]")) control.setAttribute("aria-invalid", String(Boolean(message)));
       if (message && !first) first = q(field, "[data-ix-focus]") ?? field;
     }
-    if (options.focus && first) { first.focus({ preventScroll: true }); first.scrollIntoView({ block: "nearest" }); }
+    if (options.focus && first) reveal(first);
   };
   const focusField = (id: string) => {
     const field = all(root, "[data-ix-field]").find(item => fieldId(item) === id);
     const target = field && (q(field, "[data-ix-focus]") ?? q(field, "input, textarea, button"));
-    if (target) { target.focus({ preventScroll: true }); target.scrollIntoView({ block: "nearest" }); }
+    if (target) reveal(target);
   };
   return { read, write, showErrors, focusField, mark, checked, optionsOf, roving, refreshWeekday, fieldOf, fieldId, referenceChips };
 }
@@ -326,13 +324,16 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
     if (step) { host.onStep?.(Number(step.dataset.ixStep), step); return; }
     // A submit button is reported once, by the form's submit event, not also as an action.
     if (button.dataset.ixAction) { if (button.type !== "submit") host.onAction?.(button.dataset.ixAction, button); return; }
+    // Emptying an optional single choice hides this button, so focus goes back to the group's one tab stop.
+    const emptied = button.hasAttribute("data-ix-clear") && fields.fieldOf(button);
+    if (emptied) { fields.write({ [fields.fieldId(emptied)]: [] }, false); q(emptied, "[tabindex='0']")?.focus(); emit(emptied); return; }
     const by = button.dataset.ixStepBy;
     if (by) {
       const input = q<HTMLInputElement>(button.closest<HTMLElement>(".mw-ix-number") ?? root, "input");
       if (!input) return;
       const current = Number(input.value);
       if (!input.value.trim() || !Number.isFinite(current)) { input.focus(); return; }
-      const min = input.dataset.ixMin === undefined ? -Infinity : Number(input.dataset.ixMin), max = input.dataset.ixMax === undefined ? Infinity : Number(input.dataset.ixMax);
+      const min = Number(input.dataset.ixMin ?? -Infinity), max = Number(input.dataset.ixMax ?? Infinity);
       input.value = String(Math.min(max, Math.max(min, current + Number(by))));
       emit(input);
       return;
@@ -345,16 +346,19 @@ export function assembleInteractionClient(fieldsFactory: typeof interactionField
       emit(option);
     }
   };
+  // Typing reports a field's change; a reference search box only searches.
+  const typed = (input: EventTarget | null) => (input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && input;
+  const report = (input: HTMLInputElement | HTMLTextAreaElement) => { if (!references.input(input) && input.closest("[data-ix-field]")) emit(input); };
   const onInput = (event: Event) => {
-    const input = event.target;
-    if (!(input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement)) return;
+    const input = typed(event.target);
+    if (!input) return;
     fields.refreshWeekday(input.closest<HTMLElement>("[data-ix-date]"));
-    if (!composing && !references.input(input) && input.closest("[data-ix-field]")) emit(input);
+    if (!composing) report(input);
   };
   const onCompositionEnd = (event: Event) => {
     composing = false;
-    const input = event.target;
-    if ((input instanceof HTMLInputElement || input instanceof HTMLTextAreaElement) && !references.input(input) && input.closest("[data-ix-field]")) emit(input);
+    const input = typed(event.target);
+    if (input) report(input);
   };
   const onKeyDown = (event: Event) => {
     const key = event as KeyboardEvent, target = key.target instanceof HTMLElement ? key.target : null;

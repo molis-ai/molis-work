@@ -74,7 +74,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
           chooseSent(data.work);
           if (!sameInput()) saveDraft(true);
         }
-        problem={...error,name:error.name,message:error.message+(unknown?"":"。"+L("输入已保留")),action:data.action};
+        problem={...error,name:error.name,message:error.message+(unknown?"":L("。输入已保留")),action:data.action};
         if (curId) await reload(); else render();
       } else host.showToast?.(error);
     } finally {
@@ -139,7 +139,7 @@ export const ASSISTANT_RECEIPTS_FACTORY_SCRIPT = String.raw`({ L, shared, chip, 
     into: () => !chip.hidden && choice === "draft" ? ask : null,
     /**
      * After the rounds are drawn: what is still open in the work (the tray; its queue left out when not read), and in the side
-     * pane 「当前约定」 from the receipts just drawn, redrawn only when it reads differently so focus in it stays.
+     * pane 「AI 记下的约定」 from the receipts just drawn, redrawn only when it reads differently so focus in it stays.
      */
     after(thread, put, view) {
       const round = view?.rounds.at(-1), tray = round ? shared.tray(thread, view.queued_inputs, round, act(round)) : null;

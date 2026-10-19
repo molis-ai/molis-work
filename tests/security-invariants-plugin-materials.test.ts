@@ -118,6 +118,52 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
   assert.deepEqual(readdirSync(join(home, "lingguang", "models")), [], "RAC-30 only the existing cache path is prepared");
 });
 
+// S-39 on every platform: the materials client the Runtime gives a plugin (`createPluginMaterialsClient`, bound to this installation's
+// running action and grants), around a port that waits where the Host's native helper would. The cases after this drive the Host's
+// own speech helper, which only macOS has, and are listed under 「只在本机跑」.
+for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
+  test(`S-39 RAC-27 ${invalidation} while material extraction waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
+    const probe = materialsProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const { platform, install } = await grantMaterials(host, probe);
+    const entered = deferred(), release = deferred(), over = deferred(), abort = new AbortController();
+    let extracted = false, handed = false;
+    probe.behavior.read = async (context, caller) => {
+      const materials = createPluginMaterialsClient(probe.definition.manifest, {
+        extract: async (_source, options) => {
+          await options.beforeEffect(); entered.resolve(); await release.promise; extracted = true;
+          return { text: "late material", extractor: "waiting-port", pages: [], coverage: { status: "sufficient" as const, processed_pages: 0, total_pages: 0, issues: [] } };
+        },
+        readSource: () => Promise.reject(new Error("not read here")),
+      }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
+      try {
+        const result = await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") });
+        handed = true; await caller.beforeEffect(); context.services!.storage!.set("late", result.text); return result;
+      } finally { over.resolve(); }
+    };
+    const pending = host.homeActionClient().invoke({ ...person(probe.permissions), signal: abort.signal }, probe.read, {});
+    // A cancel ends the call with the caller's own abort; the others find the installation gone or changed when the port answers.
+    const refused = assert.rejects(pending, invalidation === "cancel" ? { name: "AbortError" } : { code: "actions.forbidden" });
+    let replacement = probe;
+    try {
+      await Promise.race([entered.promise, pending]);
+      if (invalidation === "cancel") abort.abort();
+      else if (invalidation === "upgrade") {
+        replacement = materialsProbe("materialsprobe", { version: "1.1.0" });
+        await platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: probe.permissions });
+        assert.equal(replacement.preflight[0]!.services?.materials, undefined, "RAC-25 upgrade preflight is read-only");
+      } else {
+        await platform.runtime.stop(install.install_id);
+        if (invalidation === "revoke") platform.runtime.grant(install.install_id, ["storage:private"]);
+      }
+    } finally { release.resolve(); }
+    await over.promise; await refused;
+    assert.equal(extracted, true, "the port finished: what is refused is its result");
+    assert.equal(handed, false);
+    if (invalidation === "stop" || invalidation === "revoke") await platform.supervisor.restart(probe.id);
+    assert.equal(replacement.contexts.at(-1)!.services!.storage!.get("late"), null);
+  });
+}
+
 for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`RAC-27 RAC-30 ${invalidation} during material extraction refuses late results and persistent business writes`, { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
     const probe = materialsProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });

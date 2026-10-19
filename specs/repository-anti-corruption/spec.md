@@ -271,6 +271,20 @@ ALC-RES08 正式体积核对：整合后按正式 Host 服务口径实测为52,3
 
 ALC-RES 动作合同：新增 runs.list/resume/continue@1；explorations.start/research.start@1 改为 concurrent，受理中的授权等待不占串行队列。后两者的输入输出、provider、权限及任务引用不变，固定@1引用仍执行同一受理合同，因此只更新调度元数据与快照，不改工具名；旧串行例外移除。此改动不能证明生产WorkReuse外部接线已完成。
 
+ALC-RES 复查修正（2026-10-19，③，§10.29 #747 的 P2 与统筹裁定 9）：
+- 只读查询 `alchemist.runs.resume@1` 改名为 `alchemist.runs.continuation@1`（插件路由 `/runs/:id/continuation`）。这次输出 schema 也变了：`unknownCall.operation` 多了 `generating`。按 `docs/system/CONTRACT-CHANGES.md` 第 3 条，形状变了不能留在原来的 id 和版本下。改名同时解决复查的 P3「名字像命令」：固定了旧 id 的引用会失效报错，不会被静默当成新形状。
+- `runs.continue` 与这个查询的拒绝都用 `alchemistStateErrors` 声明，调用方拿到的是码和类别，不再是 `actions.execution_failed`：
+  - 冲突（`conflict`）：`job_lease_active`、`job_not_resumable`、`resume_context_changed`、`research_budget_exhausted`
+  - 无效（`invalid`）：`job_kind_unsupported`
+  - 不可用（`unavailable`）：`background_authority_required`
+  - 找不到（`not_found`）：`job_not_found`，对外仍换成 `alchemist.run_not_found`。插件路由回 404；经动作网关或 MCP 时这个错误不带类别，读成 `invalid`（原来就如此）
+- 预算耗尽原先由校验器抛普通 `Error`，现在校验器只报告，由继续服务按声明的码拒绝。
+- 探索停在 `generating` 检查点时，模型结果未知，可能已经收费。恢复视图对它也给 `unknownCall`。探索的确认串包含这一状态，所以在它之前给出的确认会被拒绝（`resume_context_changed`）。界面上「可能重复收费」对两类任务都显示，「计入原预算」只在有预算（Lens）时显示。
+- 验收 `W5-01-ALC-RES09`：探索在 `generating` 处恢复，视图给出未知调用，旧确认被拒且不派出调用，新确认继续时再调一次模型。
+- 待补浏览器验证（用户 10-19 暂停）：探索在 `generating` 处继续的对话框显示「可能重复收费」、不显示「计入原预算」，三种宽度加暗色，验收号 `W5-01-ALC-RES09`。
+- 验收 `W5-01-ALC-RES10`：每种拒绝的码与类别都核对过，包括没有后台授权的入口与找不到的任务。
+- 不在这里做的：裁定 10（把按任务类别另要的权限写进声明）和 `runs.list` 的分页，都是 P3，另开一片。
+
 ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
 
 `W5-01-ALC-RES-SEARCH-01`：真实 AnySearch DNS 等待后撤权，最终建请求前拒绝；TLS 等待期间撤权，在 secureConnect 已核合法 peer 后、req.end(body) 紧前再次同步检查，零请求正文发送；extract 也逐次检查，不放宽原 SSRF/TLS/响应上限。`W5-01-ALC-RES-SEARCH-02`：真实 SEL bootstrap/provider 晚回执期间撤权后，search.sqlite opaque rows、secret/content 与 Studio job/checkpoint/events 均无迟到结果或失败记账，原合法预约保持；同步 blob 各写方法实际拒绝、原行不变。`W5-01-ALC-RES-SEARCH-03`：未配置 hooks 的 Feed/Search 现回归不变通过；无 scope 的业务写拒绝但关闭可完成，真实文件/SQLite owner 与模型入口不增加第二实现。新增 API、安全表与派生检查仍由 root 整合；本段是现 RES03 完整修复范围，不引入数据库分区或 Runtime 迁移。
@@ -531,6 +545,12 @@ W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工�
 - 证据（2026-10-18，本地；基于 `origin/main 7faaa027`，未带 Dataset 分支的宿主改动）：`pnpm --filter @molis-ai/molis-work-plugin-ppt run build` 通过；`tests/ppt-store.test.ts` 的 `W5-01-PPT-STORE-01`–`03` 3/3（唯一声明与 Home baseline 一致；`ownPptStores` 经原 Store 读写；真实原库的 duplicate/receive 中途失败回滚，无半份 deck/receipt；`beforeEffect` 拒绝时回调未进入、库不变）；`ppt-actions` 5/5、`ppt-subject-kind` 1/1、`project-deletion-owners` 12/12、`creative-tools-plugins` 8/8、`creative-artifact-promote` 2/2、`ppt-mcp` 1/1；`verify-release-versions` 的 29 个库表行与代码一致；`pnpm boundary:check` 通过；health 对 merge-base `7faaa027` 通过。原始日志在交接通道 `logs/ppt-store-tests.log`、`logs/ppt-store-port-test.log`、`logs/ppt-store-health.log`。
 - 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
 - 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
+
+W5-01-PPT 收尾（2026-10-19，§10.29 #748 复查的 P2，③；分支 `chore/closeout-ppt-ports`）：
+- 删 `apps/local-host/src/creative-artifacts.ts`：里面是 PPT 的三个旧端口（行头、写版本、读版本）和对 PPT 插件的 import，PPT 迁到 Runtime 后已经没有调用方（[privileges.md](privileges.md) PG-109）。`tests/document-plugins-error-model.test.ts` 去掉专扫这个文件的断言；`tooling/gates/error-owners.json` 的 `artifacts` 去掉这条路径，文件没了，路径按门禁规则必须离表。
+- 同片收掉 #733 复查的两条 P3：
+  - `builtin-instructions.ts` 的注释改成创作台的 Agent。
+  - Cognia 没有模型时的提示按预期变化处理。平台规则 D4-b 只给 Host 写的一句「请先在「模型设置」里连接文字模型」；Cognia 原句「……导入、搜索和阅读仍可使用。」不留，它在 `plugins/native/cognia/src/en.ts` 里已无人使用的翻译一并删掉。
 
 W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
 - 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。

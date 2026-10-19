@@ -182,7 +182,7 @@ function contentCustomProperties(theme: "light" | "dark"): string {
  * Plugins carry no identity colour on screen: the Soft Workbench keeps colour for status and selection,
  * and a plugin is recognised by its glyph, its name and where it sits. Every `--plugin-*` resolves to the
  * neutral secondary ink so existing consumers (icons, kind labels, washes) stay valid and calm.
- * `MW_PLUGINS[].hue` remains data for the catalog, not a rendering rule.
+ * The one exception is the tab strip: a plugin's tab group takes `MW_PLUGINS[].hue` (specs/plugin-tab-groups).
  */
 function pluginCustomProperties(): string {
   return MW_PLUGINS.map((plugin) => `--plugin-${plugin.id}: var(--ink-soft);`).join(" ");

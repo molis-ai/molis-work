@@ -33,12 +33,14 @@
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
-| 写后检查器 | 人在 Coding 设置里给一个已授权工作区存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
+| 写后检查器 | 人在平台的项目设置里、和工作区授权一起，给一个已授权工作区存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
 | 等待检查器 | Agent 的一步在等一个条件时，由宿主按 SDK 的节奏去看那个条件的代码，只看不改 | 无 | 检查器（裸写）、condition checker |
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
 | 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
 | 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验） |
+| 当前约定（Goal 的） | 一条 Goal 现在要遵守的约定与要求，是 Goals 记下的、带版本的事实，每次修改是一条事件；Runtime 放宽或替换已有约定要引用本人授权；Goal 按它收尾 | 当前约定 | 把助理侧栏 AI 自称采纳的约束也叫它（那是「AI 记下的约定」） |
+| AI 记下的约定 | 助理侧栏列出的、AI 在处理说明里自称采纳为约束、目标或完成条件的补充；只是 AI 的自称，Molis 没有核对，不可编辑，要改就从那条补充发更正（`specs/ai-input-receipts/spec.md` §9.2、D41） | AI 记下的约定（英文 What the AI noted as agreed；2026-10-19 起，此前叫「当前约定」） | 当前约定（指它时）、已生效的约定 |
 | 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：改成按声明与授权，实现前代码仍如此）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
@@ -160,7 +162,7 @@
 
 **写后检查器与等待检查器（必须写全名）**
 
-- 写后检查器：人在 Coding 设置里给一个已授权工作区保存的一组命令（`agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
+- 写后检查器：人在平台的项目设置里（和工作区授权在一起，不在 Coding 的设置页）给一个已授权工作区保存的一组命令（`agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
 - 等待检查器：Agent 的一步等一个外部条件时，宿主替 SDK 去看那个条件的代码（`molis.action-query`、`molis.file-present`，在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`），只看不改。
 - 两者都不调模型，也都不是判断规则。裸写「检查器」分不出是哪一个，所以必须写全名。
 

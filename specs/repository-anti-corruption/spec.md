@@ -271,6 +271,20 @@ ALC-RES08 正式体积核对：整合后按正式 Host 服务口径实测为52,3
 
 ALC-RES 动作合同：新增 runs.list/resume/continue@1；explorations.start/research.start@1 改为 concurrent，受理中的授权等待不占串行队列。后两者的输入输出、provider、权限及任务引用不变，固定@1引用仍执行同一受理合同，因此只更新调度元数据与快照，不改工具名；旧串行例外移除。此改动不能证明生产WorkReuse外部接线已完成。
 
+ALC-RES 复查修正（2026-10-19，③，§10.29 #747 的 P2 与统筹裁定 9）：
+- 只读查询 `alchemist.runs.resume@1` 改名为 `alchemist.runs.continuation@1`（插件路由 `/runs/:id/continuation`）。这次输出 schema 也变了：`unknownCall.operation` 多了 `generating`。按 `docs/system/CONTRACT-CHANGES.md` 第 3 条，形状变了不能留在原来的 id 和版本下。改名同时解决复查的 P3「名字像命令」：固定了旧 id 的引用会失效报错，不会被静默当成新形状。
+- `runs.continue` 与这个查询的拒绝都用 `alchemistStateErrors` 声明，调用方拿到的是码和类别，不再是 `actions.execution_failed`：
+  - 冲突（`conflict`）：`job_lease_active`、`job_not_resumable`、`resume_context_changed`、`research_budget_exhausted`
+  - 无效（`invalid`）：`job_kind_unsupported`
+  - 不可用（`unavailable`）：`background_authority_required`
+  - 找不到（`not_found`）：`job_not_found`，对外仍换成 `alchemist.run_not_found`。插件路由回 404；经动作网关或 MCP 时这个错误不带类别，读成 `invalid`（原来就如此）
+- 预算耗尽原先由校验器抛普通 `Error`，现在校验器只报告，由继续服务按声明的码拒绝。
+- 探索停在 `generating` 检查点时，模型结果未知，可能已经收费。恢复视图对它也给 `unknownCall`。探索的确认串包含这一状态，所以在它之前给出的确认会被拒绝（`resume_context_changed`）。界面上「可能重复收费」对两类任务都显示，「计入原预算」只在有预算（Lens）时显示。
+- 验收 `W5-01-ALC-RES09`：探索在 `generating` 处恢复，视图给出未知调用，旧确认被拒且不派出调用，新确认继续时再调一次模型。
+- 待补浏览器验证（用户 10-19 暂停）：探索在 `generating` 处继续的对话框显示「可能重复收费」、不显示「计入原预算」，三种宽度加暗色，验收号 `W5-01-ALC-RES09`。
+- 验收 `W5-01-ALC-RES10`：每种拒绝的码与类别都核对过，包括没有后台授权的入口与找不到的任务。
+- 不在这里做的：裁定 10（把按任务类别另要的权限写进声明）和 `runs.list` 的分页，都是 P3，另开一片。
+
 ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
 
 `W5-01-ALC-RES-SEARCH-01`：真实 AnySearch DNS 等待后撤权，最终建请求前拒绝；TLS 等待期间撤权，在 secureConnect 已核合法 peer 后、req.end(body) 紧前再次同步检查，零请求正文发送；extract 也逐次检查，不放宽原 SSRF/TLS/响应上限。`W5-01-ALC-RES-SEARCH-02`：真实 SEL bootstrap/provider 晚回执期间撤权后，search.sqlite opaque rows、secret/content 与 Studio job/checkpoint/events 均无迟到结果或失败记账，原合法预约保持；同步 blob 各写方法实际拒绝、原行不变。`W5-01-ALC-RES-SEARCH-03`：未配置 hooks 的 Feed/Search 现回归不变通过；无 scope 的业务写拒绝但关闭可完成，真实文件/SQLite owner 与模型入口不增加第二实现。新增 API、安全表与派生检查仍由 root 整合；本段是现 RES03 完整修复范围，不引入数据库分区或 Runtime 迁移。
@@ -419,6 +433,16 @@ W4-04 第四片（2026-10-15，Form 客户端改成打包的 TypeScript，PR #55
 - 证据：门禁 `--base origin/main`、`boundary:check`、`page-assets`（`--update` 后）通过；相关 18 个非浏览器文件全过；浏览器 `form-actions.e2e`、`work-placement-plugins.e2e`、`content-portable-regressions.e2e`、`model-ready-surfaces.e2e` 共 19 条全过。全量由统筹在 CI 跑。
 - 变基到 #551 合入后的 main（`19823a62`）后重跑：门禁 `--base origin/main`、`boundary:check`、`page-assets`、页面事件通过；Form 与门禁相关的 11 个非浏览器文件、7 个浏览器文件（另加 `goal-form-viewport`、`policy-form-binding`、`remaining-forms-viewport`）全过。Runtime 停 Form 时库先关（`home-plugin-executor.ts`、`plugin-host-services.ts` 的 `dispose`），#551 第 7 片那次原生崩溃统筹重跑已过，判为跑机环境。
 
+Form 发布授权补漏（2026-10-19，§10.29 统筹追加的 P1，③；分支 `fix/form-promote-authority`）：
+- 问题：Form 的「存成成果」与修复前的 Dataset 逐行同构（`plugins/native/form/src/promote.ts`、`actions.ts` 的 `promote`）。`begin` 提交后到 `artifacts.publish` 之间不再问原调用方，被取消、撤权的调用仍会多写一份成果（S-18）。
+- 修法：照 Dataset（`W5-01-DATASET-06`）与 PPT（`W5-01-PPT-07`）：
+  - 两个业务写入在事务里、第一条 SQL 之前，同步检查原调用方的 `signal` 与 `assert_authority_current`；
+  - 发布前 `beforePublish` 先等原调用方的 `beforeEffect` 再查；
+  - 真正调用发布的包装里紧前再查一次。
+- 验收 `W5-01-FORM-01`（`tests/form-promote-authority.test.ts`）：真实 `createFormPlugin` 与 SQLite，五个交错点（入口到 begin、begin 到发布、异步检查通过后到真实发布、成果写出后到完成、完成记录的 `beforeEffect` 通过后到它的 SQL），每个点分别取消、撤权、提供方被替换（`actions.provider_changed`），只留已经合法提交的阶段；另有正常对照。
+- 同一片：`W5-01-PPT-07`、`W5-01-DATASET-06` 补上第五个交错点与提供方被替换；三份用例登记进 `docs/system/SECURITY-INVARIANTS.md` S-18 的 CI 列，并加进 `test:security`。
+- Pages 不用改：`promotePagesDocument` 从 begin 经发布到完成都是同步的，中间没有 `await`，取消或撤权插不进这三步之间。
+
 W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
 - 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。
 - 大小：宿主不再发 `files.js`、`git.js`、`diff.js`、`text-stats.js`（共 1,736,113 字节）；加载器多带四个包名，同片把它里面重复三次的失败文字和两处收尾合成一处，`molis-work-workbench.js` 净降 8 字节。`tooling/gates/page-assets.json` 删掉四条、降一条。
@@ -522,6 +546,12 @@ W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工�
 - 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
 - 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
 
+W5-01-PPT 收尾（2026-10-19，§10.29 #748 复查的 P2，③；分支 `chore/closeout-ppt-ports`）：
+- 删 `apps/local-host/src/creative-artifacts.ts`：里面是 PPT 的三个旧端口（行头、写版本、读版本）和对 PPT 插件的 import，PPT 迁到 Runtime 后已经没有调用方（[privileges.md](privileges.md) PG-109）。`tests/document-plugins-error-model.test.ts` 去掉专扫这个文件的断言；`tooling/gates/error-owners.json` 的 `artifacts` 去掉这条路径，文件没了，路径按门禁规则必须离表。
+- 同片收掉 #733 复查的两条 P3：
+  - `builtin-instructions.ts` 的注释改成创作台的 Agent。
+  - Cognia 没有模型时的提示按预期变化处理。平台规则 D4-b 只给 Host 写的一句「请先在「模型设置」里连接文字模型」；Cognia 原句「……导入、搜索和阅读仍可使用。」不留，它在 `plugins/native/cognia/src/en.ts` 里已无人使用的翻译一并删掉。
+
 W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
 - 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。
 - 包：`store.ts` 的 SQL 端口（`DatasetSql`/`DatasetStores`/`ownDatasetStores`）与 `DATASET_DATABASE`；`actions.ts` 读/写分开；`promote.ts` 三段写（intent → publish → complete）；新增 `plugin.ts` 与 13 条 Manifest 路由（`/datasets…`），`max_body_bytes` 保持 1,000,000 B，CSV 的 2,000,000 字符仍是动作层限制；导出 `createDatasetPlugin`/`DATASET_DATABASE`，删旧 `routes.ts`/`route-handlers.ts`。
@@ -530,6 +560,7 @@ W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选
 - 测试：`dataset-actions` 经宿主动作；`dataset-mcp` 改一个常驻 Host + 网关；e2e 路径更新；公开 action id/version/schema/provider 不变。验收编号 `W5-01-DATASET-01` 起。
 - 证据（2026-10-18，本地；未推、未开 PR）：整体构建通过（machine-slot，37.6 s；增量 15.9 s）；`tests/dataset-actions.test.ts` 11/11（`W5-01-DATASET-01`）、`tests/dataset-mcp.test.ts` 1/1（`W5-01-DATASET-02`；同一测试进程内构造 MCP gateway/adapter，关闭并重建 Host 对象验证持久化重开，不是外部 MCP 子进程或 OS 重启）、`tests/dataset-actions.e2e.test.ts` 3/3 与 `tests/dataset-file-import.e2e.test.ts` 6/6（`W5-01-DATASET-03/-04`）、`tests/creative-tools-plugins.test.ts` 8/8、`tests/builtin-plugin-assembly-gate.test.ts` 6/6；`pnpm boundary:check` 通过；health 对 merge-base `aceffff86` 通过；`tests/action-contract-snapshot.test.ts` 25/25、`tests/page-assets-budget.test.ts` 71/71；`page-assets` 里 `dataset.js` 25,832 → 25,632 字节（低于 merge-base，已 `--update` 降预算）。动作快照多 5 条 `sdk.artifacts.<Dataset 安装>.{publish,read,own,head,record}@1` 宿主行，来自 Dataset 的 Runtime 安装；Dataset 自己的动作 id/版本/schema/提供方不变。`package-inventory --table` 的 Dataset 行已从构建期改为 Runtime。
 - 未验证：全量回归（按 Codex 与本线规则交 CI/统筹）、真实 Home、`#684` 合入后的 main 重跑；等 Codex 在 `to-dsh/w5-dataset.md` 给出空位与基线后再推送。
+- 发布授权补漏（2026-10-19，§10.29 的 P1，③；分支 `fix/dataset-promote-authority`）：#749 合入的发布在 `begin` 提交后到 `artifacts.publish` 之间不再问原调用方。现照 PPT（`W5-01-PPT-07`）补齐：两个业务写入在事务里第一条 SQL 前同步检查原调用方的 `signal` 与 `assert_authority_current`；发布前 `beforePublish` 先等原调用方的 `beforeEffect` 再查；真正调用发布的包装里紧前再查一次。验收 `W5-01-DATASET-06`（`tests/dataset-promote-authority.test.ts`）：真实 `createDatasetPlugin` 和 SQLite，四个交错点（入口到 begin、begin 到发布、异步检查通过后到真实发布、成果写出后到完成）分别取消、撤权，只留已合法提交的阶段；另有正常对照。
 
 W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `feature/w5-01-workflows-store`，基于 `origin/main 7faaa027c`，未推、未开 PR）：
 - 范围：Workflows 仍按每个项目一个 Runtime 实例；本片只改 `plugins/native/workflows/src/store.ts` 的窄 SQL 端口（`WorkflowsSql`/`WorkflowsStores`/`ownWorkflowsStores`）与唯一 `WORKFLOWS_DATABASE`（`store_name: "workflows"`、version 1、原 schema/两表形状不变），`openWorkflowsStore` 保留 `{home}/workflows/workflows.db`、WAL、`applySqliteBaseline` 与关闭归属；`WORKFLOWS_HOME_STORE`、`project-data.ts` 与发布库版本表引用同一份，删除 `WORKFLOWS_STORE_BASELINE` 别名。
@@ -555,7 +586,7 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 
 验证命令：`pnpm build`、`pnpm workspace:build`（机器 build 槽位串行）；`node scripts/run-tests.mjs` 加上述测试与两包 README 的必跑列表（浏览器走 browser 槽位）；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main`。2026-10-17 本地证据：整体构建及 workspace 构建通过；翻译 2 文件 73 项、两包必跑 24 文件 185 项、真实浏览器 2 文件 6 项、门禁集成 2 文件 136 项全部通过（合计 30 文件 400 项）。85 条英文逐条与迁移前实际 EN 比较相同；中英桌面/窄屏生成返回的 provider 次数与图片字节通过。health 对 merge-base `4726820a8` 与 boundary 通过。Images 静态脚本 22,546→21,978 B（−568 B），预算随实测下调；内联翻译脚本中文 952→5,920 B（+4,968 B）、英文 683,136→681,991 B（−1,145 B）。RAC-56/57/58 已验证。2026-10-17 用户分别批准“允许新增检查”和“允许这项内联增长”：登记检查仅增加拒绝、不放宽已有规则；中文内联增长限于上述 +4,968 B，其他静态预算不增长。RAC-59 已按获准补丁落实并验证：未登记、只有 import、无关对象与错误字段四种场景均拒绝；两种 `--update` 写过基线后仍拒绝；导入别名通过；断开真实 Images 目录登记也被发现。登记识别按导出名字、不解析模块路径，边界与现有英文词典检查一致。RAC-60 的本地构建与门禁已通过，最终集成与 CI 仍待。未宣称整个 W5-03 完成。
 
-### W5-13 补片：后台作业授权读取失败不冒充工作删除（2026-10-17，进行中）
+### W5-13 补片：后台作业授权读取失败不冒充工作删除（2026-10-17；已合入 main：#754 `ffb3db076`）
 
 收尾组合验证（2026-10-18）：已合入 Pages 及其前置的现有 Runtime、成果服务和 Module 出口候选；完整 build、API/动作快照（均无额外变化）、boundary、merge-base health 与资源检查通过。真实暂时读不到再恢复的作业路径、外部检查安全及 SDK 作业回归 3 文件 72 条通过；日志 `/tmp/molis-job-combined-*.log`。25 项资源仍 7,478,901 B，本修复无页面变化；原 64 文件 581 条证据保留。共享核心全量与正式 PR/CI、合入 main 仍待，未将本地候选记作主线已修。
 
@@ -588,7 +619,7 @@ W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保
 | --- | --- | --- |
 | RAC-20 | `W5-01-STREAM-01`：真实动作进度先于唯一结果或错误末行；JSON 路由不获得 emit；Home 路由的可信项目身份保持；模型文字增量按原顺序交给插件，非文字事件不转发 | 路由：`tests/security-invariants-plugin-route-stream.test.ts`、`tests/security-invariants-home-route-project.test.ts` 通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
 | RAC-21 | `W5-01-STREAM-02`：Manifest 拒绝非法 stream 和请求体上限；36,000,000 字节可进入，超一字节在处理器前以 JSON 413 拒绝 | `tests/security-invariants-plugin-route-stream.test.ts`、`tests/plugin-declaration-rules.test.ts`，通过 |
-| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
+| RAC-22 | `W5-01-STREAM-03`：伪造末行字段被丢弃，插件在拒绝里写的 `call_id` 也是（流与 JSON 两个出口只带 Host 记录的号）；单行、行数和总字节超限均取消且只出一个错误末行 | `tests/security-invariants-plugin-route-stream.test.ts`，通过 |
 | RAC-23 | `W5-01-STREAM-04`：Home 与项目流在断连、停用、撤权和升级后结束；原处理器仍被阻塞时连接已结束，释放后业务写入被拒；恢复后存储无晚到数据；模型文字回调在取消/停用/撤权/请求结束后拒绝 | 路由：`tests/runtime-plugin-http-discovery.test.ts`，8 种真实 HTTP 中断通过；模型：`tests/security-invariants-plugin-model-progress.test.ts` 通过 |
 | RAC-24 | `W5-01-STREAM-05`：反复成功、抛错、取消、停用后计时器均回到零；停用后 emit 当场拒绝 | `tests/plugin-route-stream-lifecycle.test.ts`，通过 |
 
@@ -991,6 +1022,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 2026-10-18 | 目录条目什么时候删（§10 第 9 项，弹窗） | 保留到 W5-02 由声明生成（推荐）；迁一个删一个 | 保留到 W5-02 | W5-02 在本轮范围里，生成后一次删掉手写条目 |
 | 2026-10-18 | Characters 并进哪里（§10 第 8 项，弹窗） | `modules/characters`（推荐）；`apps/local-host` | `modules/characters` | 宿主只装配；路由路径保留、客户端不改；「角色」成果类型由 Module 声明 |
 | 2026-10-18 | 合并与全量（弹窗；替代同日一次性的「只看 Verify」做法） | Verify 过即可合、每批一次集成全量（推荐）；只在 main 定期跑全量；每个 PR 都跑 | 每批一次集成全量 | 单个 PR 不跑全量；同时待合的 3～6 个 PR 先合成集成分支跑一次全量，过了按依赖逐个合（每个仍要 Verify）；红了只拆出引入失败的那个。共享核心的 PR 一定在批里 |
+| 2026-10-18 | 全量红了停在哪里（用户在统筹会话里提出，#716） | 用户直接给出 | 停在第一个两次都失败的文件，其余分片取消 | `run-tests.mjs --bail` 加 matrix `fail-fast: true`：重跑通过的仍算 flaky，不让分片变红；两次都失败的，分片不再开新文件，正在跑的也停掉，其余分片随之取消。代价：一次红的运行只报第一个失败，几个不相关的失败要一个个修、一次次跑；只红 main 上也红的用例时，这次运行证明不了其余文件是绿的，要在 main 修好后重跑全量（`docs/system/PARALLEL-DEVELOPMENT.md` 第 7 节） |
 | 2026-10-18 | Computer Use 的系统打开/保存面板（CU-G09，弹窗） | A 先拿真机事实、独立进程的面板继续拒（推荐）；B 加窄例外；C 绕开面板 | A | 只把同进程 sheet 的情况补成真机用例；独立进程的面板请用户自己完成。落点校验与 S-25 不变（`specs/computer-use/open-decisions.md` 第 1 节） |
 
 **待决（开工后攒批弹窗问）**：
@@ -2858,7 +2890,7 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 
 | PR / 合入提交 | 当前复核结果与证据边界 |
 | --- | --- |
-| #675 / `b75e20738` | 后台作业由工作图与 Host wait 持有，结束通知、卡片和新轮材料从同一图读取；查状态前重新取得工作的精确动作 client。发现一项已复现的缺陷：`AssistantJobs.#follower` 将 SQLite 读取失败也当作工作不存在，检查器据此给出 refused，使步骤永久转为 unchecked；与已定的“暂时读不到则 unknown、有界再查”相反。本线本地修复 `88d07caec` 只将 owner 的 `assistant.not_found` 当不存在，真实排他锁→释放→原步骤恢复测试及相关 64 文件 581 条通过（RAC-61/62）；修复尚未推送或合入，main 仍有此缺口。`assistant_jobs` 的历史清理仍按 §10.26 留给已批准的后续库维护。 |
+| #675 / `b75e20738` | 后台作业由工作图与 Host wait 持有，结束通知、卡片和新轮材料从同一图读取；查状态前重新取得工作的精确动作 client。发现一项已复现的缺陷：`AssistantJobs.#follower` 将 SQLite 读取失败也当作工作不存在，检查器据此给出 refused，使步骤永久转为 unchecked；与已定的“暂时读不到则 unknown、有界再查”相反。本线本地修复 `88d07caec` 只将 owner 的 `assistant.not_found` 当不存在，真实排他锁→释放→原步骤恢复测试及相关 64 文件 581 条通过（RAC-61/62）；（2026-10-19 更正：#754 已把同一修法合入 main，`ffb3db076`，见 §10.28、§10.29。）`assistant_jobs` 的历史清理仍按 §10.26 留给已批准的后续库维护。 |
 | #683 / `4726820a8` | Feed 调用取消后停止后续判断。共享 flush 只放回尚未尝试的主体，已尝试的主体不重放；`judgeOwn` 不把自己剩下的内容交给其他调用身份。实际 `feed-sync-concurrency` 验取消后零后续调用、后续 flush 的顺序与身份、恢复后明确重试；没有靠跳过失败断言通过。 |
 | #680 / `8abfffc02` | `workView` 逐项构造合同字段，必选项由类型约束、可选项由映射覆盖，旧存储的额外字段不泄露到视图；委派关系由图归属读回。`assistant-work-view` 经真实 SQLite 写入额外键后调公开服务，断言返回键和业务值，而非仅验证测试用映射。没有改库版本或读写真 Home。 |
 | #681 / `42c968efe` | 每轮从其可信 owner 的当前项目动作目录取种类，按安装聚合、同时具备搜索和读取、过滤隐藏与不可用项；SDK 名称/长度/数量限制在边界处理，不把坏条目送进模型。无端口或空列表时保留 Runtime 内置种类是本片明示合同；两个项目、外部插件、非本地 actor、伪造输入及不合格名称有拒绝用例。安全编号 S-32 与引用已一致。 |
@@ -2913,6 +2945,139 @@ Prologue：#24～#27 已在 10.13 复查过，之后没有新的 PR。
 收尾状态（2026-10-18）：本轮独立复查停止扩展，后续复核交接手人。GitHub 当前确认 #661 已以 `de6dbfc8b`、#699 以 `7faaa027c`、#709 以 `a19524f58`、#703 以 `63639a764` 合入；#708 仍在途，head 为 `c4e6d38e0`。以上是合入状态核对，不冒充重新审查这些最终候选的全部变化。旧运行和旧 head 的失败记录仍按上文归属保留。
 
 当前待处理的已复现 P1 是 #634：`placement-call` 的 revert 在等待与最终同步提交处仍缺关闭状态复核，实际 main `63639a764` 与前述已测实现相同；两种交错失败及隔离最小修复四项通过的证据保留，未在本次收尾中启动新修复。#675/P1 的既有修复已接 actual main，最终组合候选 `729ce024d` 的整体构建、boundary、health 及 3 文件 72 条通过，原 64 文件 581 条证据保留；当前仍待本线 PR/CI 合并，不能记作 main 已修。#700/P2 已由 #711 合入且原竞态独立复现通过。#706/P2 显示问题与 #692 输出预算文义仍保留待核，不把未复核项写成已解决。材料安全编号在当前候选统一为 S-39，旧段落的 S-34 只是当时冲突记录，不再要求占用现行编号。
+
+### 10.28 2026-10-18～19 统筹接手复查（Claude ①；读到 main `2e5bc0a7d`，其后 #740 合入为 `be0158e53`）
+
+本节接 §10.27，是 10-18 交接后统筹会话的第一轮复查。范围是交接时 main 上 §10.27 没有审过内容的合入（它只核了合入状态的也算），外加 #740 与在途的 #733。依据有三：防腐线最初六份原文（`docs/prompts/` 下四份与 `specs/archive/` 下两份）；`coordination/2026-10-13/ANTI-CORRUPTION-REVIEW.md` §3 的 27 条；§1 末尾 2026-10-18 各行。
+
+怎么读的：
+- 按合入 main 的 squash 提交和当前 main 代码读。
+- 全程只读：没有构建、没有跑测试、没有碰真实 Home。
+- 写「需复现」的条目还没有运行证据，由统筹排时段，不当成已证实。
+- CI 通过、作者自查、已经合入，都不单独算合规。
+
+每条问题后面写归属：② 平台、③ 迁移、④ 需求、① 统筹（文档）。统筹已把各条派给对应会话，排在它的下一片之前。
+
+各插件族与宿主里「只给内置插件的特权和平台缺口」另成一份清单 [privileges.md](privileges.md)，是 ②③ 的排期依据；本节只记逐个 PR 的结论。
+
+**已合入**
+
+| PR / 合入提交 | 结论与证据边界 | 遗留与归属 |
+| --- | --- | --- |
+| #608 / `f86d4d711`，#686 / `054ec6140` | 只改复查文档与本 spec §10.26，通过。 | P3：`docs/reviews/anti-corruption-review-c1531e6dd.md:6`、`anti-corruption-checklist-c1531e6dd.md:3` 写着开发机的绝对路径 → ① 改写。 |
+| #634 / `4bea52c84` → #740 / `be0158e53` | §10.27 记的 P1 已修（补偿移回的等待中放置服务关闭，仍会把对象移回）。`placement-call.ts` 的 revert 在三处重查服务是否还开着：取作用域前、分区等待返回后、最终同步授权断言里；关闭了就抛 `actions.expired`。`tests/security-invariants-placement-revert.test.ts` 新加三条 S-35 交错用例：开分区时关闭、等授权时关闭、移动方提交前等待时关闭，都断言对象不回原处。S-35 行同步。Verify 与 `test:security` 全绿后合入，随下一批集成全量复验。 | 无。 |
+| #675 / `b75e20738`（§10.27 记的 P1） | 写本节时 main 上仍在：`assistant-jobs.ts:161` 的 `#follower` 把库读失败也当成「工作不存在」。检查器据此给出 refused，步骤永久变成 unchecked。修复是 `88d07caec`：只把 `assistant.not_found` 当不存在，其余错误抛给检查器当 unknown，带 RAC-61、RAC-62。写本节时它只在 ③ 接手的 `integration/anti-corruption-closeout-20261018` 上。之后 #754（`ffb3db076`）把同一修法合进了 main：生产文件的 blob 都是 `5dd287d11..f12bd6926`，测试 hunk 逐行相同；`AssistantStore.get` 找不到时抛的正是 `assistant.not_found`。 | 已修。RAC-61、RAC-62 守住（`tests/assistant-business-gateway.test.ts`）。§10.27 的 #675 行和 W5-13 补片标题的状态句，随 §10.29 一并改。 |
+| #699 / `7faaa027c` | 换 Prologue 包，通过。核对了包的份数、sha256、provenance、`patch-history.json`、上游 #42～#46，以及 S-38 行与用例。 | 无。 |
+| #661 / `de6dbfc8b` | 有问题：P2 两条、P3 四条，另有两条待核、由统筹定。<br>已核没问题的：<br>• squash 等于 head `f7d07b658` 加 #717。<br>• 9d94e5eb5 之后的夹具更严；`allowDisabled` 只有 4 处，且都先断言 disabled。<br>• 受管安装：来源固定版本加校验和、`--ignore-scripts`、域名逐跳核对。<br>• 凭据不进日志；connectors 库 1→2，没有运行时迁移。<br>• 取消或撤权后不写观察；续办每次重新取授权。<br>• 错误码用 `defineErrorCodes`；巨大单元 137→136。 | ② P2：S-36 说拒绝 Node、Python、Java、Ruby、Perl 的 loader 环境变量。可 `connector-local-mcp.ts:26` 的名单只有 `JAVA_TOOL_OPTIONS`、`_JAVA_OPTIONS`、`RUBYOPT`、`PERL5OPT`，`JDK_JAVA_OPTIONS`、`CLASSPATH`、`PERL5LIB`、`RUBYLIB`、`PYTHONUSERBASE` 都能过 → 按前缀拒（`JAVA_*`、`JDK_*`、`PYTHON*`、`PERL*`、`RUBY*`、`NODE_*`），每个补拒绝用例。<br>② P2：`connectors.connection.control` 把 enable、disable、remove 合成一个动作，声明的 effect 是 `write`（`connector-management-actions.ts:37-39`），审批卡写「可撤回」。可 remove 会删凭据、协议配置和受管安装目录 → remove 拆成单独的 irreversible 动作，快照与版本随改。<br>② 待核两条，统筹已定：项目 MCP 与发起者核对，见下文「统筹裁定」第 5、6 条。<br>② P3：`project-host.ts:229` 的连接器装配一行 687 字符、4 个 lambda，塞在巨大类里 → 挪进 connector 模块的工厂函数。<br>① P3：S-27 漏了 `molis.connection-ready@1`。<br>① P3：board-wait 扩大了业务角色能声明的工具，PR 没写影响 → 随第 4 条规则补记。<br>③ P3：`connector-management-service.ts:22` 每次启停都打开所有项目库，推 Feed 的连接状态 → Feed 迁移时改成按需读。 |
+| #709 / `a19524f58` | **P1，数据写错会话**（§10.27 只核了候选的输入关闭）。<br>`client.ts:346` 里的两组条件：<br>• `off = !current \|\| sending` 是没有当前会话或正在发送；<br>• `shut = off \|\| unread` 还加上首读未落地。<br><br>问题出在这几处：<br>• 上下文按钮只看 `off`，不看 `shut`：goal、material、method、mcp、actions 在 :360，角色在 :363。<br>• `select()` 只把 `draftOwner` 清成空串（:1171），不清输入框。<br>• 材料、方法、能力和角色的保存（:1445、:1461、:376、:378）都按当前会话 id `saveDraft(id, input.value)`，没有核对 `draftOwner === id`。<br><br>所以新会话 B 首读在途或失败时一保存，A 的话就写进 B 的本页草稿和服务端草稿，B 读完后框里是 A 的话。 | ④（交互线，Coding）：<br>• 六个按钮改用 `shut`；<br>• 面板的 materials、methods 命令加 `draftOwner === current`；<br>• 四个保存入口在 `draftOwner !== id` 时不写 draft。<br><br>需复现：在 `coding-session-first-read.e2e` 加一条：挡住 B 的首读或让它返回 503，点方法保存，再放行。断言 B 的输入框里没有 A 的话，`PATCH /sessions/<B>` 带的 draft 也不是 A 的话。 |
+| #715 / `aceffff86`，#724 / `d9a58f37f` | 通过。<br>• #715：setup-uv 的 SHA 对应 v10.3.0，uv 0.12.19，没有改断言或必需检查。<br>• #724：只把时限放大到 75 秒和 180 秒（按慢机放大，用户 10-15 认可），断言不变。 | 无。 |
+| #716 / `5f03d1e45` | 通过。bail 不吞失败：引起失败的文件进失败名单，退出码 1；被停掉的文件只会少报，不会变绿。 | ① P3：「全量快速失败」这项 10-18 决定只写在 yml 注释和 `PARALLEL-DEVELOPMENT.md:183` → 已随本节补进 §1 决策表。 |
+| #717 / `59fd7850c`，#719 / `4e729b6c3` | **P2**。仓库是公开的，59fd7850c 加进了两份原始采集 JSON（10-17 那份 26,839 行，10-18 那份 14,525 行）。里面有：<br>• `club` 键：私有仓库 molis-club 的本机路径、分支、HEAD，以及 60 个文件的路径与 sha256；<br>• `worktrees` 键：38 个工作树的路径和 1,621 行 git status。<br><br>没有邮箱或令牌。#719 只把它们从树上删了，历史里还在。 | 要不要改写 main 的历史由用户定；红线是不 force push。统筹推荐：不改写，在 REPOSITORY-HYGIENE 记一笔，并给 health:check 加一条，拒绝 `docs/` 下的大 JSON 和 `/Users/` 绝对路径。后者改门禁，按批弹窗问用户。 |
+| #712 / `38beba3dd`，#720 / `b2336d5c4` | 通过。<br>• #712 资源从 1,110,056 涨到 1,110,329（+273），#720 从 1,111,791 涨到 1,111,910（+119），都按父提交的准确数字放行。<br>• baseline 只变小，没有空 catch。 | ④ P3 待核：`context-bus.ts:242`、`context-landing.ts:23-25` 对分屏窗格与主区自报的 place、side_tab 原样保留（旧行为）→ 其他来源一律给 `{place:"main"}`。 |
+| #718 / `62a4d9287` | **P2**。`specs/skill-packs/spec.md:24-27` 的 `pack.json`（§3）和宿主的 `SkillPackRegistry`（§4）是插件之外的第二套安装注册路径，违反 10-18「插件的待遇」。它与 plugin-platform-v2 S1（:229）也矛盾，S1 写的是只有内容的插件。 | ① 改写成「没有 runtime、只有 Manifest 的插件」：扩展 `AgentSkillDeclaration`，走插件的安装与信任；实现归 ④。<br>① P3：plugin-platform-v2 S3 的 Manifest hooks（allow、deny、rewrite 工具调用）是信任边界的变化，要补 SECURITY-INVARIANTS 的条目和「先弹窗」。 |
+| #722 / `6aa8459ac`，#732 / `2b5deedb1` | P3。抽查了 14 条说法，都有代码支持。 | ① 改：<br>• `产品介绍.md:64-66`、`功能全景.md:154-161`、`:182`、`:311`、`:319` 仍把 Sessions、成果、插件创作台、角色当插件，Sessions 的 F-010～F-013 还标「可用」。<br>• F-083「最多 12 页」只是提示词（`ppt/src/prompts.ts:7`）→ 改成「提示模型最多 12 页」。 |
+| #684 / `c5d2b3cf6` | 有问题：P2 三条、P3 三条。<br>已核没问题的：<br>• 宿主文件、路由行、registerProvider 和工作台的构建期舞台都删了，冻结名单也删了 todo。<br>• 目录条目改成 `runtime: { scope: "home" }`。<br>• 库：版本仍是 1，没有补表，没有兜底读；写入经 `database.transaction(beforeEffect, …)`。<br>• 资源 +28 B 按 merge-base 的准确数字放行，S-03 行带新用例。 | ② P2：迁完以后 Manifest 还是 `kind: "native"`，所以按 `local-owner-permissions.ts:17-20` 自动算进本机所有者权限，网页动作走 `local-web-actions.ts:26,49` 的捷径。:17 的注释写「Runtime plugins are not included」，和代码对不上 → 按 Runtime 装配的条目排除，补一条拒绝：撤掉授权后经网页调 `todo.*` 被拒。这一项是 privileges.md「本机所有者权限」那一行的一部分。<br>③ P2：外壳「转为待办」在 `events-secondary.ts:106` 写死了 Todo 的路由和输入形状 → 按能力目录调公开动作。<br>④ P2：`web-onboarding.ts:29,31` 手写 `todo:read`、`todo:write`，`context-onboarding-service.ts:15` 直接 import Todo 包 → 按动作 id 调，权限来自用户授权。<br>③ P3：旧路径 `/api/todo` 没留 404 断言；`web-request.ts:213` 的注释过时了。<br>② ① P3：`homeViewModel` 的形状只在 `PLUGIN-DEVELOPMENT.md:129` 提了一句，contracts 没有类型。 |
+| #713 / `0ffa9842d` | P3。角色版本有两种做法：<br>• `assistant-agent.ts:136-142` 的两个助理角色停在 v1；<br>• todo 的 `roles.ts:11` 停在 v2，经 `BUSINESS_HOST_TOOLS` 多了工具却没升版；<br>• #726 的 Coding 七个角色各 +1；<br>• #661 加 board-wait 也没升。 | ④ 按「统筹裁定」第 4 条升版本，并写进 Skill。<br>④（手册）：SKILL.md 与 PROLOGUE-AI.md 补写 acknowledge-inputs：业务角色经常量自动带上；workspace 角色要自己列；它只记 AI 的自称，不改账本。 |
+| #723 / `f7f8adbf2` | 包本身核过：份数 1，sha256、字节数、integrity 一致，旧包已删，patch-history 的 gitBlob 对，dist 改动的 32 个文件对应上游 20 个源文件。 | ① P3，`vendor/prologue-sdk/README.md` 两处：<br>• :26 说助理的业务轮次「不再列 board-node」，不对。实际是只少了 app-ref，列了 board-wait，board-node 照样提供。<br>• :67、:96、:116、:165、:185、:199、:211 的旧包段落还写「见旁边 .provenance.json」，那份文件已随包删掉 → 改成「来源记录随包删除，从 `<提交>^` 取回」。 |
+| #714 / `e5adc24c2` | P3。放行口径核过，合规。 | ④：<br>• 「当前约定」的英文写在 design-system 的 `input-receipts-client.ts:513`，应放 `apps/workbench/src/i18n/assistant-en.ts`。<br>• :392、:511-512 把句子拆成碎片翻译，N=1 时复数错 → 改用带数字占位的整句。<br>• 命名冲突按「统筹裁定」第 3 条改。 |
+| #725 / `ee78569fc` | P3。`tests/agent-prompt-layers.test.ts:69` 删掉的三句只换成了 `doesNotMatch`，没有用例钉住 SDK 的工具描述里确实有这几句。 | ④ 加用例：读安装包里 search、read、dispatch-subagent 的描述。<br>① P3：手册 spec:1227 §9.5 的 T2 行没写回「定为 Prologue 设计问题，见 BL-173」；BL-173 的出处应为手册 §9.5。 |
+| #703 / `63639a764` | P2 一条、P3 四条；§10.27 只核了合入。<br>已核没问题的：<br>• 取消从 Host 一路传到模型请求的 signal；<br>• 超限、停用、断连都会 `stop()`；<br>• 末行只由 Host 写；<br>• 每段文字交付前同步重查授权；<br>• S-03、S-18 的表行和拒绝用例都同步改了。 | ② P2：`plugin-route-stream.ts:57-58` 的错误末行优先用插件 body 里的 `call_id`，这个号可以在调用记录里查不到。JSON 出口反而用记录的号覆盖 → `refusalLine` 只用 `recordedCallIdField()`。<br>需复现：在 `security-invariants-plugin-route-stream.test.ts` 加一个直接路由，返回伪造的 `call_id`，断言末行不是它。<br>② P3：<br>• `BoundActionClient` 的注释挂错了类型（`actions.ts:423-430`）；<br>• 100 ms 轮询 `active()` 没进 BACKLOG；<br>• STREAM-04 多 import 了一个内部符号 `runningProjectPlatform`；<br>• 拒绝只断言了 `instanceof Error`，没断言错误码。 |
+| #727 / `74f39a47c` | P2 三条、P3 四条，另有一条待核。<br>已核没问题的：<br>• 授权在 Runtime 的 materials-service 里，要求动作声明了权限、是 concurrent、调用者持有这项权限；<br>• 效果前后都核 signal、在不在线、当前授权和 `beforeEffect`；<br>• 公开来源每次请求和跳转前都重查。 | ② P2：S-39 的取消、停用、撤权、升级拒绝都带 `skip: process.platform !== "darwin"`（:111），表里却登记在「CI 里跑」→ 写一份不分平台的拒绝，原生那份挪到「只在本机跑」一列。<br>② ③ P2：S-13 扩到材料服务，但没补测试；灵光把「不可信」声明放在用户能改的指令里 → 灵光改用 `fencedMaterials`，加 S-13 用例，或由平台给材料围栏。<br>② P2：沙箱插件拿不到 materials、model、Home 库和登记指令 → 已列入 privileges.md。<br>P3：<br>• ① Jelly README:30 描述的是已删的文件；<br>• ② `material.invalid_data` 等错误码声明了两次；<br>• ① BACKLOG 补 `{home}/lingguang/models`；<br>• ② 两个 jelly 命名的测试文件改走公开入口后改名。<br>② 待核：插件自调用把受众洗成 user，见「统筹裁定」第 10 条。 |
+| #708 / `23946656c` | 通过：Coding 的错误码用 `defineErrorCodes`；被拒的卡片保留是批准的预期变化；测试更严。 | ① P3：`ai-interaction-experience/spec.md:1123` AC-11 行的包来源仍写 b541a8e6 → 改成引用 vendor README。 |
+| #726 / `f28088b2b` | P3：`prologue-run.ts:149` 抛不带码的 `new Error`，RCPT-365 的 `assert.rejects` 不判别错误。 | ④ 改用 `agentErrors.role_execution_exceeded`，并断言错误码。 |
+| #728 / `a98967d7f` | **P2**。合同（`agent-host-write-checkers.ts:12`）写「裸名或绝对路径」，保存时（`write-checker-actions.ts:23-29`）不查 executable，SDK 却只认裸名（S-38）。带路径保存的，执行时一律被拒；cwd 指向 `.git` 也要到执行时才拒。 | ④ 在 A2-2 之前修：<br>• 保存时拒绝含 `/`、`\` 的 executable 和受保护的 cwd（`agent.write_checker_invalid`）；<br>• 合同注释改成「裸名，在 Host PATH 上找」；<br>• PA-28 补这两种拒绝。<br>④ P3：`agent-host-composition.ts:341` 抛普通 Error，统筹要求记的 BL 没记（和 :133、:155、:173 一起记）。<br>设置页放哪里，见「统筹裁定」第 1 条。<br>#692（§10.27）留下的规格矛盾已由本 PR 解决（:1823、:1873、:1902 改用 `config.tool.observation`），在此关闭。 |
+| #721 / `7509b10ad` | P2：`computer-driver.ts:312`「菜单路径指向 Molis 窗口」这条拒绝，只在 `computer-use-reliability.test.ts:108` 里测（假 helper，能在 Linux 跑），不在 `test:security`。S-25 却写在「只在本机跑」那一列。 | ④ 挪进 `security-invariants-computer-*.test.ts`，S-25 列进「CI 里跑」。<br>④ P3：`computer-act.ts:78` 不再把裸数字当节点编号，可 PR 说「不改合同」→ CU-G11 和 `ui-surfaces.ts` 的注释写明。 |
+| #731 / `09304a129` | P3。 | ④（手册）：<br>• Coding 那组小跑没跑，也没写「未验证」，BL-163 就删了 → §9.5 补上「只在助理上成立」，并跑 16 次。<br>• C4 和 BL-163 的记录缺 §16.3 要求的成本与时延 → 补上，或写「未知」。 |
+| #730 / `f4207e064` | **P2**：删掉了「卡片准备途中改选区，卡片仍按原选区」那条用例，没有等价替换（旧的在 `contextual-todo.e2e:30-62`）。spec §21.6 说「断言不变」，不实。<br>资源 1,111,910→1,113,068（+1,158）按父提交的准确数字放行。 | ④（情境）：补回 Goals 卡片的版本，再给直接新建加一条：`/api/contextual/create` 在途时改选区，断言问模型的 focus 和建出的待办都是第一次的选区。<br>④ P3：<br>• S-40 的跨项目拒绝只在函数层测，要补一条经真实项目路由的拒绝；<br>• 撤销令牌是模块级的全局 Map，上限 50 个、跨项目共用 → 挂到宿主的情境服务，上限按项目算；<br>• `directEligible`、`pathValue` 是从 assistant 内部借的 → 挪进 `action-undo.ts` 共用；<br>• invoke 之前先 `signal.throwIfAborted()`；<br>• 「目录顺序」就是 capability_id 的字典序，在 spec 里写明，BL-174 注明是临时的。<br>浮条读不读助理的 `confirm_always`，见「统筹裁定」第 2 条。 |
+| #735 / `35eea0614` | 通过：Proxy 拦住 RegExp，600 个节点 2 秒内拒绝；全仓库没有别处把模型给的模式编译成正则。 | 无。 |
+| #729 / `ce4df86f1`，#736 / `7d0e7b09b` | P2 一条、P3 六条、待核一条；#736 是测试收紧，通过。<br>已核没问题的：<br>• 宿主文件和路由行都删了，冻结名单同步；每个项目一个实例，由 `project-plugins.ts:246-258` 装配；<br>• 库没动；拒绝 query 和 body 里不一致的 project_id；<br>• 资源放行 +2,231 B 按准确数字，用完的写成拒绝测试。<br>另记一条事实：#729 只过了 Verify 就合入，共享全量 39135082261 有 4/16 片失败，靠 #736 才修好。这正是 10-18「共享核心一定在批里」的理由。 | ② ③ P2：灵光的工作面仍在构建期装配：`ui-composition.ts:117,327`、`renderer.ts:121`、`goals-page-renderer.ts:98,300`。Runtime 返回的 views 没有用上 → 平台补项目级 Runtime 视图的通用渲染，然后删掉这三处手写，`host.md:40,43` 也不再教人写 `render<X>Contribution`。<br>③ P3：<br>• 进度可能发两遍（插件和服务各转一次）；<br>• 每条 POST 路由都声明了 36 MB；<br>• 测试有四处变弱；<br>• `native-plugin-api.ts:8` 的死别名，`personal-plugins-review-fixes.test.ts:191` 还在断言它；<br>• #736 的注释指错了测试。<br>①：<br>• `material.read`、`source.read` 加了权限却没升版本，已有的 MCP 授权会失效，要补影响说明；<br>• `max_body_bytes` 的上限文档里两处冲突（12 MiB 与 36,000,000）；<br>• migration.md 灵光那一行；<br>• S-03 的测试列表；<br>• RAC-36 没有测试点名。<br>③ 待核：灵光 e2e 在混合集成分支上失败，要在纯 main 上复跑才能定是不是 #729 引入的。 |
+| #737 / `5972daefd` | P3：AGENTS.md:34 说旧行为「都标了 2026-10-18 改」，不成立：字面标记 9 处，别的写法约 27 处，还有 8 处没标。没标的是：`skills/molis-plugin-dev/elements.md:15`、`:111`，`host.md:134`，`EXTENSION-POINTS.md:83`，`RUNTIME-MIGRATION.md:9`、`:133`，`SECURITY-INVARIANTS.md:29`，`side-shelf/spec.md:270`。 | ① 统一成字面标记，补上没标的（`skills/` 避开全量时段）。决策日志里的行（spec:264、:441，RUNTIME-MIGRATION:29）留作历史指针。代码改完一处，就删掉对应的标记。 |
+| #739 / `2e5bc0a7d` | 只改本 spec（落 §10.27）和交接，通过。 | 无。 |
+| #706 / `149faac7d`（§10.27 记的 P2） | main 上仍在：`input-receipts-client.ts:408-409` 的 added 只用 `word(node.state)`，节点类型（:13）不带 owner，所以本人处理的步骤也显示成模型回报的。 | ④（回执）：<br>• 节点类型加 owner；<br>• person 的 succeeded、failed 显示「你标记完成／失败」；<br>• 补英文和 RCPT-366 的三种对照。 |
+
+**在途**
+
+| PR / head | 结论 | 遗留与归属 |
+| --- | --- | --- |
+| #733（Cognia 迁到 Home Runtime；审时是草稿 `873f9f773`，2026-10-18 19:03 UTC 由 yijunw0212 自己入队合入，`739e6cb29`，没有等统筹终审） | P3 四条、待核一条。<br>门禁数字全降：<br>• hostPluginFiles 26→24<br>• registerProvider 23→22<br>• pluginOutsideMentions 409→402<br>• rawFetch 85→84<br><br>RAC-42、RAC-43 覆盖停用、撤权、重启、取消、断连之后不留晚到的草稿。附件头固定，插件给的 mime 盖不过；45 MB 上限是用户 10-17 批准的。 | ② 待核，统筹已定：插件改用 `node:fs` 直接读用户给的绝对路径，平台没有对应服务 → 见「统筹裁定」第 11 条，并更正 §12.9。<br>P3：<br>• ① `web-request.ts:211`、`builtin-instructions.ts:18`、`EXTENSION-POINTS.md:123` 的注释和文档过时；<br>• ② 模型显示名的用例归错了 S-18；<br>• ③ 没有模型时给用户的提示文案变了，要写成预期变化，或者留原句；<br>• ③ 宿主和工作台点名 Cognia 的名单，随 W5-02 处理。 |
+
+**统筹裁定（2026-10-18～19）**
+
+原文没写死、需要统筹定的取舍，按「技术项看防腐后果，功能项取体验最好的推荐」定下：
+
+1. **A2-3 写后检查器的设置页**放在平台自己的项目设置节，和工作区授权放在一起，不挂 Coding；执行器按会话声明启用，不看插件名（④）。
+2. **浮条新建**（记成待办、记下灵光）是本人亲手点的，不读助理的逐项确认 `confirm_always`；spec §21.6:1399 照此改写（④）。
+3. **助理侧栏的「当前约定」改名「AI 记下的约定」**，英文 "What the AI noted as agreed"。Goals 的「当前约定」是人确认过的事实，这里是 AI 的自称，没有核对过。回执 spec §9.2 改成「AI 自称、未核对、不可编辑」，GLOSSARY 记下两个词的区别（④）。
+4. **角色版本**：角色实际拿到的工具集变了就升版本，经共用常量变的也算。写进 `skills/molis-prologue-ai`；两个助理角色和 todo 角色补升（④）。
+5. **项目 MCP**：带项目作用域的调用者只管本项目的 MCP，跨项目拒绝，列表也按项目过滤；Home 级的本人可以管全部。补拒绝用例，S-36 的文字同步（②）。
+6. **发起者核对**：`connectors.local.execute`、`cli.install`、`cli.connect` 一律用 `connectorAuthorizationInitiator` 核对同一用户、项目和会话，S-37 同步（②）。
+7. **删项目时清插件数据**改为声明式：平台按声明的分区和文件删除，先经平台的后台作业服务停掉该项目的作业，不另设 Runtime 钩子。Images、Alchemist 删前要先停 worker，和 10-18「用现有声明、不加钩子」看似冲突，这样就合上了（②）。
+8. **随宿主发布的插件跟着宿主版本升级**，这算安装信任的一部分，不算特权。
+9. **S-32 去掉「内置优先」**：对象种类按插件分配公平的配额，按 plugin id 排序（②）。
+10. **插件经 `services.actions` 调自己的动作时**，保留外层调用的受众。`allowModelDownload` 只认 Host 发的路由 control，或本人的直接调用（②）。
+11. **Cognia 读用户指定的本机目录**，要一项带同意流程的平台服务，任何插件都走它。这是信任边界的变化，② 设计时先弹窗问用户。
+12. **RUNTIME-MIGRATION §5.4 第 3 条**与 10-18 冲突，以 10-18 为准（① 改文档）。
+13. **Characters 的界面落点**：处理器进 `modules/characters`，界面由 ui-host 或宿主登记的工作台面提供（推荐；② 做 W5-06 时确认）。
+14. **X-5 与「Goals 按标准迁」的读法**：
+    - Goals 的事实只有 Goals 一个主人。`modules/goals` 和 `governance-collaboration` 只有 Goals 在用，它们的表随 Goals 插件声明，由 X-5 项目库服务按声明建，表名和数据不动。
+    - 10-18 那一行说「仍归 Module」的，是多方共用的 Attention、Feed、Sources、Signals 等。
+    - Artifacts、ProcessItems 是平台事实；Attention、ContextLedger 由平台经 services 提供。
+15. **放置决定不变**：Alchemist、Images 仍在 Home 级。由此，Home 级实例要能按调用所在的项目给出 database、artifacts 和路由，这一项列为平台缺口（②）。
+
+**待用户定（统筹按批弹窗，每项带推荐）**
+
+- ~~#717、#719 的历史怎么处理~~：用户 2026-10-18 定「不改写，记一笔并加门禁」。记在 `docs/system/REPOSITORY-HYGIENE.md`「原始采集与开发机路径」一节（#756，`7e6955b93`）；门禁归 ② 平台，拒绝 `docs/` 下的大 JSON 和带用户名的开发机绝对路径。
+- ~~Codex 与 ③ 怎么分工~~：用户 2026-10-18 约 19:10 UTC 定「停掉 Codex，③ 全接」，#733 让它合完。但此后 Codex 又自己合了 14 个 PR，见 §10.29。
+- W5-02 之后，要不要把「新插件在包外被点名」的额度降下来（改门禁）。
+- ② 排到时再问：PRIV-34 安装同意与 S-34、PRIV-38 连接器与 S-12、默认连线的同意，以及涉及真实 Home 存量的几项。清单见 privileges.md §5。
+
+**本轮没做的**
+
+- 「需复现」各条都还没有运行证据。
+- 没有重跑任何上游 SDK 或真实模型的评测。
+- 交接后新开的在途 PR，由统筹在各自合入前单独审，结论记入下一节。实际上 Codex 在停止决定之后又自己合了 14 个，事后复查见 §10.29。
+
+### 10.29 2026-10-19 Codex 停止决定之后 14 个合入的事后复查（Claude ①；读 main `ffb3db076`）
+
+用户 2026-10-18 约 19:10 UTC 定「停掉 Codex，③ 全接」。此后 19:27 到 10-19 00:23 UTC 之间，yijunw0212 账号又自己入队合入了 14 个 PR（#738、#742～#754），统筹都没有终审。合入后，main 末端的全量（`integration/main-check-20261019`，run 39184391653）第 6 片变红：`tests/interaction-no-crosstalk.e2e.test.ts` AC-05 的浏览器夹具清理在 `tests/fixtures/goal-browser.ts` 的 5 秒期限内没关掉 HTTP server，片内重试同样失败。前一晚在 `739e6cb29` 上的夜间全量是绿的，所以回归在这 14 个合入之内。
+
+统筹按 §3 逐个复查了实际合入 main 的差异：每个 PR 一路只读审阅，读的是 `ffb3db076`，没有构建，也没有跑测试；「需复现」的各条都还没有运行证据。结论见下表。表里不重复 §10.28 已记的条目（#684 的本机所有者捷径、#727 沙箱缺服务、统筹裁定 7 与 15），只作引用。
+
+| PR / 合入 | 结论 | 主要问题（P1/P2；P3 见归属会话的清单） | 归属 |
+| --- | --- | --- | --- |
+| #738 平台文件服务 / `4caeba1e4` | 有问题 | P2：`services.files` 只能由宿主可信启动条目选择，Manifest 不能声明（`packages/contracts/src/platform/plugin-files.ts:15`，`apps/workbench/src/builtin-plugins.ts:140`），属于 10-18 之后新开的内置私路。P3：S-18 的写法比代码严（写入接受插件自己拼的 control）；项目执行器的 files 落在 Home 存储，不按项目分区，删项目时不清；合入时没有消费者。 | ② |
+| #742 后台作业服务 / `be233271a` | 通过，有 P3 | P3：S-31 没写后台权限可以活过请求这一例外；`mcp-background-authority.ts:28` 每 200 ms 同步读一次偏好；沙箱插件拿不到 background；合入时没有消费者。 | ②（S-31 文字 ①） |
+| #743 Images、Jelly 迁到共用模型端口 / `1da96e18c` | 有问题 | P2：`services.model.configuration`、`services.imageGeneration`、`onProjectDeleted` 只给可信目录条目，沙箱插件和 Manifest 都拿不到。P2：`PluginAppContribution.onProjectDeleted` 是新加的 Runtime 生命周期钩子，与 §1 10-18「用现有 project_data 声明、不另加 Runtime 钩子」和统筹裁定 7 冲突（`apps/local-host/src/plugin-project-cleanup.ts:38-41`）。P3：Jelly 有死导出 `ownJellyStores`，`openJellyStore` 是绕开 Runtime 的第二条 SQLite 路径；Images 先改 Connector 绑定后写库，两步不是原子的。 | ②；Images、Jelly 部分 ③ |
+| #744 模型回执与 query 委托 / `dca26fd13` | 有问题 | P2：Home 路由和项目 Runtime 路由的 `granted` 取 `LOCAL_OWNER_PERMISSIONS`（`apps/local-host/src/home-plugin-http.ts:101,109`、`web-request.ts:153`），对 Manifest 仍是 `kind: "native"` 的 Runtime 插件，路由层的权限门总是放行。动作层的 `requireGrant` 还会拒，所以眼下没有越权结果；但这是把 #684 的捷径扩到了所有 Home 路由。需复现：撤掉 `images:read` 后 GET Images 的 jobs 路由，应在路由层以 403 拒绝。P2：合同要求在提交前调用模型结果的 `validateResult()`，平台却不强制，除 PPT 以外的内置消费者都把 result 丢了（Jelly、灵光、Todo、Form、Dataset）。P3：`invokeQuery` 与 `query_only` 没写进 Skill、手册和 action-architecture spec；squash 正文列了约 150 条别的 PR 的提交标题。 | ②；各插件 ③；文档 ① |
+| #745 Owner 文件服务 / `52f84e122` | 有问题 | P2：没有生产消费者（Shelf 还没切过来）。P2：这是第二套文件服务，与 #738 的授权规则不同。P2：`initialize_owner_files` 是只有内置目录条目能用的启动钩子，与统筹裁定 7 冲突（`apps/workbench/src/builtin-plugins.ts:77-78`、`apps/local-host/src/plugin-platform.ts:58`）。P3：平台层 import 手写的内置目录，每次启动项目平台都 create 一遍；权限位 0o644/0o755/0o555 偏宽（需复现）；路径不存在时抛原始 ENOENT。 | ②；Shelf 接线 ③ |
+| #746 项目成果与过程项的恢复查询 / `dfa3914be` | 通过，有 P3 | P3：成果的 `head`、`readOwn` 只比 `producer_plugin_id`，过程项还比签名和 owner。这是旧行为，本 PR 没改，但两套口径并存。 | ③（按裁定 14 以后归平台） |
+| #747 Alchemist 执行队列排空与显式恢复 / `dee72e041` | 有问题 | P2：`runs.continue` 拒绝时抛普通 `Error`，六个码（`alchemist.job_lease_active`、`resume_context_changed` 等）没有用 `defineErrorCodes` 声明，调用方只收到 `actions.execution_failed`，原码混在 message 里（`plugins/native/alchemist/src/studio/server/services/job-resumption.ts:84,102-104,111,118`）；测试只写裸的 `assert.rejects`，没核对码。P2（统筹裁定 9）：Exploration 在模型结果未知的 `generating` 检查点上继续时会再调一次模型，`ResumeView.unknownCall` 却只对 Lens 置位。P3：`runs.list` 先取最近 100 条再按状态过滤，更早的待恢复任务看不到；`runs.continue` 运行时按任务类别另要 `alchemist:generate`、`alchemist:collect`，声明里没有（统筹裁定 10）；`runs.resume` 实为只读查询，名字像命令；`scripts/gates/page-assets.mjs:243` 用完的 workbench 放行条目没删。 | ③；门禁条目 ② |
+| #748 PPT 迁到 Runtime / `a0ceae7e3` | 有问题 | P2：`apps/local-host/src/creative-artifacts.ts` 仍导出 PPT 的三个旧端口（`:21,28,57`），并 import PPT 插件（`:6`），已没有调用方。同一文件里 Dataset 的三个端口 #749 已删。P2：工作台仍在构建期按插件名装配 PPT 的界面（`apps/workbench/src/ui-composition.ts:36-45,109,282`、`renderer.ts:94-104`、`goals-page-renderer.ts`），Runtime 声明的 `views` 没用上，与 §10.28 对 Lingguang 记的 P2 同类。P3：`docs/system/RUNTIME-MIGRATION.md` 的状态与数字过时。 | 旧端口 ③；按 `views` 挂载的通道 ②；文档 ① |
+| #749 Dataset 迁到 Runtime / `25dfd479a` | 有问题 | P1（已复现，2026-10-19 由 #761 `975686cc7` 修好，`W5-01-DATASET-06`：撤掉修复时，在入口到 begin 之间撤权就多写一份 intent）：推广在 begin 提交之后、`artifacts.publish` 之前不再核对原调用者的取消和撤权（`plugins/native/dataset/src/promote.ts:51-63`）；`publish` 以插件身份执行，complete 才再过一次 `beforeEffect`。PPT 在 #748 用 `current()` 与 `beforePublish` 补了这个窗口，Dataset 没跟上。两步之间可能只隔几个微任务，交错能否真的落进来要靠用例证明。不管能不能复现，都照 PPT 补齐。需复现：仿 `tests/ppt-promote-authority.test.ts` 新建 Dataset 的同类用例，在 begin 之后、publish 之前撤权或取消，预期成果数为 0、发布不进入 completed。P2：模型结果只取 `.text`，丢了 `validateResult()`（统筹裁定 5）。P2：工作台构建期装配 Dataset 的界面，同 #748。 | ③；通道 ② |
+| #750 Workflows 改用 store 端口 / `beffc61d8` | 通过，有 P3 | P3：`ownWorkflowsStores` 只有测试在用，生产的 `actions.ts` 仍走 `withStore`；`list()` 每处理一行都重新 prepare 一次计数查询。另有旧问题：`docs/releases/v0.3.0.md` 的 Todo 行还写 `TODO_STORE_BASELINE`。 | ③；发版文档 ① |
+| #751 Images 稳定翻译键 / `b80d3f789` | 有问题 | P2：稳定词典登记在 `BUILTIN_PLUGIN_CATALOG` 的 `messages` 字段，翻译门禁的 `MESSAGES_ROOT` 写死这份文件（`scripts/gates/translations.mjs:66,258,537-541`），第三方或生成的插件给不了稳定键词典。P3：`images/src/client.ts:226` 借用别的主人的键，拼成碎句。 | ②（并入 W5-02；门禁要改，先问用户）；Images ③ |
+| #752 Module 存储收到服务边界后面 / `45a7762f2` | 通过，有 P3 | P3：入口仍导出没有外部消费者的装配件（`modules/private-work-context/src/index.ts:40,44,46`）；`GovernanceEventDecisions` 直接写 `goal_event_trusted_decisions`；门禁只按名字认 Repository、Store。P3：改了门禁脚本 `scripts/check-package-boundaries.mjs`，没在 PR 里写，也没问用户。改动只收紧。 | ② |
+| #753 Pages 编辑器拆分 / `eed596bfb` | 通过 | 巨大单元 135→128，mount 828→451 行，还修了 main 原有的 hidePop 缺陷。P3：`docs/system/HUGE-CLASS-MIGRATION.md:304` 与 W5-10 的状态句还写着「待 CI」。 | ① |
+| #754 后台作业读失败不冒充删除 / `ffb3db076` | 通过 | 与 ③ 线的 `88d07caec` 是同一修法（生产文件 blob `5dd287d11..f12bd6926`），RAC-61、RAC-62 守住。§10.27 #675 行与 W5-13 补片标题的状态句已随本节改。 | — |
+
+**统筹裁定**
+
+1. **不回滚，向前修。** 不 force push；每个 PR 合入时 Verify 都是绿的；查到的问题都能向前修，没有一条需要先把代码撤出 main。主线全量的红由 ③ 当天修（Codex 的活由 ③ 全接）。
+2. **10-18 之后新开的「只给内置」的服务一律记进特权清单**，和旧特权一样由防腐线改掉。它们是：#738 `files`；#743 `model.configuration`、`imageGeneration`、`onProjectDeleted`；#745 `owner_files`、`initialize_owner_files`；#751 `messages`（[privileges.md](privileges.md) 的 PG-102～PG-106）。改掉之前，合同注释、手册和 Skill 里描述它们的地方都要标「2026-10-18 改」。往后的 PR 再新增这类服务，审时按 §3 第 2 条当 P1 拦。
+3. **文件服务只留一套。** 以授权更严的 ownerFiles 为准：写入只认当前动作的作用域，不接受插件自己拼的 control。files 合并进去或改成委托给它，Images 随之迁移；进 Manifest 声明（`storage` 加配额）。由 ② 定方案，取舍记在 §1。
+4. **`onProjectDeleted` 与 `initialize_owner_files` 按裁定 7 删掉。** 删项目时，平台在 purge 之前，先按项目取消 `services.background` 受理的执行和 Runtime 自己的等待；Images 的作业改走 background。初始文件改成 Manifest 声明的种子，或由插件在 start 里自己写。
+5. **模型结果的复核由平台兜住。** 在动作的写事务或最后一次 `beforeEffect` 里，平台自动执行本动作所有待验的 `validateResult()`，作者忘了也不会按旧绑定提交。补一条用例：模型返回后换模型，再写库，应被拒。
+6. **路由层的权限只取安装授权的交集。** Runtime 条目不进 `NATIVE_OWNER_PERMISSIONS`，与 #684 在同一处修。本机所有者权限只用于 Host 自有的服务。
+7. **#752 改门禁脚本，事后认可。** 认可只因为它只收紧。改门禁仍要先问用户；往后没问就改的，审时当 P1 拦。
+8. **平台服务与第一个消费者同批合入。** 否则就在 `specs/BACKLOG.md` 写明消费者和截止日期。#738、#742、#745 都是先合服务、后来才有消费者，或者至今没有。
+9. **Exploration 的恢复与 Lens 同样提示「可能重复计费」。** 检查点停在模型结果未知的地方（`generating`）时，继续就会再调一次模型；恢复视图对两类任务都置 `unknownCall`，由人确认后才继续。这是为了恢复可见（S-18），按 P2 修，归 ③。
+10. **动作可能要的权限都写进声明。** `alchemist.runs.continue` 把按任务类别另要的 `alchemist:generate`、`alchemist:collect` 写进 Manifest 与授权视图；运行时再按任务类别收窄，只收窄不放宽。往后别的动作按输入另要权限的，也照此办。
+
+**还没做的**
+
+- 主线全量的红。重跑（同一 run 的第 2 次）第 2 片又红在 `tests/side-shelf-in-hand.e2e.test.ts` 的 W3-C AC-S04：Shelf 侧栏 iframe 里的选中条没出来，焦点停在 Pages 编辑器上，片内重试也红。其余片被 fail-fast 取消，还有没有别的红不知道。两处都交 ③，用 `739e6cb29` 的干净基线工作树比对。2026-10-19 更新：AC-05 由 #760（`12017cc87`，关闭项目时结束它的等待，不再等到超时）修好；main 加 #760 的集成全量 run 39194646754 十六片全绿，main 的 CI 也绿。AC-S04 判为既有的时序偶发，不是这 14 个合入引入的；③ 在 #763 加了超时时记下页面现场的诊断，根因定下后派给情境栏的主人修。
+- 「需复现」的三条：#744 的路由层拒绝、#745 的权限位、#749 推广窗口里的撤权。#749 那条已复现并由 #761 修好（见上表），另两条还没有运行证据。
+- 合入时间核对：14 个 PR 全由 yijunw0212 自己入队合入，首个 #738 在 19:27 UTC，最后一个 #754 在 00:23 UTC。
 
 ## 11. 平台逻辑复查（2026-10-07，补第一步按 Goal 收窄的范围）
 

@@ -24,6 +24,7 @@ import { createCodingTimeline } from "./timeline.js";
 import { codingTimelineWords } from "./timeline-words.js";
 import { createCodingTurnChanges } from "./turn-changes-client.js";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
+import { CODING_DRAFT_CLIENT_FACTORY_SCRIPT } from "./draft-client.js";
 import { codingQuestionAnswered } from "./question-answered-client.js";
 
 /** Host supplies navigation; this client only handles Coding's own surface. */
@@ -92,7 +93,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const renderedText = new WeakMap();
   const directoryRows = new Map(), directoryGroups = new Map();
   let directoryClaimed = false, stateLoaded = false;
-  const drafts = new Map(), offsets = new Map(), draftWrites = new Map();
+  const offsets = new Map();
   const materialSelections = new Map(), characterSelections = new Map(), characterSkills = new Map(), characterTitles = new Map();
   const questionDrafts = new Map(), methodSelections = new Map(), configurations = new Map(), adoptedConfigurations = new Map(), mcpSelections = new Map(), mcpSourceSelections = new Map();
   const actionSelections = new Map();
@@ -103,7 +104,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const terminal = (phase) => ['completed','failed','stopped','cancelled','reconcile-required'].includes(phase);
   const phases = { starting:'正在准备', running:'执行中', compacting:'正在整理上下文', pausing:'正在暂停', paused:'已暂停', 'awaiting-input':'等待回答', 'awaiting-review':'等待审查', completed:'本轮结束', failed:'执行失败', stopped:'已停止', cancelled:'已取消', 'reconcile-required':'需要核对结果' };
   let runtimeSessionId = null, queuedInputs;
-  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", draftTimer, selectionTask, statusKey = '', draftOwner = '', creating = false;
+  let state = { sessions:[], models:[], runtimes:[] }, current = '', workspaceId = '', lastRun = null, generation = 0, sending = false, loading = false, pinned = true, recovery = false, checkpointBusy = false, checkpointLoading = false, checkpointKey = "", selectionTask, statusKey = '', creating = false;
   let recoveryLoading = false, recoveryBusy = false, recoveryKey = '';
   let reportOutput=null, artifactRows=[], artifactTicket=0;
   let reportRun = '', reportTicket = 0, reportSaving = false, reportTrigger, dialogueOffset = 0;
@@ -121,6 +122,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{code:result.code,details:result.details});
     return result;
   },ports={lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()};
+  const draft=(${CODING_DRAFT_CLIENT_FACTORY_SCRIPT})({...ports,input,key:draftKey,choices:{action_tools:actionSelections,character:characterSelections,character_skill_ids:characterSkills,
+    configuration:configurations,materials:materialSelections,mcp_sources:mcpSourceSelections,mcp_tools:mcpSelections,methods:methodSelections,question_drafts:questionDrafts}});
+  // The composer and what sets the next round (each a button by the box opening a dialog of that name) are shut while a
+  // session is made, until its first read, and while sending.
+  const unread=()=>creating || !draft.owns(current),shut=()=>sending || unread(),choosers=['workspace','goal','writer-directories','material','method','mcp','actions','character','delegate'];
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
   const stepReports = (${CODING_STEPS_CLIENT_FACTORY_SCRIPT})({...ports,prepareRework:reason=>plans.prepareStepRework(reason),receipts:host.receipts});
   let planEntries=[],subagentGroups=[];
@@ -140,7 +146,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
-  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(localDraft(sent.id)===sent.text)void saveDraft(sent.id,'');}status(said);}});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(draft.local(sent.id)===sent.text)void draft.save(sent.id,'');}status(said);}});
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
@@ -198,16 +204,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,openIntegration:integrations.open,usageSummary:codingUsageSummary,prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction='请针对原子任务 '+child.subagent_id+'（父执行 '+runId+'）准备返工，保留原结果和评价。原目录：'+child.workspace_path+'。需要写入时请先明确选择该独立工作树与并行写入方式。原任务：'+child.task+'\\n返工原因：'+notes+'\\n请独立复核新结果；不要把运行结束当成用户验收。';
-    const value=input.value.trim()?input.value+'\\n\\n'+instruction:instruction;
-    input.value=value;rememberDraft(id,value);await saveDraft(id,value);
+    await draft.append(id,text=>text.trim()?text+'\\n\\n'+instruction:instruction,'返工原因已保存；会话还在读取，任务暂未加入输入框。');
   }});
   const writerDirectories = (${CODING_WRITER_DIRECTORIES_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,current:()=>current,workspace:()=>workspaceId,workspaceLabel:()=>state.workspaces?.find(item=>item.workspace_id===workspaceId)?.canonical_path || workspaceId,status,assignments:()=>configurations.get(current)?.writer_assignments || [],saveAssignments:async(owner,parent,assignments)=>{
     if(owner!==current || parent!==workspaceId)throw new Error('会话或主工作区已改变，请重新打开分工');
     rememberConfiguration();const previous=configurations.get(current);configurations.set(current,{...previous,writer_assignments:assignments});
-    try{await flushDraft();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){if(!lifetime.alive)return;configurations.set(owner,previous);throw error;}
+    try{await draft.flush();status('分工已保存；选择并行写入并发送任务后才开始。');}catch(error){if(!lifetime.alive)return;configurations.set(owner,previous);throw error;}
   },select:async(owner,id)=>{
     if(owner!==current)throw new Error('会话已改变，请重新打开独立工作树');
-    workspaceId=id;rememberConfiguration();await flushDraft();await refreshState();await followWorkspace();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
+    workspaceId=id;rememberConfiguration();await draft.flush();await refreshState();await followWorkspace();status('下一轮将使用所选独立目录；原任务与主工作区保持原状态。');
   }});
   const plans = (${CODING_PLANS_CLIENT_FACTORY_SCRIPT})({...ports,execute:async revision=>{
     if(sending || recovery || checkpointBusy || !current)throw new Error('请先完成当前操作或核对中断结果');
@@ -218,16 +223,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       action_tools:structuredClone(actionSelections.get(id)||[]),mcp_tools:structuredClone(mcpSelections.get(id)||[]),mcp_sources:structuredClone(mcpSourceSelections.get(id)||[])};
     sending=true;controls();
     try{
-      await flushDraft();
+      await draft.flush();
       await api(sessionPath(id)+'/runs','POST',request);
       await refreshState();if(id===current)await readCurrent();
     }finally{sending=false;controls();}
   }});
-  const localDraft = (id) => {
-    if (drafts.has(id)) return drafts.get(id);
-    try { const value = sessionStorage.getItem(draftKey(id)); if (value !== null) return value; } catch {}
-    return undefined;
-  };
   const renderGoalPreview = () => {
     const region=q('[data-coding-goal-preview]');region.replaceChildren();
     if(!goalChoice){region.textContent='下一轮不关联目标。';return;}
@@ -293,24 +293,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-goal-save]').disabled=Boolean(saved.goal_id && !saved.selected);await loadGoals(ticket);
     }catch(error){if(!lifetime.alive)return;if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
   };
-  const rememberDraft = (id, value) => {
-    drafts.set(id, value);
-    try { sessionStorage.setItem(draftKey(id), value); } catch {}
-  };
-  const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
-    if (!id) return Promise.resolve();
-    const own=id!==current||draftOwner===id;if(own)rememberDraft(id,value);
-    const body={...(own?{draft:value}:{}), ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
-    const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
-    draftWrites.set(id,next);
-    return next.then(() => { if (own && current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
-  };
-  // The box is a session's once its first read put its draft in (draftOwner): only then is it typed in, sent or saved.
-  const flushDraft = () => { lifetime.clearTimeout(draftTimer); return current && draftOwner === current ? saveDraft(current,input.value) : Promise.resolve(); }, saveChoices = id => saveDraft(id,id===current?input.value:localDraft(id) || '');
   const returnFromChange = () => {const fromArtifact=changeItem;changeItem='';renderArtifacts();if(fromArtifact)host.openItem('coding',current,state.sessions.find(item=>item.session_id===current)?.title);};
   const changeReview = (${CODING_CHANGESET_CLIENT_FACTORY_SCRIPT})({lifetime,root,q,api,turns,current:()=>current,closeReport:()=>closeReport(),
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
-    appendDraft:async(task)=>{const id=current,next=input.value.endsWith(task)?input.value:(input.value?input.value+'\\n\\n':'')+task;if(next.length>100000)throw new Error('意见与现有草稿合计过长，请减少意见或先处理现有草稿；意见仍然保留。');lifetime.clearTimeout(draftTimer);input.value=next;rememberDraft(id,input.value);await saveDraft(id,input.value);},
+    appendDraft:task=>draft.append(current,text=>{const next=text.endsWith(task)?text:(text?text+'\\n\\n':'')+task;if(next.length>100000)throw new Error('意见与现有草稿合计过长，请减少意见或先处理现有草稿；意见仍然保留。');return next;},'会话还在读取，请稍后再交回意见；意见仍然保留。'),
     focusDraft:()=>{returnFromChange();input.focus();status('行级意见已加入原任务草稿；请确认执行方式后发送。');}});
   const materialKey = ref => ref.artifact_id+'@'+ref.version;
   let materialRows=[], materialTicket=0;
@@ -321,7 +307,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-material-save]').disabled=true;
     q('[data-coding-material-dialog]').showModal();
     try {
-      await flushDraft();
+      await draft.flush();
       const data=await api(sessionPath(id)+'/materials');
       if(current!==id || ticket!==materialTicket) return;
       materialRows=data.materials;
@@ -344,9 +330,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const controls = () => {
     if(!lifetime.alive)return;
     const active = lastRun && !terminal(lastRun.phase);
-    const unread = creating || draftOwner!==current, shut = !current || sending || unread;
-    input.disabled = shut;
-    q('[data-coding-send]').disabled = shut || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
+    input.disabled = shut();
+    q('[data-coding-send]').disabled = input.disabled || recovery || checkpointBusy || (!active && (!state.models.some(model=>JSON.stringify([model.provider_id,model.model_id])===q('[data-coding-model]').value) || !state.workspaces?.some(workspace=>workspace.workspace_id===workspaceId)));
     q('[data-coding-send]').textContent = sending ? '正在提交…' : '发送';q('[data-coding-mode]').hidden=!active;
     q('[data-coding-stop]').hidden = !active;
     q('[data-coding-stop]').disabled = sending;
@@ -354,11 +339,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const pause=q('[data-coding-pause]'),paused=lastRun && ['paused','pausing'].includes(lastRun.phase),pausable=lastRun && ['starting','running','compacting'].includes(lastRun.phase);
     pause.hidden=!(paused || pausable);pause.dataset.action=paused?'resume':'pause';
     pause.textContent=lastRun?.phase==='pausing'?'正在暂停…':paused?'恢复':'暂停';pause.disabled=sending || lastRun?.phase==='pausing';
-    q('[data-coding-intent]').disabled = Boolean(active || sending || unread);
-    composerModels.controls({active,sending:sending || unread,run:lastRun});
+    q('[data-coding-intent]').disabled = Boolean(active || sending || unread());
+    composerModels.controls({active,sending:sending || unread(),run:lastRun});
     q('[data-coding-rename]').hidden = !current;
     q('[data-coding-archive]').hidden = !current;
-    for(const name of ['goal','material','method','mcp','actions','character'])q('[data-coding-'+name+'-open]').disabled=shut;
+    for(const name of choosers)q('[data-coding-'+name+'-open]').disabled=input.disabled;
     const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
     const character=characterSelections.get(current);
     contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
@@ -374,9 +359,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const count=(methodSelections.get(current) || []).length;
     contextLabel('[data-coding-method-open]','方法'+(count?' · '+count:''),count);
   };
-  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:saveChoices,controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
+  const {renderCards}=(${CODING_ACTIONS_CLIENT})({lifetime,q,api,current:()=>current,selections:actionSelections,save:draft.saveChoices,controls,status,interaction:(node,options)=>host.interaction(node,options),make,sessionPath,readCurrent:()=>readCurrent()});
   (${CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,current:()=>current,selections:characterSelections,titles:characterTitles,skillSelections:characterSkills,
-    save:saveChoices,controls,status});
+    save:draft.saveChoices,controls,status});
   // Saved results read like the session rows: what it is by its icon, the title, when it was saved, and its version.
   const renderArtifacts = () => {
     const list=directory.querySelector('[data-coding-artifact-list]'),needle=directory.querySelector('[data-coding-artifact-search]').value.trim().toLocaleLowerCase();list.replaceChildren();
@@ -487,7 +472,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!q('[data-coding-workspace-dialog]').open)q('[data-coding-workspace-choice]').value=workspaceId;
   };
   const rememberConfiguration = () => {
-    if(!current)return;
+    if(!draft.owns(current))return;
     const [provider_id,model_id]=JSON.parse(q('[data-coding-model]').value || '[]');
     configurations.set(current,{intent:q('[data-coding-intent]').value,provider_id:provider_id || '',model_id:model_id || '',...composerModels.effort(),workspace_id:workspaceId,...(configurations.get(current)?.writer_assignments ? {writer_assignments:configurations.get(current).writer_assignments} : {})});
   };
@@ -570,7 +555,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     }
   };
   const openMethods = () => {
-    if(!current || sending)return;methodChoices=structuredClone(methodSelections.get(current) || []);methodDocumentTicket++;
+    if(shut())return;methodChoices=structuredClone(methodSelections.get(current) || []);methodDocumentTicket++;
     q('[data-coding-method-search]').value='';q('[data-coding-method-document]').hidden=true;q('[data-coding-method-error]').textContent='';renderMethods();q('[data-coding-method-dialog]').showModal();
   };
   // Web addresses in a turn (a dev server the round started, a page it read) are links, built from text nodes, never
@@ -676,8 +661,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         };
         const client=card.ix=host.interaction(card,{
           onAction:()=>void continueRound(null,{run_id:run.ref.run_id,pending_id:question.pending_id}),
-          onChange:()=>{remember();lifetime.clearTimeout(draftTimer);
-            draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
+          onChange:()=>{remember();
+            draft.later(()=>{void draft.save(id,draft.local(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});});},
           onSubmit:async()=>{
             if(card.dataset.busy==='true' || card.dataset.answerable!=='true') return;
             remember();
@@ -686,7 +671,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
               const {message}=await api(sessionPath(id)+'/control','POST',{kind:'answer',run_id:run.ref.run_id,pending_id:question.pending_id,pending_revision:question.pending_revision,values:client.read()});
               answeredQuestions.add(key);remember(null);
               client.destroy();(${codingQuestionAnswered.toString()})(card,note,message,input);
-              void saveDraft(id,localDraft(id) || '').catch(()=>{});
+              void draft.save(id,draft.local(id) || '').catch(()=>{});
               if(current===id) {void readCurrent();void refreshState().catch(()=>{});}
             } catch(error) {if(!lifetime.alive)return;
               const closed=['coding.round_ended','agent.pending_not_open'].includes(error.code);if(closed){answeredQuestions.add(key);card.dataset.refused='true';if(current===id)void readCurrent();}
@@ -1133,8 +1118,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
-      // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-      if(fresh || draftOwner!==id) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
+      if(fresh || !draft.owns(id)) { draft.claim(id,data.draft); turns.replaceChildren(); pinned=!offsets.has(id); }
       runtimeSessionId=data.session.runtime_session_id;queuedInputs=data.session.queued_inputs;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
@@ -1162,16 +1146,18 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // The same session back on show (its tab reopened): the directory's faces read from what is already held.
     if(id===current){taskboard.refreshOutline();renderGoalFace();return selectionTask;}
     if(changeReview.active())changeReview.close();q('[data-coding-outcome-list]').replaceChildren();q('[data-coding-outcomes]').hidden=true;
-    materialTicket++;q('[data-coding-material-dialog]').close();
+    // A choice open in a dialog belongs to the session it was opened on: switching closes it unsaved.
+    materialTicket++;goalTicket++;goalReading++;methodDocumentTicket++;
+    for(const name of choosers)q('[data-coding-'+name+'-dialog]').close();
     closeReport();
-    if(current) { offsets.set(current,turns.scrollTop); void flushDraft().catch(error=>status(error.message,true)); }
+    if(current) { offsets.set(current,turns.scrollTop); void draft.flush().catch(error=>status(error.message,true)); }
     void showReviews(q('[data-coding-host-reviews]'), []);
     recoveryLoading=false;recoveryBusy=false;recoveryKey='';q('[data-coding-recovery-list]').replaceChildren();q('[data-coding-recovery]').hidden=true;
-    resetWindow();cooperationUi.reset();current=id; draftOwner=''; generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
+    resetWindow();cooperationUi.reset();current=id; draft.release(); generation++; loading=false; lastRun=null; recovery=false;checkpointBusy=false;checkpointLoading=false;checkpointKey='';statusKey='';
     taskboard.loading(id);
     q('[data-coding-checkpoints-list]').replaceChildren();q('[data-coding-checkpoints-status]').textContent='正在读取检查点…';
     q('[data-coding-commands]').querySelectorAll(':scope > .coding-command').forEach(node=>node.remove());q('[data-coding-commands]').hidden=true;
-    input.disabled=true; selectionTask=readCurrent(true);await selectionTask;
+    controls();selectionTask=readCurrent(true);await selectionTask;
   };
   const openCodingItem = async(itemId) => {
     const ticket=++itemTicket;reportItem='';changeItem='';
@@ -1187,13 +1173,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     root.dataset.codingDetail=String(Boolean(event.detail.itemId));sessionOnShow=Boolean(event.detail.itemId);
     if(event.detail.itemId) void openCodingItem(event.detail.itemId).catch(error=>status(error.message,true));
     // Nothing on show any more (the tab closed): the faces say so rather than keep describing the closed session.
-    else {taskboard.refreshOutline();renderGoalFace();void flushDraft().catch(error=>status(error.message,true));}
+    else {taskboard.refreshOutline();renderGoalFace();void draft.flush().catch(error=>status(error.message,true));}
   });
   // A new session is only worth keeping once something is written in it: an untouched empty one is reused
   // instead of piling up. Anything with a draft, a Goal or a past run is left alone.
   const untouched = async() => {
     for(const session of state.sessions.filter(item=>item.state==='idle' && item.title==='新编码会话' && !item.goal_id)) {
-      if(localDraft(session.session_id)) continue;
+      if(draft.local(session.session_id)) continue;
       try{const data=await api(sessionPath(session.session_id)+'?window=1');if(!data.runs.length && !(data.draft || '').trim() && !data.character && !(data.materials || []).length)return session;}catch{}
     }
     return null;
@@ -1230,7 +1216,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Persist the exact publication and task before navigation; never start a paid run automatically.
       await api(sessionPath(id),'PATCH',{draft:selected.task || '',character:selected.reference,character_skill_ids:selected.skill_ids || []});
       await refreshState();host.openItem('coding',id,selected.title);await select(id);
-      if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await flushDraft();await refreshState();}
+      if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await draft.flush();await refreshState();}
       input.focus();status('已带入角色固定版本。选择模型和执行方式后开始任务。');
     })().catch(error=>{status(error.message,true);window.alert('创建 Character 编码会话失败：'+error.message);}).finally(()=>{creatingCharacterSession=false;});
   });
@@ -1290,7 +1276,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         } catch(error) {if(!lifetime.alive)return;if(current===id && generation===ticket){checkpointBusy=false;throw error;}}
         finally {controls();}
       }
-      if(target.matches('[data-coding-mcp-open]')) {await refreshState();mcpChoices=structuredClone(mcpSelections.get(current) || []);mcpSourceChoices=structuredClone(mcpSourceSelections.get(current) || []);renderMcp();q('[data-coding-mcp-error]').textContent='';q('[data-coding-mcp-dialog]').showModal();}
+      if(target.matches('[data-coding-mcp-open]')) {const id=current;await refreshState();if(current!==id || shut())return;mcpChoices=structuredClone(mcpSelections.get(current) || []);mcpSourceChoices=structuredClone(mcpSourceSelections.get(current) || []);renderMcp();q('[data-coding-mcp-error]').textContent='';q('[data-coding-mcp-dialog]').showModal();}
       if(target.matches('[data-coding-mcp-settings-link]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-mcp-close]'))q('[data-coding-mcp-dialog]').close();
       if(target.matches('[data-coding-material-open]')) await openMaterials();
@@ -1344,7 +1330,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-results-open]')) {root.dataset.codingResults=root.dataset.codingResults==='true'?'false':'true';if(root.dataset.codingResults==='true'){q('[data-coding-results-close]').focus({preventScroll:true});void readCurrent();}}
       if(target.matches('[data-coding-results-close]')) {root.dataset.codingResults='false';q('[data-coding-results-open]').focus({preventScroll:true});}
       if(target.matches('[data-coding-directory-back]')) {root.dataset.codingDetail='false';(directory.querySelector('[aria-current=true]') || directory.querySelector('[data-coding-new]'))?.focus({preventScroll:true});}
-      if(target.matches('[data-coding-prompt]') && !input.value.trim() && !input.disabled){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
+      if(target.matches('[data-coding-prompt]') && !input.value.trim() && !shut()){const intent=q('[data-coding-intent]'),wanted=[...intent.options].find(option=>option.value===target.dataset.codingPromptIntent && !option.disabled);if(wanted){intent.value=wanted.value;intent.dispatchEvent(new Event('change',{bubbles:true}));}input.value=target.dataset.codingPrompt;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();input.setSelectionRange(input.value.length,input.value.length);}
       if(target.matches('[data-coding-new]')) { event.preventDefault(); target.disabled=creating=true;controls(); try { await create(); } finally { target.disabled=creating=false;controls(); } input.focus(); }
       // The first list is drawn by the server, so a row can be clicked before the directory read has arrived.
       // ⌘/Ctrl-click opens the session in the pane beside this one; this pane keeps the session it shows.
@@ -1410,9 +1396,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let followFrame=0;lifetime.observe(new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=lifetime.frame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}),turns,{childList:true,subtree:true,characterData:true});
   // Browsers without field-sizing still grow the field as the person writes.
   if(!globalThis.CSS?.supports?.('field-sizing','content'))lifetime.listen(input,'input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
-  lifetime.listen(input,'input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';lifetime.clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=lifetime.timeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]'),q('[data-coding-effort]')])lifetime.listen(field,'change',()=>{
-    const id=current;rememberConfiguration();controls();void flushDraft().then(()=>surfaceChanged(id)).catch(error=>status('配置暂未保存：'+error.message,true));
+    const id=current;rememberConfiguration();controls();void draft.flush().then(()=>surfaceChanged(id)).catch(error=>status('配置暂未保存：'+error.message,true));
   });
   lifetime.listen(q('[data-coding-method-search]'),'input',renderMethods);
   lifetime.listen(q('[data-coding-goal-search]'),'input',renderGoalRows);
@@ -1441,7 +1426,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();const id=current,ticket=materialTicket,button=q('[data-coding-material-save]');button.disabled=true;
     const selection=[...q('[data-coding-material-list]').querySelectorAll('input:checked')].map(box=>materialRows[Number(box.dataset.materialIndex)].reference);
     try {
-      await saveDraft(id,input.value,undefined,selection);materialSelections.set(id,selection);
+      await draft.save(id,input.value,{materials:selection});materialSelections.set(id,selection);
       if(current===id && ticket===materialTicket){q('[data-coding-material-dialog]').close();controls();input.focus();status('固定材料已保存，仅用于下一轮；本轮执行与补充要求保持原材料。');}
     } catch(error){if(!lifetime.alive)return;if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
     finally{if(ticket===materialTicket)button.disabled=false;}
@@ -1451,43 +1436,42 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(q('[data-coding-mcp-form]'),'submit',async event=>{
     event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
     const id=current,previous=mcpSelections.get(id),previousSources=mcpSourceSelections.get(id);mcpSelections.set(id,structuredClone(mcpChoices));mcpSourceSelections.set(id,structuredClone(mcpSourceChoices));
-    try{await flushDraft();q('[data-coding-mcp-dialog]').close();controls();status('MCP 选择已保存，仅用于下一轮。');}
+    try{await draft.saveChoices(id);q('[data-coding-mcp-dialog]').close();controls();status('MCP 选择已保存，仅用于下一轮。');}
     catch(error){if(!lifetime.alive)return;mcpSelections.set(id,previous || []);mcpSourceSelections.set(id,previousSources || []);q('[data-coding-mcp-error]').textContent=error.message;}finally{button.disabled=false;}
   });
   lifetime.listen(q('[data-coding-method-form]'),'submit',async event=>{
     event.preventDefault();const submit=event.currentTarget.querySelector('[type=submit]');if(submit.disabled)return;
     submit.disabled=true;const id=current,selection=structuredClone(methodChoices);
-    try {await saveDraft(id,input.value,selection);methodSelections.set(id,selection);q('[data-coding-method-dialog]').close();controls();input.focus();status('方法选择已保存，用于下一轮；当前执行保持原方法。');}
+    try {await draft.save(id,input.value,{methods:selection});methodSelections.set(id,selection);q('[data-coding-method-dialog]').close();controls();input.focus();status('方法选择已保存，用于下一轮；当前执行保持原方法。');}
     catch(error){if(!lifetime.alive)return;q('[data-coding-method-error]').textContent=error.message;}finally{submit.disabled=false;}
   });
   lifetime.listen(q('[data-coding-workspace-form]'),'submit',async event=>{
-    event.preventDefault(); const form=event.currentTarget,submit=form.querySelector('[type=submit]'); if(submit.disabled) return;submit.disabled=true;
+    event.preventDefault(); const form=event.currentTarget,submit=form.querySelector('[type=submit]'),id=current; if(submit.disabled) return;submit.disabled=true;
     try {
       const path=q('[data-coding-workspace-path]').value.trim();
-      if(path) {
-        if(!q('[data-coding-workspace-confirm]').checked) throw new Error('请确认将这个目录关联到当前项目');
-        const workspace=await host.addWorkspace(path);workspaceId=workspace.workspace_id;
-      } else workspaceId=q('[data-coding-workspace-choice]').value;
-      if(!workspaceId) throw new Error('请选择或关联一个工作目录');
-      await useProjectWorkspace(workspaceId);
-      rememberConfiguration();await flushDraft();await refreshState();q('[data-coding-workspace-error]').textContent='';q('[data-coding-workspace-path]').value='';q('[data-coding-workspace-confirm]').checked=false;q('[data-coding-workspace-dialog]').close();
+      if(path && !q('[data-coding-workspace-confirm]').checked) throw new Error('请确认将这个目录关联到当前项目');
+      const chosen=path?(await host.addWorkspace(path)).workspace_id:q('[data-coding-workspace-choice]').value;
+      if(!chosen) throw new Error('请选择或关联一个工作目录');
+      // Chosen for the session it was opened on: once another one is on show (the switch closed this dialog), nothing more is set.
+      if(current!==id)return;await useProjectWorkspace(chosen);if(current!==id)return;
+      workspaceId=chosen;rememberConfiguration();await draft.flush();await refreshState();q('[data-coding-workspace-error]').textContent='';q('[data-coding-workspace-path]').value='';q('[data-coding-workspace-confirm]').checked=false;q('[data-coding-workspace-dialog]').close();
     } catch(error) {if(!lifetime.alive)return; q('[data-coding-workspace-error]').textContent=error.message; }
     finally {submit.disabled=false;}
   });
   lifetime.listen(directory.querySelector('[data-coding-artifact-search]'),'input',renderArtifacts);
   // The same commands in the composer's slash menu, the palette and the shortcuts; each says when it is not available.
   const codingCommands=()=>{
-    const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && Boolean(current),
+    const intents=[...q('[data-coding-intent]').options].map(option=>({slash:option.value,label:'方式：'+option.textContent.replace(/（.*）/,''),hint:'下一轮用这个方式',keywords:['方式','intent'],enabled:!option.disabled && !shut(),
       run:()=>{const select=q('[data-coding-intent]');select.value=option.value;select.dispatchEvent(new Event('change',{bubbles:true}));status('下一轮方式：'+option.textContent+'。');input.focus();}}));
     return [...intents,
-      {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(current && runtimeSessionId),
+      {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(!shut() && runtimeSessionId),
         run:async()=>{const id=current;await api(sessionPath(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
       {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
-      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:!input.disabled,run:()=>openMaterials()},
-      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:!input.disabled,run:()=>openMethods()},
-      {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:Boolean(current),run:()=>cooperationUi.openDialog()},
-      {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:Boolean(current),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},
-      {slash:'workspace',label:'选择工作区',hint:'下一轮在哪个目录工作',keywords:['目录','folder'],enabled:Boolean(current),run:()=>q('[data-coding-workspace-dialog]').showModal()},
+      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:!shut(),run:()=>openMaterials()},
+      {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:!shut(),run:()=>openMethods()},
+      {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:!shut(),run:()=>cooperationUi.openDialog()},
+      {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:!shut(),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},
+      {slash:'workspace',label:'选择工作区',hint:'下一轮在哪个目录工作',keywords:['目录','folder'],enabled:!shut(),run:()=>q('[data-coding-workspace-dialog]').showModal()},
       {slash:'new',label:'新建会话',keys:'Mod+Alt+N',keywords:['new','会话'],run:()=>q('[data-coding-new]').click()},
       {slash:'stop',label:'停止这一轮',hint:'已开始的操作不会被撤销',keys:'',keywords:['stop','停止'],enabled:!q('[data-coding-stop]').hidden && !q('[data-coding-stop]').disabled,run:()=>q('[data-coding-stop]').click()},
       {slash:'results',label:'结果与审查',keys:'Mod+Alt+R',keywords:['review','审查','结果'],run:()=>q('[data-coding-results-open]').click()},
@@ -1591,10 +1575,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     } catch(error) {if(!lifetime.alive)return;if(current===id)status(error.message,true);}
   };
   lifetime.listen(q('[data-coding-composer]'),'submit',async(event)=>{
-    event.preventDefault();if(sending || recovery || checkpointBusy || !current || input.disabled || !input.value.trim()) return;
+    event.preventDefault();if(shut() || recovery || checkpointBusy || !input.value.trim()) return;
     const id=current,task=input.value,action_tools=structuredClone(actionSelections.get(current)||[]),character=structuredClone(characterSelections.get(current) ?? null),materials=structuredClone(materialSelections.get(current) || []),mcp_sources=structuredClone(mcpSourceSelections.get(current) || []),mcp_tools=structuredClone(mcpSelections.get(current) || []),methods=structuredClone(methodSelections.get(current) || []),activeRun=lastRun,modelValue=q('[data-coding-model]').value,intent=q('[data-coding-intent]').value,workspace_id=workspaceId,writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []); sending=true;controls();
     try {
-      rememberConfiguration();await flushDraft();
+      rememberConfiguration();await draft.flush();
       if(activeRun && !terminal(activeRun.phase)) {
         const mode=q('[data-coding-send-mode]');status(await inputReceipts.steer(id,activeRun.ref.run_id,task,mode.value));mode.value='next-boundary';
       } else {
@@ -1608,7 +1592,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       }
       if(current===id && input.value===task) input.value='';
-      if(localDraft(id)===task) await saveDraft(id,''); surfaceChanged(id); await refreshState();await readCurrent();
+      if(draft.local(id)===task) await draft.save(id,''); surfaceChanged(id); await refreshState();await readCurrent();
     } catch(error) {if(!lifetime.alive)return; status(error.message,true); }
     finally { sending=false;controls(); }
   });

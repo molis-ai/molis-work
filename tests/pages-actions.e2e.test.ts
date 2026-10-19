@@ -100,7 +100,7 @@ test("the open page never saves over what it cannot show or has not seen: change
   await pastFallback();
   assert.equal(await evaluate(namesItself("别处会改的文档", shown.version)), true, "the workbench's fallback does not replace Pages' naming");
   // The Pages list hides it (the workbench takes its name off); back on its tab, Pages names it again.
-  await click(".tab-view-chip[data-tab-view=pages]");
+  await click('[data-tab-kind="plugin"][data-plugin="pages"] .tab-item-trigger');
   await waitFor("document.querySelector('[data-pages=workbench]').dataset.expanded === 'false'");
   await click(".tab-item[data-tab-kind=item][data-plugin=pages] .tab-item-trigger");
   await waitFor(namesItself("别处会改的文档", shown.version));

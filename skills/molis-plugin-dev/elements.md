@@ -24,7 +24,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
 - `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
 
-内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升，并拿到新 Manifest 声明的全部权限（必需的和可选的都给，不再声明的去掉），所以内置插件的权限不能逐项关掉。
+内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（设置里的开关是下一片，现在只有 Runtime 的授权接口能关）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
 
 完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
@@ -158,7 +158,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 每个角色写 `role_id`、`version`、`name`，用 `prompts` 点名自己的提示词，用 `host_tools` 点名能叫的 Host 工具。不写 `prompts` 时，运行组合会把本插件声明的全部提示词交给这个角色；解析器同时要求有一条与 `role_id` 同名的 Prompt，否则 Manifest 无效。只读角色点名自己的那几条。
 
-一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是开新一轮时已经选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。不需要按用途分方法就不写。
+一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是这个用途默认选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。现在只有解析 Manifest 时的这些检查：宿主开新一轮时还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了不生效。不需要按用途分方法就不写。
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。正文在包装里的 `agent_prompts` / `agent_skills`，不进 Manifest。Host 还要把正文挂进 catalog，见 [host.md](host.md)。
 

@@ -53,6 +53,8 @@ interface RuntimeEntry<Runtime> {
   operationTail: Promise<void>;
   activeUses: number;
   idleWaiters: Array<() => void>;
+  /** Aborted when the project starts closing: a wait only observes, so it ends then instead of holding close until it times out. */
+  observing: AbortController;
   actionDisposers: Set<() => void>;
 }
 
@@ -79,6 +81,13 @@ function snapshotCaller(caller: ActionCallContext): ActionCallContext {
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(ref => ({ ...ref })) } : {}),
   };
+}
+
+/** A wait's signal also ends when its project starts closing; any other call keeps its caller's signal alone. */
+function callSignal(operation: string, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  if (operation !== "wait") return signal ? { signal } : {};
+  const closing = entry().observing.signal;
+  return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
 
 /** A scene keeps the Host's real closing fence across its asynchronous owner checks. */
@@ -430,7 +439,7 @@ export class LocalHost<Runtime> {
     // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
     // not offered to plugins stays out of its reach.
     const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
-      ...(signal ? { signal } : {}),
+      ...callSignal(capability.operation, () => this.ensureEntry(reference), signal),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {
         signal?.throwIfAborted(); plugin?.assertActive(); requireSynchronous(current?.(), "最终授权检查必须同步完成"); signal?.throwIfAborted(); plugin?.assertActive();
@@ -549,8 +558,8 @@ export class LocalHost<Runtime> {
     // Registered concurrent actions own their short transactions, a wait only observes (following a live round), and a
     // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
     // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
-    // waiting. The registry still refuses a caller claiming "wait" for another operation, and concurrency is read from
-    // the registered descriptor, never from the caller's.
+    // waiting, and a wait's signal ends when the project starts closing (callSignal), so close never waits out a long poll.
+    // The registry still refuses a caller claiming "wait" for another operation; concurrency is read from the registered descriptor.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
     if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
     const operation = entry.operationTail.then(heldInLine);
@@ -597,7 +606,7 @@ export class LocalHost<Runtime> {
       : normalizeReference(referenceOrStorageKey).storage_key;
     const entry = this.entries.get(storageKey);
     if (!entry) return false;
-    entry.state = "closing";
+    entry.state = "closing"; entry.observing.abort(hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭"));
     this.closingKeys.add(storageKey);
     try {
       await entry.operationTail;
@@ -639,7 +648,7 @@ export class LocalHost<Runtime> {
       state: "opening",
       operationTail: Promise.resolve(),
       activeUses: 0,
-      idleWaiters: [],
+      idleWaiters: [], observing: new AbortController(),
       actionDisposers: new Set(),
     };
     this.entries.set(normalized.storage_key, entry);

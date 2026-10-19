@@ -8,7 +8,8 @@ export const TODO_ORGANIZER_ROLE = "organizer";
  */
 export const todoAgentManifest: AgentManifest = {
   roles: [
-    { role_id: TODO_ORGANIZER_ROLE, version: 2, name: "待办整理师", execution: "operate", workspace: "business",
+    // 3: `BUSINESS_HOST_TOOLS` added board-wait (#661) and acknowledge-inputs (#713); a round's frozen record names the version.
+    { role_id: TODO_ORGANIZER_ROLE, version: 3, name: "待办整理师", execution: "operate", workspace: "business",
       prompts: ["todo-organizer"], host_tools: [...BUSINESS_HOST_TOOLS] },
   ],
   prompts: [{ prompt_id: "todo-organizer", version: 2 }],

@@ -301,23 +301,35 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | Prompt 指导 | 已有，要补 | `assistant-base` v24 已要求用 `ask-user` 给具体选项、用 `suggest-action` 给卡、不在正文模拟按钮；运行时的收尾核对（`prologue-stop-guard.ts`，D1②）把回复与这一轮的事实核对，拦「说有按钮却没有」。缺：字段题、推荐理由、对象选择、避免重复问 |
 | 单次生成插件的接续 | 新增 | Cognia、Pages、Form、Dataset、PPT、灵光、Todo、Workflows 用 `completeText`，一问一答；没有「需要补充信息」的结构化结果与接续约定 |
 
-### 14.3 入口盘点（首轮）
+### 14.3 入口盘点
 
-首轮按调用方式与界面分组；逐个插件的证据在实施时补进本表，结论以本表最终版为准（AC-01）。
+首轮（2026-10-12）按调用方式与界面分组；2026-10-19 逐个插件核过调用路径、装配与界面，下表是最终版（AC-01）。「共享交互」指同一张问卷卡（`agentQuestionHtml`）、操作卡与下一步，以及插件动作返回 `needs_input` 时宿主补上的问卷卡（`withPluginInteraction`，Native 与 Runtime 插件的路由出口都有）。
 
-| 对象 | 调模型的方式 | 本文适用部分 | 首轮判断 |
-| --- | --- | --- | --- |
-| 全局助理 | Agent（`assistant-agent.ts`） | 全部 | 首批切片 |
-| Coding | Agent（`routes.ts` 发起 Run） | 问询、补充、同排推荐、结果后续、专业卡片的外壳 | 首批切片；Diff、命令审查、报告、计划确认保留现有专业呈现 |
-| 插件创作台 | Agent（宿主 `apps/local-host/src/plugin-builder/`） | 方案选择、问询、生成状态、预览衔接 | 第二批；动它的提示词要跑 `pnpm studio:replay` |
-| 灵光 | `completeText`（prologue-adoption 正在改成流式） | 讨论中的方向选择、结果后续 | 第二批，等 prologue-adoption |
-| Alchemist | 自有讨论流（`client-flows.ts`） | 方向选择、结果后续 | 第二批，先核对调用路径 |
-| Cognia、Pages | `completeText` | 候选预览、采用、继续调整；单次接续 | 第二批；Pages 选区动作与 context-toolbar 交叉，只做对话与结果部分 |
-| Form、Dataset、PPT | `completeText`（经 `beforeDispatch`） | 生成前补充信息（单次接续）、预览、结果 | 第二批；Form 作单次接续的示例 |
-| Images | 自有图片服务调用 | 参数选择、预览、结果操作 | 第二批，先核对是否经模型 |
-| Todo、Workflows | `completeText`；Todo 角色里用 `ask-user` | 整理候选的选择、结果 | 第二批 |
-| 项目讨论 im-ui | 不调模型 | 输入、引用、草稿、状态反馈的统一部分 | 只核对一致性，不新增 AI 能力 |
-| 其余（Goals、Inbox、Feed、Files、Shelf、Schedule、Characters…） | 无直接模型调用，或只经助理 | 无 | 实施中逐个确认后标 N/A |
+| 对象 | 调模型的方式 | 装配 | 现在用的共享交互 | 结论 |
+| --- | --- | --- | --- | --- |
+| 全局助理 | Agent（`assistant-agent.ts`） | 平台 | 问卷卡、操作卡、下一步 | 首批，已接（AC-21、AC-23） |
+| Coding | Agent（`routes.ts` 发起 Run；角色带 `ask-user`、`suggest-action`，`plugins/native/coding/src/roles.ts`） | Plugin Runtime（项目） | 问卷卡（同一个函数）、下一步、操作卡 | 首批，已接（AC-22、AC-25）；Diff、命令审查、报告保留专业呈现 |
+| Form | `services.model`（`plugins/native/form/src/drafting.ts`） | Plugin Runtime（项目） | `needs_input` → 问卷卡 | 已接，单次接续的示例（AC-26）；题型只开放单选 |
+| 插件创作台 | 设计者与编码者是 Prologue Skill（`horizontal/agent-host/src/adapters/plugin-builder.ts`）；生成插件的 `model.generate` 经 `hostTextGeneration` | 构建期条目（旧路径） | 无：设计者的澄清是 JSON 里的字符串题，只能问一次（`plugins/native/plugin-builder/src/agent-workflow.ts`），页面列成编号列表、在输入框里自由作答；方案卡、启用插件、选部件是自写的按钮 | 第二批接入：澄清改成带类型的题、用同一张问卷卡；方案卡保留。动提示词要 `pnpm studio:replay` 加真实模型冒烟，所以排在浏览器验证恢复之后 |
+| PPT | `services.model` 的 `complete`（`plugins/native/ppt/src/actions.ts`） | Plugin Runtime（项目） | 无 | 第二批接入：「AI 生成大纲」缺受众、页数时返回 `needs_input`，照 Form 的做法 |
+| Pages | 宿主注入的 `completeText`（`apps/local-host/src/pages-actions.ts`；`pages.ai`、`pages.generate`） | 构建期（经 `dispatchNativePluginJsonHttp`，问卷卡出口已在） | 无；选区动作的候选浮层可改、可采用或放弃 | 第二批接入：`pages.generate` 缺要求时返回 `needs_input`。选区动作与 context-toolbar 交叉，不动。Inbox 的 `inbox.pages.generate` 转给它，跟着得到 |
+| Cognia | `services.model`（`plugins/native/cognia/src/ai.ts`） | Plugin Runtime（Home） | 无；问一句 → 审阅知识草稿 | 第二批，排在 PPT、Pages 之后：范围不清时返回 `needs_input` |
+| 灵光 | `services.model`，已是流式（`plugins/native/lingguang/src/plugin.ts`；首轮写的「等 prologue-adoption」已过时） | Plugin Runtime（项目） | 无；自写的对话框 | 不接入问卷：它本身是自由对话，方向在对话里说；「只带过去」把材料交给助理 |
+| Alchemist | 自有 `AlchemistAiPort` → `hostTextGeneration`（`apps/local-host/src/alchemist-prologue.ts`） | 构建期；自有的流（`apps/local-host/src/alchemist-native-plugin-http.ts`），不经问卷卡出口 | 无；想法卡的保留、放弃、决定是自写的按钮 | 不接入：方向选择已经是想法卡，讨论是自由对话。以后要接，先让它的流经过 `withPluginInteraction` |
+| Dataset | `services.model`（`plugins/native/dataset/src/actions.ts`） | Plugin Runtime（项目） | 无 | 不接入：模型只按一句话起一个列名，没有要先问的 |
+| Workflows | 宿主注入的 `completeText`（`apps/local-host/src/workflows-actions.ts`），只用于 AI 交接环节 | 构建期 | 无 | 不接入：交接要的说明在编辑环节时填齐，运行前已核对就绪 |
+| Todo | `services.model`（整理）；整理角色带 `ask-user`（`plugins/native/todo/src/roles.ts`） | Plugin Runtime（Home） | Agent 一侧的 `ask-user` 用助理的问卷卡；批量审阅是自写的 | 已覆盖（Agent 路径） |
+| Issues | 助理方法 `issues-capture` 带 `ask-user`、`suggest-action`（`plugins/native/issues/src/methods.ts`） | Plugin Runtime（Home） | 经助理 | 已覆盖（经助理） |
+| Jelly | `services.model` 的 JSON 输出（`plan.generate`，`plugins/native/jelly/src/actions.ts`） | Plugin Runtime（Home） | 无；生成的是待采纳的任务，不自动写入 | 不接入问卷：已经是「先看再采纳」，输入是原文或选区 |
+| Shelf | `hostTextGeneration`（`jobs.generate`，`apps/local-host/src/shelf-ai.ts`） | Plugin Runtime（项目） | 无 | 不接入：固定配方处理选中的材料，没有要先问的 |
+| Schedule | 只读 Agent（`plugins/native/schedule/src/roles.ts`，读文件、搜索） | 构建期 | 无 | 不适用：定时任务在后台跑，没有人在场回答 |
+| Inbox、Feed | 场景声明 `model:invoke`（判断场景） | 构建期 | 无 | 不适用：判断不向人提问。`inbox.pages.generate` 跟 Pages |
+| Images | 不调文字模型（`services.imageGeneration`） | Plugin Runtime（Home） | 无 | 不适用：本文管文字模型的问与建议；尺寸、比例的选择器另议 |
+| 项目讨论 im-ui | 不调模型 | 平台侧栏 | 无 | 只核对一致性，不新增 AI 能力 |
+| Goals、Files、Characters、Artifacts、Diff、Git、Text-stats、Sessions（`plugins/native/work`） | 不调模型（`plugins/native/*/src` 里没有模型调用） | — | — | 不适用 |
+| 生成插件 | `model.generate`（沙箱 Broker → `hostTextGeneration`） | 创作台安装 | 无：沙箱没有 `ask-user`、`suggest-action`；操作结果包在 `value` 里交给部件，不经问卷卡出口 | 平台缺口（2026-10-18 插件一视同仁）：要先问的信息现在做成提交部件的字段（`skills/molis-plugin-dev/generated-ai.md`）；让生成插件也能 `needs_input`，要部件客户端会画问卷卡，另起一片 |
+
+P5 的接入顺序：PPT → Pages → Cognia → 插件创作台（等浏览器验证恢复）。每个一片，各自补用例与证据，回填上表。
 
 ## 15. 技术方案
 
@@ -546,6 +558,96 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 崩溃孤儿绑在步骤上时的自动解法：照今天由人核对。
 - 「请 AI 重新问」：过期和已结束的题用它，另一片。
 
+### 15.10 AC-10：Coding 问卷卡的界面验收（2026-10-19，交互线计划）
+
+范围：Coding 对话里等人回答的问卷卡。卡由宿主画（`agentQuestionHtml`，与助理同一份），Coding 的 `renderQuestions` 绑定它。共享部件自己的键盘、组合输入、日历已由 `interaction-client.e2e` 在组件板上验过；这一片验的是它们在 Coding 页面里、在真实的一轮里是否仍然成立，再补上 Coding 这边查出来的缺口。不改合同，不改宿主怎样出题、怎样校验。
+
+**用户动线。**
+
+1. 人在 Coding 发出任务，这一轮调了 `ask-user`。对话末尾出现问卷卡；输入框上方出现「去回答（N 题）」，单选题则直接是它的选项（AC-25）。
+2. 人用鼠标、触屏或键盘作答。选项一按下就有按下和选中的反馈。写到一半切走或刷新，草稿还在（D13）。
+3. 提交前选错了可以改：多选再点一次就取消，单选点另一项；可选的单选题能把已选的清掉。
+4. 按「提交回答」或 ⌘/Ctrl+Enter 后，卡立刻进入提交中：按钮和字段锁住，说明行写「正在提交原问题的回答…」。宿主退回的题，旁边写出界限并拿到焦点。收下以后，卡换成一行回执，焦点回到输入框，这一轮接着跑。
+5. 这一轮等人的时候，页面大约每秒重读一次会话。卡不重建，正在写的字、光标和焦点都不变；人往上翻着读历史时，位置不动。
+
+**状态。**
+
+| 状态 | 什么时候 | 界面 |
+| --- | --- | --- |
+| 空 | 这一轮没有在等的题 | 没有卡；输入框上方那一行收起 |
+| 读取中 | 宿主还在向原问题的主人读题（`answerable: false`，原因「正在读取原问题」） | 卡在，字段和按钮锁住，说明行写原因 |
+| 可答 | 题开着、这一轮没结束 | 字段可用；推荐项只标「推荐」，不替人预选 |
+| 有草稿 | 人写了或选了 | 存进会话（`question_drafts`）。写不进服务时，说明行写「答案暂未写入服务，当前窗口仍保留」 |
+| 提交中 | 按下提交 | `data-busy`，全部锁住，说明行写正在提交 |
+| 字段错误 | 宿主逐题退回 | 只在被退回的题旁写界限，`aria-invalid`，焦点到那一题；别的题不出声 |
+| 被拒（题已关） | `coding.round_ended` 或 `agent.pending_not_open` | 卡留着、关上，说明行写宿主的原话，选过的还在（AC-08） |
+| 不可答 | 这一轮已结束，或题过期 | 锁住，说明行写原因，「请 AI 重新问」可按（D37） |
+| 已答 | 宿主收下 | 卡换成一行回执，焦点回到输入框；页面再读一次后卡离开 |
+| 无权限 | 会话不是这个人的 | 读不到会话，也就没有卡；硬交回答会被宿主拒绝（S-26、S-33 已有） |
+
+**撤销。** 提交之前，每一项都能改回去：多选再点一次，单选换一项，可选的单选题清掉，文字删掉，日期清空，引用的芯片移除。提交之后，答案已经交给模型，不提供撤回。要改口就在输入框里补一句（回执线的「补充这一轮」）；题已关的，用「请 AI 重新问」。
+
+**验收编号。** 用例名带编号。AC-10-1～8 在 `tests/coding-question-card.e2e.test.ts` 里；AC-10-9 改的是共享客户端，用例跟着它放在 `tests/interaction-client.e2e.test.ts`，另有节点用例 `interaction-components`、`coding-question-card`。
+
+- **AC-10-1 三个宽度。** 1440、1024、390 px 下，卡在 Coding 的对话栏里，卡和页面都没有横向滚动，卡里的控件不越出卡。390 px 下，卡里每个能点的控件短边不小于 44 px（`DESIGN.md`「Focus and accessibility」）。截图存进评审目录。
+- **AC-10-2 深色。** 深色下，卡的正文、说明、「推荐」标签、错误行与各自背景的对比度不低于 4.5:1；选项的边框和选中标记不低于 3:1。按浏览器算出的颜色量。
+- **AC-10-3 键盘。** 从输入框经「去回答」那一步到卡的第一题；方向键选，Tab 走，⌘/Ctrl+Enter 提交。收下后焦点回到输入框，不落在 `body` 上。
+- **AC-10-4 输入法。** 卡上的文字题用真实的组合输入（CDP `Input.imeSetComposition`）写中文：组合中的回车不提交、不跳题，组合结束后才进草稿。真机中文输入法仍归用户验收（BL-016）。
+- **AC-10-5 减少动态。** `prefers-reduced-motion: reduce` 下，卡出现、选中、提交时都没有正在运行的动画或过渡。
+- **AC-10-6 后台更新。** 等人的时候页面至少重读三次：卡还是同一个节点，写到一半的字、光标位置和焦点都不变；人往上翻时，对话的滚动位置不变。
+- **AC-10-7 长内容。** 很长的题干和选项说明在 390 px 下折行，不撑破卡；提交按钮仍在卡内，可以按到。
+- **AC-10-8 读屏语义。** 卡有可读的名称（它的标题）；选项是 radio 或 checkbox，读得出选中与否；说明行是 `role=status`，提交后的回执能被读出来。真机读屏归用户验收（BL-016）。
+- **AC-10-9 撤销。** 可选的单选题选了以后，能清掉选择（共享客户端，助理那边一样受益），草稿跟着清；必答的单选题不能清空，只能换。
+
+走查：在一次性 Home 里用本机假模型走一遍上面的动线，三个宽度加深色各截一张图。
+
+**分两片（统筹 10-19 派单 §3a）。** 第一片只改共享问卷部件（设计系统的渲染、客户端与样式，宿主的卡传一句文字）：AC-10-9。可选的单选题多一个「清除选择」，只在选了以后出现；按下清空选择、草稿跟着清，焦点回到这一组唯一的停留点。字节在同一处抵掉：两张样式表里选中态的两组相同声明合成一条，客户端脚本收短几处写法，`workbench.css`、`arrival.css` 各少 36 字节，`workbench.js` 少 17 字节。第二片要改 Coding 的 `client.ts`，与 #759 撞文件，等它合入（或叠在它上面），按 `coding.js` 放行键的顺序：收下后焦点回到输入框、回执能被读出（AC-10-3 末段、AC-10-8），连同 AC-10-1～8 的浏览器用例。
+
+**待补浏览器验证**（用户 10-19 暂停本机浏览器验证；暂停解除后、验收之前一次做完）：
+
+| 动线 | 宽度与主题 | 验收编号 |
+| --- | --- | --- |
+| Coding 发任务 → 问卷卡 → 作答、改选、清掉 → 提交 → 回执、焦点回输入框；等人时页面重读三次 | 1440、1024、390，深色 | AC-10-1～9 |
+| 助理问卷卡上可选的单选题：选了出现「清除选择」，按下清空、焦点留在这一组 | 1440、390，深色 | AC-10-9 |
+| `interaction-client.e2e` 的 AC-10-9（本机没跑，CI 全量跑） | 1000 | AC-10-9 |
+| §20.15 末「实走」：助理与 Coding 的问卷卡、操作卡、Option、下一步 | 1440、1024、390，深色 | AC-02、AC-06、AC-25 |
+| 英文界面、不配模型，助理开始新工作发一句：失败框整句英文、草稿原样、「Open model settings」打开模型设置（QA-001） | 1440、390 | AC-10 |
+
+### 15.11 AC-06：卡片的结果进下一步行，Coding 同排（H4）（2026-10-19，交互线）
+
+范围：操作卡跑完以后，结果怎样从对话走到输入框上方那一行。位置、顺序和页面怎样按，用情境线的结果位接口（`specs/context-program/spec.md` §21.9，#780）；本片只加「最近跑完的那张卡的结果」这一支，助理和 Coding 用同一个函数（`apps/local-host/src/agent-next-steps.ts` 的 `cardOutcomeSteps`）。不改合同，不改设计系统，不改 `assistant-island.ts`，不改 Coding 的页面脚本（`coding.js` 不变）。
+
+**用户动线。**
+
+1. 助理（或 Coding 的一轮）给出一张操作卡。人按「执行」，卡变成「已完成」，卡里的结果带一个「打开」（主人在动作的结果视图里声明的链接，例如「继续接入」）。
+2. 输入框上方那一行，在等你的之后出现一步「打开「结果标题」」。按下它，和按卡里那个「打开」完全一样：页面把卡带到眼前，再按这个控件。没有第二条执行路径。
+3. 人接着发下一句话，新的一轮开始：这一步消失。新的一轮做完，结果位换成这一轮的结果。
+
+**状态。**
+
+| 状态 | 什么时候 | 下一步行 |
+| --- | --- | --- |
+| 空 | 没有跑过的卡，或最近跑完的那张卡的结果没有可打开的 | 不占位，结果位交给这一轮的结果 |
+| 进行中 | 最新一轮还没结束（含等人回答、待核对、状态未知） | 不给卡片的结果步 |
+| 这一轮失败 | 最新一轮失败了，哪怕其间有卡跑完 | 助理的结果位只给「再试一次」（`context-program` §21.9，#791）；卡的结果照样画在对话里。Coding 的行没有「再试一次」，仍按 AC-06-5 给 |
+| 已完成 | 最近跑完的那张卡已完成，结果有「打开」，而且是在最新一轮开始之后跑的 | 一步「打开「…」」，排在等你的之后、这一轮的结果之前；结果位一次只说一件事 |
+| 失败、未确认 | 最近跑完的那张卡没有完成或结果未确认 | 不给结果步；这张卡本来就在等你的里（「去处理：…」） |
+| 忽略、失效 | 卡被放下或过期 | 不算跑过，不影响哪张是最近跑完的 |
+| 另一张卡正在跑 | 最近跑完的那张卡之后，又有一张卡在跑 | 正在跑的不算跑过：仍给上一张跑完的卡的结果 |
+| 无权限、已停用 | 结果的链接打不开 | 宿主只给内部链接（`presentActionResult`），页面照常按；打不开时由打开的那一处说明 |
+
+**撤销。** 结果里的撤销现在不在卡上：可撤回的改动列在侧栏（`view.undoable`，不带卡片编号，`assistant-island.ts` 画）。卡片结果要带「撤销」，得先让撤回记录认得是哪张卡，那是合同改动，不在本片。
+
+**验收编号。** 宿主端在 `tests/assistant-interaction-html.test.ts`，页面端在 `tests/assistant-step-row.test.ts`，Coding 在 `tests/coding-next-steps.test.ts`。
+
+- **AC-06-1 按的是卡里那个控件。** 卡片结果的「打开」带 `data-ix-press="open"`；下一步的 id 是 `card:<卡>:open`，字样「打开「结果标题」」，结果没有标题时用卡的标题。
+- **AC-06-2 只看最近跑完的那张。** 已完成、失败、未确认的卡里最晚的那张，而且是在最新一轮开始之后跑的；它失败或未确认时不给结果步；结果没有可打开的不给；忽略、失效的卡不算跑过；一轮还没结束不给（停下的一轮算结束）；助理这一轮失败了也不给，结果位留给「再试一次」。
+- **AC-06-3 结果位一次一件事。** 卡片的结果在等你的之后、这一轮的结果之前，二者只出一个；不把等你的挤出前三（沿用 SLOT-01）。
+- **AC-06-4 页面按的就是它。** 宿主给的那一步按下卡片结果自己的「打开」，不按卡的「执行」，卡被带到眼前（沿用 SLOT-02 的禁用与未发出的修改规则）。
+- **AC-06-5 Coding 同排（H4）。** Coding 的下一步行同样给这一步，排在 Coding 自己的「查看变更」之前（「核对并继续」只在这一轮待核对、还没结束时出现，那时不给这一步）；id 是那个「打开」的选择器，Coding 页面按选择器按它；这一轮没有结束不给，失败了照样给（Coding 的行没有「再试一次」）。
+
+**待补浏览器验证**（用户 10-19 暂停）：在一次性 Home 里，助理和 Coding 各跑一张带结果链接的卡，下一步行出现「打开「…」」，按下与按卡里的「打开」相同；1440、390，深色各一张图。
+
 ## 16. 决策记录
 
 2026-10-09 用户对 D1–D4 选了「推荐」一列；D5、D6 未另提意见，按推荐执行，随时可改。
@@ -605,6 +707,8 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | P7 | 验收：工程（构建、门禁、相关用例、全量一次）、真实模型与浏览器实操、截图；归档 | 全部 |
 
 每段按 `docs/system/PARALLEL-DEVELOPMENT.md` 拆 PR：合同与扩展点先合，实现后合；门禁改动不混进功能 PR。
+
+**归属补记（2026-10-19，统筹派单 D4）**：PG-036（`assistant-service.ts` 里 31 处 `executor.kind === "coding"`，讲助理怎样跨插件把活交给 Coding）改归本线，属防腐阶段 4，等阶段 3 与 W5-10 之后开工，现在只记归属；PG-054（Coding 把运行时写死成 `"prologue"`）仍归采用线。
 
 **P2 的落点（2026-10-12 核对，实施前再看一次）**：
 
@@ -692,6 +796,25 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 - 2026-10-11：I0 独立组合预览写成并交接（§19、§20）。
 - 2026-10-12（C1a，已取消）：曾把合同子路径先做成纯新增（#447）；统筹改序后并进 C1+H1（D11），#447 关闭。
 - 2026-10-13（交接 PR 合并 I1）：按用户决定，各线只在交接 PR 里提交；I1（#439）已合进交接分支（933c664f，无冲突）。I0 预览改用 `createInteractionClient`，删掉预览自己的 `calendar.ts` 和 `bindings.ts` 里的字段、日历、键盘处理（净减 128 行）；纯逻辑用例 21/21 与局部 typecheck 通过，**浏览器用例（`tests/ai-interaction-slice.e2e.test.ts`）等 browser 锁，尚未重跑**。
+- 2026-10-19（修 QA-001：英文界面下没配模型时，助理的失败原因是中文，AC-10，防腐复查）
+  - 起点：从 main `8eedf222` 起，合入 main `c0b204fd`（#775）后 merge-base 是 `c0b204fd`。Codex 独立验收报的 QA-001（P2），统筹分诊派给本线。
+  - 原因：宿主在 `assistant-error.ts` 把中文原文放进错误体，英文目录里有译文却没人用；页面拼「输入已保留」时还夹了一个中文句号。
+  - 改动：宿主自己的原因按这次请求的界面语言说（`L()`，请求的语言由 `web-server.ts` 的 `runWithLocale` 定，宿主已有几处错误这样做）。同一类的几句一起改：没配模型、执行服务被另一个进程占用，以及委托 Coding 时的四句（`assistant-coding.ts`）。`action` 不翻：页面按它的文字认出要给哪个控件（`/模型/` 给模型设置的链接），再自己翻译，所以它仍是中文键，英文目录补齐。页面把句号并进同一条译文（`L("。输入已保留")`，英文 ". Your text is kept"）。
+  - 字节：`workbench.js` 小 3 字节，预算已降。
+  - 用例：`assistant-business-gateway` 的「AC-10, QA-001」（英文页面上原因是英文、不留中文字和标点、原文保留、`action` 仍指向模型设置；中文页面照旧）。浏览器部分进 §15.10「待补浏览器验证」。
+  - 评审顺手改（⑤）：回答重启前停住的问题后下一轮没能开始时，「已回答，下一轮没能开始：」这半句也按界面语言说（`assistant-parked-answer.ts`）：原因已经是界面语言，前半句是中文就成了中英混排。用例 `interaction-parked-answer` 的「AC-10, QA-001」。
+  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base（含翻译、DOM 事件）；M6 页面资源（只降不升）。
+  - 不变的：合同、动作、DOM 事件、错误码。
+- 2026-10-19（AC-06 卡片的结果进下一步行，H4 Coding 同排，防腐复查）· 从 #780 的头 `0aa2a2bb` 起（统筹 10-19：叠在基 PR 上先写逻辑与 node 用例，基 PR 合入后并 main，不变基）· 并入 main `8eedf222`（#780 合入后）· merge-base `8eedf222`。做法见 §15.11：一份 `cardOutcomeSteps`（`agent-next-steps.ts`）给两处用——助理的结果槽（`assistant-outcome.ts`，排在交付说明之后、这一轮的结果之前，只看这一轮开始后跑完的卡、这一轮还在跑时不给），Coding 的下一步行（`coding-surface.ts` 的 `codingNextSteps`，排在 Coding 自己的「查看变更」之前）。这一步只按卡上结果自己的「打开」（`data-ix-press="open"`），不另开链接、不重跑；页面脚本不改（步骤行与 Coding 的处理早已认 `card:<id>:<name>` 与以 `[` 开头的选择器），所以 `coding.js`、`workbench.js` 不用排放行键。撤销不进这一步：`AssistantUndoable` 没有卡的编号，要改合同，记在 §15.11。没有新事件、新错误码、新合同、新动作；两句界面文字都是现成的（「打开「{title}」」「来自操作卡」）。用例：`assistant-interaction-html`（AC-06-1～3）、`assistant-step-row`（AC-06-4）、`coding-next-steps`（AC-06-5）。浏览器验证与截图待补（用户 10-19 暂停）。通过：M1 边界；M2 健康门禁对照 merge-base（没有变大的；含 API 快照、DOM 事件、翻译）；M6 页面资源不变（改动只在宿主的服务端代码，不进 `/assets/` 下的任何包）；M5 动作快照不变（没有新动作、没改 Manifest）。生成插件的问卷缺口随本片记为 BL-245。
+- 2026-10-19（AC-01 入口盘点定稿；AC-09 S1 回填；AC-12 生成插件的边界写进 Skill，防腐复查）· 从 main `b016513d` 起 · merge-base `b016513d` · 只改文档与 Skill。§14.3 逐个插件核了调用路径、装配与界面（调查读源码，关键行逐个抽查），定为终版：已接 3、已覆盖 2、第二批接入 4（顺序 PPT → Pages → Cognia → 插件创作台，各开一片）、不接入 6、不适用与只核对一致性的若干，生成插件记为平台缺口（沙箱的操作结果包在 `value` 里交给部件，不经 `withPluginInteraction`；沙箱也没有 `ask-user`）。首轮写的「灵光等 prologue-adoption」已过时，改正。AC-09 的 Form 证据早已在（#532，W4-04），回填为已实现。AC-12：`skills/molis-plugin-dev/generated-ai.md` 的「设计时」加一条——生成插件不能先问再接着做，要人补的信息做成提交部件的字段，输入不够以合同里声明的错误码失败、保留输入，不让模型反问、不返回 `needs_input`；`SKILL.md` 里同一句跟着改。`pnpm studio:replay --base origin/main` 离线回放通过（退出 0，合并基点上记的结果都成立；挂载摘要列出 design、code 两段文字变了，这是预期，固定答卷说不出对模型的影响）。真实模型冒烟要先在隔离 Home 的设置页配模型，用户 10-19 暂停了浏览器验证，记为待补。生成插件问卷缺口的 BL 号交统筹分配（main 上到 BL-221，之后的号在途 PR 占了），本片不新开。防腐复查：只动 `.md`；没有新的兼容或迁移；没改门禁、阈值、合同、动作 schema、页面资源；Skill 里新加的行内代码没有路径或带点的动作 id，§14.3 引的路径逐个核过都在；缺口照 2026-10-18「插件一视同仁」记成平台要补的，不给某个插件开私路。
+- 2026-10-19（AC-10 第一片：可选单选能清掉，AC-10-9，防腐复查）
+  - 起点：从 main `520db6d52` 起，merge-base 是 `520db6d52`。计划在 §15.10，按统筹 10-19 派单 §3a 分两片。
+  - 改动：共享问卷部件给「选填、单选」的题加「清除选择」。没选时藏起来；按下清空选择、草稿跟着清，焦点回到这一组的停留点。助理与 Coding 同一张卡，一起受益。
+  - 字节：在同一处抵掉，不用放行键。`workbench.css`、`arrival.css` 各少 36 字节，`workbench.js` 少 17 字节，预算已降。
+  - 用例：`interaction-components` 与 `coding-question-card` 的 AC-10-9 本机通过；`interaction-client.e2e` 的 AC-10-9 写给 CI 跑，本机浏览器验证暂停，记进「待补浏览器验证」。
+  - 通过的检查：M1 边界；M2 健康门禁对照 merge-base；M6 页面资源（预算等于实测）；M9 翻译（「清除选择」有英文）。
+  - 不变的：合同、动作、DOM 事件、错误码。
+  - 第二片（Coding 收下后焦点与回执，AC-10-1～8）等 #759。
 - 2026-10-18（AC-08 两个页签同时作答；AC-11 按现状改，防腐复查）· 从 main `b3499cda`（#702 之后）起 · merge-base `b3499cda` · 统筹批准计划：确定的先后、四件事都要断言、本机只跑相关文件；查出缺陷后同意修，要求码按类别给状态、页面按码判断、单独一个提交、重跑全量。用例：助理在 `assistant-typed-questions.e2e`，Coding 在 `interaction-no-crosstalk.e2e`（那里有会问问题的 Coding 一轮）；第二个页签的回答在它自己的页面里挡住，等第一个收下、这一轮跑完才放行。**缺陷**：Coding 的 `coding.control-run` 对已结束的一轮、对不属于这个会话的执行，抛的是不带码的 `Error`，页面收到 400、没有码。修法：`routes-sessions.ts` 里新声明 `defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" })`，状态码照旧由 plugin-sdk 的 `errors.ts` 按类别给（409、404）。Coding 页面的请求函数带上 `code`，答卷遇到 `coding.round_ended` 或 `agent.pending_not_open` 时，卡片关上、原话写在卡片上，再读会话也不撤这张卡；原来是把话写进提示、卡片却还能再交。最初放在状态行，合 main 后本机查出这一轮结束时状态行会清空、原因被冲掉，改成留在卡上，用例在重读之后断言卡还在（撤掉修复即红）。全量（CI 的 Linux）上第二个页签作为后台页签没能打开会话（只有前台页面读会话、跟着这一轮），改成单独开一个窗口，两边都在前台；这样也查出回答还在路上的卡会被跟随的那次刷新撤掉，一并修了，两处各自撤掉都会红。Coding 的页面没有英文目录，所以这两句和它旁边的话一样只有中文。通过：M1 边界；M2 健康门禁对照 merge-base（`client.ts` 是巨大单元，1638 → 1637：会话状态的文字表原来写了两份，留下一份）；M6 页面资源：`coding.js` 小了 131 字节，预算已降；M4 API 快照、M5 动作快照、M8 DOM 事件、M9 翻译都不变；错误模型的数字不变（新码在 `defineErrorCodes` 里，主人名是 `coding`）。浏览器冒烟名单已满（5 个），这两个用例不加进 `ci-product-subset.txt`。
 - 2026-10-17（BL-156 的 Molis 半边：回答停放的题，AC-07，S-33，防腐复查）· 从 main `102671ce`（#681 之后）起 · merge-base `102671ce` · 统筹批准计划并加了授权、零写入、开轮失败、关闭、合同、措辞几条。正常关机停放的一轮（Prologue `b541a8e6`）重启后卡片可答：`readPendingQuestion` 见到没有活执行者、但在会话索引里停放且 `inspect` 给了 `canAnswer` 的题，标 `parked`；`answerPending` 照旧核答案，再经 `sessions.answerInterrupted`（`assertBeforeAnswer` 是网关那一份 `effects.assertCurrent`）。助理与 Coding 各自开下一轮（§15.9「实现」）。通过：M1 边界；M2 健康门禁对照 merge-base（`AssistantService` 1533 行/91 个方法不变：开轮与措辞在新的小文件 `assistant-parked-answer.ts`，`assistant-service.ts` 1877 行不变：多出的一行 import 由把孤立的「Delegation bounds」注释放回 `assistant-delegation.ts` 里它的常量上抵掉；`prologue.ts` 不变大）；M4 API 快照（`agent-interaction` 的 `AgentPendingQuestion` 多 `parked`，`agent-host` 的 `AgentRecoveryReport.runs[]` 多 `can_answer` 与 `questions`）；M5 动作快照不变（`coding.runs.control` 的输出本来不封闭，回执 `message` 与 `next_round` 是多出的字段）；M6 页面资源：`coding.js` 小了 15 字节（回执的话搬到路由，页面只显示），预算已降；M9 翻译（三个码与两句助理的话有英文）；错误模型不变（三个 SDK 码映射到现有的 `agent.session_busy`）。Coding 等待醒来与停放回答的下一轮共用 `waits.ts` 的 `continuedBody`，不另写一份。安全：`SECURITY-INVARIANTS.md` 加 S-33。用例：`tests/security-invariants-parked-answer.test.ts`（五条拒绝，每条比对存储逐个文件不变，进 `pnpm test:security`）、`tests/interaction-parked-answer.test.ts`（六条：回答后下一轮带答案；开轮被拒答案留着、说「继续」带上；忙一次与两次；重启后 AC-08；停放时新消息被拒、草稿留着）、`tests/coding-session-recovery.test.ts`（Coding 的回执、读不到开法、忙时只看一次再试一次），`tests/prologue-start-refusal.test.ts` 的重启用例改成回答停放的题，`tests/interaction-reask.test.ts` 的提早重新问改断言 `assistant.state`，`tests/agent-control-errors.test.ts` 加三个码。把 `parkedOn` 改成总不认停放后，这几份里 11 条中 10 条失败（构建确实换了才算）。改到的文件读到的用例本机跑过；改了 agent-host、contracts、Coding，全量由统筹在 label-chain 跑。
 - 2026-10-17（「请 AI 重新问」，D5、D37，防腐复查）· 从 main `4fd585da`（#655 之后）起 · merge-base `4fd585da` · 统筹批准文件清单与插件 SDK 里的同一份构造。过期或宿主重启时结束的问题卡上多一个「请 AI 重新问」：页面只说是哪一个问题，宿主写这一轮的话（`QUESTION_REASK.task`），从这项工作或这个会话自己的 Run 读原问题，从宿主存的那份读草稿，带成一份只写事实的材料（插件 SDK 的 `questionDraftMaterial`，助理与 Coding 同一份文字），怎样用草稿写在以用户口吻说的那句话里；统筹复查后改：材料里不写给模型的指令（运行时已按数据交给模型），重新问被拒时不存草稿，HTTP 层先拒绝形状不对的请求。助理：新的小文件 `assistant-reask.ts`，发送路径里调一次；Coding：`plugins/native/coding/src/reask.ts`，错误码归 Coding（`defineErrorCodes("coding", …)`：还能回答、不是这个会话、已经不在、形状不对各一个码）。通过：M1 边界；M2 健康门禁对照 merge-base（`AssistantService` 1629/98 → 1627/97：删掉只转调一次的 `explain()`；`assistant-island.ts` 2277 → 2275：点按在 `assistant-send.ts`，删掉 `cardShell` 删除后留下的孤立注释；Coding `client.ts` 1637 不变：删掉一条重复的注释，两条放错位置的注释放回各自的函数；合同 `services/assistant.ts` 本来正好 800 行，按统筹定把只含类型的 `AssistantRecovery` 原样搬到 `services/assistant-recovery.ts` 并从原处转出，单独一个提交，API 快照不变，不加子路径）；M4 API 快照（`agent-interaction` 多 `AgentQuestionReask`，`AssistantSendInput` 多可选的 `reask`，插件 SDK 多 `QUESTION_REASK` 与 `questionDraftMaterial`）；M5 动作快照不变（`/send` 不经登记的动作，`coding.start-run` 的输入本来允许多余字段）；M6 页面资源：`coding.js` +184、`workbench.js` +271，用户 2026-10-17 经统筹的弹窗批准一次性放行，单独一个提交，每次合 main 后按新的 merge-base 重定（现在是 `e49f6a55`，增量不变），替换回执 3b-2a 用完的条目；M9 翻译（「请 AI 重新问」有英文）。用例：`tests/interaction-reask.test.ts`（四条：过期后重新问带草稿、宿主重启结束后重新问、助理拒绝还能回答的与别的工作的且不调模型、Coding 的四种拒绝），进 CI 产品子集；`assistant-island-script` 的发送处计数 2 → 3（新的那处同样标 `written_by: "page"`），`assistant-interaction-html` 的视图样例补上合同要求的 `executor`。改到的文件读到的 70 个用例本机通过，`issue-assistant-repair-page.e2e` 在干净的基线工作树上同样失败（时序，与本片无关）；全量由统筹在 label-chain 跑。
@@ -1110,18 +1233,18 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 
 | 验收 | 判定 | 证据 / 缺口 |
 | --- | --- | --- |
-| AC-01 范围 | 部分 | §14.3 只有首轮分组；逐插件的证据没补；第二批入口（P5）未开始 |
+| AC-01 范围 | 已实现 | §14.3 定稿（2026-10-19）：每个插件逐个核过调用路径、装配与界面，每行写依据与结论——已接 3（助理、Coding、Form），已覆盖 2（Todo、Issues），第二批接入 4（PPT、Pages、Cognia、插件创作台），不接入 6，不适用的各写了理由，生成插件记为平台缺口。首批不冒充全量：第二批的逐个接入（P5）按 §14.3 末尾的顺序各开一片 |
 | AC-02 输入体验 | 部分 | Option 在问卷卡里（助理 `agent-question-card.ts`、Coding 同一函数，用例 `assistant-interaction-html`、`coding-question-card.e2e`）。**同排推荐没有**：D14 把下一步放在最新一轮之下，不在输入框旁；Coding 没有下一步（H4）。§3 第 2 条「与输入框平齐、横向展开」是用户特别强调的，现在归情境线的助理面板布局（跨线，见下） |
 | AC-03 交互语义 | 部分 | 操作卡不点不执行、推荐不等于选中、默认值不提交（`assistant-offers.ts`；`coding-question-card.e2e`「不预选」）。输入框目标芯片（D14 修订后的 R4）：助理一侧本线的「写进问卷」已做——问卷有两道以上题、其中只有一道文本题时，宿主用同一份 `composerQuestion`（`assistant-inputs.ts`）判一次、在那一题上标 `draft_from_composer`（字段 id，与 D34 的 `from_composer` 互斥），芯片默认「写进问卷：<题目>」，回车只把文字接在那一栏后面、经现有的问卷草稿保存，不发给 AI、不交回，卡上的「提交回答」才交回；一下切到回执线的「补充这一轮」、再一下切回（`assistant-receipts-client`、`assistant-interaction-html`、`assistant-typed-questions.e2e`「AC-03, R4」）。Coding 还没有芯片，另片 |
 | AC-04 补充信息 | 已实现 | 助理与 Coding 的 `ask-user` 带六种题型（T1、T2），宿主逐题校验与字段旁的错误（`answerProblems` → `agent.answer_invalid` → `questionErrors`）；§15.8 示例 1 一张卡问日期时间、数字与对象引用，错一题只报那一题，改对后原 Run 接着做（`interaction-examples`，2026-10-17）；浏览器里的同一条路是 `assistant-typed-questions.e2e` |
-| AC-05 对象与材料 | 达成 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。不串线（2026-10-18）：`tests/interaction-no-crosstalk.e2e.test.ts` 三条——问题的草稿与回答留在提问的会话里，切换会话不带过去；引用题在一个项目里只搜到、只留下这个项目的对象，切换项目不带走选择与回答，经 Coding 的接口交另一个项目的对象被宿主拒绝（S-26）且 Agent 运行时的文件一个不变；操作卡按生成时的选区执行，卡出来以后或按下按钮的那一刻改选区都不改变它做的事。写用例时查出 Coding 的回答接口不收引用题的对象（动作的 schema 收、处理器拒），已修：Coding 只核形状，限额取插件 SDK 的 `QUESTION_LIMITS`，合不合题交运行时，归属交宿主（`tests/coding-run-control-contract.test.ts` 的 AC-05 两条）。BL-152（D38）：每一轮按自己项目里装着、显示着的插件给种类清单，外部插件的也在内，进模型前由宿主筛（S-32，`security-invariants-reference-kinds`）；外部插件的种类能被问到、两轮顺序不变、退回内置清单（`agent-reference-questions` 的 BL-152 用例）。新会话的第一次读取到来之前（防腐 §10.28 P1，2026-10-19）：目标、材料、方法、MCP、能力、角色六个按钮和命令面板的材料、方法跟输入框一起关着；跨过「新会话」还开着的方法对话框这时保存，只存选择，不把框里上一个会话的字写成新会话的草稿（`tests/coding-session-first-read.e2e.test.ts` 的 AC-05 第五条） |
-| AC-06 预览与结果 | 部分 | 助理操作卡有对象、参数、影响与回执（`assistant-card-view.ts`）；结果只有一行文字；下一步只有「打开结果 / 再试一次」。Coding 没有操作卡（H4） |
+| AC-05 对象与材料 | 达成 | H3 与 T2：候选只按题目的种类、以会话主人的权限搜（`search.references@1`），提交前宿主向主人重读，主人此刻的标题进回答，读不到的退回（S-26，`security-invariants-object-references`）；操作卡的目标对象改版后失效（`assistant-offers.ts` 的失效巡检）。不串线（2026-10-18）：`tests/interaction-no-crosstalk.e2e.test.ts` 三条——问题的草稿与回答留在提问的会话里，切换会话不带过去；引用题在一个项目里只搜到、只留下这个项目的对象，切换项目不带走选择与回答，经 Coding 的接口交另一个项目的对象被宿主拒绝（S-26）且 Agent 运行时的文件一个不变；操作卡按生成时的选区执行，卡出来以后或按下按钮的那一刻改选区都不改变它做的事。写用例时查出 Coding 的回答接口不收引用题的对象（动作的 schema 收、处理器拒），已修：Coding 只核形状，限额取插件 SDK 的 `QUESTION_LIMITS`，合不合题交运行时，归属交宿主（`tests/coding-run-control-contract.test.ts` 的 AC-05 两条）。BL-152（D38）：每一轮按自己项目里装着、显示着的插件给种类清单，外部插件的也在内，进模型前由宿主筛（S-32，`security-invariants-reference-kinds`）；外部插件的种类能被问到、两轮顺序不变、退回内置清单（`agent-reference-questions` 的 BL-152 用例）。一个会话的第一次读取到来之前（防腐 §10.28 P1，2026-10-19；「新会话」和切到这一页还没读过的会话都算）：输入框，工作区、目标、写入目录、材料、方法、MCP、能力、角色、委派九个按钮，命令面板里设下一轮的命令（各个方式、`/materials`、`/methods`、`/delegate`、`/model`、`/workspace`、`/compact`）都关着，切换的那一刻就关，不等状态轮询；切换时还开着的九个对话框关掉，选择不存；这时从别处交回的审查意见被拒、意见留着，返工原因同样不进框，上一个会话的字不会写进这个会话（`tests/coding-session-first-read.e2e.test.ts` 的 AC-05 第五到七条）。框归谁只在 `plugins/native/coding/src/browser/draft.ts` 的 `owns` 判断。工作区对话框提交途中切走了会话就不再设置，这一处没有用例。待补浏览器验证（用户 10-19 暂停本机浏览器验证）：首读前「+」菜单的禁用态只有深色、桌面宽度一张截图，浅色和另两个宽度等暂停解除后、验收之前补 |
+| AC-06 预览与结果 | 已实现（浏览器验证待补） | 操作卡有对象、参数、影响与回执（`assistant-card-view.ts`），助理和 Coding 画的是同一张卡（AC-25）；跑完的卡在卡上给结果和主人声明的「打开」。最近跑完的那张卡的结果进输入框上方的结果位（§15.11，AC-06-1～5，接情境线 §21.9 的接口）：一步「打开「…」」按的就是卡里那个控件，Coding 同排（H4）。结果里的撤销还在侧栏，没上卡（要合同改动，见 §15.11「撤销」）。节点用例 `assistant-interaction-html`、`assistant-step-row`、`coding-next-steps`；浏览器走查待补（用户 10-19 暂停） |
 | AC-07 失败恢复 | 达成 | 等待期限 24 小时（`prologue-node.ts` 的 `inputWaitTtlMs`）；草稿存在工作记录与 Coding 会话（D13、`question_drafts`）；卡片 CAS、结果未知不重试。Home 重启（BL-156，§15.9）：正常关机把等人回答的一轮停放在题上，重启后卡片可答，回答后下一轮带着答案；开轮失败时答案留在排队里并写明原因，说「继续」或点「从断点继续」再开；授权按回答那一刻（S-33）。过期与已结束的题用「请 AI 重新问」（D37）。崩溃留下的孤儿照旧由人核对或关掉（§15.9 第 7 条）。用例 `tests/interaction-parked-answer.test.ts`、`tests/prologue-start-refusal.test.ts`、`tests/coding-session-recovery.test.ts`、`tests/security-invariants-parked-answer.test.ts` |
 | AC-08 并发与输入 | 已实现 | 卡片版本 CAS、问题版本核对；两个入口同时交同一题：只收一份，另一份带码退回，模型只听到一次，跑完后再交也退回（`interaction-recovery`，2026-10-17）。浏览器里两个页签同时作答（2026-10-18）：第二个页签的回答在页面里挡住，等第一个收下、这一轮跑完再放行，先后是定的，不靠计时。助理退回 `assistant.stale`，Coding 退回 `coding.round_ended`；模型只听到收下的那一份，退回的那份不写盘（`assistant-typed-questions.e2e`、`interaction-no-crosstalk.e2e`「AC-08」）。退回时两边都只说宿主知道的事：助理说「这个问题已经结束或被替换」，Coding 说「这一轮已经结束」，不说「已由另一处回答」。宿主此时只知道题已关、或这一轮已结束，不知道是谁答的：可能是另一个页签，也可能是题过期、被重新问。Coding 的页面按码判断：卡片留着、关上，这句话写在卡片上，选过的也还在；再读会话时这张卡也不撤（状态行在这一轮结束时会清空，原因放在那里会被冲掉，所以不放那里）。回答还在路上的卡也不撤：第二个页签跟着这一轮，会先看到题被答掉、这一轮结束，卡若这时撤掉，退回的原因就没有地方显示。这个用例查出 Coding 原来退回的是不带码的 400，已修 |
-| AC-09 专业插件 | 部分 | Coding 的 Diff、命令审查、报告在 A2 全量里通过；非 Agent 插件的结构化接续没有（S1） |
-| AC-10 UI | 部分 | 助理问卷卡与操作卡在 A1 看过浅、深与 390 px；Coding 问卷卡的三个宽度与深色没有记录；真实中文输入法、读屏未验证 |
+| AC-09 专业插件 | 已实现 | Coding 的 Diff、命令审查、报告在 A2 全量里通过；非 Agent 插件的结构化接续由 Form 走通（S1 #532 与 W4-04 第三片，即 AC-26：`form-draft-questions`、`plugin-interaction-answer`、`form-runtime-routes` 的 W4-04-05，浏览器里是 `form-actions.e2e`）。其他插件的接续是 P5，按 §14.3 的顺序另开 |
+| AC-10 UI | 部分 | 助理问卷卡与操作卡在 A1 看过浅、深与 390 px；Coding 问卷卡的三个宽度与深色没有记录；真实中文输入法、读屏未验证。2026-10-19 计划见 §15.10：第一片 AC-10-9（可选单选能清掉，共享客户端）已写，用例 `interaction-client.e2e`「AC-10-9」（CI 跑）、`interaction-components`、`coding-question-card` 的 AC-10-9；第二片（AC-10-1～8，Coding 收下后的焦点与回执）等 #759。英文界面下宿主给的失败原因（QA-001）改成按界面语言说，用例 `assistant-business-gateway`「AC-10, QA-001」。浏览器部分进 §15.10「待补浏览器验证」 |
 | AC-11 SDK 消费 | 已实现 | 整条链路（2026-10-18 核）：现用的包是 `vendor/prologue-sdk/README.md` 里「当前依赖」那一份（不再是过渡包；具体提交以那份说明为准，不在这里写死）；宿主把六种题型经 `askUserQuestionTypes` 交给它（`prologue-node-port.ts`）；真实 Runtime 下，模型拿到的 `ask-user` 正是卡片画得出的六种（`assistant-typed-questions.e2e`「AC-27-5」），助理与 Coding 都能答。原有的等待与审批语义：停放的题重启后可答（AC-07），并发作答只收一份（AC-08）。历史数据按 `docs/system/CONTRACT-CHANGES.md` 还不留读取兼容 |
-| AC-12 长期接入 | 部分 | D1（2026-10-17）：`skills/molis-prologue-ai/SKILL.md` 的「交互」一节、`docs/platform/PROLOGUE-AI.md` §6「问人、建议一步、引用对象」、`skills/molis-plugin-dev/SKILL.md` 的索引行、设计系统 README 的引用搜索；§15.8 示例 1 有新用例 `interaction-examples`，示例 3 是 `form-draft-questions`；示例 2 的操作卡有 `action-cards`、`agent-host-offers`。没有的：示例 2 的同排按钮（归情境线）；`generated-ai.md` 未改（它挂在创作台的 Skill 里，改它要真实模型冒烟，生成插件也没有这几条路） |
+| AC-12 长期接入 | 部分 | D1（2026-10-17）：`skills/molis-prologue-ai/SKILL.md` 的「交互」一节、`docs/platform/PROLOGUE-AI.md` §6「问人、建议一步、引用对象」、`skills/molis-plugin-dev/SKILL.md` 的索引行、设计系统 README 的引用搜索；§15.8 示例 1 有新用例 `interaction-examples`，示例 3 是 `form-draft-questions`；示例 2 的操作卡有 `action-cards`、`agent-host-offers`。`generated-ai.md`（2026-10-19）在「设计时」写明生成插件走不了这几条路，要先问的信息做成提交部件的字段，输入不够就以声明的错误码失败、保留输入；`pnpm studio:replay` 离线回放通过。没有的：示例 2 的同排按钮（归情境线）；`generated-ai.md` 的真实模型冒烟待补（要先在隔离 Home 的设置页配模型，用户 10-19 暂停了浏览器验证）；生成插件也能先问再接续，是平台缺口（§14.3 末行） |
 | AC-17 共享部件 | 已实现 | `interaction-components.test.ts`、`interaction-sdk-mapping.test.ts` |
 | AC-18 共享客户端 | 已实现 | `interaction-client.e2e.test.ts` |
 | AC-19、AC-20 带类型的题进宿主 | 已实现 | C1+H1（#410）；用例 `agent-typed-questions.test.ts`（用例名带 AC-19/AC-20 编号，2026-10-18 补上） |
@@ -1129,7 +1252,7 @@ A1 开工时一起要改的断言（改成断言采用后的状态，不是放�
 | AC-22 Coding 问卷卡 | 已实现 | #496；`coding-question-card.e2e.test.ts` |
 | AC-23 操作卡协作者 | 已实现（助理） | #492；`assistant-offers.ts`（W5-10 形状） |
 | AC-24 对象引用 | 已实现 | H3：`search.references@1` 与提交前复核（S-26，`security-invariants-object-references.test.ts`）；`reference` 题型由 T2 开放（AC-28） |
-| AC-25 Coding 操作卡 | 已实现 | H4 分两片（统筹 2026-10-15 定）。**第一部分已做**：Coding 输入框上方的下一步，是最新一轮的问题（与助理同一个 `interactionNextSteps`，形状不变，只加输入）加 Coding 自己的「核对并继续」「查看变更」；每一步都按下屏上那一轮已有的控件，不开新的执行入口（后续步骤由 Coding 自己给：`plugins/native/coding/src/next-steps.ts` 的 `codingFollowUps`；宿主在已有的 `coding-surface.ts` 里与问题合成一排并画出；用例 `coding-next-steps`、`coding-question-card.e2e`）。**操作卡（第二部分）已做**（D25–D28，2b → 2a → 2c）：Coding 的 coordinator、builder 角色带 `suggest-action`，一轮的建议进运行视图（2a）；Coding 读到一轮时把它的建议落成会话的卡（`plugins/native/coding/src/action-cards.ts`，插件私有存储 `cards:<session_id>`，按 `offer_id` 只落一张、落卡在 `beforeEffect()` 之后、建议的动作此刻不在授权里就不落）；卡由宿主画（与助理同一个 `assistantCardHtml`），挂在那一轮下面，也是输入框上方的一步；点卡经新的宿主动作 `agent.offers.run@1` 执行：只跑这条建议点名的那个动作（引用、冻结的动作工具、建议时记下的合同摘要 `action_digest` 都要对上），输入过动作自己的检查，调用方只能是这一轮所属的插件（S-29）；卡按修订号认领，第二次点击不再执行，结果按失败的 kind 记（D26）。有未发送改动的卡，输入框上方那一步只把卡带到眼前、不执行（FLOW-03）。用例 `coding-action-cards`、`coding-action-cards.e2e`、`security-invariants-agent-offer-runs` |
+| AC-25 Coding 操作卡 | 已实现 | H4 分两片（统筹 2026-10-15 定）。**第一部分已做**：Coding 输入框上方的下一步，是最新一轮的问题（与助理同一个 `interactionNextSteps`，形状不变，只加输入）加 Coding 自己的「核对并继续」「查看变更」；每一步都按下屏上那一轮已有的控件，不开新的执行入口（后续步骤由 Coding 自己给：`plugins/native/coding/src/next-steps.ts` 的 `codingFollowUps`；宿主在已有的 `coding-surface.ts` 里与问题合成一排并画出；用例 `coding-next-steps`、`coding-question-card.e2e`）。**操作卡（第二部分）已做**（D25–D28，2b → 2a → 2c）：Coding 的 coordinator、builder 角色带 `suggest-action`，一轮的建议进运行视图（2a）；Coding 读到一轮时把它的建议落成会话的卡（`plugins/native/coding/src/action-cards.ts`，插件私有存储 `cards:<session_id>`，按 `offer_id` 只落一张、落卡在 `beforeEffect()` 之后、建议的动作此刻不在授权里就不落）；卡由宿主画（与助理同一个 `assistantCardHtml`），挂在那一轮下面，也是输入框上方的一步；点卡经新的宿主动作 `agent.offers.run@1` 执行：只跑这条建议点名的那个动作（引用、冻结的动作工具、建议时记下的合同摘要 `action_digest` 都要对上），输入过动作自己的检查，调用方只能是这一轮所属的插件（S-29）；卡按修订号认领，第二次点击不再执行，结果按失败的 kind 记（D26）。有未发送改动的卡，输入框上方那一步只把卡带到眼前、不执行（FLOW-03）。一轮结束后，最近跑完的那张卡的结果也进这一排，排在「查看变更」之前，按的是卡上结果自己的「打开」（AC-06-5，§15.11）。用例 `coding-action-cards`、`coding-action-cards.e2e`、`security-invariants-agent-offer-runs`、`coding-next-steps` |
 | AC-26 单次接续 | 已实现 | S1（#532）与 W4-04 第三片：`form-draft-questions`、`plugin-interaction-answer`、`form-runtime-routes`（W4-04-05） |
 | AC-27 放开文字、数字、日期、日期时间 | 已实现 | T1（D29–D33）：AC-27-1 题型与 provider 请求里的 schema（`agent-question-types`、`agent-typed-questions`）；AC-27-2 宿主的卡与带界限的报错；AC-27-3 读回答与改名被拒；AC-27-4 Coding 路由与 `coding.runs.control@4`（`coding-run-control-contract`）；AC-27-5 助理与 Coding 的浏览器用例（`assistant-typed-questions.e2e`、`coding-question-card.e2e`；D34 一道文本题从输入框回答，同一文件与 `assistant-interaction-html`） |
 | AC-27-6 数字题的单位 | 已实现 | D35：`agent-question-types`（Runtime 带回 `unit`、卡上与报错行带单位）、`interaction-components`（单位随字段读出）、`assistant-typed-questions.e2e` 与 `coding-question-card.e2e`（单位在步进器旁、报错「不能超过 120 分钟」） |

@@ -50,7 +50,7 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 319,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 2013,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1993,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
@@ -154,7 +154,7 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2142,
+    "file packages/design-system/src/styles/craft-finish.ts": 2136,
     "file packages/design-system/src/styles/momentum.ts": 823,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
@@ -173,7 +173,7 @@
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
-      "lines": 573,
+      "lines": 567,
       "methods": 30
     },
     "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
@@ -193,7 +193,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1635,
+    "file plugins/native/coding/src/client.ts": 1619,
     "file plugins/native/coding/src/styles.ts": 812,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -501,7 +501,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 134,
+  "emptyCatchesInScriptsTotal": 132,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -537,7 +537,7 @@
     "plugins/native/artifacts/src/import-client.ts": 1,
     "plugins/native/characters/src/client.ts": 1,
     "plugins/native/coding/src/changeset-client.ts": 1,
-    "plugins/native/coding/src/client.ts": 13,
+    "plugins/native/coding/src/client.ts": 11,
     "plugins/native/coding/src/plans-client.ts": 4,
     "plugins/native/coding/src/steps-client.ts": 3,
     "plugins/native/coding/src/subagents-client.ts": 3,
@@ -818,7 +818,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 382,
+  "pluginOutsideMentionsTotal": 381,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -839,7 +839,7 @@
     "lingguang#outside-files": 9,
     "pages#outside-files": 19,
     "plugin-builder#outside-files": 19,
-    "ppt#outside-files": 9,
+    "ppt#outside-files": 8,
     "schedule#outside-files": 19,
     "shelf#outside-files": 16,
     "text-stats#outside-files": 7,

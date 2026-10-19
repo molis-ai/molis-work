@@ -4,23 +4,12 @@ import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app
 import { agentQuestionHtml } from "../agent-question-card.js";
 import { interactionNextSteps } from "../agent-next-steps.js";
 import { composerQuestion } from "./assistant-inputs.js";
+import { assistantOutcomeSteps } from "./assistant-outcome.js";
 
 /**
- * What follows the latest round: open what it made (two at most), or send the same words again when it failed. They come
- * after what waits on the person in the one row above the input (`assistantStepRow`).
- */
-export function assistantNextSteps(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string): InteractionNextStep[] {
-  const last = view.rounds.at(-1);
-  if (last?.phase === "failed") return [{ id: "retry", label: say("用同样的话再试一次"), source: last.text.slice(0, 200) }];
-  if (last?.phase !== "completed") return [];
-  return view.objects.filter(object => object.relation === "result" && object.open && object.state !== "missing").slice(0, 2)
-    .map((object, index) => ({ id: `open:${object.subject.kind}:${object.subject.id}`, label: say("打开「{title}」", { title: object.title }), source: say("这一轮做出的结果"),
-      ...(index ? { primary: false } : {}) }));
-}
-
-/**
- * The conversation's next steps for the row above the input (specs/context-program §21.2, FLOW-01…05): the first three,
- * the rest folded into 「还有 N 项」, and every one of them for when the person unfolds it.
+ * The conversation's next steps for the row above the input (specs/context-program §21.2, FLOW-01…05): what waits on the
+ * person, then the outcome slot (§21.9); the first three, the rest folded into 「还有 N 项」, and every one of them for when
+ * the person unfolds it.
  */
 export function assistantStepRow(view: AssistantWorkView, say: (text: string, values?: Record<string, string | number>) => string): { next_html: string; next_all_html: string } {
   const waiting = say("等你：");
@@ -31,7 +20,7 @@ export function assistantStepRow(view: AssistantWorkView, say: (text: string, va
       .map(child => ({ id: `work:${child.work_id}`, label: say("看等你的子任务"), source: child.title, primary: false, waiting: true, waitingLabel: waiting })),
   ];
   const steps = interactionNextSteps(view.rounds.flatMap(round => round.awaiting_input), view.cards,
-    view.reviews.map(review => ({ review_id: review.review_id, title: review.summary })), [...elsewhere, ...assistantNextSteps(view, say)], say);
+    view.reviews.map(review => ({ review_id: review.review_id, title: review.summary })), [...elsewhere, ...assistantOutcomeSteps(view, say)], say);
   if (!steps.length) return { next_html: "", next_all_html: "" };
   const label = say("下一步");
   return { next_html: renderInteractionNextSteps(steps, label, { max: 3, more: count => say("还有 {count} 项", { count }) }),

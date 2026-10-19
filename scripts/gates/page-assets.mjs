@@ -235,14 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
-// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
-// Todo, receipts 3e-1, W3-C2 and W4-1, starting at 1,113,068 B. Preserve only the unspent +2,231 B; every prior start remains refused.
-// This exact increase is spent once; later growth stays frozen.
+// Reviewed 2026-10-19: receipts review fixes (#778, specs/ai-input-receipts): a step the person holds says so, and the
+// mark of what AI noted is one whole English sentence per holder, written once rather than per round, with both wordings
+// in the shared RECEIPT_WORDS table (first version +292 B). That adds 195 B to workbench.js, spent once from exactly
+// this start; later growth stays frozen. Plugin tab groups' spent starts (workbench.js 1,115,299, workbench.css 1,589,812)
+// are refused, like every spent start before them.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1113068, 1115299],
-  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
-  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
+  "/assets/molis-work-workbench.js": [1129841, 1130036],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.

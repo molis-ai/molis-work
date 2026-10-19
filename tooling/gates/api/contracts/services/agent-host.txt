@@ -1395,7 +1395,6 @@ export interface AgentWriteChecker {
     applies_to: string[];
     cwd?: string;
     timeout_ms?: number;
-    env_allowlist?: string[];
 }
 
 export interface AgentWriteCheckerList {

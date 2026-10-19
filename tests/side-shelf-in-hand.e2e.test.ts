@@ -15,6 +15,27 @@ const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden])";
 const MATERIAL = "离线也要能记下想法，回到网上再同步。";
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
 
+/**
+ * AC-S04 sometimes times out on CI (red twice and green once on one commit) while it passes locally, and the screenshot cannot
+ * tell which step stood still. On a timeout this notes, beside the test, what the page held at that moment: what the top
+ * document asked the Host for (`__asked`), what came back for each ask (`__answers`: when it left, its status and when it came
+ * back, how many candidates and how many available, or the error), the page's clock at that moment, the shown bars in the side
+ * tab's document and the first bar there in any state, the selection there, whether the panel is open, and the shown bars in the
+ * top document. An ask with no status never came back; one with available candidates and no bar came back and was not drawn.
+ * It then rethrows the original error; no assertion changes.
+ */
+const SCENE = `(() => { const doc = ${SHELF}?.contentDocument;
+  return { now: Math.round(performance.now()), asked: window.__asked ?? null, answers: window.__answers ?? null, side_bars: doc?.querySelectorAll(${JSON.stringify(BAR)}).length ?? null,
+    side_first_bar: doc?.querySelector('.mw-ctx')?.outerHTML.slice(0, 500) ?? null, side_selection: doc?.getSelection()?.toString() ?? null,
+    side_open: document.body.dataset.sideOpen ?? null, top_bars: document.querySelectorAll(${JSON.stringify(BAR)}).length }; })()`;
+async function noteSceneOnTimeout(t: TestContext, evaluate: <T>(expression: string) => Promise<T>, wait: Promise<void>): Promise<void> {
+  await wait.catch(async (error: unknown) => {
+    const scene = await evaluate<unknown>(SCENE).catch((reading: unknown) => ({ unreadable: String(reading) }));
+    t.diagnostic(`AC-S04 scene at timeout: ${JSON.stringify(scene)}`);
+    throw error;
+  });
+}
+
 /** Pages open on the left with its cursor placed (the landing), and a text material open in Shelf's side tab. */
 async function shelfBesidePages(t: TestContext) {
   const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
@@ -49,9 +70,21 @@ async function shelfBesidePages(t: TestContext) {
     body: JSON.stringify({ filename: "访谈记录.md", mime: "text/markdown", bytes_base64: btoa(String.fromCharCode(...new TextEncoder().encode(${JSON.stringify(`# 访谈记录\n\n用户说：${MATERIAL}\n`)}))) }) })
     .then((response) => response.json()).then((body) => body.item)`);
   assert.ok(item?.item_id, "the material is on the shelf");
-  // What the top document asks the Host for, to read where it says the thing in hand is.
-  await evaluate(`(() => { window.__asked = []; const original = window.fetch;
-    window.fetch = async (...args) => { if (String(args[0]).includes('/api/contextual/candidates')) window.__asked.push(JSON.parse(args[1].body)); return original(...args); }; })()`);
+  // What the top document asks the Host for, to read where it says the thing in hand is; and, for the scene, what came back.
+  await evaluate(`(() => { window.__asked = []; window.__answers = []; const original = window.fetch;
+    window.fetch = async (...args) => {
+      if (!String(args[0]).includes('/api/contextual/candidates')) return original(...args);
+      const body = JSON.parse(args[1].body), answer = { at: Math.round(performance.now()), pane_id: body.pane_id, context_id: body.focus?.context_id ?? null };
+      window.__asked.push(body); window.__answers.push(answer);
+      try {
+        const response = await original(...args);
+        Object.assign(answer, { status: response.status, back_at: Math.round(performance.now()) });
+        response.clone().json().then((out) => Object.assign(answer, { candidates: out?.plan?.candidates?.length ?? null,
+          available: out?.plan?.candidates?.filter((item) => item.available).length ?? null, plan_context_id: out?.plan?.context_id ?? null }),
+        (error) => { answer.unreadable = String(error); });
+        return response;
+      } catch (error) { answer.error = String(error); throw error; }
+    }; })()`);
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: ${JSON.stringify(SHELF_TAB)}, target: { item: ${JSON.stringify(item.item_id)} } } }))`);
   await waitFor(`Boolean(${SHELF}?.contentDocument?.querySelector('[data-shelf-read] .shelf-reading')?.textContent.includes(${JSON.stringify(MATERIAL)}))`, 20_000);
 
@@ -68,7 +101,7 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
   if (!fixture) return;
   const { evaluate, waitFor, item, selectInShelf, capture } = fixture;
   await evaluate(selectInShelf);
-  await waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000);
+  await noteSceneOnTimeout(t, evaluate, waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)}))`, 15_000));
   const placed = await evaluate<{ inTop: boolean; inView: boolean; beside: boolean }>(`(() => { const doc = ${SHELF}.contentDocument, bar = doc.querySelector(${JSON.stringify(BAR)}).getBoundingClientRect();
     const passage = doc.getSelection().getRangeAt(0).getBoundingClientRect();
     return { inTop: Boolean(document.querySelector(${JSON.stringify(BAR)})), inView: bar.left >= 0 && bar.right <= doc.defaultView.innerWidth && bar.top >= 0,
@@ -95,7 +128,7 @@ test("W3-C AC-S04: a passage selected in Shelf's side tab is in hand there; the 
 
   // In hand on the right again (the left's bar goes), then the panel closed: the bar goes with it.
   await evaluate(selectInShelf);
-  await waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})) && !document.querySelector(${JSON.stringify(BAR)})`, 15_000);
+  await noteSceneOnTimeout(t, evaluate, waitFor(`Boolean(${SHELF}.contentDocument.querySelector(${JSON.stringify(`${BAR} .mw-btn[data-key]`)})) && !document.querySelector(${JSON.stringify(BAR)})`, 15_000));
   await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
   await waitFor(`document.body.dataset.sideOpen === 'false' && !${SHELF}.contentDocument.querySelector(${JSON.stringify(BAR)}) && !document.querySelector(${JSON.stringify(BAR)})`, 10_000);
 });

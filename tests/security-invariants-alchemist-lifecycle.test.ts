@@ -255,7 +255,7 @@ test("W5-01-ALC-RES01/02/06: queued jobs retain their historical author and requ
   await current.runPending();
   assert.deepEqual(current.database.prepare("SELECT status, attempt, input_json FROM jobs WHERE id = ?").get(receipt.jobId), before);
   assert.equal(f.requests.length, 0, "opening and querying the new Host cannot dispatch the persisted job");
-  const view = await reopened.bound.invoke(a.runResume, { id: receipt.jobId });
+  const view = await reopened.bound.invoke(a.runContinuation, { id: receipt.jobId });
   assert.equal(view.canContinue, true);
   await reopened.bound.invoke(a.runContinue, { id: receipt.jobId, confirmation: view.confirmation });
   await current.runPending();

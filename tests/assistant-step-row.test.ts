@@ -36,7 +36,15 @@ const row = (records: Node_[]) => {
   const factory = vm.runInContext(`(${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})`, context) as (input: unknown) => { paint(): void };
   const made = factory({
     row: { hidden: false, querySelector: () => null, addEventListener: () => {} },
-    thread: { querySelectorAll: () => records },
+    // A comma list of `[data-<name>]`, answered as a browser would: only the records that carry one of those keys.
+    thread: { querySelectorAll: (selector: string) => {
+      const keys = selector.split(",").map(one => {
+        const match = one.match(/^\[data-([a-z-]+)\]$/);
+        assert.ok(match, `a selector the stand-in reads: ${one}`);
+        return match[1]!.replace(/-([a-z])/g, (_all, letter: string) => letter.toUpperCase());
+      });
+      return records.filter(record => keys.some(key => key in record.dataset));
+    } },
     L: (text: string) => text, el: () => ({}),
     drawn: (_row: unknown, _html: string, handlers: { onStep: typeof onStep }) => { onStep = handlers.onStep; },
     jumpTo: (record: Node_) => { jumped.push(record); },
@@ -80,6 +88,13 @@ test("SLOT-02: a card's result is keyed by the card; its run step still presses 
   assert.deepEqual([undo.pressed, run.pressed], [1, 0], "the result's own 撤销");
   go("card:c1:run");
   assert.deepEqual([undo.pressed, run.pressed, jumped.length], [1, 1, 2]);
+});
+
+test("SLOT-02: only a card's run step presses the run button; any other record's run presses the control named run", () => {
+  const action = node({ ixAction: "run" }), named = node({ ixPress: "run" });
+  const { go, jumped } = row([node({ ixRecord: "delivery:w1" }, [action, named])]);
+  go("delivery:w1:run");
+  assert.deepEqual([named.pressed, action.pressed, jumped.length], [1, 0, 1], "the record's own 「run」, not a card's run button");
 });
 
 test("SLOT-02: an option of a question is picked, then the question's own submit is pressed", () => {

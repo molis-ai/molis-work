@@ -180,7 +180,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 
 ### 工作流内容站
 
-`defineWorkflowContentActions({ id, title, icon, create, subject_kind, read_permissions, write_permissions })`（`subject_kind` 是站点内容的对象种类，要有读取它的 subject 动作，不是站点 id） 生成内容协议的规范动作（每个角色按 `WORKFLOW_CONTENT_VERSIONS` 里的现行版本：`receive` 是 2，输入是平铺的标题、正文和必填的 `request_id`；按旧形状声明、或动作 `version` 不是现行版本的角色，登记时被拒绝）；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
+`defineWorkflowContentActions({ id, title, icon, create, subject_kind, read_permissions, write_permissions })`（`subject_kind` 是站点内容的对象种类，要有读取它的 subject 动作，不是站点 id） 生成内容协议的规范动作（每个角色按 `WORKFLOW_CONTENT_VERSIONS` 里的现行版本：`receive` 是 2，输入是平铺的标题、正文和必填的 `request_id`；按旧形状声明、或动作 `version` 低于该角色现行版本的，登记时被拒绝；插件可以自己往上升）；将 `Object.values(actions)` 放入 Manifest `actions`，用 `bindWorkflowContentHandlers(actions, { list, read, receive, create })` 兑现处理器并从 `start()` 返回。SDK 会核对权限声明；运行时再次核对协议 schema。处理器拿到可信 `ActionCallContext`，按当前项目读写插件自己的数据。
 
 工作流从统一目录自动发现这些角色，使用同一执行服务，不增加 Host 支持名单或逐插件分支。读写权限须由安装 grant 和调用者同时满足。`receive` 返回该站点的实际内容引用；`list` 返回完整可选内容；不要把无结构输出或另一种业务对象冒充此内容合同。新增版本应保留或明确迁移旧引用，不能靠同名替换。
 

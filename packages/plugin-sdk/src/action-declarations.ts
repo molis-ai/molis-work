@@ -208,14 +208,14 @@ function workflowContentProblems(key: string, version: unknown, operation: unkno
   }
   const role = w.role as WorkflowContentStation["role"];
   const schemas = WORKFLOW_CONTENT_SCHEMAS[role];
-  // A role is declared at its current version only, its action's own version included: an older shape is refused when the plugin
-  // registers, not met at a call, and a step saved against an older version finds nothing rather than a new shape under its number.
+  // A role is declared in its current shape only: an older shape is refused when the plugin registers, not met at a call. Its action's
+  // version may move up on its own, never below the role's current version: a lower number belonged to an older shape, and a step
+  // saved against it must find nothing rather than the new shape under that number.
   const current = WORKFLOW_CONTENT_VERSIONS[role];
-  if (version !== current) return [`能力 ${key} 按工作流内容协议 ${role} 的现行版本应声明为 ${current}`];
   const inputOk = a.input_type === `molis.workflow.content.${role}.input.v${current}` && canonicalSchema(a.input_schema) === canonicalSchema(schemas.input);
   const outputOk = a.output_type === `molis.workflow.content.${role}.output.v1` && canonicalSchema(a.output_schema) === canonicalSchema(schemas.output);
   const shapeOk = a.scope === "project" && a.audiences.includes("workflow") && operation === (role === "list" || role === "read" ? "query" : "command");
-  if (inputOk && outputOk && shapeOk) return [];
+  if (inputOk && outputOk && shapeOk) return Number(version) >= current ? [] : [`能力 ${key} 的版本低于工作流内容协议 ${role} 的现行版本 ${current}`];
   const gap = shapeOk && outputOk ? "输入" : shapeOk && inputOk ? "输出" : "输入输出";
   return [`能力 ${key} 没有兑现工作流内容协议 ${role} v${current} 的${gap}合同`];
 }

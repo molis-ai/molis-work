@@ -415,7 +415,7 @@ defineWorkflowContentActions({ id: "inbox", title: "Inbox", icon: "inbox", subje
 
 | 编号 | 验收内容 | 证明它的测试 |
 | --- | --- | --- |
-| W4-6-01 | 八个站的 `receive` 都是 `@2`，输入是平铺形状，`request_id` 必填（1–160 字），`input_type` 是 `.input.v2`；`list`、`read`、`create` 仍是 `@1`。SDK 拒绝按旧形状声明的 `receive`，也拒绝形状对了、动作版本仍写 1 的，并说明理由 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
+| W4-6-01 | 八个站的 `receive` 都是 `@2`，输入是平铺形状，`request_id` 必填（1–160 字），`input_type` 是 `.input.v2`；`list`、`read`、`create` 仍是 `@1`。SDK 拒绝按旧形状声明的 `receive`，也拒绝形状对了、动作版本低于 2 的（插件可以自己往上升版本），并说明理由 | `tests/workflow-content-actions.test.ts`、`tests/plugin-declaration-rules.test.ts` |
 | W4-6-02 | 八个站各自：同一个请求号只建一个对象，重发返回同一个；换一个请求号会另建；请求号不是 `workflow:` 开头的也一样 | 新增 `tests/content-station-request-id.test.ts`（真实的八个站），以及 `tests/document-plugins-limits.test.ts`、`tests/lingguang-actions.test.ts`、`tests/pages-actions.test.ts`、`tests/content-owner-regressions.test.ts` 里改过的断言 |
 | W4-6-03 | 工作流交接照旧：用 `workflow:<实例>:<步骤>` 作请求号；崩溃后重试、两次并发推进，都只交一次；Feed → Inbox → Pages → 灵光整条走通 | `tests/workflows-handoff-idempotency.test.ts`、`tests/workflows-plugin.test.ts` |
 | W4-6-04 | 已固定 `receive@1` 的流程与实例：原引用保留，报「已保存的接收能力 v1 不可用」，不换成 v2，也不写任何内容；在编辑器里把这一站拿掉再加回来，就固定到 `receive@2`，能跑 | `tests/workflow-content-actions.test.ts`（「saved versions survive withdrawal and upgrades」那一组加一条） |

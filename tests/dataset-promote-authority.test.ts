@@ -3,13 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDatabase, PluginStartContext, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createDatasetPlugin, openDatasetStore, DATASET_DATABASE } from "@molis-ai/molis-work-plugin-dataset";
 
-type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact";
-type Failure = "revoke" | "cancel";
+type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact" | "before-complete";
+type Failure = "revoke" | "cancel" | "replace";
+const STAGES: readonly Stage[] = ["before-begin", "after-begin", "after-publish-check", "after-artifact", "before-complete"];
+const FAILURES: readonly Failure[] = ["revoke", "cancel", "replace"];
 
 /** A real Dataset plugin on real SQLite, with the Runtime's database and 成果 services standing in so each stage can fail. */
 async function promoteWith(stage: Stage | "none", failure: Failure) {
@@ -18,16 +20,17 @@ async function promoteWith(stage: Stage | "none", failure: Failure) {
   applySqliteBaseline(db, homeSqlitePath(home, "dataset"), DATASET_DATABASE);
   const seed = openDatasetStore(home), table = seed.create({ project_id: "a", title: "Authority" });
   seed.close();
-  let revoked = false, phase = 0, published = 0, beginCommitted = false, armed = false;
+  let revoked = false, replaced = false, phase = 0, published = 0, beginCommitted = false, armed = false;
   const controller = new AbortController();
-  const fail = () => { if (failure === "cancel") controller.abort(); else revoked = true; };
+  const fail = () => { if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };
   const database: PluginDatabase = {
     get: (sql, parameters = []) => db.prepare(sql).get(...parameters) as never,
     all: (sql, parameters = []) => db.prepare(sql).all(...parameters) as never,
     transaction: async <T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T> => {
       await beforeEffect();
       phase += 1;
-      if (phase === 1 && stage === "before-begin") fail();
+      // The write's own wait has passed; the caller is lost before its first statement runs.
+      if ((phase === 1 && stage === "before-begin") || (phase === 2 && stage === "before-complete")) fail();
       const result = write({ get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters) });
       if (phase === 1) beginCommitted = true;
       if (phase === 1 && stage === "after-begin") fail();
@@ -42,13 +45,17 @@ async function promoteWith(stage: Stage | "none", failure: Failure) {
   const context: PluginStartContext = { install_id: "dataset-test", plugin_id: "io.molis.work.dataset", version: "0.0.0", deployment: "local",
     grants: [], project_id: "a", services: { database, artifacts }, requireGrant: () => {} };
   const handler = (await createDatasetPlugin().start(context)).actions!.find(action => action.capability_id === "dataset.promote")!;
-  const refuse = () => { controller.signal.throwIfAborted(); if (revoked) throw Object.assign(new Error("revoked"), { code: "actions.forbidden" }); };
+  const refuse = () => {
+    controller.signal.throwIfAborted();
+    if (revoked) throw new ActionError("actions.forbidden", "revoked");
+    if (replaced) throw new ActionError("actions.provider_changed", "replaced");
+  };
   const caller: ActionExecutionContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["dataset:read", "dataset:write", "artifact:write", "artifact:read"],
     signal: controller.signal,
     beforeEffect: async () => refuse(),
     assert_authority_current: () => {
       refuse();
-      // The nested async check succeeds, then the caller is revoked before the promotion resumes to publish.
+      // The nested async check succeeds, then the caller is lost before the promotion resumes to publish.
       if (stage === "after-publish-check" && beginCommitted && !armed) { armed = true; queueMicrotask(fail); }
     } };
   const outcome = await handler.handle(caller, { id: table.id }).then(() => null, (error: unknown) => error as { code?: string; name?: string });
@@ -58,16 +65,17 @@ async function promoteWith(stage: Stage | "none", failure: Failure) {
 }
 
 /** W5-01-DATASET-06: every publication side effect rechecks the original caller after its own wait. */
-test("W5-01-DATASET-06: cancel or revoke at each publication stage keeps only already-committed stages", async () => {
-  for (const stage of ["before-begin", "after-begin", "after-publish-check", "after-artifact"] as const) for (const failure of ["revoke", "cancel"] as const) {
+test("W5-01-DATASET-06: cancel, revoke or a replaced provider at each publication stage keeps only already-committed stages", async () => {
+  for (const stage of STAGES) for (const failure of FAILURES) {
     const { outcome, row, published, armed } = await promoteWith(stage, failure);
     const label = `${stage} / ${failure}`;
     assert.ok(outcome, `${label}: the promotion is refused`);
-    if (failure === "revoke") assert.equal(outcome.code, "actions.forbidden", label); else assert.equal(outcome.name, "AbortError", label);
+    if (failure === "cancel") assert.equal(outcome.name, "AbortError", label);
+    else assert.equal(outcome.code, failure === "revoke" ? "actions.forbidden" : "actions.provider_changed", label);
     if (stage === "before-begin") { assert.equal(row.publication_pending, undefined, label); assert.equal(published, 0, label); }
     if (stage === "after-begin") { assert.equal(row.publication_pending?.version, 1, label); assert.equal(published, 0, label); assert.equal(row.artifact_version, 0, label); }
     if (stage === "after-publish-check") { assert.equal(armed, true, label); assert.equal(row.publication_pending?.version, 1, label); assert.equal(published, 0, label); assert.equal(row.artifact_version, 0, label); }
-    if (stage === "after-artifact") { assert.equal(row.publication_pending?.version, 1, label); assert.equal(published, 1, label); assert.equal(row.artifact_version, 0, label); }
+    if (stage === "after-artifact" || stage === "before-complete") { assert.equal(row.publication_pending?.version, 1, label); assert.equal(published, 1, label); assert.equal(row.artifact_version, 0, label); }
   }
   const control = await promoteWith("none", "revoke");
   assert.equal(control.outcome, null, "with nothing failing, the promotion goes through");

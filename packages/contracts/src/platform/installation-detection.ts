@@ -3,6 +3,15 @@ export const SUPPORTED_RUNTIME_IDS = ["codex", "claude-code", "opencode", "pi-ag
 
 export type SupportedRuntimeId = (typeof SUPPORTED_RUNTIME_IDS)[number];
 
+/** What each supported Runtime is called wherever a person reads its name. One table, so a new Runtime id cannot be added without a name. */
+export const RUNTIME_DISPLAY_NAMES: Record<SupportedRuntimeId, string> = {
+  codex: "Codex",
+  "claude-code": "Claude Code",
+  opencode: "OpenCode",
+  "pi-agent": "Pi Agent",
+  "grok-build": "Grok Build",
+};
+
 export type RuntimeConnectionState =
   | "not_detected"
   | "molis_work_unavailable"

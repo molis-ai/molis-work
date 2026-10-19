@@ -201,6 +201,8 @@ export interface OpenDesktopPanelInput {
     user_confirmed: boolean;
 }
 
+export declare const RUNTIME_DISPLAY_NAMES: Record<SupportedRuntimeId, string>;
+
 export type RuntimeConnectionState = "not_detected" | "molis_work_unavailable" | "not_connected" | "needs_repair" | "connected" | "conflict";
 
 export interface RuntimeIntegrationDetection {

@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～007；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；其余线仍在准备。尚不满足完成标准，七条线均不据此归档。
+状态：独立验收进行中；交互线已完成首批工程验证与部分真实模型实走，发现 QA-001～008；采用线已完成本轮逐项核对和部分实走，手册线已完成首轮核对与 Pages 真模型实走；Computer Use 首轮已记录工程结果与真机权限缺口；回执、情境、防腐继续。尚不满足完成标准，七条线均不据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -39,14 +39,14 @@
 
 ## 3. 总览
 
-交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；其余线尚未完成逐条动态验证，不以库存审读代替运行结果。
+交互首批判断为通过 7、部分通过 32、不通过 1、未验证 0、按决定不做 0（40 行，含 AC-27/28 汇总及子项，不能视为 40 个互不重叠的能力）。采用为 2 通过、22 部分通过、15 未验证；手册为11通过、10部分通过、1不通过、1未验证；Computer Use 为1通过、9部分通过、1不通过、4未验证；其余线尚未完成逐条动态验证，不以库存审读代替运行结果。
 
 | 线 | 能否归档 | 当前主要缺口 |
 | --- | --- | --- |
 | 交互 | 不能 | QA-001～003、已知 #709（修复在途 #759）/#775、P5 与 H4 2c 续做、完整产品状态矩阵及 BL-016 真人验收 |
 | 采用 | 不能 | 2 通过／22 部分／15 未验证；QA-004/005、BL-104/091、A2-2/A2-3、A3 structured、A5、P5/P6 与完整产品实走 |
 | 手册 | 不能 | 11通过／10部分／1不通过／1未验证；QA-006/007、ADH-19～23开发者实作、Coding小跑与真人验收 |
-| Computer Use | 不能据本报告归档 | 20 步真机、真实拒绝与回滚尚未开始 |
+| Computer Use | 不能 | 1通过／9部分／1不通过／4未验证；Helper三项权限未授予，真机未跑，QA-008 |
 | 回执 | 不能据本报告归档 | 逐编号运行和实走尚未开始；R1、3e 后续和阶段 4～6 有既定去处 |
 | 情境 | 不能据本报告归档 | 生产矩阵尚未实走；W4 后续、W5～W7 尚未交付 |
 | 防腐 | 不能据本报告归档 | 仍有大量在途切片；最后按新的 main 核对已合入部分 |
@@ -212,6 +212,34 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 
 **归档结论：不能。** 11 通过、10 部分通过、1 不通过、1 未验证。QA-006/007、ADH-19～23 的开发者实作、Coding 真实模型小跑及三级体验仍未收口；HU 仅补齐 ADH-14 的这条完整路径。
 
+### 4.4 Computer Use
+
+开线前再次 fetch，main 仍为 `8eedf222268eabb69a191ee726b11b62fa2d5ecb`；复用该干净 detached 树及同 SHA 构建。`C1`：reliability 13、act-loop 5、evaluation 1、gaps 9、task-done 2、S-25 selector 2/own-window 1，共33项通过；`C2`：local-entry 的 computer socket 与三入口合法本机名2项、gateway 60步上限1项、assistant-tool-words1项通过。日志 `.impeccable/qa/review/computer-{engineering,gateway-security}.log`。全部为一级，Helper/桌面树/图片/供应商是夹具，不能记作真机操作。
+
+`CU0`：新临时 Home，随机回环57506，真实 Helper经生产 GET `/api/computer/permissions` 启动并返回 `screen_recording=false, input_monitoring=false, accessibility=false`。只读检查没有请求权限；没有打开系统设置、操作密码框、启动真实桌面任务或配置模型，实际请求 **0/30**。网页实走个人空间→侧栏→电脑，显示“助理使用电脑：已关闭”，设置页总开关也未打开；界面观察本身不证明二十步或拒绝。没有 work/record/item id、操作步数、真实任务 token，原因是先决权限未满足，不伪造这些数据。三宽度/深色/中英文完整矩阵及运行、暂停、失败、撤销均未验；只留存1440浅色中文关闭态图，见[先决检查与截图评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265582085)。
+
+| 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
+| --- | --- | --- | --- | --- | --- |
+| CU-G01 | 通过 | 一级、二级（仅先决检查） | 已固定基线、检查在途/要求、运行C1/C2并记录CU0阻塞；满足本条允许记录阻塞原因的标准 | 三项系统权限未授予 | 8eedf2222 |
+| CU-G02 | 未验证 | 一级辅助；无二十步实走 | task-done的窗口/文件/记录判定是Helper夹具；CU0无权限，不能执行runbook | 既定待真机 | 8eedf2222 |
+| CU-G03 | 未验证 | 一级辅助；无真机 | C1 W3-10-4-01跑真实页面函数，但Shelf请求与PNG为假；无真实item/PNG/回滚记录 | 既定待真机；PG-057私路 | 8eedf2222 |
+| CU-G04 | 未验证 | 一级辅助；无真机 | C1拒绝终端输入、禁区、遮挡、密码、自身；真机五类未执行。系统设置/密码框还受用户禁止范围约束 | 无权限；锁屏/在场不重复制造 | 8eedf2222 |
+| CU-G05 | 部分通过 | 一级 | C2 60步上限后保留并可续；无真实20步token/与24轮对照 | 真机成本未验证 | 8eedf2222 |
+| CU-G06 | 部分通过 | 一级 | C1 100个无名组删去，有名组/密码框保留，原节点103仍点到30,20；仅合成树字符<1500 | 真大树/滚动成本未验证 | 8eedf2222 |
+| CU-G07 | 部分通过 | 一级 | C1 三次无变化后第四次拒绝、树变更重置、按键与交替动作例外；无实际加载慢/焦点丢 | 按现行§9语义，不重议已定边界 | 8eedf2222 |
+| CU-G08 | 部分通过 | 一级 | C1自动400×300/2x裁剪参数、密码拒绝；未验证真实裁剪像素/密集UI | 主动zoom按open-decisions§2暂不做，等真机证据 | 8eedf2222 |
+| CU-G09 | 部分通过 | 一级 | C1窗口菜单/长标题/sheet树；无真实打开保存打印导出 | 已定A：不同PID面板继续拒绝；同PID待实走 | 8eedf2222 |
+| CU-G10 | 部分通过 | 一级 | C1稀疏/截断树OCR、失败退回/密码不读、结果不可信；OCR词为预设 | Electron/canvas/游戏/远程桌面真实Vision未验证 | 8eedf2222 |
+| CU-G11 | 部分通过 | 一级 | C1名字/角色/部分名称与歧义拒绝、原始节点定位；S-25正则不编译、超时/600节点边界拒绝且零输入 | 真机同名/滚动/切窗未验证 | 8eedf2222 |
+| CU-G12 | 部分通过 | 一级 | C1十场景框架可运行，指标与拒绝有断言；回调人工改文件/窗口，tokens为字符估计 | 真实模型三个代表场景仍待跑，非成功率证据 | 8eedf2222 |
+| CU-G13 | 部分通过 | 一级 | 本SHA构建+C1/C2通过；boundary/health/security在ebad有运行，夜间全量为旧SHA | 当前SHA完整CI/门禁在防腐节收口；本机不跑全量 | 8eedf2222 |
+| CU-G14 | 不通过 | 一级（文审） | spec状态诚实留真机缺口，但runbook还把已选A称待定，open-decisions还称#721 draft | QA-008；不能归档 | 8eedf2222 |
+| CU-G15 | 未验证 | 无动态证据 | 可选文件/延迟/多显示器切片仍后续；不是已实现，也不是永久不做 | goal-prompt-wrapup阶段5；BL-021 | 8eedf2222 |
+
+**轻做与代码质量。** C1的task-done只改夹具窗口/文件列表，不能证明文件真实存在；OCR预设字和图片参数断言不能证明Vision实际识别与像素裁剪；evaluation不是真机成功率；Shelf回滚测试读生产函数但网络/条目全是假。以上在spec现行状态里明确待真机，不另立“没做也没有去处”。S-25 selector与own-window、S-04 socket已找到并跑过拒绝本身；不会把Helper输入0的夹具证据扩大到系统授权/真实注入。Shelf私路沿用PG-057，发布身份/多机沿用BL-021。D16旧“不进模型”及旧无OCR描述未清楚标记已被后续切片替代，纳入QA-008文档收口。
+
+**归档结论：不能。** 1通过、9部分通过、1不通过、4未验证；CU-G02～04真机证据、G05/06/08/09/10/12实测数据、QA-008及用户体验仍缺。仅权限先决检查可以据实完成，不以它判CU功能通过。
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
@@ -221,8 +249,9 @@ AU 已目视 1440/1024/390 浅色中文与深色英文；键盘可重开工作�
 | QA-003 | 交互；P3；文档不符（验收追溯） | AC-09、AC-11；specs/README 验收编号规则 | ebad9a223b84d28937df03393231381587b3193a | 干净检出并预备临时 Home，无需服务；按 README 的 tests 与非 fixture `*.test.*` 范围检索 AC-09/AC-11；对照状态表指向的真实测试 | 预期已有工程证据引用编号，人工部分另列；实际两编号均无引用，但存在真实行为测试。不是产品无实现或完全无测试 | 一级静态核对：`coding-changeset-http`、`coding-report-persistence`、`form-draft-questions` 证明专业链部分；`agent-question-types` 与 `assistant-typed-questions.e2e` 证明适配器部分；#785 仅文档回填 | `tests/form-draft-questions.test.ts:42`；`tests/agent-question-types.test.ts:25`；`specs/README.md:74` | HANDOFF §3 ⑨交互 | 按 AC-09/AC-11 可定位真实证明工程子条件的测试；人工复合条件明确列出，不用空测试凑引用 | 已派 |
 | QA-004 | 采用；P2；轻做或证据不足 | PA-08；§5.3、P3 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/assistant-delegation-handback.test.ts`；对照测试释放顺序、人工继续时点和 spec:515；再读 delegation:521～550 的双方屏障反证 | 预期两子结果与人工继续交错且最多一个父 Run；实际第一个完成后等 400ms 才放第二个，人工继续在自动轮完成后；注释称同时不成立。另有单子结果＋人工的真实竞争，不能说完全无并发 | A2 6/6、A3 delegation 16/16 通过，但不证明缺失组合；不是产品重复执行的实证 | `tests/assistant-delegation-handback.test.ts:77`、`:82`、`:100` | HANDOFF §3 ④采用线；Host 文件 owner 协作 | 屏障制造两子结果与人工继续交错，父 Session 只新增一 Run、接续只消费一次，重开不再启动 | 新 |
 | QA-005 | 采用；P2；轻做或证据不足 | PA-17；§5.3、P2 | f31801f5b53c9b520a6b86e12023e5dcdba7c1a9 | 新临时 Home；运行 `node scripts/run-tests.mjs tests/prologue-external-checks.test.ts --test-name-pattern=PA-17`；核对断言终点及 fixture usage；对照历史 live 文件的手动 `start` | 预期 pending 请求与实际用量增量均零、满足后同 Session 恰好一轮；实际仅到 eligible 和请求计数，未检查 usage 或一次启动。历史 live 手动下一轮/打印用量不能补齐 | A1、A3 background-wait 通过；live 历史记录确实存在，但没有完整组合断言 | `tests/prologue-external-checks.test.ts:36`、`:71`；`tests/fixtures/external-checks.ts:101`；`tests/coding-external-wait-live.test.ts:45` | HANDOFF §3 ④采用线 | 原 Run 结束后多次 pending 的真实请求与用量增量为零，满足及重复通知后只新增一轮且接续 consumed/started；计量接缝先有非零正例 | 新 |
-| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:51 设30秒、:57归档、:60 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回；取消路径不重新开轮 | 新 |
+| QA-006 | 手册；P2；轻做或证据不足 | ADH-16/18；§8、§9.5 D1② | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 新临时 Home；按 H1 模式跑 gateway 的 ending review 用例；读 :752 循环及 spec:837/840，全文检索 review 的故障注入 | 预期断言核对调用出错/超时仍放原结尾、无额外续做；实际只测正常空结果和无效 JSON，spec 却称错误/超时由确定性证明。未复现产品挂住 | H1 通过；ending-review:52 设30秒、:56归档、:59 catch放过是源码意图，非故障运行证明 | tests/assistant-business-gateway.test.ts:752；horizontal/agent-host/src/adapters/ending-review.ts:41；specs/ai-development-handbook/spec.md:837 | HANDOFF §3 ⑦手册与④采用/agent-host | 核对实际抛错及超时后原结尾通过、无自动续做/新业务写，临时核对会话收回 | 新 |
 | QA-007 | 手册；P3；文档不符 | ADH-07；手册 §14 基础实现索引 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时 Home，无需服务；读手册:515/524/540、同表真实模型行与 assistant-directory；核 #560/#561 合入记录 | 预期索引准确区分当前、历史和未实现；实际总句“无真实模型证据”与表内真实评测冲突，能力目录说只列可用但代码也列不可用原因，已合入#560/#561仍称在途 | 文审与源码；GitHub 两 PR 均 merged，且变更已在本 SHA；不同于已知control版本#793 | docs/platform/PROLOGUE-AI.md:515；:524；:540；apps/local-host/src/assistant/assistant-directory.ts:29 | HANDOFF §3 ⑦手册（相关能力 owner 复核） | 当前索引的能力范围、证据类型和PR状态逐项与本SHA源码及记录一致，历史基线明确标为历史 | 新 |
+| QA-008 | Computer Use；P3；文档不符 | CU-G14；runbook§6、open-decisions状态、spec D16/§6 | 8eedf222268eabb69a191ee726b11b62fa2d5ecb | 干净检出并预备临时Home，无需真实桌面操作；对照runbook§6与open-decisions§1已选A、spec状态已合#721/§9新裁剪OCR | 预期操作单遵守已定A并准确标历史；实际runbook仍写面板“待定、先问绕开”，open-decisions称#721 draft，旧“不向模型送图/无OCR”未标已替代 | 文审，当前实现与§9一致；没有因此放宽不同PID拒绝或改代码；已核PG§7与在途未找到本项 | specs/computer-use/acceptance-runbook.md:77；specs/computer-use/open-decisions.md:3；specs/computer-use/spec.md:28 | HANDOFF §3 ⑦手册/Computer Use | 四份文档对已定A、#721状态、自动裁剪/OCR现状一致；历史限制明确注明已替代，真机缺口仍保留 | 新 |
 
 QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/141、PG-071 属邻近问题但不是该路径，#631/#778 也没有修复该原因翻译。已知 P1 #709 继续沿用原编号，未新立项；尚待按原步骤复验。QA-002 与 BL-094（Feed 错误串页）不同；#776/#785 不修改该状态清理。统筹已在[分诊评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6265235773)确认 QA-001～003 并派交互线；#785 没有补测试编号，QA-003 保留。候选问题只有独立核实并去重后才编号。
 
@@ -232,7 +261,7 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 ## 7. 没验的范围和原因
 
-除 §4.1～4.3 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
+除 §4.1～4.4 明列范围外，其余动态路径均未验证。密钥现已可安全使用。真实 Home、发布/安装和迁移不在本次范围；第三方账号和真实资料不作为夹具。助理 Agent 目录模型配置与 Form 开发环境入口不能相互替代；正式助理配置已按用户批准以临时密文完成；其他未覆盖模型链路仍保留未验证。
 
 ## 8. 待用户验收
 
@@ -253,3 +282,5 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 - 采用线真实服务请求总数最终为 18，已停止自建 PID，核对临时目录名且非软链后删除整个 Home；未操作真实 Home/4207。PA-23 按现行 P3a 已定接法判断，不能把旧 A0 的禁 yield 文字用于否定正式 SDK 接续。
 
 - 手册线 7/12 次请求完成；按 PID 49492 停服务，确认进程退出后核对临时目录并删除，密文随 Home 清除。
+
+- Computer Use 的0/30请求仅权限先决检查；已按自建 PID 50894 停服务并核对删除本线临时 Home。没有修改系统权限；后续真机需权限由用户自行配置后再复验。

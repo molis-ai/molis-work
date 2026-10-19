@@ -1,6 +1,6 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
-状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交，剩召回评测（§10.1、PMAT-22）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
+状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）已跑完，结果在 §14 末节，PMAT-22 待用户判定。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
 
@@ -375,5 +375,56 @@
 - 工具说明与两份基础提示词（assistant-base v31、coding-base v14，都还没出过这个分支，原地改）写清一步步找、换说法再找（PMAT-30）。
 - 测试：`tests/knowledge-agentic-search.test.ts`（PMAT-26～29）、`tests/agent-definitions.test.ts`（PMAT-25、30）、`tests/knowledge-service.test.ts`、`tests/knowledge-workspace.test.ts`、`tests/security-invariants-knowledge.test.ts`（list 与全项目查找的拒绝）。
 - 验证（K3+K4 合起来，2026-10-19）：非浏览器回归 676 个文件里，因本改动而红的都已修好（Coding 夹具的 grants 加 `knowledge:read`，`tests/fixtures/coding-sdk-runtime.ts` 加一个从成果库与过程项读固定版本的 `knowledge.read` 替身；「30 份材料」用例改用资料的 subject；`plugin-private-storage` 的安装 grants 补上 `knowledge:read`。内置插件按 bundled 安装，拿到全部必需权限，所以真实 Home 升级后 Coding 不会因缺 grant 起不来）。按 `affected-tests` 选的 32 个相关文件（27 个浏览器用例）全过；`shelf-client-boundaries.e2e` 在批次里一次 CDP 导航超时，单独重跑 9/9 通过。`check-health-gates --base origin/main`、`boundary:check`、`typecheck`、`page-assets --base origin/main`、动作合同快照都过。全量回归留给统筹在整合分支跑。
-- 还没做：召回评测（§10.1、PMAT-22）。
+- 召回评测见下一节。
+
+### 召回评测（§10.1，2026-10-19，MiniMax-M3，一次性隔离 Home，跑完即删）
+
+```text
+环境：本分支 454485f7f 的构建，产品自己的 Web 宿主（与 AI 手册线 A3① 同一种驱动：desktop 的 Web 宿主、真实的助理服务与动作网关）。
+  一个新 Home，一个项目，开着成果与 Pages；32 份仓库文档（中文为主，最长 67,848 字）经侧栏「资料」的导入路由存成成果，
+  由项目的文字模型整理（31 份整理成，1 份失败，229 秒）。密钥只写进这个 Home 的文件密钥库（用户 10-16 的授权）。
+  每轮另记：模型请求里的工具调用与参数（预加载一个只读请求体的钩子，不读请求头）、资料的使用记录（knowledge 回执）。
+评测集：20 题，跑之前写好题目、对应的资料和对的答案要说出的事实。原话问 4、换说法问 5、问编号与名称 5、要跨两份资料 3、
+  答案在一份资料的第 32,000 字之后（搜索索引只收每份前 32,000 字）3。对错先按事实自动判，再逐条人看（人看改判 3 轮）。
+① 只搜一次，看前 5 张卡片里有没有对的资料：
+  把问题原样当查询：0/20。原因：搜索按原文逐字匹配（中文连续一段要原样出现在资料里），整句问话不会原样出现。这是有意的
+  设计（与 grep 一样，词由调用方挑），所以「把问题丢给检索」这条基线在这里不成立。
+  用助理自己第一次 knowledge.search 的词再搜一次：11/16（原话 4/5、换说法 2/2、编号 5/5、跨两份 0/4）；没命中的 5 次是
+  两份资料的题用一个查询（4 次）和一次多词查询（「真实模型诊断 MiniMax 累计请求」）。24 轮第一步没用 knowledge.search。
+② 助理自己找，每题 2 轮，共 40 轮：
+  答对 28/40（人看后；自动判 31/40）。原话 5/8、换说法 8/10、编号 7/10、跨两份 5/6、答案在后半部 3/6。
+  关键的分界是有没有去项目资料里找：用了 knowledge.* 的 30 轮答对 27；没用的 10 轮答对 1。
+  读到对的资料（回执）22/40；另有 4 轮只凭搜索卡片的提示句（资料开头约 200 字）就答对，没有读原文。
+  每轮工具调用平均 11（中位 8），答对的轮中位 8.5；读原文中位 1,683 字；耗时中位 34 秒；每轮输入（含缓存）平均约 22 万 token。
+  用到的动作：read 92、search 53、grep 34、outline 28、list 22 次。knowledge 调用 277 次，失败 156 次（56%）。
+答错的 12 轮，逐条归类：
+  拿不准（评测集偏差）7 轮：q01-2、q06×2、q13-2、q17-2、q18×2 没去项目资料里找，按助理自己的能力目录或常识答
+    （例如把「风险插件」当成 Goals 里的目标问题，把「接入顺序」答成连接服务的现行做法）。这批文档讲的就是 Molis Work，与助理
+    自己的能力说明重叠，问题本身就能被理解成「问这个系统」。下一轮要换一套与产品无关的资料（比如一家虚构公司的手册）再测。
+  设计问题 2 轮：
+    q15-1：provider_id 写错（io.molis.work.knowledge，应为 system.knowledge），动作网关回「不再提供（被关掉或删除），不要换别的
+      能力做，告诉用户」，助理于是停下来问人。原因在 horizontal/agent-host/src/adapters/prologue-action-gateway.ts 的 notOffered：
+      只按 capability_id 判断这一轮见没见过，身份写错被说成已下架。归 agent-host。
+    q05-1：没用 knowledge，用 artifacts.content.read 把 6 份无关文档整份读了（每份 1～2.6 万字），没读到对的那份就下了结论。
+      模型选错是能力问题，但成果库自己的读动作让同一份资料有了第二条读法：不经项目资料、不记回执、不占本轮额度（全部 40 轮里
+      这类读取 29 次、8 轮）。
+  模型能力 3 轮：q14-1 把 version 写成字符串 "1" 19 次（网关每次都说清了）；q14-2 读到了对的资料，却答了中间的 240，资料开头
+    写的是最后的 680；q07-2 把四个空数组输入的能力传成字符串，这一轮在作答前停了（停的原因没记下）。
+没答错、但拖慢或拖贵的（设计问题为主）：
+  1. 资料的 subject 被写坏：成果的 id 是一串 JSON（["document-…",1]），模型 77/114 次只写了中间的 document-…，13 轮受影响。
+     成果的读取器拒绝时报 actions.input_invalid，knowledge 原样往上抛（horizontal/knowledge/src/index.ts 的 owner），
+     动作网关再把所有 input_invalid 改写成「输入不符合能力合同」加整份 schema（prologue-action-gateway.ts 的 inputSchemaError）。
+     模型看到的是「格式不对」，而它的输入按 schema 是对的，于是反复改参数（这类失败 72 次）。真实原因（这个 subject 不是这里的
+     资料，要照抄 list/search 给的 subject）丢了。归 knowledge（说清原因）与 agent-host（不改写主人的拒绝）。
+  2. 项目资料的动作要先找：knowledge.* 是延迟工具，每轮先 find-tools / find-capabilities 才能调。440 次调用里 158 次是在找工具
+     （36%），第一次用 knowledge 前平均找 2.9 次、最多 18 次。Claude Code 的 Grep、Read 是常驻工具。
+  3. 同一份资料两条读法（见 q05-1）：使用记录（S-41、§8）只记经 knowledge 的读取。
+  搜索卡片的提示句带资料开头约 200 字原文，不记回执；这是系统搜索的现有行为，记在这里，不在这一期改。
+  模型能力（不加措辞）：version 写成字符串 31 次、把 max_lines 放进 subject、给输入多包一层引号。
+结论与未验证：工具式检索在「去找了」的轮次上答对 27/30，主要损失不在召回本身，而在没去找（7 轮，评测集偏差）、身份与 subject
+  写坏后的错误说不清（设计问题 1、q15-1），和找工具的开销。没测：与产品无关的资料、更长的资料（只有 1 份超过 6 万字）、
+  别的模型、Coding 的读法（K3 的 materials 在开始一轮时就读好，不走这条路）。PMAT-22 待用户看过后判定是否达标。
+  驱动脚本、题目与原始行在本会话草稿区 kn-recall/（不入库）：run.mjs、questions.mjs、score.mjs、capture.mjs，full/agent.jsonl、
+  search.jsonl、replies.md。
+```
 

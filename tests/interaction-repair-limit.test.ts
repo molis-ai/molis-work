@@ -58,14 +58,14 @@ const CORRECTED = { why: "需要定位页面", questions: [{ prompt: "在哪个�
 
 test("ISSUE-34 a question refused once is told why, its original shape kept, and the corrected one waits for the person", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "interaction-repair-once-"));
-  t.after(() => rm(home, { recursive: true, force: true }));
   const bodies: Array<{ messages?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
     bodies.push(JSON.parse(await new Request(input, init).text()) as { messages?: unknown });
     return bodies.length <= 2 ? cogniaScriptedResponse({ name: "ask-user", input: bodies.length === 1 ? UNLABELLED : CORRECTED }) : cogniaModelResponse("不该有第三次调用。");
   });
   const adapter = await adapterIn(home);
-  t.after(() => adapter.close());
+  // Closed before its storage goes: closing withdraws the waiting question, which writes.
+  t.after(async () => { await adapter.close(); await rm(home, { recursive: true, force: true }); });
   const session = await adapter.createSession({ ...owner, workspace: "business", title: "Repair once" });
   const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: "helper", role, task: "记录 Issue：111" });
   const deadline = Date.now() + 40_000;

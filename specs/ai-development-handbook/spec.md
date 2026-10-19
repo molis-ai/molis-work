@@ -1,6 +1,81 @@
 # Molis Work AI 能力开发手册
 
-状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验），ADH-19 至 ADH-22 的手册正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节，见 §9.6），ADH-23 等技能包实现。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验），ADH-19 至 ADH-22 的手册正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节，见 §9.6），ADH-23 等技能包实现。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：未分配（手册线 2026-10-20 收尾，交接见下节）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+
+## 交接（2026-10-20）
+
+手册线（⑦）按统筹 10-20 的重新安排收尾，之后这条线上没有人接着做。接续时从本节读起；本节取代统筹目录 `coordination/2026-10-18/lines/` 里本线的那份（那份不在 main 上）。需求书里没有更早的「远端交接」「统筹更正」段落。
+
+**现状**
+- 手册正文和 Skill 章节已经写进手册。
+- 存量清理清单 A1–D4 全部合入：C4 的 Molis 半边由采用线做，D3 属于安全边界，不清理。
+- ADH-12～18 有测试或 §9.5 的记录作证。
+- 还剩两项：各条「人工」的用户验收，和要等技能包实现的 ADH-23。所以不归档。
+
+**已合入**（10-19 起本线合入的；更早各片的 PR 记在 §9.5 各块里）
+
+| PR | 合入提交 | 内容 |
+| --- | --- | --- |
+| [#782](https://github.com/molis-ai/molis-work/pull/782) | `e6a7d18cc` | 角色拿到的工具变了，版本跟着升；`acknowledge-inputs` 与 `skills.default` 按现状写 |
+| [#787](https://github.com/molis-ai/molis-work/pull/787) | `f31801f5b` | Skill 章节的手册正文（ADH-19～22，§9.6） |
+| [#800](https://github.com/molis-ai/molis-work/pull/800) | `2342d6909` | BL-146：Alchemist 的「研究偏好」标题（§9.5） |
+| [#806](https://github.com/molis-ai/molis-work/pull/806) | `661805b18` | BL-145：工具说明延后加载以后，用法仍用得对（§9.5） |
+| [#809](https://github.com/molis-ai/molis-work/pull/809) | `ee6df47d8` | 修 QA-007、QA-008：第 14 节按 main `7d1cc4bf` 重核；Computer Use 的 runbook 第 6 节 |
+| [#816](https://github.com/molis-ai/molis-work/pull/816) | `3cac91f73` | 修 QA-006：收尾核对出错时放过原结尾（ADH-16） |
+| [#820](https://github.com/molis-ai/molis-work/pull/820) | `cdca7f748` | 修 QA-007 余项（ADH-07 那三行真实模型记录）、修 QA-020 |
+
+统筹另派的两项，不属于本需求书：[#790](https://github.com/molis-ai/molis-work/pull/790)（`6ce961f31`，BL-149 的 spec，在 `specs/issue-home-v0/spec.md`），[#799](https://github.com/molis-ai/molis-work/pull/799)（`fa14cfa6e`，防腐 T0 的特权表）。
+
+**在途**（都在 ⑤ 手里，本线不再推送）
+
+| PR | 分支 @ 头提交 | 内容 | 还差什么 |
+| --- | --- | --- | --- |
+| [#777](https://github.com/molis-ai/molis-work/pull/777) | `claude/handbook-coding-run` @ `b2d69387d` | §9.5「Coding 小跑结果」：holdFinish 不设；BL-176 那行改为指向 prologue#53。只改文档 | 评审合入 |
+| [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | ⑤ 的评审在看第 08 项。8 个浏览器用例改了没在本机跑（10-19 起这台机器暂停浏览器用例，PR 里写明了） |
+| [#825](https://github.com/molis-ai/molis-work/pull/825) | `claude/qa-021-rac-trace` @ `65275d89e` | 修 QA-021：防腐的 RAC-44、55、60 逐部分指向证明 | CI 与评审 |
+| [prologue#53](https://github.com/molis-ai/prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 统筹评审过，可合；最后一个提交是 ⑤ 推的。按约定，等某次换 Prologue 包把它带上再合。[#814](https://github.com/molis-ai/molis-work/pull/814) 换到的是 `a51607fb`，不含它；下一次换包还没人领 |
+
+**分支与工作树**
+- **已删**：
+  - 本线各片的临时工作树；#819 的工作树 `bl149`；qa-021 的工作树（交接 PR 推送后删）。
+  - 已合入或已推送的本地分支：`claude/cu-security-status`、`claude/handbook-skill-chapter`、`claude/handbook-coding-run`、`claude/qa-021-rac-trace`、`claude/bl149-issue-naming`、`claude/handbook-cu-line-964f30`。
+  - 远端分支不由本线删（删远端分支要用户确认）。
+- **本会话的工作树** `.claude/worktrees/handbook-cu-line-964f30`，在 `claude/remember-owners` @ `c4af0f836` 上：
+  - 有 3 个本地提交，从没推送。内容已经由 #800 和之后的 main 带上，没有要留的。
+  - 本会话归档时由 app 清掉工作树；本地分支直接 `git branch -D claude/remember-owners`。
+- **`bl149w`**（`claude/bl149-issue-naming-src` @ `29ccb2c09`）：
+  - 只在本地，在本会话的临时目录下（路径用 `git worktree list` 查）；它的提交已经在 #819 的历史里。
+  - #819 合入之前先留着；合入后由 ① 用 `git worktree remove --force <路径>` 和 `git branch -D claude/bl149-issue-naming-src` 删。
+  - 临时目录在机器重启后可能已经没了，那就跑 `git worktree prune`。
+
+**没做完的**（`specs/BACKLOG.md`）
+- BL-320：用户验收。
+- BL-321：ADH-23。
+- BL-322：插件命令行工具的 README 与代码不一致（§9.6 末段）。
+- BL-323：助理的 `remember` 放成建议时，模型收到的是一个错误（§9.5「BL-146」表的最后一行）。
+- BL-324：防腐需求书里余下的 RAC 验收块不在「验收」标题下（QA-021 时发现）。
+- BL-328：真实模型小评测在仓库里没有命令。
+
+**用户验收怎么做**（BL-320）
+1. 读正文，按一个开发情境走读，约 40 分钟。
+   - 打开 `docs/platform/PROLOGUE-AI.md` 第 12–17 节和 `skills/molis-prologue-ai/SKILL.md`。
+   - 挑一个想做的 AI 功能（例如给 Todo 加「把一条待办拆成步骤」），从 Skill 入口开始，看每一步能不能在手册里找到依据。
+   - 对照 ADH-01～08、10、11、19、20、22 各条的「可观察标准」打勾。
+2. 读评测记录，约 20 分钟。
+   - ADH-09、21：读 §9.5 里任意两条（推荐 BL-151、BL-146），再读手册 16.3、16.6。
+   - ADH-15：读「A3②」。
+   - ADH-18：读「D1②」。
+3. 结果写回 §8、§9。全部通过、而且 ADH-23（BL-321）也做完以后，按 `specs/README.md` 归档。
+
+**接续入口**
+- 依次读：本节 → §8 验收表 → §9.5（每片的判定规则、前后对比和问题分类）→ §9.6。
+- 评测的逐跑记录和临时脚本在统筹共享笔记的 `handbook-eval-assistant/`、`handbook-eval-coding/`、`handbook-eval-issues/` 里，不在仓库（BL-328）。
+
+**风险与不能碰的**
+- 真实模型评测只用一次性 Home，跑完就删。不碰真实 Home 和真实数据，包括这台机器上每天在用的那个 Home。
+- 不删 Home 主密钥的钥匙串条目：所有 Home 共用它。
+- MiniMax 的密钥在钥匙串里（服务名 `minimax-api-key`）。只在命令里内联读取，不进对话、文件和日志。
+- 改提示词要升版本，判定规则在开跑之前写下（手册 16.3）。模型自身能力造成的坏效果，不按症状打补丁（§9.4）。
 
 ## 1. 要解决的问题
 

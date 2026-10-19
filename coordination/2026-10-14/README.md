@@ -1407,3 +1407,6 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - LINE-COMMON §3 加了 Codex 一条：各线不直接回 Codex；修复的 PR 写「修 QA-xxx」；不改 `specs/qa-acceptance-2026-10/`。各会话还没广播，等下一轮消息额度到了再发。
   - ⑨：生成插件用不了 needs_input 的缺口编为 BL-245；AC-10 第二片叠在 #759 上、AC-06 + H4 叠在 #780 上先开发，避免空等。
   - 合入：#773 @ ebad9a223（⑤）。新移交：#780（⑧，workbench.js 小了 7 B，不占键）、#781（③ Alchemist）、#785（⑨）。
+- 09:34 UTC：按用户的话，把 Codex 验收的规则广播给了 ②～⑨ 八个会话。⑤ 多四件事：QA 问题落在它手上的 PR 时直接交它；修 QA 问题的 PR 合入后在 #784 评论请 Codex 复验；最后合入 #784；Codex 再自己合 PR 就告诉 ①。
+  - 裁定 D10（⑥ 3e）：「截至最近一轮」按工作累积，只有一轮、没有补充也没有产出时不显示；给 AssistantRound 加 step_board 另开一片，3d-2 的说法在 3e-2a 里就改对；bindText 由 #780 的槽带进 factory，⑧ 叠在 #780 上做后续 PR，不等 #631；BL-148 的 carried_from 同意，改合同进集成批。已通知 ⑥、⑧。
+  - 另外请 ③ 确认收到了 D9；又提醒了 ⑨：叠在 #759、#780 上开发，不要空等。负载：48.25 41.29 50.67。

@@ -1,6 +1,6 @@
 # Anti-corruption checklist
 
-Reviewed commit: `c1531e6dd1bc2692826c3bf3e9b8a86317a98be6` (`main` of `/Users/oreal/adeptify-home/repos/molis-work`, equal to `origin/main`).
+Reviewed commit: `c1531e6dd1bc2692826c3bf3e9b8a86317a98be6` (`main` of the review checkout, equal to `origin/main`).
 
 Measurement: `node scripts/check-health-gates.mjs --base origin/main --report` (see `health-gates.txt`, merge-base `c1531e6d`, exit 0). A checked item is either **pass** or names a finding in `anti-corruption-report.md`. No item is unchecked.
 

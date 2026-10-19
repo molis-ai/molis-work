@@ -293,7 +293,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 
 ## 10. 真实 Home 的孤儿与残留（2026-10-07）
 
-`/Users/yijunwang/.molis-work` 的一级条目 41 个，只读列出（`ls -A`、`find -maxdepth 3`、`stat`、`du`），没有打开任何库或数据文件（读过一个启动脚本，见开头第二条）。37 个条目对应上面的行；下面 4 个一级条目和 8 处目录内残留，当前 main 里没有任何代码拥有：对这些名字在 `apps packages modules plugins horizontal server scripts tooling skills` 里 grep，除 `plugins/native/alchemist/README.md` 提到旧演示库外都是 0 处引用，Home 根目录的 `catalog.db`、`molis-work.db` 则没有任何代码打开 `<home>/` 下这两个名字。`plugin-builder/<project_id>/model/` 的名字太泛，没有按名字 grep，改查了创建它的代码是否还在。
+一台开发者机器上真实 Home（`~/.molis-work`）的一级条目 41 个，只读列出（`ls -A`、`find -maxdepth 3`、`stat`、`du`），没有打开任何库或数据文件（读过一个启动脚本，见开头第二条）。37 个条目对应上面的行；下面 4 个一级条目和 8 处目录内残留，当前 main 里没有任何代码拥有：对这些名字在 `apps packages modules plugins horizontal server scripts tooling skills` 里 grep，除 `plugins/native/alchemist/README.md` 提到旧演示库外都是 0 处引用，Home 根目录的 `catalog.db`、`molis-work.db` 则没有任何代码打开 `<home>/` 下这两个名字。`plugin-builder/<project_id>/model/` 的名字太泛，没有按名字 grep，改查了创建它的代码是否还在。
 
 | 条目 | 看到的 | 为什么说没有 owner |
 | --- | --- | --- |

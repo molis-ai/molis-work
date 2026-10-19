@@ -1567,3 +1567,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **⑥：** 3e-2a 的修正已提交（c2b9d96a0）。原 base 分支随 #791 合并被删，已把新 base `context/outcome-slot-bindtext` 合进来，没有冲突。
     - `workbench.js` 的起点变成 1,129,858 B，放行要按新数字重量。
     - 合并后的复验在 heavy 队列里，PR 还没开。
+- 12:20 UTC：#785 合入 main ddb65438a（交互线，⑤）。#798 已并入 main 解冲突，跑完相关用例就排队。

@@ -1,5 +1,7 @@
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginSupervisorEntry } from "./supervisor.js";
 import { pluginManifestDigest } from "./identity.js";
+import { defaultGrants } from "./install-rules.js";
 import { createPluginRuntimeReleaseArtifact, type PluginRuntimeReleaseArtifactRepository } from "./release-artifacts.js";
 
 /** Persist a trusted factory once per exact manifest before activation or restoration. */
@@ -11,4 +13,19 @@ export async function persistReleaseArtifact(entry: PluginSupervisorEntry, repos
   if (repository.get(manifest.plugin_id, manifest.publisher.signature, manifest.version, digest)) return;
   const source = await entry.releaseArtifact.capture();
   repository.save(createPluginRuntimeReleaseArtifact(manifest, source));
+}
+
+/**
+ * What a start installs an entry with: its own grants, or `defaultGrants`. A bundled entry also names what the existing install's
+ * own build declared, from that build's row in the release archive (every start writes the build it runs there before installing,
+ * so the row is there for any record a start left), and following a new build then tells a permission new to the plugin, which
+ * starts switched on, from one the person switched off (`bundledGrants`).
+ */
+export function startInstallInput(entry: PluginSupervisorEntry, installs: readonly PluginInstanceRecord[], releases?: PluginRuntimeReleaseArtifactRepository) {
+  const manifest = entry.definition.manifest;
+  const input = { definition: entry.definition, deployment: entry.deployment ?? "local" as const, grants: entry.grants ?? defaultGrants(manifest, installs) };
+  if (!entry.bundled) return input;
+  const record = installs.find(row => row.plugin_id === manifest.plugin_id && row.publisher_signature === manifest.publisher.signature && row.state !== "uninstalled");
+  const before = record ? releases?.get(record.plugin_id, record.publisher_signature, record.version, record.manifest_digest) : null;
+  return { ...input, bundled: true, ...before ? { declared_before: before.manifest.permissions.map(permission => permission.permission) } : {} };
 }

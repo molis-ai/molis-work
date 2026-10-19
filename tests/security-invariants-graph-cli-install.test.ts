@@ -52,6 +52,6 @@ else if(command.includes('Get-Module'))process.stdout.write('2.41.2');else proce
   while ((await status()).status !== "connected") { assert.ok(Date.now() < deadline, "the managed Graph login completes"); await new Promise(resolve => setTimeout(resolve, 20)); }
   const connection = (await status()).connection_id;
   assert.match(JSON.stringify(await actions.invoke(caller, connectorRecordActions.read, { connection_id: connection })), /owned Graph message/);
-  await actions.invoke(caller, connectorManagementActions.control, { connection_id: connection, expected_revision: withConnectorConnections(home.home, store => store.require(connection).updated_at), action: "remove" });
+  await actions.invoke(caller, connectorManagementActions.remove, { connection_id: connection, expected_revision: withConnectorConnections(home.home, store => store.require(connection).updated_at) });
   assert.equal(existsSync(directory), false); assert.equal(existsSync(executable), true); assert.equal(readFileSync(join(tools, "Modules/user-module"), "utf8"), "keep");
 });

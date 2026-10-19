@@ -133,8 +133,10 @@ export class PluginRuntime implements PluginRuntimeApi {
     deployment: PluginDeployment;
     grants?: string[];
     retain_private_data?: boolean;
-    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`), and it holds every permission its Manifest declares whatever `grants` says (`bundledGrants`). Never with a sandboxed definition: what that may do is what the person confirmed. */
+    /** Ships with the Host: an existing install is moved onto this build whatever its version (`recordToFollow`); a fresh one holds every permission its Manifest declares, an existing one keeps the optional ones the person left on, whatever `grants` says (`bundledGrants`). Never with a sandboxed definition: what that may do is what the person confirmed. */
     bundled?: boolean;
+    /** With `bundled`: what the existing install's own build declared (its Manifest in the release archive), so following this build switches on only the optional permissions new to the plugin. */
+    declared_before?: readonly string[];
     /** The person agreed to drop the private data an uninstall kept, which this version cannot read; the Host deletes it. */
     discard_kept_data?: boolean;
   }): PluginLifecycleReceipt {
@@ -154,9 +156,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       const compatibleSameVersion = current.state !== "uninstalled"
         && (manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version);
       if (compatibleSameVersion) {
-        if (current.deployment !== input.deployment) {
-          throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
-        }
+        if (current.deployment !== input.deployment) throw pluginErrors.state_invalid("已有安装不能通过启动改变部署环境");
         const grants = normalizeGrants(manifest, input.grants ?? current.grants);
         if (!sameStrings(current.grants, grants)) {
           throw pluginErrors.state_invalid("兼容启动会保留现有 grant；权限变更必须通过单独授权操作");
@@ -174,7 +174,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
     this.register(input.definition);
     if (follow) {
-      const moved = followBundledBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now());
+      const moved = followBundledBuild(follow, input.deployment, manifest, digest, entrypoint.entrypoint, this.now(), input.declared_before);
       this.repository.save(moved);
       return this.receipt("install", moved, false);
     }
@@ -197,7 +197,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       return this.receipt("install", current, true);
     }
-    const grants = input.bundled === true ? bundledGrants(manifest) : normalizeGrants(manifest, input.grants ?? []);
+    const grants = input.bundled === true ? bundledGrants(manifest, current?.state === "uninstalled" ? undefined : current?.grants) : normalizeGrants(manifest, input.grants ?? []);
     if (current && current.state !== "uninstalled") {
       if (
         current.version === manifest.version

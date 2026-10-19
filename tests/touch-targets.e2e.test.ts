@@ -39,7 +39,6 @@ const KINDS: Record<string, string> = {
   ".tab-add-button": "open plugin",
   ".tab-split-button": "layout",
   "[data-home-plugin-open]": "home tool",
-  ".tab-view-chip": "location chip",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
   ".assistant-target-clear": "work chip clear",
@@ -622,7 +621,7 @@ for (const scheme of ["light", "dark"] as const) {
     const w = windowsOf(browser, scheme, true);
     await w.start();
 
-    // A phone. Three screens carry every control: the project's home, a plugin's page (its location chip), and the project's
+    // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
     // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
     // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
     // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
@@ -630,7 +629,7 @@ for (const scheme of ["light", "dark"] as const) {
     // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
     // 350 and 320px are the windows that cannot.
     const seen = new Set<string>();
-    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('.tab-view-chip')"] as const;
+    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
     const moreShown: Record<string, boolean> = {};
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
@@ -699,7 +698,7 @@ for (const scheme of ["light", "dark"] as const) {
     // The strip's own menus (open a plugin, the layout, a tab, a tab group) are lists too: their rows, the group's name input and its colour
     // swatches are 44px targets on a phone and on a tablet, the swatches drawn small inside their target.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
-      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
       const menus = await w.stripMenus();
       for (const [menu, report] of Object.entries(menus)) {
         assert.equal(report.shown, true, `${name} · ${width}: ${menu} opens`);
@@ -848,7 +847,7 @@ for (const scheme of ["light", "dark"] as const) {
     }
 
     // The strip's own menus keep the rows they have on a desktop window (34px and up, short of 44px), the name input and the swatches included.
-    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
     for (const [menu, report] of Object.entries(await w.stripMenus())) {
       assert.equal(report.shown, true, `1280: ${menu} opens`);
       assert.deepEqual(report.rows.filter(row => row < 34 || row >= 44), [], `1280: the rows of ${menu} stay a desktop menu's rows, 34px at least and short of the 44px of touch (${report.rows})`);

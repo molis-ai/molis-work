@@ -226,22 +226,22 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
-    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest.
+    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest. A cancelled wait (its caller gone, its project closing) lets go of the round at once and answers nothing.
     register(agentHostCapabilities.waitRun, async (context, [session, run, since, timeoutMs]) => {
       await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);
-      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000);
+      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), signal = context.invocation.signal;
       return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
         let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
         // The published view only names pending questions; a full read resolves them into something a person can answer.
-        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.();
+        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); signal?.removeEventListener("abort", cancel);
           const version = runViewVersion(latest!);
           if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
           adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
-        const timer = setTimeout(finish, limit);
+        const timer = setTimeout(finish, limit), cancel = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); reject(signal!.reason); };
         try {
           stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
-          if (finished) stop();
+          if (finished) stop(); else if (signal?.aborted) cancel(); else signal?.addEventListener("abort", cancel, { once: true });
         } catch (error) { clearTimeout(timer); reject(error); }
       });
     }),
@@ -308,7 +308,7 @@ export function registerAgentHostCapabilities<Context>(
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
+      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : [], context.invocation.signal);
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
       pluginFor(context);

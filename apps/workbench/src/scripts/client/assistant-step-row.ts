@@ -1,28 +1,39 @@
+import { compactScript } from "@molis-ai/molis-work-design-system";
+
 /**
  * The Assistant's next steps, in one row just above its input (specs/context-program §21.2, FLOW-01…05). The Host
  * derives and draws them (`next_html`, `next_all_html`); this row only places them and, when one is pressed, presses the
- * record's own control in the conversation: a card's run button, an option and the submit of a question, or it brings
- * the record into view. So there is no second way to run anything. A card with edits the person has not sent, an option
- * the card no longer offers, or a control that is disabled is only brought into view (FLOW-03).
+ * record's own control in the conversation: a card's run button, an option and the submit of a question, a control an
+ * outcome record names, or it brings the record into view. So there is no second way to run anything. A record with edits
+ * the person has not sent, an option the card no longer offers, a control it does not carry or one that is disabled is
+ * only brought into view (FLOW-03, SLOT-02).
+ *
+ * The outcome slot (§21.9): a delivery note or a result in the conversation is keyed by its own `data-ix-record`
+ * (`<kind>:<id>`) or, for a card's result, by the card; a control in it that a step may press carries
+ * `data-ix-press="<name>"` (a result's 「打开」, a delivery note's link), and the step's id is `<key>:<name>`.
  *
  * A page's suggestion (`molis:assistant-message`, purpose `suggest`, or a hand-over the page did not start from a press)
  * is one more step here: pressing it puts its words and materials in the input, nothing is sent. With the panel closed it
  * is the only step shown, since the rest point into the conversation.
+ *
+ * Sent compacted: the program has no multi-line string or template literal of its own.
  */
-export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
+export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = compactScript(String.raw`(input) => {
   const { row, thread, L, el } = input;
   let offer = null, offerNode = null, unfolded = false, shownWork = null;
   const press = (node, control) => { input.jumpTo(node); if (control && !control.disabled) control.click(); };
   // A step's id names the record it leads to (review:, question:, card:), as the conversation keys it.
   const go = (id) => {
-    for (const node of thread.querySelectorAll("[data-review], [data-question], [data-card]")) {
-      const { review, question, card } = node.dataset, key = review ? "review:" + review : question ? "question:" + question : "card:" + card;
+    for (const node of thread.querySelectorAll("[data-review], [data-question], [data-card], [data-ix-record]")) {
+      const { review, question, card } = node.dataset, key = review ? "review:" + review : question ? "question:" + question : card ? "card:" + card : node.dataset.ixRecord;
       if (id !== key && !id.startsWith(key + ":")) continue;
-      const rest = id.slice(key.length + 1), cut = rest.indexOf(":");
-      const option = cut > 0 && [...node.querySelectorAll("[data-ix-option]")].find((one) => one.dataset.ixOption === rest.slice(cut + 1) && one.closest("[data-ix-field]").dataset.ixField === rest.slice(0, cut));
+      const rest = id.slice(key.length + 1), cut = rest.indexOf(":"), kept = node.ixBase === JSON.stringify(node.ix?.read());
+      const option = cut > 0 && [...node.querySelectorAll("[data-ix-option]")].find((one) => one.dataset.ixOption === rest.slice(cut + 1) && one.closest("[data-ix-field]")?.dataset.ixField === rest.slice(0, cut));
+      const control = [...node.querySelectorAll("[data-ix-press]")].find((one) => one.dataset.ixPress === rest);
       // As the person would: the option first (the card's client keeps the draft), then the card's own submit.
       if (option && !option.disabled) { option.click(); press(node, node.querySelector("[type=submit]")); }
-      else if (card && rest === "run" && node.ixBase === JSON.stringify(node.ix?.read())) press(node, node.querySelector('[data-ix-action="run"]'));
+      else if (card && rest === "run" && kept) press(node, node.querySelector('[data-ix-action="run"]'));
+      else if (control && kept) press(node, control);
       else input.jumpTo(node);
       return;
     }
@@ -53,4 +64,4 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     row.querySelector('[data-ix-step="3"]')?.focus();
   });
   return { paint, offer(message, unconfirmed) { offerNode?.remove(); offer = { message, unconfirmed }; offerNode = null; paint(); } };
-}`;
+}`);

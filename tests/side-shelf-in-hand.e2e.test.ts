@@ -18,13 +18,13 @@ const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "tex
 /**
  * AC-S04 sometimes times out on CI (red twice and green once on one commit) while it passes locally, and the screenshot cannot
  * tell which step stood still. On a timeout this notes, beside the test, what the page held at that moment: what the top
- * document asked the Host for (`__asked`), the bars in the side tab's document, the selection there, whether the panel is
- * open, and the bars in the top document. It then rethrows the original error; no assertion changes.
+ * document asked the Host for (`__asked`), the shown bars in the side tab's document and the first bar there in any state, the
+ * selection there, whether the panel is open, and the shown bars in the top document. It then rethrows the original error; no assertion changes.
  */
-const SCENE = `(() => { const doc = ${SHELF}?.contentDocument, bars = doc ? [...doc.querySelectorAll('.mw-ctx')] : [];
-  return { asked: window.__asked ?? null, side_bars: bars.length, side_first_bar: bars[0]?.outerHTML.slice(0, 500) ?? null,
-    side_selection: doc?.getSelection()?.toString() ?? null, side_open: document.body.dataset.sideOpen ?? null,
-    top_bars: document.querySelectorAll('.mw-ctx').length }; })()`;
+const SCENE = `(() => { const doc = ${SHELF}?.contentDocument;
+  return { asked: window.__asked ?? null, side_bars: doc?.querySelectorAll(${JSON.stringify(BAR)}).length ?? null,
+    side_first_bar: doc?.querySelector('.mw-ctx')?.outerHTML.slice(0, 500) ?? null, side_selection: doc?.getSelection()?.toString() ?? null,
+    side_open: document.body.dataset.sideOpen ?? null, top_bars: document.querySelectorAll(${JSON.stringify(BAR)}).length }; })()`;
 async function noteSceneOnTimeout(t: TestContext, evaluate: <T>(expression: string) => Promise<T>, wait: Promise<void>): Promise<void> {
   await wait.catch(async (error: unknown) => {
     const scene = await evaluate<unknown>(SCENE).catch((reading: unknown) => ({ unreadable: String(reading) }));

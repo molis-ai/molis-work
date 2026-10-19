@@ -9,7 +9,12 @@ export const PAGES_DOCUMENT_INTAKE = "document";
 
 const TITLE_MAX = 80;
 const SOURCE_MAX = 80;
-const clip = (text: string, max: number) => text.length > max ? `${text.slice(0, max - 1)}…` : text;
+/** Cut to `max` UTF-16 units (the length Pages checks a title by), never between the two halves of a character such as an emoji. */
+const clip = (text: string, max: number) => {
+  if (text.length <= max) return text;
+  const head = text.slice(0, max - 1), last = head.charCodeAt(head.length - 1);
+  return `${last >= 0xd800 && last <= 0xdbff ? head.slice(0, -1) : head}…`;
+};
 /** A list marker, quote mark or heading hash is not part of a title (“1.”, “-”, “##”); a number that is content (“2026 年”) stays. */
 const MARKER = /^\s*(?:#{1,6}\s+|[-*•>]\s+|\d{1,2}[.、)）]\s*)/u;
 const firstLine = (text: string) => text.split(/\r?\n/u).map(line => line.replace(MARKER, "").trim()).find(Boolean) ?? "";

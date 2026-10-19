@@ -144,7 +144,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
 
 test("a new document can be taken back only while unchanged: create names its undo, discard refuses once it was edited", async () => {
   const { actionEffect } = await import("@molis-ai/molis-work-contracts/platform/actions");
-  assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } });
+  assert.deepEqual(actions.create.action.undo, { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } });
   assert.deepEqual(inspectActionDeclarations([actions.create, actions.discard], undefined), []);
   assert.equal(actionEffect(actions.discard.action, actions.discard.capability_id), "irreversible", "an agent calling discard itself is asked each time");
   await fixture(async ({ bound }) => {
@@ -249,6 +249,12 @@ test("W4-2-06: the offer is the whole input of pages.create from the selection: 
     const [long] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: "很".repeat(120), truncated: true }] });
     assert.equal((long!.input as { title: string }).title.length, 80);
     assert.match(long!.summary!, /选中的内容太长，只存了前面的部分/u);
+    // The cut never falls inside an emoji: no half of a pair is left at the end of the title, and Pages still accepts it.
+    const [emoji] = await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: `a${"😀".repeat(60)}` }] });
+    const emojiTitle = (emoji!.input as { title: string }).title;
+    assert.equal(emojiTitle, `a${"😀".repeat(39)}…`);
+    assert.doesNotMatch(emojiTitle, /[\ud800-\udfff]/u, "with the u flag only a lone half of a pair matches");
+    assert.equal((await bound.invoke(actions.create, emoji!.input as never)).document.title, emojiTitle);
     // No document in a blank selection, a word, or whole objects.
     assert.deepEqual(await offerOf({ targets: [{ kind: "text_range", role: "paragraph", text: "   " }] }), []);
     assert.deepEqual(await offerOf({ granularity: "word" }), []);
@@ -262,15 +268,20 @@ test("W4-2-06: pages.create with a request id makes the document once; other con
     const first = await bound.invoke(actions.create, offer!.input as never);
     const again = await bound.invoke(actions.create, offer!.input as never);
     assert.equal(again.document.id, first.document.id, "the same request is the same document");
+    // Only the call that made the document can take it back: the undo reads `created_version`, which a retry does not carry.
+    assert.deepEqual([first.created_version, again.created_version], [1, undefined]);
     assert.equal((await bound.invoke(actions.list, {})).documents.length, 1);
     assert.equal(first.document.title, "接口先不改，只加一层适配。");
     const [other] = (await bound.invoke(actions.intakeOffers, selection({}, "req-other"))).offers;
     assert.notEqual((await bound.invoke(actions.create, other!.input as never)).document.id, first.document.id);
     assert.equal((await bound.invoke(actions.list, {})).documents.length, 2);
-    await assert.rejects(bound.invoke(actions.create, { ...(offer!.input as object), markdown: "别的内容" } as never), { code: "pages.unavailable" });
+    await assert.rejects(bound.invoke(actions.create, { ...(offer!.input as object), markdown: "别的内容" } as never), { code: "pages.unavailable", message: /同一个请求的内容已改变，请重新发起/u });
     // Without a request id, create behaves as it always did.
-    await bound.invoke(actions.create, { title: "无请求号" });
+    assert.equal((await bound.invoke(actions.create, { title: "无请求号" })).created_version, 1);
     assert.equal((await bound.invoke(actions.list, {})).documents.length, 3);
+    // A request whose document has been deleted since is not made again, and says so in create's own words.
+    await bound.invoke(actions.delete, { id: first.document.id });
+    await assert.rejects(bound.invoke(actions.create, offer!.input as never), { code: "pages.unavailable", message: /这个请求已完成，但其中的文档已被删除；不会重新创建/u });
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
   });
 });

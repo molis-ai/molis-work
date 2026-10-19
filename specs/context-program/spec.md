@@ -1553,7 +1553,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 2. 有判断（Jev）时，「存为文档」「拆成目标步骤」和「记成待办」「记下灵光」一起进候选池，由判断按各自的 `describe`、`examples` 排。
 3. 只有规则时，一段文字的最后一个主位放一个去处：别的插件的入口优先，没有才放这段文字所在插件自己的入口；同一类里按排名、再按共同目录的顺序取第一个，跳过提案类与批量入口（D-1、D-5，21.5）；所以只有规则时推的仍是一键可撤的去处，在 Pages 里选一段，推的是「记成待办」，不是「存为文档」。
    提案类与批量入口（「拆成目标步骤」）没有占到主位时，对一段文字按它的意图放在「更多」里，有判断没判断都一样；判断点名它就占主位，并从「更多」里去掉（D-4）。一个词或整个对象时，只有判断点名了它才出现，规则与没点名的判断都不把它放进「更多」或列出（D-6）。
-4. 点「存为文档」：按钮进入忙碌态，同一处再点是同一个请求号（页面的 `made`）；宿主用 Pages 的 `prepare` 不调模型算出标题与正文，以本人的权限调 `pages.create`，完成卡「已存为文档」带「打开」「撤销」。「撤销」把令牌交回 `/api/contextual/undo`，宿主经 Pages 自己的 `pages.discard` 删，只在文档新建后没改过时；改过了主人拒绝，卡片写「没能撤销」与原因，文档不动。
+4. 点「存为文档」：按钮进入忙碌态，同一处再点是同一个请求号（页面的 `made`）；宿主用 Pages 的 `prepare` 不调模型算出标题与正文，以本人的权限调 `pages.create`，完成卡「已存为文档」带「打开」「撤销」。「撤销」把令牌交回 `/api/contextual/undo`，宿主经 Pages 自己的 `pages.discard` 删，只在文档新建后没改过时；改过了主人拒绝，卡片写「没能撤销」与原因，文档不动。只有这一次真的建了文档，才有「撤销」：同一个请求号再点（连点，或文档改过之后在原处再选同一段）时 Pages 交回的是文档现在的样子，输出里没有 `created_version`，宿主就不签令牌，完成卡只剩「打开」，没有一张卡能删掉人后来写进去的内容。
 5. 在「更多」里点「拆成目标步骤」：永远出卡片，不直接建。Goals 的 `prepare`（`goals.fragment.offers`）算出一份结构提案（每个分句一步，至少 4 个字，至多 6 步；文档属于某个 Goal 时挂在它下面），助理面板里是预填的卡，人点提交才调 `goals.tree.submit`；完成卡「已提交目标提案：要在 Goals 里确认才生效」，带「去 Goals 确认」（`/projects/{project_id}/?openPlugin=goals`）。提案没有撤销：撤回就是在 Goals 里审批时拒绝（D-3）。
 6. 做完回到原处：浮条收起，选区还在，左边不跳走（除非人点了「打开」「去 Goals 确认」）。
 
@@ -1565,21 +1565,23 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | 加载 | 点下后按钮忙碌，同一处再点不重复建（同一请求号；Pages 的 `pages.create` 带 `request_id`，同一个请求号只建一篇，其他内容用同一请求号被拒） | 点下后按钮忙碌，卡片出来才恢复；卡片里提交中按卡片的现有规则 |
 | 出错 | 算不出输入或建失败（Pages 停用、写入被拒）：浮条下一行错误，原文不动，可再点 | 卡片出不来：同左；卡片里提交失败：卡片保留并写原因，可再提交（卡片的现有规则） |
 | 没有权限 | 本人在这个项目里没有 `pages:write`，或 Pages 没启用：目录里这一项不可用，不出这个去处；准备（`pages.intake.offers`）要 `pages:read` | 没有 `goals:write`：不出 |
-| 可撤销 | 完成卡有「撤销」，30 分钟、只一次、只本人本项目（S-40，不改）；改过了主人拒绝 | 没有撤销，卡上不写；在 Goals 里拒绝提案 |
+| 可撤销 | 完成卡有「撤销」，30 分钟、只一次、只本人本项目（S-40，不改）；改过了主人拒绝；同一请求号重放的那次没有新建，没有「撤销」 | 没有撤销，卡上不写；在 Goals 里拒绝提案 |
 
 **合同与代码**
 
 - 动作声明：`pages.create` 加 `intake`（`intake_id: "document"`，`verb: "存为文档"`，`material_field: "markdown"`，`prepare: pages.intake.offers`）和输入里可选的 `request_id`；`goals.tree.submit` 加 `intake`（`intake_id: "breakdown"`，`effect: "proposes"`，`verb: "拆成目标步骤"`，`prepare: goals.fragment.offers`）和 `result_view`（摘要加「去 Goals 确认」链接）。新动作一个：`pages.intake.offers@1`（`defineFragmentOffersAction(…, [FRAGMENT_ANY_OBJECT], …, [])`，没有自己的选项，只做 `prepare`，不调模型）。
 - `GOALS_FRAGMENT_CHOICES` 去掉 `breakdown`（同一件事只有创建入口一条路，quick-create §8 第 2 条），`progress` 留着；`prepareGoalsFragmentOffers` 照旧算 `breakdown` 这一份输入。
 - 合同 `ContextualCandidate`（`@molis-ai/molis-work-contracts/services/contextual`）加两个可选字段，都是只增不改：`always_card?: true`（这个去处从不直接建，永远出卡片：声明了 `effect: "proposes"` 或 `multiple`）与 `own?: true`（创建入口，它的提供方就是手里这件东西所在的插件，即 `focus.plugin_id`）。内核 `candidateOf`（`packages/kernel/src/contextual/destinations.ts`）按声明与 `ownerOf(view) === focus.plugin_id` 设它们；追加的去处永远不带 `own`。`planContextualLayout` 在没有判断时：不把带 `always_card` 的候选算进主位（D-1），对一段文字把它们留在「更多」（`rest`）与列表（`listed`）里（D-4），一个词或整个对象时不留（D-6，`PASSAGE_GRANULARITIES`）；对一段文字、且有别的插件的入口（可用、不带 `always_card`）时，先把本插件的创建入口筛掉再排（D-5）。不点名任何插件。公开 API 快照随之刷新（`pnpm api:update`）。
-- `pages.create@1` 的输入多了可选的 `request_id`：同版本内只增不改的形状变化（带 `request_id` 的新调用者才用；已固定这个能力的引用、不带它的调用不受影响，与灵光 `create` 的 `request_id` 同一做法）。Pages 用现有的 `page_imports`（`PagesStore.importDocuments`）做同请求只建一篇，没有给 `PagesStore` 加方法，写入逻辑放在新文件 `plugins/native/pages/src/create-document.ts`（`createPagesActionHandlers` 已近阈值，不往里加行）；`page_imports` 的请求号与导入对话框共用一个命名空间（导入用 UUID），两条错误提示改成与导入无关的说法。
-- 动作快照 `tooling/gates/actions/` 刷新（`pnpm actions:update`）：两个动作多了 `intake`，`pages.create` 输入多了 `request_id`，多了 `pages.intake.offers`，Goals 的片段选项少了一项。调用方（工作流程步骤、MCP 工具名、Skill）不受影响。
+- `pages.create@1` 的输入多了可选的 `request_id`：同版本内只增不改的形状变化（带 `request_id` 的新调用者才用；已固定这个能力的引用、不带它的调用不受影响，与灵光 `create` 的 `request_id` 同一做法）。Pages 用现有的 `page_imports`（`PagesStore.importDocuments`）做同请求只建一篇，没有给 `PagesStore` 加方法，写入逻辑放在新文件 `plugins/native/pages/src/create-document.ts`（`createPagesActionHandlers` 已近阈值，不往里加行）；`page_imports` 的请求号与导入对话框共用一个命名空间（导入用 UUID）；`importDocuments` 多收一个可选的 `replay`（重放时的两句提示与一个「是重放」的回调），导入对话框不传、保留原来的两句，`pages.create` 传自己的说法（「同一个请求的内容已改变，请重新发起」「这个请求已完成，但其中的文档已被删除；不会重新创建」），类的行数与方法数不增。
+- `pages.create@1` 的输出多了可选的 `created_version`（只增可选字段；只在这一次真的建了文档时出现，值是建出来的版本号，重放时不带），撤销声明改成 `expected_version: "created_version"`（原来取 `document.version`）。原因：重放返回的是文档现在的版本，原来的声明会让重放出来的撤销令牌带着改过之后的版本号通过 `pages.discard` 的校验，把改过的文档永久删掉（评审 #801 Y1）；`declaredUndo` 在路径取不到值时不给撤销，所以重放没有令牌。不在 `discard` 里硬卡第 1 版：Pages 收回空白文档（W2-18 决定 6）用的版本会大于 1。读 `pages.create` 输出的调用方只会多看到一个字段，已固定这个能力的引用不受影响；撤销声明的输入路径变了，快照的 `traits` 哈希随之刷新。
+- 动作快照 `tooling/gates/actions/` 刷新（`pnpm actions:update`）：两个动作多了 `intake`，`pages.create` 输入多了 `request_id`、输出多了可选的 `created_version`、撤销输入路径改了，多了 `pages.intake.offers`，Goals 的片段选项少了一项。调用方（工作流程步骤、MCP 工具名、Skill）不受影响。
 - Inbox：没有自己的创建动作（只有 `inbox.entry.status`、`inbox.pages.generate`、判断类动作和内容站 `receive`），按 W4-2 的条件不动；「放进收件箱」归 W4-6。
 - 页面与翻译：页面端没有新代码（完成卡标题按入口的 `verb` 拼，提案走现有的 `suggestCard`，链接由 `result_view` 给），页面资源不变；入口的文字是插件在声明里给的中文，与 W4-1 的「记成待办」「记下灵光」同一做法，没有新增界面字串，所以没有新的英文条目。
 
 **已知后果**
 
 - D-5 的代价：没有判断（没配 Jev）时，Pages 的浮条与「更多」里没有「存为文档」；人只能靠判断点名它，或经助理自己要。它仍然「可用」（D-2），只是规则不推。如果将来想让人在 Pages 里一定够得着它，要么 BL-174 按内容挑，要么另议把本插件的入口放进「更多」（会让「更多」里出现普通去处，动 quick-create §6.1）。
+- 离线评估的夹具（`scripts/contextual-slice/fixture.mts`）仍是 W4-2 之前的形状：Goals 的「拆成目标步骤」在里面还是片段选项（线上它现在是带 `always_card` 的创建入口，没有判断时不进主位），和 W4-1 之后的「记下灵光」同样是它自己的静态样例。这套脚本（`evaluate.mts`、`evaluate-memory.mts`、`replay.mts`）只排片段选项，不排创建入口，所以拿它评估浮条排位得到的数字，和人在线上看到的不是同一个池子；`evaluate-memory.mts` 的两条用例和 `replay-recorded.json` 以 `breakdown` 为键，直接删掉它会让那两条名次变成 0。要让评估和线上一致，得让夹具也出创建入口的候选，那是另一片的事（评审 #801 J2）。
 - 只有规则时在别的插件里选一段，推的那一个按排名、再按共同目录的顺序取（21.5 的 10-18 行与 D-5）：目录里 `lingguang.create` 排在 `todo.items.create` 之前，项目里灵光可用时，浮条上的会是「记下灵光」而不是「记成待办」；这是 W4-1 已有的行为（其第一个用例随 #730 合入），本片没有改变也没有动那个用例。按内容挑去处是 BL-174（`intake` 声明收哪类内容），本片没有加排序规则；它与 D-5 叠加：先筛「别处优先」，再按内容挑。
 
 **验收**
@@ -1587,9 +1589,9 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **W4-2-01**：只有规则时，挑那一个去处跳过提案类与批量入口；判断点名的提案类入口照样占位。证据：`tests/contextual-destinations.test.ts`。
 - **W4-2-02**：目录里只剩提案类与批量入口时，规则不推去处，它们也不占任何主位，按意图放在「更多」里（D-4；这一条的断言原来是「也不列出」，因 D-4 改成「列出，但不在主位」）。证据：同上。
 - **W4-2-03**：「存为文档」由 Pages 声明、宿主按主人声明的撤销直接建：标题取最近的标题，没有则取第一行，正文是选中的原文，末行「摘自『对象标题』」；同一请求号只建一篇；在 Pages 里选也出（D-2）。证据：`tests/contextual-create.test.ts`（真实 Host）。
-- **W4-2-04**：撤销只在没人改过时：没改过，令牌交回、文档删掉、令牌作废；改过，Pages 拒绝并说明，文档还在。证据：同上。
+- **W4-2-04**：撤销只在没人改过时：没改过，令牌交回、文档删掉、令牌作废；改过，Pages 拒绝并说明，文档还在。同一请求号在文档改过之后再建：交回现在的文档、没有撤销令牌，文档还在、标题是改过的；同一请求号的重放输出里没有 `created_version`，真建的那次有。证据：同上，加 `tests/pages-actions.test.ts`（W4-2-06）。
 - **W4-2-05**：「拆成目标步骤」永远回草稿出卡，不调 `goals.tree.submit`，不在片段选项里，没有撤销，完成卡写要在 Goals 确认并带链接；选择它不写任何提案。证据：`tests/contextual-create.test.ts`。
-- **W4-2-06**：`pages.create` 的声明、`pages.intake.offers` 的标题与正文（有标题、没标题、选了标题、太长、被截断）、空白与一个词与整个对象不出、带请求号只建一篇、同请求号换内容被拒、准备要 `pages:read`。证据：`tests/pages-actions.test.ts`。
+- **W4-2-06**：`pages.create` 的声明、`pages.intake.offers` 的标题与正文（有标题、没标题、选了标题、太长、被截断，截断不切开 emoji）、空白与一个词与整个对象不出、带请求号只建一篇、同请求号换内容被拒、准备要 `pages:read`。证据：`tests/pages-actions.test.ts`。
 - **W4-2-07**：`goals.tree.submit` 声明为提案（无 `undo`，有 `result_view` 链接），Goals 的片段选项只剩 `progress`，同一个 `prepare` 仍算得出 `breakdown`。证据：`tests/contextual-fragment-offers.test.ts`。
 - **W4-2-08**：浏览器：在 Pages 里真选一段 → 浮条上是别的插件的入口「记成待办」，没有「存为文档」（D-5），「更多」里有「拆成目标步骤」、没有「存为文档」（D-4）→ 键盘走一遍（⌘. 进浮条、←→ 成环、Esc 回编辑器；再用 ⌘.、→ 走到「更多」、Enter 展开）→ 没有判断的 Home 里「存为文档」不在浮条上，所以按宿主同一条 `create` 路由（键由 Pages 的声明得出）要它：按所在标题命名、末行「摘自」、源文档不动 → 同一请求号再要只建一篇 → 改过后撤销被拒、没改过撤销成功 → 「打开」走完成卡的「打开」同一个 `describe` 加 `openObject`。「拆成目标步骤」：浮条的主位上没有，「更多」里点它，出草稿、不写提案，被拒的运行什么都不写、卡片原样可再运行，再运行写一份提案，卡片写「要在 Goals 里确认才生效」并带「去 Goals 确认」。证据：`tests/contextual-pages-goals.e2e.test.ts`（已写，未跑；完成卡本身是页面唯一的 `create` 路径，由 `tests/contextual-todo.e2e.test.ts` 第一个用例对「记成待办」走过）。
 - **W4-2-09**（D-4、D-6）：只有规则时，对一段文字，提案类与批量入口没有主位、在「更多」里（按意图归入「记录」那一组），键在 `plan.candidates` 里；普通去处没有位就不列。有判断时：判断没点名的提案类入口在「更多」里，点名的占位并从「更多」里去掉；不可用的提案类入口带原因列出，不进「更多」。一个词或整个对象时：规则不列它，没点名它的判断也不放进「更多」、不单独列出（主位被判断点名的去处占满时，它不在 `plan.candidates`），点名它的判断给它主位并可运行。证据：`tests/contextual-destinations.test.ts`。

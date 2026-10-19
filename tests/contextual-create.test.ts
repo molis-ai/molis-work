@@ -164,7 +164,9 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
     const document = await get(made.subject!.id);
     assert.equal(document.title, PASSAGE, "no heading above it: the passage's first line");
     assert.deepEqual(paragraphs(document), [PASSAGE, "摘自『留存计划』"], "the passage as selected, then where it came from");
-    assert.equal((await create("req-doc")).subject?.id, document.id, "the same request makes it once");
+    const retried = await create("req-doc");
+    assert.equal(retried.subject?.id, document.id, "the same request makes it once");
+    assert.equal(retried.undo_token, undefined, "a retry made nothing, so it has nothing to take back");
     assert.equal((await invoke<{ documents: PagesDocument[] }>("pages.list", {})).documents.length, 1);
 
     // Under a heading, the heading is the title.
@@ -180,6 +182,17 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
     await invoke("pages.update", { id: document.id, title: "改过的标题", expected_version: document.version });
     await assert.rejects(undoCreated(OWNER, made.undo_token!, actions), /改过/u);
     assert.equal((await get(document.id)).title, "改过的标题");
+
+    // The same request again after the edit (the page keeps its request id for the same selection): Pages answers with the document as it is
+    // now, and that answer carries no undo, so no card can offer to delete what the person has since written in it.
+    const again = await create("req-doc");
+    assert.deepEqual([again.created, again.subject?.id, again.undo_token], [true, document.id, undefined]);
+    assert.equal((await get(document.id)).title, "改过的标题", "still there, as it was edited");
+    assert.equal((await invoke<{ documents: PagesDocument[] }>("pages.list", {})).documents.some(item => item.id === document.id), true);
+    // The call that made it says so (`created_version`, which the undo reads); a retry does not.
+    const fields = { title: "直接调用", markdown: "正文", request_id: "req-direct" };
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields)).created_version, 1);
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields)).created_version, undefined);
   } finally { await close(); }
 });
 

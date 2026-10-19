@@ -19,7 +19,7 @@ import { pagesSchema, nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { PAGES_FRAGMENT_CHOICES, preparePagesFragmentOffers } from "./fragment-offers.js";
 import { PAGES_DOCUMENT_INTAKE, preparePagesIntakeOffers } from "./intake-offers.js";
-import { createPagesDocument } from "./create-document.js";
+import { createPagesDocument, type CreatedPagesDocument } from "./create-document.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, pattern: "\\S" };
@@ -96,9 +96,11 @@ export const pagesActions = {
   templates: define<Record<string, never>, { templates: ReturnType<typeof pagesTemplateSummaries> }>("templates", "文档模板", "查看可以用于创建文档的内置模板", "query", object({}), object({ templates: array(object({ id, title: text, summary: text })) }), read),
   get: define<{ id: string }, { document: PagesRecord }>("get", "读取文档", "读取当前项目里的一篇文档（标题、正文、所在文件夹和版本号）；只读。之后修改它时要带这里的 version", "query", object({ id }), object({ document: page }), read),
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
-  create: withAction(define<WrittenFields & { template_id?: string; request_id?: string }, { document: PagesRecord }>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇，同一 request_id 换了内容会被拒绝", "command",
-    object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page }), write),
-    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "document.version" } } }),
+  // Only the call that made it can take it back: a retry under the same request id returns the document as it is now (maybe edited
+  // since) and carries no `created_version`, so the undo, which reads it, is not offered there.
+  create: withAction(define<WrittenFields & { template_id?: string; request_id?: string }, CreatedPagesDocument>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇（这时没有 created_version，也就没有可撤销的新建），同一 request_id 换了内容会被拒绝", "command",
+    object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page, created_version: version }, ["document"]), write),
+    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } } }),
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
     { effect: "irreversible" }),
@@ -204,7 +206,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.list, (_, caller) => ports.withStore(store => ({ documents: store.list(project(caller)), folders: store.listFolders(project(caller)) }))),
     bind(pagesActions.templates, () => ({ templates: pagesTemplateSummaries() })),
     bind(pagesActions.get, (input, caller) => ports.withStore(store => ({ document: store.get(input.id, project(caller)) }))),
-    bind(pagesActions.create, ({ request_id, ...rest }, caller) => ports.withStore(store => ({ document: createPagesDocument(store, { ...written(rest, caller, true), project_id: project(caller) }, request_id) }))),
+    bind(pagesActions.create, ({ request_id, ...rest }, caller) => ports.withStore(store => createPagesDocument(store, { ...written(rest, caller, true), project_id: project(caller) }, request_id))),
     bind(pagesActions.update, (input, caller) => ports.withStore(store => {
       // The person's own editing (the Pages page, autosave) needs no taking back; what an agent or workflow changed does.
       if (caller.audience === "user") return { document: store.update(input.id, written(input, caller), project(caller)), change_id: null };

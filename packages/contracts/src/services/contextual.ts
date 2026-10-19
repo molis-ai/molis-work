@@ -193,7 +193,8 @@ export interface ContextualCandidate {
    * Where the candidate was declared. Absent: fragment offers (`frag.` keys). `subject`: the object's subject offers,
    * which the Home / Dock rules also choose from; their keys stay `offer.` so saved rules and bindings keep working.
    * `intake`: a command that creates an Item (`intake.` keys). `attach`: a command that puts the thing in hand into the
-   * object open on the left (`attach.` keys). The last two are destinations: they only ever take a recommended slot.
+   * object open on the left (`attach.` keys). The last two are destinations: they take a recommended slot or are not shown,
+   * except one that is `always_card`, which waits under 更多 when it has no slot.
    */
   readonly origin?: "subject" | "intake" | "attach";
   /** For `attach`: where in the landing object it would put the thing, as the landing reported it. */
@@ -201,8 +202,11 @@ export interface ContextualCandidate {
   /**
    * For a destination: choosing it never creates at once, it always comes back as a card to confirm (the declaration `effect: "proposes"`
    * or `multiple`). Rules without a judgment do not recommend it for a passage: it is for the judgment to name, or for the person to ask.
+   * Without a slot it is under 更多 by its intent, so the person can always ask for it.
    */
   readonly always_card?: true;
+  /** For a creation entry (`intake`): its provider is the plugin the thing in hand is in. For a passage the rules recommend another plugin's entry when there is one. */
+  readonly own?: true;
 }
 
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";

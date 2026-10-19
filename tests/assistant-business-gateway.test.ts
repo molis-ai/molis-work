@@ -37,7 +37,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any, init: RequestInit) => Response | Promise<Response>>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -58,7 +58,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     if (review) return reply(undefined, review);
     requests.push(body);
     const next = script[turn++] ?? (() => reply());
-    return next(body);
+    return next(body, init);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -782,6 +782,81 @@ test("an ending the review finds true to the facts, and one it could not review,
       assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue"), []);
     } finally { await f.close(); }
   }
+});
+
+/** An ending review request (D1②), told apart by the review's own instructions. */
+const isReview = (body: unknown) => endingReviewAnswer(body as { system?: unknown; messages?: unknown }, () => []) !== undefined;
+/** A review request that never answers: it ends only when whoever sent it gives up, and says how it was given up. */
+function hangingReview(seen: { signal?: AbortSignal }) {
+  return (body: unknown, init: RequestInit) => {
+    if (!isReview(body)) return reply(undefined, "never asked");
+    seen.signal = init.signal ?? undefined;
+    return new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }));
+  };
+}
+/** What a round that wrote nothing and continued nothing looks like once it has ended. */
+function endedAsWritten(f: Awaited<ReturnType<typeof fixture>>, done: Awaited<ReturnType<AssistantService["read"]>>, ending: string) {
+  assert.equal(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)?.text, ending, "the ending reads as the round wrote it");
+  assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "the round's own model was not asked again: no automatic follow-up");
+  assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+  assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+  assert.deepEqual(f.seen, []);
+  assert.equal(done.cards.length, 0);
+  assert.equal(done.reviews.length, 0);
+}
+
+// ADH-16, QA-006: a review that goes wrong is no review. The ending stands, nothing continues the round, nothing is written.
+test("QA-006, ADH-16: an ending review whose model throws, answers 500 or is aborted lets the ending through as written; nothing continues and nothing is written", { timeout: 60_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？";
+  const failures: Array<[string, () => Response]> = [
+    ["throws", () => { throw new TypeError("fetch failed"); }],
+    ["HTTP 500", () => new Response('{"type":"error","error":{"type":"api_error","message":"fixture review failed"}}', { status: 500, headers: { "content-type": "application/json" } })],
+    ["aborted", () => { throw new DOMException("The operation was aborted.", "AbortError"); }],
+  ];
+  for (const [index, [how, fail]] of failures.entries()) {
+    // Every review attempt fails the same way, however often the runtime tries again; the round's own calls get words.
+    const failing = (body: unknown) => isReview(body) ? fail() : reply(undefined, "never asked");
+    const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 6 }, () => failing)], { review: true });
+    try {
+      const sent = await f.service.send({ text: "周会是什么时候？", request_id: `req-0000013${index}` }, { project_ref: f.project });
+      const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, `completion after a review that ${how}`);
+      assert.ok(f.requests.some(isReview), `the review was asked (${how})`);
+      endedAsWritten(f, done, ending);
+    } finally { await f.close(); }
+  }
+});
+
+// ADH-16, QA-006: the review's own limit (REVIEW_TIMEOUT_MS, 30 s) brought forward, so the test does not wait it out.
+test("QA-006, ADH-16: an ending review that does not answer within its limit is given up: its request is cancelled, the ending stands as written, nothing continues", { timeout: 20_000 }, async t => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, "timeout", (ms: number) => timeout(ms === 30_000 ? 300 : ms));
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000140" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion after the review's limit");
+    assert.ok(seen.signal, "the review was asked");
+    assert.equal(seen.signal.aborted, true, "the review's request was withdrawn when its limit passed, not left waiting");
+    endedAsWritten(f, done, ending);
+  } finally { await f.close(); }
+});
+
+// ADH-16, QA-006: the person stops the round while its ending is being reviewed (the guard's signal).
+test("QA-006, ADH-16: stopping a round while its ending review waits withdraws the review's request; nothing continues and nothing is written", { timeout: 20_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000141" }, { project_ref: f.project });
+    await until(() => seen.signal, "the review asked");
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed", "completed"].includes(v.work.state) ? v : undefined; }, "the round ended");
+    assert.equal(seen.signal!.aborted, true, "the review's request was withdrawn with the round");
+    assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "no automatic follow-up");
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+    assert.deepEqual(f.seen, []);
+    assert.equal(done.cards.length, 0);
+  } finally { await f.close(); }
 });
 
 test("each kind of slip is held once per round and reads as what it was: a tool name, then a bare announcement (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {

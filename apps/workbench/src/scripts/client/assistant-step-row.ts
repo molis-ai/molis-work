@@ -10,7 +10,9 @@
  * (`<kind>:<id>`) or, for a card's result, by the card; a control in it that a step may press carries
  * `data-ix-press="<name>"` (a result's 「打开」, a delivery note's link), and the step's id is `<key>:<name>`. Its result
  * buttons are written as a reply's (`data-assistant-object`), and the row hands each record to the island's `bindText`
- * once per drawing, so they open as a reply's do and one that cannot open reads as text (SLOT-03).
+ * once per drawing, so they open as a reply's do (SLOT-03). The owner writes such a button only for an object that opens,
+ * as `assistant-text-parts.ts` does, and anything else as text. A card writes none: its result uses the card's own
+ * controls, and neither the island nor the row binds a card.
  *
  * A page's suggestion (`molis:assistant-message`, purpose `suggest`, or a hand-over the page did not start from a press)
  * is one more step here: pressing it puts its words and materials in the input, nothing is sent. With the panel closed it

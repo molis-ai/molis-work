@@ -86,6 +86,13 @@ test("SLOT-02: a card's result is keyed by the card; its run step still presses 
   assert.deepEqual([undo.pressed, run.pressed, jumped.length], [1, 1, 2]);
 });
 
+test("SLOT-02: only a card's run step presses the run button; any other record's run presses the control named run", () => {
+  const action = node({ ixAction: "run" }), named = node({ ixPress: "run" });
+  const { go, jumped } = row([node({ ixRecord: "delivery:w1" }, [action, named])]);
+  go("delivery:w1:run");
+  assert.deepEqual([named.pressed, action.pressed, jumped.length], [1, 0, 1], "the record's own 「run」, not a card's run button");
+});
+
 test("SLOT-02: an option of a question is picked, then the question's own submit is pressed", () => {
   const other = node({ ixOption: "1" }), option = node({ ixOption: "1" }), submit = node({ type: "submit" });
   const { go } = row([node({ question: "p1" }, [node({ ixField: "q1" }, [other]), node({ ixField: "q0" }, [option]), submit])]);
@@ -103,7 +110,7 @@ test("SLOT-02: a key never matches a longer one, a step with no record here goes
   assert.deepEqual([quoted.pressed, jumped.length], [1, 1], "a name is matched as written, quotes and all");
 });
 
-test("SLOT-03: the row binds an outcome's record once per drawing; a card is left to the island, which binds it as it draws it", () => {
+test("SLOT-03: the row binds an outcome's record once per drawing and never binds a card", () => {
   const note = node({ ixRecord: "delivery:w1" }, [node({ assistantObject: "0", ixPress: "open:page:a" })]);
   const empty = node({ ixRecord: "delivery:w2" }), card = node({ card: "c1" }, [node({ ixPress: "undo" })]);
   const { paint, bound } = row([note, empty, card]);

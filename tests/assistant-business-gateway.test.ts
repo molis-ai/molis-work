@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
@@ -228,6 +228,29 @@ test("without a model the work and its text are kept, with a next step", { timeo
     assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
     await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
+  } finally { await f.close(); }
+});
+
+test("AC-10, QA-001: on an English page the reason a Send without a model fails is English, and the text and the way to model settings are kept", { timeout: 30_000 }, async t => {
+  const f = await fixture(t, [], { model: false });
+  try {
+    const text = "Plan a review next week.";
+    await assert.rejects(runWithLocale("en", () => f.service.send({ text, request_id: "req-00000011" }, {})), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "assistant.model_missing");
+      assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
+      // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
+      const shown = error.message + EN["。输入已保留"];
+      assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
+      assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
+      assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
+      assert.equal(EN[String(error.details?.action)], "Open model settings");
+      const kept = error.details?.work as { draft?: string } | undefined;
+      assert.equal(kept?.draft, text, "the text is kept word for word");
+      return true;
+    });
+    assert.equal((await f.service.list())[0]!.draft, text);
+    await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
 });
 

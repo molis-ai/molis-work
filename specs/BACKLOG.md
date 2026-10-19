@@ -72,7 +72,6 @@
 | BL-102 | 窗口约 740px 时，助理面板盖住侧栏浏览器里的确认卡（「允许这一次」只露出一半） | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 窄屏布局 | 无 | 中 | 未分配 |
 | BL-103 | 中文对话里，助理的过程文字夹英文句子（「I'll open the page in the sidebar browser.」），结尾还提到会话标识前缀和 `applied: false` | [post-merge-review §5 场景 4](archive/post-merge-review/spec.md#5-跨功能场景) | 已知缺口 | 模型行为；与 BL-091 同类 | BL-091 | 低 | 未分配 |
 | BL-104 | 带清单的一轮：模型更新步骤时用序号「1」「2」「3」，实际编号是 todo-4/5/6，三次都失败，回答仍写「清单已更新为全部完成」（PMR-32） | [post-merge-review §3 PMR-32](archive/post-merge-review/spec.md#3-问题表) | 已知缺口 | 要么在说明里要求照抄编号，要么让工具认序号（后者在 Prologue）；「声称已更新」是否纳入防护要先看误判 | 无 | 中 | 未分配 |
-| BL-145 | 助理主工作带全部工具的一轮正好 20 个工具（业务 4、网关 5、委派 4、记忆 4、侧栏 3）。Prologue 超过 20 个就把所有非系统工具的描述延后（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `deferToolSchemasBeyond: 20`），模型只看到每个描述的第一句；A3① 起委派与记忆怎样调用只写在各自的工具描述里，再多一个工具，这些用法就都看不见了。现成的缓解：#599（prologue#30）合入后，延后时 find-tools 一定调得到，模型能按需取回完整描述；但「用法放在工具描述里、每轮都看得见」这个前提就不再成立 | [ai-development-handbook §9.5 A3①](ai-development-handbook/spec.md) | 已知缺口 | 今天正好 20 个，没有触发；要定的是延后以后用法放在哪里（描述的第一句、角色层，还是靠 find-tools 取回） | #599 | 中 | AI 手册线 |
 | BL-165 | 设计/无障碍内容包：把 design 角色包的 accessibility-review（WCAG 2.1 AA）、design-critique、design-handoff、design-system、ux-copy 做成可安装的技能包，供个人助理、Coding 的 UI 任务与 Pages 使用；不新增平台能力，走 [skill-packs](skill-packs/spec.md) | [Anthropic 评估 §9 N10](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有技能包格式与注册表；内容由设计线提供 | skill-packs | 低 | 未分配 |
 
 ## 4. 搜索、放置与工作流
@@ -124,6 +123,7 @@
 | BL-222 | Coding 时间线把没有退出码的前台命令显示成成功：`plugins/native/coding/src/timeline.ts` 的 `exitCode` 用 `/^exit (-?\d+)/` 从输出文字里读退出码，读不到就落到「ok」，所以起不来、被信号结束、超时、取消的前台命令都显示成完成；换上带 prologue#52 的包以后，起不来的显示「失败」，其余三种照旧 | [molis-ai/prologue#52 统筹评审](https://github.com/molis-ai/prologue/pull/52)「对 Molis 的影响」（统筹 10-19 定） | 已知缺口 | 统筹 10-19 派单：#759 合入后由交互线单独改，按回执的结局显示，读不到退出码就是「结果未知」，不当成功；「被信号结束」的措辞先问采用线 | Prologue #52 定下的 `exit none (…)` 措辞 | 中 | 交互线 |
 | BL-166 | 技能包定制：把一份通用角色包改成公司自己的工具、术语、流程（替换 `~~` 占位符、更新 URL/配置、连接 MCP、重新打包），不是从零生成；对应 Anthropic 的 `cowork-plugin-customizer` | [Anthropic 评估 §9 N4](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有 [skill-packs](skill-packs/spec.md) 的格式与安装；属于创作台/助理的作者流程 | skill-packs | 中 | 未分配 |
 | BL-167 | 插件目录的审核流水线：自动安全扫描（权限、网络、脚本、路径）、人工审核记录、官方/第三方分层、上架/下架；今天市场只列本地注册表（BL-058） | [Anthropic 评估 §9 N6/N7](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 需要先定第三方信任模型；审核规则与扫描器另立设计 | plugin-platform-v2 | 中 | 未分配 |
+| BL-245 | 生成插件不能「先问几个问题再接着做」：沙箱里的操作结果原样包在 `value` 里交给部件，不经宿主的问卷出口（`withPluginInteraction`），返回 `needs_input` 也画不成问卷卡；沙箱里也没有 Agent 的 `ask-user`、`suggest-action`。现在只能把要人补的信息做成提交部件的字段，输入不够以声明的错误码失败（AC-12 已写进插件开发 Skill） | [ai-interaction-experience §14.3、AC-12](ai-interaction-experience/spec.md) | 已知缺口 | 要让沙箱的操作结果走同一个问卷出口；按「插件一视同仁」（2026-10-18）补进平台，不给某个插件开私路 | 无 | 中 | 交互线 |
 
 ## 6. 连接、来源与 Onboarding
 

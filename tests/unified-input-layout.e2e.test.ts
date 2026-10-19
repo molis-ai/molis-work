@@ -82,6 +82,29 @@ async function dockRoundTrip(browser: LayoutBrowser) {
   assert.ok(panels.every(panel=>panel.top>=0&&panel.bottom<=panel.height),`the open panel stays in the viewport above a long draft: ${JSON.stringify(panels)}`);
 }
 
+/** UIV-01/11: entering Coding and opening its side panel must not leave spare input rows. */
+async function projectInputSpacing(browser: LayoutBrowser) {
+  const { evaluate, click, waitFor } = browser;
+  for (const side of [false, true, false]) {
+    if (await evaluate("document.body.dataset.sideOpen === 'true'") !== side) await click('[data-side-toggle]');
+    await waitFor(`(document.body.dataset.sideOpen === 'true') === ${side}`);
+    for (const text of ['第一行\n第二行', '第一行\n第二行\n', '第一行\n第二行\n第三行']) {
+      await putInput(browser, text);
+      await evaluate('new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))');
+      const g = await evaluate<{ height:number; expected:number; gap:number; value:string }>(`(() => {
+        const field=document.querySelector('[data-assistant-input]'),form=field.closest('form'),r=field.getBoundingClientRect(),s=getComputedStyle(field);
+        const lines=${text.split('\n').length}*parseFloat(s.lineHeight), top=r.top+parseFloat(s.paddingTop);
+        const actions=['[data-assistant-attach]','[data-uiv-mic]','[data-assistant-send]'].map(q=>form.querySelector(q).getBoundingClientRect().top);
+        return {height:r.height,expected:Math.max(44,lines+parseFloat(s.paddingTop)+parseFloat(s.paddingBottom)),gap:Math.min(...actions)-top-lines,value:field.value};
+      })()`);
+      assert.equal(g.value,text,'resizing preserves every newline in the draft');
+      assert.ok(Math.abs(g.height-g.expected)<=1,`no unused textarea rows with side=${side}: ${JSON.stringify(g)}`);
+      assert.ok(g.gap>=0&&g.gap<=8,`last line stays close to the controls with side=${side}: ${JSON.stringify(g)}`);
+    }
+  }
+  await putInput(browser, '');
+}
+
 test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，底栏与窄屏录音操作留在窗口内", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, "seeded", undefined, null, {
     async request(method, params) { return method === "thread/turns/list" ? { data: [], nextCursor: null } : { thread: { id: params.threadId } }; },
@@ -142,8 +165,8 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
   };
   const shared = await styleOf(ASSISTANT);
   assert.equal(shared.font, "16px");
-  assert.match(shared.outline, /solid 2px$/u);
-  assert.notEqual(shared.shadow, "none");
+  assert.match(shared.outline, /solid 1px$/u, "UIV-01: the user requested a visible fine focus edge");
+  assert.equal(shared.shadow, "none", "UIV-01: the focus edge must not add a bright halo");
   await growsAndScrolls(ASSISTANT);
   await closeAssistant();
   const event = `[data-home-subject-kind="feed_item"][data-home-subject-id="${item.item_id}"]`;
@@ -166,6 +189,7 @@ test("UIV-01/02/11 三入口共用书写样式，长文增高后内部滚动，�
   }
   assert.deepEqual(await styleOf(CODING), shared);
   await growsAndScrolls(CODING);
+  await projectInputSpacing(browser);
 
   await mkdir(captures, { recursive: true });
   for (const [width, height] of [[1440, 900], [1024, 768], [390, 844], [320, 640], [640, 393]]) {

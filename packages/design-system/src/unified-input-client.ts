@@ -235,13 +235,22 @@ function uivResize(field: UivField): void {
     field.style.height = "0px";
   }
   field.style.height = `${field.scrollHeight + parseFloat(style.borderTopWidth || "0") + parseFloat(style.borderBottomWidth || "0")}px`;
+  if (form) uivMeasureDock(field.ownerDocument);
 }
-/** Reserve the composer extension without changing the fixed dock or its side entrances. */
+/** Reserve the upward extension in the same turn as text growth, before the next paint or hit test. */
+function uivMeasureDock(document: Document): void {
+  const bar = document.querySelector(".workbench-bar");
+  if (!(bar instanceof HTMLElement)) return;
+  const rect = bar.getBoundingClientRect(), center = bar.querySelector(".bar-center");
+  const height = `${Math.max(rect.height, rect.bottom - (center?.getBoundingClientRect().top ?? rect.top) + 6)}px`;
+  if (document.body.style.getPropertyValue("--uiv-dock-height") !== height) document.body.style.setProperty("--uiv-dock-height", height);
+}
+/** Observe changes to context and controls without changing the fixed dock or its side entrances. */
 function uivWatchDock(host: UivPageHost): void {
   const bar = host.document.querySelector(".workbench-bar");
   if (!(bar instanceof HTMLElement)) return;
   const center = bar.querySelector(".bar-center");
-  const measure = () => { const rect = bar.getBoundingClientRect(); const height = `${Math.max(rect.height, rect.bottom - (center?.getBoundingClientRect().top ?? rect.top) + 6)}px`; if (host.document.body.style.getPropertyValue("--uiv-dock-height") !== height) host.document.body.style.setProperty("--uiv-dock-height", height); };
+  const measure = () => uivMeasureDock(host.document);
   let frame = 0;
   const observer = new ResizeObserver(() => { if (!frame) frame = requestAnimationFrame(() => { frame = 0; measure(); }); });
   observer.observe(bar);
@@ -696,7 +705,7 @@ const uivBootFns = [
   uivStopRecord, uivTickRecord, uivCancelVoice, uivNoteEdit, uivNoteSwitch, uivInsertTranscript, uivApplyTranscript, uivConfirmInsert,
   uivFailTranscript, uivRetryTranscript, uivDiscardAudio, uivExplainInterrupted, uivContextInvalid, uivCannotSend, uivLoseDevice, uivVoiceStatusText, uivVisibleControls,
   uivFieldState, uivFieldLabel, uivStoreOf, uivSurface, uivField, uivIdentity, uivContext, uivObject, uivMeter, uivForms, uivButton,
-  uivEnsure, uivShow, uivText, uivPaint, uivMarkOpen, uivSendIdle, uivRemember, uivRestoreContext, uivLimitMs, uivRestore, uivApplyPending, uivResize, uivWatchDock, uivRelease,
+  uivEnsure, uivShow, uivText, uivPaint, uivMarkOpen, uivSendIdle, uivRemember, uivRestoreContext, uivLimitMs, uivRestore, uivApplyPending, uivResize, uivMeasureDock, uivWatchDock, uivRelease,
   uivCancel, uivLevel, uivTick, uivWriteTranscript, uivEncode, uivTranscribe, uivTranscribeOrFail, uivFetch, uivReadLines, uivOnStop, uivDeviceLost, uivArm,
   uivClickMic, uivDownload, uivAct, uivOnInput, uivRefuse, uivOnSubmit, uivKeyForm, uivOnKey, uivClearSaved, uivReadPhase, uivBind,
   uivInterrupted, uivMount,

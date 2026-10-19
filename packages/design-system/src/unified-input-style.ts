@@ -2,7 +2,7 @@
 export const UIV_STYLE = `
 html body form.uiv-composer[data-uiv-bound] :is(textarea[data-uiv-input], .assistant-composer-input[data-uiv-input]) {
   box-sizing: border-box; flex: none; width: 100%; min-width: 0; max-width: 100%;
-  height: 44px; min-height: 44px; max-height: min(160px, 20dvh); margin: 0; padding: 8px 4px;
+  height: 44px; min-height: 44px; max-height: min(160px, 20dvh); margin: 0; padding: 8px 4px 2px;
   font: inherit; font-size: 16px; line-height: 1.45; font-weight: var(--weight-body);
   border: 0; border-radius: 0; background: transparent; color: var(--ink);
   resize: none; field-sizing: fixed; overflow: auto; overflow-wrap: anywhere; box-shadow: none; caret-color: var(--ink);
@@ -17,8 +17,8 @@ html body form.uiv-composer[data-uiv-bound] .uiv-writing-surface {
 }
 html body form.uiv-composer[data-uiv-bound].uiv-writing-surface:has([data-uiv-input]:focus),
 html body form.uiv-composer[data-uiv-bound] .uiv-writing-surface:has([data-uiv-input]:focus) {
-  outline: var(--focus-stroke); outline-offset: 1px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
+  outline: var(--focus-stroke); outline-width: 1px; outline-offset: 1px;
+  box-shadow: none;
 }
 html body form.uiv-composer[data-uiv-bound] [data-uiv-input]:disabled { background: transparent; color: var(--muted); cursor: not-allowed; }
 html body form.uiv-composer[data-home-talk-form] { display: flex; flex-wrap: wrap; width: 100%; gap: 6px; padding: 8px 16px; }

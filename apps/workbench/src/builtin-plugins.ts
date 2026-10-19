@@ -6,7 +6,7 @@ import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiCont
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
 import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
+import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT, ISSUES_INSTRUCTIONS } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
@@ -106,7 +106,7 @@ export interface BuiltinPluginEntry {
 /** Shared build composition for catalog and UI resources. */
 export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
   {
-    project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
+    project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, instructions: ISSUES_INSTRUCTIONS, personal: true, summary: "记录、查看和整理自己的问题。",
     runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
     workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },

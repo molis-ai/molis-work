@@ -15,9 +15,9 @@ async function setup(t: Parameters<typeof openGoalBrowser>[0], behavior: Paramet
   return { b, v, issue, ...model };
 }
 
-test("ISSUE-48 current text and screenshots produce a review, then Save updates the same record and survives reopen", { timeout: 90_000 }, async t => {
+test("ISSUE-48 ISSUE-51 current text and screenshots produce a review, then Save updates the same record and survives reopen", { timeout: 90_000 }, async t => {
   const s = await setup(t, { title: "保存按钮点击后没有反应", type: "bug" }); if (!s) return;
-  const { v, issue, requests } = s;
+  const { v, issue, namings } = s;
   await v.press(editor + " [name=description]"); await v.type("；补充：点击保存无反应"); await v.paste("新现场.png", 40);
   await v.until("d.querySelectorAll('[data-issue-edit-shots] img').length === 1");
   const description = await v.ask<string>("$('[data-issue-editor] [name=description]').value");
@@ -28,8 +28,8 @@ test("ISSUE-48 current text and screenshots produce a review, then Save updates 
   assert.equal(await v.ask("$('[data-issue-editor]').dataset.type"), "bug");
   assert.equal(await v.ask("$('[data-issue-editor] [name=description]').value"), description);
   assert.equal(await v.ask("$('[data-issue-edit-shots] img').src"), image);
-  assert.match(JSON.stringify(requests), /补充：点击保存无反应/);
-  assert.match(JSON.stringify(requests), /image/);
+  // One call to Issue's own naming instruction, with the edited words and the new screenshot.
+  assert.equal(namings.length, 1); assert.match(namings[0]!, /补充：点击保存无反应/); assert.match(namings[0]!, /"type":"image"/);
   for (const theme of ["light", "dark"]) for (const width of [1440, 1024, 390]) {
     await v.ask("(d.documentElement.dataset.theme = d.documentElement.dataset.resolvedTheme = " + JSON.stringify(theme) + ", true)"); await v.viewport(width, 1000);
     await v.shot(theme + "-" + width);
@@ -96,10 +96,10 @@ test("ISSUE-49 clarification and timeout keep edited text and pictures; late com
   const other = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "另一条问题", type: "experience", description: "另一条原文" });
   await v.go("/plugins/issues"); await v.until("d.querySelectorAll('.issues-row').length === 2");
   await v.press('[data-issue-id="' + other.id + '"]'); await v.press("[data-issue-edit]");
-  finish();
-  const retired = (await v.assistant(true)).works;
-  assert.ok(retired.length >= 2);
-  assert.ok(retired.every(view => view.work.archived && view.work.state !== "running"), "retired reviews cannot resume after the model replies");
+  // The answer that comes after the timeout belongs to an editor that is gone: it is dropped.
+  const asked = namings.length; finish();
+  await new Promise(resolve => setTimeout(resolve, 1500));
+  assert.equal(namings.length, asked, "nothing is asked again");
   assert.equal(await v.ask("$('[data-issue-editor] [name=title]').value"), "另一条问题");
   assert.deepEqual(await v.read(other.id), other); assert.deepEqual(await v.read(issue.id), saved);
 });

@@ -4,7 +4,7 @@
 
 ## 页面录入改由 Issue 自己起标题（BL-149，2026-10-19 起草）
 
-状态：起草，未实现。方向由方法与迁移线 ③ 对过（统筹 10-19 指定）；代码主人 @yijunw0212 经 CODEOWNERS 评审。由 AI 手册线写 spec 并改；下面列出的文件 ③ 那边不碰。先按「先量」量现状，再动手。
+状态：已实现，等改后评测和评审（分支 `claude/bl149-issue-naming`），实现记录见本节末尾。方向由方法与迁移线 ③ 对过（统筹 10-19 指定）；代码主人 @yijunw0212 经 CODEOWNERS 评审。由 AI 手册线写 spec 并改；下面列出的文件 ③ 那边不碰。先按「先量」量现状，再动手。
 
 **问题。** 页面录入现在交给个人助理。页面先 `issues.prepare` 存草稿，再经 `/api/assistant/send` 发「录入草稿 <ID>」，带上方法 `issues-capture`。助理起标题、判类型，用 `change-reversible` 调 `issues.capture` 存好（`capture-client.ts` 的 `sendWork`、`watch`）。
 
@@ -20,7 +20,7 @@
 - 页面要按工作状态、卡片和提问去猜结果（`watch`）。
 
 **决定（起草）。** 页面录入和重新整理不再经助理。Issue 在自己的动作里调一次有界模型，只要标题和类型；要写入时由插件自己写。
-- **ISSUE-50** 录入：新动作（暂名 `issues.name_draft@1`）。
+- **ISSUE-50** 录入：新动作 `issues.name_draft@1`。
   - 声明：command，`scheduling: "concurrent"`，权限 `issues:write` 加 `model:invoke`，只给 `user` 调。
   - 读草稿的原文和截图，经 `services.model.complete` 调一次模型，`output: "json"`。截图只在所选模型声明 `vision` 时作为 `images` 传。
   - 插件检查返回的形状：标题长度、类型枚举。依据不足时返回一句追问、不写入。
@@ -44,10 +44,40 @@
 **要改的文件。**
 - 插件：`plugins/native/issues/src/manifest.ts`（权限、新动作）、`actions.ts`（新动作，`capture` 去掉 `agent`）、`capture.ts`（命名并写入，写入人从调用上下文取）、`plugin.ts`（接 `services.model`、新路由）、`methods.ts`（v11）、新文件 `prompts.ts`（那一份规则与指令）、`capture-client.ts` 与 `review-client.ts`（去掉助理工作的读写、卡片和提问的分支）、`README.md`。
 - 目录条目：`apps/workbench/src/builtin-plugins.ts` 的 Issue 条目声明指令（枢纽文件，动之前先查在途 PR）。
-- 测试：`tests/issue-assistant.test.ts`、`tests/fixtures/issue-model.ts`、`tests/issue-capture.test.ts`、`tests/issue-capture-page.e2e.test.ts`、`tests/issue-reorganize.e2e.test.ts`、`tests/issue-assistant-repair-page.e2e.test.ts`、`tests/issue-clarification-page.e2e.test.ts` 按新路径改，新测试带 ISSUE-50～53。浏览器用例等机器恢复后再跑（用户 10-19 暂停）。
+- 测试：`tests/issue-assistant.test.ts`、`tests/fixtures/issue-model.ts`、`tests/issue-capture.test.ts`、`tests/issue-capture-page.e2e.test.ts`、`tests/issue-reorganize.e2e.test.ts`、`tests/issue-clarification-page.e2e.test.ts` 按新路径改（`issue-assistant-repair-page.e2e` 删掉，见实现记录），新测试带 ISSUE-50～53。浏览器用例等机器恢复后再跑（用户 10-19 暂停）。
 - 快照：`tooling/gates/actions/`（`pnpm actions:update`）；`tooling/gates/page-assets.json`（Issue 脚本应变小，变小就降）。
 
 这一节取代 ISSUE-48 的「沿用现有助理建议卡…不新增后端、数据库或动作合同」和 ISSUE-36 的「标题和类型来自助理」；旧记录保留。
+
+**实现记录（2026-10-19）。** 两个新动作都只给 `user` 调，`scheduling: "concurrent"`，权限加 `model:invoke`，`execution.cost: "metered"`：
+- `issues.name_draft@1`（写）：读草稿，调一次模型，存成新记录或返回一句追问。`issues.suggest_name@1`（读）：给编辑中的原文和截图建议标题和类型，什么都不写。
+- 模型调用：上限 90 秒、4000 个输出 token。传给模型的数据里写截图有几张、这次附上没有，模型不会以为自己看过截图。
+- 截图只在所选模型声明能看图时附上。为此 `PluginModelAvailability` 多一个可选的 `vision`，宿主按模型目录里那个模型的 `vision` 填（`apps/local-host/src/plugin-model-service.ts`、`packages/contracts/src/platform/plugin-model.ts`）。日常 Home 要在「模型设置」里给模型勾上「看图」，截图才会到起标题这一步；评测两臂都按勾上跑（`MODEL_VISION=1`）。
+- 模型回答只认两种形状：`named`（一行标题，1～200 字；类型在枚举里）和 `needs_input`（一行追问，1～200 字）。其他回答报 `issues.model_reply_invalid`（类别 upstream），提示「模型没有给出可用的标题和类型，点开补全后保存」，不修补成记录。`result.validateResult()` 在写入事务里、提交前再查一次。
+- 写入人取调用上下文的 actor。起标题存下的记录 `entered_via` 仍记 `assistant`：标题和类型是模型给的，人只写了原文。
+- `issues.capture` 只剩 `user`（页面的手动保存）。助理在对话里记问题用 `issues.create`，测试 `tests/issue-assistant.test.ts` 的 ISSUE-25 那条覆盖。
+
+页面上的处理：
+- 两分钟兜底：服务端模型上限 90 秒，页面在两分钟后仍没等到就自己收尾。录入先撤掉草稿（`cancel_capture`）再提示超时，迟到的回答找不到草稿，不会在人手动存的那条旁边再存一条。重新整理直接丢掉迟到的回答，编辑器原样还给人（ISSUE-49 不变）。
+- 出错提示：没有模型（`actions.connection_required`）和上游失败（`plugin.model_failed`，比如 503）都显示「模型暂时不可用，点开手动保存，或检查模型设置」。超时（`actions.timeout`）显示「整理超时，点开补全标题和类型」。`issues.model_reply_invalid` 显示它自己的话。其他（含 `plugin.model_output_invalid`，回答不是 JSON）显示「没能自动整理，点开补全标题和类型」。
+- 回答在路上丢了（没有 HTTP 状态）时，先按草稿 ID 读一次，记录已经在就当存好。
+
+规则文本在 `plugins/native/issues/src/prompts.ts`：`issues.name`（v1，owner `io.molis.work.issues`）登记在目录条目上，方法 `issues-capture` v11 用同一份文本拼。已知的限制：人在「Prompt 与 Character」里改了 `issues.name`，只影响页面起标题，不影响方法；方法里的规则仍是代码里那一份。
+
+删掉的用例：`tests/issue-assistant-repair-page.e2e.test.ts` 通过 Issue 页面钉住的是助理运行时的行为，页面录入不再经助理，那些行为改在下面这些地方测：
+- 合同拒绝写出完整 input 合同：`tests/assistant-business-gateway.test.ts`，和 `tests/issue-assistant.test.ts` 新的 ISSUE-25 那条（`issues.create` 带错输入被拒、改对后存好、撤销取回）。
+- 重复调用保护：`tests/prologue-recovery.test.ts`、`tests/prologue-stream.test.ts`。
+- 选项要有 label：`tests/interaction-sdk-mapping.test.ts`；被拒两次停下：`tests/interaction-repair-limit.test.ts`；被拒一次说明原因、改对后等人回答：同一个文件新加的 ISSUE-34 那条。
+- 「每次确认」下页面录入落成卡片的那条不再适用，删掉；其中「放弃没写完的录入什么都不留」单独成了 `issue-capture-page.e2e` 里的一条。
+
+改到的文件比上面的清单多这几个：`apps/workbench/src/i18n/renderer-gap-en.ts`（删掉不再出现的四句，加新提示的英文）、`apps/local-host/src/plugin-model-service.ts` 与 `packages/contracts/src/platform/plugin-model.ts`（`vision`）、`tests/fixtures/issue-browser.ts`、`tests/interaction-repair-limit.test.ts`、`tests/plugin-model-selection.test.ts`、`tests/security-invariants-plugin-model-metadata.test.ts`、`horizontal/agent-host/README.md`（回归用例改指 `tests/issue-assistant.test.ts`）。
+
+先量（改前，2026-10-19，MiniMax-M3，隔离 Home，10 条 × 3 次，30 次全部有效）：
+- 该存的 27 次里一次调用就存好 23 次（85%）；「111」3 次都只追问、没存。
+- 没存的 4 次：3 次助理结束了工作却没存（05、07、09 各一次），1 次（09）不该问却问了。
+- 30 次里每条规则都过的 20 次（67%）：标题超长（05、09 各一次）、英文输入起了中文标题（08 一次）、标题带项目名（02 一次）、07 存下的两次标题都抄了截图里旧标题的字句「看不到后半句」（人只写了「列表里长标题被截断」）。
+- 时延中位 10.6 秒、最长 23.1 秒；每次平均 2.0 次模型调用。
+- 改后结果和逐条对比写在 PR 里，合入前补到这里。
 
 ## 已保存 Issue 重新整理（2026-10-15）
 

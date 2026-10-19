@@ -1,6 +1,6 @@
 # Molis Work AI 能力开发手册
 
-状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验）。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
+状态：手册正文已写入（2026-10-16）：`docs/platform/PROLOGUE-AI.md` 第二部分（第 12–17 节）与 `skills/molis-prologue-ai/SKILL.md` 的入口，ADH-01 至 ADH-11 的工程侧核对记在 §9，ADH-12 至 ADH-15（存量清理 A3②）、ADH-16 至 ADH-18（存量清理 D1②）的证明见 §8 与 §9.5；2026-10-18 补充 ADH-19 至 ADH-23（技能包渐进披露、从一次过程生成 Skill、评测循环、作者侧校验），ADH-19 至 ADH-22 的手册正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节，见 §9.6），ADH-23 等技能包实现。真实模型前后对比的第一份记录在 §9.5（存量清理 B1，项目上手），用户验收未做。负责人：AI 能力开发手册线（Claude，由统筹会话排期与评审）；需求整理为 Codex；现有 AI 平台、各业务插件与相关 Skill 的 owner 保留原归属。
 
 ## 1. 要解决的问题
 
@@ -1382,6 +1382,22 @@ Coding 小跑（统筹 10-18 定，#726 合入之后）：用当时 main 的构�
 
 文档实施运行 `node scripts/check-health-gates.mjs --base origin/main`、`node scripts/check-spec-coverage.mjs`，推送前运行 `pnpm secrets:check`。只改说明文字不为凑流程新增产品测试；若补可执行例子或修改挂载 Skill，则按真实影响遵守相应包与 Skill 验证要求。手册内容更新本身不授权改产品或放宽任何门禁。
 
+### 9.6 2026-10-19 Skill 章节的手册正文（ADH-19 至 ADH-23，基于 main `ebad9a223`）
+
+§10 是需求；正文按 Molis 现在的代码写。需求写到、Molis 现在没有的（`when_to_use` 与 `applies_to` 字段、录下过程生成 Skill、评测命令、hook、LSP、用户装包），正文写「没有」，不假装有。
+
+| 编号 | 写在手册哪里 | 现状 |
+| --- | --- | --- |
+| ADH-19 | 13.2「分层加载」 | 已写：三层，以及各种 Skill 现在做到哪层。插件给助理的方法做到前两层（只列名字和摘要，用到才读正文）；Coding 的方法与方法包整段内联，附件接在正文后、合计 20,000 字符以内。示例用 `skills/goal-advance/`（正文按情形指向 `references/`），不把手册抄进正文。待开发者走读 |
+| ADH-20 | 13.5 | 已写手写做法：固定、可变、判断点三类，判断点交给平台已有的审查与建议卡，已知答案回放，照现有两条路登记、不自动选上。待开发者按正文写一个 Skill 并回放 |
+| ADH-21 | 16.6 | 已写：测试 prompt 3–5 条、每条多次、触发与结果分开记、改摘要或正文后重跑同一组、判定规则先写下。触发只对模型自己选的方法（插件给助理的方法）有意义。待一次评测记录 |
+| ADH-22 | 16.7 | 已写，逐项标「拒绝」或「报告」，写明位置与作者命令（`molis-work-plugin validate`、`pack`、`sign`、`verify`）。hook、LSP 在 Molis 不存在（§10.4 的注）。待校验失败样例 |
+| ADH-23 | — | 现在做不了：要一个技能包在个人助理和 Coding 各用一次，技能包还没实现（`specs/skill-packs/spec.md` 状态句）。技能包合入后再做 |
+
+核对方式：作者读当前代码逐项核对，只读子代理协助查证，引用的文件与行作者都看过。非独立走读，用户验收未做。
+
+顺带发现，不在本片改：`tooling/plugin-cli/README.md` 说 `pack`「拒绝……生命周期脚本」，代码（`tooling/plugin-cli/src/package-files.ts`）只要求 `package.json` 用 `files` 明确列出、不执行 lifecycle script，没有拒绝带 lifecycle script 的包。手册 16.7 按代码写；README 与代码哪个改，归插件平台的主人。
+
 ## 10. 2026-10-18 补充：Skill 包、渐进披露与评测
 
 对照 Anthropic 的 `skill-creator`、`plugin-dev`、`knowledge-work-plugins` 与 `claude-code-action`，补上原手册“Skill 章节”没有展开的三件事：**一份 Skill 怎样分层、怎样从一次真实过程生成、怎样证明它值得用。**
@@ -1419,9 +1435,9 @@ Coding 小跑（统筹 10-18 定，#726 合入之后）：用当时 main 的构�
 ### 10.4 作者侧校验
 
 - manifest：必填字段、版本、来源、引用文件存在、路径不逃逸。
-- hook schema：事件、匹配器、动作、超时、阻塞语义合法。
+- hook schema：事件、匹配器、动作、超时、阻塞语义合法。（2026-10-19 核对：Molis 的插件现在没有 hook，手册 16.7 照实写「没有」。）
 - agent/skill：id/version 唯一、正文长度、`tools` 在允许范围、`applies_to` 合法。
-- LSP：command/args/扩展名映射/超时合法，server 缺失时是提示不是崩溃。
+- LSP：command/args/扩展名映射/超时合法，server 缺失时是提示不是崩溃。（同上：插件没有 LSP 声明。）
 - 打包/签名/安装：固定文件列表、签名可验证、卸载只删包内容。
 - UI：跨 surface 的挂载/交互测试；没有 surface 的包不假装有界面。
 

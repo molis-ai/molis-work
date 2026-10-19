@@ -3,6 +3,7 @@ import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assi
 import { renderInteractionOperation, type InteractionField } from "@molis-ai/molis-work-design-system";
 import { wallClockIn } from "@molis-ai/molis-work-plugin-sdk";
 import type { StoredCard } from "./assistant-store.js";
+import { CARD_RESULT_OPEN } from "../agent-next-steps.js";
 
 /**
  * An action card as the person sees it (specs/ai-interaction-experience H2): its fields as they read them, and the card
@@ -80,7 +81,8 @@ function cardField(field: AssistantCard["fields"][number], question: string | un
 
 /**
  * The card drawn: what it does and to what, the fields the person may change while it can run, the rest as the exact
- * values that would run, and once it ran (or could not), how it stands. A stale card offers only a fresh preparation, where
+ * values that would run, and once it ran (or could not), how it stands, with its result's 「打开」 as the control the row's
+ * outcome step presses (AC-06, `cardOutcomeSteps`). A stale card offers only a fresh preparation, where
  * its keeper can make one (`redo`; the Assistant can, a plugin's round card cannot).
  */
 export function assistantCardHtml(card: AssistantCard, say: (text: string, values?: Record<string, string | number>) => string, zone?: string, redo = true): string {
@@ -104,7 +106,7 @@ export function assistantCardHtml(card: AssistantCard, say: (text: string, value
     ...((state && !open) || card.outcome ? { status: { text: (state ? say(state) : "") + (card.outcome ? `${state ? "：" : ""}${card.outcome}` : ""), busy: card.status === "running",
       ...(card.status === "failed" ? { tone: "failed" as const } : ["unknown", "stale", "needs-input"].includes(card.status) ? { tone: "waiting" as const } : {}) } } : {}),
     ...(result ? { result: { title: result.title ?? say(result.summary), body: result.text ?? "",
-      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const }] } : {}) } } : {}),
+      ...(result.link ? { actions: [{ id: "result", label: say(result.link.label), href: result.link.href, variant: "primary" as const, attrs: { "data-ix-press": CARD_RESULT_OPEN } }] } : {}) } } : {}),
     ...(card.status === "stale" && redo ? { recovery: [{ id: "redo", label: say("请助理按最新状态重新准备") }] } : {}),
   });
 }

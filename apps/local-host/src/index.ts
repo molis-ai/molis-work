@@ -213,6 +213,7 @@ export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
 export {
   codingDirectoryPanel,
+  codingNextSteps,
   diffStagePanel,
   filesDirectoryPanel,
   gitDirectoryPanel,
@@ -239,10 +240,11 @@ export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "
 export { AssistantService } from "./assistant/assistant-service.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
-export { interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview } from "./agent-next-steps.js";
+export { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps, NEXT_STEP, type NextStepCard, type NextStepReview, type OutcomeCard } from "./agent-next-steps.js";
 export { withPluginInteraction } from "./plugin-interaction-answer.js";
 export { assistantCardHtml } from "./assistant/assistant-card-view.js";
-export { assistantNextSteps, assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
+export { assistantStepRow, drawAssistantReply } from "./assistant/assistant-view-html.js";
+export { assistantOutcomeSteps } from "./assistant/assistant-outcome.js";
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";

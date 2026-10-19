@@ -151,7 +151,7 @@ test("RC-19 (D32): words the person asked to keep that the write gate held show 
   await waitWork(browser, id, view => !view.memory_candidates?.length);
 });
 
-test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the side pane's 当前约定, as its word, and opens the supplement's receipt", { timeout: 120_000 }, async t => {
+test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the side pane's AI 记下的约定, as its word, and opens the supplement's receipt", { timeout: 120_000 }, async t => {
   const browser = await assistantPage(t, { question: "free-text", acknowledge: { treatment: "apply-now", kind: "constraint", impacts: ["constraint"] } }); if (!browser) return;
   await send(browser, "帮我记一个问题");
   const id = await browser.evaluate<string>("localStorage.getItem('molis.assistant.current')");
@@ -167,8 +167,8 @@ test("RCPT-361, 3e-1: what the AI says it takes as a constraint shows in the sid
     .catch(async error => assert.fail(`${error}; turns: ${JSON.stringify((await readWork(browser, id)).rounds.at(-1)!.turns.map(turn => turn.steer))}`));
   const shown = await browser.evaluate<{ title: string; claim: string; notes: string[] }>(`(() => { const node = ${block}; return { title: node.querySelector('.assistant-block-title').textContent,
     claim: node.querySelector('.mw-receipt__claim').textContent, notes: [...node.querySelectorAll('.mw-receipt__note')].map(one => one.textContent) }; })()`);
-  assert.deepEqual(shown, { title: "当前约定", claim: "AI 说采纳为约束", notes: ["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 1 轮"] },
-    "RCPT-361 the AI's word on the receipt's dashed line, said to be unchecked, with what was looked at");
+  assert.deepEqual(shown, { title: "AI 记下的约定", claim: "AI 说采纳为约束", notes: ["AI 自己说的，Molis 没有核对；要改，打开那条发更正。只看了最近 1 轮"] },
+    "RCPT-361, RCPT-367 named as what the AI noted, not the Goal's confirmed agreement; the AI's word on the receipt's dashed line, said to be unchecked, with what was looked at");
   await shot(browser, "assistant-agreements.png");
   await browser.evaluate(`[...${block}.querySelectorAll('button')].find(node => node.textContent === '别直接发邮件给客户，我自己发').click()`);
   assert.equal(await browser.evaluate("[...document.querySelectorAll('[data-assistant-thread] .mw-receipt')].find(node => node.textContent.includes('AI 说'))?.open"), true, "RCPT-361 it opens the supplement's receipt in the thread");

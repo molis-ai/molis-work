@@ -38,7 +38,11 @@ const installOf = (views: readonly ActionView[], reference: ActionReference & { 
   return view && view.availability.available ? view.provider.plugin_install_id ?? view.provider.provider_id : undefined;
 };
 
-/** Whether the drafted entry may be created without a card: the same rule as the Assistant's (an undo offered now), and nothing left to confirm. */
+/**
+ * Whether the drafted entry may be created without a card: its owner's undo is offered now (the Assistant's `directEligible`),
+ * and nothing is left to confirm. The person clicked it themselves, so the Assistant's confirm-each-time setting
+ * (`confirm_always`) is not read (anti-corruption §10.28, ruling 2).
+ */
 function direct(view: ActionView, views: readonly ActionView[], draft: ContextualDraft): boolean {
   const intake = view.action.intake;
   return !!intake && intake.effect !== "proposes" && !intake.multiple && draft.missing.length === 0 && directEligible(view, views, new Set());

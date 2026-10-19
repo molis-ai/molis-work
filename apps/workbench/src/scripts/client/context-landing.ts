@@ -4,9 +4,10 @@
  *
  * - The page that owns the object open on the left reports its landing (`molis:surface-landing`): cursor, selection or the
  *   end, with the version its positions belong to. One landing is kept; `null` clears it only when the same page sent it.
- * - A surface's focus is marked with where it is: inside the right panel `side` (and which cell), inside the Assistant
- *   `assistant`, else the left. Only a thing in hand that is not on the left carries the landing, so an `attach.` candidate
- *   (「插入到光标处」) is offered for exactly that.
+ * - A surface's focus is marked with where its element is: inside the right panel `side` (and which cell), inside the
+ *   Assistant `assistant`, else `main`, the left. A place or cell the surface reports of itself never counts, whether it is
+ *   this document's or a split pane's (anti-corruption §10.28 on #712 and #720). Only a thing in hand that is not on the left
+ *   carries the landing, so an `attach.` candidate (「插入到光标处」) is offered for exactly that.
  * - Choosing an `attach.` candidate prepares its input and hands it to the landing's owner, which previews it at the
  *   landing; confirming there runs it through the Host (`run`, bound to this landing and this choice: the page cannot
  *   send another), never by the page writing on its own. Nobody taking it means the landing went away: the row says so.
@@ -20,9 +21,10 @@
 export const CONTEXT_LANDING_SCRIPT = String.raw`  const landing = {
     value: null,
     element: null,
+    // Where a surface is comes from its element alone: a place or cell it reports of itself is replaced.
     place(element) {
       const cell = element && element.closest("[data-side-panel] [data-side-body]");
-      return cell ? { place: "side", side_tab: cell.dataset.sideBody } : element && element.closest("[data-assistant-island]") ? { place: "assistant" } : {};
+      return { place: cell ? "side" : element && element.closest("[data-assistant-island]") ? "assistant" : "main", side_tab: cell?.dataset.sideBody };
     },
     with(focus) { return focus.place && focus.place !== "main" && this.value && visible(this.element) ? { landing: this.value } : {}; },
     // A way to put the thing here, hovered or focused on the bar or in its menu, shows where it would go: the page flashes its

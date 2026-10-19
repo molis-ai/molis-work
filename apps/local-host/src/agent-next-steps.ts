@@ -12,6 +12,9 @@ type Say = (text: string, values?: Record<string, string | number>) => string;
  * on screen: the page runs it by pressing that record's own control (FLOW-01), so there is no second execution path.
  * `card:<id>:run` presses the card's run button (the page first checks the card has no unsent edits, FLOW-03);
  * `question:<id>:<field>:<value>` picks that option in the card and presses its submit; the rest only bring the record into view.
+ * An outcome record (specs/context-program §21.9) is keyed `<kind>:<id>` by its `data-ix-record`, a card by its `data-card`;
+ * `press` names a control the record carries as `data-ix-press="<name>"`, which the Assistant's row presses only when it is
+ * enabled and the record has no unsent edits, and otherwise brings the record into view.
  */
 export const NEXT_STEP = {
   review: (id: string) => `review:${id}`,
@@ -19,7 +22,28 @@ export const NEXT_STEP = {
   run: (id: string) => `card:${id}:run`,
   question: (id: string) => `question:${id}`,
   choose: (id: string, field: string, value: string) => `question:${id}:${field}:${value}`,
+  record: (kind: string, id: string) => `${kind}:${id}`,
+  press: (record: string, name: string) => `${record}:${name}`,
 } as const;
+
+/** A card as its result reads (AC-06): when it last changed, and what its owner presented once it ran. */
+export interface OutcomeCard extends NextStepCard { updated_at: string; presentation?: { title?: string; link?: { label: string } } }
+/** The control a card's result carries for opening what it made (`data-ix-press`), the one a next step presses. */
+export const CARD_RESULT_OPEN = "open";
+const RAN = new Set(["done", "failed", "unknown"]);
+
+/**
+ * The result of the card that ran last (specs/ai-interaction-experience AC-06, context-program §21.9): one step that
+ * presses the result's own 「打开」. Only the latest card that ran (done, failed or unconfirmed) since `since` counts; a
+ * failed or unconfirmed one is already reached among what waits, and one whose result has nothing to open has no step.
+ * `to` names the step as the page that shows the card reads it (the Assistant's key, Coding's selector).
+ */
+export function cardOutcomeSteps(cards: readonly OutcomeCard[], since: string, say: Say,
+  to = (card: OutcomeCard) => NEXT_STEP.press(NEXT_STEP.card(card.card_id), CARD_RESULT_OPEN)): InteractionNextStep[] {
+  const ran = cards.filter(card => RAN.has(card.status) && card.updated_at >= since).sort((a, b) => a.updated_at.localeCompare(b.updated_at)).at(-1);
+  const result = ran?.status === "done" && ran.presentation?.link ? ran.presentation : null;
+  return ran && result ? [{ id: to(ran), label: say("打开「{title}」", { title: result.title ?? ran.title }), source: say("来自操作卡") }] : [];
+}
 
 /** The one choice the person can answer with a single press: the set has one question, it is single choice, nothing else is required (FLOW-02). */
 function oneChoice(question: AgentPendingQuestion): { field: string; options: Array<{ value: string; label: string; recommended: boolean }> } | null {

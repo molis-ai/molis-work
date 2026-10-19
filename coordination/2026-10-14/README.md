@@ -1515,3 +1515,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 项目长期说明（项目里所有 Agent 共用，要人同意）→ Goals；
     - 研究偏好只在 Alchemist 里用。
   - **转 ⑥（D32）：** remember 被放成建议时，工具只告诉模型结果、不给原因，模型会自己编一个（`assistant-memory-tools.ts:48`）。由 ⑥ 定要不要给模型一句原因，等额度恢复再发。
+- 12:20 UTC：② 两份返工计划都批了，附条件（D23）。
+  - **项目库：** §4 第 1～6 条都照推荐。
+    - L1a 可以先合；条件是 L1b 合入之前，文档不介绍 `databases.project`。
+    - 交给 S8：去掉 `boards.title`（它是显示名的副本，等于第二真源）。
+    - 宿主替 Goals 建表是过渡特权，登记进 privileges.md，到 S9 删掉。
+  - **W5-02：** T1 冻结现在宣布，各片从推送到合入。
+    - `--check` 进 health:check。
+    - issues 的点名从 4 变 5 是放宽门禁，问用户：① 推荐把豁免扩到两个应用 `package.json` 里生成文件需要的依赖，并由 `--check` 核对依赖清单正好等于生成文件 import 的那一组。
+  - **转 ③：** 写进 `goals-migration-plan.md` §8。D1 作废；S8 和 L1b 同批；S5、S8 都排在 PR-1a 之后。

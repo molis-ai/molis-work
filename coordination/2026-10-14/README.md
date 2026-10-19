@@ -1353,3 +1353,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ⑧ 完成 D2：#772 已移交 ⑤，head `26c40783`。内容是 #730 P2 的用例、裁定 2，以及 #712/#720 的 P3：落点一律取自元素。附 S-30 的 node 用例，workbench.js 小了 6 B，已合入 main。
   - 槽位接口：#631（用户的草稿）会改写 `assistant-island.ts` 的大部分，所以 ⑧ 把槽位放进 `assistant-step-row.ts` 和一个新的 Host 文件，不碰 island.ts。统筹认可，这样能避开和 #631 冲突。
   - ⑤ 这一轮因为代理错误（ERR_PROXY_TUNNEL）中断，它的后台任务（fu-762 构建、三个复审子代理）完成时会把它唤醒。本机到 GitHub 的代理今早时断时续，统筹推送也两次遇到 503。
+- 07:55 UTC：
+  - #765（`2436c371d`）和 #766（`3f816873f`）07:54Z 由作者 yijunw0212 自己从队列合入，比 ⑤ 的复审评论只晚一分钟。
+  - #765 的资源数字（workbench.js +14,570 B、css +3,389 B）用户已在 ⑤ 的会话里批准。本地快查基线 `baseline.json:53` 写的是 1985，实测 1993，⑤ 在 #762 的后续 PR 里一起更新。PTG-10 的视觉验收记进「待补浏览器验证」。workbench.js 的放行键交给 ⑧ 的槽位接口。
+  - #766 复审有两条要改，没改就进了 main：附件状态和 @、/ 建议不归 UIV；`spec.md:30` 的链接钉在旧提交上。已在 PR 下请作者开小 PR 修。
+  - 环境：新工作树跑整体 `pnpm build`，会在 local-host 的 Swift 构建处失败。原因是 CLT 16.2 的 `bridging.modulemap` 和 `module.modulemap` 都定义了 `SwiftBridging`。修它要改用户的系统工具，交用户定，眼下不动。各线只构建要用的包，这一条已写进 LINE-COMMON §3。

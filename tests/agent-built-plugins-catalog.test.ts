@@ -258,10 +258,14 @@ async function hostProject(t: import('node:test').TestContext, approve?: readonl
   return { actions, service, context, project, approved, host: home.host };
 }
 
-/** A query offered to plugins that records the caller the Host issued for each call; `holdNext()` keeps the next call open until released. */
+/**
+ * A query offered to plugins that records the caller the Host issued for each call; `holdNext()` keeps the next call open until released.
+ * It is concurrent, so a call held open does not hold the project's line: a write presented to the gateway meanwhile waits its turn
+ * behind nothing and gets the gateway's own answer, instead of waiting for the held call that waits for it.
+ */
 function heldPeek(actions: Awaited<ReturnType<typeof hostProject>>['actions']) {
   const peek: ActionDefinition = { capability_id: 'callers.sandbox.peek', version: 1, operation: 'query', action: { title: '读取探针', description: '记下调用者', kind: 'query',
-    scope: 'project', audiences: ['plugin'], permissions: ['callers:read'], subject_kinds: [], input_schema: schema } };
+    scope: 'project', scheduling: 'concurrent', audiences: ['plugin'], permissions: ['callers:read'], subject_kinds: [], input_schema: schema } };
   const seen: HostPluginCaller[] = [];
   let hold: { reached(): void; release: Promise<void> } | undefined;
   actions.registry.registerProvider({ provider: { provider_id: 'platform', title: 'Molis Work', kind: 'system' }, definitions: [peek], handlers: [{ ...peek, async handle(caller) {

@@ -145,10 +145,11 @@ export function catalogCapabilities(options: { actions: ProjectActions; catalog(
       const catalog = await options.catalog(), entry = latestCapability(catalog, id);
       if (!entry) throw new SandboxError('plugin_builder.capability_denied', '平台目录里没有开放给插件的能力：' + id);
       if (!options.live(context.identity) || entry.effect !== 'read' && context.identity.namespace !== 'installed') return standIn(entry, input);
-      // Only the capability itself approves its call: another one the plugin holds with the same permissions does not.
-      const granted = options.granted(context.identity);
+      // Who is calling comes first (its project and declaration, `capability_denied`); then only the capability itself approves
+      // its call: another one the plugin holds with the same permissions does not (`capability_refused`).
+      const plugin = sandboxCaller(options, context), granted = options.granted(context.identity);
       if (!granted.includes(entry.id)) throw new SandboxError('plugin_builder.capability_refused', '插件没有声明或没有获得这项能力的授权：' + id);
-      const author = options.author?.(context.identity.pluginId), plugin = sandboxCaller(options, context);
+      const author = options.author?.(context.identity.pluginId);
       const withdraw = issuePluginCaller(plugin, grantedPermissions(catalog, granted));
       const caller: ActionCallContext = { actor_id: plugin.actor_id, actor_kind: 'runtime', project_id: options.actions.project_id, audience: 'plugin', host_plugin: plugin,
         plugin_install_id: context.identity.installationId, permissions: [...entry.permissions], ...(author ? { audit_actor_id: '插件「' + author + '」' } : {}),

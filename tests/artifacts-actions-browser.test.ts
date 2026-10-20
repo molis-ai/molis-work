@@ -18,25 +18,28 @@ test("actual Artifact import, fixed version, Goal embed and disabled reader surv
   let exact: { artifact_id: string; version: number } | undefined;
   for (const width of [1440, 390]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-    // The 成果库's one import entry: a dialog in the workbench (artifact-positioning A3).
+    // Importing is the side panel's 资料 tab (specs/project-knowledge PMAT-14), saved through the 成果库's own import.
     await visit("/?openPlugin=artifacts");
-    await waitFor("Boolean(document.querySelector('[data-artifact-import-open]'))", 15_000);
-    await click("[data-artifact-import-open]");
-    await waitFor("document.querySelector('[data-artifact-import-dialog]')?.open === true");
-    assert.equal(await evaluate("document.querySelector('[data-import-source]').value"), "file", "a local file is the first choice");
+    await waitFor("Boolean(document.querySelector('[data-knowledge-import-dialog]'))", 15_000);
+    await evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files' } }))");
+    await waitFor("Boolean(document.querySelector('[data-knowledge-import-open]')?.getClientRects().length)", 10_000);
+    await click("[data-knowledge-import-open]");
+    await waitFor("document.querySelector('[data-knowledge-import-dialog]')?.open === true");
     const root = await command<{ root: { nodeId: number } }>("DOM.getDocument", {}, sessionId);
-    const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.root.nodeId, selector: "[data-artifact-import-dialog] input[type=file]" }, sessionId);
+    const input = await command<{ nodeId: number }>("DOM.querySelector", { nodeId: root.root.nodeId, selector: "[data-knowledge-import-dialog] [data-knowledge-import-pick]" }, sessionId);
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
-    await click("[data-artifact-import-dialog] [data-import-submit]");
-    await waitFor("!document.querySelector('[data-import-result]').hidden || !document.querySelector('[data-import-error]').hidden", 10_000);
-    assert.equal(await evaluate("document.querySelector('[data-import-error]').hidden"), true);
-    const href = await evaluate<string>("document.querySelector('[data-import-result-link]').getAttribute('href')");
-    const match = new URL(href, b.origin).pathname.match(/\/artifacts\/([^/]+)\/versions\/(\d+)$/)!;
-    const reference = { artifact_id: decodeURIComponent(match[1]!), version: Number(match[2]) };
+    await waitFor("document.querySelectorAll('[data-knowledge-import-picked] li').length === 1");
+    await click("[data-knowledge-import-submit]");
+    await waitFor("/导入了 1 个/.test(document.querySelector('[data-knowledge-import-status]').textContent)", 10_000);
+    assert.equal(await evaluate("document.querySelectorAll('[data-knowledge-import-picked] .is-failed').length"), 0);
+    await evaluate("document.querySelector('[data-knowledge-import-dialog]').close()");
+    // The same file again is the same stored version.
+    const again = await b.web.post<{ artifact_id: string; version: number; reused: boolean }>(prefix + "/api/artifacts/import", { source: "file", filename: "动作导入.md", content });
+    assert.equal(again.reused, true);
+    const reference = { artifact_id: again.artifact_id, version: again.version };
     if (exact) assert.deepEqual(reference, exact, "repeated import keeps the same stored version");
     exact = reference;
-    await click("[data-import-result-link]");
-    assert.equal(await evaluate("document.querySelector('[data-artifact-import-dialog]')?.open ?? false"), false, "opening the version closes the dialog");
+    await visit(`/?openPlugin=artifacts&openItem=${encodeURIComponent(`/artifacts/${encodeURIComponent(exact.artifact_id)}/versions/${exact.version}`)}`);
     // The version opens in the workbench, without leaving the page.
     await waitFor("document.body.dataset.desktopSurface === 'artifacts' && (document.querySelector('[data-artifact-detail]')?.innerText ?? '').includes('浏览器原始文档')", 15_000);
     assert.match(await evaluate<string>("document.querySelector('[data-artifact-detail]').innerText"), /通过同一能力保存与读取/);

@@ -906,7 +906,8 @@ for (const scheme of ["light", "dark"] as const) {
       const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
       assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
-      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
+      // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14).
+      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "选择项目资料…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
     }
   });
 }

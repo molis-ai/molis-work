@@ -4,6 +4,8 @@ import { ALCHEMIST_GENERATE_PERMISSION, alchemistOperations, type AlchemistHomeO
 import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
 import { DISCOVERY_BRAINSTORM_JOB } from "./create-exploration.js";
 import { RESEARCH_LENS_JOB } from "./start-lens-run.js";
+import { DISCOVERY_PULSE_JOB } from "./start-pulse-run.js";
+import { alchemistStateErrors } from "../../errors.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
 import { IdeaActionError } from "./idea-card-actions.js";
 import { ResearchPlanError } from "./create-research-plan.js";
@@ -93,12 +95,16 @@ function implementations(d: ApiDependencies): Implementations {
       d.jobResumption.accept(run.jobId, accepted);
       return { run };
     },
+    // One action stops either kind of run, each through its own service (D27): the page's 「停止」, MCP and workflows share it.
     runCancel: input => {
-      try { return { run: d.cancelLensRun(input.id) }; }
-      catch (error) {
-        const code = error instanceof Error ? error.message : "alchemist.lens_run_not_cancellable";
-        if (!["alchemist.lens_run_not_found", "alchemist.lens_run_not_cancellable"].includes(code)) throw error;
-        throw new AlchemistOperationError(code, code === "alchemist.lens_run_not_found" ? "没有找到这次研究。" : "这次研究已经结束，不能再取消。", code === "alchemist.lens_run_not_found" ? 404 : 409);
+      try {
+        const kind = d.jobs.get(input.id)?.kind;
+        if (kind === RESEARCH_LENS_JOB) return { kind: "lens" as const, run: d.cancelLensRun(input.id) };
+        if (kind === DISCOVERY_PULSE_JOB) return { kind: "pulse" as const, run: d.cancelPulseRun(input.id) };
+        throw alchemistStateErrors.run_not_found("没有找到这次研究或市场脉搏。");
+      } catch (error) {
+        if (!(error instanceof ActionError) || !["alchemist.run_not_found", "alchemist.run_not_cancellable"].includes(error.code)) throw error;
+        throw new AlchemistOperationError(error.code, error.message, error.code === "alchemist.run_not_found" ? 404 : 409);
       }
     },
     runList: () => ({ jobs: d.jobs.listRecent().filter(job => ["queued", "running", "interrupted", "failed"].includes(job.status)).map(job => {

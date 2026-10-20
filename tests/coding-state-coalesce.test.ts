@@ -9,6 +9,7 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurf
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
@@ -42,6 +43,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
       if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
@@ -76,4 +78,193 @@ test("however many pages poll the Coding directory at once, one read runs and at
     await state();
     assert.equal(reads, 3);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+});
+
+// PG-054 (specs/repository-anti-corruption/privileges.md): Coding names no Runtime. A new session, and the methods and MCP servers the
+// project keeps, use the first Runtime in the platform's directory that can host a session (there is no per-project choice yet, BL-372); what
+// a Runtime offers is read from its own capability matrix, never from its id.
+
+type Level = "supported" | "partial" | "unsupported";
+type Entry = { runtime_id: string; display_name: string; capabilities: Record<string, Level> };
+const runtime = (runtime_id: string, capabilities: Record<string, Level> = {}): Entry => ({ runtime_id, display_name: runtime_id,
+  capabilities: { "session.create": "supported", "run.start": "supported", skills: "partial", mcp: "partial", subagents: "partial", ...capabilities } });
+/** What a letter between two sessions carries from the person who sends it. */
+type Wording = { from_session: string; to_session: string; body: string };
+const PLUGIN = "/api/plugins/io.molis.work.coding";
+
+async function harness(initial: Entry[]) {
+  const root = mkdtempSync(join(tmpdir(), "coding-runtime-choice-")), dbPath = join(root, "board.db");
+  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
+  const sessions = new CodingSessionStore(store.db);
+  const calls: Array<[string, unknown]> = [];
+  const world = { runtimes: initial, noLetters: false, created: 0 };
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const letter = (input: Wording, state: string) => ({ message_id: "m1", audience: "people", kind: "request",
+    from_session: input.from_session, to_session: input.to_session, body: input.body, state, sent_at_ms: Date.now(), history: [], attachments: [] });
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
+    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
+    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+      const id = definition.capability_id, input: unknown[] = Array.isArray(args) ? args : [];
+      calls.push([id, args]);
+      // Every call that names a Runtime says which one, so a test can tell where each went.
+      if (id === agent.listRuntimes.capability_id) return world.runtimes as Output;
+      if (id === agent.listSkills.capability_id) return [{ skill_id: "from", runtime: input[0] }] as Output;
+      if (id === agent.listMcp.capability_id) return [{ id: "from", runtime: input[0] }] as Output;
+      if (id === agent.saveMcp.capability_id) return { id: "saved", runtime: input[0] } as Output;
+      if (id === agent.controlMcp.capability_id) return undefined as Output;
+      if (id === agent.discoverSkills.capability_id) return [{ candidate_id: "c1", runtime: input[0] }] as Output;
+      if (id === agent.installSkill.capability_id) return { skill_id: "installed", runtime: input[0] } as Output;
+      if (id === agent.readSkill.capability_id) return { skill_id: "read", runtime: input[0] } as Output;
+      if (id === agent.createSession.capability_id) return { session_id: `rt-${++world.created}` } as Output;
+      if (id === agent.readMessages.capability_id) return [] as Output;
+      if (id === agent.sendPeopleMessage.capability_id) {
+        // A Runtime with no letters between sessions says so before it sends anything.
+        if (world.noLetters) throw Object.assign(new Error("当前运行时不能发会话间的信"), { code: "agent.capability_unavailable" });
+        return letter(input[1] as Wording, "queued") as Output;
+      }
+      if (id === agent.actOnPeopleMessage.capability_id) return letter({ from_session: "rt-1", to_session: "rt-2", body: JSON.stringify({ title: "t", task: "task" }) }, "delivered") as Output;
+      if (id === writerIntegrationCapabilities.read.capability_id) return { source: input } as Output;
+      if (id === agent.readSessionStatuses.capability_id) return (input[1] as string[]).map(session_id => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
+      if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
+      if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
+      if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
+      throw new Error(`Unexpected capability ${id}`);
+    } },
+  });
+  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const call = async (path: string, body?: unknown) => {
+    const result = await fetch(`http://127.0.0.1:${address.port}${PLUGIN}${path}`, body === undefined ? {} : { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    return { status: result.status, body: await result.json() };
+  };
+  // The arguments of each call to a capability, as the list the Host takes (a single input is a list of one).
+  const made = (capability: { capability_id: string }): unknown[][] => calls.filter(([id]) => id === capability.capability_id).map(([, args]) => Array.isArray(args) ? args : [args]);
+  const close = async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); };
+  return { call, calls, made, sessions, world, close, root };
+}
+
+test("PG-054 with only Prologue in the directory a new session, the methods and the MCP servers behave as they did", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("prologue")]);
+  try {
+    const created = await h.call("/sessions", { title: "第一件事" });
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    assert.equal(created.body.session.runtime_id, "prologue");
+    const state = await h.call("/state");
+    assert.equal(state.status, 200, JSON.stringify(state.body));
+    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }]);
+    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "prologue" }]);
+    const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(saved.body.server.runtime, "prologue");
+    assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 200);
+    assert.equal(h.made(agent.controlMcp)[0]![0], "prologue");
+    assert.equal((await h.call("/methods/discover", { workspace_id: "work", path: "skills" })).body.candidates[0].runtime, "prologue");
+    assert.equal((await h.call("/methods/install", { candidate_id: "c1" })).body.method.runtime, "prologue");
+    assert.equal((await h.call("/methods/review-change/1")).body.method.runtime, "prologue");
+  } finally { await h.close(); }
+});
+
+test("PG-054 a Runtime listed earlier that cannot host a session is skipped: a new session, the methods and the MCP servers use the next one", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("reader", { "session.create": "unsupported", "run.start": "unsupported" }), runtime("no-rounds", { "run.start": "unsupported" }), runtime("beta"), runtime("prologue")]);
+  try {
+    const created = await h.call("/sessions", {});
+    assert.equal(created.status, 200, JSON.stringify(created.body));
+    assert.equal(created.body.session.runtime_id, "beta", "the first two in the directory cannot host a session; the third can");
+    const state = await h.call("/state");
+    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "beta" }]);
+    assert.deepEqual(state.body.mcp, [{ id: "from", runtime: "beta" }]);
+    const saved = await h.call("/mcp", { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } });
+    assert.equal(saved.body.server.runtime, "beta");
+    // The directory's order is the only rule: when the earlier ones can host a session again, they are the ones used.
+    h.world.runtimes = [runtime("reader"), runtime("beta"), runtime("prologue")];
+    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "reader");
+    assert.deepEqual(h.sessions.list(DEMO_PROJECT_ID).map(session => session.runtime_id).sort(), ["beta", "reader"], "the session already made keeps its Runtime");
+  } finally { await h.close(); }
+});
+
+test("PG-054 with no Runtime that can host a session a new session is refused with a readable reason and none is made", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("reader", { "session.create": "unsupported" }), runtime("no-rounds", { "run.start": "unsupported" })]);
+  try {
+    const refused = await h.call("/sessions", { title: "不会建立" });
+    assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
+    assert.match(refused.body.error, /宿主还没有可用的运行时/);
+    assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, 0, "nothing was created");
+    // The project still opens: no methods or MCP servers are asked of a Runtime that cannot be chosen, and none are saved.
+    const state = await h.call("/state");
+    assert.deepEqual([state.status, state.body.sessions, state.body.methods, state.body.mcp], [200, [], [], []]);
+    assert.equal(h.made(agent.listSkills).length + h.made(agent.listMcp).length, 0);
+    assert.equal((await h.call("/mcp/s1/control", { action: "connect" })).status, 503);
+    assert.equal(h.made(agent.controlMcp).length, 0);
+    // A Runtime that can host one appears: the same request now works, with nothing to redo.
+    h.world.runtimes = [runtime("reader", { "session.create": "unsupported" }), runtime("prologue")];
+    assert.equal((await h.call("/sessions", {})).body.session.runtime_id, "prologue");
+  } finally { await h.close(); }
+});
+
+test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refuses to save or control them; methods follow their own entry", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("prologue", { mcp: "unsupported" })]);
+  try {
+    const state = await h.call("/state");
+    assert.deepEqual([state.status, state.body.mcp], [200, []]);
+    assert.deepEqual(state.body.methods, [{ skill_id: "from", runtime: "prologue" }], "methods are not tied to MCP");
+    assert.equal(h.made(agent.listMcp).length, 0, "no MCP list is asked of a Runtime that has none");
+    const input = { expected_version: 0, label: "x", transport: "http", endpoint: "http://127.0.0.1:1/mcp", enabled: true, timeout_ms: 1000, auth: { kind: "none" } };
+    const save = await h.call("/mcp", input);
+    assert.deepEqual([save.status, save.body.code], [503, "coding.runtime_unavailable"]);
+    assert.match(save.body.error, /不支持 MCP/);
+    const control = await h.call("/mcp/s1/control", { action: "connect" });
+    assert.deepEqual([control.status, control.body.code], [503, "coding.runtime_unavailable"]);
+    assert.equal(h.made(agent.saveMcp).length + h.made(agent.controlMcp).length, 0, "nothing reached the Runtime");
+    // The same for methods: a Runtime that offers none shows none and refuses to find or install them.
+    h.world.runtimes = [runtime("prologue", { skills: "unsupported" })];
+    const bare = await h.call("/state");
+    assert.deepEqual([bare.body.methods, bare.body.mcp.length], [[], 1]);
+    for (const attempt of [h.call("/methods/discover", { workspace_id: "work", path: "skills" }), h.call("/methods/install", { candidate_id: "c1" }), h.call("/methods/review-change/1")]) {
+      const refused = await attempt;
+      assert.deepEqual([refused.status, refused.body.code], [503, "coding.runtime_unavailable"]);
+    }
+    assert.equal(h.made(agent.discoverSkills).length + h.made(agent.installSkill).length + h.made(agent.readSkill).length, 0);
+  } finally { await h.close(); }
+});
+
+test("PG-054 a delegation is made on the Runtime of the session that asks, and a Runtime with no letters between sessions refuses before sending anything", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("beta"), runtime("prologue")]);
+  const at = new Date().toISOString();
+  h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "发起", runtime_id: "beta", at });
+  try {
+    const sent = await h.call("/sessions/a/delegations", { task: "整理会议记录" });
+    assert.equal(sent.status, 200, JSON.stringify(sent.body));
+    assert.equal(sent.body.session.runtime_id, "beta", "the receiving session is on the asking session's Runtime");
+    assert.deepEqual(h.made(agent.createSession).map(args => args[0]), ["beta", "beta"]);
+    assert.equal(h.made(agent.sendPeopleMessage)[0]![0], "beta");
+    // A Runtime that cannot send letters: the call is refused, the session made for it is put away, and no letter exists.
+    h.world.noLetters = true;
+    const before = h.sessions.list(DEMO_PROJECT_ID).length;
+    const refused = await h.call("/sessions/a/delegations", { task: "再整理一份" });
+    assert.notEqual(refused.status, 200);
+    assert.match(refused.body.error, /不能发会话间的信/);
+    assert.equal(h.sessions.list(DEMO_PROJECT_ID).length, before, "the session made for the refused delegation is archived");
+    assert.equal(h.made(agent.actOnPeopleMessage).length, 1, "nothing was delivered for the refused one");
+  } finally { await h.close(); }
+});
+
+test("PG-054 integrating a child's work needs sub-agents in the session's own Runtime, not a Runtime of a particular name", { timeout: 30_000 }, async () => {
+  const h = await harness([runtime("beta", { subagents: "unsupported" }), runtime("prologue")]);
+  const at = new Date().toISOString();
+  for (const [id, runtime_id] of [["a", "beta"], ["b", "prologue"]] as const) {
+    h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id, at });
+    h.sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `rt-${id}`, at);
+  }
+  try {
+    const none = await h.call("/sessions/a/runs/r1/subagents/c1/integration");
+    assert.equal(none.status, 400, JSON.stringify(none.body));
+    assert.match(none.body.error, /没有可整合的原子任务/);
+    assert.equal(h.made(writerIntegrationCapabilities.read).length, 0);
+    const read = await h.call("/sessions/b/runs/r1/subagents/c1/integration");
+    assert.equal(read.status, 200, JSON.stringify(read.body));
+    assert.deepEqual(h.made(writerIntegrationCapabilities.read), [[{ session_id: "rt-b", run_id: "r1", subagent_id: "c1" }]]);
+  } finally { await h.close(); }
 });

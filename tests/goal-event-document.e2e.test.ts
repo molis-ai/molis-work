@@ -340,7 +340,7 @@ test("W2-18-GOAL-PIN-RETRY-01 a lost real Pages/Goal receipt must be reconciled 
   const { origin, store, controlToken, command, sessionId, navigate, evaluate, waitFor, click, reloadPage } = browser, app = new GoalProjectApplication(store);
   const goal = app.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, title: "固定回包恢复", outcome: "重复收尾不重复固定", requirements: [{ requirement_id: "pending", statement: "仍待验收" }],
     actor_id: "web-user", actor_kind: "user", idempotency_key: "pin-retry-goal" }).goal;
-  const created = await fetch(origin + "/api/pages", { method: "POST", headers: { "content-type": "application/json", origin,
+  const created = await fetch(origin + "/api/plugins/io.molis.work.pages/pages", { method: "POST", headers: { "content-type": "application/json", origin,
     "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": "pin-retry-create-page" }, body: JSON.stringify({ title: "真实交付稿", markdown: "保留这个固定版本" }) });
   assert.equal(created.status, 200, await created.clone().text());
   const document = (await created.json() as { document: { id: string } }).document, subject = { kind: "pages_document", id: document.id }, artifactId = "pages-" + document.id;

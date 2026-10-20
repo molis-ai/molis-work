@@ -77,7 +77,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const origin = `http://127.0.0.1:${address.port}`;
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
-  const created = await (await fetch(`${origin}/api/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "访谈纪要", markdown: "用户最在意交付时间" }) })).json() as { document: { id: string } };
+  const created = await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "访谈纪要", markdown: "用户最在意交付时间" }) })).json() as { document: { id: string } };
 
   const pinned = await fetch(`${origin}/api/goals/V1/artifact-inputs`, { method: "POST", headers: headers(),
     body: JSON.stringify({ subject: { kind: "pages_document", id: created.document.id }, used: true }) });

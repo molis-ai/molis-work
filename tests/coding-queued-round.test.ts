@@ -76,6 +76,7 @@ test("a round told to wait for another session's work waits on it, starts on its
       }
       if (id === agent.readBackground.capability_id) return [] as Output;
       if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (id === agent.listActions.capability_id) return [] as Output;
       if (id === agent.readSession.capability_id) return { runs: [] } as Output;
       if (id === agent.startRun.capability_id) {
         if (refusal) throw refusal;

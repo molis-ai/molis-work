@@ -124,12 +124,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     assert.equal(localCalls, 1, "rolled-back module events cannot trigger a model call");
 
     const ports = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS })));
-    const handoff = await ports.receive("inbox", { title: "工作流交接", body: "需要核对的交接内容", feed_item_id: null }, { instance_id: "fixture-flow", step: 1 });
+    const handoff = await ports.receive("inbox", { title: "工作流交接", body: "需要核对的交接内容", feed_item_id: null }, "workflow:fixture-flow:1");
     assert.equal(localCalls, 2);
     assert.equal(history().find(record => record.subject.id === handoff.item_id)!.function_key, unknown.capability_id);
     const restricted = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, actor_id: "restricted-workflow", audience: "workflow",
       permissions: NATIVE_CONTENT_PERMISSIONS.filter(permission => permission !== "model:invoke") })));
-    const withoutModel = await restricted.receive("inbox", { title: "只交接材料", body: "没有模型权限也可以保留材料", feed_item_id: null }, { instance_id: "restricted-flow", step: 1 });
+    const withoutModel = await restricted.receive("inbox", { title: "只交接材料", body: "没有模型权限也可以保留材料", feed_item_id: null }, "workflow:restricted-flow:1");
     assert.ok(feed.getInboxEntry(runtime.project_id, withoutModel.item_id));
     assert.equal(localCalls, 2, "a workflow without model permission cannot borrow the native background caller to judge its entry");
     assert.ok(!history().some(record => record.subject.id === withoutModel.item_id));

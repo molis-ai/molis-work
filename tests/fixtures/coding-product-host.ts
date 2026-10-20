@@ -8,6 +8,8 @@ import { createDesktopWebHost, openMolisWorkProjectCatalog, withMolisWorkProject
 import { MolisWorkLocalHost, ModelProviderStore, withConnectorConnections, ensureSystemAgentService, workspaceRefFor } from "@molis-ai/molis-work-app-local-host";
 import { LocalSqliteStorage, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { cogniaModelResponse } from "./cognia-model-response.js";
+import { isKnowledgeOrganize, organizedCard } from "./knowledge-organize.js";
 
 export type CodingProviderRequest = { messages: Array<{ content: string | Array<{ type: string; text?: string }> }> };
 
@@ -40,6 +42,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
     assert.equal(url, endpoint, "no external provider is contacted");
     const body = input instanceof Request ? await input.clone().text() : await new Request(input, init).text();
     assert.ok(body, "the SDK sends the actual model request body");
+    if (isKnowledgeOrganize(body)) return cogniaModelResponse(organizedCard);
     const request = JSON.parse(body) as CodingProviderRequest; requests.push(request);
     return respond(request, requests.length);
   });

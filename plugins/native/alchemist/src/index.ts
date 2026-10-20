@@ -20,7 +20,7 @@ export type { LocalRuntime as AlchemistStudioRuntime } from "./studio/server/boo
 export type { AlchemistAiPort } from "./studio/server/runtime/host-port.js";
 export type { AlchemistPulseGithubAccount, AlchemistPulseGithubPort } from "./studio/server/sources/pulse-github-port.js";
 export type { SourceFetch as AlchemistSourceFetch } from "./studio/server/sources/http-source-client.js";
-export { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION } from "./studio/shared/contracts/actions.js";
+export { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION, ALCHEMIST_MODEL_PERMISSION } from "./studio/shared/contracts/actions.js";
 export { createAlchemistActionHandlers, AlchemistOperationError } from "./studio/server/services/action-operations.js";
 export type { AlchemistActionInvoker, AlchemistActionPorts } from "./studio/server/services/action-operations.js";
 export { createApp as createAlchemistHttpApp } from "./studio/server/app.js";

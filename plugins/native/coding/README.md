@@ -23,9 +23,9 @@
 让模型直接吐 SVG 意味着模型输出变成应用自己 DOM 里的标记，中间只隔着一个消毒器——
 那种白名单是会被绕过的。现在标签一律作为文本节点进入，注入面不存在。
 
-**固定材料按精确版本进入本轮。** Coding 有六个可选输入：Files 的 before / after / selection，
-Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确选择的固定材料通过原持久连线进入 materials 输入；其他已保存版本仍可从原 Artifact 目录选用，不另建输入账。用户在 Shelf 确认保存完整文字，再在 Coding 材料选择器中选定本项目精确版本；宿主读取原文并冻结来源，
-生产者发布新版本不改写在跑任务和历史报告。无材料可以直接执行。
+**本轮材料是项目资料。** 用户在统一的资料选择器里为下一轮选资料（成果、导入的文档、Pages、工作目录里的文件、别的会话的报告……，`specs/project-knowledge` PMAT-18）；
+一轮开始时 Coding 逐份经 `knowledge.read` 读出，主人给的是此刻的正文与版本，长的只放开头并告诉 Agent 怎样接着读；读不到的一份让这一轮在开始前停下。
+Coding 不按类型解析材料，也没有输入端口。运行中的这一轮保持开始时读到的内容。无材料可以直接执行。
 
 **目标关联用于下一轮。** 会话可选择本项目 Goal，先看完整合同与进展再确认固定版本。发送前若目标变化，
 需要重新查看确认；归档、删除或超限显式拒绝，不截断或偷换版本。报告依据本轮固定来源保存归属，
@@ -89,6 +89,6 @@ Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏
 
 后台 Run follower 使用当前 activation 的独立权限和取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
-`coding.runs.control` 的现行合同是 version 5：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），以及对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
+`coding.runs.control` 的现行合同是 version 7：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 
 Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@molis-ai/molis-work-contracts/modules/goal-actions` 的五个完整合同；Goals 注册这些合同，Coding 不 import Goals 实现、不再消费四个旧 typed 协议。Manifest 声明 Goals 读写权限，实例资格取 Host 启动名单的真实 definition；每次路由调用传原取消、提交前复查与同步尾检。目录页仍取100项；固定报告的进展确认只读当前事实，创建给模型的目标材料才执行20k长度约束。

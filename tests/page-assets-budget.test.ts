@@ -668,6 +668,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-plugins/alchemist.js", 50619],
   ["/assets/molis-work-workbench.js", 1115299], ["/assets/molis-work-workbench.css", 1589812],
   ["/assets/molis-work-workbench.js", 1129841],
+  // The outcome slot's +442 B (#789 with #803) is spent; main's budget has since fallen below its start.
+  ["/assets/molis-work-workbench.js", 1130033],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -680,30 +682,52 @@ for (const [asset, old] of [
   });
 }
 
-// The outcome slot with the delivery note (#789 with #803, specs/context-program §21.9, specs/ai-input-receipts 3e-2a): the
-// workbench script may grow once, from exactly the main baseline to the measured size (+442 B). One byte more, another
-// asset, or growth from the new baseline still fails.
-test("the outcome slot with the delivery note has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1130033, 1130475] } as const;
+// specs/project-knowledge (2026-10-19): the 项目资料 styles and the side panel's 资料 tab may grow these three once, each
+// from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
+// baseline still fails.
+test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1603154],
+    "/assets/molis-work-settings.css": [982397, 988933] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("os789-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "os789-change");
+  branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "pmat-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "os789-base").code, 0);
-  assert.equal(gate("--base", "os789-base").code, 0);
+  assert.equal(gate("--update", "--base", "pmat-base").code, 0);
+  assert.equal(gate("--base", "pmat-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "os789-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "pmat-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "os789-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "os789-base").code, 0);
-  commit("freeze the measured outcome slot size"); git("branch", "-f", "os789-frozen");
+  assert.equal(gate("--update", "--base", "pmat-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pmat-base").code, 0);
+  commit("freeze the measured project-knowledge sizes"); git("branch", "-f", "pmat-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "os789-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "os789-frozen").code, 1);
+    assert.equal(gate("--base", "pmat-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "pmat-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
+});
+
+// The user approved one new asset on 2026-10-19, the 项目资料 browser code, at its measured size. No other asset may be added,
+// it may not come in a byte larger, and once budgeted it only falls.
+test("PMAT the approved knowledge asset may be added once at its measured size; no other new asset, no growth after", () => {
+  const asset = "/assets/molis-work-knowledge.js";
+  branch("knowledge-base", () => { putBudget(sizes); });
+  git("checkout", "-q", "-B", "knowledge-change");
+  (sizes as Record<string, number>)[asset] = 26362;
+  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "a byte over the approved size");
+  (sizes as Record<string, number>)[asset] = 26361;
+  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
+  assert.equal(gate("--base", "knowledge-base").code, 0);
+  (sizes as Record<string, number>)["/assets/molis-work-other.js"] = 10;
+  assert.equal(gate("--update", "--base", "knowledge-base").code, 1, "no other asset may be added");
+  delete (sizes as Record<string, number>)["/assets/molis-work-other.js"];
+  assert.equal(gate("--update", "--base", "knowledge-base").code, 0);
+  commit("budget the approved knowledge asset"); git("branch", "-f", "knowledge-frozen");
+  (sizes as Record<string, number>)[asset] = 26361 + 1; putBudget(sizes);
+  assert.equal(gate("--base", "knowledge-frozen").code, 1, "once budgeted it only falls");
+  assert.equal(gate("--update", "--base", "knowledge-frozen").code, 1);
 });

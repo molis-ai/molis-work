@@ -2182,3 +2182,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #867：#776 合入后远端 DIRTY（head 还是 `cdcda41b1`）。① 已告诉 ⑤：推本地修复前再合一次最新 main，门禁在合入后的树上跑。
   - #870：⑩ 的修复 `461750c2e` 在 heavy.sh 跑构建和 8 个相关用例，过了再推到 ② 的分支、更新正文。
   - ②：Prologue 占位串修复的测试、S0-2a 在 #776 合入后的复跑，两份都在 heavy.sh 排队。#826、#840、#843 归 Codex，要推先在评论里说明。
+- **11:3x UTC**：
+  - **#872 合入 main `3a81d422d`**（⑤）。#867 已合进最新 main（`986a3f8a0`）。三处冲突都是机械的：project-host.ts 的 Pages import、package.json 的 test:security 取并集、baseline 重新生成。`openInstalledPlugins` 超限，拆出 `registerScheduleProviders` 解决。正在构建 8 个包，然后跑门禁和 9 个相关用例文件。
+  - **① 审 molis-ai/prologue#56**（②，占位串加 `-END`，head `5169de82`）。在独立工作树 `prologue-wt/review-56` 复跑，经 heavy.sh：tsc 通过，5 个文件 46/46；变异 A 去掉 `-END`，9 红 2 绿；变异 B 把 Host 检查改成至少一处，重复那条变红。
+  - 结论：代码可合。合前要改切片文档：「Agent 循环窗口图超过 10 张也不撞」这句后面写上「未单独实测」。另有两条建议：测试里两处手写的旧写法；两次随机段约 2^-32 撞上的概率，失败是安全的，以前就有。评论 6289864597。
+  - 已提醒 ②：换 vendored 包会顺带拉进上游 #54、#55（调用归因，BL-162，加了可选字段），换包 PR 要写明，并核对 Molis 的事件校验。

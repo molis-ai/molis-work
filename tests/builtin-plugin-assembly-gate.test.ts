@@ -12,8 +12,8 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  * started by the supervisor in `apps/local-host/src/project-plugins.ts` and get
  * install records, upgrade checks, crash recovery and per-install private storage.
  * Build-time composed plugins are wired by hand: a `registerProvider(...)` line in
- * `project-host.ts`, an `<plugin>-native-plugin-http.ts` route file, and a
- * `builtin-plugins.ts` catalog entry. The second path is frozen: the lists below may
+ * `project-host.ts` and an `<plugin>-native-plugin-http.ts` route file (the catalog entry is no hand step: each plugin's
+ * `src/registration.ts` writes it and `builtin-plugins.ts` is generated). The second path is frozen: the lists below may
  * only shrink as plugins move to the Runtime (`skills/molis-plugin-dev/host.md`).
  *
  * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the

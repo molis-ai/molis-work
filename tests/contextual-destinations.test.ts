@@ -142,6 +142,173 @@ test("W4-1 §6.1: the rules pick their one destination by directory order alone,
   assert.deepEqual(judged.primary, own.slice(0, 3));
 });
 
+/** W4-2 (context-program §21.10, decision D-1): an entry that always needs a card is for the judgment to name, never the rules' pick. */
+const ownFragments = (count: number) => {
+  const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "understand", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
+  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], ["a", "b", "c", "d"].slice(0, count).map(fragment)).action }, "query"), view(pages, "pages.ai")];
+};
+const proposing = view(todo, "goals.tree.submit", { intake: intake("breakdown", { effect: "proposes" }) });
+const batching = view(todo, "notes.extract", { intake: intake("extract", { multiple: true }) });
+const plain = (id: string) => view(todo, `notes.${id}`, { intake: intake(id) });
+const pickedBy = (directory: readonly ActionView[], judgment?: Parameters<typeof planContextualLayout>[0]["judgment"]) => {
+  const candidates = contextualCandidates(directory, hand()), plan = planContextualLayout({ focus: hand(), candidates, ...(judgment ? { judgment } : {}) });
+  return { candidates, plan, destinations: plan.primary.map(key => candidates.find(item => item.key === key)!).filter(item => item.origin === "intake").map(item => item.action.capability_id) };
+};
+
+test("W4-2-01: with rules only, proposal-type and batch entries are skipped for the next entry in the directory", () => {
+  const offers = ownFragments(4);
+  const { candidates, destinations } = pickedBy([...offers, proposing, batching, plain("one"), plain("two")]);
+  assert.deepEqual(destinations, ["notes.one"], "the first entry that can be made at once, not the ones before it");
+  assert.deepEqual(pickedBy([...offers, plain("two"), plain("one"), proposing, batching]).destinations, ["notes.two"], "and by directory order among those");
+  // The declaration is what marks it: nothing names a plugin, and an ordinary entry carries no mark.
+  const marked = new Map(candidates.filter(item => item.origin === "intake").map(item => [item.action.capability_id, item.always_card === true]));
+  assert.deepEqual([...marked], [["goals.tree.submit", true], ["notes.extract", true], ["notes.one", false], ["notes.two", false]]);
+  // The judgment is still asked about them: skipping is the rules' choice only.
+  assert.deepEqual(judgedCandidates(candidates, hand()).filter(item => item.origin === "intake").map(item => item.action.capability_id), ["goals.tree.submit", "notes.extract", "notes.one", "notes.two"]);
+});
+
+test("W4-2-01: a judgment that names a proposal-type entry puts it in a slot, and the rules' skip does not apply", () => {
+  const directory = [...ownFragments(4), proposing, plain("one")];
+  const proposalKey = contextualCandidates(directory, hand()).find(item => item.action.capability_id === "goals.tree.submit")!.key;
+  const judgment = { basis: "jev" as const, next: { [proposalKey]: 0.7 }, intent: {}, surface: "none" as const, surface_probability: null, speak_up: null, confidence: 0.8, latency_ms: 1 };
+  const { plan, destinations } = pickedBy(directory, judgment);
+  assert.equal(plan.basis, "judgment");
+  assert.equal(plan.primary[0], proposalKey);
+  assert.ok(destinations.includes("goals.tree.submit"));
+});
+
+test("W4-2-02: when the directory holds only proposal-type and batch entries, the rules push no destination", () => {
+  for (const [why, directory] of [["only a proposal", [proposing]], ["only a batch", [batching]], ["both", [proposing, batching]]] as const) {
+    for (const own of [4, 1]) {
+      const { plan, destinations } = pickedBy([...ownFragments(own), ...directory]);
+      assert.deepEqual(destinations, [], `${why}, ${own} actions of its own`);
+      // D-4: with no slot they wait under 更多 (W4-2-09), so they are listed, but none of them is pushed.
+      assert.ok(plan.candidates.filter(item => item.origin === "intake").every(item => item.always_card === true && !plan.primary.includes(item.key)), `${why}: listed for 更多, in no slot`);
+      assert.equal(plan.primary.length, Math.min(3, own), `${why}: the slots stay with the actions on the thing itself`);
+    }
+  }
+  // Nothing of its own to show: no slot is taken by a destination that only ever comes back as a card.
+  assert.deepEqual(pickedBy([proposing, batching]).plan.primary, []);
+});
+
+/** Five actions on the thing itself under five intents, so each outranks any destination: the destination the rules push has to take the last slot. */
+const spreadFragments = () => {
+  const intents = ["understand", "question", "expand", "organize", "rewrite"] as const;
+  const choice = (intent: FragmentOfferChoice["intent"]): FragmentOfferChoice => ({ offer_id: intent, title: intent, intent, apply: "result", hint: intent, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });
+  return [view(pages, "pages.fragment.offers", { ...defineFragmentOffersAction("pages.fragment.offers", ["shelf_item"], "t", [], intents.map(choice)).action }, "query"), view(pages, "pages.ai")];
+};
+
+/** W4-2 (context-program §21.10, decision D-4): an entry that always needs a card and has no slot waits under 更多, with or without a judgment. */
+const verdict = (next: Record<string, number>) => ({ basis: "jev" as const, next, intent: {}, surface: "none" as const, surface_probability: null, speak_up: null, confidence: 0.8, latency_ms: 1 });
+const capabilityOf = (candidates: readonly ContextualCandidate[], capability_id: string) => candidates.find(item => item.action.capability_id === capability_id)!;
+/** The creation entries under 更多, as [the group's intent, capability id] in the order shown. */
+const waiting = (plan: ReturnType<typeof planContextualLayout>, candidates: readonly ContextualCandidate[]) =>
+  plan.more.flatMap(group => group.keys.map(key => [group.intent, candidates.find(item => item.key === key)!] as const))
+    .filter(([, item]) => item.origin === "intake").map(([intent, item]) => [intent, item.action.capability_id]);
+
+test("W4-2-09: with rules only, for a passage an entry that always needs a card has no slot and waits under 更多 by its intent", () => {
+  const directory = [...ownFragments(4), proposing, batching, plain("one")];
+  for (const focus of (["range", "block", "blocks"] as const).map(granularity => hand({ granularity }))) {
+    const candidates = contextualCandidates(directory, focus), plan = planContextualLayout({ focus, candidates });
+    assert.deepEqual(waiting(plan, candidates), [["capture", "goals.tree.submit"], ["capture", "notes.extract"]], `${focus.granularity}: in directory order, under their intent`);
+    assert.equal(plan.primary.some(key => candidates.find(item => item.key === key)!.always_card === true), false, `${focus.granularity}: the rules give them no slot`);
+    const keys = plan.more.flatMap(group => group.keys);
+    assert.ok(keys.every(key => plan.candidates.some(item => item.key === key)), `${focus.granularity}: what is under 更多 can be chosen from the plan`);
+    assert.equal(keys.includes(capabilityOf(candidates, "notes.one").key), false, `${focus.granularity}: an entry that can be made at once is still never under 更多`);
+  }
+  // The rules' one destination is still the first that can be made at once: the entries under 更多 do not move it.
+  const spread = spreadFragments();
+  const candidates = contextualCandidates([...spread, proposing, batching, plain("one")], hand()), plan = planContextualLayout({ focus: hand(), candidates });
+  assert.equal(plan.primary[2], capabilityOf(candidates, "notes.one").key);
+});
+
+test("W4-2-09: with a judgment, an entry it does not name waits under 更多, and one it names takes a slot and leaves 更多", () => {
+  const directory = [...ownFragments(4), proposing, plain("one")];
+  const candidates = contextualCandidates(directory, hand());
+  const proposal = capabilityOf(candidates, "goals.tree.submit").key, one = capabilityOf(candidates, "notes.one").key;
+  const own = candidates.filter(item => item.origin !== "intake").map(item => item.key);
+  const unnamed = planContextualLayout({ focus: hand(), candidates, judgment: verdict({ [own[0]!]: 0.6, [own[1]!]: 0.5, [own[2]!]: 0.4 }) });
+  assert.equal(unnamed.basis, "judgment");
+  assert.equal(unnamed.primary.includes(proposal), false);
+  assert.deepEqual(waiting(unnamed, candidates), [["capture", "goals.tree.submit"]]);
+  assert.equal(unnamed.candidates.some(item => item.key === proposal), true, "listed, so the bar can run it");
+  assert.equal(unnamed.candidates.some(item => item.key === one) || unnamed.more.flatMap(group => group.keys).includes(one), false, "a destination the judgment did not name is not shown");
+  const named = planContextualLayout({ focus: hand(), candidates, judgment: verdict({ [proposal]: 0.7 }) });
+  assert.equal(named.primary[0], proposal);
+  assert.deepEqual(waiting(named, candidates), [], "named, it has its slot and is not under 更多 as well");
+});
+
+/** Decision D-6: 更多 holds such an entry for a passage only; a word or whole objects never list one the judgment did not name. */
+test("W4-2-09: for a word or whole objects, an entry that always needs a card is not under 更多 and not listed, with rules only or with a judgment that does not name it", () => {
+  const directory = [...ownFragments(4), proposing, batching, plain("one"), plain("two"), plain("three")];
+  for (const granularity of ["word", "objects", "object"] as const) {
+    const focus = hand({ granularity }), candidates = contextualCandidates(directory, focus);
+    assert.deepEqual(candidates.filter(item => item.always_card === true).map(item => item.action.capability_id), ["goals.tree.submit", "notes.extract"], `${granularity}: they are candidates, so the judgment is asked about them`);
+    const rules = planContextualLayout({ focus, candidates });
+    assert.deepEqual(waiting(rules, candidates), [], `${granularity}: not under 更多`);
+    assert.equal(rules.candidates.some(item => item.always_card === true), false, `${granularity}: not listed`);
+    assert.equal(rules.primary.some(key => candidates.find(item => item.key === key)!.always_card === true), false, `${granularity}: no slot`);
+    // A judgment fills the slots by rank, so it names three: what it leaves out has no slot, and then it is not under 更多 and not listed.
+    const named = ["one", "two", "three"].map(id => capabilityOf(candidates, `notes.${id}`).key);
+    const judged = planContextualLayout({ focus, candidates, judgment: verdict({ [named[0]!]: 0.7, [named[1]!]: 0.6, [named[2]!]: 0.5 }) });
+    assert.equal(judged.basis, "judgment");
+    assert.deepEqual(judged.primary, named, `${granularity}: the slots are the judgment's`);
+    assert.deepEqual(waiting(judged, candidates), [], `${granularity}: a judgment that does not name them leaves 更多 without them`);
+    assert.equal(judged.candidates.some(item => item.always_card === true), false, `${granularity}: and does not list them`);
+  }
+});
+
+test("W4-2-09: for a word or whole objects, a judgment that names an entry that always needs a card gives it a slot, and it is listed", () => {
+  const directory = [...ownFragments(4), proposing, plain("one")];
+  for (const granularity of ["word", "objects", "object"] as const) {
+    const focus = hand({ granularity }), candidates = contextualCandidates(directory, focus), proposal = capabilityOf(candidates, "goals.tree.submit").key;
+    const named = planContextualLayout({ focus, candidates, judgment: verdict({ [proposal]: 0.7 }) });
+    assert.equal(named.primary[0], proposal, `${granularity}: named, it takes its slot`);
+    assert.equal(named.candidates.some(item => item.key === proposal), true, `${granularity}: and can be run`);
+    assert.deepEqual(waiting(named, candidates), [], `${granularity}: not under 更多 as well`);
+  }
+});
+
+test("W4-2-09: an entry that always needs a card but is unavailable is listed with its reason and is not under 更多", () => {
+  const directory = [...ownFragments(4), view(todo, "goals.tree.submit", { intake: intake("breakdown", { effect: "proposes" }) }, "command", false), plain("one")];
+  const candidates = contextualCandidates(directory, hand()), plan = planContextualLayout({ focus: hand(), candidates });
+  const off = capabilityOf(candidates, "goals.tree.submit");
+  assert.deepEqual([off.available, off.reason], [false, "Todo 已停用"]);
+  assert.deepEqual(waiting(plan, candidates), []);
+  assert.equal(plan.candidates.some(item => item.key === off.key), true);
+});
+
+/** W4-2 (context-program §21.10, decision D-5): the rules' one destination is another plugin's, so the plugin the passage is in does not offer itself. */
+test("W4-2-10: with rules only, the one destination pushed for a passage is another plugin's when there is one", () => {
+  const entry = view(pages, "pages.create", { intake: intake("page") }), other = view(todo, "todo.items.create", { intake: intake("todo") });
+  const inPages = hand({ plugin_id: "io.molis.work.pages" });
+  const pushed = (directory: readonly ActionView[], focus: SurfaceFocus) => {
+    const candidates = contextualCandidates(directory, focus), plan = planContextualLayout({ focus, candidates });
+    return plan.primary.map(key => candidates.find(item => item.key === key)!).filter(item => item.origin === "intake").map(item => item.action.capability_id);
+  };
+  // Each case twice: with actions of its own that fill the slots (the destination is pushed into the last one), and with few of them (it ranks into a slot by itself).
+  for (const [why, fragments] of [["pushed", spreadFragments()], ["ranked in", ownFragments(4)]] as const) {
+    assert.deepEqual(pushed([...fragments, entry, other], inPages), ["todo.items.create"], `${why}: the document's own entry is first in the directory and still not the one recommended`);
+    assert.deepEqual(pushed([...fragments, other, entry], inPages), ["todo.items.create"], why);
+    assert.deepEqual(pushed([...fragments, entry, other], hand()), ["pages.create"], `${why}: from a plugin with no entry of its own, directory order decides as before`);
+    assert.deepEqual(pushed([...fragments, entry], inPages), ["pages.create"], `${why}: with no other plugin's entry, its own is recommended`);
+    assert.deepEqual(pushed([...fragments, entry, proposing], inPages), ["pages.create"], `${why}: another plugin's entry that always needs a card does not stand in for it`);
+  }
+  const spread = contextualCandidates([...spreadFragments(), entry, other], inPages), pushedPlan = planContextualLayout({ focus: inPages, candidates: spread });
+  assert.equal(pushedPlan.primary[2], capabilityOf(spread, "todo.items.create").key, "pushed into the last slot");
+  assert.equal(pushedPlan.candidates.some(item => item.key === capabilityOf(spread, "pages.create").key), false, "and its own entry is not offered at all");
+  // A word is not a passage: the rule is about what the rules push for a passage, so its slots are not touched.
+  const wordFocus = hand({ plugin_id: "io.molis.work.pages", granularity: "word" });
+  const wordCandidates = contextualCandidates([entry, other], wordFocus), word = planContextualLayout({ focus: wordFocus, candidates: wordCandidates });
+  assert.deepEqual(word.primary.map(key => wordCandidates.find(item => item.key === key)!.action.capability_id), ["pages.create", "todo.items.create"]);
+  // The mark is the declaration's owner against the plugin the passage is in, and it goes with the candidate.
+  const candidates = contextualCandidates([...ownFragments(4), entry, other], inPages);
+  assert.deepEqual(candidates.filter(item => item.origin === "intake").map(item => [item.action.capability_id, item.own === true]), [["pages.create", true], ["todo.items.create", false]]);
+  // A judgment can still name it: the entry stays available (D-2), only the rules' pick prefers elsewhere.
+  const plan = planContextualLayout({ focus: inPages, candidates, judgment: verdict({ [capabilityOf(candidates, "pages.create").key]: 0.7 }) });
+  assert.equal(plan.primary[0], capabilityOf(candidates, "pages.create").key);
+});
+
 test("W1-05: at most eight destinations go to the judgment; the actions on the thing keep the rest of the budget", () => {
   const many = Array.from({ length: 12 }, (_, index) => view(todo, `todo.make${index}`, { intake: intake(`d${index}`) }));
   const fragment = (id: string): FragmentOfferChoice => ({ offer_id: id, title: id, intent: "question", apply: "result", hint: id, action: { capability_id: "pages.ai", version: 1 }, granularities: ["block"] });

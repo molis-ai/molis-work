@@ -83,7 +83,9 @@ export const collectHost = async (home) => {
         }
       }
       const permissions = [...new Set([...LOCAL_OWNER_PERMISSIONS, ...hostViews.flatMap((view) => view.action.permissions), ...manifestScenePermissions])].sort();
-      for (const { caller, scope } of callers) {
+      // A scene is visible by person, project and permissions, never by audience, so the plugin audience adds no row; a plugin's own
+      // scene discovery needs the caller the Host issued its session (S-15), which no plugin here has.
+      for (const { caller, scope } of callers.filter(({ caller }) => caller.audience !== "plugin")) {
         for (const scene of await host.sceneClient(scope).discoverScenes({ ...caller, permissions })) hostScenes.push({ definition: scene.definition, provider: providerOf(scene.provider) });
       }
       return { hostViews, hostScenes };

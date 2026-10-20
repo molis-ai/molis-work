@@ -122,8 +122,10 @@ test("S1 W4-1 contextual Todo: real selection → made at once from what was sel
 
 // W4-1 kept from S1 (统筹 10-18): an action without an undo still goes through a card, and a refused run of that card writes
 // nothing and leaves it as it was, ready to run again. Before W4-1 「记成待办」 showed this; it is made at once now, so Goals'
-// 「拆成目标步骤」 (a proposal, always a card) shows it here. The selection also moves to the next paragraph while the card is
-// being prepared, and the card is still what was selected when the person clicked (#730 review, anti-corruption §10.28).
+// 「拆成目标步骤」 (a proposal, always a card) shows it here. Since W4-2 it is Goals' creation entry, so the Host drafts it
+// (`/api/contextual/create`, which gives a proposal back as a draft) rather than preparing an offer. The selection also moves to
+// the next paragraph while the card is being drafted, and the card is still what was selected when the person clicked (#730
+// review, anti-corruption §10.28).
 test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goals 拆成目标步骤 from a real selection, which moves while it is prepared", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;
@@ -144,12 +146,12 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
   await waitFor(`document.querySelector('${BAR} [data-more]')`, 8000);
   await click(`${BAR} [data-more]`);
   await waitFor(`Boolean(${WRITE})`);
-  // The prepare this click sends is held on its way to the Host until `releasePrepare()`.
+  // The draft this click asks for is held on its way to the Host until `releaseDraft()`.
   await evaluate(`(() => {
-    const original = window.fetch; window.cardFetch = original; window.placedCard = null; window.refusals = 0; window.holdPrepare = true;
+    const original = window.fetch; window.cardFetch = original; window.placedCard = null; window.refusals = 0; window.holdDraft = true;
     window.fetch = async (url, options) => {
-      if (String(url).endsWith('/api/contextual/prepare') && window.holdPrepare) {
-        window.holdPrepare = false; window.prepareAsked = JSON.parse(options.body); await new Promise(resolve => { window.releasePrepare = resolve; });
+      if (String(url).endsWith('/api/contextual/create') && window.holdDraft) {
+        window.holdDraft = false; window.draftAsked = JSON.parse(options.body); await new Promise(resolve => { window.releaseDraft = resolve; });
       }
       if (String(url).includes('/cards/') && String(url).endsWith('/run') && window.refuseRun) {
         window.refusals++; return new Response(JSON.stringify({ error: 'fixture permission refusal' }), { status: 403, headers: { 'content-type': 'application/json' } });
@@ -160,12 +162,12 @@ test("S1 W4-1 a card whose run is refused writes nothing and can run again: Goal
     };
     ${WRITE}.click();
   })()`);
-  await waitFor("typeof window.releasePrepare === 'function'", 10_000);
-  const asked = await evaluate<{ focus: { targets: { text: string }[]; object: { id: string } } }>("window.prepareAsked");
+  await waitFor("typeof window.releaseDraft === 'function'", 10_000);
+  const asked = await evaluate<{ focus: { targets: { text: string }[]; object: { id: string } } }>("window.draftAsked");
   assert.equal(asked.focus.targets[0]?.text, FIRST); assert.equal(asked.focus.object.id, page.id);
   await select(1);
   assert.equal(await evaluate("getSelection().toString()"), SECOND);
-  await evaluate("window.releasePrepare()");
+  await evaluate("window.releaseDraft()");
   await waitFor("window.placedCard?.status === 200 && !document.querySelector('[data-assistant-panel]').hidden", 20_000);
   const placed = await evaluate<{ work_id: string; asked: { card: { materials: { text: string }[] } } }>("window.placedCard");
   assert.deepEqual(placed.asked.card.materials.map(material => material.text), [FIRST], "the card's material is what was selected at the click");

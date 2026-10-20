@@ -235,12 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): 产出 keeps a fixed 成果库 version
-// (固定成果) apart from the objects their owners keep changing (工作文件), VUX-08. +144 B of workbench.js: the split by the
-// 成果库's subject kind and the two group names with their English. Tried first: the existing group and stack, no new
-// card or style. Spent once from exactly the show-more slice's budget (#868).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 材料 becomes 上下文,
+// with what waits to be sent, what the latest round used (its selection too) and what earlier rounds used apart (VUX-08/09).
+// +2,029 B of workbench.js: the pending list read from the strip's items, the split by the latest round's start, each
+// round's selection, and the group moved out of assistant-island.ts into its own factory (the giant-unit gate keeps the island
+// from growing), whose parameters are named twice. Tried first: the island's own tiles, glyphs and blocks passed in rather
+// than copied; the shipped script is not minified, so the factory sits at the shallowest indent.
+// Spent once from exactly the 产出 split slice's budget (#869).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1135934, 1136078],
+  "/assets/molis-work-workbench.js": [1136078, 1138107],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

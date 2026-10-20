@@ -631,6 +631,7 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // W5-01 Lingguang then used 1113068→1115299, and plugin tab groups replaced that allowance.
 // Plugin tab groups (#765) then used 1115299→1129841 on the script and 1589812→1593165 on the sheet; receipts review fixes replaced that allowance.
 // Receipts review fixes (#778) then used 1129841→1130036, and the outcome slot with the delivery note replaced that allowance.
+// The outcome slot with the delivery note (#789) then used 1130033→1130475, and W5-02 P0 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -670,6 +671,10 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1129841],
   // The outcome slot's +442 B (#789 with #803) is spent; main's budget has since fallen below its start.
   ["/assets/molis-work-workbench.js", 1130033],
+  // PMAT (#839) and W5-02 P0 (#826) have spent these starts.
+  ["/assets/molis-work-workbench.js", 1128644],
+  ["/assets/molis-work-workbench.js", 1129525],
+  ["/assets/molis-work-workbench.js", 1129640],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -682,11 +687,39 @@ for (const [asset, old] of [
   });
 }
 
-// specs/project-knowledge (2026-10-19): the 项目资料 styles and the side panel's 资料 tab may grow these three once, each
+// W4-2-13: exact-proposal navigation and unfinished approval reasons need one reviewed 410 B increase.
+// From exactly #822's baseline to the measured size. One byte more, another
+// asset, or growth from the new baseline still fails.
+test("W4-2-13 proposal confirmation has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1129470, 1129880] } as const;
+  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
+  branch("proposal-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "proposal-change");
+  for (const asset of assets) sizes[asset] = allowed[asset][1];
+  assert.equal(gate("--update", "--base", "proposal-base").code, 0);
+  assert.equal(gate("--base", "proposal-base").code, 0);
+  for (const asset of assets) {
+    sizes[asset]++;
+    assert.equal(gate("--update", "--base", "proposal-base").code, 1, `${asset}: one byte over its allowance`);
+    sizes[asset]--;
+  }
+  sizes["/assets/a.css"]++;
+  assert.equal(gate("--update", "--base", "proposal-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "proposal-base").code, 0);
+  commit("freeze the measured W4-2-13 size"); git("branch", "-f", "proposal-frozen");
+  for (const asset of assets) {
+    sizes[asset]++; putBudget(sizes);
+    assert.equal(gate("--base", "proposal-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "proposal-frozen").code, 1);
+    sizes[asset]--; putBudget(sizes);
+  }
+});
+
+// specs/project-knowledge (2026-10-19): the two stylesheet allowances remain; its workbench script allowance is spent.
 // from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
 // baseline still fails.
 test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1603154],
+  const allowed = { "/assets/molis-work-workbench.css": [1593165, 1603154],
     "/assets/molis-work-settings.css": [982397, 988933] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

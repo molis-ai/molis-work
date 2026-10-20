@@ -36,7 +36,7 @@ const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.h
   modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
 host.register(adapter);
 const store = new AssistantStore(new DatabaseSync(database));
-const service: AssistantService = new AssistantService(store, { host: async () => host,
+const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
   authority: async work => assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)), projectTitle: async () => "项目" }, "web-user");
 const sent = await service.send({ text: "把开头分给子任务起草，做完汇总", request_id: "req-handback-restart" }, { project_ref: { project_id: "board", storage_key: "memory:project" } });
 // The work's round is over once its root waits (the SDK has closed the round's attempt on it): no graph write is left of it.

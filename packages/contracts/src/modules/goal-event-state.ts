@@ -1,3 +1,4 @@
+import type { AgentInputTreatment } from "../services/agent-inputs.js";
 import type { ArtifactReference } from "./artifacts.js";
 import type { GoalEventExtraRequirementInput } from "./goal-events.js";
 
@@ -54,8 +55,51 @@ export const goalEventSystemOperations = [
   "event_owner_continued",
   "observation_note",
   "intent_created",
+  "input_acknowledged",
 ] as const;
 export type GoalEventSystemOperation = (typeof goalEventSystemOperations)[number];
+
+type MustBeTrue<T extends true> = T;
+
+/**
+ * How an AI session says it will treat a note, requirement or decision it read on a Goal. The same closed set as the words an Agent
+ * round gives to the supplements it read (`AgentInputTreatment`), so a person sees one vocabulary on the receipt and on the Goal.
+ * `satisfies` rejects a word the runtime does not have; the exhaustiveness check inside `GoalEventAcknowledgementTreatment` fails the
+ * build when the runtime gains a word this list lacks.
+ */
+export const goalEventAcknowledgementTreatments = [
+  "apply-now",
+  "later-step",
+  "new-task",
+  "needs-clarification",
+  "not-adopted",
+  "answered",
+  "noted",
+  "merged",
+] as const satisfies readonly AgentInputTreatment[];
+type ListedAcknowledgementTreatment = (typeof goalEventAcknowledgementTreatments)[number];
+export type GoalEventAcknowledgementTreatment =
+  MustBeTrue<[AgentInputTreatment] extends [ListedAcknowledgementTreatment] ? true : false> extends true ? ListedAcknowledgementTreatment : never;
+
+/** What kind of record an acknowledgement can point at: a note, a requirement (the agreement or a configuration), or the person's decision. */
+export const goalEventAcknowledgementCategories = ["note", "requirement", "decision"] as const;
+export type GoalEventAcknowledgementCategory = (typeof goalEventAcknowledgementCategories)[number];
+
+/** Where an acknowledgement came from, all taken from the call's trusted context. `session_id` and `runtime_id` are what the transport named; Molis does not verify them further. */
+export interface GoalEventAcknowledgementBy {
+  channel: "mcp" | "assistant" | "agent";
+  runtime_id: string | null;
+  session_id: string | null;
+}
+
+/** The record an acknowledgement is about, copied by Goals from that record at the time; the caller names only its id. */
+export interface GoalEventAcknowledgementReference {
+  event_id: string;
+  category: GoalEventAcknowledgementCategory;
+  operation: string | null;
+  title: string;
+  journal_seq: number;
+}
 
 export const goalEventUserConclusionVerdicts = ["accepted", "rejected"] as const;
 export type GoalEventUserConclusionVerdict = (typeof goalEventUserConclusionVerdicts)[number];
@@ -493,6 +537,17 @@ export type GoalEventSystemPayload =
   | {
       operation: "intent_created";
       source_kind: "web" | "onboarding" | "feed" | "runtime" | "tree";
+    }
+  | {
+      /** An AI session's own statement that it read the referenced record and how it will treat it. A claim: nothing here changes the Goal. */
+      operation: "input_acknowledged";
+      reference: GoalEventAcknowledgementReference;
+      treatment: GoalEventAcknowledgementTreatment;
+      /** One sentence on how it will be handled, 1 to 300 characters. */
+      note: string;
+      /** The project event cursor the session says it had read up to; Goals checks only that it is in range. */
+      read_cursor: number;
+      by: GoalEventAcknowledgementBy;
     };
 
 export interface RecordGoalNoteInput {
@@ -502,6 +557,25 @@ export interface RecordGoalNoteInput {
   actor_kind?: "user" | "runtime";
   idempotency_key: string;
   body: string;
+}
+
+/** What the call's trusted context gives (`by`); the caller's own input names the record, the way it will be treated, and the cursor it read to. */
+export interface AcknowledgeGoalEventInput {
+  project_id: string;
+  goal_id: string;
+  actor_id: string;
+  actor_kind?: "user" | "runtime";
+  idempotency_key: string;
+  /** The `gevt-` record read: a note, a requirement (agreement or configuration) or the person's decision. */
+  event_id: string;
+  treatment: GoalEventAcknowledgementTreatment;
+  note: string;
+  read_cursor: number;
+  by: GoalEventAcknowledgementBy;
+}
+
+export interface GoalEventAcknowledgementsApi {
+  acknowledge(input: AcknowledgeGoalEventInput): GoalEventMutationResult;
 }
 
 export interface GoalEventWorkStateView {

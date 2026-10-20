@@ -1,6 +1,6 @@
 # Computer Use 待决事项（2026-10-18）
 
-状态：第 1 节已定（用户 2026-10-18 选 A：先拿真机事实，独立进程的面板继续拒绝）；第 2 节等真机数据。这不是任务书；两项能力在 [#721](https://github.com/molis-ai/molis-work/pull/721)（2026-10-18 合入 main，`7509b10ad`）里明确标为部分，真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 晚点做。
+状态：第 1 节已定（用户 2026-10-18 选 A：先拿真机事实，独立进程的面板继续拒绝）；第 2 节等真机数据（BL-326）。这不是任务书；两项能力在 [#721](https://github.com/molis-ai/molis-work/pull/721)（2026-10-18 合入 main，`7509b10ad`）里明确标为部分，真机验收按 [acceptance-runbook.md](acceptance-runbook.md) 晚点做（BL-325）；现状与交接见 [spec.md](spec.md)「交接（2026-10-20）」。
 
 ## 1. 打开/保存面板（CU-G09）
 
@@ -35,7 +35,7 @@
 - 影响：Prologue PR、vendor 包替换、公开 API/动作合同快照（若新增动作）、桌面页面的说明；消费者是 `horizontal/agent-host` 与 `apps/local-host`。
 - 现在不做：没有真机证据说明自动裁剪不够。
 
-## 3. 验证矩阵（真机时逐项记录，未验证不写成已通过）
+## 3. 验证矩阵（真机时逐项记录，未验证不写成已通过；没有机器的几项是 BL-327）
 
 | 项 | 要记录 |
 | --- | --- |

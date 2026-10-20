@@ -135,6 +135,8 @@ export interface HostPluginCaller {
 
 /** In-process authority callbacks are separate from serializable business inputs. */
 export interface HostCapabilityCallOptions {
+  /** Host-enforced narrowing inherited from a read-only callback; Plugin invocation options cannot remove it. */
+  query_only?: true;
   /** Cancellation narrows this invocation; it never grants caller authority. */
   signal?: AbortSignal;
   /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */
@@ -169,7 +171,7 @@ export interface LocalHostProjectClient {
   ): Promise<Output>;
 }
 
-export { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
+export { SUPPORTED_RUNTIME_IDS, RUNTIME_DISPLAY_NAMES, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
 
 export type DesktopPanelErrorCode =
   | "catalog.invalid_name"

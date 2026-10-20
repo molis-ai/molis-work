@@ -31,9 +31,11 @@ export {
   clearInExistingHomeSqlite,
   describeSqliteBaseline,
   describeSqliteSchema,
+  listSqliteObjects,
   openBaselineHomeSqlite,
   type SqliteBaseline,
   type SqliteBaselineDatabase,
+  type SqliteSchemaObject,
   type SqliteSchemaShape,
 } from "./sqlite-baseline.js";
 

@@ -67,7 +67,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
   host.register(adapter);
   const store = new AssistantStore(options.database ?? new DatabaseSync(":memory:"));
-  const ports: ConstructorParameters<typeof AssistantService>[1] = { host: async () => host,
+  const ports: ConstructorParameters<typeof AssistantService>[1] = { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),

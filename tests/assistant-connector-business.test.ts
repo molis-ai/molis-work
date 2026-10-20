@@ -38,9 +38,9 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       cwd: realpathSync(home.home), environment_names: ["SERVICE_KEY"] };
     let authorization = "";
     const latest = "继续接入，但接好后只读取库存，不要创建或保存 Pages 文档";
-    const call = (name: string, capability_id: string, provider_id: string, input: unknown) => ({ name, input: { capability_id, version: 1, provider_id, input } });
+    const call = (name: string, capability_id: string, provider_id: string, input: unknown, version = 1) => ({ name, input: { capability_id, version, provider_id, input } });
     const wait = () => ({ name: "board-wait", input: { on: [{ kind: "external", checker: "molis.connector-setup@1", params: { authorization_id: authorization } }], onFailure: "block", deadlineMinutes: 30, reason: "等待库存来源接入" } });
-    const page = () => call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, markdown: SOURCE });
+    const page = () => call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, markdown: SOURCE }, 2);
     const firstReadTurn = scenario === "read-only" ? 10 : 5;
     const model = await connectorAssistantModel(t, home.home, (body, turn) => {
       if (turn === 1) return { name: "find-capabilities", input: { query: "准备本地 MCP" } };
@@ -84,7 +84,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
         return scenario === "read-only" ? SOURCE : { name: "find-capabilities", input: { query: "Pages 新建文档" } };
       }
       if (stage === 3) return scenario === "recover"
-        ? call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, body: { type: "doc", content: [{ type: "not_a_pages_node" }] } }) : page();
+        ? call("change-capability", "pages.create", pagesManifest.plugin_id, { title: TITLE, body: { type: "doc", content: [{ type: "not_a_pages_node" }] } }, 2) : page();
       if (stage === 4) return scenario === "recover" ? "来源已经读到，Pages 拒绝了正文格式；没有保存文档。" : "已把库存保存到 Pages。";
       if (stage === 5) {
         assert.ok(JSON.stringify(body.messages).includes(SOURCE), "the original resource result survives Host restart in this work");
@@ -120,7 +120,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
     }
     await server.web.post("/api/settings/connectors/methods/local/connect", { setup_id: authorization, environment: { SERVICE_KEY: "fixture-business-resource-key" } });
     let done = await reach(view => view.work.state === "completed" && view.rounds.length === (scenario === "read-only" ? 3 : 2), "actual business continuation");
-    const pages = () => server.web.get<{ documents: Array<{ id: string; title: string; body: unknown }> }>(prefix + "/api/pages");
+    const pages = () => server.web.get<{ documents: Array<{ id: string; title: string; body: unknown }> }>(prefix + "/api/plugins/io.molis.work.pages/pages");
     if (scenario === "recover") {
       assert.equal((await pages()).documents.length, 0, "the Pages owner refused the invalid body without a partial document");
       assert.ok(done.rounds.at(-1)?.activity.some(step => step.capability_id === "pages.create" && step.state === "failed"), "the failed save remains observable");
@@ -140,7 +140,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       assert.equal(saved.length, 1); assert.equal(saved[0]?.title, TITLE); assert.ok(JSON.stringify(saved[0]?.body).includes(SOURCE));
       const result = done.objects.find(object => object.relation === "result" && object.subject.kind === "pages_document");
       assert.equal(result?.subject.id, saved[0]?.id); assert.deepEqual(result?.open, { surface: "pages", id: saved[0]?.id });
-      const opened = await server.web.get<{ document: { body: unknown } }>(`${prefix}/api/pages/${result!.subject.id}`);
+      const opened = await server.web.get<{ document: { body: unknown } }>(`${prefix}/api/plugins/io.molis.work.pages/pages/${result!.subject.id}`);
       assert.ok(JSON.stringify(opened.document.body).includes(SOURCE), "the final result reference resolves to the actual owner's document");
     }
   });

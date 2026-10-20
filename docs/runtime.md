@@ -27,7 +27,7 @@ Runtime 通过 MCP 使用 Molis Work。工具名、输入与展示由 `apps/mcp`
 
 ## 日常记录
 
-下列是 Goals 动作名（MCP 工具名是 `molis_work_v1_action_<动作>__v1`），连接工具名省略 `molis_work_v1_` 前缀：
+下列是 Goals 动作名（MCP 工具名是 `molis_work_v1_action_<动作>__v<版本>`，版本取当前工具目录），连接工具名省略 `molis_work_v1_` 前缀：
 
 ```text
 context_resolve → goals.list / goals.create → goals.state.read
@@ -37,6 +37,8 @@ context_resolve → goals.list / goals.create → goals.state.read
   → 问题与决定：goals.concerns.apply / goals.decisions.request / goals.decisions.cite
   → 查原文：goals.events.list / goals.events.read
 ```
+
+`goals.events.list`、`goals.events.latest`、`goals.events.read` 只提供 @2；旧 @1 的工具名不再可调用，客户端授权与工作流程固定引用需重新选择 @2。
 
 `goals.events.configure` 可以登记局部类型，也可以采用合适的规划。类型的已发布版本不能重写；新增版本可以调整名称、字段和约束，旧报告始终按其保存的类型版本读取。专业方法可通过 `goals.planning.catalog` 按实际任务选择，不要求先规划才能记录。
 

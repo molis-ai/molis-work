@@ -15,11 +15,12 @@ import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
@@ -172,7 +173,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.updateObservers = () => {
       if (closed || observer === ports.observeGitOperations) return;
       unsubscribe?.(); observer = ports.observeGitOperations;
-      unsubscribe = observer?.(event => { if (!closed) for (const listener of operationListeners) listener(event); });
+      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
+      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
     };
     record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
     record.updateObservers();
@@ -258,6 +260,10 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }, {
+    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
+      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
   }, {
     definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(

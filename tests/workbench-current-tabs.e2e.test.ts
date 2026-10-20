@@ -48,3 +48,19 @@ test("W1-18-TAB-FORMAT-01: real item tabs, collapsed user groups and a nested sp
     assert.equal(await browser.evaluate("document.querySelector('.tab-item[data-tab-kind=mother], .tab-item[data-preview]')"), null);
   }
 });
+
+test("personal Home and Goals use the permanent bottom navigation instead of duplicate titlebar entries", { timeout: 90_000 }, async t => {
+  const browser = await openAuditBrowser(t); if (!browser) return;
+  await browser.navigate(() => browser.command("Page.navigate", { url: browser.origin + "/projects/personal/" }, browser.sessionId));
+  await browser.waitFor("document.body.dataset.projectId === 'personal' && document.body.dataset.desktopSurface === 'home'", 15_000);
+
+  const duplicatePrimaryEntry = "[data-titlebar-tabs] :is([data-plugin=home], .tab-view-chip[data-tab-view=goals])";
+  assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(duplicatePrimaryEntry)})`), null);
+  assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=home]'))"), true);
+  assert.equal(await browser.evaluate("Boolean(document.querySelector('[data-plugin-strip] [data-plugin-id=goals]'))"), true);
+
+  await browser.click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'goal' && !document.querySelector('[data-titlebar-tabs] .tab-view-chip[data-tab-view=goals]')", 15_000);
+  await browser.click('[data-plugin-strip] [data-plugin-id="home"]');
+  await browser.waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector('[data-titlebar-tabs] [data-plugin=home]')", 15_000);
+});

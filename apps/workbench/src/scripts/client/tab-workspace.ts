@@ -68,7 +68,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SHARE_MIN = ${TAB_SHARE_MIN};
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
-  const paneParams = new URLSearchParams(location.search);
+  const paneParams = new URLSearchParams(location.search), personal = getProjectId() === "personal";
   // A link that asked for a plugin page (onboarding sends the person to Todo) is honored over "entering starts at home".
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
@@ -346,7 +346,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const {rememberScroll,restoreScroll} = (${SCROLL_MEMORY_FACTORY})();
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
   const tabLabel = (tab) => {
-    if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
+    if (tab.plugin === "home") return L("项目首页");
     return tab.title;
   };
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
@@ -371,7 +371,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   };
   const appendTab = (parent, pane, tab) => {
-    const selected = tab.id === pane.activeTabId;
+    if (personal && tab.kind === "home") return; const selected = tab.id === pane.activeTabId, label = tabLabel(tab);
     const button = document.createElement("div");
     button.className = "tab-item" + (selected ? " is-active" : "");
     button.dataset.tabId = tab.id;
@@ -381,23 +381,23 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.pinned) button.dataset.pinned = "true";
     button.style.setProperty("--plugin-color", PLUGIN_COLOR[tab.plugin] || "var(--muted)");
     button.draggable = true;
-    button.title = tabLabel(tab);
+    button.title = label;
     if (selected) button.setAttribute("aria-current", "page");
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.role = "tab";
     trigger.className = "tab-item-trigger";
     trigger.tabIndex = selected ? 0 : -1;
-    trigger.setAttribute("aria-label", tabLabel(tab));
+    trigger.setAttribute("aria-label", label);
     trigger.setAttribute("aria-selected", String(selected));
     const name = document.createElement("span");
-    name.textContent = tabLabel(tab);
+    name.textContent = label;
     const close = document.createElement("button");
     close.type = "button";
     close.className = "tab-item-close";
     close.dataset.tabClose = tab.id;
-    close.setAttribute("aria-label", L("关闭标签"));
-    close.title = L("关闭标签") + " · " + tabLabel(tab);
+    close.title = L("关闭标签") + "·" + label;
+    close.setAttribute("aria-label", close.title);
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);
@@ -575,14 +575,13 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       appendTab(scrollArea, pane, tab);
       index += 1;
     }
-    if (pane.viewPlugin && !embedded) {
-      // Where am I: the plugin whose page this pane shows. Current while no item tab is; otherwise it returns there.
+    const view = pane.viewPlugin;
+    if (view && (!personal || !{ home: 1, goals: 1 }[view]) && !embedded) {
       const chip = document.createElement("button");
-      chip.type = "button"; chip.className = "tab-view-chip"; chip.dataset.tabView = pane.viewPlugin; chip.dataset.plugin = pane.viewPlugin;
-      // A plugin's own page can be dragged like a tab: to an edge to open it beside, onto another pane to show it there.
+      chip.type = "button"; chip.className = "tab-view-chip"; chip.dataset.tabView = view; chip.dataset.plugin = view;
       chip.draggable = true;
-      const title = ops.pluginTitle(pane.viewPlugin);
-      const glyph = document.querySelector(':is(.plugin-stack, [data-dock]) [data-plugin-id="' + CSS.escape(pane.viewPlugin) + '"] svg');
+      const title = ops.pluginTitle(view);
+      const glyph = document.querySelector(':is(.plugin-stack, [data-dock]) [data-plugin-id="' + CSS.escape(view) + '"] svg');
       if (glyph) chip.append(glyph.cloneNode(true));
       const label = document.createElement("span"); label.textContent = title; chip.append(label);
       const onPage = !pane.activeTabId && !state.exclusive;

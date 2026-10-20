@@ -47,10 +47,10 @@ export interface CreateCodingSessionInput {
   at: string;
 }
 
-/** The Coding session tables, as one current schema; the host composes them into the project database baseline. */
+/** The Coding session tables, as one current schema; Coding declares them as its project database (`CODING_PROJECT_DATABASE`). */
 export const CODING_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS coding_sessions (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -101,9 +101,8 @@ function mapSession(row: Row): CodingSessionRecord {
 }
 
 export class CodingSessionStore {
-  constructor(private readonly db: CodingSqliteDatabase) {
-    db.exec(CODING_SCHEMA_SQL);
-  }
+  /** The tables are already there: the platform made them when the project's library opened with Coding. */
+  constructor(private readonly db: CodingSqliteDatabase) {}
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     this.get(projectId, sessionId);

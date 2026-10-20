@@ -1,5 +1,5 @@
--- The project database baseline, version 7 (repository-anti-corruption §4.1): the schema a new project database gets.
--- Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
+-- The project database baseline, version 8 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
+-- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE acceptance_criteria (
     criterion_id TEXT PRIMARY KEY,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
@@ -25,31 +25,6 @@ CREATE TABLE boards (
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
-CREATE TABLE coding_plan_drafts (
-      project_id TEXT NOT NULL,
-      session_id TEXT NOT NULL,
-      revision INTEGER NOT NULL,
-      draft_json TEXT NOT NULL,
-      PRIMARY KEY (project_id, session_id),
-      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
-    );
-CREATE TABLE coding_sessions (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      session_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      state TEXT NOT NULL,
-      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-      goal_id TEXT,
-      runtime_id TEXT NOT NULL,
-      runtime_session_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
-      steps_json TEXT,
-      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
-      background_json TEXT,
-      PRIMARY KEY (project_id, session_id)
-    );
 CREATE TABLE context_edges (
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
     scope_id TEXT NOT NULL,
@@ -67,7 +42,7 @@ CREATE TABLE context_edges (
 CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           type TEXT NOT NULL,
           object_type TEXT NOT NULL,
@@ -85,7 +60,7 @@ CREATE TABLE feed_item_events (
       at TEXT NOT NULL
     );
 CREATE TABLE feed_items (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -112,7 +87,7 @@ CREATE TABLE feed_items (
       PRIMARY KEY (project_id, item_id)
     );
 CREATE TABLE feed_materials (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,
@@ -133,25 +108,12 @@ CREATE TABLE feed_materials (
       PRIMARY KEY (project_id, material_id),
       FOREIGN KEY (project_id, item_id) REFERENCES feed_items(project_id, item_id) ON DELETE CASCADE
     );
-CREATE TABLE feed_out_rules (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-      rule_id TEXT NOT NULL,
-      name TEXT NOT NULL,
-      enabled INTEGER NOT NULL DEFAULT 1,
-      match_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      admission TEXT NOT NULL,
-      judgment_json TEXT,
-      revision TEXT NOT NULL,
-      PRIMARY KEY (project_id, rule_id)
-    );
 CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
     PRIMARY KEY (namespace, key)
   );
 CREATE TABLE feed_source_runs (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       run_id TEXT NOT NULL,
       operation_id TEXT NOT NULL,
       source_id TEXT NOT NULL,
@@ -170,7 +132,7 @@ CREATE TABLE feed_source_runs (
       UNIQUE (project_id, operation_id)
     );
 CREATE TABLE feed_sources (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,
@@ -521,7 +483,7 @@ CREATE TABLE goals (
     updated_at TEXT NOT NULL
   );
 CREATE TABLE idempotency_records (
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           operation TEXT NOT NULL,
           idempotency_key TEXT NOT NULL,
@@ -531,7 +493,7 @@ CREATE TABLE idempotency_records (
           PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
         );
 CREATE TABLE inbox_entries (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
@@ -594,7 +556,7 @@ CREATE TABLE library_artifact_versions (
   );
 CREATE TABLE library_artifacts (
     artifact_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
@@ -718,6 +680,14 @@ CREATE TABLE plugin_private_values (
       item_value TEXT NOT NULL,
       PRIMARY KEY (install_id, item_key)
     );
+CREATE TABLE plugin_project_databases (
+      plugin_id TEXT PRIMARY KEY,
+      publisher_signature TEXT NOT NULL,
+      store_name TEXT NOT NULL UNIQUE,
+      version INTEGER NOT NULL CHECK (version >= 1),
+      tables_json TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    );
 CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
 CREATE TABLE plugin_runtime_release_artifacts (
       plugin_id TEXT NOT NULL,
@@ -769,7 +739,7 @@ CREATE TABLE process_item_versions (
   );
 CREATE TABLE process_items (
     artifact_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,
@@ -815,30 +785,9 @@ CREATE TABLE project_guidance_revisions (
     created_at TEXT NOT NULL,
     UNIQUE(guidance_id, revision)
   );
-CREATE TABLE schedule_conversation_tasks (
-      task_id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      instructions TEXT NOT NULL,
-      hour INTEGER NOT NULL,
-      minute INTEGER NOT NULL,
-      notify_important INTEGER NOT NULL CHECK (notify_important IN (0, 1)),
-      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-      unread INTEGER NOT NULL CHECK (unread IN (0, 1)),
-      job_id TEXT,
-      last_run_at TEXT,
-      last_error TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-CREATE TABLE schedule_conversation_turns (
-      turn_id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('user', 'assistant', 'system')),
-      text TEXT NOT NULL,
-      important INTEGER NOT NULL CHECK (important IN (0, 1)),
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (task_id) REFERENCES schedule_conversation_tasks(task_id)
+CREATE TABLE project_root (
+      project_id TEXT PRIMARY KEY,
+      created_at TEXT NOT NULL
     );
 CREATE TABLE schedule_jobs (
       job_id TEXT PRIMARY KEY,
@@ -857,18 +806,6 @@ CREATE TABLE schedule_jobs (
       updated_at TEXT NOT NULL,
       UNIQUE (plugin_id, capability_id, object_ref)
     );
-CREATE TABLE schedule_operation_occurrences (
-    project_id TEXT NOT NULL, operation_id TEXT NOT NULL, due_at TEXT NOT NULL, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, operation_id, due_at)
-  );
-CREATE TABLE schedule_operations (
-    project_id TEXT NOT NULL, id TEXT NOT NULL, job_id TEXT NOT NULL UNIQUE, record_json TEXT NOT NULL,
-    PRIMARY KEY (project_id, id)
-  );
-CREATE TABLE schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
-    record_json TEXT NOT NULL
-  );
 CREATE TABLE schedule_wakeups (
       wakeup_id TEXT PRIMARY KEY,
       job_id TEXT NOT NULL,
@@ -932,8 +869,6 @@ CREATE TABLE source_events (
 CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
-CREATE INDEX coding_sessions_project_updated_idx
-      ON coding_sessions(project_id, updated_at DESC, session_id);
 CREATE INDEX context_edges_source_idx ON context_edges
     (scope_kind, scope_id, relation_type, json_extract(source_json, '$.module'), json_extract(source_json, '$.id'));
 CREATE INDEX events_project_idx ON events(project_id, seq);
@@ -948,8 +883,6 @@ CREATE INDEX feed_items_project_updated_idx
       ON feed_items(project_id, disposition, source_updated_at DESC);
 CREATE INDEX feed_materials_project_item_idx
       ON feed_materials(project_id, item_id, updated_at DESC, material_id);
-CREATE INDEX feed_out_rules_project_enabled_idx
-      ON feed_out_rules(project_id, enabled, created_at, rule_id);
 CREATE INDEX feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_project_updated_idx
@@ -1023,13 +956,8 @@ CREATE INDEX project_guidance_revisions_project_idx
     ON project_guidance_revisions(project_id, guidance_id, revision DESC);
 CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
 CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
-CREATE INDEX schedule_conversation_tasks_enabled_idx
-      ON schedule_conversation_tasks(enabled, updated_at);
-CREATE INDEX schedule_conversation_turns_task_idx
-      ON schedule_conversation_turns(task_id, created_at);
 CREATE INDEX schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
-CREATE INDEX schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
 CREATE INDEX signal_events_project_source_idx
       ON signal_events(project_id, source_id, at, event_id);
 CREATE INDEX signals_project_source_observed_idx

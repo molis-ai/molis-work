@@ -3,6 +3,7 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import { scheduleAgentManifest } from "./roles.js";
 import { SCHEDULE_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SCHEDULE_ACTIONS } from "./actions.js";
+import { SCHEDULE_PROJECT_DATABASE } from "./database.js";
 
 export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
 /** What the project database stores for this Plugin. */
@@ -30,6 +31,7 @@ export const scheduleManifest: PluginManifest = {
   actions: SCHEDULE_ACTIONS,
   artifacts: { produces: [], consumes: [] },
   agent: scheduleAgentManifest,
+  databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: {
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [

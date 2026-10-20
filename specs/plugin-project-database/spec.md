@@ -1,6 +1,6 @@
 # 项目库里的插件表
 
-状态：执行中（2026-10-20）。L1a 已做：声明已有，宿主还不按它建表。Manifest 可以写 `databases.project`，SDK 检查它的形状，plugin-runtime 有账本和打开函数，但宿主还没有在任何地方调用它们。L1b 合入之前，Skill、手册和 `docs/` 都不介绍这个字段（统筹 D23 第 7 条），插件作者不要依赖它。
+状态：执行中（2026-10-20）。L1a 已做：Manifest 的 `databases.project`、SDK 的形状检查、plugin-runtime 的账本和打开函数。L1b 待审（叠在 L1a 上，与 ③ 的 S8 同批）：项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Schedule）按声明建表、记账本、再打开时核对，被拒的插件只停它自己；有 v7 项目库的 Home 要先做维护八。还没有的：Goals 的表（含 `boards`）由它自己声明（S8）；插件在运行时读写项目库的服务（L2），所以装进项目的插件写了声明也还不建表。
 
 依据：
 
@@ -74,7 +74,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 - 平台表 `project_root(project_id TEXT PRIMARY KEY, created_at TEXT NOT NULL)`，一库正好一行，归 `modules/projects`。
 - 8 个包里 11 张原来指向 `boards(project_id)` 的表，外键改指它，`ON DELETE CASCADE` 不变。
 - `boards` 改为 Goals 声明的表（S8）。`boards.title` 是建项目时从显示名抄来的副本，S8 的声明里去掉，读者改读项目目录的 `display_name`。
-- 建项目改成：开库套 v8 → 写根行 → 对启动名单上声明了 `databases.project` 的插件逐个调打开函数 → Goals 建自己的看板 → checkpoint。
+- 建项目改成：开库套 v8 → 对启动名单上声明了 `databases.project` 的插件逐个调打开函数 → 在一个事务里写根行、Goals 建自己的看板 → checkpoint。L1b 的启动名单是工作台目录里项目级、声明了 `databases.project` 的内置插件（`apps/local-host/src/project-plugin-databases.ts` 的 `projectDatabasePlugins`），不另写名单。
 - Goals 上 Runtime 之前，由宿主替它调打开函数、建看板，这是过渡特权，在 privileges.md 登记一行，到 S9 删掉。
 - 基线升 v8，现有项目库做一次维护：先在一次性 Home 演练，维护前整份备份。真实 Home 什么时候做，到时弹窗问用户。
 
@@ -96,7 +96,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 ### 2.7 安全不变量
 
 - S-18 扩到项目库：取消、撤权、换了提供方、别的安装、停用之后都不写（L2）。
-- 表的所有权和发布者绑定另开一个 S 号，拒绝测试进 `pnpm test:security`（D23 第 5 条）。L1b 宿主开始调打开函数时登记，号取那时 main 上的下一个空号，逐句检查那一半在 L2 补进同一行。L1a 不登记，因为宿主还不调用，没有在生效的边界。
+- 表的所有权和发布者绑定另开一个 S 号，拒绝测试进 `pnpm test:security`（D23 第 5 条）。L1b 宿主开始调打开函数时登记（L1b 的 PR 里接在它所在 main 的末号之后；与在途 PR 撞号时，后合的顺延，⑤ 合并时再核），逐句检查那一半在 L2 补进同一行。L1a 不登记，因为宿主还不调用，没有在生效的边界。拒绝测试：`tests/plugin-project-database-ledger.test.ts`（平台的拒绝）与 `tests/project-plugin-database-refusal.test.ts`（宿主开库时只停被拒的插件），都进 `pnpm test:security`。
 
 ## 3. 切片
 
@@ -130,20 +130,27 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-20 | `IF NOT EXISTS`（日常取舍） | 允许写（Coding、Schedule 现在的语句都带），但第一次建表前库里有同名对象就拒，所以它不会悄悄沿用别人的表 | ② |
 | 2026-10-20 | 声明里的未知字段（日常取舍） | 拒绝，免得作者以为写了 `tables` 之类的字段平台会照做 | ② |
 | 2026-10-20 | 错误码前缀（日常取舍） | `plugin.project_database.*`，不新写 Error 子类；plugin-runtime 的主人是 `plugin` | ② |
+| 2026-10-20 | 根行几时写、几行（L1b 日常取舍） | 一库正好一行。建项目时与 Goals 的看板在同一个写事务里写（`GoalProjectApplication.initializeBoard` 先写根行），已有根行的项目保留它；项目目录读库时核对根行正好一行、与看板同 id，否则按库无效拒绝 | ② |
+| 2026-10-20 | 宿主替哪些插件开库（L1b 日常取舍） | 从工作台的内置插件目录里取项目级、声明了 `databases.project` 的条目，不另写名单；Home 级插件不在项目库建表。装进项目的插件到 L2 随服务一起开 | ② |
+| 2026-10-20 | 恢复路径开不开插件的表（L1b 日常取舍） | 不开。`existingOnly` 只读已经在这一版的库，恢复不该给库建表或写账本 | ② |
+| 2026-10-20 | 宿主装配的插件被拒时停什么（L1b 日常取舍） | 只停它自己的部分：它的动作提供方不登记，用它的表的 system 提供方（Schedule 的提醒、定时操作）也不登记；Coding 不进 Runtime 启动，页面说明原因；Schedule 被拒时项目的 Scheduler 一个任务也不认领（这里登记的叫醒都是 Schedule 的，认领会先把任务往后推或关掉），到点的任务原样等库修好，叫醒在碰表之前仍抛出这条拒绝作兜底（⑤ 评审改）；Feed 没有出口规则，Feed 里属于 Modules 的部分照常。库不修补、不重建 | ② |
+| 2026-10-20 | Feed 的权限（L1b 日常取舍） | Feed 原来没有 `storage:private`，补上并标必需（2.1 要求两个读写权限都在 Manifest 里），与 Coding、Schedule 一样 | ② |
+| 2026-10-20 | 账本行与 S8 的分工（L1b 日常取舍） | L1b 的维护写 Coding、Feed、Schedule 三行；Goals 一行和 `boards` 的改建随 S8 加进同一份维护脚本，与 ③ 对齐 | ② |
+| 2026-10-20 | CHECKLIST 里插件库的位置怎么写（L1b 日常取舍） | `projects/<project_id>/molis-work.db#<store_name>`，每个插件一行，版本门禁按位置区分各行；项目库这次的维护并进维护八，不另起名字 | ② |
 
 ## 5. 验收标准
 
 | 编号 | 内容 | 片 | 测试 |
 | --- | --- | --- | --- |
-| PLIB-01 | 宿主项目库基线不 import 任何插件包（测试读源码断言，不改门禁脚本） | L1b | |
-| PLIB-02 | 插件第一次打开时，平台在一个事务里建它声明的表并写账本，再打开时认出同一份；L1b 起，表、列、索引与 v7 完全相同 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts` |
+| PLIB-01 | 宿主项目库基线不 import 任何插件包（测试读源码断言，不改门禁脚本） | L1b | `tests/project-database-baseline.test.ts` |
+| PLIB-02 | 插件第一次打开时，平台在一个事务里建它声明的表并写账本，再打开时认出同一份；L1b 起，表、列、索引与 v7 完全相同 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-database-baseline.test.ts` |
 | PLIB-03 | 声明的各条规则逐条拒绝（2.1、2.2），拒绝时一张表也不建，开头检查不过的连内存库里也不执行 | L1a | `tests/plugin-project-database-ledger.test.ts` |
-| PLIB-04 | 账本的各种不符逐条拒绝：同名对象已在、库名已归别人、发布者不同、库名或形状不同；版本不同只拒这个插件 | L1a | `tests/plugin-project-database-ledger.test.ts` |
-| PLIB-05 | v7 库经维护后每一行不变，结果与新建的 v8 库逐项相同 | L1b | |
+| PLIB-04 | 账本的各种不符逐条拒绝：同名对象已在、库名已归别人、发布者不同、库名或形状不同；版本不同只拒这个插件。宿主开库时被拒的插件只停它自己：动作不进项目的目录，页面说明原因，库不修补、不重建，别的插件照常 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-plugin-database-refusal.test.ts` |
+| PLIB-05 | v7 库经维护后每一行不变，结果与新建的 v8 库逐项相同 | L1b | `tests/project-maintenance-v8.test.ts` |
 | PLIB-06 | 逐句检查的每种拒绝各一条，外键读 `project_root` 放行 | L2 | |
 | PLIB-07 | 取消、撤权、换了提供方、别的安装、停用之后不写任何记录（S-18） | L2 | |
 | PLIB-08 | 同一文件只用一份 SQLite 库（测试断言客户端的连接类型） | L2 | |
-| PLIB-09 | 项目的身份是 `project_root`：正好一行；11 张表的外键指向它；`boards` 由 Goals 声明 | L1b、S8 | |
+| PLIB-09 | 项目的身份是 `project_root`：正好一行；11 张表的外键指向它；`boards` 由 Goals 声明 | L1b、S8 | L1b：`tests/project-database-baseline.test.ts` |
 | PLIB-10 | 沙箱插件经 broker 读写，检查与原生插件相同 | L3 | |
 | PLIB-11 | Home 库的声明只在 Manifest 的 `databases.home`，可信条目上不再有 `database:` | L4 | |
 
@@ -154,3 +161,10 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 - 测试：`tests/plugin-project-database-ledger.test.ts` 6 条全过。它不碰宿主基线：内存库里只有账本、一张代替根行的表，和一张别人的表。
 - 同时跑的 `tests/plugin-manifest-v2.test.ts`、`tests/verify-release-versions.test.ts` 也通过。
 - 共享核心的全量交集成批。
+
+**L1b（2026-10-20，分支 `feat/project-library-l1b`，叠在 L1a 上）**
+
+- 新写和重写的用例全过：`tests/project-database-baseline.test.ts` 6 条，`tests/project-plugin-database-refusal.test.ts` 5 条，`tests/project-maintenance-v8.test.ts` 6 条。维护八只在一次性 Home 上演练。
+- 相关用例 42 个文件全过。范围是：外键改到 `project_root` 的用例、三个插件和宿主装配、账本、Store 版本、发布核对。其中 Schedule 的两个恢复用例会开浏览器。
+- API 快照和动作合同快照都与源码一致，不用刷新。
+- 共享核心的全量和 ③ 的 S8 同一批跑。

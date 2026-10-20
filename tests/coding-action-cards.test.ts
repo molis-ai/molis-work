@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import { ActionError, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, agentOfferActions, type AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes } from "./fixtures/coding-surface.js";
 
 const WRITE: ActionView = { capability_id: "fixture.notes.write", version: 1, operation: "command",
@@ -23,7 +23,7 @@ const run = (offers: AgentRunOffer[]) => ({ ref: { session_id: "sdk", run_id: "r
 /** Coding's routes over a session with one ended round, private storage that compares and sets, and a recorded Agent Host. */
 function codingCards(options: { offers?: AgentRunOffer[]; views?: () => ActionView[]; run?: (input: unknown) => Promise<unknown>; beforeCompare?: (stored: Map<string, string>) => void } = {}) {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions = new CodingSessionStore(db), at = "2026-10-16T08:00:00Z";
   sessions.create({ project_id: "board", session_id: "app", title: "笔记", runtime_id: "prologue", at });
   sessions.setRuntimeSession("board", "app", "sdk", at);

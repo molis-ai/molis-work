@@ -541,13 +541,14 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 - **Do** state settings scope, keep global and project preferences independent and provide a direct return to prior work.
 - **Do** pair form Cancel and Submit, label independently saved regions, preserve drafts on failure, and carry project context through global settings.
 - **Do** put a shared control, state or composition on `/__ui/catalog` when it meets the bar.
+- **Do** mark a horizontal strip that hides its scrollbar (tabs, chips, views, steps) with `data-overflow-fade`: the design system's one sensor fades only the side that really has more, 28px with eight alpha samples, clears it at the edge, keeps a focused item clear and shows the scrollbar under forced colours (`packages/design-system/src/styles/overflow-fade.ts`, specimen on the board under 视觉机制). Do not write a local sensor or mask, and keep close buttons and main actions outside the strip.
 
 ### Don't
 
 - **Don't** add a global left sidebar, a second persistent navigation, or a plugin identity colour; plugins are found in the Dock and the switcher.
 - **Don't** fight an earlier rule with `!important`, a per-plugin override or a restated token value; fix the source.
 - **Don't** force a font weight globally, synthesise bold, or use weights other than 400 / 500 / 600.
-- **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or use gradients outside the opening and Welcome's ambient light and the goal card's warm light.
+- **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or paint gradients outside the opening and Welcome's ambient light and the goal card's warm light (the overflow fade is a mask, not a painted band).
 - **Don't** fill a button with copper, draw focus in ink or blue, or remove a focus indicator.
 - **Don't** celebrate anything but a real completion or a real arrival, and never on first render.
 - **Don't** hide a complex feature, disable an entry, swallow an error or show placeholder data to make a page look calmer.

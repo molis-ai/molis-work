@@ -1,3 +1,5 @@
+import { OVERFLOW_FADE_STYLES } from "./overflow-fade.js";
+
 /** Micro-interactions, in the places where movement carries information.
  *
  * Borrowed from React Bits (reactbits.dev/c/micro) as behaviour, not as code: this product has no
@@ -126,7 +128,7 @@ export const MICRO_INTERACTION_STYLES = `
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
-`;
+${OVERFLOW_FADE_STYLES}`;
 
 /** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
 export function segmentThumbOffsets(

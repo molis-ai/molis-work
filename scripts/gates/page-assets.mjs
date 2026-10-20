@@ -235,13 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): +591 B of workbench.js so that one press
-// on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36: the side panel's context and the
-// segmented thumbs read once per frame, scroll memory reads only what scrolled, the market's dot is a mark instead of a
-// :has() over the whole switcher). Tried first: comments moved out of the shipped strings, the thumbs' read/write split
-// dropped for frame coalescing alone (+868 → +591). Spent once from exactly main's budget.
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): the shared overflow fade (VUX-27), one
+// sensor and one mask for every horizontal strip that hides its scrollbar, in place of the assistant strip's own sensor and
+// masks. +879 B of workbench.js for the sensor (TypeScript, bundled by esbuild), +460–488 B of each stylesheet for the
+// eight-sample mask. Tried first: one gradient for both sides and both writing directions (the direction is a variable),
+// short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet). Spent once from exactly the
+// plugin-switch slice's budget (#854).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129525, 1130116],
+  "/assets/molis-work-workbench.js": [1130116, 1130995],
+  "/assets/molis-work-workbench.css": [1603099, 1603559],
+  "/assets/molis-work-settings.css": [988881, 989369],
+  "/assets/molis-work-arrival.css": [698467, 698955],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

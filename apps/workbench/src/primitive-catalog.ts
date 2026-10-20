@@ -9,6 +9,7 @@ import {
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
+import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundation-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
@@ -128,8 +129,8 @@ export function renderMolisWorkPrimitiveCatalog(): string {
     ],
   });
   const catalog = renderPrimitiveCatalog()
-    .replace("</nav>", '<a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>')
-    .replace("\n  </div>\n  <script>", `\n    ${renderBarSection()}\n  </div>\n  <script>`);
+    .replace("</nav>", '<a href="#foundation" title="视觉机制">视觉机制</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>')
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -138,6 +139,7 @@ export function renderMolisWorkPrimitiveCatalog(): string {
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
+  <style>${FOUNDATION_SPECIMEN_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}

@@ -1,12 +1,5 @@
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import {
-  GOAL_BOARDS_SCHEMA_SQL,
-  GOAL_EVENT_FACTS_SCHEMA_SQL,
-  GOAL_EVENT_STATE_SCHEMA_SQL,
-  GOAL_INPUT_BINDINGS_SCHEMA_SQL,
-  GOALS_SCHEMA_SQL,
-} from "@molis-ai/molis-work-module-goals";
-import { GOVERNANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GOALS_PROJECT_DATABASE } from "./goals-actions.js";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-module-sources";
@@ -32,16 +25,15 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * owner that keeps tables there hands over its creation statements, and the host creates them all at once with the
  * version. A database at another version is refused, never upgraded in place. Owners still create their own tables
  * when they open (`IF NOT EXISTS`), which is a no-op here; changing any of them means a new version.
+ *
+ * Goals' and Governance's tables come from Goals' own declaration (`databases.project`, S8): the same statements in the same
+ * place, so the baseline's shape did not change. They leave the baseline when the platform opens that declaration in each
+ * project's library (the baseline after v7).
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
   version: 7,
   schema: [
-    GOAL_BOARDS_SCHEMA_SQL,
-    GOALS_SCHEMA_SQL,
-    GOAL_INPUT_BINDINGS_SCHEMA_SQL,
-    GOAL_EVENT_FACTS_SCHEMA_SQL,
-    GOAL_EVENT_STATE_SCHEMA_SQL,
-    GOVERNANCE_SCHEMA_SQL,
+    GOALS_PROJECT_DATABASE.schema,
     ARTIFACTS_SCHEMA_SQL,
     PROCESS_ITEMS_SCHEMA_SQL,
     LOCAL_JOURNAL_SCHEMA_SQL,

@@ -136,11 +136,8 @@ export class GoalsModule {
   }
 }
 
-export { GOAL_BOARDS_SCHEMA_SQL, GOALS_SCHEMA_SQL } from "./schema.js";
 export { GoalLifecycleCommands } from "./lifecycle-commands.js";
 export { GoalEventFacts } from "./event-facts.js";
-export { GOAL_EVENT_FACTS_SCHEMA_SQL } from "./event-facts-schema.js";
-export { GOAL_EVENT_STATE_SCHEMA_SQL } from "./event-state-schema.js";
 export { goalHasEventStateOwner } from "./event-state-repository.js";
 export {
   GoalsPlanningEngine,
@@ -200,7 +197,7 @@ export type {
   SaveProjectPlanningMethodInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 export type { GoalsSqliteDatabase } from "./repository.js";
-export { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "./input-bindings.js";
+export { GoalInputBindings } from "./input-bindings.js";
 export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */

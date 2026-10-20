@@ -1,4 +1,9 @@
-export const GOVERNANCE_SCHEMA_SQL = `
+// Governance's tables in a project's library (proposals, their items and decisions, and the user's recorded event decisions), as
+// GOALS_PROJECT_DATABASE (./project-database.ts) declares them. Moved here whole from modules/governance-collaboration (S8, PG-020);
+// the text of each statement is as it was.
+
+/** Goal tree proposals with their items and decisions, and trusted event decisions. */
+export const GOALS_GOVERNANCE_SQL = `
   CREATE TABLE goal_tree_proposals (
     proposal_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -89,11 +94,3 @@ export const GOVERNANCE_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS goal_event_trusted_decisions_goal_idx
     ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
 `;
-
-export interface GovernanceSchemaDatabase {
-  exec(sql: string): unknown;
-}
-
-export function createGovernanceSchema(db: GovernanceSchemaDatabase): void {
-  db.exec(GOVERNANCE_SCHEMA_SQL);
-}

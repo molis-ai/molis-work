@@ -38,7 +38,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 | 路径 | owner 与打开它的代码 | 种类 · 版本 | 备份 | 卸载 |
 | --- | --- | --- | --- | --- |
 | `projects/catalog.db` | 宿主；`apps/local-host/src/project-catalog.ts:246-248` 打开，`apps/local-host/src/catalog-schema.ts:11-22` 建表，表归各模块（4.1） | SQLite 自带版本 · WAL · `catalog_meta.schema_version` = 22（`apps/local-host/src/project-catalog-contract.ts:1`），不符拒绝（`assertCurrentCatalog`，`apps/local-host/src/catalog-schema.ts:32`） | 必备份。存各项目库的绝对路径（`modules/projects/src/project-service.ts:61`），只能恢复到原路径（`docs/installation.md` 离线备份一节） | purge（`installer/uninstall.ts:46`） |
-| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts:21` 套基线，`apps/local-host/src/project-database-schema.ts:36` 拼 28 段建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 7 | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
+| `projects/<project_id>/molis-work.db`，旁边 `-wal`、`-shm` | 宿主；`apps/local-host/src/project-database.ts:21` 套基线，`apps/local-host/src/project-database-schema.ts:33` 拼 23 段建表（4.2）；文件名 `packages/storage/src/adapters/local-security-paths.ts:8` | SQLite 带版本 · WAL · `user_version` = 7 | 必备份，连同 `-wal`、`-shm`，或先 `LocalSqliteStorage.checkpoint()` | purge（`installer/uninstall.ts:46`，整个 `projects/`） |
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
@@ -116,16 +116,17 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 ### 4.2 `projects/<id>/molis-work.db`（v7）
 
-28 段建表语句，来自 16 个目录（`apps/local-host/src/project-database-schema.ts:36-68`，合并在 `:67`）：
+23 段建表语句，来自 15 个目录（`apps/local-host/src/project-database-schema.ts:33-59`，合并在 `:59`）：
 
 | owner | 段 | 表 |
 | --- | --- | --- |
-| `modules/goals` | `GOAL_BOARDS_SCHEMA_SQL` | `boards` |
-| | `GOALS_SCHEMA_SQL` | `goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs` |
-| | `GOAL_INPUT_BINDINGS_SCHEMA_SQL` | `input_bindings` |
-| | `GOAL_EVENT_FACTS_SCHEMA_SQL` | `goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments` |
-| | `GOAL_EVENT_STATE_SCHEMA_SQL` | `goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status` |
-| `modules/governance-collaboration` | `GOVERNANCE_SCHEMA_SQL` | `goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions` |
+| `plugins/native/goals` | `GOALS_PROJECT_DATABASE.schema`（`src/project-database.ts`，Goals Manifest 的 `databases.project`，S8；由下面六段按此顺序拼成，语句原样搬自 `modules/goals` 与 `modules/governance-collaboration`，基线形状没变；Host 现在通过 `apps/local-host/src/goals-actions.ts` 的转出取它，库里的表归下一版基线之后由平台按声明建） | |
+| | `GOALS_BOARDS_SQL`（`src/project-database-goals.ts`） | `boards` |
+| | `GOALS_TABLES_SQL`（同上） | `goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs` |
+| | `GOALS_INPUT_BINDINGS_SQL`（同上） | `input_bindings` |
+| | `GOALS_EVENT_FACTS_SQL`（`src/project-database-event-facts.ts`） | `goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments` |
+| | `GOALS_EVENT_STATE_SQL`（`src/project-database-event-state.ts`） | `goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status` |
+| | `GOALS_GOVERNANCE_SQL`（`src/project-database-governance.ts`） | `goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions` |
 | `modules/artifacts` | `ARTIFACTS_SCHEMA_SQL` | `library_artifacts`、`library_artifact_versions`（成果库） |
 | | `PROCESS_ITEMS_SCHEMA_SQL` | `process_items`、`process_item_versions`（过程项，不进成果库） |
 | `packages/storage` | `LOCAL_JOURNAL_SCHEMA_SQL` | `events`、`idempotency_records`（共享日志，见 4.5） |
@@ -149,7 +150,7 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 | `plugins/native/coding` | `CODING_SCHEMA_SQL` | `coding_sessions`、`coding_plan_drafts` |
 | `apps/local-host` | `PROJECT_BROWSING_SETTINGS_SCHEMA_SQL`（`src/project-browsing-settings.ts`） | `project_browsing_settings` |
 
-owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`apps/local-host/src/project-database-schema.ts:30-34`）。
+owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是空操作；改任何一段都要提高项目库的版本（`apps/local-host/src/project-database-schema.ts:24-32`）。`modules/goals` 与 `modules/governance-collaboration` 仍用自己的 SQL 读写这些表，登记在 `tooling/gates/table-owners.json` 的 `shared`，S9 把存储搬进插件时删除。
 
 ### 4.3 `sessions/sessions.db`（v7）
 

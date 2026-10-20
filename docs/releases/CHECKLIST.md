@@ -32,6 +32,7 @@
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
 | 项目库 | `projects/<project_id>/molis-work.db` | 7 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| Goals（项目库里的插件库） | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version`（平台调用打开函数后才写账本；在那之前这些表还在项目库基线里） | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝 |
 | 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |

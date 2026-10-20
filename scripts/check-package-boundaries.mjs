@@ -496,8 +496,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
-    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
+  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_PROJECT_DATABASE") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the schema Goals declares in its Manifest");
   }
 
   for (const relativePath of [
@@ -660,7 +660,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const requiredOwnerFiles = [
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
-    "modules/governance-collaboration/src/schema.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",

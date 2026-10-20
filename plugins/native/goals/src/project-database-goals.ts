@@ -1,5 +1,8 @@
-/** The Goals tables, as one current schema; the host composes them into the project database baseline. */
-export const GOALS_SCHEMA_SQL = `
+// The Goals tables in a project's library, as the statements GOALS_PROJECT_DATABASE (./project-database.ts) declares in the Manifest.
+// Moved here whole from modules/goals (S8, PG-020): the text of each statement is as it was, so the library's shape is unchanged.
+
+/** The Goal tree: Goals, criteria, relations, trash, policy bindings, project guidance. */
+export const GOALS_TABLES_SQL = `
   CREATE TABLE goals (
     goal_id TEXT PRIMARY KEY,
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
@@ -155,7 +158,7 @@ export const GOALS_SCHEMA_SQL = `
 `;
 
 /** Board identity and current Goal pointer owned by Goals. */
-export const GOAL_BOARDS_SCHEMA_SQL = `
+export const GOALS_BOARDS_SQL = `
         CREATE TABLE boards (
           project_id TEXT PRIMARY KEY,
           title TEXT NOT NULL,
@@ -163,4 +166,22 @@ export const GOAL_BOARDS_SCHEMA_SQL = `
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         );
+`;
+
+/** What a person confirmed as the source of a Goal's input. */
+export const GOALS_INPUT_BINDINGS_SQL = `
+  CREATE TABLE input_bindings (
+    binding_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
+    input_name TEXT NOT NULL,
+    source_type TEXT NOT NULL,
+    source_ref TEXT NOT NULL,
+    source_edge_key TEXT,
+    snapshot_digest TEXT,
+    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
+    reason TEXT NOT NULL,
+    created_by TEXT NOT NULL,
+    created_at TEXT NOT NULL
+  );
 `;

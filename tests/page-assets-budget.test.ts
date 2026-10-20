@@ -686,10 +686,10 @@ for (const [asset, old] of [
 }
 
 // W5-02 P0 (w5-02-pr1-plan §4): the generic plugin host links a picked folder for the plugins that need it (`addWorkspace`),
-// so the workbench script may grow once, from exactly the baseline to the measured size (+116 B). One byte more, another
+// so the workbench script may grow once, from exactly the baseline to the measured size (+115 B, within the approved 116 B). One byte more, another
 // asset, or growth from the new baseline still fails.
 test("W5-02 P0's addWorkspace has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1129525, 1129641] } as const;
+  const allowed = { "/assets/molis-work-workbench.js": [1129525, 1129640] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("p0-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "p0-change");

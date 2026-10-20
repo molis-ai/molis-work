@@ -237,11 +237,11 @@ const headErrors = (measured, budget, base) => {
 };
 // W5-02 P0 (#826, user approved 2026-10-20): moving Coding's glue into its package puts addWorkspace on the generic
 // plugin host, preserving the failure text through api's optional fourth argument. The served workbench script may grow
-// by 116 B once from main's exact budget; later growth and the project-knowledge spent start 1,128,644 are refused.
+// by 115 B once (within the approved 116 B) from main's exact budget; later growth and the project-knowledge spent start 1,128,644 are refused.
 // The project-knowledge stylesheet allowances remain unchanged: settings styles in both sheets, plus the shared picker
 // and side-panel import dialog in the workbench sheet (specs/project-knowledge, approved 2026-10-19).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129525, 1129641],
+  "/assets/molis-work-workbench.js": [1129525, 1129640],
   "/assets/molis-work-workbench.css": [1593165, 1603154],
   "/assets/molis-work-settings.css": [982397, 988933],
 };

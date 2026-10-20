@@ -455,6 +455,8 @@ Form 发布授权补漏（2026-10-19，§10.29 统筹追加的 P1，③；分支
 - `W5-01-PPT-07`、`W5-01-DATASET-06`、`W5-01-FORM-01` 三份用例改在真实的 `createPluginPlatform` 上跑（真库、真成果模块、Kernel 的调用）：五个交错点，每个点分别取消、撤权、提供方被替换。把平台的检查短路，三份都失败。
 - Characters 的发布在 `await beforeWrite()` 之后不再检查，由 `tests/security-invariants-plugin-original-caller.test.ts` 的 S-18 用例覆盖。
 
+W5-02 PR-1 评审补修（2026-10-20，#826；原任务合同为已接受的 PR 正文）：保留 Coding 装配归包、`clientUses` 与伙伴包的现行装配关系。本片的 `W5-02-REG-09`：通用 Host 的 `addWorkspace` 只接受本人已经选择并确认的目录，接口与 Host 接线都写明这个调用前提；其失败兜底通过同一 `api` 在使用时翻译，英语页面得到英语，未传兜底的请求保留原有文案。真实浏览器回归 `tests/workbench-deferred-clients.e2e.test.ts` 从已挂载客户端的 Host 发出请求，控制失败响应，检查路径、确认字段与中英翻译；既有装配和资源测试保留。修正 PG-091 的伙伴装配实际路径。`host.reviews` 仍只随 `clientUses` 的工厂注入；要给无 `clientUses` 的插件同一服务，单份评审工厂须移入共同 Host 资源，压后约 8,278 字节，超过本片已批准的 +116 字节，因此交 W5-04 一起处理按需加载、侧栏文档和 Home 插件页的共同 `host.request`/`host.reviews`。本片不复制工厂、不加新资源；构建后以最新 main 预算核对，上限仍为 +116，实际下降则同步缩小放行。验证整体构建、装配与未声明变量、浏览器路径、翻译、资源预算及健康门禁；全量由统筹 CI 安排。
+
 W4-03 第二片（2026-10-16，伴随面借 Coding 的客户端，PR 待开；统筹 10-16 定范围：只去重，Manifest 视图另成一片）：
 - 去重：Files、Git、Diff、Text Stats 四个目录条目原来各把 Coding 的 `CODING_WORKBENCH_SETUP_SCRIPT` 登记成自己的 `clientFactory`，宿主于是发五份逐字相同的 434 KB 客户端。现在四个条目写 `clientFrom: CODING_PROJECT_PLUGIN_ID`；`apps/workbench/src/plugin-workbench.ts` 的 `pluginSurfaceClients()` 给每个有客户端的面指出那一份包，按需加载（`deferred-plugin-client.ts`）、主区的延迟面（`goals-page-renderer.ts`）和侧栏文档（`side-view-document.ts`）都读它。按需加载取 `coding.js` 一次，用同一个工厂挂各自的根：工厂和根与原来一样，画面不变。
 - 大小：宿主不再发 `files.js`、`git.js`、`diff.js`、`text-stats.js`（共 1,736,113 字节）；加载器多带四个包名，同片把它里面重复三次的失败文字和两处收尾合成一处，`molis-work-workbench.js` 净降 8 字节。`tooling/gates/page-assets.json` 删掉四条、降一条。

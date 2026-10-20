@@ -238,13 +238,14 @@ const headErrors = (measured, budget, base) => {
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 用量 told apart (VUX-11):
 // the context window with its share, this round's input, output, cache reads and writes, reasoning and cost, the account's
 // quota, each from the runtime's own report for the round with estimates marked and unknowns read as 暂不可用, and the model the
-// round really ran on (start → now). +2,761 B of workbench.js: the box's drawing moved out of the island into a factory (the
-// island shrank 31 lines) with 12 English strings; +280 B in each of the three stylesheets that carry the side groups (one
+// round really ran on (start → now). +2,949 B of workbench.js: the box's drawing moved out of the island into a factory (the
+// island shrank 31 lines) with 12 English strings, and after review (+188 B) the latest round always, reading 进行中 with its
+// own model before its first report, and the runtime's reason in the interface's words; +280 B in each of the three stylesheets that carry the side groups (one
 // part per measure, a label and its number per row). Tried first: the island's progress bar and blocks passed in, one
 // coverage-mark helper (−20 B), the stylesheet's rules written compact with the note kept out of the shipped text (−59 B).
 // Spent once from exactly the 工作环境 and 连接与工具 slice's budget (#873).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1143359, 1146120],
+  "/assets/molis-work-workbench.js": [1143359, 1146308],
   "/assets/molis-work-workbench.css": [1605330, 1605610],
   "/assets/molis-work-settings.css": [991105, 991385],
   "/assets/molis-work-arrival.css": [700691, 700971],

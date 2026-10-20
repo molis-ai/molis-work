@@ -26,6 +26,6 @@ export function workView(work: StoredWork, state: AssistantWorkState, delegated_
 /** The model a round really ran on, from the run's own frozen start and switch (specs/visual-ui-experience VUX-11); none without a run. */
 export function roundModel(run: AgentRunView | undefined): Pick<AssistantRound, "model"> {
   if (!run?.frozen?.model_id) return {};
-  const { model_id, model_context, reasoning_effort } = run.frozen, now = run.model_switch?.now;
-  return { model: { model_id, ...(now && now !== model_id ? { now } : {}), ...(model_context ? { window_tokens: model_context.window_tokens } : {}), ...(reasoning_effort ? { reasoning_effort } : {}) } };
+  const { model_id, model_context } = run.frozen, now = run.model_switch?.now;
+  return { model: { model_id, ...(now && now !== model_id ? { now } : {}), ...(model_context ? { window_tokens: model_context.window_tokens } : {}) } };
 }

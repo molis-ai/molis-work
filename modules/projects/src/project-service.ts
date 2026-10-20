@@ -11,7 +11,6 @@ import type {
   ProjectSelection,
   RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
@@ -28,7 +27,7 @@ export class ProjectService {
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
     /** Which Plugins exist is a Host fact. Projects only validates against it. */
-    private readonly plugins: ProjectPluginRegistry = BUILTIN_PROJECT_PLUGIN_REGISTRY,
+    private readonly plugins: ProjectPluginRegistry,
   ) {}
 
   list(): ProjectRecord[] {

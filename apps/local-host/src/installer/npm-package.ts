@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import { collectRuntimeDependencies } from "./home-dependencies.js";
+import { collectRuntimeDependencies, removedByOverrides } from "./home-dependencies.js";
 import { assertFreshRepositoryBuild } from "./home-source.js";
 import { pathState } from "./home-files.js";
 import { copyReleaseEntries, declaredReleaseFileEntries } from "./package-release-files.js";
@@ -26,7 +26,7 @@ export async function createMolisWorkNpmPackageDirectory(options: {
   if (await pathState(destination)) throw new Error(`npm package 输出已存在，不会覆盖: ${destination}`);
   await assertFreshRepositoryBuild(source);
   const root = await readPackage(source);
-  const dependencies = await collectRuntimeDependencies(path.join(source, "package.json"), root);
+  const dependencies = await collectRuntimeDependencies(path.join(source, "package.json"), root, await removedByOverrides(source));
   const packages = new Map(await Promise.all(dependencies.map(async item =>
     [item.name, { ...item, metadata: await readPackage(item.directory) }] as const)));
   const bundled = new Set<string>();

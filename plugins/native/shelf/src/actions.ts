@@ -183,24 +183,25 @@ function defineProject<I, O>(name: string, title: string, description: string, o
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {
-  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", "预览项目材料",
-    "预览将从 Shelf 保存到当前项目的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read),
-  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "保存为项目材料",
-    "按已预览的指纹把 Shelf 文字保存为当前项目的固定版本材料；内容变化时拒绝", "command",
+  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", "预览要存到项目资料的文字",
+    "预览将从 Shelf 存到当前项目资料的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read),
+  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "存到项目资料",
+    "按已预览的指纹把 Shelf 文字存进当前项目的资料（成果库里的一份导入文档，项目里的 Agent 都能找到）；内容变化时拒绝", "command",
     object({ item_id: id, expected_fingerprint: { type: "string", minLength: 1 } }),
-    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifact:write"]),
+    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write"]),
 };
 export const SHELF_PROJECT_ACTIONS: readonly ActionDefinition[] = Object.values(shelfProjectActions);
 export const SHELF_PROJECT_ACTION_PERMISSIONS = [...new Set(SHELF_PROJECT_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export interface ShelfProjectActionPorts {
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
-  publish(payload: ShelfMaterialPreview["payload"], actorId: string): { artifact_id: string; version: number };
+  /** Saves the text into the project's knowledge as the caller; the same text saved again keeps its version. */
+  publish(payload: ShelfMaterialPreview["payload"], caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }>;
 }
 
 export function createShelfProjectActionHandlers(projectId: string, ports: ShelfProjectActionPorts): ActionHandlerBinding[] {
   const current = (caller: ActionCallContext, itemId: string) => {
-    if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请在项目中打开 Shelf，再保存项目材料");
+    if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请在项目中打开 Shelf，再存到项目资料");
     return shelfTextMaterial(ports.readFile(itemId));
   };
   return [
@@ -210,7 +211,7 @@ export function createShelfProjectActionHandlers(projectId: string, ports: Shelf
       const value = current(caller, item_id);
       if (value.fingerprint !== expected_fingerprint) throw shelfErrors.conflict("材料已变化，请重新预览后保存");
       await caller.beforeEffect();
-      return { reference: ports.publish(value.payload, caller.actor_id), title: value.payload.title };
+      return { reference: await ports.publish(value.payload, caller), title: value.payload.title };
     } },
   ];
 }

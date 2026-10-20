@@ -20,15 +20,17 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     let errors='';transport.stderr?.on('data',data=>{errors+=String(data);});
     try{await client.connect(transport);}catch(error){throw new Error(`${String(error)}\n${errors}`);}return client;
   };
+  // W4-6-07: a tool is named by its capability version, and `content.receive` is at version 2; the other tools keep `__v1`.
+  const tool=(name:string)=>`ppt.${name}__v${name==='content.receive'?2:1}`;
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{
-    const result=await client.callTool({name:`ppt.${name}__v1`,arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;
+    const result=await client.callTool({name:tool(name),arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;
   };
   try{
     const writer=await connect('a'),reader=await connect('a','read'),other=await connect('b'),secondWriter=await connect('a');
-    assert.deepEqual((await writer.listTools()).tools.map(t=>t.name).filter(n=>n.startsWith('ppt.')).sort(),['list','get','create','update','delete','export','pptx','promote','artifacts.pin','outline','outline_pages','search.entries','subject.read','content.list','content.read','content.receive','content.create'].map(n=>`ppt.${n}__v1`).sort());
+    assert.deepEqual((await writer.listTools()).tools.map(t=>t.name).filter(n=>n.startsWith('ppt.')).sort(),['list','get','create','update','delete','export','pptx','promote','artifacts.pin','outline','outline_pages','search.entries','subject.read','content.list','content.read','content.receive','content.create'].map(tool).sort());
     let {presentation}=await call(writer,'create',{title:'MCP 演示'});const id=presentation.id;
     assert.deepEqual((await call(other,'list')).presentations,[]);
-    for(const [client,name,args] of [[other,'get',{id}],[reader,'update',{id,title:'denied'}],[writer,'create',{project_id:'b'}]] as const)assert.equal((await client.callTool({name:`ppt.${name}__v1`,arguments:args})).isError,true);
+    for(const [client,name,args] of [[other,'get',{id}],[reader,'update',{id,title:'denied'}],[writer,'create',{project_id:'b'}]] as const)assert.equal((await client.callTool({name:tool(name),arguments:args})).isError,true);
     const edits=await Promise.all([writer,secondWriter].map((client,index)=>client.callTool({name:'ppt.update__v1',arguments:{id,title:`Writer ${index}`,expected_version:presentation.version}})));
     assert.equal(edits.filter(result=>!result.isError).length,1);assert.equal(edits.filter(result=>result.isError).length,1);
     presentation=(await call(reader,'get',{id})).presentation;assert.equal(presentation.version,2);

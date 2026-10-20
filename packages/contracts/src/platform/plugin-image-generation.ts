@@ -33,7 +33,10 @@ export interface PluginImageGenerationClient {
     readonly revision: string;
   }>;
 }
-/** Only the trusted Host start entry chooses the binding namespace and grants. */
+/**
+ * Only the trusted Host start entry chooses the binding namespace and grants. 2026-10-18 改: declared in the Manifest and granted
+ * like any plugin's (PG-102 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ */
 export interface PluginImageGenerationDeclaration {
   readonly store_name: string;
   readonly read_permission: string;

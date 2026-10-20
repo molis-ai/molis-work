@@ -4,7 +4,7 @@
 
 ## 在做的
 
-- [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现中（PRR-03/12 未做）。
+- [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现中（PRR-03/12 已完成；QA-017 与 PRR-05 用例余项）。
 - [logic-diagnosis-fixes](logic-diagnosis-fixes/spec.md)：2026-10-16 诊断确认的八个逻辑问题；实现中。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。

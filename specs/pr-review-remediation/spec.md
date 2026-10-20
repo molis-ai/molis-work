@@ -4,7 +4,7 @@
 
 审计基线是 `origin/main` `3ba9185d7`（2026-10-20 16:07 UTC）。本 spec 的编号前缀是 `PRR`，实现时把编号写进测试名或测试旁注释。
 
-实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03（平台目录服务，需用户定交互）未做；PRR-12 已做通用 declarative renderer 与按插件 id 查 registration 的前两片（删掉 Lingguang 专用渲染函数、slot 表和 renderer 包装），页面池里仍有一处按插件 id 的调用，整片迁移未完成；已实测直接删这处会让 Lingguang 工作面缺失（`data-lingguang="workbench"` 不出现，`tests/lingguang-plugin.test.ts` 失败），所以必须先接上 Runtime views，不能只删静态调用；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 真实打开仍待补；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（基于 `3ba9185d7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
+实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03 已按用户选择的 B 落实（首次授权目录，之后按相对路径读；每次读取都查安装的 `directory:read`，符号链接/越界/超限拒绝），Cognia 不再 import `node:fs`；PRR-12 已完成：Lingguang 的 Manifest 声明 `stage` view，工作台按 Manifest 渲染 Plugin 自己的 UI contribution，删掉了 `renderLingguangContribution`、slot 表、renderer 包装和页面池里的插件 id 分支；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 真实打开仍待补；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（基于 `3ba9185d7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
 
 ## 1. 确认结果
 
@@ -16,7 +16,7 @@
 | --- | --- | --- | --- | --- |
 | PRR-01 | #839 | P1 | 代码路径 + 纯函数复现 | `knowledge-actions.ts:131-135` 把 plugin 的 `reader` 换成 owner；`workspace.ts:25-27,78` 工作目录读用 `access.reader`；复现脚本显示 `discover`/`invoke` 都以 owner 身份调用，并读出了 `workspace_file` |
 | PRR-02 | #733 | P1 | 代码 + 裁定 11 | `cognia/src/directory.ts:1-2,7-9` 直接 `node:fs`；`actions.ts:11` 的 `directory.scan` 受众含 agent/mcp/workflow；`specs/repository-anti-corruption/spec.md:3063` 要求平台服务与同意流程 |
-| PRR-03 | #733 | P1/P2 | 同上，需用户定交互 | 平台目录服务尚不存在；Cognia 自己读绝对路径 |
+| PRR-03 | #733 | P1/P2 | 代码路径 + 用户决定 B | 平台目录服务与 Host grant 已落地（`plugin-directory-service.ts`、`directoryGrantRoute`）；Cognia 只拿 grant id，不再 import `node:fs` |
 | PRR-04 | #629 | P2 | 纯函数复现 | `announce-guard.ts:125-128` 的 `ACTING_TOOLS` 含 `suggest-action`/`suggest-memory`；复现脚本确认两者返回后 `actedThisRound=true`；`prologue-stop-guard.ts:99-101` 在 `changed` 为真时直接放行，不跑 `reviewEnding` |
 | PRR-05 | #839 | P2 | 纯函数复现 | `coding/src/manifest.ts:71` 只 consume `knowledge.read`；`knowledge-tools.ts:33-38` 却调 `knowledge.list`；复现脚本确认 `invoke` 抛 `actions.forbidden`、catalog 为 null |
 | PRR-06 | #839 | P2 | 动作字段核对 | `packages/contracts/src/services/knowledge.ts:408` 的 `knowledge.locate` 是 query/read、权限只有 `knowledge:read`，没有 `model:invoke` 或 `metered`；`prologue-checkers.ts:171-176` 因此允许它被登记成外部等待 |
@@ -25,7 +25,7 @@
 | PRR-09 | #822 | P2 | 执行器复现 | `prologue-after-write.ts:48` 按原始路径做 `startsWith(cwd + "/")`；复现脚本 `src/a.js` 得到命令，`./src/a.js` 得到「没有适用于 .js 的检查器」 |
 | PRR-10 | #729 | P2 | 代码核对 | `plugins/native/lingguang/src/plugin.ts:26-33` 把 `caller.on_progress` 作为 `request.onProgress`；`materials-service.ts:45` 又调用一次 `caller.on_progress` |
 | PRR-11 | #729 | P2 | 代码核对 | `plugins/native/lingguang/src/manifest.ts:9,28-36` 所有 POST 路由都用 `BODY_BYTES = 36_000_000` |
-| PRR-12 | #729 | P2 | 代码核对 | `apps/workbench/src/ui-composition.ts:324`、`renderer.ts:106-111`、`goals-page-renderer.ts:97,298` 仍在构建期手写渲染灵光工作面 |
+| PRR-12 | #729 | P2 | 代码核对 | 已改为 Manifest `stage` view + Plugin 自己的 contribution 渲染；`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts` 不再有 Lingguang 专用分支 |
 | PRR-13 | #681 | P2 | 身份复现 | `installIdentity(todoManifest)` 得到 `plugin-install-<sha>`，不等于 `io.molis.work.todo`；`agent-question-surfaces.ts:48-49` 的 `builtinOf` 因此返回 undefined |
 | PRR-14 | #835 | P3 | spec 行核对 | `specs/repository-anti-corruption/spec.md:283-284` 的 RES09 是探索恢复；`:309` 又把 RES09 给 Pulse 取消 |
 | PRR-15 | #857 | P3 | 代码核对 | `project-database.ts:217` 的 `ROLLBACK` 可能盖掉原错误；`:167` 的 `JSON.parse` 没有映射成 `shape_mismatch` |
@@ -88,8 +88,8 @@
 ## 4. 验收标准
 
 1. **PRR-01**（#839，P1）持 `knowledge:read`、没有 `workspace:read` 的插件，不能通过 `knowledge.glob`、`knowledge.grep`（带 `glob`）或 `knowledge.read`（`workspace_file`）读取项目工作目录；持 `workspace:read` 且用户已授权时照常。来源读取（卡片、搜索、分节、locate）保持 S-41 允许的 owner reader 行为。测试：`tests/security-invariants-knowledge.test.ts` 新增 `PRR-01 a plugin with knowledge:read but no workspace:read cannot read a workspace file`；`tests/knowledge-service.test.ts` 加 plugin + `workspace:read` 的正向用例。
-2. **PRR-02**（#733，P1）在平台目录服务落地前，`cognia.directory.scan` 与 `cognia.import.directory_preview` 的受众只保留 `user`，不再向 agent/mcp/workflow 提供；`cognia:read-local-files` 也不出现在这些受众的目录里。测试：新增 `tests/security-invariants-cognia-directory.test.ts` 的 `PRR-02 the directory actions are user-only until the platform service exists`；既有 Cognia 用例按 user 受众调整。
-3. **PRR-03**（#733，P1/P2）实现平台目录读取服务：由人选择/确认目录，平台做路径规范化、符号链接拒绝、只读、文件大小/类型上限和逐次授权；Cognia 改为调用该服务，插件里不再 import `node:fs`。测试：`tests/security-invariants-cognia-directory.test.ts` 的 `PRR-03 the platform directory service asks the person and reads only the chosen folder`；`[人工]` 目录选择/同意交互。需要用户先确认交互方式。
+2. **PRR-02**（#733，P1）即使平台目录服务已落地，`cognia.directory.scan` 与 `cognia.import.directory_preview` 的受众仍只保留 `user`，不向 agent/mcp/workflow 提供；`cognia:read-local-files` 已删除，改用平台 `directory:read`。测试：`tests/cognia-actions.test.ts` 的 `PRR-02 the Cognia directory actions stay user-only with the platform directory service`，以及同一文件的 agent 受众拒绝断言。
+3. **PRR-03**（#733，P1/P2）按用户选择的 B 实现平台目录读取服务：人先在项目页调用 `POST /api/host/directory-grants` 授权一个实际目录（30 分钟、最多 32 个 grant），之后 Cognia 用 `grant_id` + 相对路径读；Host 做 realpath/逐段 lstat、符号链接拒绝、只读、目录/文本/字节大小上限，每次读取都查安装的 `directory:read`；插件只拿到 `read`，拿不到 `authorize`，也不再 import `node:fs`。测试：`tests/security-invariants-directory.test.ts` 的 `PRR-03 S-47 ...` 两条越界/符号链接拒绝；`tests/cognia-actions.test.ts` 的 `uploaded and directory imports...` 走真实 grant；`tests/cognia-http.test.ts` 的 `PRR-03 the person authorizes a directory...` 路由。`[人工]` 目录选择/同意交互。
 4. **PRR-04**（#629，P2）一轮只有 `suggest-action`/`suggest-memory` 返回、没有实际 keep/save 时，收尾仍核对 `kept`/`saved` 说法；只提议不再被当成“已记住/已保存”。测试：`tests/announce-guard.test.ts` 的 `PRR-04 a suggest-memory returned does not excuse "已记住"`；`tests/assistant-business-gateway.test.ts` 的 `PRR-04 a suggest-action returned does not excuse "已保存"`。不要误伤“已经给你一张卡”的说法。
 5. **PRR-05**（#839，P2）Coding 的 Manifest consume `knowledge.list`（以及它实际用到的 knowledge 动作）；真实 `PluginActionClient` 不再以 `actions.forbidden` 拒绝，`knowledgeCatalogMaterial` 能拿到项目资料目录。测试：`tests/knowledge-round-fact.test.ts` 的 `PRR-05 Coding gets the project knowledge catalog from a real client`；`pnpm actions:update` 后快照不变或按实际更新。
 6. **PRR-06**（#839，P2）`knowledge.locate` 已升到 `@2`，声明 `model:invoke` 和 `execution.cost: "metered"`；旧 `@1` 引用不再解析；Agent 不能把它登记成外部等待，每次调用都显式收费。测试：`tests/action-model-scheduling.test.ts` 的 `PRR-06 knowledge.locate is metered`；新拒绝用例 `PRR-06 locate cannot be registered as an external wait`。动作快照若显示同一版本权限变化，按 `CONTRACT-CHANGES.md` 升版本并改消费者。
@@ -98,7 +98,7 @@
 9. **PRR-09**（#822，P2）写后检查器在 `inside`/`relative` 前按 SDK 规则 normalize 写入路径；`./src/a.js` 与 `src/../src/a.js` 在 `cwd: "src"` 下都能命中，`./-rf.js` 仍按 `./-rf.js`。测试：`tests/coding-diagnose-after-write.test.ts` 的 `PRR-09 ./src/a.js is checked by cwd src`。
 10. **PRR-10**（#729，P2）灵光的材料提取只走一遍 progress：`caller.on_progress` 与 `request.onProgress` 选一个，不重复。测试：`tests/lingguang-plugin.test.ts` 的 `PRR-10 one progress per extraction`。
 11. **PRR-11**（#729，P2）灵光每条 POST 路由有自己的 `max_body_bytes`；只有上传/导入用大上限，小写入路由不再接受 36 MB。测试：`tests/lingguang-http.test.ts` 的 `PRR-11 each route has its own body limit`。
-12. **PRR-12**（#729，P2）灵光的工作面由 Runtime 的 views 渲染，工作台删掉 `renderLingguangContribution`/`renderLingguangNativePluginSurface` 的构建期分支；保留现有视觉与交互。测试：`tests/lingguang-plugin.test.ts` 的 `PRR-12 Lingguang workbench view comes from the Runtime`；`[人工]` 侧栏/工作面视觉验收。若工作量过大，可拆成后续片，但不能把三处私路留在 main。
+12. **PRR-12**（#729，P2）灵光的工作面由 Manifest 声明的 `stage` view 和 Plugin 自己的 UI contribution 渲染；工作台删掉 `renderLingguangContribution`/`renderLingguangNativePluginSurface` 与页面池里的插件 id 分支，保留现有视觉与交互。测试：`tests/lingguang-plugin.test.ts` 的 `PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染`；`[人工]` 侧栏/工作面视觉验收。
 13. **PRR-13**（#681，P2）`builtinOf` 按 `provider.plugin_id` 与 `BUILTIN_PLUGIN_CATALOG` 识别内置；Runtime 内置插件（Todo）隐藏/未显示时不进对象引用题，内置在前排序成立。测试：`tests/agent-question-surfaces.test.ts` 的 `PRR-13 a hidden Runtime builtin is not a reference kind`。
 14. **PRR-14**（#835，P3）Pulse 取消验收改用 `W5-01-ALC-RES11`；RES09 只保留探索恢复。更新 `specs/repository-anti-corruption/spec.md`、`tests/alchemist-pulse-cancel.test.ts`、`tests/alchemist-mcp.test.ts`、`tests/alchemist-actions.test.ts` 的注释和 QA 报告。测试：`tests/alchemist-pulse-cancel.test.ts` 的 `W5-01-ALC-RES11 …`；`[人工]` 编号一致性检查。
 15. **PRR-15**（#857，P3）`openPluginProjectDatabase` 的回滚不盖掉原错误；`tables_json` 解析失败按 `plugin.project_database.shape_mismatch` 拒绝并带 `where`。测试：`tests/plugin-project-database-ledger.test.ts` 的 `PRR-15 rollback keeps the original error` 与 `PRR-15 corrupt tables_json is shape_mismatch`。
@@ -112,7 +112,7 @@
 
 ## 5. 实施顺序
 
-1. **P1 安全边界**：PRR-01、PRR-02；PRR-03 先与用户确认目录选择/同意交互，再实现服务。
+1. **P1 安全边界**：PRR-01、PRR-02；PRR-03 已按用户选的 B 完成目录 grant 与服务。
 2. **P2 功能/合同**：PRR-04、PRR-05、PRR-06、PRR-07、PRR-08、PRR-09、PRR-10、PRR-11、PRR-12、PRR-13。
 3. **P3 可追溯与文档**：PRR-14、PRR-15、PRR-16、PRR-17、PRR-18、PRR-19、PRR-20、PRR-21。
 4. **流程**：PRR-22 立即生效，不等待代码项。
@@ -136,6 +136,6 @@ PRR-01 和 PRR-05/PRR-06 都改 #839 的 knowledge 线；建议同一个 owner �
 
 ## 7. 待用户决定
 
-1. **PRR-03 的目录选择/同意交互**：是每次读取都弹一次目录选择，还是首次授权目录后按路径读、每次写入前再确认；目录服务放在 Host 的哪个入口。这个决定影响 PRR-03 的验收，不影响 PRR-02 先把非 user 受众关掉。
-2. **PRR-06 的动作版本**：`knowledge.locate` 增加 `model:invoke`/`metered` 大概率会被动作快照记为「同一版本谁能调变了」。是保持 @1 并在 PR 里写明没有固定引用，还是升 @2 并改消费者，按 `docs/system/CONTRACT-CHANGES.md` 和实际引用决定。
-3. **PRR-12 的灵光 UI 迁移**：工作面迁到 Runtime 视图可能是一整个迁移片；是否先合 PRR-10/11 的进度与体量修复，把 UI 迁移拆成后续片。无论怎么拆，三处构建期私路不能在 main 长期留着。
+1. **PRR-06 的动作版本**：已按 `CONTRACT-CHANGES.md` 升到 `@2`（`knowledge.locate`），动作快照已更新；固定引用需按 v2 改。
+2. **PRR-12 的灵光 UI 迁移**：已按用户选择的长期方案完成（Manifest `stage` view + contribution 渲染，宿主不再点名）。
+3. **PRR-03 的目录同意交互**：用户已选 B（首次授权目录，之后按路径读；写入前再确认）。

@@ -13,6 +13,8 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
+import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
+import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
@@ -94,11 +96,14 @@ export class HomePluginExecutor implements PluginExecutor {
       const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
       const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
       const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
+      const directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION) ? directoryForHome(this.options.home) : undefined;
+      const directoryService: PluginDirectoryService | undefined = directory
+        ? { read: (request, signal) => { assertActive(); authorize(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
       background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(directoryService ? { directory: directoryService } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });

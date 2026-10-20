@@ -105,10 +105,10 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
-  assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
+  assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));
 });
 
-test("工作台挂上灵光空态、确认框和快记区", () => {
+test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the

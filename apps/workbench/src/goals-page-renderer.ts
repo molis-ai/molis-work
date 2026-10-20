@@ -1,4 +1,6 @@
 import { pluginSurfaceClients } from "./plugin-workbench.js";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import type { UiContribution, UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 import type { ProjectOperationsData, ProjectOperationsProject, ProjectOperationsSlice } from "@molis-ai/molis-work-plugin-work";
@@ -94,7 +96,6 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderDeclarativePluginSurface(pluginId: string, surface: "directory" | "workbench" | "side"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -107,6 +108,18 @@ function renderProjectReferenceDialog(L: (text: string) => string): string {
     footer: `<a class="mw-btn mw-btn--secondary" data-project-reference-download download>${L("下载")}</a><button class="mw-btn mw-btn--primary" value="close">${L("关闭")}</button>` });
 }
 
+/** Manifest-declared stage views, rendered by each Plugin's own UI contribution; no per-plugin host branch (PRR-12). */
+function renderManifestStageViews(primitives: { escape(value: unknown): string; text(value: string): string }): string[] {
+  return BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    const declared = (entry.manifest.ui?.views as readonly UiViewDeclaration[] | undefined)?.find(view => view.slot === "stage");
+    if (!declared) return [];
+    const contribution = (entry.workbench.contributions as readonly UiContribution[]).find(item => item.descriptor.contribution_id === (declared.contribution_id ?? `${entry.manifest.plugin_id}.${declared.view_id}`));
+    if (!contribution) return [];
+    try { return [contribution.render({ contribution_id: contribution.descriptor.contribution_id, surface: "workbench", model: { primitives } })]; }
+    catch { return []; }
+  });
+}
+
 /** Workbench owns placement; Goals/Feed/Work owners retain their actual UI and facts. */
 export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionItem,
   TView extends WorkbenchGoalsPageView<TItem>, TFeedEntry>(
@@ -117,7 +130,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderDeclarativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -295,7 +308,6 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${defer(renderFormNativePluginSurface("workbench"))}
             ${defer(renderDatasetNativePluginSurface("workbench"))}
             ${defer(renderPptNativePluginSurface("workbench"))}
-            ${defer(renderDeclarativePluginSurface("io.molis.work.lingguang", "workbench"))}
             ${defer(renderAlchemistNativePluginSurface("workbench"))}
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}
@@ -304,6 +316,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode })}</section>
             ${settingsSurfaces}
             ${(view.plugin_stages ?? []).map(defer).join("")}
+            ${renderManifestStageViews({ escape: primitives.escapeHtml, text: primitives.L }).map(defer).join("")}
           </div>
         </div>
       </div>

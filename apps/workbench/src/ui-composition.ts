@@ -1,5 +1,4 @@
 import type {
-  UiContribution,
   UiRenderRequest,
   UiSlotDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -309,16 +308,6 @@ export function renderWorkflowsContribution(
       model,
     },
   }).html;
-}
-
-/* A declarative contribution carries which Workbench slot each surface mounts into; rendering it needs no per-plugin host
-   function. A contribution with no descriptor for this surface renders nothing. */
-const WORKBENCH_SLOT_BY_ID = new Map<string, UiSlotDescriptor>(Object.values(WORKBENCH_UI_SLOTS).map(slot => [slot.slot_id, slot]));
-export function renderDeclarativeContribution<T>(contribution: UiContribution<T>, surface: string, model: T): string {
-  const target = contribution.descriptor.surfaces?.find(item => item.surface_id === surface)?.target_slot_id;
-  const slot = target ? WORKBENCH_SLOT_BY_ID.get(target) : undefined;
-  if (!slot) return "";
-  return workbenchUiHost.mount({ slot, contribution: { contribution_id: contribution.descriptor.contribution_id, surface, model } }).html;
 }
 
 export function renderPluginSettingsContribution(

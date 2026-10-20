@@ -2332,3 +2332,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - S-15 已改写。
   - ⑤ 审过，可以合；它补了三处过时的说明和 PG047-02 的一条用例。
   - ② 下一步是 T7，然后 C6 的平台那一半。
+- **10-21 T7 不出 PR**（② 核过）。
+  - 平台这边没有代码要写，C2 只等 #909。
+  - 三处 `ready` 都在 C2 自己的文件里：`route-entry.ts:30`、`route-activation.ts:80`、`project-plugin-ports.ts:48`。
+  - 补核记在计划 §6 T7 末尾，有三点：
+    - `wake-loop.ts` 保持只试一次；
+    - `project-plugin-startup.test.ts:29-40` 随 C2 改写；
+    - `AgentHostComposition.ready` 不删。
+  - 已转给 ③。② 现在开 C6（PG-037）。

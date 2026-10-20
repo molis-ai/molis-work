@@ -34,7 +34,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plu
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -278,6 +278,8 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+  /** The plugin's own tables, by scope (PG-020). The Host does not make them yet (specs/plugin-project-database). */
+  databases?: import("./plugin-database.js").PluginManifestDatabases;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

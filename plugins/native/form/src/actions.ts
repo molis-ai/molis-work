@@ -1,6 +1,6 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { createFormDrafting, FORM_DRAFT_INPUT_SCHEMA, formDraftOutputSchema, type FormDraftRequest, type FormDraftResult } from "./drafting.js";
-import { ActionError, requireSynchronous, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineArtifactPinAction, defineArtifactCompareAction, defineArtifactContinueAction, bindArtifactContinue, bindArtifactCompare, objectOrMissing, sameArtifactFields, bindObjectCopyHandler, bindObjectMoveHandler, defineObjectCopyAction, defineObjectMoveAction, type ActionDefinition, type ActionSchema, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import { FORM_ARTIFACT_TYPE_ID, FORM_PROJECT_PLUGIN_ID, type FormRecord, type FormQuestionInput, type FormSubmissionRecord, type FormSubmissionSource } from "@molis-ai/molis-work-contracts/modules/form";
 import { promoteForm, type FormLineHeadPort, type FormPublishArtifactPort, type FormReadArtifactPort } from "./promote.js";
 import { formErrors } from "./error.js";
@@ -84,15 +84,11 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const { read, write } = ports;
-  // Each step of a pin (the intent, the 成果, the record of it) asks the original caller again after its own wait, inside the
-  // write or right before the publish: a call cancelled or revoked between them leaves only the steps already done.
-  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => {
-    const current = () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); };
-    const checked: FormStores = { read, write: (writer, run) => write(writer, store => { current(); return run(store); }) };
-    return promoteForm(checked, caller, id, project(caller), value => { current(); return ports.publishArtifact!(value, caller); },
-      { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead,
-        beforePublish: async () => { await caller.beforeEffect(); current(); } });
-  };
+  // Each step of a pin (the intent, the 成果, the record of it) waits for the call's authority; the library and the 成果 service ask
+  // the original caller again in the same turn as each write, so a call cancelled or revoked between them leaves only the steps already done.
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteForm(ports, caller, id, project(caller),
+    value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion,
+      readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead, beforePublish: () => caller.beforeEffect() });
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   const drafting = ports.completeText ? createFormDrafting({ completeText: ports.completeText }) : null;
   return [

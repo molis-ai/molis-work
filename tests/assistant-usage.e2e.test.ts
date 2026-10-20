@@ -20,10 +20,13 @@ test("VUX-11: the usage box tells the context window, this round, cost and quota
     const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
     if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
     const view = await response.json(), round = view.rounds[view.rounds.length - 1];
-    if (window.__report === "full") Object.assign(round, { ended_at: "2026-10-20T09:30:00.000Z", model: { model_id: "MiniMax-M2", window_tokens: 200000 },
+    const full = () => Object.assign(round, { ended_at: "2026-10-20T09:30:00.000Z", model: { model_id: "MiniMax-M2", window_tokens: 200000 },
       usage: { tokens: { input: 12000, output: 800, cached_input: 9000 }, coverage: { input: "reported", output: "reported", cached_input: "reported", cache_creation: "unknown", cost_usd: "unknown" }, context: { tokens: 52000, coverage: "reported" } } });
+    if (window.__report === "full") full();
+    // A round just sent after a reported one: the runtime has no report for it yet.
+    else if (window.__report === "fresh") { full(); view.rounds.push({ ...round, run_id: "r-fresh", usage: undefined, model: { model_id: "MiniMax-M2.1" }, ended_at: null }); }
     else Object.assign(round, { ended_at: "2026-10-20T09:40:00.000Z", model: { model_id: "MiniMax-M2", now: "MiniMax-M2.1" },
-      usage: { tokens: { input: 0, output: 300 }, coverage: { input: "unknown", output: "estimated", cached_input: "unknown", cache_creation: "unknown", cost_usd: "reported" }, cost_usd: 0.0123, context: { tokens: 4000, coverage: "estimated" } } });
+      usage: { tokens: { input: 0, output: 300 }, coverage: { input: "unknown", output: "estimated", cached_input: "unknown", cache_creation: "unknown", cost_usd: "reported" }, cost_usd: 0.0123, context: { tokens: 4000, coverage: "estimated" }, unavailable_reason: "用量含保守估算，不全是服务方报的数" } });
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
@@ -49,4 +52,15 @@ test("VUX-11: the usage box tells the context window, this round, cost and quota
   assert.equal(partial.parts[0]![2], "", "no share without the window");
   assert.match(partial.parts[0]![3], /^MiniMax-M2 → MiniMax-M2\.1 · /, "the model it started on and the one its calls went to after the switch");
   assert.deepEqual(partial.parts[1]![1], ["输入=暂不可用", "输出=300（估算）", "费用=$0.0123"]);
+  assert.match(await evaluate<string>(`${box}.textContent`), /用量含保守估算，不全是服务方报的数/, "the runtime's reason is said in the interface's words");
+
+  // The latest round has no report yet: 本轮 is that round's, in progress, with its own model; the round before lends nothing.
+  await evaluate(`window.__report = "fresh"`);
+  await openWork(browser, id);
+  await waitFor(`${box}.textContent.includes('进行中')`, 15_000);
+  await evaluate(`${box}.querySelector('details').open = true`);
+  const fresh = await evaluate<{ parts: Array<[string, string[], string, string]> }>(read(box));
+  assert.deepEqual(fresh.parts[0]![1], ["已用=进行中"]);
+  assert.match(fresh.parts[0]![3], /^MiniMax-M2\.1 · 进行中$/);
+  assert.deepEqual(fresh.parts[1]![1], ["输入=进行中", "输出=进行中"], "never the round before's 12,000 and 800");
 });

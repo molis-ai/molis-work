@@ -460,7 +460,6 @@ export interface AssistantRound {
         model_id: string;
         now?: string;
         window_tokens?: number;
-        reasoning_effort?: "low" | "medium" | "high";
     };
     stop_reason?: string;
     ended_at: string | null;

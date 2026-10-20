@@ -241,7 +241,7 @@ const headErrors = (measured, budget, base) => {
 // Tried first: the Coding card reuses the provider list the Assistant already draws, no new card or style. Spent once
 // from exactly the 用量 slice's budget (#874).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1145423, 1145571],
+  "/assets/molis-work-workbench.js": [1146308, 1146456],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

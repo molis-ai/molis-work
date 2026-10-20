@@ -1,6 +1,7 @@
 /** Shared mw-* control language. Loaded with the visual foundation. */
 
 import { SELECT_MENU_STYLES } from "../select-menu-client.js";
+import { SR_ONLY_STYLES } from "./sr-only.js";
 import { STATE_RING_STYLES } from "./state-ring.js";
 
 /** Keyboard focus: a 2px copper stroke just outside the control, the same on every control. */
@@ -13,10 +14,7 @@ export const PRIMITIVE_STYLES = `
   ${STATE_RING_STYLES}
   :where(a:not([class])) { color: var(--accent); text-underline-offset: 3px; }
   :where(a:not([class])):hover { color: var(--accent-strong, var(--accent)); }
-  .mw-sr-only {
-    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
-    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
-  }
+  ${SR_ONLY_STYLES}
 
   .mw-btn {
     position: relative;

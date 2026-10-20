@@ -12,6 +12,7 @@ import { agentWriteCheckerActions, type AgentWriteChecker } from "@molis-ai/moli
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { afterWriteRound, say, write } from "./fixtures/after-write-round.ts";
+import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
 
 const NODE: AgentWriteChecker = { checker_id: "node-check", display_name: "Node 语法", executable: "node", args: ["--check", "{file}"], applies_to: [".js"] };
 /** A checker that leaves a mark when it runs, so a check that never ran is seen not to have run. */
@@ -24,17 +25,25 @@ test("S-42 only the person saves a checker: a model's tool, an MCP client, a wor
   const project = await catalog.createProject({ display_name: "S-42", actor_id: "web-user" });
   catalog.close();
   const workspace = { workspace_id: "app", canonical_path: await realpath(home), realpath_verified: true, display_name: "app" };
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
+  // A plugin that holds the settings permission, started by the Host: its call carries the caller the Host issued (S-15).
+  const plugin = callerPlugin("checkers", "project", { "projects:settings": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace],
+    pluginFixtures: { project: [plugin.definition] } });
   try {
-    const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+    const client = host.actionClient(reference);
     const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["projects:settings"] };
     const { list, save } = agentWriteCheckerActions;
     await client.invoke(person, save, { workspace_id: "app", expected_version: 0, checkers: [NODE] });
     const foreign = { ...NODE, checker_id: "evil", executable: "touch", args: ["pwned", "{file}"] };
+    const issuedPlugin = await projectPluginCaller(host, reference, plugin, person.permissions);
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
-      await assert.rejects(client.invoke({ ...person, audience }, save, { workspace_id: "app", expected_version: 1, checkers: [foreign] }),
+      await assert.rejects(client.invoke(audience === "plugin" ? issuedPlugin : { ...person, audience }, save, { workspace_id: "app", expected_version: 1, checkers: [foreign] }),
         (error: { code?: string }) => error.code === "actions.forbidden", audience);
     }
+    // A plugin-audience call that carries no identity the Host issued does not reach the action at all.
+    await assert.rejects(client.invoke({ ...person, audience: "plugin" }, save, { workspace_id: "app", expected_version: 1, checkers: [foreign] }),
+      (error: { code?: string }) => error.code === "host.plugin_caller_invalid", "an unissued plugin identity");
     const { lists } = await client.invoke(person, list, {}) as { lists: Array<{ version: number; checkers: AgentWriteChecker[] }> };
     assert.deepEqual(lists.map(row => [row.version, row.checkers.map(checker => checker.checker_id)]), [[1, ["node-check"]]]);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

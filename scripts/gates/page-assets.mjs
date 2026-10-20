@@ -246,12 +246,15 @@ const headErrors = (measured, budget, base) => {
 //   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
 //   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
 //   face; Coding's own copy code went (−185 B).
+// - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
+//   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
+//   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129525, 1132516],
+  "/assets/molis-work-workbench.js": [1129525, 1132686],
   "/assets/molis-work-workbench.css": [1603154, 1604893],
   "/assets/molis-work-settings.css": [988933, 990668],
   "/assets/molis-work-arrival.css": [698519, 700254],
-  "/assets/molis-work-pages-editor.js": [706942, 707006],
+  "/assets/molis-work-pages-editor.js": [706942, 707345],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -56,7 +56,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
     window.sideForwarded=[];
     document.addEventListener('molis:side-context-command',event=>window.sideForwarded.push(event.detail.command.request_id));
     const child=${side}.defaultView;
-    const script=child.document.createElement('script');script.textContent="addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:side-context')window.boundEpoch=event.data.context_epoch;});parent.postMessage({type:'molis:side-ready'},location.origin)";child.document.body.append(script);
+    const script=child.document.createElement('script');script.textContent="addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:side-context')window.boundEpoch=event.data.context_epoch;if(event.source===parent&&event.data?.type==='molis:side-context-result'&&event.data.stale)(window.staleAnswers||=[]).push(event.data.request_id);});parent.postMessage({type:'molis:side-ready'},location.origin)";child.document.body.append(script);
   })()`);
   await waitFor(`${side}.defaultView.boundEpoch > 0`);
   await evaluate(`(() => {
@@ -66,6 +66,10 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   })()`);
   await waitFor("window.sideForwarded.includes('current-frame')");
   assert.deepEqual(await evaluate("window.sideForwarded"), ['current-frame']);
+  // A command asked under an older epoch runs nothing, and its own view hears so (to ask again under the context it is about
+  // to receive) instead of waiting out its timeout; the forged one hears nothing.
+  await waitFor(`${side}.defaultView.staleAnswers?.length > 0`);
+  assert.deepEqual(await evaluate(`${side}.defaultView.staleAnswers`), ['stale-epoch']);
   const edit = (text: string) => evaluate(`(() => { const doc=${side},field=doc.querySelector('[data-comment-draft]');field.value=${JSON.stringify(text)};field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   await edit("这条普通评论不会启动助理。");
   // PAS-05: composition Enter must neither prevent default nor submit the comment.

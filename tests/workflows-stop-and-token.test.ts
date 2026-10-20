@@ -3,7 +3,7 @@ import test, { mock } from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkflowsActionHandlers, openWorkflowsStore, workflowsActions as w, type WorkflowsActionPorts } from "@molis-ai/molis-work-plugin-workflows";
+import { createWorkflowsActionHandlers, openWorkflowsStore, ownWorkflowsStores, workflowsActions as w, type WorkflowsActionPorts } from "@molis-ai/molis-work-plugin-workflows";
 
 const PROJECT = "project-stop-token";
 const RULE = { capability_id: "functions.published.worth-handling", version: 1, provider_id: "prov-functions", title: "要不要处理" };
@@ -31,7 +31,7 @@ async function setup() {
   };
   const judgment = { capability_id: RULE.capability_id, version: RULE.version, provider: { provider_id: RULE.provider_id }, operation: "command", availability: { available: true }, action: {} };
   const ports = {
-    withStore: async run => run(store), content: () => content, textModel: () => ({ available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" }), assertInput: () => {},
+    ...ownWorkflowsStores(run => run(store)), content: () => content, textModel: () => ({ available: false, code: "actions.connection_required", reason: "还没有可用的文字模型" }),
     actions: () => ({
       discover: async () => [judgment],
       invoke: async () => ({ status: "ok", function_key: "worth-handling", version: 1, data: { choice: state.choice }, confidence: 0.9 }),

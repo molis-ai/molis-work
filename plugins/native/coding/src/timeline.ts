@@ -200,7 +200,7 @@ export function createCodingTimeline(words: TimelineWords) {
       if (footer.dataset.progress !== progress) { footer.dataset.progress = progress; footer.dataset.heard = String(Date.now()); }
       // Only a round waiting on the model can go quiet; a running command or test is allowed to take its time.
       footer.dataset.quietable = String(run.phase === "running" && !run.activity.some(item => item.state === "started" && item.name !== "reasoning"));
-      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
+      const html = `<div class="coding-live"><span data-mw-state="${run.phase === "paused" ? "paused" : run.phase === "awaiting-input" ? "answer" : run.phase === "awaiting-review" ? "approval" : "running"}" aria-hidden="true"></span><span class="coding-live-text">${escape(text)}</span><span class="coding-live-time mw-num" data-num-ghost="59 分 59 秒" data-coding-elapsed>${escape(duration(run.started_at))}</span></div><p class="coding-live-quiet" data-coding-quiet role="status" hidden></p>`;
       if (footer.dataset.html !== text + footer.dataset.state) { footer.innerHTML = html; footer.dataset.html = text + footer.dataset.state; }
       tick(block);
       return;

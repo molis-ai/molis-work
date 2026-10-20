@@ -178,8 +178,9 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
         await completed(result, area.dataset.protocolService, L('授权已完成。'));
       });
       click('[data-copy-callback]', async button => {
-        try { await navigator.clipboard.writeText(button.parentElement.querySelector('code').textContent); button.textContent = L('已复制'); }
-        catch { button.textContent = L('请选中地址复制'); }
+        // Refused: the address is selected, ready to copy by hand.
+        const code = button.parentElement.querySelector('code');
+        if (await window.molisCopy?.(button, code.textContent, { done: L('已复制'), failed: L('复制失败') }) === false) { const range = document.createRange(); range.selectNodeContents(code); getSelection().removeAllRanges(); getSelection().addRange(range); }
       });
       box.querySelectorAll('[data-oauth-callback], [data-mcp-callback]').forEach(node => {
         const kind = node.hasAttribute('data-mcp-callback') ? 'mcp' : 'oauth';

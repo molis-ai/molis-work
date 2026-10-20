@@ -671,13 +671,18 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1129841],
   // The outcome slot's +442 B (#789 with #803) is spent; main's budget has since fallen below its start.
   ["/assets/molis-work-workbench.js", 1130033],
-  // PMAT (#839) and W5-02 P0 (#826) have spent these starts.
-  ["/assets/molis-work-workbench.js", 1128644],
-  ["/assets/molis-work-workbench.js", 1129525],
-  ["/assets/molis-work-workbench.js", 1129640],
-  // Proposal confirmation (#801) and the project-knowledge stylesheets (#839) spent these starts.
+  // The project-knowledge allowances (#839) are spent.
+  ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
+  // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
+  ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
+  ["/assets/molis-work-arrival.css", 698467],
+  // Main has also spent the W5-02 P0 and proposal starts.
+  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.js", 1129640],
   ["/assets/molis-work-workbench.js", 1129470],
-  ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
+  // The visual branch's older stylesheet starts are retired into the exact current predecessor.
+  ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
+  // The after-write checker settings allowance (#805) is spent in the predecessor.
+  ["/assets/molis-work-workbench.js", 1129726],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -690,30 +695,36 @@ for (const [asset, old] of [
   });
 }
 
-// PA-43: checker settings and reversible arguments need one reviewed 5,222 B increase.
-// From exactly main's baseline to the measured size. One byte more, another
-// asset, or growth from the new baseline still fails.
-test("PA-43 after-write checker settings has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1129726, 1134948] } as const;
+// specs/visual-ui-experience (2026-10-19): the plugin switch, overflow fade, copy, disclosure and live numbers grow these
+// assets once, from exactly main's budget to the measured size. One byte more, another asset, or growth from the new
+// baseline still fails.
+test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = {
+    "/assets/molis-work-workbench.js": [1134920, 1138184],
+    "/assets/molis-work-workbench.css": [1603130, 1604761],
+    "/assets/molis-work-settings.css": [988929, 990556],
+    "/assets/molis-work-arrival.css": [698519, 700146],
+    "/assets/molis-work-pages-editor.js": [706933, 707336],
+  } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("write-checkers-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "write-checkers-change");
+  branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "vux-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "write-checkers-base").code, 0);
-  assert.equal(gate("--base", "write-checkers-base").code, 0);
+  assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  assert.equal(gate("--base", "vux-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "write-checkers-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "vux-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "write-checkers-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "write-checkers-base").code, 0);
-  commit("freeze the measured PA-43 size"); git("branch", "-f", "write-checkers-frozen");
+  assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  commit("freeze the measured copy and disclosure size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "write-checkers-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "write-checkers-frozen").code, 1);
+    assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "vux-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

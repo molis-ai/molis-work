@@ -20,7 +20,6 @@ import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
-import { workflowsActionProvider } from "./workflows-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
@@ -180,7 +179,6 @@ export class MolisWorkLocalHost {
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(shelfProjectActionProvider(reference.project_id, options.homeDirectory, this.actionClient(reference)));
-            if (options.homeDirectory) add(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {
                 new LocalSqliteJournal(store.db).appendEvent({ eventId: `event-${randomUUID()}`, projectId: reference.project_id, actorId: caller.actor_id,

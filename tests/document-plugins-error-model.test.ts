@@ -9,13 +9,8 @@ import test from "node:test";
 import ts from "typescript";
 import { parseImports } from "../scripts/test-imports/parse.mjs";
 
-import {
-  handleWorkflowsNativePluginHttp,
-  MolisWorkLocalHost,
-  molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { datasetActions, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -23,10 +18,9 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_ACTION_PERMISSIONS, openPptStore, pptActions } from "@molis-ai/molis-work-plugin-ppt";
-import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
-import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.js";
+import type { NativeHttpAnswer } from "./fixtures/native-http.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -73,39 +67,6 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 400, not_ready: 400, missing: 400, uncertain: 400, ambiguous: 400, invalid_result: 400 } },
 };
 
-/**
- * A loopback server whose route handler fails with whatever the test sets; the Host's real edge for `owner` answers. Form, Dataset, PPT and Lingguang run on the
- * Plugin Runtime (W4-04/W5-01): each of their routes is the SDK's `bindPluginActionRoute`, which answers a failure with `actionErrorResponse`, so
- * that is what `fail` asks for them; its round trip through the Host's Runtime edge (statuses, body limits) is in the real-route tests below.
- */
-async function failingEdge(owner: Owner) {
-  const failure: { current: unknown } = { current: undefined };
-  const raise = async (): Promise<never> => { throw failure.current; };
-  const failingActions: BoundActionClient = { discover: async () => [], invoke: raise };
-  const server = await serveNativeHttp((request, response, url) => {
-    switch (owner) {
-      case "pages": return false;
-      case "ppt": return false;
-      case "dataset": return false;
-      case "form": return false;
-      case "lingguang": return false;
-      case "workflows": return handleWorkflowsNativePluginHttp(request, response, url, { actions: failingActions });
-    }
-  });
-  return {
-    /** What the next request's route fails with. */
-    failWith(error: unknown): void { failure.current = error; },
-    /** Create (POST /api/<owner>) with a small valid body: the edge reads it, the route runs, and the route fails with `error`. */
-    async fail(error: unknown): Promise<NativeHttpAnswer> {
-      if (owner === "pages" || owner === "dataset" || owner === "form" || owner === "lingguang" || owner === "ppt") { const answer = actionErrorResponse(error); return { status: answer.status, body: { ...answer.body } }; }
-      failure.current = error; return await server.post(`/api/${owner}`, "{}");
-    },
-    post: server.post,
-    postText: server.postText,
-    close: server.close,
-  };
-}
-
 test("each document plugin declares its codes, and every code answers the status its deleted mapper gave it", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
@@ -113,15 +74,12 @@ test("each document plugin declares its codes, and every code answers the status
     const declared = module[spec.declarations] as Record<string, (message: string, details?: Record<string, unknown>) => ActionError> | undefined;
     assert.ok(declared, `${spec.pkg} exports ${spec.declarations}`);
     assert.deepEqual(Object.keys(declared).sort(), Object.keys(spec.status).sort(), `${spec.declarations} declares exactly the codes ${owner} raises`);
-    const edge = await failingEdge(owner);
-    try {
-      for (const [reason, status] of Object.entries(spec.status)) {
-        const error = declared[reason]!(`${owner} ${reason}`);
-        assert.ok(error instanceof ActionError && error.code === `${owner}.${reason}`, `${spec.declarations}.${reason} raises ${owner}.${reason}`);
-        const answer = await edge.fail(error);
-        assert.deepEqual([answer.status, answer.body], [status, { error: `${owner} ${reason}`, code: `${owner}.${reason}` }], `${owner}.${reason}`);
-      }
-    } finally { await edge.close(); }
+    for (const [reason, status] of Object.entries(spec.status)) {
+      const error = declared[reason]!(`${owner} ${reason}`);
+      assert.ok(error instanceof ActionError && error.code === `${owner}.${reason}`, `${spec.declarations}.${reason} raises ${owner}.${reason}`);
+      const answer = actionErrorResponse(error);
+      assert.deepEqual([answer.status, answer.body], [status, { error: `${owner} ${reason}`, code: `${owner}.${reason}` }], `${owner}.${reason}`);
+    }
   }
 });
 
@@ -132,51 +90,46 @@ const PLATFORM_STATUS: Readonly<Record<string, number>> = {
   "actions.connection_required": 503, "actions.unredeemed": 503,
 };
 
-test("a platform code answers one status at all six document plugins, with the one body { error, code }", async () => {
+test("a platform code answers one status at all six document plugins, with the one body { error, code }", () => {
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
-    try {
-      for (const [code, status] of Object.entries(PLATFORM_STATUS)) {
-        const answer = await edge.fail(new ActionError(code, "测试消息"));
-        assert.deepEqual([owner, code, answer.status, answer.body], [owner, code, status, { error: "测试消息", code }]);
-      }
-    } finally { await edge.close(); }
+    for (const [code, status] of Object.entries(PLATFORM_STATUS)) {
+      const answer = actionErrorResponse(new ActionError(code, "测试消息"));
+      assert.deepEqual([owner, code, answer.status, answer.body], [owner, code, status, { error: "测试消息", code }]);
+    }
   }
 });
 
-test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", async () => {
+test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", () => {
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
-    try {
-      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
-      assert.deepEqual(await edge.fail(Object.assign(new Error("磁盘上没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "磁盘上没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
-      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
-    } finally { await edge.close(); }
+    assert.deepEqual(actionErrorResponse(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
+    assert.deepEqual(actionErrorResponse(Object.assign(new Error("磁盘上没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "磁盘上没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
+    assert.deepEqual(actionErrorResponse("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
   }
 });
 
-// The body limit of each edge (native-plugin-http.ts reads 1,000,000 bytes unless the edge says more): Lingguang reads files, up to 36 MB.
+// The declared body limit of each Runtime edge; Lingguang accepts files up to 36 MB.
 const BODY_LIMIT: Readonly<Record<Owner, number>> = { pages: 1_000_000, ppt: 1_000_000, dataset: 1_000_000, form: 1_000_000, lingguang: 36_000_000, workflows: 400_000 };
 
-test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async () => {
-  // Form's Runtime edge: "real routes: Form's Runtime edge reads ..." below.
-  for (const owner of OWNERS.filter(owner => owner !== "pages" && owner !== "dataset" && owner !== "form" && owner !== "lingguang" && owner !== "ppt")) {
-    const edge = await failingEdge(owner);
-    try {
-      const large = await edge.post(`/api/${owner}`, JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
-      assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
-      const broken = await edge.post(`/api/${owner}`, "{not json");
-      assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
-    } finally { await edge.close(); }
+test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async t => {
+  const factories = { pages: pagesRoutes, ppt: pptRoutes, dataset: datasetRoutes, form: formRoutes, workflows: workflowsRoutes };
+  for (const owner of OWNERS) {
+    const raw = owner === "lingguang" ? await (async () => {
+      const edge = await serveLingguang(t);
+      return async (body: string): Promise<NativeHttpAnswer> => {
+        const response = await edge.rawRequest(edge.path, { method: "POST", raw: body });
+        return { status: response.status, body: await response.json() as Record<string, unknown> };
+      };
+    })() : await (async () => { const edge = await factories[owner](t); return (body: string) => edge.raw("", body); })();
+    const large = await raw(JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
+    assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+    const broken = await raw("{not json");
+    assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
   }
 });
 
-test("owner details travel in details and nowhere else", async () => {
-  const edge = await failingEdge("pages");
-  try {
-    const answer = await edge.fail(new ActionError("actions.forbidden", "不可以", { details: { reason: "stale", version: 3 } }));
-    assert.deepEqual(answer, { status: 403, body: { error: "不可以", code: "actions.forbidden", details: { reason: "stale", version: 3 } } });
-  } finally { await edge.close(); }
+test("owner details travel in details and nowhere else", () => {
+  const answer = actionErrorResponse(new ActionError("actions.forbidden", "不可以", { details: { reason: "stale", version: 3 } }));
+  assert.deepEqual(answer, { status: 403, body: { error: "不可以", code: "actions.forbidden", details: { reason: "stale", version: 3 } } });
 });
 
 test("RAC-31 RAC-33 Lingguang Runtime stream keeps failure code/details; rejected bodies never open a stream", async t => {
@@ -208,19 +161,7 @@ function lines(text: string): Array<Record<string, unknown>> {
   return text.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
 }
 
-// Real routes, real stores, the Host's real edges: the status and the code of "not there" and "changed under you" are the same as before the slice.
-async function documentRoutes(t: test.TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "document-error-model-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  const client = host.actionClient(reference);
-  const bound = (permissions: readonly string[]) => bindActionClient(client, () => ({ actor_id: "owner", project_id: "a", audience: "user", permissions }));
-  const server = await serveNativeHttp(async (request, response, url) =>
-    await handleWorkflowsNativePluginHttp(request, response, url, { actions: bound(WORKFLOWS_ACTION_PERMISSIONS) }));
-  t.after(() => server.close());
-  return server;
-}
+// Real routes, real stores: every document plugin now uses the Host Runtime edge.
 
 const MISSING = "00000000-0000-4000-8000-000000000000";
 
@@ -243,6 +184,19 @@ async function datasetRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
   const project = await home.createProject("Dataset error model");
   const base = `/projects/${project.project_id}/api/plugins/io.molis.work.dataset/datasets`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
+/** Workflows on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.native.workflows/workflows`. */
+async function workflowsRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Workflows error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.native.workflows/workflows`;
   const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
     const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
       "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
@@ -278,11 +232,8 @@ async function pagesRoutes(t: test.TestContext) {
 }
 
 test("real routes: a record that is not there is 404 <owner>.not_found at Pages, PPT, Dataset, Form and Workflows", async t => {
-  const server = await documentRoutes(t);
-  for (const owner of ["workflows"] as const) {
-    const answer = await server.post(`/api/${owner}/${MISSING}/delete`, "{}");
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 404, `${owner}.not_found`], JSON.stringify(answer.body));
-  }
+  const workflows = await (await workflowsRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([workflows.status, workflows.body.code], [404, "workflows.not_found"], JSON.stringify(workflows.body));
   const page = await (await pagesRoutes(t)).post(`/${MISSING}/delete`, {});
   assert.deepEqual([page.status, page.body.code], [404, "pages.not_found"], JSON.stringify(page.body));
   const ppt = await (await pptRoutes(t)).post(`/${MISSING}/delete`, {});
@@ -297,7 +248,6 @@ test("real routes: a record that is not there is 404 <owner>.not_found at Pages,
 });
 
 test("real routes: a change made on a stale version is 409 <owner>.conflict at Pages, PPT, Dataset, Form and Workflows", async t => {
-  const server = await documentRoutes(t);
   const datasets = await datasetRoutes(t);
   const forms = await formRoutes(t);
   const created = await forms.post("", { title: "原稿" });
@@ -323,10 +273,11 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   const deck = (createdDeck.body as { presentation: { id: string; version: number } }).presentation;
   const staleDeck = await decks.post(`/${deck.id}`, { title: "改过", expected_version: deck.version + 40 });
   assert.deepEqual([staleDeck.status, staleDeck.body.code], [409, "ppt.conflict"], JSON.stringify(staleDeck.body));
-  const workflow = await server.post("/api/workflows", JSON.stringify({ title: "流程" }));
+  const flows = await workflowsRoutes(t);
+  const workflow = await flows.post("", { title: "流程" });
   assert.equal(workflow.status, 200, JSON.stringify(workflow.body));
   const saved = workflow.body.workflow as { workflow_id: string; revision: number };
-  const answer = await server.post(`/api/workflows/${saved.workflow_id}`, JSON.stringify({ title: "改过", revision: saved.revision + 40 }));
+  const answer = await flows.post(`/${saved.workflow_id}`, { title: "改过", revision: saved.revision + 40 });
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
@@ -335,7 +286,7 @@ test("real routes: a publish in an environment with no publisher is refused by t
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
   const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
   // Forms' routes are its Runtime ones now, and that Runtime always gives it the 成果 service: with no publisher its action is refused by the
-  // same availability object, and its route answers that with the SDK's `actionErrorResponse` (failingEdge above).
+  // same availability object, and its route answers that with the SDK's `actionErrorResponse`.
   const formPorts = formTestPorts(form, "a");
   t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
   const pagesPorts = pagesTestPorts(pages, "a");
@@ -366,6 +317,17 @@ test("W5-01-PPT-02: real routes: PPT's Runtime edge reads up to the 1 MB its rou
   const broken = await decks.raw("", "{not json");
   assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
   const created = await decks.post("", { title: "边界" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+});
+
+test("W5-01-WORKFLOWS-02: real routes: Workflows' Runtime edge reads up to the 400,000 bytes its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const flows = await workflowsRoutes(t);
+  const large = await flows.raw("", JSON.stringify({ title: "大", padding: " ".repeat(400_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await flows.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  // Between the Runtime's 256,000 default and the route's 400,000 a request still comes in, and the route passes on only the fields it names.
+  const created = await flows.post("", { title: "边界", padding: " ".repeat(300_000) });
   assert.equal(created.status, 200, JSON.stringify(created.body));
 });
 

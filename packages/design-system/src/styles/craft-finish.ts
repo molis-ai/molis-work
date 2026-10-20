@@ -91,7 +91,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) 0 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
     /* Split panes: the focused one carries a copper hint so typing lands where you expect. */
-    ${SHELL} .tab-workspace-panes:has(> .tab-pane + .tab-pane) > .tab-pane.is-focused {
+    ${SHELL} .tab-workspace[data-split] .tab-workspace-panes > .tab-pane.is-focused {
       box-shadow: var(--sheet-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
     }
     /* The directory sits on the desk; one hair of desk separates it from the sheet. */
@@ -314,7 +314,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
   ${SHELL} .account-global-menu { position: relative; flex: none; }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-menu:not([open]):has([data-market-update-count]:not([hidden])) > .account-global-trigger::after {
+  ${SHELL} .account-global-menu:not([open])[data-market-updates] > .account-global-trigger::after {
     content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   ${SHELL} .account-global-popover {
@@ -506,7 +506,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-picker-all { display: none; }
   ${SHELL} .plugin-picker-all svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} .bar-start .plugin-picker-trigger { height: var(--dock-btn, 38px); position: relative; }
-  ${SHELL} .plugin-picker:has([data-market-update-count]:not([hidden])) > .plugin-picker-trigger::after {
+  ${SHELL} .plugin-picker[data-market-updates] > .plugin-picker-trigger::after {
     content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   /* The head: search, and beside it the two ways to get more plugins — the market and the studio — as buttons, not rows among
@@ -827,7 +827,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-code-copy[data-done] { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
@@ -903,9 +903,9 @@ const CRAFT_BASE_STYLES = `
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   ${ASSIST} .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-done]) { opacity: 1; }
+  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
   ${ASSIST} .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-copy[data-done] { color: var(--hue-green-fill); }
+  ${ASSIST} .assistant-copy[data-copy=done] { color: var(--hue-green-fill); }
   @media (hover: none) { ${ASSIST} .assistant-copy { opacity: 1; } }
   /* A later round opens with when it began. */
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
@@ -1012,10 +1012,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .bar-center:has(>.assistant-next-row:not([hidden])){--next-row:48px}
   /* What the next Send carries, above the next steps: a chip each; the object on show, not added, is dashed with + to add it. */
   ${ASSIST} .assistant-context-strip{position:absolute;z-index:55;inset:auto auto calc(100% + 6px + var(--next-row,0px)) 0;max-width:100%}
-  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;scroll-padding-inline:28px}
-  ${ASSIST} .assistant-strip-row[data-more=end]{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-strip-row[data-more=start]{mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-strip-row[data-more=both]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
+  ${ASSIST} .assistant-strip-row{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}

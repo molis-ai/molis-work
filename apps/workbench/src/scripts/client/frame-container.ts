@@ -260,7 +260,6 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       fragment.append(tab);
     });
     tabsEl.replaceChildren(fragment);
-    tabsEl.querySelector("[aria-current]")?.scrollIntoView({ inline: "nearest", block: "nearest" });
   };
   window.addEventListener("storage", (event) => {
     if (!event.key?.startsWith(storageKey() + ":goal:") || !event.newValue) return;

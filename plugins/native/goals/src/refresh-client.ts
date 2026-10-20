@@ -42,6 +42,14 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Called only after the Host rechecks selection and interaction guards.
       const apply = (refreshShellLinks) => {
         const createDraft = dialog.open ? readCreateDraft() : null;
+        // Keep only handwritten reasons for proposals still present, separately in the list and Goal detail.
+        // Server checks, item ids and button states always come from the new projection.
+        for (const [current, next] of [[treeScroll, nextTree], [documentPane, nextDocument]]) {
+          for (const form of current?.querySelectorAll("[data-goal-tree-decision-form][data-live-dirty=true]") || []) {
+            const fresh = next.querySelector('[data-live-form="' + form.dataset.liveForm + '"]');
+            if (fresh) { fresh.elements.reason.textContent = form.elements.reason.value; fresh.dataset.liveDirty = "true"; }
+          }
+        }
         documentPane.classList.add("is-syncing");
         if (treeScroll) treeScroll.innerHTML = nextTree.innerHTML;
         const currentSurface = documentPane.querySelector('[data-work-surface="goal"]');

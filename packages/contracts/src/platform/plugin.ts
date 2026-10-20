@@ -34,7 +34,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plu
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -80,9 +80,21 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/**
+ * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
+ * Both calls run as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
+ * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-43).
+ */
+export interface PluginActionDirectory {
+  discover(): Promise<readonly import("./actions.js").ActionView[]>;
+  invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+}
+
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+  /** Present only when the Manifest declares `actions:delegate`; every call also needs the installation's grant. */
+  readonly directory?: PluginActionDirectory;
 }
 
 export interface PluginHostServices {
@@ -101,7 +113,7 @@ export interface PluginHostServices {
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
-  /** Host material readers, independently declared as materials:read and materials:fetch. */
+  /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;

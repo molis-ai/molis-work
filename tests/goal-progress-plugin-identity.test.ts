@@ -4,14 +4,17 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { openTestHome } from "./fixtures/test-home.js";
 
-/** Formal Goal writes keep caller identity; a claimed builtin object has no Host membership. */
-test("W3-07-8-02 Goal progress refuses a forged builtin identity and keeps formal receipts scoped to their actual actor", async () => {
+/** Formal Goal writes keep caller identity; a plugin caller the Host did not issue is refused at the gateway. */
+test("W3-07-8-02 Goal progress refuses a plugin caller the Host did not issue and keeps formal receipts scoped to their actual actor", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-progress-plugin-identity-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Identity", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
@@ -29,8 +32,8 @@ test("W3-07-8-02 Goal progress refuses a forged builtin identity and keeps forma
     const plugin = { ...caller, audience: "plugin" as const, plugin_install_id: "install-1", host_plugin: forged };
     for (const definition of [goalPluginActions.contract, goalPluginActions.state, goalPluginActions.progress, goalPluginActions.receipt]) {
       const input = definition.capability_id === goalPluginActions.progress.capability_id ? progress : definition.capability_id === goalPluginActions.receipt.capability_id ? { goal_id, idempotency_key: progress.idempotency_key } : { goal_id };
-      await assert.rejects(host.actionClient(ref).invoke(plugin, definition, input), { code: "goals.builtin_plugin_required" });
-      await assert.rejects(host.actionClient(ref).invoke({ ...plugin, host_plugin: undefined }, definition, input), { code: "goals.builtin_plugin_required" });
+      await assert.rejects(host.actionClient(ref).invoke(plugin, definition, input), { code: "host.plugin_caller_invalid" });
+      await assert.rejects(host.actionClient(ref).invoke({ ...plugin, host_plugin: undefined }, definition, input), { code: "host.plugin_caller_invalid" });
     }
     assert.equal((await person.invoke(goalsActions.state, { goal_id })).goal_event_cursor, before, "refusals append no Goal event");
     const recorded = await person.invoke(goalPluginActions.progress, progress);
@@ -42,30 +45,35 @@ test("W3-07-8-02 Goal progress refuses a forged builtin identity and keeps forma
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("a plugin reaches an action through the typed port as the plugin audience, so an action not offered to plugins stays out of its reach", async () => {
-  const settled: Array<[string, boolean, string | undefined, true | undefined]> = [];
-  const actionSettled: NonNullable<LocalHostOptions<object>["actionSettled"]> = (_caller, action, outcome) => {
-    settled.push([action.title, outcome.ok, outcome.ok ? undefined : outcome.code, outcome.ok ? undefined : outcome.refused]);
-  };
-  const host = new LocalHost<object>({ runtimeFactory: { open: () => ({}), close: () => {} }, actionSettled });
-  const reference = { project_id: "p1", storage_key: "memory:p1" };
+test("a plugin reaches an action through the typed port as the plugin audience, so an action not offered to plugins stays out of its reach", async t => {
+  const plugin = callerPlugin("typedport", "project");
+  const home = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [plugin.definition] } } });
+  const { host } = home, { reference, project_id } = await home.createProject("Typed port");
+  await host.withProject(reference, () => undefined);
+  const probe = registerProbe(host.actionRegistry(reference), "project");
+  await startProjectPlugins(host, reference);
   let deletes = 0;
   const remove = { capability_id: "fixture.items.delete", version: 1, operation: "command" as const, action: { title: "Delete", description: "Delete an item permanently", kind: "operation" as const,
     scope: "project" as const, audiences: ["user" as const, "agent" as const], permissions: [], subject_kinds: [], input_schema: { type: "object" }, output_schema: { type: "object" } } };
   const offered = { ...remove, capability_id: "fixture.items.list", action: { ...remove.action, title: "List", kind: "query" as const, audiences: ["user" as const, "plugin" as const] }, operation: "query" as const };
   host.actionRegistry(reference).registerProvider({ provider: { provider_id: "fixture", title: "Fixture", kind: "system" }, definitions: [remove, offered],
     handlers: [{ capability_id: remove.capability_id, version: 1, handle: () => { deletes++; return { ok: true }; } }, { capability_id: offered.capability_id, version: 1, handle: () => ({ items: [] }) }] });
-  const caller: HostPluginCaller = { plugin_id: "x", install_id: "install-x", actor_id: "plugin-x", project_id: "p1", declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} };
-  const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", plugin_caller: caller, before_effect: async () => {} };
-  try {
-    await assert.rejects(host.actionClient(reference).invoke({ actor_id: "plugin-x", project_id: "p1", audience: "plugin", permissions: [] }, remove, {}), { code: "actions.forbidden" });
-    await assert.rejects(host.client(reference).invoke(remove as never, {}, asPlugin), { code: "actions.forbidden" });
-    assert.equal(deletes, 0);
-    assert.deepEqual(settled, [["Delete", false, "actions.forbidden", true], ["Delete", false, "actions.forbidden", true]],
-      "each refusal is settled once, by the action service, and never entered the handler");
-    assert.deepEqual(await host.client(reference).invoke(offered as never, {}, asPlugin), { items: [] }, "an action offered to plugins is still reachable");
-    assert.deepEqual(await host.client(reference).invoke(remove as never, {}), { ok: true }, "the Host's own typed callers are unchanged");
-    assert.equal(deletes, 1);
-    assert.deepEqual(settled.slice(2), [["List", true, undefined, undefined], ["Delete", true, undefined, undefined]]);
-  } finally { await host.close(); }
+  const issued = await issuedCaller(probe, plugin, project_id);
+  const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", plugin_caller: issued, before_effect: async () => {} };
+  // A command leaves one row in the Home's call log however it ended; a read leaves one only when it failed.
+  const settled = async (run: () => Promise<unknown>) => {
+    const callId = newCallId();
+    await withCallId(callId, run);
+    return host.callLog!.find(callId).map(row => [row.title, row.ok, row.code, row.refused]);
+  };
+  const refused = (run: () => Promise<unknown>) => () => assert.rejects(run(), { code: "actions.forbidden" });
+  assert.deepEqual(await settled(refused(() => host.actionClient(reference).invoke(callAs(issued, []), remove, {}))), [["Delete", false, "actions.forbidden", true]],
+    "the action client settles the refusal once, by the action service, and never enters the handler");
+  assert.deepEqual(await settled(refused(() => host.client(reference).invoke(remove as never, {}, asPlugin))), [["Delete", false, "actions.forbidden", true]],
+    "so does the typed port");
+  assert.equal(deletes, 0);
+  assert.deepEqual(await host.client(reference).invoke(offered as never, {}, asPlugin), { items: [] }, "an action offered to plugins is still reachable");
+  assert.deepEqual(await settled(async () => assert.deepEqual(await host.client(reference).invoke(remove as never, {}), { ok: true })), [["Delete", true, undefined, undefined]],
+    "the Host's own typed callers are unchanged");
+  assert.equal(deletes, 1);
 });

@@ -3,6 +3,7 @@ import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, Plugi
 import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
+import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
@@ -27,7 +28,6 @@ export class HomePluginExecutor implements PluginExecutor {
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
-    qualifyCaller(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
     record(installId: string): PluginInstanceRecord | null;
@@ -72,9 +72,9 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
-      if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
+      if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
       const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
       const owned = this.options.ownerFiles(definition);
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
         { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;
@@ -82,11 +82,11 @@ export class HomePluginExecutor implements PluginExecutor {
       withdrawAgentDefinitions = registerPluginAgentDefinitions(home, definition, context.install_id);
       const caller = Object.freeze({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: this.options.actorId, project_id: null,
         declaration: structuredClone({ manifest, agent_prompts: definition.agent_prompts, agent_skills: definition.agent_skills }), assertActive });
-      withdrawCaller = this.options.qualifyCaller(definition, caller);
+      withdrawCaller = issuePluginCaller(caller, heldPermissions(manifest, context.grants));
       const authorized = { ...context, requireGrant: authorize };
       const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
       const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
-      const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
+      const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;

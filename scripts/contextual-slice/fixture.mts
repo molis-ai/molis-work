@@ -89,6 +89,9 @@ export const PROVIDERS = {
 /** Stand-in declarations: the contract is real, the providers register them in P1/P2 (spec §10). */
 export const STANDIN_CHOICES: Record<Exclude<keyof typeof PROVIDERS, "pages">, readonly FragmentOfferChoice[]> = {
   goals: [
+    // Online this is no longer a fragment choice: since W4-2 Goals declares it as a creation entry (`goals.tree.submit` with `intake`),
+    // which the rules never push and the judgment places only when it names it (context-program §21.10, D-1 and D-4). The stand-in stays
+    // because the offline scripts rank fragment choices only and `evaluate-memory.mts` and the recorded replays are keyed by it.
     { offer_id: "breakdown", title: "拆成目标步骤", intent: "organize", apply: "record", hint: "把一段计划拆成 Goal 下面可以跟踪的子目标和步骤", action: { capability_id: "goals.tree.submit", version: 1 }, granularities: ["range", "block", "blocks"] },
     { offer_id: "relate", title: "关联到目标", intent: "relate", apply: "record", hint: "把这段内容作为依据或计划关联到一个 Goal", action: { capability_id: "goals.relations.add", version: 1 }, granularities: ["range", "block", "blocks", "objects"] },
     { offer_id: "dependencies", title: "找出依赖", intent: "relate", apply: "result", hint: "找出计划里各步骤之间的先后依赖和卡点", action: { capability_id: "goals.planning.graph.check", version: 1 }, granularities: ["range", "block", "blocks"], roles: ["task", "list", "paragraph"] },

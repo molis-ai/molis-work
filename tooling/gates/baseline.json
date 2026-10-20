@@ -19,7 +19,7 @@
     "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
     "function apps/local-host/src/character-import-discovery.ts#discover": 176,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
-    "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
+    "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 538,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
       "lines": 553,
@@ -112,7 +112,7 @@
       "methods": 30
     },
     "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
-      "lines": 332,
+      "lines": 328,
       "methods": 3
     },
     "function modules/goals/src/guidance-commands.ts#update": 177,

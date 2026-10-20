@@ -178,3 +178,12 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 - 相关用例 42 个文件全过。范围是：外键改到 `project_root` 的用例、三个插件和宿主装配、账本、Store 版本、发布核对。其中 Schedule 的两个恢复用例会开浏览器。
 - API 快照和动作合同快照都与源码一致，不用刷新。
 - 共享核心的全量和 ③ 的 S8 同一批跑。
+
+**S8（2026-10-20，分支 `feat/goals-s8-project-database`，叠在 L1b 上，已合并 `origin/feat/project-library-l1b` 的 0b60c3a6a）**
+
+- 新写和改写的用例全过：`tests/goals-project-database.test.ts` 4 条（PLIB-12 三条、PLIB-13 一条），`tests/goals-project-database-refusal.test.ts` 5 条（PLIB-14：一条正向，发布者、版本、两种形状不符各一条拒绝），`tests/project-maintenance-v8.test.ts` 6 条（四个插件的账本行、`boards` 改建、与新建的 v8 库逐表相同、再打开不加账本），`tests/project-database-baseline.test.ts` 6 条，`tests/goals-board-actions.test.ts` 2 条、`tests/goals-guidance-actions.test.ts`、`tests/cli-goals-actions.test.ts`、`tests/security-invariants-management.test.ts`（PLIB-15）。
+- 相关用例 175 个文件按 `node scripts/affected-tests.mjs` 选出（浏览器用例按规则不跑）；合并 L1b 之后，S8 自己的 37 个文件在合并后的树上重跑全过。一批并发跑里有几个文件因机器负载超时，单独重跑通过；两个超时的（`tests/images-mcp.test.ts`、`tests/resident-management-actions.test.ts`）单独跑仍超时，探针量到子进程冷启动要 10 到 21 秒，把超时放宽后的临时副本全过，临时副本已删。
+- `tests/npm-package.test.ts` 在这台机器上因为没有 `npm` 而 `spawn npm ENOENT`，与本次改动无关。
+- 动作合同快照刷新：`goals.board.initialize`、`goals.snapshot.read`、`goals.contract.read`、`goals.collection.read` 各由 v1 升 v2；`feed.goals.context@1` 的依赖声明一格（固定到 `goals.contract.read` v2）变了，它的输入输出不变，仓库里没有固定它的引用。公开 API 快照刷新了 `contracts/modules/goals` 与 `contracts/modules/goal-actions` 两份。
+- 门禁：`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`、`node scripts/verify-release-versions.mjs` 通过；`node scripts/check-spec-coverage.mjs` 只报 PLIB-06、07、08、10、11（L2 到 L4 的行）还没有证明。
+

@@ -1,9 +1,13 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionService } from "@molis-ai/molis-work-kernel";
+import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createFilesPlugin,
+  filesActions,
   CODING_FILE_CHANGED_EVENT,
   GIT_FILE_CHANGED_EVENT,
   entryAt,
@@ -170,4 +174,50 @@ test("Files 订阅的事件 id 和发布方导出的是同一个", () => {
   const subscribed = (filesManifest.events?.subscribes ?? []).map((entry) => entry.event_type_id);
   assert.equal(subscribed.includes(GIT_FILE_CHANGED_EVENT), true);
   assert.equal(subscribed.includes(CODING_FILE_CHANGED_EVENT), true);
+});
+
+
+test("S18-FILES-RETRY a refused workspace transition retries persistence and every output before remembering success", async () => {
+  for (const failure of ["save", "delete", "invalidate"] as const) {
+    const service = new ActionService(), stored = new Map([["last-workspace", "old"]]), invalidated: string[] = [];
+    const selected = failure === "delete" ? null : { workspace_id: "next", display_name: "Next" };
+    const caller = { actor_id: "owner", project_id: "files-retry", audience: "user" as const, permissions: filesActions.state.action.permissions };
+    const actions = bindActionClient(service, () => caller);
+    let refuse = true, persistenceCalls = 0;
+    const rejected = () => { throw new ActionError("actions.forbidden", "transition was refused"); };
+    const context: PluginStartContext = { install_id: "files-retry", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+      deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: caller.project_id, actor_id: caller.actor_id,
+      requireGrant: () => {}, services: {
+        ui: { register: () => {}, unregister: () => {} },
+        actions: { ...actions, invokeQuery: async () => assert.fail("the state action does not delegate queries") },
+        capabilities: { availability: () => ({ available: true }), invoke: async <Input, Output>(_capability: unknown, _input: Input) => selected as Output },
+        storage: { get: key => stored.get(key) ?? null, set: (key, value) => {
+          persistenceCalls++; if (refuse && failure === "save") rejected(); stored.set(key, value);
+        }, delete: key => { persistenceCalls++; if (refuse && failure === "delete") rejected(); return stored.delete(key); } },
+        outputs: { publish: () => assert.fail("state does not publish"), select: () => assert.fail("state does not select"), reference: () => null,
+          retain: () => assert.fail("state does not retain"), read: () => null, invalidate: port => {
+            if (refuse && failure === "invalidate" && port === "before") rejected(); invalidated.push(port);
+          } },
+      } };
+    const contribution = await createFilesPlugin().start(context);
+    const handler = contribution.actions!.find(item => item.capability_id === filesActions.state.capability_id)!;
+    const unregister = service.registerProvider({ provider: { provider_id: context.install_id, plugin_install_id: context.install_id,
+      plugin_id: context.plugin_id, title: "Files", kind: "plugin", project_id: caller.project_id }, definitions: [filesActions.state], handlers: [handler] });
+    try {
+      await assert.rejects(actions.invoke(filesActions.state, {}), { code: "actions.forbidden" }, failure);
+      assert.equal(stored.get("last-workspace"), failure === "invalidate" ? "next" : "old", `${failure}: only completed persistence remains`);
+      assert.deepEqual(invalidated, failure === "invalidate" ? ["files"] : [], `${failure}: only completed invalidations remain`);
+      refuse = false; invalidated.length = 0;
+      const retry = () => actions.invoke(filesActions.state, {});
+      if (selected) assert.equal((await retry()).workspace.workspace_id, "next");
+      else await assert.rejects(retry(), { code: "files.invalid" });
+      assert.equal(persistenceCalls, 2, `${failure}: the refused transition is retried`);
+      assert.equal(stored.get("last-workspace") ?? null, selected?.workspace_id ?? null);
+      assert.deepEqual(invalidated, ["files", "before", "after", "selection"], `${failure}: retry completes all outputs`);
+      invalidated.length = 0;
+      if (selected) await retry(); else await assert.rejects(retry(), { code: "files.invalid" });
+      assert.equal(persistenceCalls, 2, `${failure}: a completed transition is remembered`);
+      assert.deepEqual(invalidated, []);
+    } finally { unregister(); }
+  }
 });

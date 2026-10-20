@@ -701,7 +701,7 @@ for (const [asset, old] of [
 // baseline still fails.
 test("VUX-26 the Coding scroll-owner allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134508, 1134763],
+    "/assets/molis-work-workbench.js": [1134508, 1134824],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

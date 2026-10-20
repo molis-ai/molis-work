@@ -3,7 +3,8 @@ import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDista
 /**
  * One owner for a growing conversation's scroll (specs/visual-ui-experience §scroll-ownership, VUX-26):
  * `window.molisFollow(scroller, { onChange })` keeps an explicit `following | detached` state on `data-follow`. The same
- * element always gets the same owner, so another script on the page (restoring a place) talks to the one that follows.
+ * element always gets the same owner, so another script on the page (restoring a place) talks to the one that follows;
+ * only the first caller's `onChange` is kept, a later caller's is not called.
  *
  * - Only the person changes it by scrolling: wheel or keys towards the start, a touch or scrollbar drag that leaves the
  *   end, or selecting text inside detach it; coming back to the end themselves follows again. A scroll the page made
@@ -29,7 +30,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   const known = owners.get(scroller);
   if (known) return known;
   let state: State = followDistance(scroller) <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED;
-  let lastInput = -Infinity, frame = 0, holding = false, before = followDistance(scroller);
+  let lastInput = -Infinity, frame = 0, holding = false, before = followDistance(scroller), top = scroller.scrollTop;
   scroller.dataset.follow = state;
   const set = (next: State) => {
     if (state === next) return;
@@ -55,12 +56,13 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
     if (selection && !selection.isCollapsed && selection.anchorNode && scroller.contains(selection.anchorNode)) leave();
   }, { signal });
   // Under the person's input, reaching the end follows and moving away from it (a touch or scrollbar drag upwards) detaches;
-  // moving towards the end, as on the way back to latest, changes nothing until it gets there.
+  // moving towards the end, as on the way back to latest, changes nothing until it gets there. Away means upwards: content
+  // growing while the person scrolls down also leaves the end further away, and that is not them leaving.
   scroller.addEventListener("scroll", () => {
     const distance = followDistance(scroller), theirs = holding || performance.now() - lastInput <= FOLLOW_INPUT_WINDOW_MS;
     if (theirs && distance <= FOLLOW_NEAR_PX) set(FOLLOWING);
-    else if (theirs && distance > before + 1) set(DETACHED);
-    before = distance;
+    else if (theirs && distance > before + 1 && scroller.scrollTop < top) set(DETACHED);
+    before = distance; top = scroller.scrollTop;
   }, passive);
 
   const follower: Follower = {
@@ -81,7 +83,7 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
       scroller.scrollTo({ top: scroller.scrollHeight, behavior: still ? "auto" : "smooth" });
     },
     resume() { lastInput = -Infinity; set(FOLLOWING); },
-    restore(top) { scroller.scrollTop = top; before = followDistance(scroller); set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED); },
+    restore(place) { scroller.scrollTop = place; before = followDistance(scroller); top = scroller.scrollTop; set(before <= FOLLOW_NEAR_PX ? FOLLOWING : DETACHED); },
     release() { set(DETACHED); },
     dispose() {
       listening.abort(); resizing.disconnect(); cancelAnimationFrame(frame);

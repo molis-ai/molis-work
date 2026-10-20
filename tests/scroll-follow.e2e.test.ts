@@ -117,6 +117,19 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await page.evaluate(`window.follow.resume(); window.grow()`); await frames();
   assert.equal(await state(), "following"); assert.ok(await distance() <= 1, "resume() lets the next pin land");
 
+  // Content growing while the person scrolls down (the pin still waiting out the gesture) leaves the end further away,
+  // but they moved towards it: still following.
+  await page.evaluate(`(() => { const t = document.getElementById("thread"); for (let i = 0; i < 5; i++) t.append(Object.assign(document.createElement("p"), { textContent: "长得比滚得快" })); })()`);
+  await wheel(60); await sleep(150);
+  assert.equal(await state(), "following", "scrolling down while content grows is not leaving");
+  await page.evaluate(`window.follow.pin()`); await sleep(FOLLOW_COOLDOWN_MS + 100);
+  assert.ok(await distance() <= 1, "and the waiting pin lands");
+
+  // A second caller gets the same owner; its onChange is not the one kept.
+  await page.evaluate(`window.second = []; window.molisFollow(document.getElementById("thread"), { onChange: (state) => window.second.push(state) }).release()`);
+  assert.deepEqual(await page.evaluate<string[]>(`window.second`), [], "a later caller's onChange is not called");
+  await page.evaluate(`window.follow.resume()`);
+
   // One owner per element; dispose() lets everything go.
   assert.equal(await page.evaluate<boolean>(`window.molisFollow(document.getElementById("thread")) === window.follow`), true, "the same element gets the same owner");
   await page.evaluate(`window.follow.dispose()`);

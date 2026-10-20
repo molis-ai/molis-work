@@ -236,12 +236,12 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): Coding's conversation takes the one
-// scroll owner (VUX-26). +255 B of workbench.js for what a second consumer needs of the helper (the same owner per element,
-// restore/resume for a saved place and a fresh conversation, dispose on unmount); Coding's own follow code went (−849 B of
-// coding.js), so the page is 594 B lighter. Tried first: the states as shared constants, one listener-options object, the
+// scroll owner (VUX-26). +316 B of workbench.js for what a second consumer needs of the helper (the same owner per element,
+// restore/resume for a saved place and a fresh conversation, dispose on unmount, and after review only an upward move
+// leaving, +61 B); Coding's own follow code and its fallback went (−959 B of coding.js), so the page is 643 B lighter. Tried first: the states as shared constants, one listener-options object, the
 // stage's fallback branch and the island's (+448 → +255). Spent once from exactly the scroll-owner slice's budget (#861).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134508, 1134763],
+  "/assets/molis-work-workbench.js": [1134508, 1134824],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -2239,3 +2239,23 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   3. #881 的三个 goals 读动作升到 v2，外部 MCP 工具名 `__v1` 改成 `__v2`。
   4. S0-2b-2 在 `scripts/gates/` 只新增双实例声明检查。
   - 问题和答案已原样转给 ⑤（1～3）和 ②（4）。⑤ 推 #883 的修复，进下一批；#881 等 #867 改成 S-44 后同批。
+- **10-21 改顺序：Coding 最先迁**（用户问：「有没有机会先迁 coding 插件？这样我后面几个需求可以接着做且冲突少」）。
+  - ① 的判断：合理，而且只是换顺序，在途的工作不作废。
+  - **完成标准**：Coding 移出 assembly gate 的 HYBRID 名单。
+    - 宿主里不再有 `coding-surface.ts`、`coding-background-tasks.ts`、`coding-shelf-material.ts`、`assistant-coding.ts`。
+    - `characters-host.ts` 里没有 Coding 的端口；`project-plugins.ts` 里没有 Coding 的手写端口。
+    - 涉及 privileges 里 Coding 一族约 12 条。
+  - **② 的新顺序**：
+    - 照做完 S0-2b-2 和 S0-2c；
+    - 然后 L2+L3，Coding 在这里改用 `services.project_database`，叠在 L1b #867 上或等它合入；
+    - 然后 PG-037、PG-047、PG-038 等平台一半。
+    - S0b-2、S0b-1、W5-02 PR-1b 往后挪。
+  - **③ 的新顺序**：
+    - 照做完 Shelf S1；
+    - 同时只读写 `coding-migration-plan.md`，两半都写，逐条 file:line，标清依赖和要问用户的项（PG-009）；
+    - ① 批了再按片开发。
+    - Alchemist S1 排到 Coding 之后。
+  - **冲突**：视觉线 #851、#864、#888 改 Coding 的客户端，#873、#876 改 `assistant-coding.ts`，#884 改 `coding-surface.ts`，都归 Codex 合。碰同一文件的片排在它们后面，或者把它们 merge 进来。
+  - **同时段的其他进展**：
+    - ⑩ 按新 head 复看了视觉线 9 个 PR。8 个可合，#873 合前要改 1 条。资源数字首尾相接，单片都不到 10 KB。
+    - ⑤ 在准备 batch-1020-11：预算实测过，workbench.js 比 main 轻 28 B。#883 的修复 `c79fcbd99` 还没推。

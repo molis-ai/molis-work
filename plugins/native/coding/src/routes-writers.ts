@@ -1,6 +1,7 @@
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf } from "./route-selections.js";
 import { text } from "./run-inputs.js";
+import { supports } from "./runtime-choice.js";
 import { parseFilePath, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -22,7 +23,9 @@ const ROUTES: RouteMaker[] = [
     const { route } = a;
     return [false, true].map(prepare => route(prepare ? "coding.prepare-integration" : "coding.read-integration", async (request, api, execution) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id || record.runtime_id !== "prologue") throw new Error("此会话没有可整合的原子任务");
+      // The atomic tasks are a Runtime's sub-agents: its own matrix says whether it has any (PG-054).
+      const runtime = (await api!.invoke(agent.listRuntimes, [])).find(entry => entry.runtime_id === record.runtime_id);
+      if (!record.runtime_session_id || !runtime || !supports(runtime, "subagents")) throw new Error("此会话没有可整合的原子任务");
       const source = { session_id: record.runtime_session_id, run_id: text(request.params.runId, "原执行"), subagent_id: text(request.params.childId, "原子任务") };
       if (!prepare) return api!.invoke(writerIntegrationCapabilities.read, source);
       const body = bodyOf(request);

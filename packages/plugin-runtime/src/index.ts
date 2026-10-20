@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-import { assertContributionMatchesManifest } from "./contribution.js";
+import { assertContributionMatchesManifest, offeredManifest, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
@@ -44,7 +44,7 @@ export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
-export { assertContributionMatchesManifest, viewContributionId } from "./contribution.js";
+export { assertContributionMatchesManifest, offeredManifest, viewContributionId, type RedemptionScope } from "./contribution.js";
 export { resolvePluginActivation } from "./resolution.js";
 export { PluginEventBus } from "./events.js";
 export type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
@@ -116,7 +116,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   constructor(
     private readonly repository: PluginRuntimeRepository = new MemoryPluginRuntimeRepository(),
     private readonly executor: PluginExecutor = new NativePluginExecutor(),
-    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number;
+    private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
   ) {}
 
@@ -646,15 +646,15 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.contributions.get(installId) ?? null;
   }
 
-  /** A started Plugin must deliver exactly what its Manifest declared, or it does not run. */
+  /** A started Plugin must deliver exactly what its Manifest declared (a partial half: nothing beyond it), or it does not run. */
   private async redeem(
     definition: PluginDefinition,
     record: PluginInstanceRecord,
     contribution: PluginContribution,
   ): Promise<void> {
     try {
-      assertContributionMatchesManifest(definition.manifest, contribution);
-      const manifest = definition.manifest;
+      assertContributionMatchesManifest(definition.manifest, contribution, this.options.redemption?.(definition));
+      const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");

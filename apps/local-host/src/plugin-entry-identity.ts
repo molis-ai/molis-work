@@ -1,5 +1,3 @@
-import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { qualifyBuiltinPluginCaller } from "./builtin-plugin-callers.js";
 import type { HomePluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
@@ -16,7 +14,6 @@ export function pluginEntryIdentity() {
   const projectData = new WeakMap<PluginDefinition, PluginProjectCleanup>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
-    qualifyCaller: (definition: PluginDefinition, caller: HostPluginCaller) => bundled.has(definition) ? qualifyBuiltinPluginCaller(caller) : undefined,
     databaseFor: (definition: PluginDefinition) => databases.get(definition),
     filesFor: (definition: PluginDefinition) => files.get(definition),
     ownerFilesFor: (definition: PluginDefinition) => ownerFiles.get(definition),

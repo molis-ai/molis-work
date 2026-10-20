@@ -127,7 +127,6 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // carries the same plugin_id is given none.
   const executor = new PluginHostExecutor({
     providerFor,
-    qualifyCaller: identity.qualifyCaller,
     databaseFor: identity.databaseFor,
     filesFor: identity.filesFor,
     project_id: options.project_id,

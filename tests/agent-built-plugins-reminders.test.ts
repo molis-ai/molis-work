@@ -13,6 +13,7 @@ import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platfo
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { deliverHostReminder, hostScheduleReminders } from '../apps/local-host/dist/schedule-reminders.js';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from './fixtures/plugin-callers.js';
 
 function installation(install_id = 'install-1', plugin_id = 'io.molis.work.generated.a', installed_at = '2026-01-01T00:00:00.000Z'): PluginInstanceRecord {
   return { install_id, installation_generation: install_id + '@' + installed_at, plugin_id, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test',
@@ -62,15 +63,24 @@ test('Host discovers and executes Schedule reminders without opening Studio; reo
   const paths = [join(home, 'one.db'), join(home, 'two.db')]; paths.forEach(path => seedDemoBoard(path));
   const refs = paths.map(databasePath => molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }));
   const hosts = [new MolisWorkLocalHost({ projectRoutePrefix: () => '' }), new MolisWorkLocalHost()];
-  const caller = { actor_id: 'plugin:io.molis.work.generated.a', project_id: DEMO_PROJECT_ID, audience: 'plugin' as const, plugin_install_id: 'install-1', permissions: [] };
   const at = Date.now() + 1000;
   try {
-    for (let i = 0; i < hosts.length; i++) await hosts[i]!.withProject(refs[i]!, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).save(installation()));
+    // The first Home runs a plugin that acts as itself (as a generated plugin does), with the caller the Host issued its session; the second has an installation record only.
+    const stores = await Promise.all(hosts.map((host, i) => host.withProject(refs[i]!, runtime => runtime.store)));
+    new SqlitePluginRuntimeRepository(stores[1]!.db).save(installation());
+    const plugin = callerPlugin('reminders', 'project'), probe = registerProbe(hosts[0]!.actionRegistry(refs[0]!), 'project');
+    const started = await startPlugin(hosts[0]!, refs[0]!, stores[0]!, plugin, { actorId: 'plugin:' + plugin.id });
+    const caller = callAs(await issuedCaller(probe, plugin, DEMO_PROJECT_ID), []);
     const client = hosts[0]!.actionClient(refs[0]!);
     const discovered = (await client.discover(caller)).filter(view => view.capability_id.startsWith('reminders.'));
     assert.deepEqual(discovered.map(view => view.capability_id).sort(), ['reminders.add', 'reminders.cancel']);
     assert.ok(discovered.every(view => view.provider.provider_id === SCHEDULE_REMINDER_PROVIDER_ID && view.availability.available));
-    await assert.rejects(client.invoke({ ...caller, plugin_install_id: 'unknown' }, reminderActions.add, { at: new Date(at).toISOString(), text: '拒绝伪造安装' }), /安装当前没有运行/);
+    // The gateway refuses the session's caller presented for an installation it was not issued to, before Schedule is reached ...
+    await assert.rejects(client.invoke({ ...caller, plugin_install_id: 'unknown' }, reminderActions.add, { at: new Date(at).toISOString(), text: '拒绝伪造安装' }), { code: 'host.plugin_caller_mismatch' });
+    // ... and Schedule on its own refuses an installation whose record says it is not running, even when the session still holds its caller.
+    const repository = new SqlitePluginRuntimeRepository(stores[0]!.db), record = repository.get(started.install_id)!;
+    repository.save({ ...record, state: 'stopped' });
+    try { await assert.rejects(client.invoke(caller, reminderActions.add, { at: new Date(at).toISOString(), text: '拒绝没有运行的安装' }), /安装当前没有运行/); } finally { repository.save(record); }
     const { reminderId } = await client.invoke(caller, reminderActions.add, { at: new Date(at).toISOString(), text: '只给第一个 Home' });
     await hosts[0]!.closeProject(refs[0]!);
     for (let i = 0; i < hosts.length; i++) await hosts[i]!.withProject(refs[i]!, async runtime => {
@@ -78,7 +88,7 @@ test('Host discovers and executes Schedule reminders without opening Studio; reo
       await schedule.tick(new Date(at + 1000)); await schedule.tick(new Date(at + 1000));
       const items = createLocalFeedApplication(runtime.store.db).snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === 'plugin-reminders');
       assert.equal(items.length, i === 0 ? 1 : 0);
-      if (i === 0) { assert.equal(items[0]!.summary, '只给第一个 Home'); assert.equal(items[0]!.url, '/plugins/io.molis.work.generated.a', 'the standalone project retains its real route'); assert.equal(getScheduleReminder(runtime.store.db, reminderId), null); }
+      if (i === 0) { assert.equal(items[0]!.summary, '只给第一个 Home'); assert.equal(items[0]!.url, '/plugins/' + plugin.id, 'the standalone project retains its real route'); assert.equal(getScheduleReminder(runtime.store.db, reminderId), null); }
     });
   } finally { await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); }
 });

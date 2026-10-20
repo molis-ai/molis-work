@@ -75,6 +75,12 @@ export const FULL_REGRESSION = {
     "apps/workbench/src/scripts/client/plugin-workbench.ts",
   ],
   /**
+   * The built-in catalog's entries. Since W5-02 each plugin writes its own in its package's src/registration.ts and
+   * apps/workbench/src/builtin-plugins.ts only lists them (scripts/generate-plugin-registry.mjs), so changing one is changing
+   * that catalog, as editing its entry in builtin-plugins.ts was.
+   */
+  assemblyPatterns: [/^plugins\/native\/[^/]+\/src\/registration\.ts$/],
+  /**
    * Storage: the storage package; a file named for a migration; a changed line that calls or versions a baseline; and a source file
    * whose schema changed. The schema of a file is read from the file as it was at the base and as it is now (scripts/affected-tests/
    * storage.mjs): the text of every string or template literal that holds DDL, and the whole declaration of every

@@ -29,6 +29,12 @@ export interface PluginWorkbenchRegistration {
    * surface's root, so a companion does not ship a second copy of the same client (W4-03).
    */
   readonly clientFrom?: string;
+  /**
+   * The plugins whose clients this one calls (their short ids). Their factories travel in this plugin's bundle and reach it as
+   * `host.clients[<short id>]`, with the Host's review actions as `host.reviews` (a rendering hook, never a decision); each of
+   * them names this plugin in `clientFrom`, so none ships a bundle of its own.
+   */
+  readonly clientUses?: readonly string[];
   /** Browser dependencies prepared before this factory mounts. */
   readonly clientAssets?: readonly string[];
   readonly settingsClient?: string;

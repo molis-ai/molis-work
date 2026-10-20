@@ -3008,6 +3008,7 @@ export interface PluginMaterialsClient {
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
+    readonly vision?: boolean;
 };
 
 export interface PluginModelChoice extends PluginModelSelection {

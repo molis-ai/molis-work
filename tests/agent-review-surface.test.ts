@@ -135,6 +135,26 @@ test("review renders both file versions and exact command arguments, never only 
   assert.doesNotMatch(deliveryHtml, /尚未发生|执行未完成/);
 });
 
+test("PA-29 an after-write check's card names the checker and its configuration version; a card whose note is malformed cannot be approved", () => {
+  const check = row();
+  check.request.kind = "command";
+  check.request.document = { kind: "command", command: "node", args: ["--check", "a.js"], cwd: ".", timeout_ms: 15000,
+    after_write_check: { checker_id: "node-check", display_name: "<b>Node</b> 语法", version: 3 } };
+  const html = renderAgentReviewSurface({ rows: [check], primitives: p });
+  assert.match(html, /<p class="agent-review-meta" data-agent-review-check>写后检查：&lt;b&gt;Node&lt;\/b&gt; 语法（配置 v3）<\/p>/);
+  assert.equal(isDecidable(check), true);
+  assert.doesNotMatch(renderAgentReviewSurface({ rows: [row()], primitives: p }), /data-agent-review-check/);
+  for (const note of [null, { checker_id: "node-check", display_name: "Node 语法", version: "3" }, { checker_id: "node-check", version: 3 }]) {
+    const malformed = row();
+    malformed.request.kind = "command";
+    malformed.request.document = { kind: "command", command: "node", args: ["--check", "a.js"], cwd: ".", timeout_ms: 15000, after_write_check: note } as never;
+    assert.equal(isDecidable(malformed), false, JSON.stringify(note));
+    const shown = renderAgentReviewSurface({ rows: [malformed], primitives: p });
+    assert.match(shown, /审查内容不完整，暂不能批准/);
+    assert.doesNotMatch(shown, /data-agent-review-approve|data-agent-review-check/);
+  }
+});
+
 test("manual rewind shows both full versions, distinguishes empty/deleted files and refuses incomplete previews", () => {
   const item=row();item.request.run=null;item.request.operation={operation_id:'op',session_id:'s',kind:'checkpoint-rewind'};
   item.request.kind='rewind';item.request.document={kind:'rewind',checkpoint_id:'cp',files:[

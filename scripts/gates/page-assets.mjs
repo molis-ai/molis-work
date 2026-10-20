@@ -235,13 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/project-knowledge (2026-10-19, each under the 10 KB the user lets review admit, AGENTS.md): the 项目资料 settings page
-// styles (+6.6 KB, in both sheets, as the model and memory settings are, since the settings cover renders in the workbench), the
-// shared picker's (+1.9 KB) and the side panel's import dialog in the workbench sheet; +881 B of workbench.js for the side
-// panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed, and the dialog-aware Escape and searching state of the 10-19 review. Each is spent once from exactly
-// main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
+// W4-2-13 (#801, reviewed 2026-10-20): opening the exact proposal and preserving unfinished reasons across
+// list/detail refresh needs 410 B from #822's exact budget. Same-script simplification first saved 408 B;
+// the remaining growth restores the real approval flow. The spent #826 allowance is replaced, not accumulated.
+// The project-knowledge stylesheet allowances remain unchanged: settings styles in both sheets, plus the shared picker
+// and side-panel import dialog in the workbench sheet (specs/project-knowledge, approved 2026-10-19).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1128644, 1129525],
+  "/assets/molis-work-workbench.js": [1129470, 1129880],
   "/assets/molis-work-workbench.css": [1593165, 1603154],
   "/assets/molis-work-settings.css": [982397, 988933],
 };

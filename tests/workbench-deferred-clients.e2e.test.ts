@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 test("a hung UI asset times out, retries and ignores the late first response without remounting or losing the last selection", { timeout: 60_000 }, async t => {
@@ -79,4 +80,37 @@ test("registered clients mount on demand, retry resources and retain their origi
     }
   }
   assert.ok(companions.length > 0, "at least one companion surface was opened");
+});
+
+
+test("W5-02-REG-09 the mounted Host links a confirmed workspace and translates its failure without changing the default", { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, click, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  // Install before navigation: a restored Coding tab may mount before the page is ready for evaluate().
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
+    window.molisWorkbenchPluginFactories = new Proxy({}, {
+      set(target, key, value) { target[key] = key === 'coding' ? host => { window.workspaceTestHost = host; return value(host); } : value; return true; }
+    });
+  ` }, sessionId);
+  for (const [locale, linkFailure, defaultFailure] of [["zh", "无法关联工作区", "来源操作失败"], ["en", "Unable to link workspace", "Source operation failed"]]) {
+    await command("Network.setCookie", { name: "molis_work_locale", value: locale, url: origin }, sessionId);
+    await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+    await click('[data-plugin-strip] [data-plugin-id="coding"]');
+    await waitFor("document.querySelector('[data-work-surface=coding]').dataset.uiClientState === 'ready' && !!window.workspaceTestHost");
+    const barrier = await sendBarrier(browser, [{ urlPattern: "*/api/workspaces", requestStage: "Request" }]);
+    try {
+      for (const [expression, expected, body] of [
+        ["workspaceTestHost.addWorkspace('/confirmed/folder')", linkFailure, { workspace_path: "/confirmed/folder", user_confirmed: true }],
+        ["workspaceTestHost.api('/api/workspaces', 'POST', {})", defaultFailure, {}],
+      ] as const) {
+        const result = evaluate<{ message: string; status: number }>(`${expression}.then(() => { throw new Error('Expected failure'); }, error => ({ message: error.message, status: error.status }))`);
+        const request = await barrier.next();
+        assert.equal(new URL(request.request.url).pathname, "/projects/" + projectId + "/api/workspaces");
+        assert.deepEqual(JSON.parse(request.request.postData ?? "null"), body);
+        await command("Fetch.fulfillRequest", { requestId: request.requestId, responseCode: 500,
+          responseHeaders: [{ name: "Content-Type", value: "application/json" }], body: Buffer.from("{}").toString("base64") }, sessionId);
+        assert.deepEqual(await result, { message: expected, status: 500 });
+      }
+    } finally { await barrier.close(); }
+  }
 });

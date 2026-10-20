@@ -24,6 +24,7 @@ import {
 
 import type { PluginHostLifecycle } from "./lifecycle.js";
 import { buildWiringView } from "./wiring-view.js";
+import { outsidePluginAction } from "./action-scope.js";
 import { acceptsLibraryVersion, resolvePortInput, usableVersion } from "./wiring-input.js";
 
 /** Reads a published Artifact version. The graph never owns Artifact storage. */
@@ -468,7 +469,7 @@ export class PluginInputGraph implements PluginWiringApi {
     const generation = this.#lifecycle.generation(pluginId);
     const signal = inputSignal ? AbortSignal.any([inputSignal, this.#shutdown.signal]) : this.#shutdown.signal;
     const previous = this.#tails.get(pluginId) ?? Promise.resolve();
-    const next = previous
+    const next = outsidePluginAction(() => previous
       .then(async () => {
         if (signal.aborted || this.#lifecycle.generation(pluginId) !== generation) return;
         let abort = () => {};
@@ -485,7 +486,7 @@ export class PluginInputGraph implements PluginWiringApi {
             await run(consumer);
           })()]);
         } finally { signal.removeEventListener("abort", abort); }
-      })
+      }))
       .catch(() => {
         if (!signal.aborted && this.#lifecycle.generation(pluginId) === generation) {
           this.#fail(pluginId, "consumer_failed", "消费者处理输入变更时失败");

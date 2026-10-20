@@ -680,14 +680,14 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
-  ["/assets/molis-work-arrival.css", 698519],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
   // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
-  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604893], ["/assets/molis-work-settings.css", 990668],
-  ["/assets/molis-work-arrival.css", 700254],
+  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604785], ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-arrival.css", 700146],
   // The Coding scroll-owner allowance (#864, VUX-26) is spent.
   ["/assets/molis-work-workbench.js", 1134508],
   // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
-  ["/assets/molis-work-workbench.js", 1134763], ["/assets/molis-work-plugins/shelf.js", 75866],
+  ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
   ["/assets/molis-work-plugins/lingguang.js", 25265],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
@@ -706,10 +706,10 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the shared show-more allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134964, 1135934],
-    "/assets/molis-work-workbench.css": [1605339, 1605394],
-    "/assets/molis-work-settings.css": [991114, 991169],
-    "/assets/molis-work-arrival.css": [700700, 700755],
+    "/assets/molis-work-workbench.js": [1135021, 1135991],
+    "/assets/molis-work-workbench.css": [1605196, 1605251],
+    "/assets/molis-work-settings.css": [990971, 991026],
+    "/assets/molis-work-arrival.css": [700557, 700612],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

@@ -47,14 +47,14 @@
 
 ## 原始证据与复现
 
-测量脚本：[http-baseline.mjs](evidence/http-baseline.mjs)。完整样本：[04](evidence/http-04.json)、[05](evidence/http-05.json)、[06](evidence/http-06.json)。原始文件保留响应头/响应体耗时、状态码、字节、环境、数据规模及进程统计；不输出控制令牌或真实数据。
+测量脚本：[http-baseline.mjs](../../scripts/visual/http-baseline.mjs)。完整样本：[04](evidence/http-04.json)、[05](evidence/http-05.json)、[06](evidence/http-06.json)。原始文件保留响应头/响应体耗时、状态码、字节、环境、数据规模及进程统计；不输出控制令牌或真实数据。
 
 ```sh
 pnpm install --frozen-lockfile --offline
 pnpm build
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-1.json
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-2.json
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-3.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-1.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-2.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-3.json
 node scripts/run-tests.mjs tests/workbench-asset-cache.test.ts tests/catalog-read-contention.test.ts
 ```
 

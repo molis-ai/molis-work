@@ -1,5 +1,5 @@
 // Measurement only: real production Host, disposable seeded Home, no model or user data.
-// Run after pnpm build: node specs/visual-ui-experience/evidence/http-baseline.mjs <result.json>
+// Run after pnpm build: node scripts/visual/http-baseline.mjs <result.json>
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';

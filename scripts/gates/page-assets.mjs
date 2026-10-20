@@ -243,10 +243,10 @@ const headErrors = (measured, budget, base) => {
 // no per-group copy of the logic, the label from one translated string, the button's look from the existing ghost button.
 // Spent once from exactly the remaining-consumers slice's budget (#866).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134964, 1135934],
-  "/assets/molis-work-workbench.css": [1605339, 1605394],
-  "/assets/molis-work-settings.css": [991114, 991169],
-  "/assets/molis-work-arrival.css": [700700, 700755],
+  "/assets/molis-work-workbench.js": [1135021, 1135991],
+  "/assets/molis-work-workbench.css": [1605196, 1605251],
+  "/assets/molis-work-settings.css": [990971, 991026],
+  "/assets/molis-work-arrival.css": [700557, 700612],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

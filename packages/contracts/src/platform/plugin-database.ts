@@ -17,9 +17,10 @@ export interface PluginDatabase extends PluginDatabaseReader {
 }
 
 /**
- * Selected by the trusted Host entry, never by an action argument or an installed script. 2026-10-18 改: declared in the Manifest
- * and given by the project database service like any plugin's (PG-020, PG-022 in specs/repository-anti-corruption/privileges.md);
- * until then, as above.
+ * A plugin's own tables: the store's name, the version recorded for it, and the statements that create them. Never chosen by an
+ * action argument or an installed script. In a project's library it is declared in the Manifest (`databases.project`, PG-020), like
+ * any plugin's; a library in the Home is still selected by the trusted Host entry. 2026-10-18 改: the Home one is declared in the
+ * Manifest too (PG-022 in specs/repository-anti-corruption/privileges.md); until then, as above.
  */
 export interface PluginDatabaseDeclaration {
   readonly store_name: string;
@@ -27,6 +28,16 @@ export interface PluginDatabaseDeclaration {
   readonly schema: string;
   readonly read_permission: string;
   readonly write_permission: string;
+}
+
+/**
+ * The plugin's own tables, one declaration per scope. `project`: tables in each project's library, which the platform makes from
+ * `schema` the first time the plugin opens there and records, with the publisher's signature, in its ledger; the statements may
+ * only create tables and indexes, and foreign keys may only point at the plugin's own tables or the project's root row
+ * (specs/plugin-project-database). The Host does not make them yet.
+ */
+export interface PluginManifestDatabases {
+  readonly project?: PluginDatabaseDeclaration;
 }
 
 /**

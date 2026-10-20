@@ -18,12 +18,11 @@ export const PAGES_STYLES = PAGES_BASE_STYLES + PAGES_IMPORT_STYLES + PAGES_COMM
 export { PAGES_EN } from "./en.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
-export { PAGES_NATIVE_PLUGIN_ROUTES, PagesPluginRouteTable } from "./routes.js";
-export type { PagesPluginRouteHandler, PagesPluginRouteRequest, PagesPluginRouteResponse } from "./routes.js";
-export { createPagesRouteHandlers } from "./route-handlers.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
 export { pagesMethods } from "./methods.js";
-export { openPagesStore, PagesStore, PAGES_STORE_BASELINE, PAGES_HOME_STORE } from "./store.js";
+export { openPagesStore, ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
+export { createPagesPlugin } from "./plugin.js";
+export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";
 export { purgePagesProject, pagesProjectData } from "./project-data.js";
 export type { PagesImportDocumentsInput } from "./store.js";
 export { generatePagesFromMaterials } from "./generate.js";
@@ -161,7 +160,6 @@ export {
 export { extractFromPagesBody } from "./extract.js";
 export { PAGES_AI_COMMANDS } from "./ai.js";
 export { runPagesAi } from "./ai-run.js";
-export type { PagesRoutePorts } from "./route-handlers.js";
 export type { PagesLineHeadPort, PagesPublishArtifactPort, PagesReadArtifactPort } from "./promote.js";
 
 export { pagesContentActions, createPagesContentHandlers } from "./content-actions.js";

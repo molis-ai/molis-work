@@ -25,8 +25,8 @@
       "lines": 543,
       "methods": 23
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41
@@ -480,11 +480,11 @@
   },
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 9,
+  "compatMarkerTotal": 8,
   "compatMarkers": {
     "apps/local-host/src/material-pdf-worker.ts": 1,
     "apps/local-host/src/pdf-document-parser.ts": 1,
-    "apps/local-host/src/plugin-builder/installed.ts": 3,
+    "apps/local-host/src/plugin-builder/installed.ts": 2,
     "apps/workbench/src/i18n/en.ts": 1,
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1

@@ -57,6 +57,8 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。
+
 ## 开发要求
 
 - 负责：插件身份、安装、授予、隔离、生命周期与回滚。

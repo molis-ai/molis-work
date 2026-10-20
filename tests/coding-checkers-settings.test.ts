@@ -11,22 +11,25 @@ import { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteChecke
 import { AgentHost, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
 
 const { list, save } = agentWriteCheckerActions;
 const NODE: AgentWriteChecker = { checker_id: "node-check", display_name: "Node 语法", executable: "node", args: ["--check", "{file}"], applies_to: [".js", ".mjs"] };
 const KEPT = { ...NODE, cwd: ".", timeout_ms: 30_000 };
 const code = (expected: string) => (error: unknown) => { assert.equal((error as { code?: unknown }).code, expected, String(error)); return true; };
 
-/** A project on a throwaway Home with one workspace the test can authorize and take back. */
-async function fixture() {
+/** A project on a throwaway Home with one workspace the test can authorize and take back, and `plugin` among its plugins when given. */
+async function fixture(plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "write-checkers-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "写后检查", actor_id: "web-user" });
   catalog.close();
   const workspace: ProjectWorkspaceRef = { workspace_id: "app", canonical_path: await realpath(home), realpath_verified: true, display_name: "app" };
   let granted: ProjectWorkspaceRef[] = [workspace];
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => granted[0] ?? null, workspacesFor: async () => granted });
-  const client = host.actionClient(molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => granted[0] ?? null, workspacesFor: async () => granted,
+    ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) });
+  const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+  const client = host.actionClient(reference);
   const person: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: ["projects:settings"] };
   return {
     workspace, person,
@@ -34,6 +37,8 @@ async function fixture() {
     lists: async () => ((await client.invoke(person, list, {})) as { lists: AgentWriteCheckerList[] }).lists,
     save: (input: unknown, caller: ActionCallContext = person) => client.invoke(caller, save, input as never) as Promise<AgentWriteCheckerList>,
     list: (caller: ActionCallContext) => client.invoke(caller, list, {}),
+    /** The plugin's call: it carries the caller the Host issued its session (S-15), claiming the person's permissions. */
+    asPlugin() { assert.ok(plugin, "the fixture has a plugin"); return projectPluginCaller(host, reference, plugin, person.permissions); },
     async close() { await host.close(); await rm(home, { recursive: true, force: true }); },
   };
 }
@@ -56,11 +61,13 @@ test("PA-25 no model's tool, MCP client, workflow or plugin reads or changes the
   assert.deepEqual(save.action.audiences, ["user"]);
   assert.deepEqual(save.action.permissions, ["projects:settings"]);
   assert.deepEqual(list.action.audiences, ["user"]);
-  const f = await fixture();
+  // A plugin that holds the settings permission, started by the Host.
+  const f = await fixture(callerPlugin("checkers", "project", { "projects:settings": true }));
   try {
     await f.save({ workspace_id: "app", expected_version: 0, checkers: [NODE] });
+    const plugin = await f.asPlugin();
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
-      const caller = { ...f.person, audience };
+      const caller = audience === "plugin" ? plugin : { ...f.person, audience };
       await assert.rejects(f.save({ workspace_id: "app", expected_version: 1, checkers: [] }, caller), code("actions.forbidden"), audience);
       await assert.rejects(f.list(caller), code("actions.forbidden"), audience);
     }

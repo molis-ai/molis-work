@@ -666,11 +666,11 @@ export const PAGES_STYLES = `
     opacity: 0; transition: opacity var(--motion-fast, 130ms) var(--ease-quint);
   }
   .pages-code-block:hover .pages-code-copy,
-  .pages-code-copy:focus-visible, .pages-code-copy.is-done { opacity: 1; }
+  .pages-code-copy:focus-visible, .pages-code-copy[data-copy] { opacity: 1; }
   .pages-code-copy svg { width: 14px; height: 14px; }
   .pages-code-copy:hover { color: var(--ink); background: var(--nav-hover); }
   .pages-code-copy:focus-visible { outline: none; box-shadow: var(--focus-stroke); }
-  .pages-code-copy.is-done { color: var(--hue-green); }
+  .pages-code-copy[data-copy=done] { color: var(--hue-green); }
   .pages-editor-host .ProseMirror .hljs-comment, .pages-editor-host .ProseMirror .hljs-quote {
     color: var(--faint); font-style: italic;
   }

@@ -770,8 +770,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // runs: the rounds to (re)draw, a contiguous stretch. all: the whole session in order, where rounds that are not
   // loaded are summaries. Numbering and "latest" are always read against the whole session.
   const renderRuns = (runs, all=runs) => {
-    // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
-    const pinNow = !reportRun && following();
+    // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it. Read back, the
+    // part at the top of the view keeps its place: this is the one owner of the shift (overflow-anchor is none here; a WebView may have no scroll anchoring).
+    const pinNow = !reportRun && following(), held = pinNow || reportRun ? null : [...turns.querySelectorAll(':scope > [data-run] > *')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top), heldTop = held?.getBoundingClientRect().top;
     if(all.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
@@ -937,7 +938,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
     const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.dataset.mwState=phaseRing(lastRun.phase);pill.textContent=phases[lastRun.phase]||lastRun.phase;}
-    if(pinNow) follow.pin();
+    if(pinNow) follow.pin(); else if(held?.isConnected) turns.scrollTop+=held.getBoundingClientRect().top-heldTop;
     q('[data-coding-latest]').hidden=Boolean(reportRun) || pinNow; controls();
   };
   const readRecovery = async () => {
@@ -1024,13 +1025,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
       // The results panel lists every loaded round's subtasks, so an earlier round's "评价并整合成果" finds its row.
       subagents.update(id,subagentGroups);
-      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
+      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; renderRuns keeps the part being read put.
       const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
       while(pending.length){
         if(current!==id || ticket!==generation)return;
-        const anchor=[...turns.querySelectorAll(':scope > [data-run]')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top),before=anchor?.getBoundingClientRect().top;
         renderRuns(pending.splice(0,2).reverse(),allRuns);
-        if(anchor)turns.scrollTop+=anchor.getBoundingClientRect().top-before;
         if(pending.length)await lifetime.nextFrame();
       }
     }catch(error){if(current===id)status(error.message,true);}

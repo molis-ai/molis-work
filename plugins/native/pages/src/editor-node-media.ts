@@ -1,4 +1,6 @@
 // Media node views and the code-highlighting plugin they use.
+// The type brings `window.molisCopy`, which the workbench page provides; nothing of the package is bundled.
+import type { CopyLabels } from "@molis-ai/molis-work-design-system";
 import { Node } from "prosemirror-model";
 import { Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";
@@ -251,13 +253,12 @@ export function codeNodeView(node: Node, view: EditorView, getPos: () => number 
     view.focus();
   });
   copy.addEventListener("mousedown", (event) => event.preventDefault());
+  // The design system's one copy feedback (VUX-19): a check only once the clipboard took it, a cross when it did not.
   copy.addEventListener("click", () => {
     const pos = getPos();
     const current = pos === undefined ? null : view.state.doc.nodeAt(pos);
-    void navigator.clipboard?.writeText(current?.textContent ?? "").then(() => {
-      copy.classList.add("is-done");
-      setTimeout(() => copy.classList.remove("is-done"), 1200);
-    }, () => undefined);
+    const labels: CopyLabels = { done: t(translate, "已复制"), failed: t(translate, "复制失败") };
+    void window.molisCopy?.(copy, current?.textContent ?? "", labels);
   });
 
   const sync = (next: Node) => {

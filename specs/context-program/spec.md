@@ -1608,6 +1608,8 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 
 **W4-2-13 验证**：Goals 包要求的服务端回归及相关上下文用例共 19 个文件、89 条通过；包含刷新、多提案理由隔离与上述真实采用链路的 3 个浏览器文件、9 条通过。1440 浅色与 390 深色均检查长标题、提案正文、理由输入及采用/退回按钮；窄屏截图已由主会话和独立评审查看，未见遮挡或横向溢出。资源预算 101 条与动作快照 25 条通过，动作快照未变化。以上证明所覆盖路径，不代替一骏本人验收；本节末尾其余人工体验仍保留。
 
+工作台的列表与详情两种提案 surface 共用同一个 `UiHost` 挂载调用，类型明确的 renderer 入口分别传入自己的模型。`tests/workbench-registration-boundaries.test.mjs` 的原绕过突变仍能拒绝这条唯一挂载路径；该检查随 `pnpm workspace:verify` 运行，守卫与拒绝断言均不改。
+
 **2026-10-20 补验**：`tests/contextual-pages-goals.e2e.test.ts`、`tests/contextual-todo.e2e.test.ts`、`tests/contextual-interaction.e2e.test.ts`、`tests/context-card-in-work.e2e.test.ts` 和 `tests/interaction-no-crosstalk.e2e.test.ts` 共 14 条浏览器用例通过，包含键盘走到「更多」、提案草稿、拒绝后再运行和只建一次。后两份首次导航曾超时，代码和断言不变的定向重跑全部通过。服务端与合同定向共 261 条通过；整体构建、边界、健康和资源检查通过。以下原定人工体验仍未验证：
 - 隔离 Home 实走：1440、1024、800、390 加深色截图（写进 `.impeccable/qa/review/`，不入库）。
 - 同一选区点两下「存为文档」只建一篇。

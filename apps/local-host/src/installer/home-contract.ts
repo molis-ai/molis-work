@@ -113,6 +113,8 @@ export interface InspectedSource {
   version: string;
   license?: string;
   runtimeDependencies: RuntimeDependencyPackage[];
+  /** `parent>child` dependencies the source's workspace removes (pnpm `overrides` to '-'); the release records them in its package.json. */
+  removedDependencies: string[];
   bundledNodePath: string | null;
   contentDigest: string;
 }

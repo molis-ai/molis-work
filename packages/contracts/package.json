@@ -222,6 +222,10 @@
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
     },
+    "./services/knowledge": {
+      "types": "./dist/services/knowledge.d.ts",
+      "import": "./dist/services/knowledge.js"
+    },
     "./services/search": {
       "types": "./dist/services/search.d.ts",
       "import": "./dist/services/search.js"

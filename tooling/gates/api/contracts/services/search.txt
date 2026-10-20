@@ -4,6 +4,8 @@
 
 export declare const SEARCH_FRAGMENT_CHOICES: readonly FragmentOfferChoice[];
 
+export declare const SEARCH_INDEX_CONTENT_CHARS = 32000;
+
 export declare const SEARCH_MANAGE_PERMISSION = "search:manage";
 
 export declare const SEARCH_PERMISSIONS: readonly ["search:read", "search:manage"];
@@ -87,10 +89,16 @@ export interface SearchIndexPort {
         object_id: string;
     }[]): void;
     document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
+    documents(projectId: string): SearchIndexDocument[];
     search(query: SearchIndexQuery): {
         matches: SearchIndexMatch[];
         total: number;
     };
+    related(projectId: string, query: string, limit: number, snippets?: boolean): Array<{
+        kind: string;
+        object_id: string;
+        snippet: string;
+    }>;
     clear(): number;
     close(): void;
 }

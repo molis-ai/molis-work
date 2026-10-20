@@ -18,15 +18,26 @@ export interface ActionSubjectContext {
    * Objects stored in a project partition leave it out — the partition says where they are (specs/archive/work-placement §7.2).
    */
   project_id?: string | null;
+  /**
+   * Where `content` starts in the object's whole text and how long that text is. A reader gives both when it reads a page
+   * past the first (`offset` in its input; specs/project-knowledge §4.4); a reader that leaves them out gives only the first page.
+   */
+  offset?: number;
+  length?: number;
 }
+/** What one reader call gives at most; a longer text is read page by page from `offset` by a reader that takes it. */
+export const SUBJECT_CONTEXT_PAGE_CHARS = 32_000;
+export interface SubjectContextRequest { subject_id: string; offset?: number }
 const id = { type: "string", minLength: 1 };
+const position = { type: "integer", minimum: 0 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
-export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id }, required: ["subject_id"], additionalProperties: false };
-const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: 32000 },
+export const SUBJECT_CONTEXT_INPUT_SCHEMA = { type: "object", properties: { subject_id: id, offset: position }, required: ["subject_id"], additionalProperties: false };
+const properties = { subject: ACTION_SUBJECT_SCHEMA, revision: id, title: { type: "string", maxLength: 1000 }, content: { type: "string", maxLength: SUBJECT_CONTEXT_PAGE_CHARS },
   truncated: { type: "boolean" }, goal_ids: { type: "array", items: id, uniqueItems: true }, session_id: { type: ["string", "null"] } };
+const paging = { offset: position, length: position };
 const open = { type: "object", properties: { surface: { ...id, pattern: "^[a-zA-Z0-9_-]+$" }, id }, required: ["surface", "id"], additionalProperties: false };
 const belongsTo = { type: ["string", "null"], maxLength: 120 };
-export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo }, required: Object.keys(properties), additionalProperties: false };
+export const SUBJECT_CONTEXT_OUTPUT_SCHEMA = { type: "object", properties: { ...properties, open, project_id: belongsTo, ...paging }, required: Object.keys(properties), additionalProperties: false };
 /** The v1 output before `project_id` was added: readers declared with it keep working. */
 export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT = { type: "object", properties: { ...properties, open }, required: Object.keys(properties), additionalProperties: false };
 /** The v1 output before `open` was added: readers declared with it keep working. */
@@ -35,14 +46,20 @@ export const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN = { type: "object", prop
  * A reader of one object kind's context. `scope` is where its objects live: a project's (the default), or the
  * person's own Home (a calendar, personal notes), so personal work can read them back too.
  */
-export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<{ subject_id: string }, ActionSubjectContext> {
+export function defineSubjectContextAction(capabilityId: string, kind: string, title: string, permissions: string[], scope: "project" | "home" = "project"): ActionDefinition<SubjectContextRequest, ActionSubjectContext> {
   return { capability_id: capabilityId, version: 1, operation: "query", action: { title: `读取${/^[A-Za-z]/.test(title) ? " " : ""}${title}${/[A-Za-z]$/.test(title) ? " " : ""}的正文与关联`, description: `读取${title}的当前正文、版本及真实关联，供调用者明确引用。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions, subject_kinds: [kind],
     input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, input_schema: SUBJECT_CONTEXT_INPUT_SCHEMA, output_schema: SUBJECT_CONTEXT_OUTPUT_SCHEMA } };
 }
-export function subjectContext(input: Omit<ActionSubjectContext, "truncated"> & { truncated?: boolean }): ActionSubjectContext {
-  return { ...input, title: input.title.slice(0, 1000), content: input.content.slice(0, 32000), truncated: input.truncated === true || input.content.length > 32000,
-    goal_ids: [...new Set(input.goal_ids)] };
+/**
+ * One page of an object's context. A reader that passes its own `request` reads from `request.offset` and says where the page
+ * starts and how long the whole text is, so a long object is read page by page; without it the first page is all there is.
+ */
+export function subjectContext(input: Omit<ActionSubjectContext, "truncated" | "offset" | "length"> & { truncated?: boolean }, request?: Pick<SubjectContextRequest, "offset">): ActionSubjectContext {
+  const offset = Math.min(Math.max(0, Math.floor(request?.offset ?? 0)), input.content.length);
+  const content = input.content.slice(offset, offset + SUBJECT_CONTEXT_PAGE_CHARS);
+  return { ...input, title: input.title.slice(0, 1000), content, truncated: input.truncated === true || offset + content.length < input.content.length,
+    goal_ids: [...new Set(input.goal_ids)], ...(request ? { offset, length: input.content.length } : {}) };
 }
 
 /**

@@ -17,6 +17,7 @@ import {
   partOfChildViews,
   sortGoalTreeItems,
 } from "@molis-ai/molis-work-plugin-goals";
+import { lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
 import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
@@ -54,11 +55,11 @@ import {
   renderFormContribution,
   renderDatasetContribution,
   renderPptContribution,
-  renderLingguangContribution,
   renderAlchemistContribution,
   renderWorkflowsContribution,
   renderWorkbenchDocument,
   renderWorkTerminal,
+  renderDeclarativeContribution,
 } from "./ui-composition.js";
 import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } from "./side-view-document.js";
 export interface WorkbenchRendererPorts {
@@ -104,9 +105,7 @@ function renderPptNativePluginSurface(surface: "directory" | "workbench"): strin
 }
 
 function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderLingguangContribution(surface, {
-    primitives: { escape: escapeHtml, text: L },
-  });
+  return renderDeclarativeContribution(lingguangUiContribution, surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {

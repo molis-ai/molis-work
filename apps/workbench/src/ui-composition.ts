@@ -1,4 +1,5 @@
 import type {
+  UiContribution,
   UiRenderRequest,
   UiSlotDescriptor,
 } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -43,11 +44,6 @@ import {
   type PptUiModel,
   type PptUiSurface,
 } from "@molis-ai/molis-work-plugin-ppt";
-import {
-  LINGGUANG_UI_CONTRIBUTION_ID,
-  type LingguangUiModel,
-  type LingguangUiSurface,
-} from "@molis-ai/molis-work-plugin-lingguang";
 import {
   ALCHEMIST_UI_CONTRIBUTION_ID,
   type AlchemistUiModel,
@@ -109,12 +105,6 @@ const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>
 const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const LINGGUANG_SURFACE_SLOTS: Readonly<Record<LingguangUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-  side: WORKBENCH_UI_SLOTS.side,
 };
 
 const ALCHEMIST_SURFACE_SLOTS: Readonly<Record<AlchemistUiSurface, UiSlotDescriptor>> = {
@@ -321,18 +311,14 @@ export function renderWorkflowsContribution(
   }).html;
 }
 
-export function renderLingguangContribution(
-  surface: LingguangUiSurface,
-  model: LingguangUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: LINGGUANG_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: LINGGUANG_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
+/* A declarative contribution carries which Workbench slot each surface mounts into; rendering it needs no per-plugin host
+   function. A contribution with no descriptor for this surface renders nothing. */
+const WORKBENCH_SLOT_BY_ID = new Map<string, UiSlotDescriptor>(Object.values(WORKBENCH_UI_SLOTS).map(slot => [slot.slot_id, slot]));
+export function renderDeclarativeContribution<T>(contribution: UiContribution<T>, surface: string, model: T): string {
+  const target = contribution.descriptor.surfaces?.find(item => item.surface_id === surface)?.target_slot_id;
+  const slot = target ? WORKBENCH_SLOT_BY_ID.get(target) : undefined;
+  if (!slot) return "";
+  return workbenchUiHost.mount({ slot, contribution: { contribution_id: contribution.descriptor.contribution_id, surface, model } }).html;
 }
 
 export function renderPluginSettingsContribution(

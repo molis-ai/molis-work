@@ -2285,3 +2285,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - ① 推荐：任何插件在 Manifest 声明，按安装授权放行，每次审查照旧由人批。
   - U3、U4 真触发时再问。
   - Shelf S1 开成了 #892（head `94129f0f1`，base main），已交 ⑤。
+- **10-21 用户答 U1（PG-009，Coding C5）：「开放给所有插件 (推荐)」。**
+  - 四种审查（git-index、git-operation、git-integration、git-worktree）由插件在 Manifest 里声明，按安装授权放行，每次审查仍由人批准。
+  - 不新增只给内置插件的特权。
+  - 答复原文已转给 ③（Coding 一侧）和 ②（平台一侧：Manifest 声明、授权检查、宿主不留内置分支）。

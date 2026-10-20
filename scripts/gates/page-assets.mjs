@@ -235,12 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 26, sizing by keys (VUX-06).
-// +1,580 B of the Pages editor: Mod-Alt-Shift-← and → size the selected image, table column or layout column the caret is
-// in through the handles' own commands, and the handles name the keys. Tried first: one command for all three, written
-// compactly, since this bundle keeps its identifiers (2,378 → 1,580 B). Spent once from exactly the hover slice's budget (#907).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 27, sizing by keys is read out
+// (VUX-06). +655 B of the Pages editor: each press says the new width (pixels, share or "full width") in the page's one
+// status region, with the English copy; +25 B of the workbench script lends copy feedback's region as `window.molisAnnounce`
+// instead of a second one. Tried first: one `done` step for the three branches. Spent once from exactly #908's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [707306, 708886],
+  "/assets/molis-work-pages-editor.js": [708886, 709541],
+  "/assets/molis-work-workbench.js": [1163017, 1163042],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

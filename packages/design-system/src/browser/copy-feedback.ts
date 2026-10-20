@@ -76,3 +76,5 @@ async function molisCopy(button: HTMLElement, source: Source, labels: Labels = {
 }
 
 window.molisCopy ??= molisCopy;
+// The status region is the page's one: anything else that has to be read out once (a size changed by keys) uses it too.
+window.molisAnnounce ??= announce;

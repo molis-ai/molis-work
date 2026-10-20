@@ -717,6 +717,8 @@ for (const [asset, old] of [
   // The hover-action allowances (#907, VUX-06) are spent.
   ["/assets/molis-work-workbench.js", 1162964], ["/assets/molis-work-workbench.css", 1607967], ["/assets/molis-work-settings.css", 991992],
   ["/assets/molis-work-arrival.css", 702287],
+  // The sizing-keys allowance (#908, VUX-06) is spent.
+  ["/assets/molis-work-pages-editor.js", 707306],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

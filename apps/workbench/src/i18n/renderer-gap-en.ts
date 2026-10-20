@@ -492,6 +492,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "已记录：": "Recorded: ",
   "整理超时，点开补全标题和类型": "Organizing timed out. Open it to add a title and type",
   "需要补充：": "More detail needed: ",
+  "你在哪个页面做了什么，出现了什么问题？也可以补充截图。": "What page were you on, what did you do, and what happened? You can also add a screenshot.",
   "模型暂时不可用，点开手动保存，或检查模型设置": "The model is unavailable. Open it to save by hand, or check the model settings",
   "模型暂时不可用，可以直接保存，或检查模型设置": "The model is unavailable. You can save directly, or check the model settings",
   "当前模型未声明能看图或已设为不能看图，截图没有交给它；写一句话再整理，或在设置 → 模型 → 供应商的模型列表中将读图能力设为能看图并保存": "The model’s image capability is unset or disabled, so it did not receive the screenshots. Add a sentence and organize again, or go to Settings → Models → your provider’s model list, select Can read images, and save",

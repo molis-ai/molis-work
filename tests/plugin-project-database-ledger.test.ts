@@ -208,3 +208,26 @@ test("PLIB-04 a recorded library opens only for the publisher that made it, at i
     assert.equal(changed.isTransaction, false);
   }
 });
+
+test("PRR-15 a corrupt ledger row is refused as a shape mismatch, not as a JSON parse error", () => {
+  const db = library();
+  open(db);
+  db.exec("UPDATE plugin_project_databases SET tables_json = '{'");
+  refused("plugin.project_database.shape_mismatch", () => open(db), /账本记录读不出来/u);
+  assert.equal(db.isTransaction, false);
+});
+
+test("PRR-15 a rollback that throws keeps the original failure", () => {
+  const db = library();
+  const failing = new Proxy(db, { get(target, property, receiver) {
+    if (property === "exec") return (sql: string) => {
+      if (sql === NOTES.schema) { target.exec("ROLLBACK"); throw new Error("disk full"); }
+      if (sql === "ROLLBACK") throw new Error("cannot rollback - no transaction is active");
+      return target.exec(sql);
+    };
+    const value = Reflect.get(target, property, receiver);
+    return typeof value === "function" ? value.bind(target) : value;
+  } });
+  assert.throws(() => open(failing), (error: unknown) => error instanceof Error && error.message === "disk full");
+  assert.equal(db.isTransaction, false);
+});

@@ -26,6 +26,15 @@ import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/ling
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
 const PROJECT = "project-lingguang";
 
+test("PRR-11 each Lingguang route has its own body limit", () => {
+  const limits = Object.fromEntries((lingguangManifest.routes ?? []).map(route => [route.route_id, route.max_body_bytes]));
+  assert.equal(limits["lingguang.material_read"], 36_000_000);
+  for (const [route, bytes] of Object.entries(limits)) {
+    if (bytes === undefined || route === "lingguang.material_read") continue;
+    assert.ok(bytes <= 1_000_000, `${route} accepts ${bytes} bytes`);
+  }
+});
+
 function saveFunctionSource(script: string): string {
   const start = script.indexOf("const save = async");
   const end = script.indexOf("const queueSave", start);

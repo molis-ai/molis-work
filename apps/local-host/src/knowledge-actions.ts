@@ -129,7 +129,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
    * round's fill and the pieces kept from agents are still the Plugin's call's, and it stays bound to that call's own authority.
    */
   const access = async (caller: ActionExecutionContext, action: ActionReference): Promise<KnowledgeAccess> => {
-    const asked: KnowledgeAccess = { client: ports.clientFor(caller), caller, beforeEffect: caller.beforeEffect };
+    const asked: KnowledgeAccess = { client: ports.clientFor(caller), caller, workspace: caller, beforeEffect: caller.beforeEffect };
     if (caller.audience !== "plugin" || !caller.project_id || !caller.permissions.includes(KNOWLEDGE_READ_PERMISSION) || !ports.ownerContext) return asked;
     const owner = await ports.ownerContext(caller.project_id), origin = { ...action, provider_id: KNOWLEDGE_PROVIDER_ID };
     return { ...asked, reader: { ...owner, ...(caller.signal ? { signal: caller.signal } : {}),

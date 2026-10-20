@@ -124,8 +124,8 @@ export function noteRoundEvent(facts: RoundFacts, event: { type: string; [key: s
  */
 const ACTING_TOOLS = new Set([...HOST_GOVERNED_TOOLS.filter(name => name !== MEMORY_TOOLS.remember && name !== MEMORY_TOOLS.forget), "surface-act"]);
 /** Whether a returned call this round recorded or acted on something (a capability change is judged by its effect, a memory by its count). */
-export function actedThisRound(facts: RoundFacts): boolean {
-  return facts.calls.some(call => call.ended === "returned" && ACTING_TOOLS.has(call.tool));
+export function actedThisRound(facts: RoundFacts, options: { readonly except?: ReadonlySet<string> } = {}): boolean {
+  return facts.calls.some(call => call.ended === "returned" && ACTING_TOOLS.has(call.tool) && !options.except?.has(call.tool));
 }
 
 /** Field names, object ids and error codes in a tool's JSON result: things the Host named, never words of the person. */

@@ -18,6 +18,11 @@ function fixture(t: { after(fn: () => Promise<void>): void }, completeText: Host
 }
 const file = (path: string, text: string) => ({ path, data: Buffer.from(text).toString("base64") });
 
+test("PRR-02 the Cognia directory actions are user-only until a platform directory service exists", () => {
+  assert.deepEqual(actions.scan.action.audiences, ["user"]);
+  assert.deepEqual(actions.previewDirectory.action.audiences, ["user"]);
+});
+
 test("Cognia Home capabilities are discovered without UI/project; grants and separate Homes constrain actual calls", async t => {
   const f = fixture(t), other = fixture(t);
   const directory = await f.bound.discover();

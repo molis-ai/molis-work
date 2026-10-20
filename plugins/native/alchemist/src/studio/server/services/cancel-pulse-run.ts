@@ -9,7 +9,7 @@ import { DISCOVERY_PULSE_JOB } from "./start-pulse-run.js";
 const inputSchema = z.object({ pulseRunId: z.string().min(1), periodStart: z.string().min(1), actorId: z.string().min(1).optional() }).strict();
 
 /**
- * Stops a Pulse by its job (W5-01-ALC-RES09): the job's own cancel and the run's `cancelled` status are one transaction; then the
+ * Stops a Pulse by its job (W5-01-ALC-RES11): the job's own cancel and the run's `cancelled` status are one transaction; then the
  * running execution is aborted. Nothing else is written, now or when a source answers late (RES07).
  */
 export function createCancelPulseRunService(dependencies: {

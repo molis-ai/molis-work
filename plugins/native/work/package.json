@@ -14,6 +14,10 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
+    },
     "./terminal": {
       "types": "./dist/terminal/index.d.ts",
       "import": "./dist/terminal/index.js"
@@ -47,6 +51,7 @@
       "goal-reorg-f2",
       "goal-reorg-wk3"
     ],
-    "ssot": "docs/SSOT-MATRIX.md"
+    "ssot": "docs/SSOT-MATRIX.md",
+    "registration": "./registration"
   }
 }

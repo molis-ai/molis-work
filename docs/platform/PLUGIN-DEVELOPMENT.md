@@ -2,11 +2,11 @@
 
 写一个插件时，先按 [molis-plugin-dev Skill](../../skills/molis-plugin-dev/SKILL.md) 走完整路径：对象与时刻 → Manifest → UI/客户端 → HTTP → 现场动作 → 判断场景 → MCP → Artifact / 事件 / ports → 按 kind 接到 Host 或 CLI。本文件是命令、MCP 登记、动作录取和打包的手册，不替代那份顺序。Host 装配见 Skill 的 `host.md`，SDK/CLI 见 `authoring.md`，接入见 `integrations.md`。
 
-新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）在 `BUILTIN_PLUGIN_CATALOG` 的目录条目上声明 `runtime: { scope: "home", … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 里要有它的目录条目（Manifest、`summary`、`workbench` 次序与客户端资源），并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
+新的内置插件按仓库 `AGENTS.md` 只走 Plugin Runtime：项目级的在 `apps/local-host/src/project-plugins.ts` 加监督器条目，Home 级的（个人数据跨项目一致、没有项目也能用）在插件自己 `src/registration.ts` 的 `registration` 上声明 `runtime: { scope: "home", … }`，由宿主的 Home 监督器装配（写法见 `skills/molis-plugin-dev/host.md`）；不再手接 `ui-composition.ts` → `renderer.ts` → `goals-page-renderer.ts`，也不再新增构建期（旧路径）条目或 `<插件>-native-plugin-http.ts`。Runtime 装配仍有两处接线：一是目录里要有它的条目：写在插件包的 `src/registration.ts`（导出 `registration: PluginRegistration`，Manifest、`summary`、`workbench` 次序与客户端资源都在里面；`package.json` 声明 `exports["./registration"]` 与 `"molis-work": { "registration": "./registration" }`），运行 `node scripts/generate-plugin-registry.mjs` 生成 `apps/workbench/src/builtin-plugins.ts`（不手改，`pnpm health:check` 跑它的 `--check`）；还要在 `scripts/workspace-packages.mjs` 加这个包的一行，在 `apps/workbench/package.json` 与 `apps/local-host/package.json` 里加这个插件包的依赖（这两处今天仍手写，`specs/repository-anti-corruption/privileges.md` PG-069 跟踪）；并把它的 id 加进 `tests/builtin-plugin-assembly-gate.test.ts` 的 `RUNTIME_ASSEMBLED`（门禁要求每个 Runtime 装配的 id 都有目录条目）；二是主区由 Host 经 `plugin_stages` 渲染（`plugin_panels` 这条接缝存在，但现在没有生产代码填它）——Coding 以及 Files、Git、Diff、Text Stats 的舞台在 `apps/local-host/src/coding-surface.ts` 渲染，`web-goals-read.ts` 把它们填进页面视图，运行时安装的插件的舞台与插件栏条目来自 `installedPluginStages`。
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`：每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一条目派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；目录加载时自检（`plugin-catalog.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientFrom` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 
@@ -104,7 +104,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 ## 个人 Home Runtime 与插件 SQLite
 
-数据属于个人 Home、切换项目不分开的新内置插件，在 `BUILTIN_PLUGIN_CATALOG` 的同一条目声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+数据属于个人 Home、切换项目不分开的新内置插件，在自己的 `registration` 里声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files? }`。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
@@ -199,6 +199,8 @@ Plugin Builder 将每次发布保存为独立版本记录。发布新版只产�
 
 新能力使用 `actions` 与 `action_scenes`，由 Kernel/Plugin Runtime 注册执行。SDK `defineAction` 提供定义与 handler 配对；场景必须兑现 `bindings`、`bind`、`consume`。用 `event_schema`/`prepare` 分离触发事件、函数输入和私有对象快照；可选 `failed` 负责明确的失败消费，同样接受绑定、权限、生命周期和对象检查。`required_scene` 让 Host 依据实际绑定计算触发入口状态。
 
+`bind`、`consume`、`failed` 接收真实 `ActionSceneExecutionContext`。异步等待后、写入前调用 `await caller.beforeEffect()`，再原子核对 owner 的对象版本；它重新检查原调用者、取消、场景与判断注册及权限，回调返回或抛错后不能继续写入。`bindings`、`targets`、`prepare`、`availability`、`configuration_availability` 是只读回调，允许普通查询及查看原授权目录里的判断/写动作元数据，拒绝直接写入、嵌套写动作和付费查询；宿主从已注册目标读取操作与费用，不接受插件自报的替代值。场景经 `services.actions` 或 `services.capabilities` 发起嵌套调用时仍保留原场景控制。场景不是动作，不取得模型、后台执行或动作专属查询委托的资格。
+
 Host 的动作客户端和场景客户端共享项目运行时与执行队列。兼容场景通过输入输出及语义合同发现，使用位置从原业务配置读取；新增插件不改中央能力或场景 ID 名单。插件有业务权限不代表外部 MCP 客户端有同样权限。细节与示例见 [SDK](../../packages/plugin-sdk/README.md#动作与判断消费场景)、[Inbox 场景](../../plugins/native/inbox/src/scenes.ts)、[实际自动触发验证](../../tests/inbox-automatic-scenes.test.ts)。
 
 系统规则编辑器通过场景 owner 的 `targets` / `bind` 自动显示真实配置位置。场景声明 `configuration_permissions`，配置保存携带准确提供方和原 revision；原 owner 原子拒绝过期修改。目录查询不创建规则，停用保留原引用。具体接口和权限边界见 SDK。
@@ -273,7 +275,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
-- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在 `apps/workbench/src/builtin-plugins.ts` 自己的目录条目上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
+- Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在自己包 `src/registration.ts` 的 `registration` 上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
 - 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`；只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
 - `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 30 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
@@ -286,7 +288,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 插件可以把本领域的做事方法（Skill）提供给助理和 Character 在业务工作里使用，例如 Pages 的“会议纪要整理”。
 
 - 在 Manifest 的 `methods` 声明：`skill_id`、`version`、`name`、`summary`（何时适用），以及 `tools`。`tools` 只能是业务工具，即 `METHOD_TOOLS`：能力网关（find/read/change-capability、suggest-action），加上 ask-user、update-todo 等不碰目录的工具。校验不通过，Manifest 就无效。
-- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；内置插件在目录条目里带上 `methods`，Host 启动时登记；没有目录条目、由 Host 自己运行的 Runtime 插件与已安装插件把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。两处都只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。目录已经为这个插件登记了任何定义时，定义里再带方法会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
+- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；内置插件在自己的 `registration` 里带上 `methods`，Host 启动时登记；没有目录条目、由 Host 自己运行的 Runtime 插件与已安装插件把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。两处都只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。目录已经为这个插件登记了任何定义时，定义里再带方法会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
 - 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
 - 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
 - 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。

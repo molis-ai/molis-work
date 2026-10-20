@@ -149,6 +149,24 @@ test("one directory isolates same capability and scene identities activated in d
   assert.deepEqual(consumed, ["a", "b", "b"]);
 });
 
+// The action snapshot's collector (scripts/gates/action-contract-host.mjs) leaves the plugin audience out of its scene reads, since a
+// plugin's own scene discovery needs a caller the Host issued (S-15). That drops no row only while visibility ignores the audience:
+// if a scene ever becomes visible by audience, this fails first, and the collector has to read that audience again.
+test("S-15 a scene is visible by person, project and permissions, never by audience: the same caller in each audience sees the same scenes", () => {
+  const service = new ActionService();
+  const guarded: ActionSceneDefinition = { ...scene, scene_id: "feedback.guarded", permissions: ["notes:write"] };
+  const sealed: ActionSceneDefinition = { ...scene, scene_id: "feedback.sealed", permissions: ["notes:admin"] };
+  service.registerProvider({ provider: { ...provider, project_id: context.project_id! }, definitions: [], handlers: [], scenes: [scene, guarded, sealed],
+    scene_handlers: [scene, guarded, sealed].map(definition => ({ ...consumer(new Map(), () => {}), scene_id: definition.scene_id })) });
+  service.registerProvider({ provider: { ...provider, provider_id: "elsewhere", project_id: "project-two" }, definitions: [], handlers: [], scenes: [scene],
+    scene_handlers: [consumer(new Map(), () => {})] });
+  const seen = (audience: ActionCallContext["audience"]) => service.discoverScenes({ ...context, audience })
+    .map(view => ({ definition: view.definition, provider: view.provider }));
+  const asUser = seen("user");
+  assert.deepEqual(asUser.map(view => view.definition.scene_id), [scene.scene_id, guarded.scene_id], "the person's permissions and project decide");
+  for (const audience of ["agent", "workflow", "plugin", "mcp"] as const) assert.deepEqual(seen(audience), asUser, audience);
+});
+
 test("a changed binding during an asynchronous judgment cannot consume the stale result", async () => {
   const service = new ActionService();
   const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id } }]]);

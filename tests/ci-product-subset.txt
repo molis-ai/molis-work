@@ -129,6 +129,7 @@ tests/coding-companion-inputs.test.ts
 tests/coding-continuation.test.ts
 tests/coding-delegation-waits.test.ts
 tests/coding-delegation.test.ts
+tests/coding-diagnose-after-write.test.ts
 tests/coding-events.test.ts
 tests/coding-experience.test.ts
 tests/coding-history-requirements.test.ts
@@ -459,6 +460,7 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/workspace-production-events.test.ts
 tests/security-invariants-plugin-files.test.ts
 tests/security-invariants-plugin-background.test.ts
 

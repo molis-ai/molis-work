@@ -29,7 +29,8 @@ export function createWorkflowsPlugin(): PluginDefinition {
     const model = context.services?.model;
     const ports: WorkflowsActionPorts = { ...stores,
       content: caller => createWorkflowContentPorts(delegated(directory, caller)),
-      actions: caller => ({ discover: () => directory.discover(), invoke: (reference, input) => directory.invoke(reference, input, controlOf(caller)) }),
+      actions: caller => ({ discover: () => directory.discover(), invoke: (reference, input) => directory.invoke(reference, input, controlOf(caller)),
+        check: (reference, input) => directory.check(reference, input) }),
       textModel: (): ActionAvailability => model?.availability() ?? { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" },
       ...(model ? { complete: async (prompt, options) => { await options.beforeDispatch(); return model.complete(prompt, { signal: options.signal }); } } : {}) };
     return { kind: "app", views: [workflowsUiContribution], actions: createWorkflowsActionHandlers(projectId, ports), routes: workflowsRoutes(context) };

@@ -71,7 +71,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     const res = await reply.json().catch(() => ({}));
-    if (!reply.ok) { const err = new Error(res.error || L('工作流程请求失败')); err.code = res.code; err.status = reply.status; throw err; }
+    if (!reply.ok) { const err = new Error(res.error || L('工作流程请求失败')); err.status = reply.status; throw err; }
     return res;
   }
 
@@ -805,9 +805,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     }
     lastRun.steps = steps; lastRun.links = links;
     if (stepFocus !== null && stepFocus !== undefined) vchain.querySelector('[data-wf-step="' + stepFocus + '"]')?.focus({ preventScroll: true });
-
     article.querySelector('[data-wf-stage-head]').innerHTML = '<span class="wf-stage__step">' + esc(L('第 {n} 步', { n: idx + 1 })) + '</span><span class="wf-station__icon" style="--station-tint:' + tint(step.plugin) + '">' + ico(stnMeta(step.plugin).icon) + '</span><strong>' + esc(label(run.chain.stations[idx])) + '</strong>' + (step.item && step.plugin !== 'action' ? '<span class="wf-muted">' + esc(step.item.title) + '</span>' : '');
-
     const handoffBox = article.querySelector('[data-wf-handoff]');
     const actionFocus = handoffBox.contains(document.activeElement) ? document.activeElement.dataset.wfAction : null;
     const key = handoffKey(run, idx);
@@ -975,7 +973,6 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     const tgt = ev.target.closest('[data-wf-action], [data-wf-open], [data-wf-open-instance], [data-wf-step]');
     if (!tgt || !root.contains(tgt) || pop.contains(tgt)) return;
     const act = tgt.dataset.wfAction;
-    const fromKeyboard = ev.detail === 0;
     try {
       if (tgt.dataset.wfOpen) { if (ui.workflow?.workflow_id !== tgt.dataset.wfOpen || ui.instance) await showFlow(tgt.dataset.wfOpen); return; }
       if (tgt.dataset.wfOpenInstance) { await openRun(tgt.dataset.wfOpenInstance); return; }

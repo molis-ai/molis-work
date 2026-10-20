@@ -121,6 +121,8 @@ export interface WorkflowContentPorts {
 export interface WorkflowActionReach {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ActionReference & { provider_id: string }, input: unknown): Promise<unknown>;
+  /** Refuses as `invoke` would (a target this caller cannot reach, an input its schema rejects) without running the target or logging a call. */
+  check(reference: ActionReference & { provider_id: string }, input: unknown): Promise<void>;
 }
 
 /**
@@ -195,6 +197,20 @@ export const workflowsActions = {
 export const WORKFLOWS_ACTIONS: readonly ActionDefinition[] = Object.values(workflowsActions);
 export const WORKFLOWS_ACTION_PERMISSIONS = [...new Set(WORKFLOWS_ACTIONS.flatMap(definition => definition.action.permissions))];
 
+/** Other actions as this caller reaches them through the workflow: the directory is read once per call; every invocation is still checked by the kernel. */
+function reachFor(ports: Pick<WorkflowsActionPorts, "actions">, caller: ActionExecutionContext) {
+  const reach = ports.actions(caller);
+  let views: Promise<readonly ActionView[]> | undefined;
+  const all = () => views ??= reach.discover();
+  return {
+    all,
+    find: async (ref: ActionReference) => (await all()).find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id),
+    invoke: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.invoke(ref, input),
+    check: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.check(ref, input),
+  };
+}
+type Reach = ReturnType<typeof reachFor>;
+
 export function createWorkflowsActionHandlers(projectId: string, ports: WorkflowsActionPorts): ActionHandlerBinding[] {
   const runs = createWorkflowRunControls(projectId, ports.read);
   type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
@@ -205,25 +221,13 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     // caller's permissions and exact grants still bound every nested call.
     return ports.content(caller);
   };
-  /** Other actions as this caller reaches them through the workflow: the directory is read once per call; every invocation is still checked by the kernel. */
-  const reachFor = (caller: ActionExecutionContext) => {
-    const reach = ports.actions(caller);
-    let views: Promise<readonly ActionView[]> | undefined;
-    const all = () => views ??= reach.discover();
-    return {
-      all,
-      find: async (ref: ActionReference) => (await all()).find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id),
-      invoke: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.invoke(ref, input),
-    };
-  };
-  type Reach = ReturnType<typeof reachFor>;
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach, original: ActionExecutionContext) => Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
       const run = definition === workflowsActions.continue ? runs.acquire((input as ContinueInput).id, caller) : null;
       try {
         const execution = run?.caller ?? caller;
         const authority = retainActionAuthority(execution, { ...definition, provider_id: WORKFLOWS_PLUGIN_ID }, execution.beforeEffect);
-        return await handle(input as I, scoped(authority), execution, reachFor(authority), caller);
+        return await handle(input as I, scoped(authority), execution, reachFor(ports, authority), caller);
       } finally { run?.release(); }
     },
   });
@@ -353,6 +357,8 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const choice = await resolveAction(reach, target);
     const mapped = mapActionInput(target.action, pending.output);
     const definition = (await reach.find(choice.ref))!.action;
+    // The target's own refusal of this input comes before an attempt is recorded, so a bad mapping is fixed and run again without a retry.
+    await reach.check(choice.ref, mapped);
     const attempt: Pending = { ...pending, attempted_at: new Date().toISOString() };
     const instance = await commit(caller, store => store.saveInstance(current, withPending(current, from, attempt)));
     let result: unknown;

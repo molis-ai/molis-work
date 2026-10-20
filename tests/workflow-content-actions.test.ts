@@ -10,7 +10,7 @@ import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers
 import { ActionError, bindActionClient, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, type ActionCallContext, type ActionDefinition, type BoundActionClient, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, manualLink, workflowsActions as w, workflowsManifest, WORKFLOWS_ACTION_PERMISSIONS,
   type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
-import { workflowsTestPorts } from "./fixtures/workflows-actions.js";
+import { workflowsTestPorts, type WorkflowsPortOptions } from "./fixtures/workflows-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project-a", audience: "workflow", permissions: ["drafts:read", "drafts:write"] };
@@ -22,7 +22,7 @@ async function fixture(run: (f: {
   ports: ReturnType<typeof createWorkflowContentPorts>; actions: BoundActionClient; store: ReturnType<typeof openWorkflowsStore>;
   /** Every role at its current version; or, with a number, every role of the plugin at that one version (an upgrade or a withdrawal). */
   register(version?: number): Promise<string>;
-}) => Promise<void>) {
+}) => Promise<void>, portOptions: WorkflowsPortOptions = {}) {
   const home = mkdtempSync(join(tmpdir(), "workflow-action-contract-"));
   const db = new DatabaseSync(join(home, "unknown-plugin.sqlite"));
   db.exec("CREATE TABLE drafts (id INTEGER PRIMARY KEY, project TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL)");
@@ -64,7 +64,7 @@ async function fixture(run: (f: {
     const ports = createWorkflowContentPorts(bindActionClient(service, () => caller));
     // The Workflows actions are registered over the same store and service, the way the Runtime plugin gives them their ports.
     service.registerProvider({ provider: { provider_id: workflowsManifest.plugin_id, title: workflowsManifest.name, kind: "plugin", project_id: caller.project_id! },
-      definitions: workflowsManifest.actions!, handlers: createWorkflowsActionHandlers(caller.project_id!, workflowsTestPorts(store, service)) });
+      definitions: workflowsManifest.actions!, handlers: createWorkflowsActionHandlers(caller.project_id!, workflowsTestPorts(store, service, portOptions)) });
     const actions = bindActionClient(service, () => ({ ...caller, audience: "user", permissions: [...caller.permissions, ...WORKFLOWS_ACTION_PERMISSIONS] }));
     await run({ home, db, service, runtime, install, ports, actions, store, register });
   } finally {
@@ -202,4 +202,30 @@ test("content protocol rejects lying schemas and preserves provider identity at 
     definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { plugin: "unknown-drafts", item_id: "2", title: "x" }; } }] });
   await assert.rejects(service.invoke(caller, { ...declarations.receive, provider_id: "original" }, { title: "x", body: "x", request_id: "workflow:one:1" }), { code: "actions.provider_changed" });
   assert.equal(writes, 0);
+});
+
+test("W5-01-WORKFLOWS-08 a model answer is recorded only while its original call is current: the check runs inside the commit, and a refused answer leaves no handoff", async () => {
+  let answers = 0;
+  const current = { value: false };
+  const options: WorkflowsPortOptions = { textModel: { available: true }, complete: async () => {
+    answers++;
+    return { text: "模型整理的标题\n\n模型整理的正文", validateResult() { if (!current.value) throw new ActionError("actions.cancelled", "原调用已经结束"); } };
+  } };
+  await fixture(async ({ actions, store, db }) => {
+    const flow = (await actions.invoke(w.create, { title: "模型交接", chain: { stations: [{ plugin: "unknown-drafts" }, { plugin: "unknown-drafts" }],
+      links: [{ kind: "ai", title_template: "", body_template: "", instructions: "整理成一页" }] } })).workflow as Workflow;
+    const run = (await actions.invoke(w.start, { id: flow.workflow_id, title: "原始草稿" })).instance as WorkflowInstance;
+    db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("本地实际内容", run.steps[0]!.item!.item_id);
+    const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
+    await assert.rejects(actions.invoke(w.continue, { id: run.instance_id }), { code: "actions.cancelled" });
+    assert.equal(answers, 1);
+    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.pending, undefined, "the refused answer was not kept");
+    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.handoff ?? null, null);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts, "and nothing was delivered");
+    current.value = true;
+    const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance as WorkflowInstance;
+    assert.equal(done.status, "done");
+    assert.equal(done.steps[0]!.handoff?.actor, "ai");
+    assert.equal(done.steps[0]!.handoff?.output.title, "模型整理的标题");
+  }, options);
 });

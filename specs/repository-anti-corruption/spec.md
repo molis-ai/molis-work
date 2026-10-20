@@ -569,6 +569,32 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 - 证据（2026-10-18，本地；基于 `origin/main 7faaa027`）：整体 `pnpm build` 71 包通过；`tests/workflows-store.test.ts` 的 `W5-01-WORKFLOWS-STORE-01`/`02` 2/2，连同 workflows-plugin 7/7、handoff 3/3、stop-and-token 3/3、stop-effects 2/2、action-steps 1/1、content-actions 3/3、project-deletion-owners 12/12，共 8 文件 33/33；`verify-release-versions`、`boundary:check`、health（merge-base `7faaa027`）通过。日志：`logs/workflows-store-build.log`、`logs/workflows-store-tests.log`、`logs/workflows-store-health.log`。
 - 待办：Manifest/路由、动作切换、宿主接线删除与 Runtime 迁移另片；等 Codex 的实际基线与公共前置。
 
+W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtime`；动作目录的 `directory.invoke/discover/check` 与 S-42/S-43 来自 #848，不在本片重写）：
+- 范围：Workflows 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/workflows/workflows.db`（`WORKFLOWS_DATABASE`，version 1），项目分区与目录条目不变。不改成 Home 单实例，不动其他插件。
+- 包：新增 `plugin.ts`（`createWorkflowsPlugin`）与 Manifest 0.3.0 的 13 条路由（`/workflows…`），`max_body_bytes` 取原宿主路由的 400,000 B；导出 `createWorkflowsPlugin`，删旧 `routes.ts`/`route-handlers.ts`。站点内容、动作步骤与判断规则一律经 `services.actions.directory`（`discover`/`invoke`/`check`）到达；AI 交接的文字模型走 `services.model`。
+- 宿主：删 `workflows-actions.ts`、`workflows-native-plugin-http.ts`、`web-project-platform-routes.ts` 的 `workflowsRoute`、`project-host.ts` 的 provider 与 `index.ts` 的导出；`project-plugins.ts` 的 `homeLibraryPlugins()` 加 Workflows 条目（`bundled`、`database: WORKFLOWS_DATABASE`）；装配名单把 workflows 从构建期移到 Runtime，从旧路径名单里去掉；`apps/workbench/src/builtin-plugins.ts` 的目录条目保留。
+- 授权：Manifest 声明必需权限 `storage:private`、`workflows:read`、`workflows:write`、`actions:delegate`，可选 `model:invoke`。嵌套调用以原调用者身份、`audience: "workflow"` 进目录，`delegated_by` 是 Workflows 的插件 id；原调用者的 `allowed_actions` 与 `validate_authority` 原样带着，插件自己不持有任何站点或步骤的权限。
+- 不变：动作 id、版本、输入输出 schema、`scheduling: "concurrent"`、受众与 `provider_id`（`retainActionAuthority(…, provider_id: WORKFLOWS_PLUGIN_ID)` 不动，RUNTIME-MIGRATION 4.2；仓库里写死的 `provider_id` 只有这一处自钉，没有别的插件钉 Workflows）；库 schema；固定交接键与拒绝后的零写入；实例 `updated_at` 并发凭证；被取消、撤权、停用的调用不写业务记录；界面。
+- 验收：
+  - `W5-01-WORKFLOWS-01`：Manifest 要的权限，少一项就拒绝启动；项目起 Runtime 实例后，Workflows 的每个动作仍登记在自己的插件 id 名下（`tests/workflows-delegation.test.ts`）。
+  - `W5-01-WORKFLOWS-02`：真实路由的错误模型：边缘读到声明的 400,000 B，超出 413，坏请求体 400（`tests/document-plugins-error-model.test.ts`）。
+  - `W5-01-WORKFLOWS-03`：页面里站点与步骤以本人身份到达：本人有而插件没有的权限能用，本人没有的不会因插件而得到（`tests/workflows-delegation.test.ts`）。
+  - `W5-01-WORKFLOWS-04`：只被授权了「继续」与 Feed 站、没被授权这一步的 MCP 客户端被拒（`workflows.unavailable`），步骤不运行、不留尝试记录；授权后以 `workflow` 受众运行，`delegated_by` 是插件、原操作者不变。
+  - `W5-01-WORKFLOWS-05`：动作清单里没有这一步的 Agent 被拒，步骤不运行；列入后照常。
+  - `W5-01-WORKFLOWS-06`：目标动作对这份映射输入的拒绝在记 `attempted_at` 之前（`directory.check`），映射错了可直接改了再跑，不需要「重试」（`tests/workflows-action-steps.test.ts`）。
+  - `W5-01-WORKFLOWS-07`：停止或撤权后不留业务记录，嵌套调用经动作目录（`tests/workflows-stop-effects.test.ts`）。
+  - `W5-01-WORKFLOWS-08`：模型的回答只在原调用仍有效时记录：检查在提交里，被拒的回答不留交接（`tests/workflow-content-actions.test.ts`）。
+  - `W5-01-WORKFLOWS-09`：项目已删（RUNTIME-MIGRATION 第 6 节第 10 项）：Runtime 实例在跑时，一步失败后在同一次删除里重来并完成，只清本项目的流程与运行；没有 Runtime 时同一步照样清、不碰别的项目（`tests/workflows-project-deletion.test.ts`，两个用例）。
+- 行为变化（按预期变化处理）：
+  - 页面的写请求之后不再 `invalidateWebView`：插件路由没有这一步。
+  - 提供方缺失或有多个时由目录报 `actions.dependency_missing` 或 `actions.provider_ambiguous`；无效的流程或运行 id 现在进到动作，由动作的输入校验或 `workflows.not_found` 拒绝，不再在路由层给 404。
+  - `workflows:read`、`workflows:write`、`actions:delegate` 成为必需权限：合同影响是已授权的要在设置页重新授权；动作版本不升（只是权限与受众的声明变化，形状没变）。
+  - 每次 `invoke` 都重新在目录里找一次提供方，不再沿用宿主启动时绑定的那一份；提示词覆盖与「模型已不可用」的措辞改由 `services.model` 给出。
+  - 与旧路径相比 MCP 与 Agent 没有变宽：旧的提供方本来就用原调用者（`actions.invoke(caller, …)`）去调站点与步骤，现在改经目录，仍是原调用者，`allowed_actions` 与 `validate_authority` 一路带着，另外多一道安装的 `actions:delegate`。所以 MCP 没被授权、Agent 清单里没有的步骤被拒（`workflows.unavailable`），步骤不运行；调用途中被撤权仍是 `mcp.action_revoked`。页面上也没有变窄：旧路由按本地用户的全部权限，现在以本人身份，本人能到达的照旧能到达。
+  - 旧的 `/api/workflows…` 不留别名；客户端改用 `/api/plugins/io.molis.work.native.workflows/workflows…`。
+- 证据（2026-10-20，本地；基于 `origin/main b4e85b5f`）：整体 `pnpm build` 通过；`workflows-plugin` 7/7、`workflows-delegation` 5/5、`workflows-project-deletion` 2/2、`workflows-action-steps` 1/1、`workflow-content-actions` 6/6、`workflows-stop-effects` 2/2、`workflows-stop-and-token` 3/3、`workflows-handoff-idempotency` 3/3、`workflows-judgment-link` 1/1、`workflows-step-directory` 1/1、`workflows-store` 2/2、`workflow-station-kinds` 1/1、`agent-built-plugins-workflow` 42/42、`action-usages` 1/1、`project-deletion-owners` 12/12、`-hooks` 11/11、`-declarations` 3/3、`builtin-plugin-assembly-gate` 7/7、`document-plugins-error-model` 19/19、`web-route-table` 1/1、`security-invariants-plugin-action-delegation` 26/26、`mcp-session-authorship-nested` 2/2、`action-contract-snapshot` 25/25、`page-assets-budget` 95/95；`pnpm boundary:check`、对 merge-base 的 health（`node scripts/check-health-gates.mjs --base origin/main`）、page-assets 对 merge-base 通过。动作快照多 8 条 `sdk.artifacts.<Workflows 安装>.{head,list,own,process-head,process-own,publish,read,record}@1` 宿主行，来自 Workflows 的 Runtime 安装；Workflows 自己的动作 id、版本、schema、提供方不变。`workflows.js` 82,533 → 82,527 字节（低于 merge-base，已 `--update` 降预算）。`package-inventory --table` 的 Workflows 行由构建期改为 Runtime。
+- 未验证：三个浏览器用例（`workflows-action-steps.e2e`、`workflows-open-object.e2e`、`workflows-save-ownership.e2e`）已改到新路由前缀，但本机不跑浏览器用例，没有运行；全量回归与真实 Home 也没有跑。
+
 ### W5-03 第一片：Images 稳定翻译键与共同运行时（2026-10-17，本地验证通过，待按队列集成）
 
 收尾整合（2026-10-18，本地通过）：合入当前 Runtime、PPT/Dataset 与 Workflows Store 候选 `e55aa3545`，保留当前 Images 放入 Shelf 的 placement 路径和稳定翻译键。整体构建、API、boundary、merge-base health 与资源更新通过；5 个非浏览器文件 164 条及 2 个真实 Chrome 文件 6 条通过。资源为 25 项 7,478,980 B，较上游减少 537 B；当前中文内联 936→5,904 B（+4,968），英文 692,183→691,038 B（−1,145），仍在已批准的同一增量内。日志 `/tmp/molis-images-i18n-closeout-*.log`；最终共享全量和 PR/CI 合并仍待，不据此宣称整条 W5-03 完成。
@@ -1597,7 +1623,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/workflows` | 内置插件 | 20 | 3,924 | `client.ts` 1,358 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/workflows` | 内置插件 | 19 | 3,933 | `client.ts` 1,355 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 已审 |

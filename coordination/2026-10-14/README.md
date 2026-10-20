@@ -2316,3 +2316,19 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 门禁数字下降：`coding#host-files` 3→2，`pluginOutsideMentions[coding]` 16→15。这是子代理报的，③ 还没复跑。
   - 有一处发回子代理改，还没开 PR。
 - #891、#893 仍在等用户在 ⑤ 会话里批新门禁。
+- **10-21 #903 已合 main**（项目库 L2+L3）。① 让 ③ 从 main 开 C1。
+- **③ 开了 C3，是 #905**（head `c8525e206`，base main），已交 ⑤，正在跑门禁。
+  - 改了：
+    - 删 `coding-shelf-material.ts`；
+    - `project-plugins.ts` 减掉 17 行；
+    - Coding 新增 `results-document.ts` 和查询动作 `coding.results.document@1`；
+    - Shelf 新增 `coding-result.ts`，`runtime-actions.ts` 改走平台服务；
+    - contracts 加 `modules/coding.ts`（+37）；
+    - 动作快照和 API 快照各多一份。
+- **② 开了 T2，是 #909**（head `b41b94223`）。
+  - 改了：
+    - 新加 `model:read`，`services.model` 列模型、问能不能用，有它或 `model:invoke` 之一就行；
+    - 真发请求仍只认 `model:invoke`；
+    - S-15 已改写。
+  - ⑤ 审过，可以合；它补了三处过时的说明和 PG047-02 的一条用例。
+  - ② 下一步是 T7，然后 C6 的平台那一半。

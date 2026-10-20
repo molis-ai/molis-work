@@ -159,7 +159,7 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
   - DUAL-10 原写的 `actions.project_required` 是路由不带项目前缀时的答复；Home 一半自己的嵌套调用答 `actions.scope_mismatch`：内核先核对提供方的项目绑定（项目一半绑定在项目里，调用方不在任何项目），再看动作要不要项目。两者都是拒绝，改这个次序要动内核（PG-110 要 ③ 同意），不值得，按内核现行的写进 DUAL-10。
   - MCP 的 `tools/call` 对没有对象输出 schema 的动作答 `{ result: … }` 外层，用例按这个外层断言。
   - 端到端用例经 local-host 入口已导出的 `localWebActionContext` 建页面上下文（与 S0-2a、S0-2b-2 的用例相同），不新增入口导出。⑤ 评 #877 时建议 S0-2c 之后收回这个导出；main 上已有 8 个测试文件经入口用它（助理、搜索、侧栏等），收回要另找建上下文的公开写法，是单独的后续，不在本片。
-  - 不进 `test:security`（这些是 DUAL 行，安全的拒绝已由 S-08、S-18、S-31、S-46 的用例断言），也不进 `tests/ci-product-subset.txt`（每个用例开一个测试 Home，一个文件两个一起跑时 20 到 30 秒，也不走用户动线）。
+  - 不进 `test:security`（这些是 DUAL 行，安全的拒绝已由 S-08、S-18、S-31、S-48 的用例断言），也不进 `tests/ci-product-subset.txt`（每个用例开一个测试 Home，一个文件两个一起跑时 20 到 30 秒，也不走用户动线）。
 - 未覆盖：
   - DUAL-10 的 `consumes` 路径：插件对自己 Manifest 里的动作先走自有路径（`plugin-actions-client.ts`），两半之间够不到 `consumes`；它的受众规则由现有的动作用例管。
   - DUAL-11 的项目记录一侧在宿主一层：项目监督器每次启动都按 Manifest 补回必需权限，宿主里拿不掉项目记录的必需权限；这一侧由 S0-2a 的 DUAL-06（本机页面上下文不借权）和 Runtime 的 `assertRequiredGrants` 管。

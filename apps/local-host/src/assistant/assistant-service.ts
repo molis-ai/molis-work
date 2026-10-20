@@ -358,7 +358,7 @@ export class AssistantService {
     this.followUps = new AssistantFollowUps<StoredWork>({ actorId, records: store.followUps, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
       work: workId => store.get(actorId, workId), notify: (notice, dedupe) => store.raiseNotice(actorId, notice, dedupe) !== null,
       setting: key => store.setting(actorId, key), setSetting: (key, value) => store.setSetting(actorId, key, value),
-      rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), ...(ports.pages ? { pages: () => ports.pages!() } : {}),
+      rules: () => store.rules(actorId), setRules: rules => store.setRules(actorId, rules), pages: () => ports.pages(),
       // Each look at the Plugins is bounded in time, so one that does not answer cannot hold the sweep.
       ...(ports.homeActions ? { homeActions: async () => { const actions = await withinTime(ports.homeActions!());
         return { discover: () => withinTime(actions.discover()), invoke: (reference, input) => withinTime(actions.invoke(reference, input)) }; } } : {}),

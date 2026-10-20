@@ -226,7 +226,7 @@ test("a run starts with the person's version of a registered prompt, and its rec
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")) }, "web-user");
   try {
     const sent = await service.send({ text: "你好", request_id: "req-00000201" }, {});
@@ -260,7 +260,7 @@ test("the ending review runs with the person's version of its instructions, and 
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")) }, "web-user");
   try {
     const sent = await service.send({ text: "看看有哪些待办", request_id: "req-00000202" }, {});

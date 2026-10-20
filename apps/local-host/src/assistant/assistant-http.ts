@@ -34,6 +34,7 @@ import { drawAssistantReply } from "./assistant-view-html.js";
 import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsForSession } from "../connector-authorization-status.js";
 import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
 import { assistantSetupMaterial } from "./assistant-setup-material.js";
+import { pageChoices } from "./assistant-pages.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -48,7 +49,7 @@ export interface AssistantHttpPorts {
   projectTitle(projectId: string): Promise<string | null>;
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** The page ids installed in this Home's projects, which an attention rule may name (PG-036). */
-  pages?(): Promise<readonly string[]>;
+  pages(): Promise<readonly string[]>;
 }
 
 /** Half-written answers to a work's questions, kept with the work. */
@@ -106,7 +107,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
     setupMaterial: (work, offered, withdrawn) => assistantSetupMaterial(ports.homeDirectory, work, offered, withdrawn),
     host: async () => { await ports.agentReady(); return ports.agentHost; },
-    ...(ports.pages ? { pages: () => ports.pages!() } : {}),
+    pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: () => memoryHostFor(ports.localHost)?.service,
     learnFromRound: ({ work, said, run_id }) => {
@@ -280,7 +281,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "accept")
         return { status: 200, body: { candidate: await service.acceptMemoryCandidate(parts[1]!, { ...(typeof body.text === "string" ? { text: body.text } : {}) }) } };
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: await service.discardMemoryCandidate(parts[1]!) } };
-      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules() } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules(), pages: pageChoices(await ports.pages()) } };
       if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: await service.followUps.addRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.followUps.removeRule(String(body.rule_id ?? "")) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.followUps.remove(String(body.followup_id ?? "")) } };

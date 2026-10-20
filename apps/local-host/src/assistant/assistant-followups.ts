@@ -81,7 +81,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   rules(): AssistantRule[];
   setRules(rules: readonly AssistantRule[]): void;
   /** The page ids installed now, read from the catalog when a rule is written (PG-036). Absent: a rule may name any page id. */
-  pages?(): Promise<readonly string[]>;
+  pages(): Promise<readonly string[]>;
   /** Absent: no reminders are asked for. */
   homeActions?(): Promise<FollowUpHomeActions>;
   host(): Promise<AgentHost>;
@@ -278,8 +278,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
    * rule being changed already names stay, so turning it on or off still works after a plugin was taken out.
    */
   async addRule(input: AssistantRuleInput, ruleId?: string): Promise<AssistantRule[]> {
-    const installed = this.ports.pages ? new Set(await this.ports.pages()) : null;
-    if (installed && input && input.kind !== "pause" && Array.isArray(input.surfaces)) {
+    const installed = new Set(await this.ports.pages());
+    if (input && input.kind !== "pause" && Array.isArray(input.surfaces)) {
       const named = new Set(ruleId ? this.ports.rules().find(rule => rule.rule_id === ruleId)?.surfaces : []);
       const missing = [...new Set(input.surfaces)].filter((page): page is string => typeof page === "string" && !installed.has(page) && !named.has(page));
       if (missing.length) throw assistantErrors.invalid(`没有这样的页面：${missing.slice(0, 5).join("、")}。现有的页面：${[...installed].sort().join("、")}`);

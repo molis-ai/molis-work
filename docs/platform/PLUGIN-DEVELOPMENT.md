@@ -136,6 +136,17 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 
 新增包、SDK 类型、公开 API 与动作快照、Home 库归属及 purge 清单须同步维护。资源按插件自己的客户端包加载；新增资源需要独立预算审阅，不能抬高既有资源上限。实现与验收见 [Issue V0](../../specs/issue-home-v0/spec.md)。
 
+## 项目库里插件自己的表
+
+插件在项目库（`projects/<id>/molis-work.db`）里要有自己的表，就在 Manifest 写 `databases.project`（`PluginDatabaseDeclaration`：`store_name`、`version`、`schema`、`read_permission`、`write_permission`），不进宿主的项目库基线，宿主不点名插件（`specs/plugin-project-database`，PG-020）。
+
+- `parsePluginManifest` 检查形状：只有这五个字段，`store_name` 合 Home 库同一条名字规则，`version` 是正整数，两个权限都在这份 Manifest 的 `permissions` 里；自己的表两项都写 `storage:private`。
+- `schema` 只能由 `CREATE TABLE` 和 `CREATE [UNIQUE] INDEX` 组成，名字不带库名；外键只指自己的表或 `project_root(project_id)`（项目本身，一库一行）；不用 `AUTOINCREMENT`。平台先切句检查，再在空的内存库里试建，不合的连内存库都不执行。
+- 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。库里已有同名对象、库名归了别的插件、发布者不同、版本不同、表被改过，都拒绝，库原样不动；被拒的插件只停它自己，项目与别的插件照常。
+- 版本不就地升级：改表就升 `version`，在 `docs/releases/CHECKLIST.md` §3 改那一行，并按 `docs/releases/POLICY.md` 第 5 节写一次性维护。
+
+现在只有内置的项目级插件生效：宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Schedule）。装进项目的插件写了也还不建表，插件在运行时读写项目库的服务（L2）还没有。
+
 ## Runtime 流式路由
 
 Manifest 路由可声明 `stream: "ndjson"`，只支持 POST。`bindPluginActionRoute` 将真实动作的 `caller.on_progress` 接到 HTTP：每行是 `{ type: "progress", stage, progress, text_delta? }`，随后只有一个 `{ type: "result", result }` 或 `{ type: "error", status, code, error, call_id?, details? }`。末行由 Host 写，进度里的其他字段丢弃，插件不能伪造结果或诊断编号。HTTP 已经开始后状态保持 200，调用失败看错误末行；请求体超限则在开流前按普通 JSON 返回 413。未声明 stream 的路由继续返回 JSON。
@@ -367,7 +378,7 @@ Artifact 输入通知刷新当前投影，不是一次性业务命令。`onUpstr
 
 Coding `run-updated` 与 Git `operation-updated` 是 v1 刷新提示：前者来自后台 Run 的停止/待核对状态，后者来自 Prologue 已核对的 Effect/dispatch 回执。失败和 unknown 保留原语义，不宣称文件修改成功。恢复历史不产生新执行通知；Files/Git 订阅后只让 Host 视图 revision 失效，页面重新读取原接口。提示丢失靠首次进入、重新连接时读当前事实恢复，不能据此自动重跑模型或 Git；可靠业务提交仍须其 owner 的事务/持久协议。
 
-Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)`，另声明 `materials:fetch` 才有 `readSource(url, options)`。服务只给宿主执行的插件，沙箱和升级预检没有；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。
+Runtime 插件用 `context.services.materials` 读取材料：Manifest 声明 `materials:read` 才有 `extract({ file_name, bytes }, options)` 与按上传文件批量读文档的 `readDocuments([{ file_name, data_base64 }], options)`（文本、Markdown、HTML、CSV、Word 等文档文件，返回名字、格式、内容、覆盖情况和警告，格式或体积不合格直接以 `material.*` 码拒绝），另声明 `materials:fetch` 才有 `readSource(url, options)`。服务只给宿主执行的插件，沙箱和升级预检没有；调用必须位于自己安装、声明对应权限的并发动作。上传解析用 SDK `decodeMaterialUpload`（安全文件名、支持格式、规范 Base64、非空且最多 25 MiB），不再复制检查。公共材料提取遵守 `contracts/services/materials`：Host 负责 UTF-8/HTML、PDF worker、原生 OCR 与音视频进程；插件持有原件身份和业务引用。检查覆盖信息与容量截断，传递取消，在等待后复查执行权限。灵光和 onboarding 已共用提取口，媒体模型下载只有可信 user 调用且 `allowModelDownload: true` 才生效；agent、mcp、workflow、plugin 的 true 被忽略并按缺模型规则拒绝；生成摘要继续走 Prologue。
 
 Shelf 的 PDF 预览与文字提取、OCR 同样走此端口。语言选项属于提取请求，逐行置信度来自 `pages[].lines`，不以页平均值代替；“待确认”、来源标题和不完整提示由业务组织。多选逐项处理。标准输入仍限 25 MiB，Shelf 由可信 Host 明确采用 32 MiB，不改变其他上传端限额。原调用撤权、取消或输入 hash 改变后不写成果或失败成果。
 

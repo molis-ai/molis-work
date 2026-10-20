@@ -95,7 +95,6 @@ export {
 export {
   CodingSessionStore,
   CODING_ACTIVE_STATES,
-  CODING_SCHEMA_SQL,
   holdsCodingSessions,
   listCodingBackgroundSessions,
   toDirectoryEntries,
@@ -206,3 +205,5 @@ export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.j
 export { codingMethods } from "./methods.js";
 
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
+
+export { CODING_PROJECT_DATABASE } from "./database.js";

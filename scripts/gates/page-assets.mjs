@@ -235,19 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the split divider (VUX-23/24). +3,520 B of
-// workbench.js: the divider's own lifecycle (a 4 px dead zone, frame-by-frame follow, Escape / pointer cancel / lost capture /
-// window blur / a removed divider putting back the ratio of the press, every path taking the guard and cursor off), the room
-// each side needs in CSS px instead of a fixed 15–85 % (nested splits along and across), the snap to the default with
-// hysteresis, Home / End / Enter / Shift+arrows with the live range in aria-valuemin/max, the narrow layout when a stage cannot
-// hold every pane's minimum, a ResizeObserver that re-lays the splits, and one notice when the layout cannot be saved. +931 B
-// of workbench.css: the narrow layout repeated for that attribute (the media query cannot be shared with it) and the cursor
-// and selection hold while a divider moves. Tried first: the old inline handlers (keydown, dblclick, pointerdown) were removed
-// rather than kept beside the new ones, the pure range and snap functions live with the drop geometry, and the comments stay
-// out of the shipped CSS. Spent once from exactly the code/Diff slice's budget (#884).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): tab drag cleanup (VUX-23). +434 B of
+// workbench.js: a drag that leaves every tab surface shows the tab back at its own place (the drop there does nothing), and
+// the first pointer move after a drag clears the guard, slot and preview when the dragged tab was redrawn mid-drag and took
+// its dragend with it. Tried first: both are one listener each on existing lines; the starting place is kept beside the
+// hover one instead of being recomputed. Spent once from exactly the split divider slice's budget (#885).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1150211, 1153731],
-  "/assets/molis-work-workbench.css": [1606495, 1607426],
+  "/assets/molis-work-workbench.js": [1153731, 1154165],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -27,7 +27,13 @@ const unwrap = (node) => {
   while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))) node = node.expression;
   return node;
 };
-const property = (object, key) => object.properties.find((item) => ts.isPropertyAssignment(item) && item.name.getText() === key);
+// `{ key: value }`, or the shorthand `{ key }` read as `{ key: key }`.
+const property = (object, key) => {
+  const item = object.properties.find((each) => (ts.isPropertyAssignment(each) || ts.isShorthandPropertyAssignment(each)) && each.name.getText() === key);
+  return item && ts.isShorthandPropertyAssignment(item) ? { initializer: item.name } : item;
+};
+// A spread can bring in or override any key, so an object with one cannot be read for what it says.
+const spreads = (object) => object.properties.some((item) => ts.isSpreadAssignment(item));
 const isTrue = (node) => unwrap(node)?.kind === ts.SyntaxKind.TrueKeyword;
 const literal = (node) => (node && ts.isStringLiteral(unwrap(node)) ? unwrap(node).text : null);
 
@@ -91,13 +97,14 @@ function importedNames(tree) {
 /** Rule 3 for one marked entry: each permission of its Manifest is an object literal saying `required: true`. */
 function optionalPermissions(snapshot, entry) {
   const manifest = follow(snapshot, entry.file, property(entry.object, "manifest")?.initializer);
-  if (!manifest || !ts.isObjectLiteralExpression(manifest.node)) return [`${entry.file}: cannot read the Manifest of the dual-instance plugin ${entry.package}; write it as an object literal the gate can follow (scripts/gates/dual-instance.mjs)`];
-  const list = follow(snapshot, manifest.file, property(manifest.node, "permissions")?.initializer);
-  if (!list) return [];
-  if (!ts.isArrayLiteralExpression(list.node)) return [`${list.file}: cannot read the permissions of the dual-instance plugin ${entry.package}; write them as an array literal`];
+  if (!manifest || !ts.isObjectLiteralExpression(manifest.node) || spreads(manifest.node)) return [`${entry.file}: cannot read the Manifest of the dual-instance plugin ${entry.package}; write it as an object literal the gate can follow, without a spread (scripts/gates/dual-instance.mjs)`];
+  const declared = property(manifest.node, "permissions");
+  if (!declared) return [];
+  const list = follow(snapshot, manifest.file, declared.initializer);
+  if (!list || !ts.isArrayLiteralExpression(list.node)) return [`${list?.file ?? manifest.file}: cannot read the permissions of the dual-instance plugin ${entry.package}; write them as an array literal the gate can follow`];
   return list.node.elements.flatMap((element) => {
     const permission = follow(snapshot, list.file, element);
-    if (permission && ts.isObjectLiteralExpression(permission.node) && isTrue(property(permission.node, "required")?.initializer)) return [];
+    if (permission && ts.isObjectLiteralExpression(permission.node) && !spreads(permission.node) && isTrue(property(permission.node, "required")?.initializer)) return [];
     return [`${list.file}: the dual-instance plugin ${entry.package} has a permission that is not \`required: true\` as a literal (\`${element.getText().slice(0, 80)}\`); every permission of a dual-instance plugin is required (specs/dual-instance-plugins, U1)`];
   });
 }
@@ -139,6 +146,10 @@ function lookup(snapshot, file, tree, name, seen) {
 function across(snapshot, file, specifier, name, seen) {
   if (!specifier.startsWith(".")) return null;
   const target = path.posix.join(path.posix.dirname(file), specifier.replace(/\.js$/u, ".ts"));
+  // `export *` between two files that point at each other is a cycle no identifier closes.
+  const key = `${target}#${name}`;
+  if (seen.has(key)) return null;
+  seen.add(key);
   const text = snapshot.read(target);
   return text === null ? null : lookup(snapshot, target, parse(target, text), name, seen);
 }

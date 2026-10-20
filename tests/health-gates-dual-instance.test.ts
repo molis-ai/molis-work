@@ -78,6 +78,31 @@ test("DUAL-11 a dual-instance Manifest with an optional permission, or one the g
   assert.deepEqual(dualInstanceProblems(snapshot(unmarked)), []);
 });
 
+test("DUAL-11 a dual-instance Manifest whose permissions the gate cannot follow fails rather than passes", () => {
+  const manifest = (body: string): Tree => ({ ...dualTree(), "plugins/native/probe/src/manifest.ts": body });
+  const unreadable = [
+    // The permissions come from a module the gate does not follow.
+    lines(`import { SHARED } from "@molis-ai/molis-work-plugin-shared";`, `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: SHARED };`),
+    // A spread can bring permissions in.
+    lines(`const BASE = { permissions: [{ permission: "probe:read", required: false, reason: "读" }] };`, `export const probeManifest = { ...BASE, plugin_id: "io.molis.work.example.probe" };`),
+    // A spread in a permission can override its required.
+    lines(`const OPTIONAL = { required: false };`, `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions: [{ permission: "probe:read", required: true, reason: "读", ...OPTIONAL }] };`),
+  ];
+  for (const body of unreadable) {
+    const problems = dualInstanceProblems(snapshot(manifest(body)));
+    assert.equal(problems.length, 1, `${body}${problems.join("\n")}`);
+    assert.match(problems[0], /cannot read the (Manifest|permissions) of the dual-instance plugin|has a permission that is not `required: true`/u, body);
+  }
+  // The shorthand `{ permissions }` is followed as `{ permissions: permissions }`.
+  const shorthand = (required: string) => manifest(lines(`const permissions = [{ permission: "probe:read", required: ${required}, reason: "读" }];`,
+    `export const probeManifest = { plugin_id: "io.molis.work.example.probe", permissions };`));
+  assert.deepEqual(dualInstanceProblems(snapshot(shorthand("true"))), []);
+  assert.match(dualInstanceProblems(snapshot(shorthand("false")))[0], /has a permission that is not `required: true`/u);
+  // Two files that `export *` each other end the search, which says it cannot read the Manifest, instead of recursing forever.
+  const cycle: Tree = { ...dualTree(), "plugins/native/probe/src/manifest.ts": lines(`export * from "./index.js";`) };
+  assert.match(dualInstanceProblems(snapshot(cycle))[0], /cannot read the Manifest of the dual-instance plugin/u);
+});
+
 test("DUAL-12 a project entry whose plugin package the gate cannot tell fails rather than passes", () => {
   const [problem] = dualInstanceProblems(snapshot(dualTree({ project: "{ definition: probeDefinition, bundled: true }" })));
   assert.match(problem, /cannot tell which plugin package the entry .* starts/u);

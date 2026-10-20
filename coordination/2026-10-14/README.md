@@ -2188,3 +2188,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 结论：代码可合。合前要改切片文档：「Agent 循环窗口图超过 10 张也不撞」这句后面写上「未单独实测」。另有两条建议：测试里两处手写的旧写法；两次随机段约 2^-32 撞上的概率，失败是安全的，以前就有。评论 6289864597。
   - 已提醒 ②：换 vendored 包会顺带拉进上游 #54、#55（调用归因，BL-162，加了可选字段），换包 PR 要写明，并核对 Molis 的事件校验。
 - **11:4x UTC prologue#56 合入 Prologue main `a321b849`**（squash，钉住 head `d3190cab`）。② 按评审改完：切片文档和 PR 正文写明「超过 10 张窗口图的 Agent 循环未单独实测」，两处夹具改成 `-END` 写法，只动了文档和测试字符串。② 接着从 `a321b849` 重建 vendored 包，并在同一个 Molis PR 里把上限提到 50、配 `maxItemsPerBatch: 50`，写明顺带的 #54、#55，不改版本号，交 ⑤。① 的复测工作树 `prologue-wt/review-56` 已删。
+- **11:5x UTC**：
+  - **#867 已推 `0b60c3a6a`**（⑤，快进，不是 force push）。合入后的树上 health、boundary、secrets 都过，9 个相关用例文件过了 7 个。剩下两个是超时：installed-plugin-host 只在 macOS 上超，放长就过；inbox-automatic-scenes 跑 28 秒，上限 25 秒，留给批次全量判断。说明在 #867 评论 6289998345。等 ③ 的 S8 开 PR 后同批跑全量。
+  - #843 建议 2 的 BL 已由 ② 在 main 上记为 BL-353，⑤ 不再开文档 PR。
+  - #870：⑩ 的修复 `461750c2e` 本机构建通过，8 个相关文件全过（S-46 那个 7/7，新加了「项目级插件的登记只在本项目」）。正在跑 health `--base`，跑完推到 ② 的分支、更新正文。

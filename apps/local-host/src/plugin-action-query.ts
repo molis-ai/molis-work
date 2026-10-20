@@ -3,12 +3,20 @@ import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-co
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
+/**
+ * A provider id is only ever matched exactly against the directory, so every id the platform makes must pass here, and none follows one
+ * alphabet: an external MCP server's is `system.connectors#mcp:<connection>` or `<plugin_id>#mcp:<server>`, with the server's own id in it.
+ * What is refused is what no provider can be named: a blank id, a control character, or one longer than any the platform makes.
+ */
+const PROVIDER_ID_LIMIT = 512;
+const providerId = (value: unknown) => typeof value === "string" && value.trim().length > 0 && value.length <= PROVIDER_ID_LIMIT && !/\p{Cc}/u.test(value);
+
 /** A copy of the reference with only its three fields, or a refusal when the plugin supplied anything else. Shared by the query and directory delegations. */
 export function checkedReference(reference: ActionReference): ActionReference {
   const ref = { capability_id: reference?.capability_id, version: reference?.version, ...(reference?.provider_id !== undefined ? { provider_id: reference.provider_id } : {}) };
   if (typeof ref.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(ref.capability_id)
     || !Number.isSafeInteger(ref.version) || ref.version < 1
-    || ref.provider_id !== undefined && (typeof ref.provider_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(ref.provider_id))) {
+    || ref.provider_id !== undefined && !providerId(ref.provider_id)) {
     throw new ActionError("actions.reference_invalid", "查询引用需要有效的动作、版本和提供方");
   }
   return ref;

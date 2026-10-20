@@ -72,6 +72,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/todo/no-such-operation" },
   { method: "GET", path: "/api/project-settings/workspaces" },
   { method: "POST", path: "/api/project-settings/workspaces", body: {} },
+  { method: "GET", path: "/api/project-settings/write-checkers" },
+  { method: "POST", path: "/api/project-settings/write-checkers", body: {} },
   { method: "GET", path: "/side/todo/no-such-view", html: true },
   { method: "GET", path: "/side/no-such-plugin/x", html: true },
   { method: "GET", path: "/api/side/files/sources" },

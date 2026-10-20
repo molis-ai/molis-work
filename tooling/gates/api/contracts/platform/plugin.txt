@@ -2975,8 +2975,13 @@ export interface PluginManifest {
     agent?: AgentManifest;
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+    databases?: import("platform/plugin-database").PluginManifestDatabases;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
+}
+
+export interface PluginManifestDatabases {
+    readonly project?: PluginDatabaseDeclaration;
 }
 
 export type PluginMaterialRequest = MaterialExtractionOptions;

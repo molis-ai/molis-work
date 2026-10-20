@@ -2213,3 +2213,23 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **10-21 ⑤ 来问第二批**：统筹 Codex 10-20 16:05Z 在 #805 评论，说一骏授权它做第二批：#805；#848 → #853；#851 → #861 … #871。第一批 13 个已全部合入（main `2571a328`）。
   - ① 定：照第一批办，#805、#848、#853 让给它，⑤ 只留评论。#805 的页面资源放行（+5,141 B，⑩ 认可过）由 ⑤ 验证后推上去，再留交接评论，写明 merge-base 变了要重测。
   - 已通知 ②（#848）、③（#853）、⑩（视觉线按 Codex 的顺序只评论）。HANDOFF §3 加了「第二批」一条。
+- **10-21 batch-1020-10 的结果**（⑤，run 39453596315）：3 个失败都出在 #883，#870 和 #887 照常合入，#883 退出这一批。
+  - #883 要修两处，⑤ 已在本地提交，还没推：
+    - **要用户批**：`plugin-database.ts:21` 给 `openBaselineHomeSqlite` 加了第 4 个参数 `partition?.project_id`。`scripts/verify-release-versions.mjs:287` 的例外只认 3 个参数，所以两个测试红了。⑤ 建议把例外改成恰好 4 个参数，并加一条测试，钉住第 5 个参数照样失败。
+    - **普通修复**：`project-deleted-owners.ts:74-77` 改成删除时才读 `data.purge`（修 W5-01-PAGES-07）。
+  - #881（S8）还缺用户的两项批准：
+    - 门禁脚本 `check-package-boundaries.mjs` 的 Goals 归属检查反过来，并删掉 `modules/governance-collaboration/src/schema.ts`；
+    - 外部 MCP 工具名 `goals.snapshot.read` / `contract.read` / `collection.read` 从 `__v1` 改成 `__v2`。
+  - ① 把这三项一起问用户。
+- **10-21 给 ②③ 派下一片，不等 batch-10**（用户经旁路会话转来：「请统筹现在给 ②③ 派下一片，别让它们空等 batch-10。」）：
+  - **② 派 S0-2b-2**（双实例的声明与装配），从 main 开。
+    - 它等的 #826、#840 已在 main；#882、#877、#812 也在。
+    - 是 Shelf S2 的前置。#877 和 #882 留下的三条顺手项一起做，S0-2c 随它同批。
+    - `scripts/gates/` 新加的检查放最后一个单独提交，PR 写明只加不放。① 问用户，批下来之前 ⑤ 不合这一块。
+    - 之后的顺序：S0b-2（connections，用户 10-20 已定）→ W5-02 PR-1b-1；S0b-1 等 #883 合入。
+    - 新 S 号开 PR 时按 main 加在途 PR 取，方案里写的 S-44 已过时。
+  - **③ 派 Shelf S1**（Module 改走 `ownerFiles`；追加写改成整文件替换）。
+    - `origin_realpath` 的重读改调 #870 的 `materials:original`。ownerFiles 那部分可以先从 main 做；要早用就叠在 #870 的分支上，只 merge，不推那个分支。
+    - 顺手做 PG-091。
+    - 下一片是 Alchemist S1（分区库），等 ⑤ 把 #883 的修复推上去再叠。
+  - 两边都已开工。开了 PR 各记在自己的笔记里。

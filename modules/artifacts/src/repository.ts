@@ -48,7 +48,7 @@ export function versionStoreSchemaSql(t: VersionStoreTables): string {
   return `
   CREATE TABLE IF NOT EXISTS ${t.identities} (
     artifact_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+    project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
     owner_actor_id TEXT NOT NULL,
     producer_plugin_id TEXT NOT NULL,
     producer_binding_signature TEXT NOT NULL,

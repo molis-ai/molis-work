@@ -164,9 +164,13 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   // What the page is asked and told, counted from the page's own events: the open request the title makes (a cancelable
   // molis:side-open carrying the object, claimed here so the test stays on the request: where it asks to open, how often), every
   // pick up the card reports, and every click that reaches the page from inside the card, with whether anything cancelled it.
+  // Claiming takes more than cancelling: the side panel takes the request whether or not a listener before it cancelled it
+  // (cancelling is how the panel answers that it took it), and an open side panel (360px at least) leaves a 1440 window under the
+  // 1240 the Assistant needs for its side pane beside the conversation, so the pane folds into a closed drawer, card and all. The
+  // probe takes the request in the window's capture phase, before it reaches the document, and stops it there.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.picks = 0; window.opens = []; window.clicks = [];
     document.addEventListener('molis:surface-focus', (event) => { if (String(event.detail?.context_id ?? '').startsWith('pick:')) window.picks += 1; });
-    document.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); event.preventDefault(); });
+    window.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); event.preventDefault(); event.stopImmediatePropagation(); }, true);
     document.addEventListener('click', (event) => { if (event.target.closest?.(${JSON.stringify(CARD)})) window.clicks.push({ title: Boolean(event.target.closest('.assistant-item-title')), prevented: event.defaultPrevented }); });` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");

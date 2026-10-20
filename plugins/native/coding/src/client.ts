@@ -576,8 +576,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     });
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
-  const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
-    const code=pre.querySelector('code'),raw=(code || pre).textContent;if(code)paintBlock(code); // copied as written, not from the colours
+  const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {
+    pre.dataset.enriched='';const code=pre.querySelector('code'),raw=(code || pre).textContent;if(code)paintBlock(code); // copied as written, not from the colours
     const button=make('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
     lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>raw,{done:'已复制',failed:'复制失败'})); pre.append(button);
   });
@@ -800,7 +800,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!node) { node=make('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
           const renderKey=turn.text+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
+            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){if(turn.html && window.molisStreamText) window.molisStreamText(node,turn.html,{reveal:renderedText.has(node) && turn.kind==='assistant' && run===all.at(-1) && ['starting','running'].includes(run.phase) && !document.hidden}); else node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
             // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
             // stays one click away, with the plain statement that tool output was not carried.
             const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;

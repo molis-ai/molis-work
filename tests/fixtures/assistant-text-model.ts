@@ -7,8 +7,11 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { asideReply } from "./ending-review.js";
 
-/** Fixed model output; the Assistant, projection, HTTP, review and business effects remain real. */
-export async function assistantTextModel(t: TestContext, home: string, text: string) {
+/**
+ * Fixed model output; the Assistant, projection, HTTP, review and business effects remain real. With `pace`, the rest of the
+ * first reply comes in that many pieces, `pause` ms apart, the way a model writes it.
+ */
+export async function assistantTextModel(t: TestContext, home: string, text: string, pace?: { pieces: number; pause: number }) {
   const prior = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   const finish = Promise.withResolvers<void>();
   let first = true, nextReview: string | null = null;
@@ -26,7 +29,11 @@ export async function assistantTextModel(t: TestContext, home: string, text: str
       first = false;
       emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: "先看 **第一段**。\n\n" } });
       await finish.promise;
-      emit("content_block_delta", { index: 0, delta: { type: "text_delta", text } });
+      const points = [...text], size = Math.ceil(points.length / (pace?.pieces ?? 1));
+      for (let at = 0; at < points.length; at += size) {
+        if (at && pace) await new Promise(resolve => setTimeout(resolve, pace.pause));
+        emit("content_block_delta", { index: 0, delta: { type: "text_delta", text: points.slice(at, at + size).join("") } });
+      }
     } else emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text: review ?? "这一轮结束。" } });
     emit("content_block_stop", { index: 0 });
     emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });

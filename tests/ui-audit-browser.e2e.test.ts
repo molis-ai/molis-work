@@ -38,7 +38,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
   });
   assert.equal(inbox.status, 200, await inbox.text());
   const createPage = async (title: string, starred: boolean, key: string) => {
-    const response = await fetch(`${origin}/projects/${projectId}/api/pages`, {
+    const response = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.pages/pages`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": key },
       body: JSON.stringify({ title, starred }),

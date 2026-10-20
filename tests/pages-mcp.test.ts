@@ -9,6 +9,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
+// W5-01-PAGES-02 / -04: Pages' actions over the official MCP client on the project Runtime, including a promote that fails at the association and is recovered.
 // Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
 test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 120_000 }, async () => {
@@ -87,6 +88,9 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     } finally { db.close(); }
     await restarted.close();
     const recovering = await connect("a");
+    // The project's Pages instance starts with a host's first action call and the Runtime's install record is shared by the
+    // hosts of one Home: until `recovering` has asked once, `reader` would find the record stopped by the host just closed.
+    await call(recovering, "pages.list", {});
     const current = (await call(reader, "pages.get", { id: document.id })).document;
     const recovered = await call(recovering, "pages.promote", { id: document.id, expected_version: current.version });
     assert.equal(recovered.recovered, true); assert.equal(recovered.artifact.version, 1);

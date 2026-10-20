@@ -278,6 +278,8 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+  /** The plugin's own tables, by scope (PG-020). The Host does not make them yet (specs/plugin-project-database). */
+  databases?: import("./plugin-database.js").PluginManifestDatabases;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

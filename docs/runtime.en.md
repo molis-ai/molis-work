@@ -27,7 +27,7 @@ Use `goals.list` to find work or `goals.create` to save a new intent. Creation r
 
 ## Record everyday work
 
-These are Goals action names (the MCP tool is `molis_work_v1_action_<action>__v1`); connection tool names omit the `molis_work_v1_` prefix:
+These are Goals action names (the MCP tool is `molis_work_v1_action_<action>__v<version>`, using the version in the current directory); connection tool names omit the `molis_work_v1_` prefix:
 
 ```text
 context_resolve → goals.list / goals.create → goals.state.read
@@ -37,6 +37,8 @@ context_resolve → goals.list / goals.create → goals.state.read
   → issues and decisions: goals.concerns.apply / goals.decisions.request / goals.decisions.cite
   → original records: goals.events.list / goals.events.read
 ```
+
+`goals.events.list`, `goals.events.latest` and `goals.events.read` are offered only at @2. The old @1 tool names are no longer callable; select @2 again in client grants and fixed workflow references.
 
 `goals.events.configure` can register local types or adopt a suitable plan. Published type versions cannot be rewritten. A new version may change names, fields, and constraints; older reports retain the meaning of their saved type version. Read professional methods through `goals.planning.catalog` when useful. Planning is not a prerequisite for recording work.
 

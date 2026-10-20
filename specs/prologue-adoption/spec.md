@@ -1,6 +1,6 @@
 # Prologue 采用：能力接入与 TaskBoard 统一协作
 
-状态：执行中（2026-10-18：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680（§6.0q）；A2 写后诊断的合同在 §6.0p：Prologue 一刀（#45、#47）和换包（#723，3adc5e87）已在 main，Molis 实现分三片，A2-1 配置与 `agent.write_checkers.*` 两个动作（§6.0p.10）→ A2-2 执行器、时间线和安全不变量 → A2-3 设置页（§6.0p.12，已实现在 #805：浏览器验证与截图待补（用户 10-19 暂停），要等 A2-2 执行器合入后才合并）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
+状态：执行中（2026-10-18：P4 的 Coding 一半（§6.0i、§6.0j）与助理一半 A1–A3（§6.0k、§6.0n、§6.0o）在 main，A4 在 #680（§6.0q）；A2 写后诊断的合同在 §6.0p：Prologue 一刀（#45、#47）和换包（#723，3adc5e87）已在 main，Molis 实现分三片，A2-1 配置与 `agent.write_checkers.*` 两个动作（§6.0p.10）→ A2-2 执行器、审查卡和安全不变量 S-42（§6.0p.12，叠在换包 #814 上，用 Prologue #51 的标记）→ A2-2b Coding 时间线从检查回执读结果 → A2-3 设置页（#805，§6.0p.13；执行器 #822 已合入，设置页浏览器验证补齐中）；P5、P6 与 A3 的结构化一半未做。2026-10-15 时的记录：P3a 已合 main（#534，`7fe8ee65`）——换成 Prologue main `e5123369` 打的包（P2a–P2k 与 #27）、按用户的 B 接好项目工作板，记录与证据见 §6.0d；P1 冻结，P2a–P2k 都在 Prologue main；A1 的最后两个缺口（换模型后撤权、「从断点继续」）由 P3b 补了用例（#556，`5948c56d`），没有改源码，SDK 的 `beforeAccept` 早由 #523 接好（§5.6a）；P3c 教 Coding 的执行角色等外面的结果（两个检查器、每次看都复核，S-27），记录见 §6.0e；P4–P6、A2（写后诊断）、A3 的结构化一半未做）
 
 > **2026-10-15 P3a 恢复：接续入口是 §6.0d「P3a 恢复记录」。** §6.0c 的暂停点已解除（防腐线 I8 第二个 PR #523 已合入），其中「恢复时按这个顺序」第 1、2、3 步已做完。
 
@@ -1761,7 +1761,7 @@ Molis [#650](https://github.com/molis-ai/molis-work/pull/650) 于 2026-10-17 11:
   - 浏览器用例和全量：改了共同合同和三个包，由统筹排。
   - 真实模型没走：这一片不改提示词，也不改工具说明。
 
-### 6.0p A2 写后诊断：合同（2026-10-17，只写 spec，未实现）
+### 6.0p A2 写后诊断：合同（2026-10-17；A2-1 在 main，A2-2 见 §6.0p.12）
 
 第 9 项。§4.4 定了边界：检查器按已授权项目显式配置，受同一命令审查和预算约束，记录实际命令、退出状态和结果引用；没有检查器显示「未检查」，失败不掩盖文件已经写入；不静默安装工具，不起任意语言服务，不把一次完整构建叫作按文件诊断。这一节把它写成能实现、能验收的合同。统筹 10-17 认可第一刀只写 spec，也认可先做 Prologue 一刀。
 
@@ -1791,7 +1791,7 @@ Prologue 一刀另外要做到：
   - `cwd`：相对工作区根，默认 `.`；按 normalize 之后、要存下的那个值查，首尾带空白的、以盘符加分隔符（`C:/`、`C:\`）开头的、出根的、落在 SDK 的受保护目录（`.git`、`node_modules`、`.prologue`，按整段比，`node_modules_cache` 不算）里的，保存时拒（§6.0p.11）；
   - `timeout_ms`（§6.0p.3）。
   - 没有 `env_allowlist`：SDK 跑写后检查时不带人挑的环境变量，答复里带这一项会被 SDK 拒，存进来也用不上（§6.0p.11）。
-- **文件怎样进命令**：`args` 里恰好一个元素整个写成 `{file}`（没有 `{file}` 的保存时拒，见 §6.0p.9），执行时换成这次写入的、相对工作区根的路径，作为一个完整参数。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
+- **文件怎样进命令**：`args` 里恰好一个元素整个写成 `{file}`（没有 `{file}` 的保存时拒，见 §6.0p.9），执行时换成这次写入的、相对检查器 `cwd` 的路径（`cwd` 是 `.` 时就是相对工作区根），作为一个完整参数；一个检查器只查它 `cwd` 里的文件（A2-2 定，§6.0p.12）。不允许 `{file}` 嵌在别的文字里（如 `--file={file}`），也不允许出现两次。路径以 `-` 开头时写成 `./<路径>`，不会被当成选项。
 - **主人**：`horizontal/agent-host`，和 MCP 服务器配置放在一起；检查器同样是在已授权工作区里由 Agent 运行时起的命令。存在 Prologue Runtime 的存储里（kind `molis-write-checkers`，每个项目、每个工作区一条），版本就是存储自己的版本，从 1 起；不建表。两个动作：`agent.write_checkers.list.v1`（query）与 `agent.write_checkers.save.v1`（command，带 `expected_version`），受众都只有 `user`。按「新能力注册成动作」，不加 typed 条目。代码与存储里叫 write-checker，和等待用的条件检查器（`prologue-checkers.ts`）分开（统筹 10-18 定，见 §6.0p.10）。设置页放在平台自己的项目设置节里，和工作区授权在一起，不挂在 Coding 的设置页（`CODING_SETTINGS_UI_CONTRIBUTION_ID`）上：检查器是 agent-host 的平台事实，挂在已授权的工作区上（统筹 10-19 定，§6.0p.11）。
 - **哪些轮会查**：按这一轮的会话声明启用，不按插件名认 Coding：这一轮的包声明了写后检查、工作区此刻已授权并存了检查器，执行器就接上（统筹 10-19 定）。
 - **谁能改**：
@@ -1923,7 +1923,7 @@ A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `
 §10.28 防腐复查发现 A2-1 收的配置里有几样存得进、跑不了：合同说 `executable` 可以是绝对路径，保存时不查，而 SDK 只认裸名（S-38），带路径的（含 `node_modules/.bin/eslint` 这种根里的文件）每次执行都被拒；`cwd` 指向 `.git` 这类受保护目录也只在执行时才拒；`env_allowlist` 存得进，SDK 却拒收带它的答复。A2-2 的执行器要建在这份配置上，所以在它之前改：
 
 - **`executable` 只收 SDK 会跑的裸名。** 保存时拒 SDK 执行时会拒的：带空白或 shell 符号的（SDK `prepareCommand` 的 `` /[\s;&|><$`]/ ``，`npx eslint`、`eslint;rm`、`$HOME`）、带 `/` 或 `\` 的、`.`、`..`，以及 Host 的 `runCommand` 任何时候都不跑的 `NEVER_RUN`（`rm`、`sudo`、`chmod` 等）。错误码 `agent.write_checker_invalid`，说「要写成程序名（在 PATH 上找），不能带路径、空格或 shell 符号」。长度上限从 1024 降到 255。合同注释改成「裸名，在 Host 的 PATH 上找（S-38）」。
-- **`cwd` 跑的就是写的那个目录。** 保存时拒首尾带空白的（SDK 的 `normalizeRelativePath` 先去掉首尾空白再查，存下的和跑的会是两个目录）、以盘符加分隔符开头的（`C:/x`、`C:\x`，和 SDK 的 `/^[A-Za-z]:[\\/]/` 一字不差；`C:x`、`a:b` 在 macOS 和 Linux 上是根下的普通目录名，SDK 照跑，所以照存）、出根的，和落在 `.git`、`node_modules`、`.prologue` 里的（SDK 的 `PROTECTED_SEGMENTS`，按整段比：`.github/workflows`、`node_modules_cache` 照存）。
+- **`cwd` 跑的就是写的那个目录。** 保存时拒首尾带空白的（SDK 的 `normalizeRelativePath` 先去掉首尾空白再查，存下的和跑的会是两个目录）、以盘符加分隔符开头的（`C:/x`、`C:\x`，和 SDK 的 `/^[A-Za-z]:[\\/]/` 一字不差；`C:x`、`a:b` 在 macOS 和 Linux 上是根下的普通目录名，SDK 照跑，所以照存）、出根的，和落在 `.git`、`node_modules`、`.prologue` 里的（SDK 的 `PROTECTED_SEGMENTS`，按整段比：`.github/workflows`、`node_modules_cache` 照存）。存下的是 SDK 规范化之后的写法：`./tools` 存成 `tools`，尾部的 `/` 去掉（`src/` 存成 `src`，`./` 存成 `.`）。执行器拿存下的目录和写入的路径逐字比，带着斜杠存下，这个检查器对哪个文件都不生效，模型还会被告知“没有适用的检查器”（评审 #822）。
 - **这些规则先抄、等 SDK 导出。** 上面几条 SDK 都没有导出，`write-checker-actions.ts` 先抄一份，逐条注明出处（`prepareCommand`、`runCommand` 的 `NEVER_RUN`、`normalizeRelativePath` 的 `PROTECTED_SEGMENTS`）。BL-220 请 Prologue 导出一个判定函数（如 `checkAfterWriteCommand({ executable, argv, cwd, timeoutMs })`），保存时调它，导出以后删掉抄的。（第一版只拒路径和受保护目录，统筹复审 #757 时指出 `npx eslint`、`eslint;rm`、`rm`、` /etc` 仍然存得进、跑不了，10-19 补齐。复审 #757 第二版时又指出两处：空白和盘符是在 normalize 之前查的，`./ /etc`、`./C:/x` 存下来是 ` /etc`、`C:/x`；盘符规则比 SDK 宽。统筹 10-19 定：这两项改在 normalize 之后、对要存下的值查，盘符收窄到和 SDK 一样；原则是保存时拒的和 SDK 执行时拒的一条对一条，以后换成 SDK 导出的判定函数，行为不变。）
 - **去掉 `env_allowlist`。** 合同、schema、存储的形状里都删掉；带它的保存是 `actions.input_invalid`。存储只认现行的字段，存量里带这一项的记录读不了（A2-1 没有页面，开发机之外没有存量）。
 - **两个动作升到第 2 版，id 不变。** 输入输出的形状变了（少了 `env_allowlist`），按 `docs/system/CONTRACT-CHANGES.md` 第 3 节第 3 条升 `version`；不留第 1 版（阶段一不留兼容期），id 照 `agent.project-work.queue.v1` 的先例不改。受众只有 `user`、还没有页面调它，没有工作流步骤、MCP 工具或 Skill 固定过第 1 版。
@@ -1931,9 +1931,25 @@ A2-1 做到的（PA-25 全部，PA-26 与 PA-28 中保存的那一半，用例 `
 
 用例：`tests/coding-checkers-settings.test.ts` 的 PA-28 加了这几种拒绝。
 
-#### 6.0p.12 A2-3 设置页：项目设置「工作目录」里的「写后检查」（2026-10-19，已实现，浏览器验证与截图待补）
+#### 6.0p.12 A2-2：执行器、审查卡与 S-42（2026-10-19）
 
-现状：已实现在 #805（PA-40 到 PA-43 的 node 用例通过）；浏览器验证与截图待补（用户 10-19 暂停本机浏览器验证）；合并要等 A2-2 执行器合入之后，设置页保存的配置在那之前没有执行器去用它。
+叠在换包 #814（Prologue `a51607fb`，含 #51 的 `afterWriteCheck` 标记、#52 的「没有退出码」）上。
+
+- **包里怎样声明。** Prologue #51 以后，SDK 按包里标了 `afterWriteCheck: true` 的那一样认写后检查，不再认固定名字。工具目录一个名字只收一份登记，而 Molis 每条会话按这一轮冻住的动作造自己的包，所以这一样的名字随包（`molis-after-write-<范围>`），`safe-read`，可选，不给模型。有工作区、不是业务轮的每一轮都带它；这一轮的工作区此刻已授权、存了检查器，才给它执行器（`prologue-run.ts` 的 `roundChecks`），否则 SDK 零调用，观察里一个字不加。按会话的声明认，不按插件名认 Coding（§6.0p.2）。
+- **`{file}` 相对检查器的 `cwd`。** SDK 在检查器的 `cwd` 里跑命令，写入回执给的是相对工作区根的路径；`cwd` 不是 `.` 时，原文的「相对工作区根」会把路径给错。所以换成相对 `cwd` 的路径，并且一个检查器只查它 `cwd` 里的文件：`cwd` 外的写入对它来说不适用，按顺序看下一个。以 `-` 开头的仍写成 `./…`（PA-28）。
+- **执行器每次回答前再核。** 先过这一轮自己的派出前复核（插件实例、Character 的授权），再按这一轮的目录问 local-host 此刻授权的工作区（`checks.workspaceAt`，和起跑授权同一处 `workspaceGrants`，只认 `realpath_verified`），再读那一刻的配置。撤回了写「未检查：工作区授权已撤回」，一轮第 11 次写「未检查：这一轮已检查 10 次」（PA-26、PA-33）。执行器自己不起进程，SDK 拿它的答复走这一轮的命令审查、Effect 链和回执。
+- **名和版本按 SDK 的键记。** 执行器回答时把检查器编号、显示名、配置版本（和触发它的写入调用）记在这一轮会话索引的那一次尝试上（`write_checks`，键是 SDK 给的 `operationKey`）。写入和审查都按 `run_id` 找同一次尝试，不依赖数组位置，所以（run，`operationKey`）唯一（PA-29）。现行写操作先经过 Host 审查：主轮在 `afterStart` 保存 `run_id` 后才接审批镜像，子轮也先存索引再接镜像，SDK 只在获批的 write/edit 落地后问写后检查；沿用这条顺序，不增加等待状态。审查卡用 `isAfterWriteCheckOperationKey` 认出写后检查，按同一个键读出名和版本，加一行「写后检查：<名>（配置 v<n>）」；是写后检查却读不到记录的，卡不能批准（PA-29）。命令回执里不加字段。
+- **模型看到的是 SDK 的原话。** 检查器的 `cwd` 不是 `.` 时，命令那一行后面标 `(in <cwd>)`；可执行文件起不来写「not checked: COMMAND_FAILED: That executable could not be started.」，这就是 PA-37 的「检查器启动失败」；被信号结束、没有退出码的才写「not checked: no exit code (a signal ended it)」（Prologue #52）。Molis 不改写这几行。
+- **安全不变量 S-42** 和 `tests/security-invariants-checkers.test.ts`（PA-39）随这一片加：受众只有 `user`、`./` 前缀、不批准不起进程、改了配置旧规则对不上，四条拒绝各一个用例。
+
+这一片没做的，留给下一片：
+
+- **A2-2b Coding 时间线**：写入那一行从这次写入的检查回执读检查器、退出码、是否超时，没有回执标「未检查」（PA-35 的时间线一半，`tests/coding-diagnose-timeline.e2e.test.ts`）。这一片的审查卡已经写出检查器和版本；运行视图的 `command_outputs` 里已经有 `<写入 call id>:diagnostics` 那一条回执。
+- **子任务各自目录里的写入**（§6.0p.8 Q3）：子任务的会话由 SDK 派出，不经 `startPrologueRun`，这一片没有接它们的执行器，也没有用例。
+
+#### 6.0p.13 A2-3 设置页：项目设置「工作目录」里的「写后检查」（2026-10-19，已实现，浏览器验证与截图待补）
+
+现状：已实现在 #805；A2-2 执行器 #822 已合入 main（2026-10-20），前置依赖满足。本轮补齐 PA-40 到 PA-43 的真实浏览器验证、截图与当前 main 上的定向回归。
 
 按 §6.0p.11 最后一条，检查器在平台的项目设置里改，和工作区授权在一起；Coding 不知道这一页。
 

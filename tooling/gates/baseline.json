@@ -1,5 +1,5 @@
 {
-  "giantUnits": 127,
+  "giantUnits": 126,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -22,20 +22,16 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 553,
+      "lines": 543,
       "methods": 23
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41
     },
-    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 301,
-      "methods": 22
-    },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 281,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 272,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 168,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -103,7 +99,7 @@
       "methods": 29
     },
     "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 547,
+      "lines": 545,
       "methods": 34
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
@@ -157,7 +153,7 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 404,
+      "lines": 396,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -214,7 +210,7 @@
     "file plugins/native/pages/src/client.ts": 1115,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
-      "lines": 374,
+      "lines": 346,
       "methods": 28
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
@@ -243,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 483,
+  "testInternalImports": 477,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -316,7 +312,7 @@
     "tests/cognia-http.test.ts": 1,
     "tests/cognia-prologue.test.ts": 3,
     "tests/companion-actions.test.ts": 4,
-    "tests/companion-client-lifecycle.e2e.test.ts": 2,
+    "tests/companion-client-lifecycle.e2e.test.ts": 1,
     "tests/connector-account-actions.test.ts": 1,
     "tests/connector-api-oauth.test.ts": 6,
     "tests/connector-authorization-recovery.test.ts": 3,
@@ -396,7 +392,7 @@
     "tests/jelly-source-providers.test.ts": 3,
     "tests/list-silent-refresh.test.ts": 5,
     "tests/local-web-actions.test.ts": 2,
-    "tests/material-documents.test.ts": 2,
+    "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
     "tests/material-web.test.ts": 2,
     "tests/mcp-action-grants.test.ts": 2,
@@ -408,13 +404,10 @@
     "tests/pages-drag-preview.test.ts": 1,
     "tests/pages-drag-target.test.ts": 1,
     "tests/pages-import-content.test.ts": 1,
-    "tests/pages-import-files.test.ts": 1,
     "tests/pages-input-rules.test.ts": 1,
-    "tests/pages-project-binding.test.ts": 1,
-    "tests/pages-publication.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
     "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 7,
+    "tests/personal-plugins-review-fixes.test.ts": 6,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -487,11 +480,11 @@
   },
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 9,
+  "compatMarkerTotal": 8,
   "compatMarkers": {
     "apps/local-host/src/material-pdf-worker.ts": 1,
     "apps/local-host/src/pdf-document-parser.ts": 1,
-    "apps/local-host/src/plugin-builder/installed.ts": 3,
+    "apps/local-host/src/plugin-builder/installed.ts": 2,
     "apps/workbench/src/i18n/en.ts": 1,
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
@@ -555,7 +548,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 129,
+  "scriptConstantsTotal": 127,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -568,8 +561,6 @@
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
     "apps/workbench/src/scripts/client/attention.ts": 1,
     "apps/workbench/src/scripts/client/bootstrap.ts": 1,
-    "apps/workbench/src/scripts/client/coding-companions.ts": 1,
-    "apps/workbench/src/scripts/client/coding-setup.ts": 1,
     "apps/workbench/src/scripts/client/deferred-plugin-client.ts": 1,
     "apps/workbench/src/scripts/client/documents-state.ts": 1,
     "apps/workbench/src/scripts/client/editing-graph.ts": 1,
@@ -664,27 +655,27 @@
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
     "plugins/native/artifacts/src/works-client.ts": 1,
     "plugins/native/artifacts/src/port-input-ui.ts": 1,
-    "plugins/native/issues/src/client.ts": 1,
+    "plugins/native/alchemist/src/client.ts": 1,
+    "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
-    "plugins/native/plugin-builder/src/agent-studio.ts": 2,
+    "plugins/native/characters/src/client.ts": 2,
+    "plugins/native/coding/src/client.ts": 2,
+    "plugins/native/dataset/src/client.ts": 1,
     "plugins/native/images/src/client.ts": 1,
+    "plugins/native/issues/src/client.ts": 1,
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
+    "plugins/native/lingguang/src/client.ts": 1,
+    "plugins/native/pages/src/client.ts": 2,
+    "plugins/native/pages/src/import-client.ts": 1,
+    "plugins/native/plugin-builder/src/agent-studio.ts": 2,
+    "plugins/native/ppt/src/client.ts": 1,
     "plugins/native/schedule/src/client.ts": 4,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
-    "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
-    "plugins/native/characters/src/client.ts": 2,
-    "plugins/native/pages/src/client.ts": 2,
-    "plugins/native/pages/src/import-client.ts": 1,
-    "plugins/native/dataset/src/client.ts": 1,
-    "plugins/native/ppt/src/client.ts": 1,
-    "plugins/native/alchemist/src/client.ts": 1,
-    "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/workflows/src/client.ts": 1,
-    "plugins/native/coding/src/client.ts": 2,
     "plugins/native/shelf/src/settings-client.ts": 4,
     "packages/im-ui/src/browser/transport.ts": 1,
     "plugins/native/work/src/ui/content-client.ts": 2,
@@ -759,7 +750,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 16,
+  "hostPluginFilesTotal": 14,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -768,8 +759,6 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/pages-actions.ts#actions": 1,
-    "apps/local-host/src/pages-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/schedule-actions.ts#actions": 1,
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
@@ -802,26 +791,26 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 381,
+  "pluginOutsideMentionsTotal": 373,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
-    "coding#outside-files": 17,
+    "coding#outside-files": 16,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
     "diff#outside-files": 8,
     "feed#outside-files": 41,
-    "files#outside-files": 10,
+    "files#outside-files": 9,
     "form#outside-files": 8,
-    "git#outside-files": 13,
+    "git#outside-files": 12,
     "goals#outside-files": 58,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
     "issues#outside-files": 4,
     "jelly#outside-files": 6,
     "lingguang#outside-files": 9,
-    "pages#outside-files": 19,
+    "pages#outside-files": 14,
     "plugin-builder#outside-files": 19,
     "ppt#outside-files": 8,
     "schedule#outside-files": 19,
@@ -1068,7 +1057,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 179,
+  "unknownCastsTotal": 177,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1116,7 +1105,6 @@
     "plugins/native/jelly/src/content.ts": 1,
     "plugins/native/lingguang/src/store.ts": 5,
     "plugins/native/pages/src/code-highlight.ts": 1,
-    "plugins/native/pages/src/store.ts": 2,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/native/plugin-builder/src/agent-experience.ts": 1,
     "plugins/native/plugin-builder/src/agent-validation.ts": 1,

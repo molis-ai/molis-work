@@ -2,6 +2,7 @@ import { closeSync, constants, fstatSync, lstatSync, mkdirSync, openSync, readSy
 import { join } from "node:path";
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl, PluginFilesClient, PluginFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertPluginActionCurrent } from "@molis-ai/molis-work-plugin-runtime";
 
 const filesErrors = defineErrorCodes("host", {
   plugin_file_invalid: "invalid", plugin_file_unsafe: "forbidden", plugin_file_large: "invalid", plugin_file_exists: "conflict",
@@ -15,7 +16,7 @@ const hasCode = (error: unknown, code: string) => error instanceof Error && "cod
 const unsafe = () => filesErrors.plugin_file_unsafe("私有文件只能位于声明的普通目录中，不能使用符号链接或非普通文件");
 
 /** The two executors use this same IO port. It keeps no descriptor or filesystem work alive after an operation. */
-export function openPluginFiles(home: string, declaration: PluginFilesDeclaration, authorize: (permission: string) => void): {
+export function openPluginFiles(home: string, declaration: PluginFilesDeclaration, authorize: (permission: string) => void, installId: string): {
   client: PluginFilesClient; close(): void;
 } {
   const root = realpathSync(home);
@@ -42,9 +43,11 @@ export function openPluginFiles(home: string, declaration: PluginFilesDeclaratio
   const size = (bytes: number) => {
     if (bytes > declaration.max_file_bytes) throw filesErrors.plugin_file_large("文件超过此插件声明的大小上限");
   };
+  // The control the Plugin hands in, and the original caller of the action this runs in, which the Plugin cannot hand in.
   const current = (control: PluginExecutionControl) => {
     control.signal?.throwIfAborted();
     requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
+    assertPluginActionCurrent(installId);
     permit(declaration.write_permission);
   };
   return { client: Object.freeze({

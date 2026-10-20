@@ -9,7 +9,9 @@
 // It also fails, with no comparison against the merge-base, when the package table of specs/repository-anti-corruption
 // §5.1 disagrees with scripts/workspace-packages.mjs or with the layer and status the code gives a package (a package
 // added or deleted, a plugin moved to the Plugin Runtime supervisor, an import that changes what is reachable from the
-// product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement.
+// product entry): scripts/gates/package-inventory.mjs --table prints the rows, --check reports the disagreement. In the same
+// way it fails when apps/workbench/src/builtin-plugins.ts is not exactly the list the built-in plugins' own registrations
+// give, or one of them cannot be listed (scripts/generate-plugin-registry.mjs, whose --check is this rule).
 //
 // The translation check (scripts/gates/translations.mjs, apps/workbench/README.md section 界面文字) is one more metric: conflicting
 // translations are a number that may only go down; a translator call with no English and a `*_EN` dictionary the served catalog
@@ -52,6 +54,7 @@ import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
 import { errorOwnersWantsText } from "./gates/error-owners.mjs";
+import { pluginRegistryProblems } from "./generate-plugin-registry.mjs";
 
 const USAGE = "usage: check-health-gates.mjs [--base <ref>] [--update] [--report [--top N] [--json]] [--root <dir>]";
 const fail = (message) => { console.error(message); process.exit(2); };
@@ -500,7 +503,7 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
   : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...productSubsetProblems(root)];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });

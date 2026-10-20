@@ -56,7 +56,7 @@ async function fixture(t: import("node:test").TestContext) {
     { reference: { artifact_id: EDITOR.reference.artifact_id, version: 1 }, title: EDITOR.title, available: false, reason: "这个版本已停用" },
   ];
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set()),
       resolveCharacter: reference => {
         if (!published || reference.version !== published.reference.version) throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
@@ -153,7 +153,7 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)),
       resolveCharacter: reference => { if (reference.version !== 2) throw new Error("所选 Character 版本不可用"); return structuredClone(EDITOR); } }),
     characters: async () => [{ reference: { artifact_id: EDITOR.reference.artifact_id, version: 2 }, title: EDITOR.title, available: true },

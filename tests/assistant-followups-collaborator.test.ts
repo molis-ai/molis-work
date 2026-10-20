@@ -39,7 +39,7 @@ function harness(start = "2026-10-15T08:00:00.000Z") {
     work: id => { const work = works.get(id); if (!work) throw new Error("gone"); return work; },
     notify: (notice, dedupe) => { if (told.has(dedupe)) return false; told.add(dedupe); notices.push({ text: notice.text, dedupe }); return true; },
     setting: key => settings.get(key) ?? null, setSetting: (key, value) => { settings.set(key, value); },
-    rules: () => rules, setRules: next => { rules = [...next]; },
+    rules: () => rules, setRules: next => { rules = [...next]; }, pages: async () => ["home"],
     get homeActions() { return homeActions; },
     host: async () => ({}) as never, state: async () => "idle",
     send: async (_work, text, requestId) => { sent.push({ text, requestId }); },

@@ -1,0 +1,196 @@
+// Generate apps/workbench/src/builtin-plugins.ts from the built-in plugins' own registrations (W5-02, PG-065 in
+// specs/repository-anti-corruption/privileges.md).
+//
+// Each plugin package under plugins/native/ that the workspace registry (scripts/workspace-packages.mjs) lists writes its
+// catalog entry in src/registration.ts, `export const registration: PluginRegistration = { … }`, and declares it in its
+// package.json: `exports["./registration"]` and `"molis-work": { "registration": "./registration" }`. The catalog file is
+// only the list of those entries: one import per package (by package name, in code-point order) and the array in
+// `catalog_order`. The catalog file is never edited by hand: a new plugin writes its own registration and this script lists it.
+// (It still joins WORKSPACE_PACKAGES in scripts/workspace-packages.mjs and is added as a dependency of apps/workbench and
+// apps/local-host in their package.json; PG-069, W5-02 PR-2, generates those from the registry.)
+//
+//   node scripts/generate-plugin-registry.mjs          write the catalog file (refuses while any registration is malformed)
+//   node scripts/generate-plugin-registry.mjs --check  fail, naming the package, when the file is stale or edited by hand,
+//                                                      or a registration cannot be listed (pnpm health:check runs this)
+//
+// What --check reads is syntax only, nothing of the repository is executed: a package under plugins/native/ with no
+// registration at all (W5-02-REG-02: deleting a plugin's registration and its package.json declaration together does not
+// drop it from the catalog unnoticed), a declared package without src/registration.ts (or the other way round), a
+// registration that is not an object literal, a key the contract (PluginRegistration and PluginWorkbenchRegistration in
+// packages/contracts/src/platform/plugin-registration.ts) does not have, at the top or in `workbench`, a spread, a
+// `catalog_order` that is not a positive integer literal (W5-02-REG-02: 0, 1.5 and -1 are refused) or repeats, a literal
+// `project_plugin_id` that is malformed or repeats, and `clientFrom`, `clientUses` or `companions` that are not literal
+// short ids. What it cannot see:
+// an id given through a constant (most are) and a short id that names no plugin; the built catalog is checked for those
+// when it loads (apps/workbench/src/plugin-catalog.ts) and by tests/plugin-registry-generation.test.ts.
+import { readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import ts from "typescript";
+
+export const CATALOG_FILE = "apps/workbench/src/builtin-plugins.ts";
+export const REGISTRATION_CONTRACT = "packages/contracts/src/platform/plugin-registration.ts";
+const PLUGIN_ROOT = "plugins/native/";
+const REGISTRATION_FILE = "src/registration.ts";
+const SHORT_ID = /^[a-z0-9][a-z0-9-]*$/;
+const SHORT_ID_LISTS = { clientFrom: "workbench", clientUses: "workbench", companions: "top" };
+
+const parse = (file, text) => ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+const keyOf = (property) => property.name && (ts.isIdentifier(property.name) || ts.isStringLiteral(property.name)) ? property.name.text : null;
+const unwrap = (node) => {
+  while (node && (ts.isParenthesizedExpression(node) || ts.isAsExpression(node) || ts.isSatisfiesExpression(node))) node = node.expression;
+  return node;
+};
+
+/** The member names of the two interfaces a registration is written against. */
+export function contractKeys(snapshot) {
+  const text = snapshot.read(REGISTRATION_CONTRACT);
+  if (text === null) return { problems: [`${REGISTRATION_CONTRACT} does not exist`] };
+  const members = (name) => {
+    const found = parse(REGISTRATION_CONTRACT, text).statements.find((statement) => ts.isInterfaceDeclaration(statement) && statement.name.text === name);
+    return found ? new Set(found.members.map(keyOf).filter(Boolean)) : null;
+  };
+  const top = members("PluginRegistration"), workbench = members("PluginWorkbenchRegistration");
+  if (!top || !workbench) return { problems: [`${REGISTRATION_CONTRACT} no longer declares PluginRegistration and PluginWorkbenchRegistration`] };
+  return { top, workbench, problems: [] };
+}
+
+/** The registry's built-in plugin packages, each with its registration source (or null) and what is wrong with its declaration. */
+export function registeredPackages(snapshot, packages) {
+  const result = [], problems = [], unregistered = [];
+  for (const entry of packages.filter((item) => item.path.startsWith(PLUGIN_ROOT))) {
+    const manifestText = snapshot.read(`${entry.path}/package.json`);
+    if (manifestText === null) { problems.push(`${entry.name}: ${entry.path}/package.json does not exist`); continue; }
+    let json;
+    try { json = JSON.parse(manifestText); } catch { problems.push(`${entry.name}: ${entry.path}/package.json is not JSON`); continue; }
+    const file = `${entry.path}/${REGISTRATION_FILE}`, source = snapshot.read(file);
+    const declared = json["molis-work"]?.registration, exported = json.exports?.["./registration"];
+    if (declared === undefined && source === null) { unregistered.push({ entry, file }); continue; }
+    if (declared === undefined) { problems.push(`${entry.name}: has ${REGISTRATION_FILE} but its package.json does not declare it ("molis-work": { "registration": "./registration" })`); continue; }
+    if (declared !== "./registration") problems.push(`${entry.name}: "molis-work".registration must be "./registration", not ${JSON.stringify(declared)}`);
+    if (exported?.import !== "./dist/registration.js" || exported?.types !== "./dist/registration.d.ts") problems.push(`${entry.name}: package.json exports "./registration" must be { "types": "./dist/registration.d.ts", "import": "./dist/registration.js" }`);
+    if (source === null) { problems.push(`${entry.name}: package.json declares a registration but ${file} does not exist`); continue; }
+    result.push({ name: entry.name, dir: entry.path.slice(PLUGIN_ROOT.length), file, source });
+  }
+  // A package with no registration is a mistake wherever any plugin registers or the catalog or the contract is there; a layout
+  // with none of those (a scratch layout of the gates' own tests that merely lists plugin packages) has not adopted them.
+  const adopted = result.length > 0 || problems.length > 0 || snapshot.read(CATALOG_FILE) !== null || snapshot.read(REGISTRATION_CONTRACT) !== null;
+  if (adopted) for (const { entry, file } of unregistered) problems.push(`${entry.name}: has no registration; every package under ${PLUGIN_ROOT} writes ${file} and declares it in package.json ("molis-work": { "registration": "./registration" })`);
+  return { packages: result, problems };
+}
+
+/** One registration read as syntax: its `catalog_order`, its literal `project_plugin_id` (or null), and what is wrong. */
+export function readRegistration(pkg, keys) {
+  const problems = [], say = (problem) => problems.push(`${pkg.name}: ${pkg.file} ${problem}`);
+  const tree = parse(pkg.file, pkg.source);
+  const declarations = tree.statements.filter(ts.isVariableStatement)
+    .filter((statement) => statement.modifiers?.some((item) => item.kind === ts.SyntaxKind.ExportKeyword))
+    .flatMap((statement) => statement.declarationList.declarations.map((declaration) => ({ statement, declaration })))
+    .filter(({ declaration }) => ts.isIdentifier(declaration.name) && declaration.name.text === "registration");
+  if (declarations.length !== 1) { say("must export one `registration`"); return { order: null, id: null, problems }; }
+  const [{ statement, declaration }] = declarations, object = unwrap(declaration.initializer);
+  if ((statement.declarationList.flags & ts.NodeFlags.Const) === 0) say("must declare `registration` with const");
+  if (!object || !ts.isObjectLiteralExpression(object)) { say("must give `registration` an object literal"); return { order: null, id: null, problems }; }
+  const properties = (literal, allowed, where) => {
+    const found = new Map();
+    for (const property of literal.properties) {
+      const key = keyOf(property);
+      if (!key || !(ts.isPropertyAssignment(property) || ts.isShorthandPropertyAssignment(property))) { say(`has ${where}a member that is not a plain property (${property.getText().slice(0, 40)})`); continue; }
+      if (!allowed.has(key)) say(`has ${where}key "${key}", which PluginRegistration${where ? "'s workbench" : ""} does not declare`);
+      if (found.has(key)) say(`repeats ${where}key "${key}"`);
+      found.set(key, ts.isPropertyAssignment(property) ? unwrap(property.initializer) : property.name);
+    }
+    return found;
+  };
+  const top = properties(object, keys.top, ""), workbench = top.get("workbench");
+  const inner = workbench && ts.isObjectLiteralExpression(workbench) ? properties(workbench, keys.workbench, "workbench ") : null;
+  if (!inner) say(`must give "workbench" an object literal`);
+  const orderNode = top.get("catalog_order"), idNode = top.get("project_plugin_id");
+  const written = orderNode && ts.isNumericLiteral(orderNode) ? Number(orderNode.text) : null;
+  if (written === null) say(`must give "catalog_order" a number literal, a positive integer`);
+  else if (!Number.isSafeInteger(written) || written < 1) say(`gives "catalog_order" ${orderNode.getText()}, which is not a positive integer`);
+  const order = Number.isSafeInteger(written) && written >= 1 ? written : null;
+  let id = null;
+  if (!idNode) say(`has no "project_plugin_id"`);
+  else if (ts.isStringLiteralLike(idNode)) {
+    id = idNode.text;
+    if (!SHORT_ID.test(id)) say(`gives "project_plugin_id" "${id}", which is not a short id (${SHORT_ID})`);
+  }
+  for (const [key, level] of Object.entries(SHORT_ID_LISTS)) {
+    const value = (level === "top" ? top : inner)?.get(key); if (!value) continue;
+    const items = key === "clientFrom" ? [value] : ts.isArrayLiteralExpression(value) ? [...value.elements] : null;
+    if (!items || items.some((item) => !ts.isStringLiteralLike(item) || !SHORT_ID.test(item.text))) say(`must give "${key}" literal short ids (another plugin's constants cannot be imported here)`);
+  }
+  return { order, id, problems };
+}
+
+const aliasOf = (dir) => dir.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase()) + "Registration";
+
+/** The catalog file's text for registrations already read; imports by package name, entries by `catalog_order`. */
+export function generateCatalog(entries) {
+  const imports = [...entries].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+    .map((entry) => `import { registration as ${aliasOf(entry.dir)} } from "${entry.name}/registration";`);
+  const items = [...entries].sort((a, b) => a.order - b.order).map((entry) => `  ${aliasOf(entry.dir)},`);
+  return [
+    "// Generated by `node scripts/generate-plugin-registry.mjs` from each built-in plugin's src/registration.ts (W5-02). Do not",
+    "// edit: change the plugin's own registration and regenerate; `pnpm health:check` fails while this file is out of date.",
+    `import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";`,
+    ...imports,
+    "",
+    "/** Every plugin this build ships, in catalog order: the shared build composition for the catalog and the UI resources. */",
+    "export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [",
+    ...items,
+    "];",
+    "",
+  ].join("\n");
+}
+
+/** Read every registration in a snapshot ({ files?, read }) and give the catalog text, or the problems that stop it. */
+export function pluginRegistry(snapshot, packages) {
+  const listed = registeredPackages(snapshot, packages), problems = [...listed.problems];
+  const known = new Set(packages.map((entry) => `${entry.path}/${REGISTRATION_FILE}`));
+  for (const file of snapshot.files ?? []) {
+    if (file.startsWith(PLUGIN_ROOT) && file.endsWith(`/${REGISTRATION_FILE}`) && file.split("/").length === 5 && !known.has(file)) problems.push(`${file} belongs to no package in scripts/workspace-packages.mjs`);
+  }
+  const keys = listed.packages.length ? contractKeys(snapshot) : { problems: [] };
+  if (keys.problems.length) return { text: null, problems: [...problems, ...keys.problems].map((problem) => `Plugin registry: ${problem}`) };
+  const entries = listed.packages.map((pkg) => {
+    const read = readRegistration(pkg, keys);
+    problems.push(...read.problems);
+    return { ...pkg, order: read.order, id: read.id };
+  });
+  const repeated = (field, what) => {
+    const seen = new Map();
+    for (const entry of entries) if (entry[field] !== null) seen.set(entry[field], [...(seen.get(entry[field]) ?? []), entry.name]);
+    for (const [value, names] of seen) if (names.length > 1) problems.push(`${what} ${JSON.stringify(value)} is given by ${names.join(" and ")}; each plugin needs its own`);
+  };
+  repeated("order", "catalog_order");
+  repeated("id", "project_plugin_id");
+  if (problems.length) return { text: null, problems: problems.map((problem) => `Plugin registry: ${problem}`) };
+  return { text: generateCatalog(entries), problems: [] };
+}
+
+/** The --check rule for pnpm health:check: the registrations can be listed and the catalog file is exactly their list. */
+export function pluginRegistryProblems(snapshot, packages) {
+  const { text, problems } = pluginRegistry(snapshot, packages), current = snapshot.read(CATALOG_FILE);
+  if (problems.length) return problems;
+  // A repository with no built-in plugins and no catalog (a scratch layout of the gates' own tests) has nothing to list.
+  if (current === null && text === generateCatalog([])) return [];
+  return current === text ? [] : [`Plugin registry: ${CATALOG_FILE} is out of date or edited by hand; run node scripts/generate-plugin-registry.mjs`];
+}
+
+const invokedPath = process.argv[1] ? pathToFileURL(path.resolve(process.argv[1])).href : null;
+if (invokedPath === import.meta.url) {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+  const snapshot = { read: (file) => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } } };
+  // Loaded here, not imported above: the health gate imports this module in scratch layouts that have no registry.
+  const { WORKSPACE_PACKAGES } = await import(pathToFileURL(path.join(root, "scripts/workspace-packages.mjs")).href);
+  const check = process.argv.includes("--check");
+  const problems = check ? pluginRegistryProblems(snapshot, WORKSPACE_PACKAGES) : pluginRegistry(snapshot, WORKSPACE_PACKAGES).problems;
+  if (problems.length) { console.error(problems.join("\n")); process.exit(1); }
+  if (!check) {
+    const { text } = pluginRegistry(snapshot, WORKSPACE_PACKAGES);
+    if (snapshot.read(CATALOG_FILE) !== text) writeFileSync(path.join(root, CATALOG_FILE), text);
+    console.log(`${CATALOG_FILE}: ${text.split("\n").filter((line) => line.startsWith("  ")).length} registrations`);
+  } else console.log(`${CATALOG_FILE} lists every built-in plugin's registration`);
+}

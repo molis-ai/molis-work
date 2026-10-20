@@ -63,6 +63,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
+  /**
+   * The plugin (its Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`), on its
+   * original caller's behalf. Set only by the Host while it builds that nested caller; the call log keeps it beside the actor. It grants
+   * nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_by?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**
@@ -91,6 +97,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
+  /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
+  readonly read_only_effects?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -128,8 +136,10 @@ export interface RetainedActionAuthority {
 
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
-  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
-  readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
+   * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
+   * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
+  readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
    * absent a separate authority, the original cancellation boundary remains. */
@@ -379,17 +389,23 @@ export interface ActionSceneBinding {
   readonly revision?: string;
 }
 
+/** Active scene callback control, issued by the Kernel; no action declaration or background authority is implied. */
+export interface ActionSceneExecutionContext extends ActionCallContext {
+  /** Recheck the original scene, judgment, permissions and caller after each wait and before committing an effect. */
+  beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
   readonly scene_id: string;
   readonly version: number;
   bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
   targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
   /** Must write through the authoritative owner; when options are supplied, atomically reject a stale expected_revision. */
-  bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+  bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
   prepare?(context: ActionCallContext, event: unknown): { input: unknown; state?: unknown } | Promise<{ input: unknown; state?: unknown }>;
-  consume(context: ActionCallContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   /** Optional explicit failure consumption, after the same stale-state and authority checks. */
-  failed?(context: ActionCallContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
   /** Configuration-only availability must not depend on execution/model grants. */
   configuration_availability?(context: ActionCallContext): ActionAvailability;
@@ -506,14 +522,21 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function id(v: unknown): v is string { return text(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
+/**
+ * A provider id is only ever matched exactly against the directory, and the platform makes ids that follow no one alphabet: an external
+ * MCP server's is `system.connectors#mcp:<connection>` or `<plugin_id>#mcp:<server>`, with the server's own id in it. What is refused is
+ * what no provider can be named: a blank id, a control character, or one longer than any the platform makes.
+ */
+const PROVIDER_ID_LIMIT = 512;
+function providerId(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0 && v.length <= PROVIDER_ID_LIMIT && !/\p{Cc}/u.test(v); }
 function version(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
 
-/** Exact selections do not grant permission; the action service checks live authority. */
+/** Exact selections do not grant permission; the action service checks live authority, so a wider provider id reaches no new provider. */
 export type ExactActionReference = ActionReference & { readonly provider_id: string };
 export function parseExactActionReferences(value: unknown): ExactActionReference[] {
   if (!Array.isArray(value) || value.length > 100) throw new ActionError("actions.reference_invalid", "Invalid action selection or more than 100 actions");
   const refs = value.map(item => {
-    if (!object(item) || !id(item.capability_id) || !version(item.version) || !id(item.provider_id)) {
+    if (!object(item) || !id(item.capability_id) || !version(item.version) || !providerId(item.provider_id)) {
       throw new ActionError("actions.reference_invalid", "An action selection requires its exact identity, version and provider");
     }
     return { capability_id: item.capability_id, version: item.version, provider_id: item.provider_id };

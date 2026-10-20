@@ -54,6 +54,12 @@ export interface ActionCallOrigin {
   readonly call_id?: string;
 }
 
+/** A file the person gave the Host's entry, and the installation that entry served; see `ActionCallContext.original_file`. */
+export interface HostOfferedOriginalFile {
+  readonly path: string;
+  readonly install_id: string;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -95,6 +101,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly plugin_install_id?: string;
   /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /**
+   * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
+   * the Host made for that request and only for the installation whose route received it. It names a path and grants nothing: what a
+   * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
+   */
+  readonly original_file?: HostOfferedOriginalFile;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
   /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */

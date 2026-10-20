@@ -4,6 +4,8 @@ import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/moli
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { offerRoutedOriginalFile } from "./plugin-actions-client.js";
+import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
@@ -79,6 +81,9 @@ export async function dispatchRuntimePluginRoute(
   }
   const match = router.match(request.method ?? "GET", url.pathname);
   if (!match) return false;
+  // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
+  // Host-made control carries it, and only to this installation's actions.
+  if (active.install_id && controls.execution) offerRoutedOriginalFile(controls.execution, offeredOriginalFile(request, active.install_id));
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {

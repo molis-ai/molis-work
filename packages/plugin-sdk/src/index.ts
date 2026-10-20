@@ -234,5 +234,5 @@ const manifestFailures = {
 } as const;
 
 export { decodeMaterialUpload, supportsMaterialExtension, MATERIAL_EXTENSIONS, MATERIAL_UPLOAD_MAX_BYTES } from "./material-upload.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, MaterialSourceContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-ai/molis-work-contracts/services/materials";

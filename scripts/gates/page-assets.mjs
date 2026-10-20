@@ -235,17 +235,19 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): code and changes (VUX-33). +1,949 B of
-// the Coding client: the change reader's 统一 / 并排 switch, kept on this device, that re-reads the write in the other layout
-// and keeps the line being read at the same place (and the folds the reader opened open); side by side is coloured one side
-// at a time, the net-change counts read either layout, and a code block copies its text as written. +423 B of workbench.css: the shared row geometry (number columns
-// as wide as the longest number, sticky opaque numbers out of a selection, rows as wide as the widest line) and the real
-// side-by-side columns that wrap; settings.css falls by 646 B because Coding's own column overrides are gone. Tried first:
-// the toggle reuses the shared .mw-toggle-group and its styles, the fold helper is shared by both layouts, and the 4ch/5ch
-// overrides in Coding (two places) were removed rather than restated. Spent once from exactly the media zoom slice's budget (#880).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the split divider (VUX-23/24). +3,520 B of
+// workbench.js: the divider's own lifecycle (a 4 px dead zone, frame-by-frame follow, Escape / pointer cancel / lost capture /
+// window blur / a removed divider putting back the ratio of the press, every path taking the guard and cursor off), the room
+// each side needs in CSS px instead of a fixed 15–85 % (nested splits along and across), the snap to the default with
+// hysteresis, Home / End / Enter / Shift+arrows with the live range in aria-valuemin/max, the narrow layout when a stage cannot
+// hold every pane's minimum, a ResizeObserver that re-lays the splits, and one notice when the layout cannot be saved. +931 B
+// of workbench.css: the narrow layout repeated for that attribute (the media query cannot be shared with it) and the cursor
+// and selection hold while a divider moves. Tried first: the old inline handlers (keydown, dblclick, pointerdown) were removed
+// rather than kept beside the new ones, the pure range and snap functions live with the drop geometry, and the comments stay
+// out of the shipped CSS. Spent once from exactly the code/Diff slice's budget (#884).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [371035, 372984],
-  "/assets/molis-work-workbench.css": [1606072, 1606495],
+  "/assets/molis-work-workbench.js": [1150211, 1153731],
+  "/assets/molis-work-workbench.css": [1606495, 1607426],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

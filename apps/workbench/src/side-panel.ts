@@ -50,7 +50,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
     .sort((a, b) => a.order - b.order);
   return `<section class="side-panel" id="side-panel" role="region" aria-label="${L("侧栏")}" data-side-panel hidden>
         <header class="side-panel-head">
-          <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs>
+          <div class="side-panel-tabs" role="tablist" aria-label="${L("侧栏内容")}" data-side-tabs data-overflow-fade>
             ${ordered.map(entry => entry.html).join("")}
           </div>
           <button class="side-panel-close" type="button" data-side-close aria-label="${L("收起侧栏")}" title="${L("收起侧栏")}">${icon("x")}</button>

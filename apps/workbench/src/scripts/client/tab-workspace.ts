@@ -509,8 +509,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const alignActive = () => {
       const rail = railBox();
       const box = tab.getBoundingClientRect();
-      if (box.left < rail.left) scroller.scrollLeft -= rail.left - box.left;
-      else if (box.right > rail.right) scroller.scrollLeft += box.right - rail.right;
+      if (box.left < rail.left + 28) scroller.scrollLeft -= rail.left + 28 - box.left;
+      else if (box.right > rail.right - 28) scroller.scrollLeft += box.right - rail.right + 28;
     };
     alignActive();
     for (let step = 0; step < 4; step += 1) {
@@ -546,7 +546,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     strip.setAttribute("role", "tablist");
     strip.setAttribute("aria-label", L("工作区标签"));
     const fragment = document.createDocumentFragment();
-    const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = "";
+    const scrollArea = document.createElement("div"); scrollArea.className = "tab-scroll"; scrollArea.dataset.tabScroll = scrollArea.dataset.overflowFade = "";
     fragment.append(scrollArea);
     for (let index = 0; index < pane.tabs.length;) {
       const tab = pane.tabs[index];

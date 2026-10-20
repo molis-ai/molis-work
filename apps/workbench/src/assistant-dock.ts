@@ -15,7 +15,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>
         <template data-assistant-glyphs>${ASSISTANT_GLYPHS.map((name) => `<span data-glyph="${name}">${icon(name)}</span>`).join("")}</template>
         <header class="assistant-tabbar">
-          <div class="assistant-tabs" data-assistant-tabs role="tablist" aria-label="${L("打开的工作")}"></div>
+          <div class="assistant-tabs" data-assistant-tabs data-overflow-fade role="tablist" aria-label="${L("打开的工作")}"></div>
           <button class="assistant-tab-new" type="button" data-assistant-new aria-label="${L("开始一项新工作")}" title="${L("开始一项新工作")}">${icon("plus")}</button>
           <span class="assistant-tabbar-actions">
             <button class="dock-window-action" type="button" data-assistant-expand aria-label="${L("在主区展开")}" title="${L("在主区展开")}" disabled>${icon("external")}</button>

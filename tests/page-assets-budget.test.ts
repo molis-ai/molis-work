@@ -672,6 +672,11 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1130033],
   // The project-knowledge allowances (#839) are spent.
   ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
+  // The plugin-switch allowance (#854, VUX-35, VUX-36) is spent.
+  ["/assets/molis-work-workbench.js", 1129525],
+  // The overflow-fade allowances (#856, VUX-27) are spent.
+  ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
+  ["/assets/molis-work-arrival.css", 698467],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -687,8 +692,14 @@ for (const [asset, old] of [
 // specs/visual-ui-experience (2026-10-19): one press on the plugin switcher stops measuring the page inside the click; the
 // workbench script may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset,
 // or growth from the new baseline still fails.
-test("VUX-36 the plugin-switch allowance is bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1129525, 1130116] } as const;
+test("VUX-19 VUX-22 VUX-42 the copy, disclosure and live-number allowance is bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = {
+    "/assets/molis-work-workbench.js": [1130995, 1132516],
+    "/assets/molis-work-workbench.css": [1603559, 1604893],
+    "/assets/molis-work-settings.css": [989369, 990668],
+    "/assets/molis-work-arrival.css": [698955, 700254],
+    "/assets/molis-work-pages-editor.js": [706942, 707006],
+  } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "vux-change");
@@ -703,7 +714,7 @@ test("VUX-36 the plugin-switch allowance is bounded and spent once; other assets
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured plugin-switch size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured copy and disclosure size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

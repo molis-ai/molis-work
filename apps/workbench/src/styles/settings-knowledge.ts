@@ -79,5 +79,5 @@ export const KNOWLEDGE_PICKER_STYLES = `
   .knowledge-picker-empty { padding: 16px 8px; font-size: 13px; color: var(--muted); }
   .knowledge-picker-status { margin: 0; min-height: 1em; font-size: 12px; color: var(--muted); }
   .knowledge-picker footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
-  .knowledge-picker-count { margin-right: auto; font-size: 12px; color: var(--muted); }
+  .knowledge-picker-count { margin-right: auto; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
 `;

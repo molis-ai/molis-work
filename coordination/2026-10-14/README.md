@@ -2054,3 +2054,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **05:53 UTC ① 答用户「② ③ 在等什么」并给 ② 派活**：② 和 ③ 都空着。③ 在等两件事：一是 ⑤ 合并 batch-1020-2（含 #843、#848；合完 ③ 把 #853 改到 main）和 batch-1020-3（#846、#847）；二是 ② 的平台片：L1 给 Schedule、Inbox、Feed，S8 给 Goals，S0a/S0b 给 Alchemist 和 Shelf。Shelf 另有三件事要用户裁。② 的 PR 都在 ⑤ 那里，队列里的 L1a 没被挡住，① 让 ② 开 L1a。② 报的 `parseExactActionReferences` 疑点，① 在代码里确认属实：`contracts/src/platform/actions.ts:508` 的 `id()` 不收 `#`，外部 MCP 提供方 `…#mcp:…` 选不进 Characters 和 Coding 的 `action_tools`。① 派成一片合同修复，由 ② 的 Sonnet 子代理和 L1a 并行做，进下一批。batch-1020-2 最近两次全量（39375011264、39375703861）红在 S-17、S-37（「插件调用没有宿主发出的有效身份」），⑤ 正在处理。
 
 - **06:07 UTC 用户裁 Shelf 三件事**，原话「1.允许 2. 留 3. 不行」：本机页面继续允许抓取；`origin_realpath` 重新哈希时读原文件，保留；图片上限保持 50 张。① 定的实现路子：三件都由平台补，补成 Manifest 声明加授权的权限或服务，任何插件同样能用，不给 Shelf 开私路。前两件各加一条带拒绝测试的安全不变量。50 张的上限在 `horizontal/agent-host/src/adapters/prologue-inference-materials.ts:9`，所有插件一起提。三件都并进 ② 的 S0，排在 L1a 和合同修复之后，① 已分别告诉 ② 和 ③。HANDOFF 第 10 节记了已定。⑤ 报 coding-question-card 的 AC-10-1/2/7 在本机已过，第 2 轮还剩两个用例在跑。
+
+- **06:17 UTC 加协审 ⑩**（用户：「PR 堆得越来越多了，你可以新开一个 session 协助 5 一起审 PR，加速」）：开了 ⑩ review-2 `local_b038a271-f935-4aac-8d0a-7adfaebe9592`，Opus xhigh，有自己的工作树（从 main 开）。① 看下来，卡的不是评审，是合并：⑤ 审得快，#855 开出来 3 分钟就审完；但 batch-1020-2（15 个 PR）从 04:53 起连红 4 次，05:35 之后没再跑过全量，⑤ 这段时间在修 coding-question-card（#852）。
+  - 分工：⑩ 只审和修，不合并；组批次、触发全量、入队仍然只有 ⑤ 做。
+  - ⑩ 的活，按先后：
+    1. 查 batch-1020-2 的 S-17/S-37，找出是哪个 PR，修复推到那个 PR 的分支，告诉 ⑤ 重组批次；
+    2. #805、#771 合 main、复核；
+    3. 四个交接 PR（#828、#834、#836、#838）的「在途」改成「已合入」；
+    4. 之后 ⑤ 忙的时候把新 PR 转给 ⑩。
+  - ②、③ 照旧把 PR 交给 ⑤。⑩ 的评论开头写「⑩ 评审」。

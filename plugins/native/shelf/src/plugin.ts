@@ -24,7 +24,7 @@ export function createShelfPlugin(results?: ShelfResultPorts): PluginDefinition 
       // Inputs nominate exact candidates; receiving always requires the explicit route confirmation.
       onUpstreamReady: () => {},
       views: [shelfUiContribution, shelfSettingsUiContribution],
-      actions: shelfRuntimeActionHandlers(context, results),
+      actions: shelfRuntimeActionHandlers(context, results, shelfManifest),
       // The old routes only translate parameters; execution is the same registered action MCP and Agents call.
       routes: [
         bindPluginActionRoute(context, shelfRuntimeActions.results, () => ({}), "shelf.project-results"),

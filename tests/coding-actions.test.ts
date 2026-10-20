@@ -21,8 +21,11 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
   const find = (id: string) => codingRouteActions[id]!.definition;
   try {
     const directory = (await client.discover(owner)).filter(row => row.provider.plugin_id === "io.molis.work.coding");
-    // Its route actions plus the preview of its run reports (artifact-positioning A4): exactly what the Manifest declares.
-    assert.deepEqual(directory.map(row => row.capability_id).sort(), codingManifest.actions!.map(row => row.capability_id).sort());
+    // Its route actions plus the preview of its run reports (artifact-positioning A4): exactly what the Manifest declares for a person.
+    // The text of a fixed result (`coding.results.document`) is declared too, but only a plugin can ask for it (W5-01-CODING-01), so a person's directory does not list it.
+    const forPerson = codingManifest.actions!.filter(row => row.action.audiences.includes("user"));
+    assert.deepEqual(forPerson.map(row => row.capability_id).sort(), codingManifest.actions!.map(row => row.capability_id).filter(id => id !== "coding.results.document").sort());
+    assert.deepEqual(directory.map(row => row.capability_id).sort(), forPerson.map(row => row.capability_id).sort());
 
     const created = await client.invoke(owner, find("coding.create-session"), { title: "修复登录" }) as { session: { session_id: string; title: string } };
     assert.equal(created.session.title, "修复登录");

@@ -70,6 +70,10 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
+    "./modules/coding": {
+      "types": "./dist/modules/coding.d.ts",
+      "import": "./dist/modules/coding.js"
+    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"

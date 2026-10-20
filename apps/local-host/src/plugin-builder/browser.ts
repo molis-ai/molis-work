@@ -8,6 +8,7 @@ import { WebSocket } from 'ws';
 import { isLoopbackHttpUrl } from '@molis-ai/molis-work-contracts/platform/loopback';
 import type { AgentBuild, BrowserAcceptance } from '@molis-ai/molis-work-plugin-builder';
 import { locateBrowser } from '../browser/locate.js';
+import { trackHostChildEndpoint } from '../host-endpoints.js';
 
 /** Host-owned G7 driver. Contract steps never supply JavaScript, selectors, URLs or browser launch arguments. */
 /** Each case starts from empty data, as the designer is told: `reset` empties the preview and the page is reopened. */
@@ -215,7 +216,7 @@ class BuilderBrowser {
         child.once('error', error => { cleanup(); reject(error); }); child.once('exit', () => { cleanup(); reject(new Error('验收浏览器未能启动')); });
         child.stderr!.on('data', chunk => { stderr = (stderr + String(chunk)).slice(-16_384); const found = /DevTools listening on (ws:\/\/127\.0\.0\.1:\d+\/\S+)/.exec(stderr)?.[1]; if (found) { cleanup(); resolve(found); } });
       });
-      signal.throwIfAborted(); socket = new WebSocket(url); await once(socket, 'open');
+      trackHostChildEndpoint(url, child); signal.throwIfAborted(); socket = new WebSocket(url); await once(socket, 'open');
       const browser = new BuilderBrowser(child, socket, directory, signal);
       const target = await browser.command<{ targetId: string }>('Target.createTarget', { url: 'about:blank' });
       const { sessionId } = await browser.command<{ sessionId: string }>('Target.attachToTarget', { targetId: target.targetId, flatten: true }); browser.session = sessionId;

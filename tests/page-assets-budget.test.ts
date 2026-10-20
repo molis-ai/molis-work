@@ -707,6 +707,11 @@ for (const [asset, old] of [
   ["/assets/molis-work-settings.css", 990971],
   ["/assets/molis-work-workbench.css", 1605196],
   ["/assets/molis-work-workbench.js", 1135021],
+  // Retire prior exact starts when the shared context fix moves this predecessor.
+  ["/assets/molis-work-workbench.js", 1138212],
+  ["/assets/molis-work-workbench.js", 1140034],
+  ["/assets/molis-work-workbench.js", 1140350],
+  ["/assets/molis-work-workbench.js", 1140444],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -724,7 +729,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the shared show-more allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1140444, 1141401],
+    "/assets/molis-work-workbench.js": [1140547, 1141504],
     "/assets/molis-work-workbench.css": [1605172, 1605267],
     "/assets/molis-work-settings.css": [990967, 991062],
     "/assets/molis-work-arrival.css": [700557, 700652],

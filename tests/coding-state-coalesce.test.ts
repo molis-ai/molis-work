@@ -42,6 +42,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
       if (definition.capability_id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });

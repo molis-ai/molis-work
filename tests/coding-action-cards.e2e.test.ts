@@ -40,7 +40,7 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
     const review = endingReviewReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     const body = JSON.parse(raw) as Body; bodies.push(body);
-    // The round's tool shapes are deferred past 20 tools: its first call finds the suggest tool, the next suggests creating
+    // Past 32 tools the round's tool shapes are deferred: then its first call finds the suggest tool; the next suggests creating
     // a Goal with the one action it was given, and the last one ends the round.
     const suggest = body.tools?.find(tool => tool.name.startsWith("molis-suggest-"));
     res.writeHead(200, { "content-type": "text/event-stream" });

@@ -1,5 +1,5 @@
 import type { UiHostApi, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, ARTIFACT_IMPORT_STYLES, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, type ArtifactBrowserUiModel, type GoalArtifactEmbed } from "@molis-ai/molis-work-plugin-artifacts";
 import { FILE_PREVIEW_STYLES } from "@molis-ai/molis-work-design-system";
 
 export const ARTIFACT_EMBED_STYLES = `
@@ -20,7 +20,7 @@ export const ARTIFACT_EMBED_STYLES = `
   @media(max-width:760px) { .artifact-embed > a { display:inline-flex; align-items:center; min-height:44px; } }
 `;
 
-export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIEW_STYLES}
+export const ARTIFACT_WORKBENCH_STYLES = `${FILE_PREVIEW_STYLES}
   .artifact-version-list { display:flex; flex-direction:column; gap:4px; }
   /* 「被谁引用」, 「从这一版继续」 and 「作为 Goal 的输入」 (artifact-positioning A4b). */
   .artifact-links ul { margin:8px 0; padding-left:20px; }
@@ -35,7 +35,6 @@ export const ARTIFACT_WORKBENCH_STYLES = `${ARTIFACT_IMPORT_STYLES}${FILE_PREVIE
   .artifact-link-work { padding:0; border:0; background:none; color:var(--accent); font:inherit; cursor:pointer; text-decoration:underline; text-underline-offset:2px; }
   .artifact-continue-actions, .artifact-goal-input form { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:8px 0; }
   .artifact-goal-input form select { flex:1 1 200px; min-width:0; }
-  .artifact-import-entry { text-decoration:none; }
   .artifact-version-list .mw-dir-row,
   .artifact-version-list .feed-stage-entry { width:100%; }
   .artifact-detail, .artifact-empty { max-width:72ch; overflow-wrap:anywhere; }

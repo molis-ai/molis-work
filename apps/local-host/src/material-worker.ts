@@ -1,7 +1,7 @@
 import { Worker } from "node:worker_threads";
 import { materialErrors } from "./material-text.js";
 
-type MaterialWorker = "material-pdf-worker.js" | "material-documents-worker.js" | "material-html-worker.js";
+type MaterialWorker = "material-pdf-worker.js" | "material-documents-worker.js" | "material-html-worker.js" | "material-office-worker.js";
 /** Production parsers use their packaged worker, including when a test imports Host source. */
 export async function runMaterialWorker<T>(module: MaterialWorker, data: unknown,
   options: { signal?: AbortSignal; timeoutMs?: number }, subject: string): Promise<T> {

@@ -8,7 +8,8 @@ import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurf
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { createRequire } from "node:module";
 // The SDK's own delivery box stands behind the messages capability: its rules, not a copy of them, decide each move.
@@ -32,13 +33,14 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: root, realpath_verified: true } },
     turns: [{ turn_id: "u", kind: "user", text: "补测试", at }, { turn_id: "a", kind: "assistant", text: "三个测试已补，全部通过。", at }],
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { made.push(`sdk-${made.length}`); return { runtime_id: "prologue", session_id: made.at(-1) } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) { const ref = { session_id: input[1].session.session_id, run_id: `r${runs.size + 1}` }; runs.set(ref.run_id, { ref }); return { ref, frozen: view(ref).frozen } as Output; }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [...runs.values()].filter(run => run.ref.session_id === input[0].session_id).map(run => run.ref) } as Output;
@@ -110,11 +112,8 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     assert.equal(taken.status, 200, JSON.stringify(taken.body));
     assert.equal(taken.body.delegation.state, "completed");
     const materials = (await call("/sessions/A")).body.materials;
-    assert.deepEqual(materials, [again.artifact], "what was taken is attached to the next round, at its fixed version");
-    const choices = (await call("/sessions/A/materials")).body.materials;
-    const cited = choices.find((choice: { reference: { artifact_id: string } }) => choice.reference.artifact_id === again.artifact.artifact_id);
-    assert.match(cited.title, /^会话「委派：补测试」 \/ 报告 \//);
-    assert.match(cited.text, /只读引用固定版本/);
+    assert.deepEqual(materials.map((item: { kind: string; id: string }) => [item.kind, item.id]), [["artifact", artifactSubjectId(again.artifact)]],
+      "what was taken is attached to the next round as a piece of project knowledge, at its fixed version (PMAT-18)");
 
     const late = await call(`/sessions/A/delegations/${id}`, "POST", { action: "cancel" });
     assert.equal(late.status, 400); assert.match(late.body.error, /这次操作只记录，不改变结果/);

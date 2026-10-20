@@ -118,6 +118,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";

@@ -39,18 +39,19 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
     choices: () => configuredModelChoices(home.directory),
     availability(selection) {
       const injected = home.completeText();
-      if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true };
-      let label: string | undefined;
+      // A model the Host was given for a test is handed images as they are.
+      if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true, vision: true };
+      let label: string | undefined, vision = false;
       const state = textModelAvailability(() => {
         if (!configured(selection)) return false;
         const catalog = openConfiguredModels(home.directory);
         try {
           const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
-          if (selected) label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`;
+          if (selected) { label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
           return true;
         } finally { catalog?.storage.close(); }
       });
-      return state.available && label ? { ...state, runtime_label: label } : state;
+      return state.available && label ? { ...state, runtime_label: label, vision } : state;
     },
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createServer } from "node:http";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
+import { asideReply } from "./fixtures/ending-review.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
@@ -63,9 +64,11 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   const requests: Array<{ path: string; key: unknown; body: Record<string, unknown> }> = [];
   const model = createServer(async (req, res) => {
     let body = ""; for await (const chunk of req) body += chunk;
-    requests.push({ path: req.url!, key: req.headers["x-api-key"], body: JSON.parse(body) });
+    // The Home's own background work (knowledge cards for the demo project's pieces) is answered aside: `requests` are Cognia's.
+    const aside = asideReply(body);
+    if (aside === undefined) requests.push({ path: req.url!, key: req.headers["x-api-key"], body: JSON.parse(body) });
     res.writeHead(200, { "content-type": "text/event-stream" });
-    res.end(await cogniaModelResponse("# 本机模型整理结果\n已核对本机资料 [S1]").text());
+    res.end(await cogniaModelResponse(aside ?? "# 本机模型整理结果\n已核对本机资料 [S1]").text());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve())); });

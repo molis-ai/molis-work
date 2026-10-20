@@ -12,7 +12,9 @@ function catalogService(implementations: CapabilityImplementations, live: (ident
   const actions = { registry: new ActionService(), project_id: 'p' };
   const project = { ...actions, client: actions.registry };
   registerPlatformCapabilities(project, implementations);
-  return catalogCapabilities({ actions: project, catalog: () => capabilityCatalog(project, 'user'), live });
+  // What the generated plugin declared to the Host (these cases only need it to name the plugin) and what the person approved for it.
+  const declaration = (item: { pluginId: string }) => ({ manifest: { plugin_id: item.pluginId } }) as never;
+  return catalogCapabilities({ actions: project, catalog: () => capabilityCatalog(project, 'user'), live, declaration, granted: () => ['model.generate'] });
 }
 
 const ask = { prompt: 'expand', input: '间隔复习比集中复习记得更久，因为提取本身就是练习' };

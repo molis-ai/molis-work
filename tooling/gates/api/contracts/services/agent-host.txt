@@ -103,6 +103,7 @@ export interface AgentCommandReviewDocument {
     grants?: AgentCommandGrants;
     background?: boolean;
     outlives_run?: boolean;
+    after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
 
 export type AgentCreateSessionInput = AgentCreateSessionFields & ({
@@ -1386,6 +1387,13 @@ export type AgentWorkspace = {
     workspace: "business";
     directory?: never;
 };
+
+export interface AgentWriteCheckNote {
+    checker_id: string;
+    display_name: string;
+    version: number;
+    write_call_id?: string;
+}
 
 export interface AgentWriteChecker {
     checker_id: string;

@@ -70,7 +70,7 @@ test("a PDF the person brings is read by the Agent runtime's own parser into bou
     documentParsers: [pdfDocumentParser],
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()) }, "web-user");
+  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()) }, "web-user");
   try {
     const material = await service.readAttachment({ name: "brief.pdf", data: pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]).toString("base64") });
     assert.equal(material.kind, "file");
@@ -98,7 +98,7 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
   try {
     const image = png(), bytes = image.toString("base64");
     const material = await service.readAttachment({ name: "chart.png", data: bytes });
@@ -117,7 +117,7 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     // The picture can be looked at again from the work (the side panel shows it), exactly as it was brought.
     assert.deepEqual(await service.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
     // After a restart the runtime holds no copy: the work says so, and asking for it gives the way out instead of a picture.
-    const restarted = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+    const restarted = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
     assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
     await assert.rejects(restarted.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));

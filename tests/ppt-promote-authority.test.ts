@@ -1,107 +1,96 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginArtifactClient, PluginDatabase, PluginStartContext, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createPptPlugin, openPptStore, PPT_DATABASE } from "@molis-ai/molis-work-plugin-ppt";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { createPptPlugin, openPptStore, PPT_DATABASE, pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
+import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { pluginActions } from "./fixtures/plugin-actions.js";
 
-type Stage = "before-begin" | "after-begin" | "after-publish-check" | "after-artifact" | "before-complete" | "none";
-type Failure = "revoke" | "cancel" | "replace";
-const STAGES = ["before-begin", "after-begin", "after-publish-check", "after-artifact", "before-complete"] as const;
+/**
+ * Where the caller stops being current, counted in the authority waits of one promotion: the dispatcher's own (1), PPT's first
+ * (2), the begin transaction's (3), the wait before publishing (4) and the complete transaction's (5). `during` fails inside
+ * the wait, which the wait itself refuses; `after` fails once the wait has passed, before the effect it guards, which only the
+ * service's own check refuses.
+ */
+const STAGES = {
+  "after-begin-wait": { wait: 3, when: "after" },
+  "before-publish": { wait: 4, when: "during" },
+  "after-publish-wait": { wait: 4, when: "after" },
+  "after-publish": { wait: 5, when: "during" },
+  "after-complete-wait": { wait: 5, when: "after" },
+} as const;
 const FAILURES = ["revoke", "cancel", "replace"] as const;
+type Stage = keyof typeof STAGES;
+type Failure = typeof FAILURES[number];
 
-/** W5-01-PPT-07: every publication side effect rechecks the original caller after its own wait. */
-test("W5-01-PPT-07: cancel, revoke or a replaced provider at each publication stage keeps only already-committed stages", async t => {
-  for (const stage of STAGES) for (const failure of FAILURES) {
-    const home = await mkdtemp(join(tmpdir(), `ppt-authority-${stage}-`));
-    const db = openHomeSqliteDatabase(home, "ppt");
-    applySqliteBaseline(db, homeSqlitePath(home, "ppt"), PPT_DATABASE);
-    const seed = openPptStore(home), deck = seed.create({ project_id: "a", title: "Authority" });
-    seed.close();
-    let revoked = false, replaced = false, phase = 0, published = 0, beginCommitted = false, armed = false;
-    const controller = new AbortController();
-    const fail = () => { if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };
-    const database: PluginDatabase = {
-      get: (sql, parameters = []) => db.prepare(sql).get(...parameters) as never,
-      all: (sql, parameters = []) => db.prepare(sql).all(...parameters) as never,
-      transaction: async <T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T> => {
-        await beforeEffect();
-        phase += 1;
-        // The write's own wait has passed; the caller is lost before its first statement runs.
-        if ((phase === 1 && stage === "before-begin") || (phase === 2 && stage === "before-complete")) fail();
-        const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all,
-          run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
-        const result = write(transaction);
-        if (phase === 1) beginCommitted = true;
-        if (phase === 1 && stage === "after-begin") fail();
-        return result;
+/** PPT on the project platform the Host builds: the real library in the Home, the real 成果 module and the Kernel's call. */
+async function promotion(stage: Stage | "none", failure: Failure) {
+  const home = mkdtempSync(join(tmpdir(), `ppt-authority-${stage}-`));
+  const file = join(home, "project.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
+  const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
+    eventCursor: (projectId: string) => store.eventCursor(projectId) };
+  const artifacts = new ArtifactsModule(ports);
+  const platform = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store, artifacts,
+    processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) } });
+  const seed = openPptStore(home), deck = seed.create({ project_id: DEMO_PROJECT_ID, title: "Authority" });
+  seed.close();
+  try {
+    assert.deepEqual((await platform.start([{ definition: createPptPlugin(), database: PPT_DATABASE, bundled: true }])).running, ["io.molis.work.ppt"]);
+    const controller = new AbortController(), trigger = stage === "none" ? undefined : STAGES[stage];
+    let revoked = false, replaced = false, waits = 0, armed = false, fired = false;
+    const fail = () => { fired = true; if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };
+    const caller: ActionCallContext = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user",
+      permissions: [...new Set([...pptActions.promote.action.permissions, "ppt:read"])], signal: controller.signal,
+      validate_authority: async () => {
+        waits += 1;
+        if (waits !== trigger?.wait) return;
+        if (trigger.when === "during") fail(); else armed = true;
       },
-    };
-    const artifacts: PluginArtifactClient = {
-      publish: input => { published += 1; if (stage === "after-artifact") fail();
-        return { artifact: { artifact_id: input.artifact_id!, version: input.version } } as never; },
-      read: () => null, head: () => null, readOwn: () => null,
-    };
-    const context: PluginStartContext = { install_id: "ppt-test", plugin_id: "io.molis.work.ppt", version: "0.0.0", deployment: "local",
-      grants: [], project_id: "a", services: { database, artifacts }, requireGrant: () => {} };
-    const started = await createPptPlugin().start(context);
-    const handler = started.actions!.find(action => action.capability_id === "ppt.promote")!;
-    const refuse = () => {
-      controller.signal.throwIfAborted();
-      if (revoked) throw new ActionError("actions.forbidden", "revoked");
-      if (replaced) throw new ActionError("actions.provider_changed", "replaced");
-    };
-    const caller: ActionExecutionContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["ppt:read", "ppt:write", "artifact:write", "artifact:read"],
-      signal: controller.signal,
-      beforeEffect: async () => refuse(),
       assert_authority_current: () => {
-        refuse();
-        // W5-01-PPT-07: the caller is lost after the nested async check succeeds, before it resumes to publish.
-        if (stage === "after-publish-check" && beginCommitted && !armed) { armed = true; queueMicrotask(fail); }
+        controller.signal.throwIfAborted();
+        if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked");
+        if (replaced) throw new ActionError("actions.provider_changed", "the provider was replaced");
+        // The wait's own final check has passed: fail before whatever it guards runs.
+        if (armed) { armed = false; queueMicrotask(fail); }
       } };
-    await assert.rejects(handler.handle(caller, { id: deck.id }), error => {
-      const value = error as { code?: string; name?: string };
-      return failure === "cancel" ? value.name === "AbortError" : value.code === (failure === "revoke" ? "actions.forbidden" : "actions.provider_changed");
-    });
+    const outcome = await actions.client.invoke(caller, pptActions.promote, { id: deck.id }).then(() => "done", (error: unknown) => error);
     const after = openPptStore(home);
     try {
-      const row = after.get(deck.id, "a");
-      if (stage === "before-begin") { assert.equal(row.publication_pending, undefined); assert.equal(published, 0); }
-      if (stage === "after-begin") { assert.equal(row.publication_pending?.version, 1); assert.equal(published, 0); assert.equal(row.artifact_version, 0); }
-      if (stage === "after-publish-check") { assert.equal(armed, true); assert.equal(row.publication_pending?.version, 1); assert.equal(published, 0); assert.equal(row.artifact_version, 0); }
-      if (stage === "after-artifact" || stage === "before-complete") { assert.equal(row.publication_pending?.version, 1); assert.equal(published, 1); assert.equal(row.artifact_version, 0); }
-    } finally { after.close(); db.close(); await rm(home, { recursive: true, force: true }); }
+      return { outcome, fired, deck: after.get(deck.id, DEMO_PROJECT_ID), published: artifacts.query.listArtifacts(DEMO_PROJECT_ID).length };
+    } finally { after.close(); }
+  } finally {
+    await platform.closeCoordination();
+    for (const instance of platform.runtime.list()) if (instance.state === "running") await platform.runtime.stop(instance.install_id);
+    store.close(); rmSync(home, { recursive: true, force: true });
   }
-  const home = await mkdtemp(join(tmpdir(), "ppt-authority-control-"));
-  const db = openHomeSqliteDatabase(home, "ppt");
-  applySqliteBaseline(db, homeSqlitePath(home, "ppt"), PPT_DATABASE);
-  const seed = openPptStore(home), deck = seed.create({ project_id: "a", title: "Control" });
-  seed.close();
-  let published = 0;
-  const database: PluginDatabase = {
-    get: (sql, parameters = []) => db.prepare(sql).get(...parameters) as never,
-    all: (sql, parameters = []) => db.prepare(sql).all(...parameters) as never,
-    transaction: async <T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T> => {
-      await beforeEffect();
-      return write({ get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters) });
-    },
-  };
-  const artifacts: PluginArtifactClient = {
-    publish: input => { published += 1; return { artifact: { artifact_id: input.artifact_id!, version: input.version } } as never; },
-    read: () => null, head: () => null, readOwn: () => null,
-  };
-  const context: PluginStartContext = { install_id: "ppt-test", plugin_id: "io.molis.work.ppt", version: "0.0.0", deployment: "local",
-    grants: [], project_id: "a", services: { database, artifacts }, requireGrant: () => {} };
-  const handler = (await createPptPlugin().start(context)).actions!.find(action => action.capability_id === "ppt.promote")!;
-  const caller: ActionExecutionContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["ppt:read", "ppt:write", "artifact:write", "artifact:read"],
-    beforeEffect: async () => {}, assert_authority_current: () => {} };
-  await handler.handle(caller, { id: deck.id });
-  const after = openPptStore(home);
-  try {
-    const row = after.get(deck.id, "a");
-    assert.equal(row.publication_pending, undefined); assert.equal(row.artifact_version, 1); assert.equal(published, 1);
-  } finally { after.close(); db.close(); await rm(home, { recursive: true, force: true }); }
+}
+
+/** W5-01-PPT-07: PPT hands the platform no check of its own; the library and the 成果 service refuse a stale caller at each stage. */
+test("W5-01-PPT-07: cancel, revoke or a replaced provider at each publication stage keeps only already-committed stages", async () => {
+  for (const stage of Object.keys(STAGES) as Stage[]) for (const failure of FAILURES) {
+    const { outcome, fired, deck, published } = await promotion(stage, failure);
+    const label = `${stage} ${failure}`;
+    assert.equal(fired, true, `${label}: the failure was injected`);
+    if (failure === "cancel") assert.equal((outcome as { name?: string }).name, "AbortError", label);
+    else assert.equal((outcome as { code?: string }).code, failure === "revoke" ? "actions.forbidden" : "actions.provider_changed", label);
+    assert.equal(deck.artifact_version, 0, `${label}: the deck never records a pinned version`);
+    if (stage === "after-begin-wait") {
+      assert.equal(deck.publication_pending, undefined, `${label}: nothing begins once the caller is gone`);
+      assert.equal(published, 0, label);
+    } else {
+      assert.equal(deck.publication_pending?.version, 1, `${label}: the committed intent stays for recovery`);
+      assert.equal(published, stage === "after-publish" || stage === "after-complete-wait" ? 1 : 0, label);
+    }
+  }
+  const { outcome, deck, published } = await promotion("none", "revoke");
+  assert.equal(outcome, "done");
+  assert.equal(deck.publication_pending, undefined); assert.equal(deck.artifact_version, 1); assert.equal(published, 1);
 });

@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/prologue",
-    "checkedOn": "2026-10-19",
-    "mainHead": "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
-    "statement": "2026-10-19 对上游 main a51607fbfa11e8f59ac0962906aa1bcbf155d8e6（Prologue #52，含 #51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
+    "checkedOn": "2026-10-20",
+    "mainHead": "753dbae8359e56a74397d030af4d18abf402d5b5",
+    "statement": "2026-10-20 对上游 main 753dbae8359e56a74397d030af4d18abf402d5b5（Prologue #57，含 #56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -51,7 +51,8 @@
       "b541a8e62752fce23c83f959d55e549b3086557f",
       "94ee1ea4f48baf529b2ce624b8ee54acefb7bb7f",
       "3adc5e87e81567af59983d1e7ac411a703454167",
-      "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6"
+      "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
+      "753dbae8359e56a74397d030af4d18abf402d5b5"
     ]
   },
   "patches": [
@@ -756,6 +757,14 @@
       "gitBlob": "d503977079c441334e3e3a659eabf2434e845386",
       "commit": "3adc5e87e81567af59983d1e7ac411a703454167",
       "description": "上游 main 3adc5e87（Prologue #49，含 #48 acknowledge-inputs 只列这一轮收的目标、#47 写后检查的身份交给执行器与此前各项）。2026-10-19 被包含 #50（acknowledge-inputs 只在这一轮收得下时列 todo）、#51（写后检查是包里标了 afterWriteCheck 的那个工具，不再认固定名字）与 #52（没有退出码的命令不再写成 exit undefined）的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-after-write-check-marker.tgz",
+      "bytes": 1228137,
+      "sha256": "0339fb9ef4935e70b534b35319052bd57d04931654c12fb861ed4ac8b4de6d60",
+      "gitBlob": "e6050caef73403fde70f952fd9a84a70c59ee8be",
+      "commit": "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
+      "description": "上游 main a51607fb（Prologue #52，含 #51 写后检查是包里标了 afterWriteCheck 的那个工具、#50 acknowledge-inputs 只在这一轮收得下时列 todo 与此前各项）。2026-10-20 被包含 #54、#55（effect 与 awaiting-input 的来源可写明哪次工具调用、哪次模型调用、看板哪一步，BL-162）、#56（附件占位串加 -END 结尾，一次调用带 11 张以上原图不再整次拒发）与 #57（多张图按给出的顺序到模型，不再整组倒序）的统一包替换；旧包及其来源记录从 Git 历史取回。"
     }
   ],
   "notes": [

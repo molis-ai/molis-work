@@ -4,6 +4,10 @@
 
 ## [Unreleased]
 
+### 升级须知（需要动手）
+
+- **项目库 v8：项目是自己的根，插件的表由插件声明**（`feat/project-library-l1b`，PG-020、PG-021，`specs/plugin-project-database` L1b）：项目库多一张 `project_root`（一库一行，项目本身）和插件的表的账本 `plugin_project_databases`；原来指向 Goals 看板 `boards` 的 11 张表改指 `project_root`；Coding、Feed、Schedule 的表不再在基线里，改由各自 Manifest 的 `databases.project` 声明，宿主开库时建表、记账本、再打开时核对，不符只停那个插件。新构建拒绝 v7 的项目库（`SqliteSchemaVersionError`），有 v7 项目库的 Home 在维护之前不装新构建：先做 `docs/releases/CHECKLIST.md` 4.3 维护八里的项目库一项（脚本 `tests/fixtures/project-maintenance-v8.sql`，演练 `tests/project-maintenance-v8.test.ts`），维护应用之后这两份文件与 v7 的建库快照一起删，这里写明哪个提交还有它们。
+
 ### 变化
 
 - **合作源码许可**：Molis Work 项目代码（含 SDK、contracts 与内置插件）从 MIT 声明切换为 [Molis AI Cooperation Source License](../../LICENSE)。合作方可在约定范围内阅读和参与开发；对外销售、提供收费服务或转授权须事先取得实际著作权人或其合法授权代表的明确书面授权。Molis AI 的主体公司尚未设立，未来公司须取得相应权利或授权。第三方许可、独立工作成果以及旧版本已合法授予的权利保留；本条不追溯改变过去的发行物。

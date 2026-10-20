@@ -36,7 +36,7 @@ export interface SourcesSqliteDatabase {
 }
 
 const FEED_SOURCES_COLUMNS = `
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
       kind TEXT NOT NULL,
       definition_id TEXT,

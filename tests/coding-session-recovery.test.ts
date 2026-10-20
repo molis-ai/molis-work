@@ -4,12 +4,12 @@ import { DatabaseSync } from "node:sqlite";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_DATABASE, CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { codingFixtureRoutes as codingRoutes } from "./fixtures/coding-surface.js";
 
 test("one unreadable runtime history does not hide other sessions or lose its draft", async () => {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions = new CodingSessionStore(db);
   const at = "2026-09-20T00:00:00Z";
   for (const id of ["broken", "safe"]) sessions.create({ project_id: "board", session_id: id, title: id, runtime_id: "prologue", at });
@@ -46,7 +46,7 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
 
 test("command receipt route binds the selected app session and exact runtime run before reading", async () => {
   const db = new DatabaseSync(":memory:");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions = new CodingSessionStore(db);
   sessions.create({ project_id: "board", session_id: "app-session", title: "检查", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
   sessions.setRuntimeSession("board", "app-session", "sdk-session", "2026-09-20T00:00:00Z");
@@ -69,7 +69,7 @@ test("command receipt route binds the selected app session and exact runtime run
 const codingContext=(services:Record<string,unknown>)=>({project_id:'board',plugin_id:'io.molis.work.coding',services}) as unknown as PluginStartContext;
 
 test("answer route preserves the original run and questionnaire, rejects foreign runs and malformed selections",async()=>{
-  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions=new CodingSessionStore(db),at='2026-09-20T00:00:00Z';
   sessions.create({project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
   let phase='awaiting-input';const delivered:unknown[]=[];
@@ -104,7 +104,7 @@ test("answer route preserves the original run and questionnaire, rejects foreign
 // BL-156 (specs/ai-interaction-experience §15.9): an answer to a round parked at a restart ends that round; Coding opens the
 // next one the way the parked round started, and says when it could not. A busy session is read once and tried once more.
 test("AC-07 an answer to a round parked at a restart opens the next round, or says why not; busy, one look and one more try",async()=>{
-  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions=new CodingSessionStore(db),at='2026-10-17T00:00:00Z';
   sessions.create({project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
   const saved=new Map<string,string>(),calls:string[]=[];let busy=0;
@@ -139,7 +139,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
 });
 
 test("AC-07 the round after a parked answer is started by the one who answered, not by who started the parked round",async()=>{
-  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board')");
+  const db=new DatabaseSync(':memory:');db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board')"); db.exec(CODING_PROJECT_DATABASE.schema);
   const sessions=new CodingSessionStore(db),at='2026-10-18T00:00:00Z';
   sessions.create({project_id:'board',session_id:'app',title:'问卷',runtime_id:'prologue',at});sessions.setRuntimeSession('board','app','sdk',at);
   // The parked round was started by someone else; what is saved of it names them.

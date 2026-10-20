@@ -3,6 +3,7 @@ import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { ArtifactsModule, ProcessItemsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { builtinTypeDeclared } from "./declared-types.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { GovernanceCollaborationModule, type GovernanceSqliteDatabase } from "@molis-ai/molis-work-module-governance-collaboration";
@@ -200,13 +201,21 @@ export class GoalProjectApplication {
     });
   }
 
+  /**
+   * A new project's first records: the library's root row, then Goals' board, in one transaction; a project that has its root row
+   * keeps it. 2026-10-18 改: the Host makes Goals' board here because Goals is still composed with the project (privileges.md, PG-021);
+   * once Goals is installed like any plugin (S9), the project is made with its root row alone.
+   */
   initializeBoard(input: {
     project_id: string;
     title: string;
     actor_id: string;
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
-    return this.goals.commands.initializeBoard(input);
+    return this.store.db.transaction(() => {
+      writeProjectRoot(this.store.db, input.project_id, this.clock().toISOString());
+      return this.goals.commands.initializeBoard(input);
+    }).immediate();
   }
 
   readProjectGuidance(projectId: string): ProjectGuidanceView {

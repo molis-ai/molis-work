@@ -20,6 +20,8 @@ Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升�
 
 项目里宿主自己运行的内置插件（`project-plugins.ts` 的启动名单）要有 Home 里的库，也是同一个 `context.services.database`：在名单条目上写 `database`（`PluginPlatformEntry`），不是插件定义里的字段，插件自己选不了库名。库必须在 Home 存储登记中归该插件所有、与登记的基线一致，并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 声明 `storage:private` 和库的读写权限，沙箱插件拿不到。数据由插件自己按项目分区，写入必须 `transaction(caller.beforeEffect, tx => …)`。Form 与灵光已这样装配。
 
+项目库里插件自己的表（`specs/plugin-project-database`）：Manifest 写 `databases: { project: { store_name, version, schema, read_permission, write_permission } }`，`parsePluginManifest` 检查形状，两个权限必须在 `permissions` 里，自己的表两项都写 `storage:private`。`schema` 只能是 `CREATE TABLE` 与 `CREATE [UNIQUE] INDEX`，外键只指自己的表或 `project_root(project_id)`，不用 `AUTOINCREMENT`，名字不能和库里已有的对象重。现在只对内置的项目级插件生效：宿主开库时经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记下发布者和版本，之后每次打开核对，不符只停这个插件（动作不进目录，页面说明原因），不修补、不重建。改表就升 `version`，同时改 `docs/releases/CHECKLIST.md` §3 那一行并写维护。装进项目的插件写了声明也还不建表，运行时读写项目库的服务在 L2 才有，之前不要依赖。例子：`plugins/native/coding/src/database.ts`。
+
 原生插件自己的二进制文件用 `services.files`，在可信 Host 条目声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`；存储登记的 owner 必须匹配。`list/read` 不创建目录；`create(caller, name, bytes)` 排他创建，`remove(caller, name)` 删除，缺失可重试。只收单层非隐藏 ASCII 文件名，拒绝越界、符号链接与超限字节；不向插件传 Home 路径。当前安装与授权每次检查，停用后旧句柄失效，沙箱与升级预检没有它。文件与数据库提交间的业务一致性、失败后未引用文件清理由插件拥有。
 
 Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `model:invoke`，用 `context.services.model.complete(instructed(自己的指令, 数据))`，不再写宿主里的绑定文件。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调（其余位置 `plugin.model_*` 拒绝，动作返回之后是 `actions.expired`）；指令在 `PluginDefinition.instructions` 里声明（没有目录条目时），`owner_id` 是自己的插件 id；写入之前仍要自己 `await caller.beforeEffect()`。沙箱插件没有它。细则见 `docs/platform/PROLOGUE-AI.md` 第 4 节。

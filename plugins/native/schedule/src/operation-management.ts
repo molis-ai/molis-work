@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import type { ScheduleJobRecord } from '@molis-ai/molis-work-contracts/services/scheduler';
 import { scheduleErrors } from './error.js';
 import type { ScheduleTaskDatabase } from './tasks.js';
-import { getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences, SCHEDULED_OPERATIONS_SCHEMA_SQL, OPERATIONS_PER_INSTALLATION,
+import { getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences, OPERATIONS_PER_INSTALLATION,
   saveScheduledOperation, saveScheduledOperationOccurrence, type ScheduledOperation, type ScheduledOperationInstallation,
   type ScheduledOperationOccurrence, type ScheduledOperationScheduler } from './operations.js';
 
@@ -22,7 +22,6 @@ export function createScheduledOperationManagement(options: {
   currentInstallation(pluginId: string): OperationRecoveryInstallation | null; now?(): Date;
 }) {
   const { db, projectId, schedule } = options, now = options.now ?? (() => new Date());
-  db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   const view = (run: ScheduledOperation): ScheduledOperationView => {
     const job = schedule.get(run.jobId), installation = options.currentInstallation(run.pluginId);
     const occurrences = listScheduledOperationOccurrences(db, projectId, run.id);

@@ -31,7 +31,10 @@
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 项目库 | `projects/<project_id>/molis-work.db` | 7 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 8 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 1 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 拒绝（只停 Coding） |
+| 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
+| 项目库里 Schedule 的表 | `projects/<project_id>/molis-work.db#schedule` | 1 | `plugin_project_databases.version` | `plugins/native/schedule/src/database.ts#SCHEDULE_PROJECT_DATABASE` | 拒绝（只停 Schedule） |
 | 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
 | 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
@@ -67,6 +70,7 @@
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
 - （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 项目库 v7（2026-10-10，用户决定删除 Casebook）比 v6 少 Casebook 的 5 张表（`casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`），别的表没变。新构建拒绝 v6 的项目库，只认 6 的旧构建（Home 安装版、已开着的会话里的 MCP）拒绝 v7，所以带这一行的发布要先做真实 Home 的维护六，见第 4.3 节。
+- 项目库 v8（2026-10-20，PG-020，`specs/plugin-project-database` L1b）：基线只剩平台与 Module 的表（Goals 与治理的表在 S8 移出之前仍在），多两张平台表——项目根 `project_root`（每库正好一行，id 与 Goals 的 Board 相同）和插件库账本 `plugin_project_databases`——11 张表的外键由 `boards` 改指 `project_root`。Coding、Feed、Schedule 的 8 张表不在基线里了：各插件在 Manifest 的 `databases.project` 声明，Host 打开项目库时由平台第一次建表并记账本，以后按账本核对，发布者、版本或形状不符只停这个插件，库和别的插件照常打开（上表 `#coding`、`#feed`、`#schedule` 三行；`位置` 里 `#` 后面是声明的 `store_name`）。新构建拒绝 v7 的项目库，只认 7 的旧构建拒绝 v8，所以带这一行的发布要先做第 4.3 节维护八里的项目库一项，有 v7 项目库的 Home 在维护之前不装新构建。
 - 每次发布把这张表和上个版本的对比写进发布说明的「兼容与升级」，标出变了的行。上个版本没有这张表时，用 `git show <上个 tag>:<定义处文件>` 逐行取旧值。
 
 ## 4. 真实 Home 的处理
@@ -112,6 +116,9 @@
   - [x] **在副本上改，核对。**（不需要：可改的是 0） `rewrite --home <副本>` 后再 `list`，五类可改的都是 0；`config/mcp-tools.json` 的授权条数不变（新旧编号撞成同一条的，工具拒绝并一个字都不写，第 4.5 节的授权条数核对是第二道）；对副本用新构建打开一次，设置里的 MCP 授权页、工作流、角色页能正常显示，已选能力没有「原能力已变化」。副本上的演练记录（日期、各类条数、核对结果）写进发布说明的「兼容与升级」。
   - [x] **经用户同意后在真库上做，并交代两件用户要自己做的事。**（用户 2026-10-11 定「不写真库，重装后复查一次」：#383–#385 合入后 Home 安装版用 `origin/main` `9f9bda551` 的干净构建重装（「同版本内容已刷新 0.2.0」，新装的 MCP 列出 18 个项目），再把五处——`config/mcp-tools.json`、`workflows/workflows.db`、`characters/characters.sqlite`、18 个项目库、`assistant/assistant.db`——只读拷出（`VACUUM INTO`；项目库没有 `-wal`、没有进程打开，用 `immutable=1`）跑 `list`：各类都是 0（拷贝里只有这五处，所以 `NOT READ` 也是 0）；拷贝随即删除。没有要重新发布的角色版本，助理卡片也没有要改的） 真库上跑 `rewrite --home ~/.molis-work --maintenance-window`，把输出的各类条数报给用户。`FIXED` 的已发布角色版本不能改（固定版本），指向旧编号的那些版本里选好的能力按新编号对不上：用户在「设置 › 角色」把对应草稿（工具已改好）重新发布一次，旧版本留着不删。助理的待确认卡片、可撤销操作、后台任务本来也会失效，这一步一并改了，不用重新准备。
   - [ ] **不做的后果**（写在这里是因为过去的维护都是因为没做才发现的）：MCP 客户端的授权读成「没有这个动作」，外部工具里这 7 个插件的工具消失，要逐个重新授权；工作流里这些步骤报 `actions.provider_changed`；角色草稿里选好的能力显示「原能力已变化」；Coding 会话里选好的能力丢掉；用户对助理关掉的这些能力悄悄变回开着；窗口前冻结了旧编号、窗口后才恢复的 Agent 轮次，调这 7 个插件的动作报 `actions.missing`。
+
+- [ ] **本发布要做的一次性维护：维护八（候选，未做；动真实 Home 之前弹窗问用户）**，做 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1「库版本维护清单」里还没做的行，与装新构建同一步做。连接库 1 → 2、Pages 库 1 → 2 两行的做法写在那张表里；这里列项目库 v7 → v8（PG-020 项目库按插件分区，`specs/plugin-project-database/spec.md` §3 L1b 与 S8 同一批）。2026-10-20 本机没有真实 Home，旧机器的 Home 已退役；有 v7 项目库的 Home 才要做。
+  - [ ] **项目库 v7 → v8。** 对每个项目目录里的 `projects/<id>/molis-work.db` 跑 `tests/fixtures/project-maintenance-v8.sql`（在事务外关外键，跑完开回），范围与维护六相同（目录库列出的项目，加磁盘上有、目录库没列出的项目库）。一库一个事务：版本不是 7、表不是正好 v7 那一套、有视图或触发器、Board 不是正好一个、11 张表的列不对、外键检查不空、行数变了，整个脚本回滚，什么都不改。做的事：建 `project_root` 并抄 Board 的那一行；按 SQLite 的改表流程重建 11 张表，外键改指 `project_root`，行（含 rowid 与自增序号）不变；建账本并写 Coding、Feed、Schedule 三行（版本 1、发布者签名、表名；Goals 那行随 S8 加进同一份脚本）；`user_version` 写 8。先在一次性 Home 和备份的拷贝上跑 `tests/project-maintenance-v8.test.ts` 的演练和同一份脚本，再对真库跑；维护前整份备份（第 4.2 节）。可以和 Characters 安装记录的清理（`docs/system/RUNTIME-MIGRATION.md` 5.4 第 6 点）合成一次，到时由用户定。做完以后这份 SQL 和演练用例删除，从 Git 历史取。
 
 ### 4.4 装新构建
 

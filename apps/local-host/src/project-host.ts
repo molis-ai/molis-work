@@ -59,6 +59,7 @@ import { homePluginActions, withPreparedActions } from "./plugin-actions-client.
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
+import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -188,7 +189,7 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), providers);
+            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {

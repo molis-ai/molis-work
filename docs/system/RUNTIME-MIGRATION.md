@@ -46,7 +46,7 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
 
-Pages 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PAGES；宿主 `pages-actions.ts`/`pages-native-plugin-http.ts`/`pages-artifact.ts`/`pages-import.ts` 已删，尚未推送/合入；Inbox 写死的 `provider_id` 不变，`inbox.pages.generate` 迁后仍走通）。
+Pages 已迁到 Runtime（见防腐 spec W5-01-PAGES；宿主 `pages-actions.ts`/`pages-native-plugin-http.ts`/`pages-artifact.ts`/`pages-import.ts` 已删；Inbox 写死的 `provider_id` 不变，`inbox.pages.generate` 迁后仍走通）。
 
 以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia、Images、Jelly 已删除各自的动作/HTTP适配；Images 的专用 Host 服务也已移除。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 

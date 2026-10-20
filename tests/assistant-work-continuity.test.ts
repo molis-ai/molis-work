@@ -80,7 +80,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const person: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:read", "notes:write"] };
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
     projectTitle: async () => "Fixture project",

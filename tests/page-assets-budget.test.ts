@@ -679,6 +679,8 @@ for (const [asset, old] of [
   // Main has also spent the W5-02 P0 and proposal starts.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.js", 1129640],
   ["/assets/molis-work-workbench.js", 1129470],
+  // The after-write checker settings allowance (#805) is spent in the predecessor.
+  ["/assets/molis-work-workbench.js", 1129726],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

@@ -44,8 +44,8 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object");
   const origin = `http://127.0.0.1:${address.port}`, web = new LocalHostHttpClient({ origin, controlToken: token });
-  return { home, host, origin,
-    request: (path: string, input: { method?: string; body?: unknown; raw?: string; authorized?: boolean; headers?: Record<string, string>; signal?: AbortSignal } = {}) => fetch(origin + path, {
+  return { home, host, origin, token,
+    request:(path: string, input: { method?: string; body?: unknown; raw?: string; authorized?: boolean; headers?: Record<string, string>; signal?: AbortSignal } = {}) => fetch(origin + path, {
       signal: input.signal,
       method: input.method ?? "GET", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
         ...(input.authorized === false ? {} : { "x-molis-work-control-token": token }), ...input.headers },

@@ -22,7 +22,7 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 539,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 553,
+      "lines": 543,
       "methods": 23
     },
     "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
@@ -153,7 +153,7 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 404,
+      "lines": 396,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {

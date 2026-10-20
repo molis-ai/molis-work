@@ -50,7 +50,7 @@ function fixture() {
   const coding = fakeCoding();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const host = { adapter: () => ({ readSession: async () => ({}), read: async () => null }), reviews: { list: () => [] } };
-  const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
     personActions: async () => coding.actions }, "web-user");
   const caller = { project_ref: { project_id: "project", storage_key: "memory:project" } as any };
   return { coding, store, service, caller };
@@ -267,7 +267,7 @@ test("handing a work to Coding carries what its documents say now, read from the
     assert.deepEqual(input, { subject_id: "doc-1" });
     return { subject: { kind: "pages_document", id: "doc-1" }, revision: "2", title: "calc average 需求", content: "## 错误处理\n空数组抛 RangeError" };
   } } as PersonActions;
-  const service = new AssistantService(store, { host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host as unknown as AgentHost, authority: async () => { throw new Error("not used"); },
     personActions: async () => coding.actions, scopeActions: async () => pages }, "web-user");
   const project_ref = { project_id: "project", storage_key: "memory:project" } as any;
   const work = store.create({ actor_id: "web-user", title: "calc average", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });

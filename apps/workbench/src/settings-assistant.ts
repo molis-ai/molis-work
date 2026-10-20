@@ -183,13 +183,17 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   contributions.addEventListener("toggle", () => { if (contributions.open) loadContributions(); });
   // Attention rules belong to the person, not to a project: always the Home's own route.
   const rulesApi = (path, payload) => molisWorkRequest("/api/assistant" + path, { body: payload });
-  const SURFACES = [["pages", "Pages"], ["coding", "Coding"], ["goals", "Goals"], ["jelly", "Jelly"], ["cognia", "Cognia"], ["dataset", "Dataset"], ["form", "Forms"], ["workflows", "工作流程"], ["lingguang", "灵光"], ["home", "项目首页"]];
-  const surfaceName = (id) => (SURFACES.find((row) => row[0] === id) || [id, id])[1];
+  // The pages a rule may name are the ones installed: the server sends them with the rules, so this page keeps no list of plugins.
+  const pageNames = {};
+  const surfaceName = (id) => pageNames[id] || id;
   const KIND = { failed: "失败", "needs-decision": "需要决定", completed: "做完", result: "交回结果", material: "相关新资料", reminder: "你设的提醒" };
   const rulesList = root.querySelector("[data-assistant-rules-list]");
   const rulesError = root.querySelector("[data-assistant-rules-error]");
   const surfacesBox = root.querySelector("[data-assistant-rule-surfaces]");
-  SURFACES.forEach(([id, name]) => { const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + L(name))); surfacesBox.append(label); });
+  const paintPages = (pages) => {
+    surfacesBox.replaceChildren();
+    pages.forEach(({ page_id: id, label: name }) => { pageNames[id] = name; const label = el("label", "settings-check"); const box = el("input"); box.type = "checkbox"; box.value = id; box.dataset.assistantRuleSurface = ""; label.append(box, document.createTextNode(" " + L(name))); surfacesBox.append(label); });
+  };
   const describe = (rule) => (rule.kind === "pause" ? L("暂停提醒") : (rule.surfaces.length ? L("在") + " " + rule.surfaces.map((id) => L(surfaceName(id))).join("、") + " " + L("不提醒") : L("任何地方都不提醒")))
     + (rule.except.length ? "；" + rule.except.map((kind) => L(KIND[kind] || kind)).join("、") + L("仍提醒") : "")
     + (rule.until ? "；" + L("到") + " " + new Date(rule.until).toLocaleString() : "");
@@ -216,7 +220,7 @@ globalThis.molisWorkBindAssistantSettings = (container = document) => {
   };
   const run = async (work) => {
     rulesError.hidden = true;
-    try { paintRules((await work()).rules); } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; }
+    try { const data = await work(); if (data.pages) paintPages(data.pages); paintRules(data.rules); } catch (failure) { molisWorkRequest.show(rulesError, failure); rulesError.hidden = false; }
   };
   const exceptOf = (form) => [...form.querySelectorAll("[data-assistant-rule-except]")].filter((box) => box.checked).map((box) => box.dataset.assistantRuleExcept);
   root.querySelector("[data-assistant-rule-quiet]").addEventListener("submit", (event) => {

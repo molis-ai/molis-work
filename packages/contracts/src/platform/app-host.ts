@@ -171,7 +171,7 @@ export interface LocalHostProjectClient {
   ): Promise<Output>;
 }
 
-export { SUPPORTED_RUNTIME_IDS, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
+export { SUPPORTED_RUNTIME_IDS, RUNTIME_DISPLAY_NAMES, type SupportedRuntimeId, type RuntimeConnectionState, type RuntimeIntegrationDetection, type MolisWorkWebServiceState, type MolisWorkWebServiceDetection } from "./installation-detection.js";
 
 export type DesktopPanelErrorCode =
   | "catalog.invalid_name"

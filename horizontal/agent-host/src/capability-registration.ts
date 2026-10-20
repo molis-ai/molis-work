@@ -302,7 +302,7 @@ export function registerAgentHostCapabilities<Context>(
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
     // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
-    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun, actions: async (call, pluginId, runtimeId) => { const authority = await ports.authority(call, pluginId); return authority.actions ? authority.actions(runtimeId) : undefined; } }),
+    ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun, actions: async (call, pluginId, runtimeId, session) => { const authority = await ports.authority(call, pluginId); return authority.actions ? authority.actions(runtimeId, undefined, session) : undefined; } }),
     ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
     register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);

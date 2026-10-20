@@ -19,6 +19,8 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 | [src/home-plugin-page.ts](src/home-plugin-page.ts) | 无项目时的 Home 工作台；复用文档壳和 UI Host 生命周期，装配 Runtime 提供的内容片段 |
 | [src/scripts/client/initialization.ts](src/scripts/client/initialization.ts) | 客户端初始化与恢复 |
 | [src/browser-assets.ts](src/browser-assets.ts) | 浏览器资产入口 |
+| [src/write-checkers-section.ts](src/write-checkers-section.ts) | 项目设置「写后检查」的宿主标记：每句话都由宿主按页面语言写出（`data-say`、三个 `<template>` 带 `{槽}`、catalog 的表单对话框与删除用的警示对话框），页面程序不带任何中文 |
+| [src/browser/write-checkers.ts](src/browser/write-checkers.ts) | 项目设置「写后检查」的页面程序：有类型的 TypeScript（`tsconfig.browser.json` 按 DOM 检查），构建时 esbuild 从 `write-checkers-factory.ts` 打成 `dist/write-checkers-client.js`（页面全局 `molisWorkWriteCheckers = (host) => {…}`），`src/scripts/write-checkers-client.ts` 读这份包；只有画这一段的两处（工作台脚本、项目设置页）带它，全局设置页不带，`project-settings.ts` 有它才绑定 |
 | [src/assistant-text-html.ts](src/assistant-text-html.ts)、[src/assistant-text-parts.ts](src/assistant-text-parts.ts) | Assistant 正文、代码与审查的 Host HTML 投影；原始文字始终转义，浏览器只绑定阅读与决定操作 |
 
 可对照现有调用方 [apps/local-host/src/workbench-renderer.ts](../local-host/src/workbench-renderer.ts) 阅读装配方式。
@@ -52,7 +54,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 ### 现在怎么工作
 
-翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，经 `BUILTIN_PLUGIN_CATALOG` 条目的 `messages` 登记；[`src/i18n.ts`](src/i18n.ts) 按当前请求语言查找，浏览器收到当前页面语言的同一份词条。中文键的英文仍写在各主人的 `X_EN` 词典中，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`，后写的覆盖先写的；中文页直接显示中文原文。两种调用均在查词后替换参数。
+翻译调用支持主人稳定键（如 `L("images.compose.generate")`）与尚未迁移的中文键（如 `L("设置")`）。稳定词典由插件自己的 `src/messages.ts` 定义，经插件自己 `src/registration.ts` 里 `registration` 的 `messages` 登记（目录由它生成）；[`src/i18n.ts`](src/i18n.ts) 按当前请求语言查找，浏览器收到当前页面语言的同一份词条。中文键的英文仍写在各主人的 `X_EN` 词典中，由 [`src/i18n/en.ts`](src/i18n/en.ts) 按顺序并成 `EN`，后写的覆盖先写的；中文页直接显示中文原文。两种调用均在查词后替换参数。
 
 检查是 [`scripts/gates/translations.mjs`](../../scripts/gates/translations.mjs)，接在 `pnpm health:check` 里，CI 的「Health gates」步骤用 `--base` 跑它。它扫整个源码树（`apps`、`plugins`、`packages`、`modules`、`horizontal`、`server`、`tooling` 下的 `.ts`，不含测试和构建产物），不用文件名单：
 
@@ -95,7 +97,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 5. 跑 `node scripts/check-health-gates.mjs`（缺英文为零，没有新冲突），再跑 `node scripts/run-tests.mjs tests/i18n.test.ts tests/translation-check.test.ts` 和该插件自己的用例。冲突或无用键少了，在同一个 PR 里 `node scripts/check-health-gates.mjs --update --base origin/main`。
 6. 一个插件里一部分文件用稳定键、一部分仍用中文键是允许的；检查两种都认。
 
-**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在已有 `BUILTIN_PLUGIN_CATALOG` 条目写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录数组条目的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
+**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在包 `src/registration.ts` 的 `registration` 写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在某个 `registration`（或生成目录里的条目）的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
 
 ### 第一个样板：Images（`plugins/native/images`）
 
@@ -116,9 +118,9 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 插件市场从 Host 重读项目成员；既有 `molis-work:plugins-changed` 使这份投影失效，过期读取不覆盖新事实。后台命令停止失败通过共同 UiRequest 显示拒绝、结果未知与可复制的诊断编号，不自动重试；真实命令状态及 Coding 的持久投影仍归它们的 owner。回归见 `tests/workbench-async-targets.e2e.test.ts`、`tests/workbench-stop-feedback.e2e.test.ts`；后者用公开 Runtime 端口控制隔离子进程，不调用模型。
   - 导航与区域从 Manifest 派生（`BUILTIN_PLUGIN_CATALOG`），不按插件名写分支。
   - 目录条目可标 `developer: true`（Text Stats，平台的最小参考插件和测试依托）：只在 Host 开着开发者模式时进插件选择器和市场（`pluginMarketCards({ developerMode })`、`renderPluginRail`/`renderPluginMarket` 的 `developerMode`，由页面视图的 `developer_mode` 传入）；仍然登记、仍可安装，项目里已经添加的照常显示、可移除（W2-18 决定 5，2026-10-09）。开发者模式只是 Host 进程的启动开关（`MOLIS_WORK_DEVELOPER_MODE=1`），不是用户设置，设置里没有开关（用户 2026-10-09 已定，见 `apps/local-host/README.md`）。
-  - 目录条目的浏览器脚本发出去时，可经 `served` 去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
-  - 内置 build 只在 `builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在同一目录登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
-  - 插件的 Agent 提示词与方法正文随目录条目的 `agent` 声明，Manifest 只写声明。
+  - 目录条目的浏览器脚本发出去时，`registration.workbench` 设 `clientServed: true` 即可去掉整行 `//` 注释、独占行的 `/* */` 注释和每行行首的缩进（页面资源预算只许减少；`/* */` 与代码共用一行的不动；脚本里有跨行字符串或模板时缩进是内容，不能用它）：作者在源码里保留注释和缩进，`tests/plugin-client-served.test.ts` 证明发出去的是同一段程序；用它的条目要进这个测试的名单。
+  - 内置 build 只在各包 `src/registration.ts` 的 `registration` 绑定一次 Manifest、目录信息、Agent 正文与 UI/静态资源；`builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 由 `node scripts/generate-plugin-registry.mjs` 从它们生成，不手改（`pnpm health:check` 跑它的 `--check`），目录加载时 `catalogProblems`（`plugin-catalog.ts`）自检重复的 id 与位置、悬空的 `companions` / `clientFrom` / `clientUses`。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；新的内置插件只走 Plugin Runtime 装配，但仍在自己的 `registration` 登记一条（该测试要求每个 Runtime 装配的 id 都有目录条目），所以目录本身不是冻结名单；`plugin-catalog.ts` 和 `plugin-workbench.ts` 派生相应投影。资源 order 保持 CSS 与客户端初始化顺序，不改变 Manifest 的导航 order。公共动作发现与授权仍归 Kernel/Host。
+  - 插件的 Agent 提示词与方法正文随 `registration` 的 `agent` 声明，Manifest 只写声明。
   - 界面文字走 i18n，新增中文文案同时补英文，缺英文、词典没并进 `EN` 由 `pnpm health:check` 拦下（CI 里也跑；做法与稳定键的迁移见上节「界面文字」）；控件只用 design-system，不引入系统弹窗或原生下拉。
   - `development: true` 只标明隔离预览，不能当作真实团队接通的证明。
   - 浏览器端程序由 `src/scripts/client/*` 字符串片段拼成，类型检查看不到里面：改动后跑 `tests/client-script-undeclared.test.ts`，它检查拼接结果里没有未声明的名称（页面全局在测试里列白名单）；进入工作台之前的三段程序（选择页、引导、动效）也在其中。
@@ -129,6 +131,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
   - 项目简介由 `composeProjectBrief` 从公开读口（Goals 目录与状态、Home 事项、长期背景）的结果决定，读不到的部分如实写「读不到」，不猜、不补示例数据；选择页不读任何项目的私有存储。
   - 模型设置页（`scripts/settings-models.ts`）在第一个能用的模型出现时通过绑定选项报告给设置外壳，`settings-directory.ts` 宣布 `molis-work:model-ready`，开始使用页（`scripts/context-onboarding.ts`）经同名 `BroadcastChannel` 收到；先关设置再宣布、窗格框架、跨标签与桌面壳的限制，机制只写在 `packages/contracts/src/platform/dom-events.ts` 的登记条目（主人是 `settings-directory`），这里不复述，监听者用 `node scripts/gates/dom-events.mjs --report` 查。回归：`tests/model-first-setup.e2e.test.ts`、`tests/model-ready-surfaces.e2e.test.ts`、`tests/model-ready-cross-tab.e2e.test.ts`（两个标签页），都在下面的「界面改动加跑」里。
 - 改动后必跑：`node scripts/run-tests.mjs tests/style-has-scope.test.ts tests/plugin-declarative-mounting.test.ts tests/builtin-plugin-agent-texts.test.ts tests/builtin-manifests-contract.test.ts tests/builtin-plugin-composition.test.ts tests/workbench-ui-platform.test.ts tests/i18n.test.ts tests/client-script-undeclared.test.ts tests/ui-request-client.test.ts tests/ui-request-client-pages.test.ts tests/settings-requests-through-helper.test.ts tests/web-service-settings-client.test.ts tests/assistant-island-script.test.ts tests/plugin-client-served.test.ts tests/plugin-list-developer-mode.test.ts tests/plugin-picker-pins.test.ts tests/settings-call-diagnostics.test.ts tests/capabilities-page.test.ts`
+- 写后检查设置改动加跑：`node scripts/run-tests.mjs tests/write-checkers-settings-http.test.ts tests/write-checkers-settings.e2e.test.ts`。后者以真实 Chrome 与临时 Home 验证保存/重读、毫秒时限、删除确认及焦点、版本冲突/重读失败保留输入、撤权无写入与中英文响应式页面。
 - 助理失败响应按共同错误体读取：`code` 在顶层，恢复工作与修复入口只从 `details.work` / `details.action` 取。保留原文草稿、同一 work、请求标识及结果未知时的恢复；改动这条路径跑 `node scripts/run-tests.mjs tests/assistant-island-script.test.ts tests/assistant-error-recovery.e2e.test.ts tests/assistant-page-written.e2e.test.ts`（后两份需要本机 Chrome）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/workbench-tab-workspace.e2e.test.ts tests/call-id-lookup.e2e.test.ts tests/ui-request-client.e2e.test.ts tests/request-failure-call-id.e2e.test.ts tests/model-first-setup.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts tests/model-ready-cross-tab.e2e.test.ts tests/assistant-send-intent.e2e.test.ts tests/assistant-page-cards.e2e.test.ts tests/assistant-stale-refresh.e2e.test.ts`（后三个守住模型设置页、设置外壳的先关再宣布和各页面的重读，见不变量里的 `molis-work:model-ready`；其中 Jelly 一条守住「设置盖下面的页面不能开模态对话框」；`call-id-lookup` 守住「设置 › 诊断」按诊断编号查找、原地再查和复制完整编号；`request-failure-call-id` 守住失败的请求在查得到时显示诊断编号、点一下复制完整编号，查不到的失败不显示，写入断线时说不知道有没有完成）；改到分栏窗格与设置链接再加跑 `tests/cognia-embedded-settings.e2e.test.ts`（窗格里的设置链接只经窗格自己的一条转发到达外层，插件不另发消息）；改到进入工作台之前的页面再加跑 `tests/project-arrival-chooser.test.ts tests/project-brief.test.ts tests/project-arrival.e2e.test.ts tests/onboarding-journey.e2e.test.ts`（后两个检查每屏在各宽度、明暗下没有元素重叠、被裁、够不着）。
 - 上述跨请求目标、成员刷新、标签恢复或停止反馈改动再加跑：`node scripts/run-tests.mjs tests/tab-workspace-ops.test.ts tests/workbench-current-tabs.e2e.test.ts tests/workbench-browser-targets.e2e.test.ts tests/workbench-async-targets.e2e.test.ts tests/workbench-functions-late.e2e.test.ts tests/workbench-stop-feedback.e2e.test.ts`。浏览器用例只用临时 Home 与本地站点，在原请求/响应上设 barrier，核对页面状态和原对象的 Host/Runtime 事实；须在共同请求助手装配完成后运行。
@@ -149,7 +152,7 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 
 当前项目的目录关联与 Files/Git 浏览选择由项目设置的「工作目录」页统一维护，Workspace 不再作为导航插件。页面与嵌入工作台共用 `project-settings-pages.ts` / `scripts/project-settings.ts`；协议和设置归属见 [PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)。
 
-工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖，Coding 与伴随视图的原装配由相同目录登记：Files、Git、Diff、Text Stats 用 `clientFrom` 借 Coding 的客户端，宿主只发一份 `coding.js`，打开几个伴随面都只下载这一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
+工作台从现有内置目录派生独立客户端资源，首次打开时装入惯有 surface DOM 并准备 `clientAssets` 后挂载。原 surface 根节点和已挂载实例持续保留；隐藏时使用原 UI Host 生命周期暂停读取。独立侧栏文档同样在执行工厂前加载插件声明的 `clientAssets`，不依赖主区先打开。Pages 编辑器由 Pages 的登记声明依赖。Coding 与伴随视图的装配在 Coding 包里（`plugins/native/coding/src/browser/workbench.ts`），工作台没有 Coding 专用脚本：Files、Git、Diff、Text Stats 用 `clientFrom` 借 Coding 的客户端，宿主只发一份 `coding.js`，打开几个伴随面都只下载这一份（`pluginSurfaceClients()` 是主区、侧栏文档和按需加载共用的一份名单）；Coding 的登记写 `clientUses: ["git", "files"]`，`plugin-workbench.ts` 把这两个插件登记的客户端作为 `host.clients.git`、`host.clients.files`，把宿主的评审动作作为 `host.reviews` 交给 Coding 的工厂（只是渲染钩子，不给决定权），两边写得不对应就在派生时抛错。失败保留内容并提供仅重载 UI 资源的按钮，不自动重试业务动作。分屏省略其他独立客户端 surface 的正文，通用 Goals/Feed/Inbox 与设置绑定保留；CSS 为保持现有全局层叠仍由 shell 按原顺序提供。回归见 `tests/workbench-deferred-clients.e2e.test.ts`、`tests/workbench-hidden-refresh.e2e.test.ts`。
 
 
 引导、项目选择、Functions与MCP授权/连接页面共用`globalThis.molisWorkRequest`：Host请求保留code/status/callId/body，错误位置用同一failure view提供可查询的诊断编号。Functions的项目feed adapter仍以有没有project决定是否提供；未保存字段、选择序号、取消与旧DOM检查保留。原已授权但刷新失败的连接恢复入口继续只重载信息，不重新授权。定向验证：`tests/workbench-request-pages.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/context-onboarding-blank.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`。

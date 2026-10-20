@@ -18,6 +18,7 @@ import { typedCapabilityCaller, typedCapabilityInvocation } from "./typed-capabi
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
+import { admitPluginCall, verifiedCaller } from "./plugin-callers.js";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -188,9 +189,8 @@ export class LocalHost<Runtime> {
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
-      const expanded = withSceneConfigurationActions(registration, this.sceneClient(project));
       const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
-      const remove = this.actionService.registerProvider({ ...expanded,
+      const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
         provider: bound,
         availability: caller => this.state !== "running" || entry?.state === "closing"
           ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }
@@ -230,7 +230,7 @@ export class LocalHost<Runtime> {
     const contextFor = (caller: ActionCallContext) => {
       this.assertRunning();
       if (caller.project_id) throw new ActionError("actions.scope_mismatch", "系统入口不能伪造项目上下文");
-      return snapshotCaller(caller);
+      return verifiedCaller(snapshotCaller(caller));
     };
     return {
       discover: async caller => this.discoverActions(contextFor(caller)),
@@ -250,7 +250,7 @@ export class LocalHost<Runtime> {
       this.assertRunning();
       caller.signal?.throwIfAborted();
       if (caller.project_id !== (project?.project_id ?? null)) throw new ActionError("actions.scope_mismatch", "场景上下文与项目不一致");
-      const bound = hostAuthorityContext(snapshotCaller(caller), () => this.state === "running"
+      const bound = hostAuthorityContext(verifiedCaller(snapshotCaller(caller)), () => this.state === "running"
         && (!project || !this.closingKeys.has(project.storage_key)) && this.executionScope.getStore()?.entry.state !== "closing");
       if (project) await this.withRuntime(project, () => undefined);
       caller.signal?.throwIfAborted();
@@ -353,7 +353,7 @@ export class LocalHost<Runtime> {
       }
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
       if (caller.audience !== "plugin") throw new ActionError("actions.forbidden", "同步入口只接受可信插件 SDK 上下文");
-      const bound = snapshotCaller(caller);
+      const bound = verifiedCaller(snapshotCaller(caller));
       const actions = this.actionService.discover(bound);
       const check = (reference: Pick<ActionDefinition, "capability_id" | "version" | "provider_id">, ancestors = new Set<string>()): void => {
         const action = actions.find(item => item.capability_id === reference.capability_id && item.version === reference.version);
@@ -381,7 +381,7 @@ export class LocalHost<Runtime> {
       this.assertCompatibleReference(project);
       caller.signal?.throwIfAborted();
       if (caller.project_id !== project.project_id) throw new ActionError("actions.scope_mismatch", "调用上下文与项目不一致");
-      return snapshotCaller(caller);
+      return verifiedCaller(snapshotCaller(caller));
     };
     return {
       discover: async caller => {
@@ -509,6 +509,7 @@ export class LocalHost<Runtime> {
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
     const definition = this.capabilities.descriptor(capability, caller.project_id);
     if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
+    admitPluginCall(caller, definition.capability_id, definition.action);
     const availability = this.capabilities.availability(caller, definition);
     if (!availability.available) return;
     const state = await this.resolveActionAvailability(caller, { ...definition, operation: definition.operation, action: definition.action, provider: definition.action_provider, availability });

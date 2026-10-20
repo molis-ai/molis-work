@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -42,6 +46,7 @@
     "capabilities": [
       "images.ui-contribution.v1",
       "images.generation.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

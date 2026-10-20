@@ -17,6 +17,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
+import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { openPluginFiles } from "./plugin-files.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
@@ -54,9 +55,9 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   try {
     const manifest = definition.manifest;
     const pluginCaller = hostPluginCaller(options, definition, context, assertActive);
-    withdrawCaller = options.qualifyCaller?.(definition, pluginCaller);
+    withdrawCaller = issuePluginCaller(pluginCaller, heldPermissions(manifest, context.grants));
     const providerId = options.providerFor?.(definition, context.install_id) ?? context.install_id;
-    const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions,
+    const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
       project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
       author: () => { const scope = currentPluginInvocation(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
@@ -71,7 +72,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     background = pluginBackgroundFor(definition, context, assertActive);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive), background: background?.client });
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client });
     return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();

@@ -3,6 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { projectOrNull } from "./catalog-lookup.js";
 import { assistantNotices, handleAssistantHttp, type AssistantHttpPorts } from "./assistant/assistant-http.js";
+import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleUnscopedAgentReviews } from "./agent-review-http.js";
@@ -52,5 +53,6 @@ export function assistantPortsFor(homeDirectory: string, composition: LocalWebCo
       const project = catalog.getProject(projectId); return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
     projectTitle: async projectId => projectId === page?.reference.project_id && page.title !== undefined ? page.title
       : composition.withCatalog(home, catalog => projectOrNull(catalog, projectId)?.display_name ?? null),
+    pages: installedPagesPort(composition.withCatalog, homeDirectory),
   };
 }

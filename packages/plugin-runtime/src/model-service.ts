@@ -181,7 +181,7 @@ function checkRequest(pluginId: string, prompt: InstructedPrompt, request: Plugi
 /** Freeze the original input before any authority wait; labels never become paths. */
 function copiedImages(images: readonly PluginModelImage[] | undefined): readonly PluginModelImage[] | undefined {
   if (images === undefined) return undefined;
-  if (!Array.isArray(images) || images.length > 30) throw pluginModelErrors.model_limit_exceeded("每次最多发送 30 张图片");
+  if (!Array.isArray(images) || images.length > 50) throw pluginModelErrors.model_limit_exceeded("每次最多发送 50 张图片");
   let total = 0;
   return images.map(image => {
     if (!image || !(image.bytes instanceof Uint8Array) || !image.bytes.byteLength || image.bytes.byteLength > 32 * 1024 * 1024

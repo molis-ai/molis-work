@@ -95,7 +95,6 @@ const ROUTES: RouteMaker[] = [
     const { context, ports, route } = a;
     return route("coding.delegate", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (record.runtime_id !== "prologue") throw new Error("委派经 Prologue 的会话间通信送达，这个会话用的是别的运行时");
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
       const materials = materialSelection(body.materials ?? []);
       await resolveMaterials(context, materials, codingActionControl(beforeWrite));

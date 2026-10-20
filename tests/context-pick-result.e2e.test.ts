@@ -152,7 +152,7 @@ test("W3-A3b PICK-01, PICK-05, FLASH-01, FLASH-02, FLASH-03: a result picked up 
   await waitFor(`${editorText} === '先完访谈纪要成核心体验。再安排发布。'`, 10_000);
 });
 
-test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the card's own object once and picks nothing; a drag that selects its text picks nothing; the card body still picks", { timeout: 150_000 }, async (t) => {
+test("PRR-21 QA-017 opens the side panel; W3-A3b PICK-02 on the real result card the title asks to open the card's own object once and picks nothing; a drag that selects its text picks nothing; the card body still picks", { timeout: 150_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
@@ -162,15 +162,12 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   store.close();
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   // What the page is asked and told, counted from the page's own events: the open request the title makes (a cancelable
-  // molis:side-open carrying the object, claimed here so the test stays on the request: where it asks to open, how often), every
-  // pick up the card reports, and every click that reaches the page from inside the card, with whether anything cancelled it.
-  // Claiming takes more than cancelling: the side panel takes the request whether or not a listener before it cancelled it
-  // (cancelling is how the panel answers that it took it), and an open side panel (360px at least) leaves a 1440 window under the
-  // 1240 the Assistant needs for its side pane beside the conversation, so the pane folds into a closed drawer, card and all. The
-  // probe takes the request in the window's capture phase, before it reaches the document, and stops it there.
+  // molis:side-open carrying the object), every pick up the card reports, and every click that reaches the page from inside the
+  // card, with whether anything cancelled it. QA-017 asks whether a title click really opens the panel, so it goes through and
+  // the test closes the panel again before the card work below.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.picks = 0; window.opens = []; window.clicks = [];
     document.addEventListener('molis:surface-focus', (event) => { if (String(event.detail?.context_id ?? '').startsWith('pick:')) window.picks += 1; });
-    window.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    window.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); }, true);
     document.addEventListener('click', (event) => { if (event.target.closest?.(${JSON.stringify(CARD)})) window.clicks.push({ title: Boolean(event.target.closest('.assistant-item-title')), prevented: event.defaultPrevented }); });` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
@@ -199,6 +196,8 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   await evaluate("window.opens = []; window.picks = 0; window.clicks = []");
   await click(`${CARD} .assistant-item-title`);
   await waitFor("window.opens.length >= 1", 10_000);
+  await waitFor("document.body.dataset.sideOpen === 'true'", 10_000);
+  await waitFor("document.querySelector('#side-panel [role=tab][aria-selected=true]')", 10_000);
   await new Promise((resolve) => setTimeout(resolve, 400));
   const opens = await evaluate<Array<{ subject?: { kind?: string; id?: string }; title?: string; open?: { surface?: string; id?: string } } | null>>("window.opens");
   assert.equal(opens.length, 1, "the title asked to open exactly once");
@@ -209,6 +208,9 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   assert.equal(await held("picks"), 0, "a click on the title is not a pick up");
   assert.equal(await inHand(), null, "and nothing is in hand");
   assert.equal(await evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
+  // QA-017: the title really opened the panel; close it again so the card and the Assistant stay in view for the rest.
+  await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
+  await waitFor("document.body.dataset.sideOpen === 'false'", 10_000);
 
   // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking.
   const line = await evaluate<{ x0: number; x1: number; y: number } | null>(`(() => { const sub = document.querySelector(${JSON.stringify(CARD + " .assistant-item-sub")}); if (!sub) return null;

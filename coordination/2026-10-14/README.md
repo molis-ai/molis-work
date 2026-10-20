@@ -2192,3 +2192,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **#867 已推 `0b60c3a6a`**（⑤，快进，不是 force push）。合入后的树上 health、boundary、secrets 都过，9 个相关用例文件过了 7 个。剩下两个是超时：installed-plugin-host 只在 macOS 上超，放长就过；inbox-automatic-scenes 跑 28 秒，上限 25 秒，留给批次全量判断。说明在 #867 评论 6289998345。等 ③ 的 S8 开 PR 后同批跑全量。
   - #843 建议 2 的 BL 已由 ② 在 main 上记为 BL-353，⑤ 不再开文档 PR。
   - #870：⑩ 的修复 `461750c2e` 本机构建通过，8 个相关文件全过（S-46 那个 7/7，新加了「项目级插件的登记只在本项目」）。正在跑 health `--base`，跑完推到 ② 的分支、更新正文。
+- **12:0x UTC 视觉线的 9 个 PR 怎么分**（⑤ 来问）：yijunw0212 的视觉线有 9 个 PR（#861 #864 #866 #868 #869 #871 #873 #874 #876）。它们都还没有评审，也不在 Codex 的 13 个 PR 里。#864 和 #866 由 CODEOWNERS 指名请 jingxusandra-gif 评审。
+  - ① 的决定：⑤ 不接，时间留给防腐线的合并。⑩ 推完 #870 后接手，先看 #864 和 #866，再按号看其余 7 个。
+  - 只留评论：不 approve、不 request changes、不推分支、不合也不排队，合不合由作者或 Codex 定。
+  - 评审要看三方面：防腐线的后果、页面资源的字节数（单个资源超 10 KB 或新增资源时报给 ①，由用户定）、和 DESIGN.md 的一致性。

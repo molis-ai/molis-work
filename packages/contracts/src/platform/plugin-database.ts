@@ -45,7 +45,8 @@ export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration
  * The plugin's own tables, one declaration per scope. `project`: tables in each project's library, which the platform makes from
  * `schema` the first time the plugin opens there and records, with the publisher's signature, in its ledger; the statements may
  * only create tables and indexes, and foreign keys may only point at the plugin's own tables or the project's root row
- * (specs/plugin-project-database). The Host does not make them yet.
+ * (specs/plugin-project-database). A refusal (another publisher, version or shape) stops only that plugin in that project. The Host
+ * makes them for the built-in project plugins when it opens a library; an installed plugin gets them with the service (L2).
  */
 export interface PluginManifestDatabases {
   readonly project?: PluginDatabaseDeclaration;

@@ -13,6 +13,7 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
+import { forgetProjectOriginalFiles } from "./material-original-files.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -104,6 +105,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
     // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
     { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
+    // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
+    { id: "plugin-originals", label: null, clear: projectId => { forgetProjectOriginalFiles(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

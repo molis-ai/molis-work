@@ -33,7 +33,7 @@ export interface PluginModelImage {
 }
 
 export interface PluginModelRequest {
-  /** Copied before the first wait; at most 30 images, 32 MiB each and 128 MiB total. */
+  /** Copied before the first wait; at most 50 images, 32 MiB each and 128 MiB total. */
   readonly images?: readonly PluginModelImage[];
   /** Exact selection for this call; absent uses the Host default. An unavailable selection is refused, never replaced. */
   readonly selection?: PluginModelSelection;

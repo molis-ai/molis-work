@@ -21,7 +21,7 @@ const producer = { plugin_id: "io.example.writer", plugin_version: "1.0.0", bind
 function harness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('p'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('p'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
   createProcessItemsSchema(db as unknown as ArtifactsSqliteDatabase);
   const append = (event: { projectId: string }) => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid);

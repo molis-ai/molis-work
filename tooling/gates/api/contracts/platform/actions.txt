@@ -413,6 +413,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly original_file?: HostOfferedOriginalFile;
     readonly query_only?: true;
     readonly read_only_effects?: true;
     readonly permissions: readonly string[];
@@ -2072,6 +2073,11 @@ export interface HomeOpenTarget {
     id: string | null;
     title: string;
     label: string;
+}
+
+export interface HostOfferedOriginalFile {
+    readonly path: string;
+    readonly install_id: string;
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];

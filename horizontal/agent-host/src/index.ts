@@ -13,7 +13,7 @@ import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-c
 import type {
   AgentActionClient,
   AgentHostApi,
-
+  AgentSessionRef,
   AgentRunHandle,
   AgentRuntimeAdapter,
   AgentRuntimeCapability,
@@ -229,7 +229,7 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | Promise<void>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>): Promise<AgentActionClient>;
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -528,7 +528,7 @@ export class AgentHost implements AgentHostApi {
       if (character?.action_tools && actionRefs.some(ref => !character.action_tools!.some(allowed => key(allowed) === key(ref)))) {
         throw agentErrors.role_execution_exceeded("所选能力超出了这个 Character 的工具范围");
       }
-      const source = await authority.actions(runtimeId, validateCharacter);
+      const source = await authority.actions(runtimeId, validateCharacter, session.session);
       const client = frozenActionClient(source, validateCharacter);
       const directory = await client.discover();
       const tools = actionRefs.map(ref => {
@@ -545,7 +545,7 @@ export class AgentHost implements AgentHostApi {
     if (request.action_gateway) {
       if (workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务角色");
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw agentErrors.capability_unavailable("当前执行引擎尚未接入动作服务");
-      const source = await authority.actions(runtimeId, validateCharacter);
+      const source = await authority.actions(runtimeId, validateCharacter, session.session);
       gateway = { operate: execution === "operate", client: {
         discover: async () => { validateCharacter?.(); return source.discover(); },
         ...(source.check ? { check: (ref: ExactActionReference, input: unknown) => source.check!(ref, input) } : {}),

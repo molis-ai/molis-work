@@ -262,7 +262,7 @@ interface WorkflowReceiveInput {          // molis.workflow.content.receive.inpu
 | --- | --- | --- | --- |
 | `dataset`、`feed`、`form`、`inbox`、`jelly`、`lingguang`、`pages`、`ppt` 的 `.content.receive` | 1 → **2** | 输入改成上面的平铺形状，`input_type` 改为 `….receive.input.v2`；`output_type` 仍是 `.output.v1`；`context.title` 去掉（没有站点读它） | W4-6a |
 | 以上各站，加成果库的 `.content.list` / `.read` / `.create` | 不变，仍是 1 | 无。`workflow_content.protocol` 仍是 1 | — |
-| `inbox.content.receive@2` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `pages.create@1` 加 `intake` 同一做法 | W4-6b |
+| `inbox.content.receive@2` | 2 | 多了派生出的 `intake` 和 `result_view`。它们是声明，不改输入输出的形状，所以不升版本，与 W4-2 给 `goals.tree.submit` 加创建入口声明同一做法；W4-2 的 `pages.create` 另改输入输出形状，已升到 2 | W4-6b |
 | `inbox.intake.offers` | 新增，1 | 只用作 `prepare`，没有自己的选项，不调模型 | W4-6b |
 | `todo.items.create`、`lingguang.create` | 不变 | `intake` 多了 `fits`，属于声明 | BL-174 |
 

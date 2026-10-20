@@ -242,9 +242,9 @@ const headErrors = (measured, budget, base) => {
 // Tried first: one rule turns anchoring off only while following, no token fallbacks, the fold reuses the existing body
 // padding. Spent once from exactly the branch's budget below it (#851; its stylesheets 108 B lighter since 2026-10-20).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1132686, 1134508],
-  "/assets/molis-work-workbench.css": [1604785, 1605220],
-  "/assets/molis-work-settings.css": [990560, 990995],
+  "/assets/molis-work-workbench.js": [1138109, 1139931],
+  "/assets/molis-work-workbench.css": [1604761, 1605196],
+  "/assets/molis-work-settings.css": [990556, 990991],
   "/assets/molis-work-arrival.css": [700146, 700581],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

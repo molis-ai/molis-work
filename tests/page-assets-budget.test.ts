@@ -681,6 +681,15 @@ for (const [asset, old] of [
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
   ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
+  // Earlier pre-main and predecessor admissions are spent; only the exact current predecessor may grow.
+  ["/assets/molis-work-workbench.js", 1134948],
+  ["/assets/molis-work-workbench.css", 1603130],
+  ["/assets/molis-work-settings.css", 988929],
+  ["/assets/molis-work-workbench.js", 1129726],
+  ["/assets/molis-work-arrival.css", 700146],
+  ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-workbench.css", 1604785],
+  ["/assets/molis-work-workbench.js", 1132686],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -698,9 +707,9 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1132686, 1134508],
-    "/assets/molis-work-workbench.css": [1604785, 1605220],
-    "/assets/molis-work-settings.css": [990560, 990995],
+    "/assets/molis-work-workbench.js": [1138109, 1139931],
+    "/assets/molis-work-workbench.css": [1604761, 1605196],
+    "/assets/molis-work-settings.css": [990556, 990991],
     "/assets/molis-work-arrival.css": [700146, 700581],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

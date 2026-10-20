@@ -43,7 +43,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
   const schedule = adapter.schedule!;
   try {
     assert.equal(await service.attachSchedule(), true);
@@ -108,7 +108,7 @@ test("a standing request is kept by Prologue's durable queue: it runs once per d
     await schedule.enqueue({ key: staleKey, session_id: sent.work.session_id!, kind: "assistant.follow-up", payload: { followup_id: orphan.followup_id }, due_at: new Date(Date.now() - 3 * 3600_000).toISOString(), max_attempts: 1 });
     await until(() => schedule.find(staleKey)?.state === "failed", "the queue gave up");
     unhandled();
-    const service2 = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
+    const service2 = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
     try {
       await service2.attachSchedule();
       assert.equal(service2.followUps.list(sent.work.work_id).find(item => item.followup_id === orphan.followup_id)!.last?.outcome, "missed");
@@ -141,7 +141,7 @@ test("archiving a work puts its timed rounds away: queued times are cancelled, a
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
   const schedule = adapter.schedule!;
   let release: (() => void) | undefined;
   try {

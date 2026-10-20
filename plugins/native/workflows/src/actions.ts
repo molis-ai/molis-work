@@ -1,11 +1,12 @@
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { presentActionResult, type ActionAvailability, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { presentActionResult, type ActionAvailability, type ActionResultPresentation, ActionError, retainActionAuthority, defineActionUsagesAction, referencesAction, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionReference, type ActionSchema, type ActionUsage, type ActionView, type WorkflowContentBinding, type WorkflowStartItem } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   aiHandoffPrompt, applyFunctionRule, handoffKey, holdInstance, linkReadiness, parseAiHandoff, parseChain, withPendingLinks,
   isActionStation, mapActionInput, WORKFLOW_PAYLOAD_FIELDS, WORKFLOWS_PLUGIN_ID,
   type Workflow, type WorkflowActionStep, type WorkflowChain, type WorkflowHandoff, type WorkflowInstance, type WorkflowItemRef, type WorkflowLink, type WorkflowPayload, type WorkflowStation, type WorkflowVerdict,
 } from "./model.js";
-import type { WorkflowSummary, WorkflowsStore } from "./store.js";
+import type { WorkflowSummary, WorkflowsStore, WorkflowsStores } from "./store.js";
 import { createWorkflowsSearchHandlers, workflowsSearchActions } from "./search.js";
 import { workflowsErrors } from "./error.js";
 import { createWorkflowRunControls } from "./run-control.js";
@@ -116,21 +117,25 @@ export interface WorkflowContentPorts {
   receive(plugin: string, payload: WorkflowPayload, requestId: string, content?: WorkflowContentBinding): Promise<WorkflowItemRef>;
 }
 
-/** Other registered actions, reached with the same caller's authority (a judgment rule on a link). */
+/** Other registered actions, reached as the call's original caller (a step's action, a judgment rule on a link). */
 export interface WorkflowActionReach {
   discover(): Promise<readonly ActionView[]>;
   invoke(reference: ActionReference & { provider_id: string }, input: unknown): Promise<unknown>;
+  /** Refuses as `invoke` would (a target this caller cannot reach, an input its schema rejects) without running the target or logging a call. */
+  check(reference: ActionReference & { provider_id: string }, input: unknown): Promise<void>;
 }
 
-export interface WorkflowsActionPorts {
-  withStore<T>(run: (store: WorkflowsStore) => T | Promise<T>): Promise<T>;
-  content(caller: ActionCallContext): WorkflowContentPorts;
-  actions(caller: ActionCallContext): WorkflowActionReach;
-  /** The Host's full schema validator, also used by actual action dispatch. */
-  assertInput(schema: ActionSchema, input: unknown): void;
+/**
+ * Where the handlers read and write (`read`, `write`) and how they reach the rest of the directory. `content` and `actions` are given
+ * the call's own authority and bound to it: every nested call is the original caller's, under the workflow audience.
+ */
+export interface WorkflowsActionPorts extends WorkflowsStores {
+  content(caller: ActionExecutionContext): WorkflowContentPorts;
+  actions(caller: ActionExecutionContext): WorkflowActionReach;
   /** Whether the text model can be used now, and why not in the person's words. */
   textModel(): ActionAvailability;
-  completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<string>;
+  /** The full result, so the synchronous `validateResult()` can run inside the write transaction. */
+  complete?(prompt: InstructedPrompt, options: { signal?: AbortSignal; beforeDispatch(): void | Promise<void> }): Promise<PluginModelResult>;
   changed?(): void;
 }
 
@@ -192,34 +197,37 @@ export const workflowsActions = {
 export const WORKFLOWS_ACTIONS: readonly ActionDefinition[] = Object.values(workflowsActions);
 export const WORKFLOWS_ACTION_PERMISSIONS = [...new Set(WORKFLOWS_ACTIONS.flatMap(definition => definition.action.permissions))];
 
+/** Other actions as this caller reaches them through the workflow: the directory is read once per call; every invocation is still checked by the kernel. */
+function reachFor(ports: Pick<WorkflowsActionPorts, "actions">, caller: ActionExecutionContext) {
+  const reach = ports.actions(caller);
+  let views: Promise<readonly ActionView[]> | undefined;
+  const all = () => views ??= reach.discover();
+  return {
+    all,
+    find: async (ref: ActionReference) => (await all()).find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id),
+    invoke: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.invoke(ref, input),
+    check: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.check(ref, input),
+  };
+}
+type Reach = ReturnType<typeof reachFor>;
+
 export function createWorkflowsActionHandlers(projectId: string, ports: WorkflowsActionPorts): ActionHandlerBinding[] {
-  const runs = createWorkflowRunControls(projectId, ports.withStore);
+  const runs = createWorkflowRunControls(projectId, ports.read);
   type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
   type ContinueInput = (typeof workflowsActions.continue) extends ActionDefinition<infer I, unknown> ? I : never;
-  const scoped = (caller: ActionCallContext) => {
+  const scoped = (caller: ActionExecutionContext) => {
     if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请求项目与流程所在项目不一致");
-    // The workflow is the consumer of each station; the caller's permissions and exact grants still bound every nested call.
-    return ports.content({ ...caller, audience: "workflow" });
+    // The workflow is the consumer of each station: the port reaches the directory as the original caller under that audience, so the
+    // caller's permissions and exact grants still bound every nested call.
+    return ports.content(caller);
   };
-  /** Other actions as this caller reaches them through the workflow: the directory is read once per call; every invocation is still checked by the kernel. */
-  const reachFor = (caller: ActionCallContext) => {
-    const reach = ports.actions({ ...caller, audience: "workflow" });
-    let views: Promise<readonly ActionView[]> | undefined;
-    const all = () => views ??= reach.discover();
-    return {
-      all,
-      find: async (ref: ActionReference) => (await all()).find(row => row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id),
-      invoke: (ref: ActionReference & { provider_id: string }, input: unknown) => reach.invoke(ref, input),
-    };
-  };
-  type Reach = ReturnType<typeof reachFor>;
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach, original: ActionExecutionContext) => Promise<O>): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => {
       const run = definition === workflowsActions.continue ? runs.acquire((input as ContinueInput).id, caller) : null;
       try {
         const execution = run?.caller ?? caller;
         const authority = retainActionAuthority(execution, { ...definition, provider_id: WORKFLOWS_PLUGIN_ID }, execution.beforeEffect);
-        return await handle(input as I, scoped(authority), execution, reachFor(authority), caller);
+        return await handle(input as I, scoped(authority), execution, reachFor(ports, authority), caller);
       } finally { run?.release(); }
     },
   });
@@ -268,10 +276,9 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     }
   };
   const changed = <T>(value: T) => { ports.changed?.(); return value; };
-  const commit = async <T>(caller: ActionExecutionContext, run: (store: WorkflowsStore) => T): Promise<T> => {
-    await caller.beforeEffect();
-    return ports.withStore(store => { caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return run(store); });
-  };
+  /** One write: the call's `beforeEffect()` is awaited first, then its authority and signal are checked again inside the transaction, before the first SQL. */
+  const commit = <T>(caller: ActionExecutionContext, run: (store: WorkflowsStore) => T): Promise<T> =>
+    ports.write(caller, store => { caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return run(store); });
   /** Runs the link's exact rule on the step's content, with the caller's own authority; a changed or revoked rule stops here. */
   const judge = async (reach: Reach, link: WorkflowLink, handed: WorkflowPayload): Promise<WorkflowVerdict> => {
     const ref = link.judgment!;
@@ -297,6 +304,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     if (!readiness.ready) throw workflowsErrors.not_ready(`这一段还没接上：${readiness.reason}`);
     const handed = await readStep(content, current, from);
     let output: WorkflowPayload, actor: WorkflowHandoff["actor"], rule: string | undefined, judged: WorkflowVerdict | undefined;
+    let validateModelAnswer: (() => void) | undefined;
     if (link.kind === "manual") {
       const edited = { title: (input.title ?? "").trim().slice(0, 200), body: (input.body ?? "").trim() };
       if (!edited.title || !edited.body) throw workflowsErrors.invalid("交过去的内容需要标题和正文");
@@ -318,10 +326,12 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       actor = "function";
       rule = `标题：${link.title_template || "{标题}"}\n正文：${link.body_template}`;
     } else {
-      if (!ports.completeText) throw workflowsErrors.not_ready("这一段还没接上：还没有可用的文字模型");
+      if (!ports.complete) throw workflowsErrors.not_ready("这一段还没接上：还没有可用的文字模型");
       const prompt = aiHandoffPrompt(link, handed, await labelOf(content, current.chain.stations[from]!.plugin), await labelOf(content, current.chain.stations[from + 1]!.plugin));
       caller.signal?.throwIfAborted();
-      output = parseAiHandoff(await ports.completeText(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect }), handed);
+      const answer = await ports.complete(prompt, { signal: caller.signal, beforeDispatch: caller.beforeEffect });
+      output = parseAiHandoff(answer.text, handed);
+      validateModelAnswer = answer.validateResult;
       actor = "ai";
       rule = link.instructions;
     }
@@ -329,7 +339,11 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const pending: Pending = { key: handoffKey(current, from), kind: link.kind, actor, at: new Date().toISOString(), input: handed, output,
       ...(rule ? { rule } : {}), ...(judged ? { verdict: judged } : {}) };
     // Losing a race here delivers nothing: the other call's fixed handoff wins.
-    return { pending, instance: await commit(caller, store => store.saveInstance(current, { ...withPending(current, from, pending), chain: resolved })) };
+    return { pending, instance: await commit(caller, store => {
+      // The model's answer is only kept while its original call and model binding are still current.
+      validateModelAnswer?.();
+      return store.saveInstance(current, { ...withPending(current, from, pending), chain: resolved });
+    }) };
   };
   /**
    * Runs an action step with the fixed handoff mapped into its fields. Actions carry no delivery key, so a run whose result
@@ -343,7 +357,8 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
     const choice = await resolveAction(reach, target);
     const mapped = mapActionInput(target.action, pending.output);
     const definition = (await reach.find(choice.ref))!.action;
-    ports.assertInput(definition.input_schema, mapped);
+    // The target's own refusal of this input comes before an attempt is recorded, so a bad mapping is fixed and run again without a retry.
+    await reach.check(choice.ref, mapped);
     const attempt: Pending = { ...pending, attempted_at: new Date().toISOString() };
     const instance = await commit(caller, store => store.saveInstance(current, withPending(current, from, attempt)));
     let result: unknown;
@@ -354,7 +369,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       const settled = { ...attempt, attempt_error: (error instanceof Error ? error.message : String(error)).slice(0, 400) };
       await caller.beforeEffect();
       caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
-      await ports.withStore(store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);
+      await commit(caller, store => store.saveInstance(instance, withPending(instance, from, settled))).catch(() => undefined);
       caller.assert_authority_current?.(); caller.signal?.throwIfAborted();
       throw error;
     }
@@ -366,10 +381,10 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
   };
   return [
     bind(workflowsActions.list, async (_input, content, _caller, reach) => ({
-      workflows: await Promise.all((await ports.withStore(store => store.list(projectId))).map(row => describe(content, row, reach))),
+      workflows: await Promise.all(ports.read(store => store.list(projectId)).map(row => describe(content, row, reach))),
       stations: await content.stations(), ai_available: ports.textModel().available })),
     bind(workflowsActions.get, async (input, content, _caller, reach) => {
-      const { workflow: row, instances } = await ports.withStore(store => ({ workflow: store.get(input.id, projectId), instances: store.instances(input.id, projectId) }));
+      const { workflow: row, instances } = ports.read(store => ({ workflow: store.get(input.id, projectId), instances: store.instances(input.id, projectId) }));
       return { workflow: await describe(content, row, reach), instances, ai_available: ports.textModel().available };
     }),
     bind(workflowsActions.create, async (input, content, caller, reach) => {
@@ -390,7 +405,7 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       return { items: await content.listStartItems(input.plugin), can_start_blank: info.can_start_blank };
     }),
     bind(workflowsActions.start, async (input, content, caller, reach) => {
-      const stored = await ports.withStore(store => store.get(input.id, projectId));
+      const stored = ports.read(store => store.get(input.id, projectId));
       const current = { ...stored, ...await validChain(content, stored, reach) };
       if (current.stations.length < 2) throw workflowsErrors.invalid("流程至少要有两站才能开始");
       const first = current.stations[0]!;
@@ -407,26 +422,26 @@ export function createWorkflowsActionHandlers(projectId: string, ports: Workflow
       return changed({ instance: await commit(caller, store => store.startInstance(current, item)) });
     }),
     bind(workflowsActions.instance, async (input, content, _caller, reach) => {
-      const { current, title } = await ports.withStore(store => { const current = live(store, input.id); return { current, title: workflowTitle(store, current) }; });
+      const { current, title } = ports.read(store => { const current = live(store, input.id); return { current, title: workflowTitle(store, current) }; });
       return { instance: { ...current, chain: await describe(content, current.chain, reach) }, workflow_title: title, ai_available: ports.textModel().available };
     }),
     bind(workflowsActions.preview, async (input, content) => {
-      const current = await ports.withStore(store => live(store, input.id));
+      const current = ports.read(store => live(store, input.id));
       const from = handoffIndex(current, input.from);
       const link = current.chain.links[from]!;
       const readiness = linkReadiness(link, ports.textModel());
       const handed = await readStep(content, current, from);
       return { from, link, readiness, input: handed, output: link.kind === "function" && readiness.ready ? applyFunctionRule(link, handed) : null };
     }),
-    bind(workflowsActions.continue, createWorkflowContinuation({ projectId, withStore: ports.withStore, commit, live, changed, prepareHandoff, runActionStep })),
-    bind(workflowsActions.usages, async input => ({ usages: await ports.withStore(store => store.list(projectId)).then(rows => rows.flatMap(flow => workflowUsages(flow, input.action))) })),
+    bind(workflowsActions.continue, createWorkflowContinuation({ projectId, read: ports.read, write: ports.write, commit, live, changed, prepareHandoff, runActionStep })),
+    bind(workflowsActions.usages, async input => ({ usages: ports.read(store => store.list(projectId)).flatMap(flow => workflowUsages(flow, input.action)) })),
     bind(workflowsActions.stop, async (input, _content, caller) => {
       const instance = await commit(caller, store => { const stopped = store.stopInstance(input.id, projectId); runs.stop(input.id); return stopped; });
       return changed({ instance });
     }),
     bind(workflowsActions.actionSteps, async (_input, _content, _caller, reach) => ({ actions: workflowActionChoices(await reach.all()), fields: WORKFLOW_PAYLOAD_FIELDS })),
     bind(workflowsActions.judgments, async (_input, _content, _caller, reach) => ({ judgments: workflowJudgmentChoices(await reach.all()) })),
-    ...createWorkflowsSearchHandlers(projectId, ports.withStore),
+    ...createWorkflowsSearchHandlers(projectId, ports.read),
   ];
 }
 

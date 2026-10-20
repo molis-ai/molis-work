@@ -1,24 +1,15 @@
 /**
  * A capture in the background. Sending hands the words and screenshots to a draft the Issue plugin keeps, then asks
- * the Work Assistant (its public attachment, send and work contracts) to name and save it; the Assistant saves it
- * directly because the save can be undone. The page only watches the work: a saved record shows up in the list with
- * Undo, anything else (a question, a failure, a card when the person asked to confirm every time) stays as a row that
- * opens into the editor with nothing lost. Watching does not depend on the panel being open.
+ * Issue to name and save it (`issues.name_draft`: one call to the Host's text model inside Issue's own action, ISSUE-50);
+ * the save can be undone, so nobody confirms it first. A saved record shows up in the list with Undo; anything else
+ * (a question, a failure, no model) stays as a row that opens into the editor with nothing lost.
  */
 export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   const ready = () => { $('submit').disabled = Boolean(importing || restoring || pictureWrites) || !desc.value.trim() && !images.length; };
   // The page the person was on, as the shell reports it; a report, never proof of what was on screen.
   const where = () => { try { return host.page?.() || null; } catch { return null; } };
-  const message = item => {
-    const long = item.text.length > 19000, first = item.text.trim().split('\n')[0].slice(0, 40);
-    return (item.target ? '重新整理 Issue：' : '记录 Issue：') + (first || '截图 ×' + item.images.length)
-      + (item.target ? '\n待整理记录 ' + item.target.id + ' 版本 ' + item.target.version : '\n录入草稿 ' + item.id) + '。请按 Issue 方法处理。'
-      + (item.page?.title ? '\n记录时所在页面：' + item.page.title + (item.page.url ? '（' + item.page.url + '）' : '') : '')
-      + (item.images.length ? '\n附带 ' + item.images.length + ' 张截图。' : '')
-      + '\n本次问题描述：\n' + (long ? '见附带的“问题描述”全文材料。' : item.text || '（没有文字，只有截图）');
-  };
   // Unfinished captures are kept on this device as well, so leaving the page loses none of their words (pictures stay
-  // with the page) nor why one is waiting. Coming back, one the Assistant has saved meanwhile drops out once the list shows it.
+  // with the page) nor why one is waiting. Coming back, one that was saved meanwhile drops out once the list shows it.
   // Another open Issue view keeps its own entries: each view replaces only the ones it holds.
   const UNSENT = 'molis:issue-unsent';
   let held = new Set();
@@ -27,60 +18,41 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
     held = new Set(pending.map(item => item.id));
     localStorage.setItem(UNSENT, JSON.stringify([...others, ...pending.map(({ images, state, ...entry }) => ({ ...entry, shots: images.length }))]));
   } catch { /* Kept in this page only. */ } };
-  // The row is the one place to continue (more words, a card to check, a failure): the work behind it is stopped and
-  // filed away, so the Assistant does not wait on the same question and the person meets it only once.
-  const attention = (item, note, kind = 'failed') => { item.state = 'attention'; item.note = note; item.kind = kind; render(); void quiet(item, 1); };
-  // Once this page has the outcome, the capture's work is filed away: the record (or this page) already says how it
-  // went, so the Assistant's list and notices are not filled with one entry per Issue.
-  const quiet = async (item, stop) => {
-    if (!item.work) return;
-    const at = '/api/assistant/works/' + encodeURIComponent(item.work);
-    for (const [path, body] of [...(stop ? [[at + '/control', { kind: 'stop' }]] : []), [at + '/archive', { archived: true }], ['/api/assistant/notices', { work_id: item.work, state: 'dismissed' }]])
-      await api(path, body).catch(() => { /* Over already, or not there: nothing to file away. */ });
-  };
+  // The row is the one place to continue (more words, a failure): opening it shows the words and pictures as they were.
+  const attention = (item, note, kind = 'failed') => { item.state = 'attention'; item.note = note; item.kind = kind; render(); };
   const saved = (item, issue) => {
-    drop(item); add(issue); render(); void quiet(item);
+    drop(item); add(issue); render();
     toast(L('已记录：') + issue.title, L('撤销'), () => undo(issue, item));
   };
-  const watch = async item => {
-    if (!scope.alive || item.state !== 'organizing') return;
-    let view;
-    try { view = await api('/api/assistant/works/' + encodeURIComponent(item.work)); }
-    catch (error) { if (error.name !== 'AbortError') scope.timeout(() => watch(item), 2000); return; }
-    const round = view.rounds.at(-1), question = round?.awaiting_input?.find(entry => entry.answerable !== false);
-    const card = view.cards.find(card => card.capability_id === 'issues.capture' && card.status === 'ready' && card.fields.some(field => field.key === 'draft_id' && field.value === item.id));
-    if (['idle', 'running'].includes(view.work.state) && !question && !card) {
-      if (Date.now() - item.at <= 120000) { scope.timeout(() => watch(item), 900); return; }
-      // Too slow: the draft is retired first, so a late save cannot land beside one made by hand.
-      const already = await release(item).catch(() => null);
-      if (already) saved(item, already); else attention(item, L('整理超时，点开补全标题和类型'));
-      return;
-    }
-    try { saved(item, await read(item.id)); return; }
-    catch (error) { if (error.status !== 404) { attention(item, error.message); return; } }
-    if (card) {
-      const field = key => card.fields.find(entry => entry.key === key);
-      item.card = { title: field('title')?.value, type: field('type')?.raw || field('type')?.value };
-      attention(item, L('请确认标题和类型后保存'), 'card');
-    } else if (question) attention(item, L('需要补充：') + (question.questions?.[0]?.prompt || question.prompt), 'question');
-    else attention(item, L(/MODEL_|model/i.test(round?.stop_reason || '') ? '模型暂时不可用，点开手动保存，或检查模型设置' : '没能自动整理，点开补全标题和类型'));
-  };
-  const sendWork = async (item, active = () => scope.alive) => {
-    const materials = [{ material_id: 'issue-method', kind: 'method', title: 'Issue', explicit: true, method: { method_id: 'io.molis.work.issues/issues-capture' } }];
-    if (item.text.length > 19000) materials.push({ material_id: 'issue-description', kind: 'text', title: L('问题描述'), explicit: true, text: item.text });
-    for (const image of item.images) materials.push((await api('/api/assistant/attachments', { name: image.name, data: image.data_url.split(',')[1] })).material);
-    if (!active()) throw new DOMException('Cancelled', 'AbortError');
-    const result = await api('/api/assistant/send', { request_id: item.id, scope: { kind: 'personal' }, written_by: 'page', text: message(item), materials,
-      context: { source: { surface: 'issues', title: item.page?.title || 'Issue' }, captured_at: new Date(item.at).toISOString() } });
-    return result.work.work_id;
-  };
+  // Why naming did not work, as the person reads it on the row; the words and pictures are kept either way. A refusal with
+  // its own reason (a picture over the limit, too many unsaved captures, a model reply Issue cannot use) says it in its own
+  // words; a failure with no code of ours, an internal one, or a model answer that was not JSON has no wording worth showing.
+  const failure = error => ['actions.connection_required', 'plugin.model_failed'].includes(error.code) ? L('模型暂时不可用，点开手动保存，或检查模型设置')
+    : error.code === 'actions.timeout' ? L('整理超时，点开补全标题和类型')
+    : error.code && !['actions.execution_failed', 'plugin.model_output_invalid'].includes(error.code) ? error.message : L('没能自动整理，点开补全标题和类型');
   const organize = async item => {
     item.state = 'organizing'; item.note = ''; item.at = Date.now(); render();
+    let over = false;
+    const live = () => !over && item.state === 'organizing' && pending.includes(item);
+    // Beside the model's own limit: still waiting after two minutes, the draft is retired first, so a late answer
+    // cannot save beside one made by hand.
+    const overdue = () => {
+      if (!live()) return;
+      if (Date.now() - item.at <= 120000) { scope.timeout(overdue, 1000); return; }
+      over = true;
+      release(item).then(already => { if (already) saved(item, already); else attention(item, L('整理超时，点开补全标题和类型')); }, error => attention(item, error.message));
+    };
+    overdue();
     try {
       await api('prepare', { draft_id: item.id, description: item.text, images: item.images, ...(item.page ? { page: item.page } : {}) });
-      item.work = await sendWork(item); await watch(item);
+      const result = await api('name-draft', { draft_id: item.id });
+      if (!live()) return;
+      if (result.status === 'saved') saved(item, result.issue); else attention(item, L('需要补充：') + L(result.question), 'question');
     } catch (error) {
-      if (error.name !== 'AbortError') attention(item, (error.message || L('没能交给助理整理')) + ' ' + L('点开可手动保存。'));
+      if (error.name === 'AbortError' || !live()) return;
+      // The answer was lost on the way back: the record may be there already.
+      if (error.status === undefined) { const already = await read(item.id).catch(() => null); if (already) { saved(item, already); return; } }
+      attention(item, failure(error));
     }
   };
   const submit = async () => {
@@ -101,9 +73,9 @@ export const ISSUE_CAPTURE_CLIENT_SCRIPT = String.raw`
   };
   const drop = item => { pending = pending.filter(entry => entry !== item); };
   const add = issue => { rows = [issue, ...rows.filter(row => row.id !== issue.id)]; fresh = issue.id; };
-  // Retires an unfinished draft. The Assistant may have saved it meanwhile: then that record is the result.
+  // Retires an unfinished draft. It may have been saved meanwhile: then that record is the result.
   const release = async item => {
-    await api('cancel-capture', { draft_id: item.id }); void quiet(item, true);
+    await api('cancel-capture', { draft_id: item.id });
     try { return await read(item.id); }
     catch (error) { if (error.status !== 404) throw error; return null; }
   };

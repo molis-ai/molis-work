@@ -46,6 +46,8 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             <section class="assistant-block" data-assistant-block="agreements" aria-label="${L("AI 记下的约定")}" hidden></section>
             <section class="assistant-block" data-assistant-block="materials" aria-label="${L("材料")}" hidden></section>
             <section class="assistant-block" data-assistant-block="results" aria-label="${L("产出")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="changes" aria-label="${L("变更")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="background" aria-label="${L("后台任务")}" hidden></section>
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
           </aside>
           <div class="assistant-main">

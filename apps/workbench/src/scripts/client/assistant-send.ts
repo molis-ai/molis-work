@@ -39,7 +39,7 @@ export const ASSISTANT_SEND_CLIENT_SCRIPT = String.raw`
     const here = () => sendTarget() === intent.target && host.route("/api/assistant/send") === intent.route;
     const sameInput = () => (intent.work ? intent.draft === undefined : inputRev === intent.inputRevision) && String(input.value || "").trim() === text;
     const chooseSent = (work) => { curId = work.work_id; remember(); openTab(curId); };
-    busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true); follower()?.toLatest();
+    busy = true; activeSend = intent; syncSend(); problem = null; setPanel(true); scrollOwner()?.toLatest();
     closeStarts(); clearTimeout(draftTimer);
     unsettled.set(intent.work, intent); store.set(UNSENT_KEY, JSON.stringify({ work: intent.work || null, text, id: intent.body.request_id }));
     try {

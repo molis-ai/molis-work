@@ -677,6 +677,9 @@ for (const [asset, old] of [
   // The overflow-fade allowances (#856, VUX-27) are spent.
   ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
   ["/assets/molis-work-arrival.css", 698467],
+  // The copy, disclosure and live-number allowances (#860, VUX-19, VUX-22, VUX-42) are spent.
+  ["/assets/molis-work-workbench.js", 1130995], ["/assets/molis-work-workbench.css", 1603559], ["/assets/molis-work-settings.css", 989369],
+  ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -689,16 +692,15 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-19): one press on the plugin switcher stops measuring the page inside the click; the
-// workbench script may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset,
-// or growth from the new baseline still fails.
-test("VUX-19 VUX-22 VUX-42 the copy, disclosure and live-number allowance is bounded and spent once; other assets and later growth still fail", () => {
+// specs/visual-ui-experience (2026-10-20): the conversation's one scroll owner and the side groups' natural-height fold; each
+// asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
+// the new baseline still fails.
+test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1130995, 1132516],
-    "/assets/molis-work-workbench.css": [1603559, 1604893],
-    "/assets/molis-work-settings.css": [989369, 990668],
-    "/assets/molis-work-arrival.css": [698955, 700254],
-    "/assets/molis-work-pages-editor.js": [706942, 707006],
+    "/assets/molis-work-workbench.js": [1132516, 1134338],
+    "/assets/molis-work-workbench.css": [1604893, 1605511],
+    "/assets/molis-work-settings.css": [990668, 991286],
+    "/assets/molis-work-arrival.css": [700254, 700872],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
@@ -714,7 +716,7 @@ test("VUX-19 VUX-22 VUX-42 the copy, disclosure and live-number allowance is bou
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured copy and disclosure size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured scroll-owner and side-group size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

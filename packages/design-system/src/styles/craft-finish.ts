@@ -644,9 +644,10 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  /* Folding never animates height: a folded block is gone at once, and opening one lets its rows arrive. */
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { display: none; }
-  ${ASSIST} .assistant-block[data-opening] .assistant-block-body { animation: craft-rise var(--dur-move) var(--ease-quint); }
+  /* A block opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr grid row; folded, it is out of reach. */
+  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { display: grid; grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { padding-top: 0; visibility: hidden; transition: padding-top var(--dur-move) var(--ease-quint), visibility 0s var(--dur-move); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
@@ -697,7 +698,8 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-badge { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 18px; white-space: nowrap; }
   ${ASSIST} .assistant-block-badge.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
   ${ASSIST} .assistant-block--attention .assistant-block-head { box-shadow: none; padding-top: 2px; }
-  ${ASSIST} .assistant-block-body { padding-top: 6px; }
+  ${ASSIST} .assistant-block-body { min-height: 0; overflow: clip; overflow-clip-margin: 6px; padding-top: 6px; transition: padding-top var(--dur-move) var(--ease-quint); }
+  @media (prefers-reduced-motion: reduce) { ${ASSIST} :is(.assistant-block, .assistant-block-body) { transition: none !important; } }
   ${ASSIST} .assistant-group-list { display: flex; flex-direction: column; gap: 10px; }
   ${ASSIST} .assistant-group > .assistant-block-sub { margin: 0 0 6px; }
   /* Cards: glyph, title and one line; the title opens it and the whole card is its target; actions sit above that. */

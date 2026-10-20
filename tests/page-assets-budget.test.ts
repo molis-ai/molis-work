@@ -711,6 +711,12 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.css", 1605172],
   ["/assets/molis-work-settings.css", 990967],
   ["/assets/molis-work-workbench.js", 1135978],
+  // Retire prior exact starts when the shared context fix moves this predecessor.
+  ["/assets/molis-work-workbench.js", 1138212],
+  ["/assets/molis-work-workbench.js", 1140034],
+  ["/assets/molis-work-workbench.js", 1140350],
+  ["/assets/molis-work-workbench.js", 1140547],
+  ["/assets/molis-work-workbench.js", 1141401],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -728,7 +734,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the 产出 split allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1141401, 1141545],
+    "/assets/molis-work-workbench.js": [1141504, 1141648],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

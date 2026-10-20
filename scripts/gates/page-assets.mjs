@@ -240,7 +240,7 @@ const headErrors = (measured, budget, base) => {
 // 成果库's subject kind and the two group names with their English. Tried first: the existing group and stack, no new
 // card or style. Spent once from exactly the show-more slice's budget (#868).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1141401, 1141545],
+  "/assets/molis-work-workbench.js": [1141504, 1141648],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

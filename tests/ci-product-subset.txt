@@ -456,6 +456,8 @@ tests/workbench-local-links.test.ts
 tests/workbench-ui-platform.test.ts
 tests/workflow-content-actions.test.ts
 tests/workflow-station-kinds.test.ts
+tests/workflows-delegation.test.ts
+tests/workflows-project-deletion.test.ts
 tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts

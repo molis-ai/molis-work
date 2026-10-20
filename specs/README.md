@@ -38,6 +38,7 @@
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
 - [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
 - [dual-instance-plugins](dual-instance-plugins/spec.md)：同一个插件同时有 Home 实例和项目实例（Shelf 迁 Plugin Runtime 的前提）；用户已定授权与范围（U1、U2），S0-2a（本机页面调用按各库记录授权）进行中，S0-2b-1、S0-2b-2、S0-2c 随后；2026-10-20 新立。
+- [plugin-project-partition](plugin-project-partition/spec.md)：Home 级插件的库按调用所在的项目分开（S0a，Alchemist 的前提）；平台按项目打开、闲置关闭、删项目时关库删目录，插件 API 不变；用户 2026-10-20 定，执行中。
 
 ## 现行规范
 

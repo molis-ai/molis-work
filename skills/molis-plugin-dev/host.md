@@ -14,6 +14,8 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要加�
 
 个人数据跨项目一致、无项目也可用时，目录条目声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files?, model_configuration?, image_generation? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
+Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 `runtime.database` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。
+
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
 Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升级校验只读，候选失败恢复原值，停止/撤权/重装后的旧句柄失效。业务数据继续在插件原 SQLite，不迁到 KV。Home 的动作与场景若声明项目 scope，必须经真实项目客户端；Home HTTP 不带项目前缀时没有项目；带真实项目前缀时，Host 核对项目存在且显示该插件，发出的执行控制使动作保留该项目；不得从 body/query 自报项目。通用 operations 保留控制令牌、断开取消、beforeEffect、client_reported 页面上下文与上传限额，不借项目 Files/wiring 钩子。库失败不挡 Goals；普通读取不自行重试，显式 POST retry 共用一次启动。

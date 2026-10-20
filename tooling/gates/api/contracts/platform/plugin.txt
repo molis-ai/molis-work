@@ -2169,6 +2169,10 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+    readonly partition?: "project";
+}
+
 export interface HomeStoreDeclaration {
     readonly path: string;
     readonly library?: {
@@ -2177,6 +2181,7 @@ export interface HomeStoreDeclaration {
             readonly schema: string;
         };
         readonly file?: string;
+        readonly partition?: "project";
     };
 }
 

@@ -36,7 +36,8 @@ export function homeStores(): HomeStoreRegistry {
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
       ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id }] : [],
       ...entry.runtime?.database ? [{ path: entry.runtime.database.store_name, owner: entry.manifest.plugin_id,
-        library: { baseline: { version: entry.runtime.database.version, schema: entry.runtime.database.schema } } }] : [],
+        library: { baseline: { version: entry.runtime.database.version, schema: entry.runtime.database.schema },
+          ...entry.runtime.database.partition ? { partition: entry.runtime.database.partition } : {} } }] : [],
     ]),
     ...owned("horizontal/agent-host", ...at("agent-runtime")),
     ...owned("apps/local-host/src/installer", ...at("runtime-config-backups", "runtime-integrations", "runtime-integration-attempts")),

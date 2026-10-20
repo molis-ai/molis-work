@@ -10,6 +10,8 @@ export interface PluginActionScope {
   readonly install_id: string;
   readonly definition: ActionDefinition;
   readonly caller: ActionExecutionContext;
+  /** Where this call stands in the order this process began calls in (`lastBegunPluginInvocation`). */
+  readonly begun: number;
 }
 
 export interface PluginSceneScope {
@@ -17,14 +19,28 @@ export interface PluginSceneScope {
   readonly scene: ActionSceneDefinition;
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
+  readonly begun: number;
 }
 
 export type PluginInvocationScope = PluginActionScope | PluginSceneScope;
 const running = new AsyncLocalStorage<PluginInvocationScope>();
+let lastBegun = 0;
+
+/**
+ * The place of the last call begun so far: every call begun later has a greater `begun`. A background job keeps the place of the
+ * action that accepted it, and a call made inside another one (a nested action, a scene its handler asks for) the place of the call
+ * it is part of. A service that must refuse whatever was already under way at some moment (the library of a project being deleted)
+ * takes this then and refuses every scope whose `begun` is not greater.
+ */
+export function lastBegunPluginInvocation(): number {
+  return lastBegun;
+}
+
+const place = (begun: number | undefined) => begun ?? running.getStore()?.begun ?? ++lastBegun;
 
 /** Scene callbacks retain their real declaration and control, never an invented action. */
-export function runInPluginScene<T>(scope: PluginSceneScope, handle: () => T): T {
-  return running.run(scope, handle);
+export function runInPluginScene<T>(scope: Omit<PluginSceneScope, "begun">, handle: () => T): T {
+  return running.run({ ...scope, begun: place(undefined) }, handle);
 }
 
 /** Common authority for services and nested calls, whether the caller is an action or a scene callback. */
@@ -37,9 +53,13 @@ export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefine
   return scope && (scope.caller.query_only || scope.caller.read_only_effects || ("scene" in scope && scope.read_only)) ? true : undefined;
 }
 
-/** Runs a Plugin's action handler inside its scope. The scope follows the handler's promises and timers, and ends with nothing: the call's `beforeEffect` is what says the action is over. */
-export function runInPluginAction<T>(scope: PluginActionScope, handle: () => T): T {
-  return running.run(scope, handle);
+/**
+ * Runs a Plugin's action handler inside its scope. The scope follows the handler's promises and timers, and ends with nothing: the
+ * call's `beforeEffect` is what says the action is over. A call begun outside every other one gets the next place in the order;
+ * work that carries on an accepted call (a background job) passes that call's `begun` along.
+ */
+export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
+  return running.run({ ...scope, begun: place(scope.begun) }, handle);
 }
 
 /**

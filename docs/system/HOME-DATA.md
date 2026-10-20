@@ -65,6 +65,8 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 
 路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经 `apps/workbench/src/builtin-plugins.ts` 目录条目的 `home_store` 带进登记；Issues 的库由它的 Home 条目 `runtime.database` 带进）。项目里或 Home 里的 Runtime 插件由宿主启动名单声明的库（`PluginPlatformEntry.database`，W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
 
+**按项目分开的库**（[specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)，2026-10-20）：Home 级插件的条目在 `runtime.database` 写 `partition: "project"`、登记的 `library.partition` 也是 `"project"` 时，没有 `{home}/<名>/<名>.db`，每个项目一个 `{home}/<名>/projects/<项目>/<名>.db`。`<项目>` 是项目 id 经 `encodeURIComponent`、点换成 `%2E` 的一个目录名，路径由 `homeSqlitePartitionDirectory` 给出（`packages/storage/src/home-sqlite.ts`），目录 0700、文件 0600、WAL。宿主按调用所在的项目打开（`apps/local-host/src/plugin-database-partitions.ts`），闲置 10 到 20 分钟关掉；删项目时删掉这个项目的整个目录，卸载 purge 时随 `<名>/` 一起删。现在还没有插件用它（Alchemist 改用是迁移线的事）。
+
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |
 | `issues/issues.db` | Issue 业务 owner：`plugins/native/issues/src/store.ts`；Host 通过 `apps/local-host/src/plugin-database.ts` 打开 | 2 · WAL | `issues` |

@@ -1,9 +1,10 @@
 import { ActionError, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginExecutor, PluginInstanceRecord, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
+import { openPartitionedPluginDatabase, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
@@ -17,10 +18,10 @@ import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void }>();
+  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase }>();
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
-    database(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+    database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
     files(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
@@ -57,6 +58,7 @@ export class HomePluginExecutor implements PluginExecutor {
     };
     const ui = createPluginUiClient(new UiHost(), context, manifest);
     let database: ReturnType<typeof openPluginDatabase> | undefined;
+    let partitions: PartitionedPluginDatabase | undefined;
     let files: ReturnType<typeof openPluginFiles> | undefined;
     let background: ReturnType<typeof pluginBackgroundFor>;
     let withdrawAgentDefinitions: (() => void) | undefined;
@@ -64,7 +66,7 @@ export class HomePluginExecutor implements PluginExecutor {
     const dispose = () => {
       active = false; background?.close(); withdrawCaller?.();
       const failures: unknown[] = [];
-      for (const release of [() => database?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
+      for (const release of [() => database?.close(), () => partitions?.close(), () => files?.close(), () => withdrawAgentDefinitions?.(), () => ui.dispose()]) {
         try { release(); } catch (error) { failures.push(error); }
       }
       if (failures.length) throw new AggregateError(failures, "Home 插件服务释放失败");
@@ -72,7 +74,8 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
-      if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
+      if (declaration?.partition === "project") partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context.install_id);
+      else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
       const fileDeclaration = this.options.files(definition);
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
       const owned = this.options.ownerFiles(definition);
@@ -91,7 +94,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
-        ui: ui.client, database: database?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
+        ui: ui.client, database: (partitions ?? database)?.client, ...(files ? { files: files.client } : {}), ...(ownerFiles ? { ownerFiles: ownerFiles.client } : {}), ...(model ? { model } : {}), ...(imageGeneration ? { imageGeneration } : {}), ...(materials ? { materials } : {}), ...(storage ? { storage } : {}), ...(background ? { background: background.client } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
@@ -99,7 +102,7 @@ export class HomePluginExecutor implements PluginExecutor {
       if (contribution.kind === "app" && contribution.onProjectDeleted && !this.options.projectData(definition)) {
         throw new ActionError("actions.forbidden", "项目清理回调缺少可信 Home 数据主人声明");
       }
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose });
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose, partitions });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -112,6 +115,14 @@ export class HomePluginExecutor implements PluginExecutor {
     session?.revoke();
     try { await definition.stop?.(session?.context ?? context); }
     finally { try { session?.dispose(); } finally { this.sessions.delete(context.install_id); } }
+  }
+
+  /**
+   * The running instance's part of deleting a project, when its library is partitioned by project: the project's library is closed and
+   * refused (`PartitionedPluginDatabase.clearProject`); the returned function lets it be opened again once the files are gone.
+   */
+  clearProjectLibrary(installId: string, projectId: string): (() => void) | undefined {
+    return this.sessions.get(installId)?.partitions?.clearProject(projectId);
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }

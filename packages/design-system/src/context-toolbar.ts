@@ -153,7 +153,7 @@ root.replaceChildren(...kids); root.hidden = false; root.toggleAttribute("data-t
 if (keep) { opener = root.querySelector(keep); if (opener) opener.setAttribute("aria-expanded", "true"); else closeMenu(); }
 // Too wide for its room: fold the format tools first, then give up one more step.
 if (root.scrollWidth > room() && cut <= base) return draw(true, fold || !mine.some((g) => g.collapse === "overflow") ? cut + 1 : cut, mark);
-if (mark) { const again = root.querySelector('[data-id="' + mark + '"],[data-key="' + mark + '"]'); if (again) again.focus(); }
+if (mark) (root.querySelector('[data-id="' + mark + '"],[data-key="' + mark + '"]') || root.querySelector("[data-more]"))?.focus();
 place();
 };
 const show = (next) => {

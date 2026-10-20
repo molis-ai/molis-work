@@ -25,7 +25,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_DELEGATED_ROLE_ID, ASSISTANT_ROLE_ID } from "./assistant-agent.js";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { agentActions, capabilityDirectory } from "./assistant-directory.js";
+import { agentActions, capabilityDirectory, knowledgeDirectory, knowledgeFact, type AssistantRoundFactPorts } from "./assistant-directory.js";
 import { NOTICE_TTL_MS, scanNewMaterialOnce, withinTime, type ScanLook } from "./assistant-material-scan.js";
 import { identity, linkSent, revisionOf } from "./assistant-relations.js";
 import type { AgentMethodRegistration, AgentMethodView } from "@molis-ai/molis-work-contracts/services/agent-definitions";
@@ -45,7 +45,7 @@ import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./as
 import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
-import { checkHeldImages, checkMaterials } from "./assistant-send-materials.js";
+import { checkHeldImages, checkMaterials, readPickedPiece } from "./assistant-send-materials.js";
 
 const RUNTIME = "prologue";
 const MAX_TEXT = 20_000;
@@ -54,7 +54,7 @@ const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 /** The directory lists at most this many; the gateway itself searches all of them. */
 const MAX_ACTION_TOOLS = 1000;
 
-export interface AssistantServicePorts extends AssistantLandingPorts {
+export interface AssistantServicePorts extends AssistantLandingPorts, AssistantRoundFactPorts {
   /** Withdraw only unfinished setup requests owned by this work's session. */
   cancelSetups?(sessionId: string): void;
   retainSetups?(sessionId: string): Promise<void>;
@@ -1042,7 +1042,7 @@ export class AssistantService {
     const readers = views.filter(view => isSubjectReader(view.action) && view.availability.available);
     const out: AssistantMaterial[] = [];
     for (const material of materials) {
-      if (!material.reference || !material.object) { out.push(material); continue; }
+      if (!material.reference || !material.object || "subject" in material.reference) { out.push(material.reference && "subject" in material.reference ? await readPickedPiece(actions, views, { ...material, reference: material.reference }) : material); continue; }
       if (!opener) throw assistantErrors.unsupported(`现在不能核对「${material.title}」，请稍后再试或去掉这个引用`);
       const opened = await actions.invoke({ capability_id: opener.capability_id, version: opener.version, provider_id: opener.provider.provider_id }, { hit_id: material.reference.hit_id })
         .catch((error: unknown) => ({ state: "unavailable" as const, reason: error instanceof Error ? error.message : String(error) })) as
@@ -1400,7 +1400,7 @@ export class AssistantService {
     const pictured = [...new Set(this.store.rounds(work.work_id).flatMap(round => round.materials.filter(item => item.kind === "image").map(item => item.title)))];
     const situation = [`现在是 ${local}（时区 ${zone}，${now.toISOString()}）。`, `这项工作：「${work.title}」，${where}。`,
       work.origin ? `工作最初从「${work.origin.title ?? work.origin.surface}」页面发起。` : "",
-      pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : ""].filter(Boolean).join("\n");
+      pictured.length ? `之前的轮次里用户附过图片（${pictured.slice(0, 5).map(title => `「${title}」`).join("、")}），你当时看到了图；图片只在附带的那一轮可见，现在看不到。` : "", knowledgeFact(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered)].filter(Boolean).join("\n");
     const base = { source_artifact_id: work.work_id, source_version: 1 };
     const setup = this.ports.setupMaterial?.(work, offered, previousWaitWithdrawn), out: AgentTextMaterial[] = [{ ...base, material_id: "situation", title: "本轮情况", text: situation }, ...(setup ? [setup] : [])];
     // What this round tells that is told only once: marked after the round has started, not before (a start that fails tells nothing).
@@ -1468,7 +1468,7 @@ export class AssistantService {
       const progress = await this.objectBackground(work, { kind: object.subject.kind, id: object.subject.id });
       if (progress) out.push(...chunked({ ...base, title: `专业会话的进展：${object.title}` }, `session-${object.subject.id}`, progress));
     }
-    out.push(...chunked({ ...base, title: "可用能力目录" }, "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))));
+    for (const [title, id, text] of [["可用能力目录", "capabilities", capabilityDirectory(offered, unavailable, this.store.confirmAlways(this.actorId))], ["项目资料目录", "knowledge", knowledgeDirectory(this.ports, work.scope.kind === "project" ? work.scope.project_id : null, offered, `${work.title}\n${this.starting.get(work.work_id) ?? ""}`)]] as const) if (text) out.push(...chunked({ ...base, title }, id, text));
     // Methods Plugins offer: listed, not loaded. A round that needs one reads it; one the person chose is already here.
     const methods = work.executor.kind === "coding" ? [] : await this.methods(work).catch(() => [] as AssistantMethod[]);
     const chosen = new Set(materials.filter(item => item.kind === "method").map(item => item.method?.method_id));

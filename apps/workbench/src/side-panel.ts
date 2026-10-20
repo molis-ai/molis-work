@@ -34,8 +34,8 @@ export interface SidePanelPluginTab {
   readonly order?: number;
 }
 
-/** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 文件 · 浏览器 · 电脑 · 讨论). */
-const OWN_TABS = [["files", "文件", "folder", 20], ["browser", "浏览器", "globe", 30], ["computer", "电脑", "system", 40], ["discussion", "讨论", "message", 50]] as const;
+/** The panel's own tabs, in the places they take among the plugins' (side-shelf §3.1: Shelf · 灵光 · 资料 · 浏览器 · 电脑 · 讨论; 资料 was 文件, specs/project-knowledge §8.1). */
+const OWN_TABS = [["files", "资料", "file", 20], ["browser", "浏览器", "globe", 30], ["computer", "电脑", "system", 40], ["discussion", "讨论", "message", 50]] as const;
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
   const { L, icon, escapeHtml } = primitives;
@@ -58,7 +58,7 @@ export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: rea
         ${projectTools ? body("discussion", L("项目讨论"), `<iframe title="${L("群聊与 Thread")}"></iframe>`)
           + body("browser", L("浏览器"), renderSideBrowser(primitives), " data-side-browser")
           + body("computer", L("电脑"), renderSideComputer(primitives), " data-side-computer")
-          + body("files", L("文件"), renderSideFiles(primitives), " data-side-files") : ""}
+          + body("files", L("资料"), renderSideFiles(primitives), " data-side-files") : ""}
         ${plugins.map(entry => body(entry.id, entry.title, `<iframe title="${escapeHtml(entry.title)}" data-side-frame></iframe>`, ` data-side-src="${escapeHtml(entry.src)}"`)).join("")}
       </section>`;
 }
@@ -194,7 +194,8 @@ export const SIDE_PANEL_SCRIPT = String.raw`(() => {
     const next=event.key==='ArrowRight'?list[(at+1)%list.length]:event.key==='ArrowLeft'?list[(at-1+list.length)%list.length]:event.key==='Home'?list[0]:event.key==='End'?list.at(-1):null;
     if(!next)return;event.preventDefault();next.focus();select(next.dataset.sideTab);
   });
-  panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open){event.preventDefault();setOpen(false);}});
+  // A dialog opened from the panel (the import dialog) closes on its own Escape; the panel stays.
+  panel.addEventListener('keydown',event=>{if(event.key==='Escape'&&!event.defaultPrevented&&open&&!event.target.closest?.('dialog')){event.preventDefault();setOpen(false);}});
   frame?.addEventListener('load',imVisible);
   new MutationObserver(imVisible).observe(document.documentElement,{attributes:true,attributeFilter:['data-resolved-theme']});
   addEventListener('message',async event=>{

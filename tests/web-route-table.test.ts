@@ -105,6 +105,10 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/plugins/io.molis.work.lingguang/sparks" },
   { method: "GET", path: "/api/pages" },
   { method: "POST", path: "/api/pages/import/preview", body: {} },
+  // Pages' positive path is its Runtime route (W5-01-PAGES-02); the short routes above are only the removed aliases.
+  { method: "GET", path: "/api/plugins/io.molis.work.pages/pages" },
+  { method: "POST", path: "/api/plugins/io.molis.work.pages/pages/import/preview", body: {} },
+  { method: "GET", path: "/api/plugins/io.molis.work.pages/pages/no-such" },
   { method: "GET", path: "/api/dataset" },
   { method: "GET", path: "/api/dataset/no-such" },
   // Dataset's positive path is its Runtime route; the short route above is only the removed alias.

@@ -3,7 +3,7 @@ import { pagesErrors } from "./error.js";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadContext, AssistantThreadDraft } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PagesStore } from "./store.js";
+import type { PagesStores } from "./store.js";
 import type { AppendPagesComment } from "./comments-store.js";
 import { nodesToMarkdown } from "./to-markdown.js";
 import { nodeFromUnknown } from "./schema.js";
@@ -35,7 +35,7 @@ export const pagesCommentActions = {
   reply: define<{ subject_id: string; thread_id: string }, { thread: PagesCommentThread }>("reply", "接收助理在原评论的回复", object(target), object({ thread }), true, "reply"),
 };
 
-export function createPagesCommentHandlers(withStore: <T>(run: (store: PagesStore) => T) => T): ActionHandlerBinding[] {
+export function createPagesCommentHandlers(stores: PagesStores): ActionHandlerBinding[] {
   const project = (caller: ActionExecutionContext): string => {
     if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
     return caller.project_id;
@@ -44,12 +44,9 @@ export function createPagesCommentHandlers(withStore: <T>(run: (store: PagesStor
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
   });
   return [
-    bind(pagesCommentActions.list, (input, caller) => withStore(store => ({ threads: store.comments.list(input.page_id, project(caller)) }))),
-    bind(pagesCommentActions.append, async (input, caller) => {
-      await caller.beforeEffect();
-      return withStore(store => ({ thread: store.comments.append(input, project(caller)) }));
-    }),
-    bind(pagesCommentActions.context, (input, caller) => withStore(store => {
+    bind(pagesCommentActions.list, (input, caller) => stores.read(store => ({ threads: store.comments.list(input.page_id, project(caller)) }))),
+    bind(pagesCommentActions.append, (input, caller) => stores.write(caller, store => ({ thread: store.comments.append(input, project(caller)) }))),
+    bind(pagesCommentActions.context, (input, caller) => stores.read(store => {
       const page = store.get(input.subject_id, project(caller));
       const found = store.comments.get(input.subject_id, input.thread_id, project(caller));
       const request = found.messages.find(message => message.message_id === input.message_id && message.author === "user");
@@ -66,8 +63,7 @@ export function createPagesCommentHandlers(withStore: <T>(run: (store: PagesStor
       const delivery = caller.assistant_reply;
       if (!delivery || delivery.target.provider_id !== "io.molis.work.pages" || delivery.target.subject_kind !== "pages_document"
         || delivery.target.subject_id !== input.subject_id || delivery.target.thread_id !== input.thread_id) throw new ActionError("actions.forbidden", "只能由宿主投递这条评论已完成的助理回复");
-      await caller.beforeEffect();
-      return withStore(store => ({ thread: store.comments.reply(input.subject_id, input.thread_id, project(caller), {
+      return stores.write(caller, store => ({ thread: store.comments.reply(input.subject_id, input.thread_id, project(caller), {
         message_id: randomUUID(), author: "assistant", body: delivery.body, reply_to: delivery.message_id,
         request_id: delivery.request_id, work_id: delivery.work_id, run_id: delivery.run_id, created_at: new Date().toISOString(),
       }) }));

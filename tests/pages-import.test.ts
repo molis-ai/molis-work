@@ -2,20 +2,18 @@ import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
-import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { PagesBody, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import {
-  PagesPluginRouteTable,
-  createPagesRouteHandlers,
   openPagesStore,
+  pagesActions,
   type PagesStore,
   type PreparedPagesImport,
 } from "@molis-ai/molis-work-plugin-pages";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { handlePagesNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
+import { servePages } from "./fixtures/pages-runtime.js";
 
 const PROJECT = "pages-import-project";
 const OTHER = "pages-import-other";
@@ -31,10 +29,12 @@ async function withHome(run: (home: string) => Promise<void>): Promise<void> {
   finally { await rm(home, { recursive: true, force: true }); }
 }
 
-function post(store: PagesStore, pathname: string, body: Record<string, unknown>, project = PROJECT) {
-  return new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, project))).handle({
-    method: "POST", pathname, query: new URLSearchParams({ project_id: project }), body: { project_id: project, ...body },
-  });
+/** The preview and the import are the two actions the page's import routes run; a body the schema refuses is refused here. */
+async function post(store: PagesStore, pathname: string, body: Record<string, unknown>, project = PROJECT) {
+  const { actions } = pagesTestPorts(store, project);
+  const result = pathname.endsWith("/preview") ? await actions.invoke(pagesActions.previewImport, body as never)
+    : await actions.invoke(pagesActions.import, body as never);
+  return { status: 200, body: result };
 }
 
 async function preview(store: PagesStore, files = FILES): Promise<PreparedPagesImport> {
@@ -94,17 +94,12 @@ test("Pages 导入拒绝无选择、重复选择、未知 key、坏请求标识�
   });
 });
 
-test("Pages 导入的项目与文件夹隔离，query/body 冲突被拒绝", async () => {
+test("Pages 导入的文件夹隔离：别的项目的文件夹被拒绝，且不写入", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
     try {
       const prepared = await preview(store);
       const foreignFolder = store.createFolder({ project_id: OTHER, title: "其他项目" });
-      for (const pathname of ["/api/pages/import/preview", "/api/pages/import"]) {
-        await assert.rejects(() => post(store, pathname, {
-          files: FILES, selected_keys: [prepared.documents[0].key], request_id: randomUUID(), project_id: OTHER,
-        }), /项目.*不一致/u);
-      }
       await assert.rejects(() => post(store, "/api/pages/import", {
         files: FILES, selected_keys: [prepared.documents[0].key], request_id: randomUUID(), folder_id: foreignFolder.id,
       }), /找不到这个文件夹/u);
@@ -112,6 +107,24 @@ test("Pages 导入的项目与文件夹隔离，query/body 冲突被拒绝", asy
       assert.equal(store.list(OTHER).length, 0);
     } finally { store.close(); }
   });
+});
+
+test("W5-01-PAGES-02 a project_id in the query or the body that is not this project's is refused on the import routes, and nothing is written", async (t) => {
+  const pages = await servePages(t);
+  const refused = async (suffix: string, body: Record<string, unknown>, query = "") => {
+    const response = await pages.request(suffix + query, body);
+    assert.notEqual(response.status, 200, `${suffix}${query}`);
+    assert.equal((await response.json() as { code: string }).code, "actions.scope_mismatch");
+  };
+  for (const suffix of ["/import/preview", "/import"]) {
+    await refused(suffix, { files: FILES, selected_keys: ["x"], request_id: randomUUID(), project_id: OTHER });
+    await refused(suffix, { files: FILES, selected_keys: ["x"], request_id: randomUUID() }, `?project_id=${OTHER}`);
+  }
+  const store = openPagesStore(pages.home);
+  try { assert.equal(store.list(pages.project.project_id).length + store.list(OTHER).length, 0); } finally { store.close(); }
+  // The project it is mounted in is accepted, and the page's own id is stripped before the action sees it.
+  const prepared = await pages.http<PreparedPagesImport>("/import/preview", { files: FILES, project_id: pages.project.project_id });
+  assert.equal(prepared.documents.length, 2);
 });
 
 test("Pages 整批创建失败会回滚，失败请求可用相同标识重试", async () => {
@@ -216,57 +229,27 @@ test("Pages 导入已删除文档的旧请求不会把文档重新创建", async
   });
 });
 
-test("Pages HTTP 仅两条导入路由接受大于原限额的请求，并执行预览到保存", async () => {
-  await withHome(async (home) => {
-    const httpStore = openPagesStore(home);
-    const ports = pagesTestPorts(httpStore, PROJECT);
-    const server = createServer((request, response) => {
-      const url = new URL(request.url ?? "/", "http://127.0.0.1");
-      void handlePagesNativePluginHttp(request, response, url, ports).then((handled) => {
-        if (!handled) { response.writeHead(404); response.end(); }
-      }).catch((error: unknown) => {
-        if (!response.headersSent) {
-          response.writeHead(400, { "content-type": "application/json" });
-          response.end(JSON.stringify({ error: error instanceof Error ? error.message : String(error) }));
-        }
-      });
-    });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-    const address = server.address();
-    assert.ok(address && typeof address === "object");
-    const origin = `http://127.0.0.1:${address.port}`;
-    const request = (path: string, body: Record<string, unknown>) => fetch(`${origin}${path}`, {
-      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ project_id: PROJECT, ...body }),
-    });
-    try {
-      const padding = " ".repeat(1_050_000);
-      const largeFiles = [{ name: "large.txt", data: Buffer.from("正文" + " ".repeat(790_000)).toString("base64") }];
-      const previewResponse = await request("/api/pages/import/preview", { files: largeFiles });
-      assert.equal(previewResponse.status, 200);
-      const prepared = await previewResponse.json() as PreparedPagesImport;
-      const importResponse = await request("/api/pages/import", {
-        files: largeFiles, selected_keys: [prepared.documents[0].key], request_id: randomUUID(),
-      });
-      assert.equal(importResponse.status, 200);
-      const imported = await importResponse.json() as { documents: PagesRecord[] };
-      assert.equal(imported.documents.length, 1);
-      for (const path of ["/api/pages", `/api/pages/${imported.documents[0].id}`]) {
-        const ordinary = await request(path, { title: "应拒绝", padding });
-        // W3-02-D: a body that is too large is 413 (kind too_large), no longer the generic 400; the Pages import client clears the submission on it.
-        assert.equal(ordinary.status, 413);
-        assert.match((await ordinary.json() as { error: string }).error, /请求内容过大/u);
-      }
-      const tooLarge = await request("/api/pages/import/preview", { files: FILES, padding: " ".repeat(15_000_000) });
-      assert.equal(tooLarge.status, 413);
-      assert.deepEqual(await tooLarge.json(), { error: "请求内容过大", code: "actions.input_too_large" });
-      const persisted = openPagesStore(home);
-      assert.equal(persisted.list(PROJECT).length, 1);
-      assert.equal(persisted.list(PROJECT)[0].title, prepared.documents[0].title);
-      persisted.close();
-    } finally {
-      httpStore.close();
-      server.closeAllConnections();
-      await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
-    }
+test("W5-01-PAGES-03 Pages on the Runtime: only the two import routes accept bodies above 1 MB, and the preview-to-save flow runs", async (t) => {
+  const pages = await servePages(t);
+  const padding = " ".repeat(1_050_000);
+  const largeFiles = [{ name: "large.txt", data: Buffer.from("正文" + " ".repeat(790_000)).toString("base64") }];
+  const prepared = await pages.http<PreparedPagesImport>("/import/preview", { files: largeFiles });
+  const imported = await pages.http<{ documents: PagesRecord[] }>("/import", {
+    files: largeFiles, selected_keys: [prepared.documents[0].key], request_id: randomUUID(),
   });
+  assert.equal(imported.documents.length, 1);
+  for (const suffix of ["", `/${imported.documents[0].id}`]) {
+    const ordinary = await pages.request(suffix, { title: "应拒绝", padding });
+    // W3-02-D: a body that is too large is 413 (kind too_large), no longer the generic 400; the Pages import client clears the submission on it.
+    assert.equal(ordinary.status, 413);
+    assert.match((await ordinary.json() as { error: string }).error, /请求内容过大/u);
+  }
+  const tooLarge = await pages.request("/import/preview", { files: FILES, padding: " ".repeat(15_000_000) });
+  assert.equal(tooLarge.status, 413);
+  assert.deepEqual(await tooLarge.json(), { error: "请求内容过大", code: "actions.input_too_large" });
+  const persisted = openPagesStore(pages.home);
+  try {
+    assert.equal(persisted.list(pages.project.project_id).length, 1);
+    assert.equal(persisted.list(pages.project.project_id)[0].title, prepared.documents[0].title);
+  } finally { persisted.close(); }
 });

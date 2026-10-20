@@ -181,9 +181,10 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
 
     const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
     const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };
-    const received = await receive.handle(caller, { payload: { title: "工作流交来的内容", body: "正文" }, context: { instance_id: "queue-test", step: 1 } }) as { item_id: string };
+    const received = await receive.handle(caller, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" }) as { item_id: string };
     const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
     assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
+    assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, received.item_id).source_label, "工作流程", "W4-6-05 a workflow audience files under 「工作流程」");
 
     assert.deepEqual(judged.slice().sort(), [`capture:${received.item_id}:workflow-user`, `home-feed_item:${received.item_id}:workflow-user`,
       `home-inbox_entry:${ownEntry.entry_id}:workflow-user`, `inbox:${ownEntry.entry_id}:workflow-user`].sort(),

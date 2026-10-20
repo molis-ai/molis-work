@@ -12,7 +12,10 @@ export interface PluginFilesClient {
   remove(control: PluginExecutionControl, name: string): Promise<void>;
 }
 
-/** Selected by the Host's trusted start entry, never by a Manifest, action input or installed script. */
+/**
+ * Selected by the Host's trusted start entry, never by a Manifest, action input or installed script. 2026-10-18 改: declared in
+ * the Manifest and granted like any plugin's, merged into ownerFiles (PG-102, PG-104 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ */
 export interface PluginFilesDeclaration {
   /** A single Home directory registered to this plugin. */
   readonly store_name: string;

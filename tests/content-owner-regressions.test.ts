@@ -61,13 +61,13 @@ test("W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion at
     const answers = f.forms.listSubmissions(form.id, f.project), csv = formResultsCsv(form, answers);
     const file = join(f.home, `answers-${questions.length}.csv`); await writeFile(file, csv);
     const before = f.datasets.list(f.project);
-    const input = { payload: { title: "Responses", body: csv, source: "Form", feed_item_id: null }, context: { instance_id: "instance-" + questions.length, step: 0 } };
+    const input = { title: "Responses", body: csv, source: "Form", feed_item_id: null, request_id: `workflow:instance-${questions.length}:0` };
     await assert.rejects(f.bound.invoke(datasetContentActions.receive, input), { code: "dataset.invalid" });
     assert.deepEqual(f.datasets.list(f.project), before);
     assert.deepEqual(f.forms.listSubmissions(form.id, f.project), answers);
     assert.equal(await readFile(file, "utf8"), csv);
-    // The same delivery key remains usable: a refusal left neither a table nor a receipt behind.
-    const received = await f.bound.invoke(datasetContentActions.receive, { ...input, payload: { ...input.payload, body: "Name,Answer\nAlice,usable" } });
+    // The same request id remains usable (W4-6-02): a refusal left neither a table nor a receipt behind.
+    const received = await f.bound.invoke(datasetContentActions.receive, { ...input, body: "Name,Answer\nAlice,usable" });
     const table = f.datasets.get(received.item_id, f.project);
     assert.deepEqual(table.columns.map(column => column.name), ["Name", "Answer"]);
     assert.deepEqual(Object.values(table.rows[0]!.cells), ["Alice", "usable"]);

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionDefinition, type ActionExecutionContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionDefinition, type ActionExecutionContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { pagesActions, PAGES_SUBJECT_KIND } from "./actions.js";
 import { nodeFromUnknown } from "./schema.js";
@@ -31,17 +31,17 @@ export function createPagesContentHandlers(actions: BoundActionClient) {
       return { title: page.title, body: nodesToMarkdown(nodes).trim(), source: "Pages", feed_item_id: null };
     },
     create: async ({ title }, caller) => ref((await invoke(pagesActions.create, { title }, caller)).document),
-    receive: async ({ payload, context }, caller) => {
-      const source = payload.url && !payload.body.includes(payload.url) ? `\n来源：${payload.source ?? ""} ${payload.url}`.replace("： ", "：") : "";
-      const markdown = [payload.body, source].filter(Boolean).join("\n");
+    receive: async (input, caller) => {
+      const source = input.url && !input.body.includes(input.url) ? `\n来源：${input.source ?? ""} ${input.url}`.replace("： ", "：") : "";
+      const markdown = [input.body, source].filter(Boolean).join("\n");
       const blocks = blocksFromMarkdown(markdown);
       const body = { type: "doc", content: blocks ? blocks.map(block => block.toJSON())
         : markdown.split(/\n\n+/).map(text => ({ type: "paragraph", content: [{ type: "text", text }] })) };
       // One delivery is one document: a retried handoff returns the original page and keeps later edits.
       // A long headline is cut to the 80 characters a title holds; refused, the same hand-over could never be delivered.
-      const documents = [{ title: payload.title.trim().slice(0, 80), body: body as never }];
+      const documents = [{ title: input.title.trim().slice(0, 80), body: body as never }];
       const request_hash = createHash("sha256").update(JSON.stringify(documents)).digest("hex");
-      const imported = await invoke(pagesActions.importDocuments, { request_id: workflowDeliveryKey(context), request_hash, documents }, caller);
+      const imported = await invoke(pagesActions.importDocuments, { request_id: input.request_id, request_hash, documents }, caller);
       return ref(imported.documents[0]!);
     },
   });

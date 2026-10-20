@@ -94,12 +94,12 @@ test("VUX-19 an icon-only copy button answers with a check or a cross in its own
 });
 
 test("VUX-08 show more: one over the limit is shown, drawn again it keeps one button, and the press reveals and focuses by keyboard", { timeout: 60_000 }, async t => {
-  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul>`);
+  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul><ul id="rows"></ul><style>#rows>li{display:flex}</style>`);
   if (!page) return;
   const draw = (id: string, count: number) => page.evaluate(`(() => { const list = document.getElementById(${JSON.stringify(id)});
     list.innerHTML = Array.from({ length: ${count} }, (_, i) => '<li><button type="button">第 ' + (i + 1) + ' 行</button></li>').join('');
     window.molisShowMore(list, { key: ${JSON.stringify(id)}, label: '再显示 {n} 项' }); })()`);
-  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => !n.hidden).length`);
+  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => n.getClientRects().length > 0).length`);
   await draw("six", 6);
   assert.equal(await seen("six"), 6, "a single item over the limit is shown, not put behind a button for it");
   assert.equal(await page.evaluate("document.querySelector('#six .mw-show-more')"), null);
@@ -115,6 +115,10 @@ test("VUX-08 show more: one over the limit is shown, drawn again it keeps one bu
   assert.equal(await page.evaluate<string>("document.activeElement.textContent"), "第 6 行", "focus lands on the first revealed row's control");
   await draw("nine", 9);
   assert.equal(await seen("nine"), 9, "drawn again under the same key, it stays revealed");
+  // Rows that set their own display (a plugin's flex rows) are still tucked: the button's count and what is shown agree.
+  await draw("rows", 8);
+  assert.equal(await seen("rows"), 5, "a row's own display: flex does not bring a tucked row back");
+  assert.equal(await page.evaluate<string>("document.querySelector('#rows .mw-show-more').textContent"), "再显示 3 项");
 });
 
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {

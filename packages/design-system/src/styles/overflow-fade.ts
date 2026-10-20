@@ -11,5 +11,6 @@ const fromEnd = [...OVERFLOW_FADE_SAMPLES].reverse().map(([p, a]) => `${alpha(a)
 export const OVERFLOW_FADE_STYLES = `[data-overflow-fade]{scroll-padding-inline:${OVERFLOW_FADE_WIDTH}px}[data-overflow-fade][data-more]{--mw-fs:0px;--mw-fe:0px;--mw-fd:to right;mask-image:linear-gradient(var(--mw-fd),${[...fromStart, ...fromEnd].join(",")})}[data-overflow-fade][data-more]:dir(rtl){--mw-fd:to left}[data-overflow-fade]:is([data-more=start],[data-more=both]){--mw-fs:${OVERFLOW_FADE_WIDTH}px}[data-overflow-fade]:is([data-more=end],[data-more=both]){--mw-fe:${OVERFLOW_FADE_WIDTH}px}@media (forced-colors:active){[data-overflow-fade][data-more]{mask-image:none;scrollbar-width:thin}}`;
 
 /** The sensor, as the page runs it: the type-checked TypeScript in `src/browser/overflow-fade.ts` (tsconfig.browser.json),
- * bundled by esbuild into `dist/overflow-fade-client.js` when the package builds. This reads it. */
-export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../overflow-fade-client.js", import.meta.url), "utf8").trim();
+ * bundled by esbuild into `dist/overflow-fade-client.js` when the package builds. This reads it from `dist/`, built or from
+ * source (a preview script importing `src/index.ts`). */
+export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();

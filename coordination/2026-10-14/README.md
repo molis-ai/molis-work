@@ -2087,3 +2087,18 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 用户批了两项 CI 改动：集成分支上关掉 fail-fast 和 `--bail`；集成分支的 max-parallel 从 6 提到 10。
     - ① 在分支 `ci/integration-full-suite-all-failures` 上改好了：工作树 `.claude/worktrees/ci-full-suite`，提交是 `full-suite.yml`、PARALLEL-DEVELOPMENT §7、spec §1 决策表加的一行。
     - 推送被 GitHub 拒了：gh 的令牌没有 `workflow` 权限。等用户跑 `gh auth refresh -h github.com -s workflow`，跑完再推、开 PR 交 ⑤。
+
+- **07:28 UTC ⑤ 按新规矩分流，⑩ 接上根因**：
+  - 用 merge-only 直接入队、已合入 main 的：#771 `a63eb48bd`、#852 `71e4b9b69`、#859 `ded8ea771`、#831 `42d8c6f6a`。#859 里 ⑤ 已记了 BL-393（`assistant-dock-ime` 的 `nativeVirtualKeyCode`）。#830、#845 改了页面资源，留在批次里。
+  - batch-1020-2：#819 的 ISSUE-49 已修（`6fe0aad11`）。⑩ 修好 #829 的测试（`0201ffd12`），换进批次。批次新头 `846ea3355`，全量 39383269949 在跑，上次报到时 16 片里过了 6 片。
+  - batch-1020-3 = main 加 #846、#847、#855、#857，和 2 号并行构建、并行跑。
+  - batch-1020-4 = #848 → #853 → #805，排在 #822、#843 之后。⑩ 复审 #805 可合（head `d67486639`）。workbench.js 涨 5,141 字节的放行，等 #826 合入后再写。
+  - 两条合并线：
+    - 线 1：#776 → #797 → #812 → #829 → #822 → #843 → #837
+    - 线 2：#826 → #830 → #840 → #819 → #801 → #845
+  - #836 确认 `6aa6325d2`。#851 等作者。
+- **07:28 UTC ① 裁 QA-018**（⑤ 在 #784 复验时请 ① 定）：
+  - 入口那一段算修好。
+  - 「真实业务产生通知」那一段，现在做不了：main 上没有任何业务发出指向 Shelf 条目的通知，用例没有真实来源可走。记成 BL-400（① 的号段），由 ⑤ 加进 #784 的 `specs/BACKLOG.md` 第 3 节。放在 #784 里，是因为来源链接指向 #784 新增的 spec，单独先合会断链。
+  - ⑤ 在 #784 上写明：QA-018 部分修复，剩下的是 BL-400。
+- **07:28 UTC CI 分支**仍没推：gh 令牌的权限还是 `delete_repo`、`gist`、`read:org`、`repo`，没有 `workflow`。等用户加。

@@ -72,9 +72,8 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
 }
 
 function purgeOf(home: string, id: string, data: ProjectDataDeclaration): (projectId: string) => void | Promise<void> {
-  const purge = data.purge;
-  if (!purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
-  return projectId => purge(home, projectId);
+  if (!data.purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
+  return projectId => data.purge!(home, projectId);
 }
 
 /**

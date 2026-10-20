@@ -39,9 +39,9 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半在 `registration` 写 `runtime: { scope: "home", dual_instance: true, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
 
 - **标记只在 Home 那一半、只来自宿主**：目录条目的 `runtime.dual_instance`；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
-- **两半要么都随宿主发布（`bundled`），要么都不是**，这样两半登记同一个提供方，钉死的引用和 MCP 授权不分叉；不一致在启动前被拒。
+- **两半要么都随宿主发布（`bundled`），要么都不是**，这样两半登记同一个提供方，钉死的引用和 MCP 授权不分叉；不一致在启动前被拒，目录条目在评审时由门禁 `scripts/gates/dual-instance.mjs` 查。
 - **每一项各归一半**：Manifest 的每个动作、场景、路由、视图恰好由一半的 `start` 返回处理器，互相引用的（撤销、后台任务、片段与事项目标）放在同一半。端口、事件、成果与过程项归项目那一半：Home 那一半启动时不因 Manifest 有这些声明被拒，也拿不到这些服务。运行时只放宽「声明了没提供」，「提供了没声明」照旧拒绝。
-- **权限全部 `required: true`**（用户 2026-10-20 定，U1），门禁检查。每个实例各一条授权记录，人只在 Home 那条上看和管，一个实例的授权不借给另一个。项目记录因此也持有只有 Home 一半才用的权限：项目一半没有那些处理器，用不到。
+- **权限全部 `required: true`**（用户 2026-10-20 定，U1），门禁 `scripts/gates/dual-instance.mjs` 检查（`pnpm health:check`）：每条权限写成对象字面量、字面量 `required: true`，展开或算出来的它读不懂，也算失败。每个实例各一条授权记录，人只在 Home 那条上看和管，一个实例的授权不借给另一个。项目记录因此也持有只有 Home 一半才用的权限：项目一半没有那些处理器，用不到。
 - **路由**：Manifest 声明过的路由，Home 正在运行的一半绑定了的由 Home 答，其余交给项目实例；Manifest 没声明的路径照旧由 Home 答 404。项目路径（`/projects/<id>/api/plugins/<插件>/…`）下两半各答自己的，都在那个项目里；不带前缀时只有 Home 一半的路由，项目一半的路由和别的不带项目的项目路由一样答 400、请人先选项目。Home 一半停了就不绑定任何路由：项目路径下请求交给项目实例，它不代答自己没绑定的路由（`actions.execution_failed`）。
 - **只给宿主装配的插件**（用户 2026-10-20 定，U2）：第三方与沙箱插件不能声明。这和「插件待遇一样」之间的差距，是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路，记在[防腐 spec](../../specs/repository-anti-corruption/spec.md) §1。
 

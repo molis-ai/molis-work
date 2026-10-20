@@ -44,7 +44,7 @@ P1 放宽的只有：`assertContributionMatchesManifest` 的 `partial` 参数、
 | --- | --- | --- |
 | **S0-2a** 授权上下文按作用域取记录（#877） | `local-web-actions.ts` 拆成 `projectRecords` 与 `homeRecords`；`installOf` 在 `provider.project_id` 有值时查项目表，否则查 Home 表；`validate_authority` 的世代比较走同一个函数；场景的权限候选取两表并集 | 能，不依赖别的片，今天没有双实例，行为不变 |
 | S0-2b-1 实例只兑现自己的一半 | `RedemptionScope` 与 `PluginRuntime` 的 `redemption` 选项；兑现检查按范围放宽「声明了没提供」；只登记这一半提供的动作与场景（`offeredManifest`） | 共享核心（plugin-runtime），进批、按共享核心跑全量 |
-| S0-2b-2 声明与装配 | `PluginRegistration.runtime` 的可信标记（`pnpm api:update`）；标记经 `plugin-entry-identity.ts` 传给两个监督器的 `redemption`；`HomePluginExecutor` 对带标记条目跳过端口等声明的拒绝；启动名单放行显式双实例；Home 路由回落；门禁（标记等于同时在两份名单里、Manifest 无可选权限、两半 `bundled` 一致）；host.md、GLOSSARY、防腐 spec §1 | 代码部分可先合，门禁那块等在途的目录生成 PR |
+| S0-2b-2 声明与装配 | `PluginRegistration.runtime` 的可信标记（`pnpm api:update`）；标记经 `plugin-entry-identity.ts` 传给两个监督器的 `redemption`；`HomePluginExecutor` 对带标记条目跳过端口等声明的拒绝；启动名单放行显式双实例；Home 路由回落；门禁（标记等于同时在两份名单里、Manifest 无可选权限、两半 `bundled` 一致）；host.md、GLOSSARY、防腐 spec §1 | 门禁（`scripts/gates/dual-instance.mjs`）在 PR 的最后一个单独提交里，只新增检查，不放宽任何已有规则；用户 2026-10-21 批准 |
 | S0-2c 端到端夹具与覆盖测试 | 夹具插件（Home 动作 2、项目动作 2、一个端口、两条路由、一个视图）加不带标记的同名对照；覆盖测试遍历所有带标记的注册，Shelf 迁入后自动被覆盖 | 随 S0-2b-2 同批 |
 | S0-2b-3 实例间服务句柄不互借（U3） | 模型、主人文件、材料、后台四个服务的 gate 连实例的 `installation_generation` 一起比 | 等 #812 合入；共享核心，进批 |
 
@@ -130,6 +130,6 @@ DUAL-06 由 S0-2a 证明，DUAL-04 由 S0-2b-1 证明；其余各行写明由哪
   - 不带前缀的项目一半路由答 400（「请先选择一个 Molis Work 项目」），不是方案里写的 404：这是请求链给所有不带项目的项目路由的答复，`web-request.ts` 不改；失败时拒绝，没有实例运行。Home 那一半停用时，不带前缀的 Home 路由也答 400：停了的一半不绑定任何路由，宿主分不出哪条是它的。
   - 宿主夹具里的双实例插件没有目录条目，项目「显示这个插件」的核对对它只看项目存在（`routeProject`），与它的项目一半在每个项目都启动一致。
 - 未覆盖：
-  - `bundled` 不一致的拒绝没有用例：夹具都不随宿主发布，今天也还没有带标记的目录条目；目录条目由门禁查（单独一个提交，改门禁要用户本人批）。
+  - `bundled` 不一致的拒绝没有用例：夹具都不随宿主发布，今天也还没有带标记的目录条目；目录条目由门禁 `scripts/gates/dual-instance.mjs` 查（PR 里最后单独一个提交，只新增检查，不放宽任何已有规则；改门禁要用户本人的话，用户 2026-10-21 已批）。门禁另查 U1 的「权限全部必需」，用例 `tests/health-gates-dual-instance.test.ts`。
   - 同一份 Manifest 里路径加方法相交，SDK 解析 Manifest 时已拒；剩下的「两半绑定同一条路由」由 S0-2c 的覆盖测试查。
   - 浏览器验证与截图待补（用户 10-19 暂停）。

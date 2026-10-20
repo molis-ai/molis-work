@@ -85,10 +85,10 @@ test("ISSUE-38 discard takes back only a record nobody changed since it was made
   const blocked = await store.create({ title: "撤权后", type: "bug", description: "原文" }, caller);
   await assert.rejects(store.discard({ id: blocked.id, expected_version: 1 }, { ...caller, beforeEffect: async () => { throw new Error("revoked"); } }), /revoked/);
   assert.equal(store.read(blocked.id).version, 1);
-  // Both ways of making a record say how it is taken back, so the Assistant may make one directly when asked to.
+  // Both ways of making a record say how it is taken back: the page's capture is not confirmed first, and the Assistant may make one directly when asked to.
   for (const definition of [issuesActions.capture, issuesActions.create]) {
     assert.deepEqual(definition.action.undo, { capability_id: "issues.discard", version: 1, input: { id: "id", expected_version: "version" } });
   }
   assert.deepEqual(issuesActions.discard.action.audiences, ["user", "agent"]); assert.equal(issuesActions.discard.action.effect, "write");
-  assert.deepEqual(issuesActions.capture.action.audiences, ["user", "agent"]);
+  assert.deepEqual(issuesActions.capture.action.audiences, ["user"], "a draft is the page's; the Assistant records with issues.create (ISSUE-53)");
 });

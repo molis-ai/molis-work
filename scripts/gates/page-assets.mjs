@@ -236,14 +236,14 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the remaining copy buttons answer
-// through the one copy feedback and the remaining conversations take the one scroll owner (VUX-19, VUX-26). +201 B of
+// through the one copy feedback and the remaining conversations take the one scroll owner (VUX-19, VUX-26). +197 B of
 // workbench.js (an icon-only copy button answers with a check or a cross in its own box; the inline reference's toast went),
 // +98 B of Shelf (a refused clipboard is said on the bar instead of swallowed, with the files copy's hint folded into the same
 // helper), +36 B of Lingguang (its two copy buttons). Tried first: no fallback beside the shared helpers, one hint helper
 // for every copy on the Shelf bar, comments out of the shipped strings (+316 → +201, +227 → +98, +115 → +36); the studio's
-// own bottom check went (−7 B). Spent once from exactly the Coding scroll-owner slice's budget (#864).
+// own bottom check went (−7 B). After review `.mw-sr-only` is one exported rule the primitives and the IM page share (each stylesheet −24 B). Spent once from exactly the Coding scroll-owner slice's budget (#864).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134824, 1135025],
+  "/assets/molis-work-workbench.js": [1134824, 1135021],
   "/assets/molis-work-plugins/shelf.js": [75673, 75771],
   "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
 };

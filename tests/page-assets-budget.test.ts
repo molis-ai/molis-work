@@ -703,7 +703,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-19 VUX-26 the shared copy and scroll consumers' allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134824, 1135025],
+    "/assets/molis-work-workbench.js": [1134824, 1135021],
     "/assets/molis-work-plugins/shelf.js": [75673, 75771],
     "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
   } as const;

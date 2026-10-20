@@ -7,8 +7,8 @@ import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-stri
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
+import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
-
 // The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
   renderAssistantTextHtml(text, { objects, say, language: codeLanguage, tokens: codeTokens });
@@ -984,7 +984,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   }
 
-  /* 产出 (not the 成果库's 成果): what it produced or changed, each a card that opens it or takes it back; work still running elsewhere after it. */
+  /* 产出: what it made, a fixed version kept in the 成果库 (固定成果) apart from objects their owners keep changing (工作文件); each card opens it or takes it back. */
   const renderResults = (work) => {
     const node = blocks.results;
     if (!node) return;
@@ -999,7 +999,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.dataset.signature = signature;
     keepFocus(node.parentNode, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
+      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o))), fixed = made.filter((_, i) => results[i].subject.kind === ${JSON.stringify(ARTIFACT_SUBJECT_KIND)});
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
@@ -1043,7 +1043,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       // Three groups of one kind (VUX-08): what it made, what it changed and how each stands, what still runs elsewhere; a failure shows folded.
       const list = (block, ...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards, work.work_id + ":" + block + ":" + label)))); return box.children.length ? box : null; };
       const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
-      paintBlock(node, L("产出"), "package", list("results", ["", made]), String(made.length));
+      paintBlock(node, L("产出"), "package", list("results", [L("固定成果"), fixed], [L("工作文件"), made.filter((card) => !fixed.includes(card))]), String(made.length));
       paintBlock(blocks.changes, L("变更"), "edit", list("changes", ["", changes], [L("停止时仍在执行"), stopped], [L("记住的事"), remembered]), failed ? failed + " " + L("项失败") : canUndo ? canUndo + " " + L("项可撤销") : String(changes.length + stopped.length + remembered.length), failed > 0);
       paintBlock(blocks.background, L("后台任务"), "clock", list("background", ["", background]), missed ? missed + " " + L("项没有完成") : running ? running + " " + L("项进行中") : String(jobs.length), missed > 0);
     });

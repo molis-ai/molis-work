@@ -97,3 +97,32 @@ test("VUX-08: a long side group shows five, says how many more, never tucks a fa
   await waitFor(`${block}.textContent.includes('（更新）')`);
   assert.equal((await seen()).length, 9);
 });
+
+// VUX-08 「固定成果、工作文件和过程项分别保留其身份」: what a work made is grouped by what it is. A fixed version kept in the
+// 成果库 (its subject kind is the 成果库's) is a 固定成果; any other object its owner keeps changing is a 工作文件. The two
+// results are added to the view the page reads, in the contract's shape, as a reader would give them.
+test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working objects its owners keep changing", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const id = await seedWork(browser, "把周报定稿");
+  const made = [
+    { relation: "result", subject: { kind: "pages_document", id: "doc-1" }, title: "周报草稿", recorded_revision: "3", current_revision: "3", state: "current", recorded_at: at },
+    { relation: "result", subject: { kind: "artifact", id: "art-1" }, title: "周报 第 2 版", recorded_revision: "2", current_revision: "2", state: "current", recorded_at: at },
+  ];
+  await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
+    const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
+    const view = await response.json();
+    Object.assign(view, { objects: [...(view.objects || []), ...${JSON.stringify(made)}] });
+    return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
+  }; })()`);
+  await openWork(browser, id);
+  const results = `document.querySelector('[data-assistant-block="results"]')`;
+  await waitFor(`${results}?.checkVisibility() && ${results}.querySelectorAll('.assistant-group').length === 2`, 15_000);
+  const groups = await evaluate<Array<[string, string]>>(`[...${results}.querySelectorAll('.assistant-group')].map((g) => [g.querySelector('.assistant-block-sub')?.textContent || '', g.querySelector('.assistant-stack').textContent])`);
+  assert.deepEqual(groups.map(([label]) => label), ["固定成果", "工作文件"], "the fixed version first, each under what it is");
+  assert.match(groups[0]![1], /周报 第 2 版/);
+  assert.doesNotMatch(groups[0]![1], /周报草稿/);
+  assert.match(groups[1]![1], /周报草稿/);
+  assert.equal(await evaluate<string>(`${results}.querySelector('.assistant-block-badge').textContent`), "2", "the summary still counts everything made");
+});

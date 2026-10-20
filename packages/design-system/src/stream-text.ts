@@ -38,6 +38,8 @@ export function freshStart(text: string, from: number, segments?: (text: string)
 /**
  * A piece of fresh text eases in once on the reveal tokens (90 ms, out-cubic): opacity from 0 and a 2 px blur, the lighter
  * of the two compared on the component board (6 px is the upper bound and reads as a smear on CJK). Only `.mw-fresh` may
- * animate `filter`; reduced motion shows it at once.
+ * animate `filter`; reduced motion shows it at once. A reply written while it streamed wraps greedily: `balance` and
+ * `pretty` may move earlier lines as text is added (WebKit lays out the whole paragraph), so they wait for the reply to be
+ * opened again from history.
  */
-export const STREAM_TEXT_STYLES = `.mw-fresh{animation:mw-fresh var(--dur-reveal) var(--ease-reveal) both}@keyframes mw-fresh{from{opacity:0;filter:blur(2px)}}@media (prefers-reduced-motion:reduce){.mw-fresh{animation:none}}`;
+export const STREAM_TEXT_STYLES = `[data-streamed] :is(h1,h2,h3,p,blockquote,li,figcaption){text-wrap:wrap}.mw-fresh{animation:mw-fresh var(--dur-reveal) var(--ease-reveal) both}@keyframes mw-fresh{from{opacity:0;filter:blur(2px)}}@media (prefers-reduced-motion:reduce){.mw-fresh{animation:none}}`;

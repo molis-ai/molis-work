@@ -1,4 +1,4 @@
-import { isKnowledgeOrganize, organizedCard } from "./knowledge-organize.js";
+import { isKnowledgeOrganize, organizedCardFor } from "./knowledge-organize.js";
 
 /** The ending review's answer (D1②) for the claims a test wants it to find: the next step as the ending, a sentence per kind. */
 export function reviewAnswer(claims: readonly string[]): string {
@@ -33,7 +33,7 @@ export function endingReviewReply(raw: string): string | undefined {
  * changed (specs/project-knowledge §5), told apart by its registered instruction (knowledge.organize). Undefined for the round's calls.
  */
 export function asideReply(raw: string): string | undefined {
-  return endingReviewReply(raw) ?? (isKnowledgeOrganize(raw) ? organizedCard : undefined);
+  return endingReviewReply(raw) ?? (isKnowledgeOrganize(raw) ? organizedCardFor(raw) : undefined);
 }
 
 /**

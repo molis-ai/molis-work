@@ -7,13 +7,14 @@ import { CONTINUATION_MARKER } from "./continuation.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
+import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState, sessionTitle } from "./route-activation.js";
+import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
@@ -120,18 +121,23 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
   const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
+  let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
     if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
     if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
-    execution.characters.resolve(character);
+    characterTools = execution.characters.resolve(character).action_tools;
   }
+  const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
+    await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]), characterTools);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
-  const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(a, execution));
+  const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
   if (plan) text_materials.unshift(planMaterial(plan));
   // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
   if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
   if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
+  if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
@@ -165,7 +171,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   let run;
   try { run = await start(history); }
   catch (error) {

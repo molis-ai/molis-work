@@ -1,10 +1,9 @@
 import { shelfAiPorts } from "./shelf-ai.js";
-import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore, shelfErrors } from "@molis-ai/molis-work-module-shelf";
-import type { MolisWorkProjectRuntime } from "./project-host.js";
-import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { retainActionAuthority, type ActionClient, type ActionExecutionContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { importThroughArtifacts } from "./artifact-document-import.js";
+import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest, shelfProjectActions } from "@molis-ai/molis-work-plugin-shelf";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import type { ShelfTextMaterial, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { readMaterialWebsite } from "./material-web.js";
 import { extractMaterial } from "./material-extraction.js";
@@ -41,31 +40,23 @@ export function shelfActionProvider(home: string, materials: ShelfMaterialPorts 
 }
 
 /** Saving a personal copy into a project goes through that project's Artifact store, owned by the confirming caller. */
-export function shelfProjectActionProvider(runtime: MolisWorkProjectRuntime, home: string): ActionProviderRegistration {
-  return { provider: provider(runtime.project_id), definitions: SHELF_PROJECT_ACTIONS, handlers: createShelfProjectActionHandlers(runtime.project_id, {
+export function shelfProjectActionProvider(projectId: string, home: string, client: ActionClient): ActionProviderRegistration {
+  return { provider: provider(projectId), definitions: SHELF_PROJECT_ACTIONS, handlers: createShelfProjectActionHandlers(projectId, {
     readFile: itemId => openShelfStore(home, shelfRuntimeProbe()).readFile(itemId),
-    publish: (payload, actorId) => publishShelfMaterial(runtime.coordinator.processItems, runtime.project_id, actorId, payload),
+    publish: (payload, caller) => saveShelfToProject(client, payload, caller),
   }) };
 }
 
-/** Joins a personal Shelf copy to the project as a process item other plugins read; the confirming caller owns every version. */
-export function publishShelfMaterial(processItems: ProcessItemsApplicationApi, projectId: string, actorId: string, payload: ShelfTextMaterial): { artifact_id: string; version: number } {
-  const artifactId = "shelf-material:" + projectId + ":" + payload.source.item_id;
-  const latest = processItems.query.latestArtifactVersion(projectId, artifactId);
-  if (latest && (latest.owner_actor_id !== actorId || latest.producer_plugin_id !== shelfManifest.plugin_id
-    || latest.producer_binding_signature !== shelfManifest.publisher.signature || latest.artifact_type_id !== SHELF_TEXT_MATERIAL_TYPE)) throw shelfErrors.invalid("项目材料的原归属不一致");
-  // Artifact storage canonicalizes object keys; compare data independently of property order.
-  const same = (a: unknown, b: unknown): boolean => {
-    const ordered = (v: unknown): string => JSON.stringify(v, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
-      ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
-    return ordered(a) === ordered(b);
-  };
-  if (latest && latest.lifecycle_state === "active" && latest.availability === "available" && same(latest.payload, payload)) return { artifact_id: latest.artifact_id, version: latest.version };
-  const version = (latest?.version ?? 0) + 1;
-  const result = processItems.commands.registerVersion({ project_id: projectId, actor_id: actorId, artifact_id: artifactId, version,
-    artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1,
-    producer: { plugin_id: shelfManifest.plugin_id, plugin_version: shelfManifest.version, binding_signature: shelfManifest.publisher.signature },
-    content: { kind: "inline", payload: JSON.parse(JSON.stringify(payload)) }, metadata: { title: payload.title, item_id: payload.source.item_id },
-    scope: "personal", supersedes_version: latest?.version ?? null });
-  return { artifact_id: result.artifact.artifact_id, version: result.artifact.version };
+/**
+ * Saves a personal Shelf copy into the project's knowledge (specs/project-knowledge §9) through the 成果库's own import, as the
+ * confirming caller: an imported document the project's agents find and read like any other, refused where the 成果库 is off,
+ * as the side panel's import is. The Shelf item is its source, so saving it again after it changed is a new version of the same
+ * document, and the same text keeps its version.
+ */
+export async function saveShelfToProject(client: ActionClient, payload: ShelfTextMaterial, caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }> {
+  const name = payload.title.replace(/[\\/\u0000-\u001f]/gu, " ").trim().slice(0, 240) || "Shelf";
+  const nested = retainActionAuthority(caller, { ...shelfProjectActions.saveMaterial, provider_id: shelfManifest.plugin_id });
+  const saved = await importThroughArtifacts(client, nested,
+    { source: "file", filename: `${name}.md`, title: payload.title.slice(0, 500), content: payload.text, source_id: `shelf:${payload.source.item_id}` });
+  return { artifact_id: saved.artifact_id, version: saved.version };
 }

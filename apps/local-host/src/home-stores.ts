@@ -1,7 +1,7 @@
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-functions";
-import { MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
+import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { AGENT_DEFINITIONS_HOME_STORE } from "./agent-definitions/agent-definitions.js";
 import { ALCHEMIST_HOME_STORE } from "./alchemist-paths.js";
 import { ASSISTANT_HOME_STORE } from "./assistant/assistant-store.js";
@@ -31,7 +31,7 @@ export function homeStores(): HomeStoreRegistry {
       CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
-    ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, ...at("feed")),
+    ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, KNOWLEDGE_CARDS_HOME_STORE, ...at("feed")),
     ...owned("server", DISCUSSION_HOME_STORE),
     ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => [
       ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id }] : [],

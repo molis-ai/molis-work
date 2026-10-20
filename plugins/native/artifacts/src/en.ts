@@ -125,6 +125,10 @@ export const ARTIFACT_EN: Record<string, string> = {
   "文件超过 2 MB，请拆分后导入": "The file exceeds 2 MB. Split it into smaller files before importing",
   "文件包含二进制内容，请使用 UTF-8 文本导出": "The file contains binary content. Export it as UTF-8 text",
   "文档标题无效": "Invalid document title",
+  "正文超过 2 MB，只保留了开头部分；原件完整保存。": "The text is over 2 MB, so only its beginning is kept; the original file is saved whole.",
+  "PDF 里只读出了部分文字（扫描页没有文字层）；原件完整保存。": "Only part of the PDF's text could be read (scanned pages have no text layer); the original file is saved whole.",
+  "这份 PDF 没有可读的文字层，只保存了原件。": "This PDF has no readable text layer; only the original file is saved.",
+  "没能读出这个文件的正文，只保存了原件。": "The text of this file could not be read; only the original file is saved.",
   "HTML 已提取为文本快照，复杂排版、图片和附件未导入；原始 HTML 保存在版本数据中。": "HTML was converted to a text snapshot. Complex formatting, images, and attachments were not imported; the original HTML is saved in the version data.",
   "无法读取这个 HTML 文件，请改用 Markdown 或 TXT 导出": "Could not read this HTML file. Export it as Markdown or TXT instead",
   "无法读取连接器凭据，请在连接器设置中重新连接": "Could not read the connector credentials. Reconnect in connector settings",
@@ -168,10 +172,5 @@ export const ARTIFACT_EN: Record<string, string> = {
   // plugins/native/artifacts/src/browser-ui.ts
   "下载原文件": "Download original file",
   "下载正文": "Download text",
-  // plugins/native/artifacts/src/import-ui.ts
-  "导入到成果": "Import into Results",
-  "导入的文件或文档会作为这个项目的一个成果保留下来；原文后续修改不会自动同步。": "An imported file or document is kept as a result of this project; later changes to the original aren't synced automatically.",
-  "账号连接": "Account connection",
-  "管理连接": "Manage connections",
-  "单个文件不超过 6 MB。": "Each file must be 6 MB or smaller.",
+  "在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在侧栏「资料」里导入文件，固定下来的版本都在这里。": "Versions you keep with “Save as fixed version” in Pages, questionnaires, decks or tables, and files imported in the side panel’s Knowledge tab, are all here.",
 };

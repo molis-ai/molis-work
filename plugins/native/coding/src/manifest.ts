@@ -1,12 +1,12 @@
-import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { KNOWLEDGE_READ_PERMISSION, knowledgeActions } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { CODING_GOAL_CONTEXT_TYPE, CODING_PLAN_TYPE } from "./artifacts.js";
 import {
   CODING_CHANGESET_TYPE,
@@ -50,7 +50,8 @@ export const codingManifest: PluginManifest = {
   permissions: [
     { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
-    { permission: "artifact:read", required: true, reason: "读取本项目固定文件、差异、Git 结果、Shelf 材料与已保存的执行报告" },
+    { permission: "artifact:read", required: true, reason: "读取本项目已保存的执行报告、计划与变更集" },
+    { permission: KNOWLEDGE_READ_PERMISSION, required: true, reason: "读取用户为下一轮选定的项目资料" },
     { permission: "storage:private", required: true, reason: "保存编码会话的未发送草稿" },
     {
       permission: "artifact:write",
@@ -67,6 +68,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
+      knowledgeActions.read.capability_id,
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
@@ -82,17 +84,11 @@ export const codingManifest: PluginManifest = {
   },
   process_items: {
     produces: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, CODING_DIAGRAM_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
-    consumes: [CODING_PLAN_TYPE, SHELF_TEXT_MATERIAL_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE, FILE_SNAPSHOT_TYPE, FILE_TEXT_SELECTION_TYPE, DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
+    consumes: [CODING_PLAN_TYPE, CODING_GOAL_CONTEXT_TYPE, CODING_CHANGESET_TYPE].map(artifact_type_id => ({ artifact_type_id, schema_version: 1 })),
   },
   ports: {
-    inputs: [
-      { port: "materials", artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.shelf", port: "material" } },
-      { port: "git-changeset", artifact_type_id: DIFF_CHANGESET_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.git", port: "changeset" } },
-      { port: "git-result", artifact_type_id: GIT_RESULT_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.git", port: "result" } },
-      { port: "before", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.files", port: "before" } },
-      { port: "after", artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.files", port: "after" } },
-      { port: "selection", artifact_type_id: FILE_TEXT_SELECTION_TYPE, schema_version: 1, optional: true, default_source: { plugin_id: "io.molis.work.files", port: "selection" } },
-    ],
+    // What a round takes from elsewhere is picked from project knowledge (specs/project-knowledge §9), not wired in by port.
+    inputs: [],
     outputs: [
       { port: "changeset", artifact_type_id: CODING_CHANGESET_TYPE, schema_version: 1 },
       { port: "report", artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 },
@@ -135,7 +131,6 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.goal-context", method: "GET", path: "/goals/:goalId" },
     { route_id: "coding.read-goal", method: "GET", path: "/sessions/:sessionId/goal" },
     { route_id: "coding.select-goal", method: "PUT", path: "/sessions/:sessionId/goal" },
-    { route_id: "coding.materials", method: "GET", path: "/sessions/:sessionId/materials" },
     { route_id: "coding.read-report", method: "GET", path: "/sessions/:sessionId/runs/:runId/report" },
     { route_id: "coding.save-report", method: "POST", path: "/sessions/:sessionId/runs/:runId/report" },
     { route_id: "coding.report-output", method: "GET", path: "/sessions/:sessionId/runs/:runId/report/output" },

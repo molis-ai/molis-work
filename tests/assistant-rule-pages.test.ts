@@ -50,6 +50,19 @@ test("PG-036: the pages the settings page offers come with the server, each with
   assert.ok((byId.get("jelly") ?? "").length > 0 && byId.get("jelly") !== "jelly", "an installed plugin is listed under the name of its rail entry, not its id");
 });
 
+test("PG-036: a personal plugin with no entry in the workbench rail is not a page a rule can name, since the client never reports it", async t => {
+  const { home, installed, addRule } = await setup(t);
+  const { pages } = await home.web.get<RulePages>("/api/assistant/rules");
+  for (const page of ["shelf", "characters"]) {
+    assert.ok(!pages.some(choice => choice.page_id === page), `${page} is not offered`);
+    await assert.rejects(addRule(quiet([page])), new RegExp(page), `a rule naming ${page} is refused over HTTP`);
+    await assert.rejects(addByAction(home, quiet([page])), new RegExp(page), `a rule naming ${page} is refused as an action`);
+  }
+  assert.ok(pages.every(choice => choice.page_id === "home" || choice.label !== choice.page_id), "every page offered has the name its rail entry shows");
+  assert.ok((await installed()).includes("jelly"), "a personal plugin that has a rail entry is still offered");
+  assert.deepEqual((await home.web.get<RulePages>("/api/assistant/rules")).rules, [], "nothing was kept");
+});
+
 test("PG-036: a page no installed plugin has is refused, over HTTP and as an action, and the refusal lists the pages there are", async t => {
   const { home, addRule } = await setup(t);
   await assert.rejects(addRule(quiet(["no-such-page"])), (error: Error) => /no-such-page/.test(error.message) && /home/.test(error.message));

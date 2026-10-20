@@ -80,7 +80,7 @@ export interface AssistantFollowUpPorts<W extends FollowUpWork> {
   setSetting(key: string, value: string): void;
   rules(): AssistantRule[];
   setRules(rules: readonly AssistantRule[]): void;
-  /** The page ids installed now, read from the catalog when a rule is written (PG-036). Absent: a rule may name any page id. */
+  /** The page ids a rule may name now, read from the catalog when a rule is written (PG-036). */
   pages(): Promise<readonly string[]>;
   /** Absent: no reminders are asked for. */
   homeActions?(): Promise<FollowUpHomeActions>;
@@ -287,7 +287,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     return this.saveRule(input, ruleId);
   }
 
-  /** Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written. */
+  /**
+   * Add or change one of the person's attention rules; checked strictly, since the Host applies them exactly as written.
+   * It does not check that a page the rule names is installed (that needs the catalog, so `addRule` does it): a new entry
+   * point calls `addRule`, and only the tests and `addRule` itself call this.
+   */
   saveRule(input: AssistantRuleInput, ruleId?: string): AssistantRule[] {
     const kinds: readonly AssistantNoticeKind[] = ["failed", "needs-decision", "completed", "result", "material", "reminder"];
     if (!input || !["quiet", "pause"].includes(input.kind)) throw assistantErrors.invalid("规则只能是“在某处不提醒”或“暂停提醒”");

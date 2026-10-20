@@ -1,3 +1,5 @@
+import { isKnowledgeOrganize, organizedCard } from "./knowledge-organize.js";
+
 /** The ending review's answer (D1②) for the claims a test wants it to find: the next step as the ending, a sentence per kind. */
 export function reviewAnswer(claims: readonly string[]): string {
   const sentence = (kind: string) => claims.includes(kind) ? `（${kind} 的原句）` : "";
@@ -31,7 +33,7 @@ export function endingReviewReply(raw: string): string | undefined {
  * changed (specs/project-knowledge §5), told apart by its registered instruction (knowledge.organize). Undefined for the round's calls.
  */
 export function asideReply(raw: string): string | undefined {
-  return endingReviewReply(raw) ?? (raw.includes("你在给项目里的一份资料写卡片") ? JSON.stringify({ title: "测试资料", brief: "测试替身写的卡片。" }) : undefined);
+  return endingReviewReply(raw) ?? (isKnowledgeOrganize(raw) ? organizedCard : undefined);
 }
 
 /**

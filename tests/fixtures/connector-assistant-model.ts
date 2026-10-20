@@ -6,6 +6,7 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { cogniaScriptedResponse } from "./cognia-model-response.js";
 import { endingReviewAnswer } from "./ending-review.js";
+import { isKnowledgeOrganize, organizedCard } from "./knowledge-organize.js";
 
 export type ScriptedCall = { name: string; input: unknown };
 /** A real loopback model transport with deterministic replies; no external account or model is used. */
@@ -13,8 +14,11 @@ export async function scriptedModelServer(t: TestContext, script: (body: Record<
   const requests: Record<string, unknown>[] = [], allRequests: Record<string, unknown>[] = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>; allRequests.push(body);
-    const reviewed = endingReviewAnswer(body, review);
+    const raw = Buffer.concat(chunks).toString("utf8"), body = JSON.parse(raw) as Record<string, unknown>;
+    // The Home's background knowledge cards (specs/project-knowledge §5) are answered aside and kept out of both lists: they are not the assistant's calls.
+    const card = isKnowledgeOrganize(raw) ? organizedCard : undefined;
+    if (card === undefined) allRequests.push(body);
+    const reviewed = card ?? endingReviewAnswer(body, review);
     if (reviewed === undefined) requests.push(body);
     const next = reviewed ?? script(body, requests.length);
     response.writeHead(200, { "content-type": "text/event-stream" });

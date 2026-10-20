@@ -145,7 +145,7 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。库里已有同名对象、库名归了别的插件、发布者不同、版本不同、表被改过，都拒绝，库原样不动；被拒的插件只停它自己，项目与别的插件照常。
 - 版本不就地升级：改表就升 `version`，在 `docs/releases/CHECKLIST.md` §3 改那一行，并按 `docs/releases/POLICY.md` 第 5 节写一次性维护。
 
-现在只有内置的项目级插件生效：宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Schedule）。装进项目的插件写了也还不建表，插件在运行时读写项目库的服务（L2）还没有。
+现在只有内置的项目级插件生效：宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）。装进项目的插件写了也还不建表，插件在运行时读写项目库的服务（L2）还没有。
 
 ## Runtime 流式路由
 

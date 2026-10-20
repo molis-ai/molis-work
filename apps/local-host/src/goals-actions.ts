@@ -1,6 +1,4 @@
 import { isBuiltinPluginCaller } from "./builtin-plugin-callers.js";
-// Transitional: the project library's baseline takes Goals' declared tables from here, so no other Host file names the Goals package for it.
-export { GOALS_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import { createGoalsActionHandlers, goalsManifest, goalsActions, GOALS_ACTION_PERMISSIONS, GOALS_PLUGIN_ID, hostEventDecisionAuthority, managementEventDecisionAuthority, managementTreeAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, bindActionClient, pinActionSubject, pinnableSubjectKinds, type ActionProviderRegistration, type ActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";

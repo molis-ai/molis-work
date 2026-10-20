@@ -41,7 +41,6 @@ function createContract(databasePath: string, projectId: string, goalId: string)
   const coordinator = new GoalProjectApplication(store);
   coordinator.initializeBoard({
     project_id: projectId,
-    title: "Handoff 项目",
     actor_id: "owner",
     idempotency_key: `${projectId}-init`,
   });
@@ -441,7 +440,7 @@ test("event-work handoff package uses current facts and does not force Proposal 
   const projectId = "project-handoff-event";
   const store = new LocalProjectDatabase(path.join(directory, "board.db"));
   const coordinator = new GoalProjectApplication(store);
-  coordinator.initializeBoard({ project_id: projectId, title: "Event Handoff", actor_id: "owner", idempotency_key: `${projectId}-init` });
+  coordinator.initializeBoard({ project_id: projectId, actor_id: "owner", idempotency_key: `${projectId}-init` });
   const created = coordinator.goalEvents.createIntent({
     project_id: projectId, title: "事件交接目标", outcome: "按当前差距继续",
     actor_id: "owner", actor_kind: "user", idempotency_key: "event-handoff-intent",

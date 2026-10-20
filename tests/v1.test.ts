@@ -15,7 +15,6 @@ function fixture(start = "2026-08-15T00:00:00.000Z") {
   const coordinator = new GoalProjectApplication(store, () => now);
   coordinator.initializeBoard({
     project_id: "board-1",
-    title: "产品目标",
     actor_id: "user-1",
     idempotency_key: "board-create",
   });
@@ -114,7 +113,7 @@ test("fresh SQLite authority creates a usable board and reopens idempotently", (
 
   const reopened = new LocalProjectDatabase(path);
   assert.equal(reopened.db.pragma("user_version", { simple: true }), PROJECT_DATABASE_BASELINE.version);
-  assert.equal(reopened.snapshot("board-1").board.title, "产品目标");
+  assert.equal(reopened.snapshot("board-1").board.project_id, "board-1");
   reopened.close();
 });
 

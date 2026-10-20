@@ -205,14 +205,14 @@ test("the management MCP's event_decide records the person on this machine and h
 });
 
 /** docs/mcp.md says so: `initialize` is the one management tool that does not refuse an identity field, it does not read one. */
-test("the management MCP's initialize reads only project_id, title and idempotency_key: an identity in its arguments is ignored, not read", async () => {
+test("the management MCP's initialize reads only project_id and idempotency_key: an identity in its arguments is ignored, not read", async () => {
   const home = await mkdtemp(join(tmpdir(), "management-door-initialize-"));
   const databasePath = join(home, "project.db"), project_id = "project/initialize";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const call = async (extra: Record<string, unknown>) => JSON.parse(await management.callTool("molis_work_v1_initialize",
-      { database_path: databasePath, project_id, title: "身份", idempotency_key: "init", ...extra })) as { replayed: boolean };
+      { database_path: databasePath, project_id, idempotency_key: "init", ...extra })) as { replayed: boolean };
     assert.equal((await call({ actor_id: "someone-else", actor_kind: "runtime" })).replayed, false, "a forged identity does not stop the call");
     // The same operation of the same person replays whatever identity fields ride along: had one been read, it would be someone else's request.
     for (const identity of IDENTITY_FIELDS) assert.equal((await call(identity)).replayed, true, `ignores ${Object.keys(identity).join(" and ")}`);
@@ -230,7 +230,7 @@ test("a management tool call is one operation: its single Goals action leaves a 
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const reply = await management.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-      arguments: { database_path: databasePath, project_id, title: "编号", idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
+      arguments: { database_path: databasePath, project_id, idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
     assert.equal(reply.result.isError, false, JSON.stringify(reply));
     const id = String(reply.result._meta?.["molis-work/callId"]);
     assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);

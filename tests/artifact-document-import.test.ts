@@ -220,7 +220,7 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
   const { coordinator, get } = await fixture(t);
-  coordinator.initializeBoard({ project_id: "other-project", title: "Other project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
+  coordinator.initializeBoard({ project_id: "other-project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
     title: "来源文档", content: "第一次读取的正文", format: "markdown", warnings: [],

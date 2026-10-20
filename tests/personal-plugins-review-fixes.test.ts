@@ -262,7 +262,6 @@ test("catalog 路径 Promote 不发 Artifact；注入口之后 MCP 与 HTTP 同�
       const coordinator = new GoalProjectApplication(project);
       coordinator.initializeBoard({
         project_id: DEMO_PROJECT_ID,
-        title: "复查",
         actor_id: "web-user",
         idempotency_key: "review-fixes-board",
       });

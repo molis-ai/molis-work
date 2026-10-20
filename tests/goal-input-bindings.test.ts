@@ -8,10 +8,18 @@ import { GoalInputBindings } from "@molis-ai/molis-work-module-goals";
 import { GOALS_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalInputBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
-// The tables are the ones Goals declares for a project's library; the rows only fill their required columns.
+// The tables are the ones Goals declares for a project's library; the rows only fill their required columns. The board is keyed to the
+// project's root row, which the platform's baseline makes (PLIB-13), so a project's root goes in before its board.
+function createLibrary(db: Database.Database): void {
+  db.exec(PROJECT_ROOT_SCHEMA_SQL);
+  db.exec(GOALS_PROJECT_DATABASE.schema);
+}
+
 function insertBoard(db: Database.Database, projectId: string): void {
-  db.prepare("INSERT INTO boards (project_id, title, created_at, updated_at) VALUES (?, 'Project', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run(projectId);
+  writeProjectRoot(db, projectId, "2026-09-01T00:00:00Z");
+  db.prepare("INSERT INTO boards (project_id, created_at, updated_at) VALUES (?, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run(projectId);
 }
 
 function insertGoal(db: Database.Database, goalId: string, projectId: string): void {
@@ -23,7 +31,7 @@ function insertGoal(db: Database.Database, goalId: string, projectId: string): v
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec(GOALS_PROJECT_DATABASE.schema);
+  createLibrary(db);
   insertBoard(db, "project-a");
   insertBoard(db, "project-b");
   insertGoal(db, "goal-a", "project-a");
@@ -56,7 +64,7 @@ const feedReceipt: GoalInputBindingRecord = {
 };
 
 function seedGoal(db: Database.Database): void {
-  db.exec(GOALS_PROJECT_DATABASE.schema);
+  createLibrary(db);
   insertBoard(db, "project-a");
   insertGoal(db, "goal-a", "project-a");
 }

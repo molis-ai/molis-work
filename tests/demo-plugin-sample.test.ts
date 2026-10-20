@@ -134,7 +134,6 @@ test("plugin samples are written under the project id they are given", async () 
     try {
       new GoalProjectApplication(store).initializeBoard({
         project_id: "goalboard-v1-demo",
-        title: "Molis Work 示例项目",
         actor_id: "demo-user",
         idempotency_key: "demo-old-board",
       });

@@ -140,7 +140,7 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
   const { coordinator, get, surface, direct } = await fixture(t);
   coordinator.artifacts.commands.registerVersion(registration());
-  coordinator.initializeBoard({ project_id: "other-project", title: "Private project", actor_id: "owner", idempotency_key: "other-project" });
+  coordinator.initializeBoard({ project_id: "other-project", actor_id: "owner", idempotency_key: "other-project" });
   coordinator.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
   for (const path of [exactPath(2), "/artifacts/missing/versions/1", "/artifacts/other-only/versions/1"]) {
     // Opened directly, the workbench opens on that version and says it is missing there.

@@ -123,7 +123,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
     ${CODING_SETTINGS_CLIENT_SCRIPT}
     (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
-      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
+      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
     (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });

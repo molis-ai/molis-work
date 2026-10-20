@@ -1,5 +1,6 @@
 // The Goals tables in a project's library, as the statements GOALS_PROJECT_DATABASE (./project-database.ts) declares in the Manifest.
-// Moved here whole from modules/goals (S8, PG-020): the text of each statement is as it was, so the library's shape is unchanged.
+// Moved here from modules/goals (S8, PG-020). The statements are as they were in the project library's baseline, except `boards`: it lost
+// its `title` (the Catalog owns the project's name) and its `project_id` points at the library's `project_root` row.
 
 /** The Goal tree: Goals, criteria, relations, trash, policy bindings, project guidance. */
 export const GOALS_TABLES_SQL = `
@@ -157,11 +158,13 @@ export const GOALS_TABLES_SQL = `
   );
 `;
 
-/** Board identity and current Goal pointer owned by Goals. */
+/**
+ * The board that names a project's current Goal, owned by Goals. The project is the library's `project_root` row, so the board points at
+ * it and goes with it; the project's name is the Catalog's, never kept here.
+ */
 export const GOALS_BOARDS_SQL = `
         CREATE TABLE boards (
-          project_id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
+          project_id TEXT PRIMARY KEY REFERENCES project_root(project_id) ON DELETE CASCADE,
           active_goal_id TEXT,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL

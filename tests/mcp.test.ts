@@ -157,7 +157,7 @@ it("a management call that names no database fails instead of using a path under
       // `initialize` is the call that would have created the default path.
       for (const named of [{}, { database_path: "" }, { database_path: "  " }, { database_path: 5 }]) {
         await assert.rejects(
-          () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", title: "无默认库", idempotency_key: "k", ...named }),
+          () => management.callTool("molis_work_v1_initialize", { project_id: "no-default", idempotency_key: "k", ...named }),
           (error: unknown) => error instanceof ActionError && error.code === "mcp.path_required",
           JSON.stringify(named),
         );
@@ -189,7 +189,7 @@ it("a management call takes its database from database_path before MOLIS_WORK_DA
     const management = new MolisWorkServer("management", null, null, host);
     try {
       const created = JSON.parse(await management.callTool("molis_work_v1_initialize",
-        { database_path: fromArgument, project_id: "project/argument-first", title: "参数优先", idempotency_key: "argument-first" })) as { project_id: string; replayed: boolean };
+        { database_path: fromArgument, project_id: "project/argument-first", idempotency_key: "argument-first" })) as { project_id: string; replayed: boolean };
       assert.deepEqual([created.project_id, created.replayed], ["project/argument-first", false]);
       assert.equal(fs.existsSync(fromArgument), true, "the named database was created");
       assert.equal(fs.existsSync(fromEnvironment), false, "the environment variable's path was left alone");

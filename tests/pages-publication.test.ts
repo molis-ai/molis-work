@@ -17,7 +17,7 @@ async function fixture(t: any) {
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "p" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "p", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "p", title: "Publication", actor_id: "owner", idempotency_key: "init" }));
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: "p", actor_id: "owner", idempotency_key: "init" }));
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   return { home, host, ref, caller, client, bound };
 }

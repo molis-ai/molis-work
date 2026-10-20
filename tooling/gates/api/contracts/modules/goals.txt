@@ -1166,7 +1166,6 @@ export interface GoalsApplicationApi {
 
 export interface GoalsBoardRecord {
     project_id: string;
-    title: string;
     active_goal_id: string | null;
     created_at: string;
     updated_at: string;
@@ -1190,7 +1189,6 @@ export interface GoalsCommandApi {
     }>;
     initializeBoard(input: {
         project_id: string;
-        title: string;
         actor_id: string;
         idempotency_key: string;
     }): {

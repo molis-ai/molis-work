@@ -72,7 +72,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal((await request(base+'/project-results')).body.results.length,1);
   refused(await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2'),'coding.shelf_material_invalid');
   refused(await request(path+'?artifact_id=unknown&version=1'),'shelf.unavailable');
-  app.initializeBoard({project_id:'foreign',title:'Other',actor_id:'web-user',idempotency_key:'other'});
+  app.initializeBoard({project_id:'foreign',actor_id:'web-user',idempotency_key:'other'});
   const foreign={...input,project_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
   app.artifacts.commands.registerVersion(foreign);
   refused(await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1'),'shelf.unavailable');

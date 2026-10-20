@@ -16,7 +16,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-event-write-rules-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "写入规则", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
   return { directory, store, app };
 }
 

@@ -175,7 +175,7 @@
 
 **目标资料库（Goals 根记录）**
 
-- 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录项目标题和当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，`modules/goals/src/schema.ts:159`；记录类型 `GoalsBoardRecord`，`packages/contracts/src/modules/goals.ts:380`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
+- 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，外键指项目库的 `project_root`，由 Goals 的 Manifest 声明：`plugins/native/goals/src/project-database-goals.ts` 的 `GOALS_BOARDS_SQL`；记录类型 `GoalsBoardRecord`，`packages/contracts/src/modules/goals.ts`）。它不记项目的名字（S8 起没有 `title` 列，名字的主人是项目目录的 `display_name`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
 - 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/board-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`modules/goals/src/command-support.ts:32`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
 - 文档写「目标资料库」（与界面同名）；代码里仍叫 Board，改名见 R-A1。
 

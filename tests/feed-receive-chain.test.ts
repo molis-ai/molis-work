@@ -499,6 +499,6 @@ test("Listener Host's run ledger keeps no foreign key into the Sources table", (
   const store = new LocalProjectDatabase(join(directory, "project.sqlite"));
   try {
     const references = (store.db.prepare("SELECT \"table\" FROM pragma_foreign_key_list('feed_source_runs')").all() as Array<{ table: string }>).map(row => row.table);
-    assert.deepEqual([...new Set(references)], ["boards"]);
+    assert.deepEqual([...new Set(references)], ["project_root"]);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });

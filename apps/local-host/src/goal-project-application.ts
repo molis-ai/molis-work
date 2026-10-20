@@ -203,12 +203,12 @@ export class GoalProjectApplication {
 
   /**
    * A new project's first records: the library's root row, then Goals' board, in one transaction; a project that has its root row
-   * keeps it. 2026-10-18 改: the Host makes Goals' board here because Goals is still composed with the project (privileges.md, PG-021);
-   * once Goals is installed like any plugin (S9), the project is made with its root row alone.
+   * keeps it. The tables are Goals' own (its Manifest declares them, S8) and the platform made them when the library opened;
+   * 2026-10-18 改: the Host still writes Goals' board here because Goals is composed with the project (privileges.md, PG-021).
+   * Once Goals is installed like any plugin (S9), the project is made with its root row alone.
    */
   initializeBoard(input: {
     project_id: string;
-    title: string;
     actor_id: string;
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {

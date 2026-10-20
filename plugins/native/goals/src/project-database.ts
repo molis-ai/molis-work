@@ -7,9 +7,9 @@ import { GOALS_GOVERNANCE_SQL } from "./project-database-governance.js";
 /**
  * Goals' own tables in a project's library, declared in the Manifest (`databases.project`, PG-020) like any plugin's: the Goal tree,
  * the board that names its current Goal, input receipts, event work's facts and state, and the proposals and decisions Governance
- * keeps beside them. The text of every statement is what the project library's baseline has always carried (version 7), in the same
- * order, so a library made from this declaration has the shape the baseline gives it; the Host's baseline composes this schema for
- * now, and the statements leave it when the platform opens the declaration in each project's library (S8, specs/plugin-project-database).
+ * keeps beside them. The project library's baseline no longer carries them: the platform makes them the first time a library opens with
+ * Goals and records them in `plugin_project_databases`; a changed shape stops Goals alone. The board points at the library's
+ * `project_root` row and keeps no project name; every other table here points at the board.
  * `modules/goals` and `modules/governance-collaboration` still read and write these tables with their own SQL until Goals' storage
  * moves into the plugin (S9); `tooling/gates/table-owners.json` lists them as users.
  */

@@ -1,0 +1,126 @@
+import { pluginActions } from "./fixtures/plugin-actions.js";
+import assert from "node:assert/strict";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
+import test, { type TestContext } from "node:test";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
+import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
+import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
+import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
+
+/**
+ * PLIB-14 (S8; specs/plugin-project-database/spec.md §2.3 and §2.4): Goals' tables in a project's library are Goals' own, declared in
+ * its Manifest and opened by the platform like Coding's, Feed's and Schedule's. When they no longer match Goals' ledger row (another
+ * publisher, another version, a changed shape), Goals alone is refused: its actions are not in the project's directory and a call to one
+ * is refused, the refusal the platform recorded is the one the library keeps, and the library itself opens, with the other plugins
+ * working as usual. Nothing in it is repaired, recreated or recorded anew. Each case changes Goals' row or table in a one-off Home,
+ * the way a different build or a hand edit would.
+ */
+const OTHERS = [CODING_PLUGIN_ID, FEED_PLUGIN_ID, SCHEDULE_PLUGIN_ID];
+/** The directory lists only what the caller may call, so the person asking holds what these plugins' actions need. */
+const PERMISSIONS = [...new Set([...CODING_ACTIONS, ...FEED_ITEM_ACTIONS, ...FEED_SOURCE_ACTIONS, ...SCHEDULE_ACTIONS].flatMap(definition => definition.action.permissions)), "goals:read", "goals:write"];
+
+async function scratch(t: TestContext): Promise<string> {
+  const directory = await mkdtemp(join(tmpdir(), "molis-goals-database-refusal-"));
+  t.after(() => rm(directory, { recursive: true, force: true }));
+  return directory;
+}
+
+function withDatabase<T>(path: string, run: (db: DatabaseSync) => T): T {
+  const db = new DatabaseSync(path);
+  try { return run(db); } finally { db.close(); }
+}
+
+/** What a refusal must leave as it was: the ledger, the objects and the structure of every table, and every row of the project's root and board. */
+const library = (path: string) => withDatabase(path, db => ({
+  ledger: db.prepare("SELECT * FROM plugin_project_databases ORDER BY plugin_id").all().map(row => JSON.stringify(row)),
+  master: db.prepare("SELECT type, name, sql FROM sqlite_master ORDER BY type, name").all().map(row => JSON.stringify(row)),
+  shape: describeSqliteSchema(db),
+  rows: ["project_root", "boards", "goals", "events"].map(table => db.prepare(`SELECT * FROM ${table}`).all().map(row => JSON.stringify(row))),
+}));
+
+/** A Home with one project, made by this build: its library has the four plugins' tables and ledger rows. */
+async function project(directory: string) {
+  const home = join(directory, "home");
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  try {
+    const made = await catalog.createProject({ display_name: "拒绝只停 Goals", actor_id: "test-user" });
+    return { home, projectId: made.project_id, databasePath: made.database_path };
+  } finally { catalog.close(); }
+}
+
+/** The plugins whose actions the project's directory lists, as the person's pages would ask for them, and what a call to a Goals action does. */
+async function directory(home: string, projectId: string, databasePath: string): Promise<{ plugins: Set<string>; goalsCall: { code?: string } | "answered" }> {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  try {
+    const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", audience: "user", project_id: projectId, permissions: PERMISSIONS };
+    const client = host.actionClient(molisWorkHostProjectReference({ projectId, databasePath }));
+    const providers = (await client.discover(caller)).map(row => row.provider.plugin_id ?? "");
+    let goalsCall: { code?: string } | "answered" = "answered";
+    try { await client.invoke(caller, goalsActions.snapshot, {}); } catch (error) { goalsCall = { code: (error as { code?: string }).code }; }
+    return { plugins: new Set(providers.filter(id => id === GOALS_PLUGIN_ID || OTHERS.includes(id))), goalsCall };
+  } finally { await host.close(); }
+}
+
+/** The Coding panel of the project's page, from the library as the Host opens it. */
+async function codingPanel(databasePath: string, projectId: string): Promise<string> {
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const surface = await codingDirectoryPanel({ store, projectId, actions: pluginActions(store, projectId), actorId: "web-user", goalTitle: () => undefined,
+      escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
+    await releaseCodingSurface(store, projectId);
+    return surface?.panel ?? "";
+  } finally { store.close(); }
+}
+
+test("PLIB-14: a library this build made opens Goals' tables from its declaration, and Goals' actions are in the directory with the others'", async t => {
+  const { home, projectId, databasePath } = await project(await scratch(t));
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
+    assert.ok(outcome && "record" in outcome, "Goals' tables were opened, not refused");
+    assert.equal(outcome.record.store_name, "goals");
+    assert.equal(outcome.record.version, 1);
+  } finally { store.close(); }
+  const open = await directory(home, projectId, databasePath);
+  assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
+  assert.equal(open.goalsCall, "answered");
+});
+
+const cases = [
+  { change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.version_mismatch" },
+  { change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${GOALS_PLUGIN_ID}'`, code: "plugin.project_database.publisher_mismatch" },
+  { change: "one of its tables gained a column", sql: "ALTER TABLE goals ADD COLUMN added_by_hand TEXT", code: "plugin.project_database.shape_mismatch" },
+  { change: "its board has the name column version 7 gave it", sql: "ALTER TABLE boards ADD COLUMN title TEXT", code: "plugin.project_database.shape_mismatch" },
+];
+
+for (const { change, sql, code } of cases) {
+  test(`PLIB-14: when ${change}, only Goals is refused with ${code}, the library opens and the other plugins work`, async t => {
+    const { home, projectId, databasePath } = await project(await scratch(t));
+    withDatabase(databasePath, db => { db.exec(sql); });
+    const before = library(databasePath);
+
+    const store = new LocalProjectDatabase(databasePath);
+    try {
+      const outcome = store.pluginDatabases.get(GOALS_PLUGIN_ID);
+      assert.ok(outcome && "error" in outcome, "Goals' open is refused");
+      assert.equal((outcome.error as { code?: string }).code, code, "and the code the platform recorded is the one it keeps");
+      for (const other of OTHERS) assert.ok("record" in store.pluginDatabases.get(other)!, `${other} was opened as usual`);
+      assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM project_root").get()?.n, 1, "the library itself opens, the project's root in it");
+    } finally { store.close(); }
+
+    const open = await directory(home, projectId, databasePath);
+    assert.equal(open.plugins.has(GOALS_PLUGIN_ID), false, "Goals' actions are not in the directory");
+    assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
+    assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
+    assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
+
+    assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
+  });
+}

@@ -125,7 +125,6 @@ test("合法旧库映射按目录项目发布到原来的 board，不会把 boar
     const coordinator = new GoalProjectApplication(database);
     coordinator.initializeBoard({
       project_id: "legacy-board",
-      title: "旧库",
       actor_id: "test",
       idempotency_key: "pages-legacy-board",
     });

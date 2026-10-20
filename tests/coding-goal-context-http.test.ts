@@ -99,7 +99,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   const readGoal = (goal_id: string) => readGoalSnapshot(goalActions, goal_id);
   const createGoal = (id: string, board = DEMO_PROJECT_ID, outcome = "固定原始目标🌲\r\n只评审，不写磁盘") => host.withProject(ref, ({ coordinator }) => coordinator.goalEvents.createIntent({ project_id: board, goal_id: id, title: `目标 ${id}`, outcome, why: "保留原始依据", business_logic: "先评审再决定", actor_id: "web-user", actor_kind: "user", idempotency_key: `create-${id}`, requirements: [{ requirement_id: `human-${id}`, statement: "用户确认评审结果", human_decision_required: true }] }));
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
-  await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", title: "Other", actor_id: "web-user", idempotency_key: "other" }));
+  await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
   const server = createServer((request, response) => { void host.withProject(ref, async ({ store, coordinator }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },

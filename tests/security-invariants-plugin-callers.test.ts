@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
@@ -366,4 +366,68 @@ test("PG110-16 S-15 S-18 a plugin's call to an action of its own answers to the 
   // The control: the same path with a current caller writes.
   assert.equal(await client.invoke(person([READ]), plugin.relay, { text: "current" }), "stored", "a current caller's call writes through the same path");
   assert.equal(state.stored, "current");
+});
+
+
+test("PG110-17 S-15 plugin callbacks cannot acquire an upstream Host-issued caller, and their own SDK still works", async t => {
+  const receiver = consumer("callerreceiver", "home", "required"), { peek } = probeActions("home"), seen = new Set<string>();
+  const accept: ActionDefinition<Record<string, never>, string | null> = { ...peek, capability_id: `${receiver.id}.accept`, operation: "command",
+    action: { ...peek.action, title: "接受调用", kind: "operation", scheduling: "concurrent" } };
+  const sender = callerPlugin("callersender", "home", { [WRITE]: true }, [accept.capability_id]);
+  const scene: ActionSceneDefinition = { scene_id: `${receiver.id}.scene`, version: 1, title: "身份场景", description: "检查各回调的身份视图", trigger: "manual",
+    scope: "home", subject_kinds: [], input_schema: { type: "object" }, result_schema: { type: "boolean" }, event_schema: { type: "object" },
+    permissions: [READ], configuration_permissions: [READ] };
+  const judge: ActionDefinition = { capability_id: "callers.identity.judge", version: 1, operation: "command", action: { ...peek.action,
+    title: "身份判断", kind: "judgment", input_schema: scene.input_schema, output_schema: scene.result_schema } };
+  const binding: ActionSceneBinding = { binding_id: "identity", scene_id: scene.scene_id, scene_version: 1, project_id: null,
+    function: { capability_id: judge.capability_id, version: 1, provider_id: "identity-judgment" }, enabled: true, title: "Identity", revision: "1" };
+  const check = (name: string, caller: ActionCallContext) => {
+    assert.equal(Object.hasOwn(caller, "host_plugin"), false, `${name}: no issued identity property reaches plugin code`);
+    assert.equal(caller.host_plugin, undefined, `${name}: the upstream identity is unavailable`);
+    seen.add(name);
+  };
+  let fail = false;
+  const base = receiver.definition;
+  receiver.definition = { ...base, manifest: { ...base.manifest, actions: [accept], action_scenes: [scene] }, async start(context) {
+    await base.start(context);
+    return { kind: "app", actions: [{ ...accept,
+      availability: caller => { check("action availability", caller); return { available: true }; },
+      async handle(caller) {
+        check("action", caller); await caller.beforeEffect();
+        context.services!.storage!.set("accepted", "yes");
+        return context.services!.actions!.invoke(peek, {});
+      },
+    }], action_scenes: [{ ...scene,
+      bindings: caller => { check("bindings", caller); return [binding]; },
+      targets: caller => { check("targets", caller); return [{ binding_id: binding.binding_id, title: binding.title, revision: "1" }]; },
+      prepare: (caller, event) => { check("prepare", caller); return { input: event }; },
+      availability: caller => { check("scene availability", caller); return { available: true }; },
+      configuration_availability: caller => { check("configuration availability", caller); return { available: true }; },
+      bind: async caller => { check("bind", caller); await caller.beforeEffect(); context.services!.storage!.set("bound", "yes"); },
+      consume: async caller => { check("consume", caller); await caller.beforeEffect(); return context.services!.actions!.invoke(peek, {}); },
+      failed: async (caller, _input, error) => { check("failed", caller); assert.match(String(error), /identity judgment failed/u); await caller.beforeEffect(); },
+    }] };
+  } };
+  const { host, probe } = await homeSetup(t, [sender, receiver]);
+  const original = await issuedCaller(probe, sender);
+  host.actionRegistry().registerProvider({ provider: { provider_id: "identity-judgment", title: "Identity judgment", kind: "system" },
+    definitions: [judge], handlers: [{ ...judge, handle: caller => {
+      assert.equal(caller.host_plugin, original, "the Host retains the real upstream identity for authorization");
+      if (fail) throw new Error("identity judgment failed");
+      return true;
+    } }] });
+  assert.equal(await sender.actions().invoke(accept, {}), null, "A reaches B, and B reaches its declared Host query");
+  assert.equal(receiver.context().services!.storage!.get("accepted"), "yes");
+  assert.equal(probe.state.callers.at(-1)!.plugin_id, receiver.id, "B's SDK uses B's own issued identity");
+  const caller = callAs(original, [READ]), scenes = host.sceneClient();
+  const offered = (await scenes.discoverScenes(caller)).find(value => value.definition.scene_id === scene.scene_id)!;
+  await scenes.targets(caller, undefined, { scene_id: scene.scene_id, scene_version: 1, provider_id: offered.provider.provider_id });
+  await scenes.bind(caller, binding, { provider_id: offered.provider.provider_id, expected_revision: "1" });
+  assert.equal(receiver.context().services!.storage!.get("bound"), "yes");
+  await scenes.runScene(caller, scene, binding.binding_id, {});
+  assert.equal(probe.state.callers.at(-1)!.plugin_id, receiver.id, "the scene's own SDK also uses B's identity");
+  fail = true;
+  assert.equal(await scenes.runScene(caller, scene, binding.binding_id, {}), undefined, "the failed consumer handles the judgment error");
+  assert.deepEqual([...seen].sort(), ["action", "action availability", "bindings", "targets", "prepare", "scene availability",
+    "configuration availability", "bind", "consume", "failed"].sort());
 });

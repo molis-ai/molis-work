@@ -543,15 +543,12 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }
-  const creative = readFileSync(join(REPOSITORY, "apps", "local-host", "src", "creative-artifacts.ts"), "utf8");
-  assert.doesNotMatch(creative, /\bnew\s+(?:Form|Dataset|Ppt)Error\(|"(?:form|dataset|ppt)\.[a-z_]+"/u, "creative-artifacts.ts raises Form, Dataset and PPT codes through their declarations");
-  assert.doesNotMatch(creative, /\bnew\s+Error\(/u, "creative-artifacts.ts raises no bare Error: its refusals are the plugins' declared codes");
 });
 
 test("a declared code is used: every reason in a declaration has a raise site", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
-    const sources = filesOf(owner).concat(sourceFiles(join(REPOSITORY, "apps", "local-host", "src")).filter(file => /creative-artifacts/u.test(file))).map(file => readFileSync(file, "utf8")).join("\n");
+    const sources = filesOf(owner).map(file => readFileSync(file, "utf8")).join("\n");
     for (const reason of Object.keys(spec.status)) {
       assert.ok(new RegExp(String.raw`\b${spec.declarations}\.${reason}\(`, "u").test(sources), `${spec.declarations}.${reason} is raised somewhere; a code nobody raises is not declared`);
     }

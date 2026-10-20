@@ -72,6 +72,8 @@ const scratchRoot = (...files: string[]) => {
 after(() => { for (const dir of scratch) rmSync(dir, { recursive: true, force: true }); });
 
 // ---- the real gate -----------------------------------------------------------------------------------------------------
+// RAC-44, RAC-55: the action-snapshot part of Cognia's Home Runtime move (its business actions keep id, version and schema),
+// and the replay of the existing contracts after the background-execution prerequisite.
 test("the committed snapshot is what the built-in Manifests and the Host's action directory generate", () => {
   const result = checkActionSnapshots({ root, manifests: product.manifests, effectOf: product.effectOf, hostViews: product.hostViews, hostScenes: product.hostScenes });
   assert.deepEqual(result.problems, [], "Refresh on purpose with `pnpm actions:update` and say in the PR what the change means for callers (docs/system/CONTRACT-CHANGES.md)");

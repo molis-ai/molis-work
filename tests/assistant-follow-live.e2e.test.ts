@@ -3,7 +3,7 @@ import test from "node:test";
 import { createServer } from "node:http";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
 /** One streamed model turn of plain text. */
 function turn(text: string): string {
@@ -30,7 +30,7 @@ test("the Assistant's panel follows a running work by waiting for it to change, 
   const model = createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     if (turns++ === 0) { asked.resolve(); await answered.promise; }
     res.writeHead(200, { "content-type": "text/event-stream" });

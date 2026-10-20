@@ -1,6 +1,6 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
+import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
 import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
@@ -11,11 +11,11 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
   ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
-  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT,
+  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE,
 ];
 
 /**
- * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
+ * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Plugin Builder's designer and code Agents), with the
  * owner their runs resolve under. Registered so the person can see and edit them like every other prompt.
  */
 export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; prompt: AgentPromptRegistration }> = [

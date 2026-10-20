@@ -12,6 +12,7 @@ import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/ai-interaction-experience S1 (AC-26): 「AI 生成题目」 first asks what it needs to know when the request does not say,
 // keeps those questions, checks the person's answer against them, and drafts with the answer; a call that went wrong writes nothing.
+// AC-09: Forms is not an Agent; these are its structured way of going on from the person's answer.
 
 const ASK = { status: "needs_input", why: "先确认问卷给谁填、要几题", questions: [
   { id: "audience", prompt: "给谁填？", options: [{ label: "内部同事", description: "可以用内部说法", recommended: true }, { label: "外部客户" }], allow_other: true },
@@ -39,7 +40,7 @@ async function fixture(t: import("node:test").TestContext, replies: unknown[]) {
   return { forms, form, heard, call: (input: Record<string, unknown>) => draft.handle(caller, { id: form.id, prompt: "做一份试用反馈问卷", ...input }) as Promise<Drafted> };
 }
 
-test("AC-26 a request that does not say enough is asked about first, in questions the shared card draws", async t => {
+test("AC-09 AC-26 a request that does not say enough is asked about first, in questions the shared card draws", async t => {
   const f = await fixture(t, [ASK]);
   const asked = await f.call({});
   assert.equal(asked.status, "needs_input");
@@ -50,7 +51,7 @@ test("AC-26 a request that does not say enough is asked about first, in question
   assert.equal(f.forms.get(f.form.id, "p").questions.length, 0, "asking writes nothing");
 });
 
-test("AC-26 the answer is checked against the questions asked, each field on its own, and then drafting goes on with it", async t => {
+test("AC-09 AC-26 the answer is checked against the questions asked, each field on its own, and then drafting goes on with it", async t => {
   const f = await fixture(t, [ASK, DONE]);
   const { interaction } = await f.call({});
   await assert.rejects(f.call({ interaction: { interaction_id: interaction.interaction_id, values: { q0: { picked: ["0"] }, q1: [] } } }), (error: { code?: string; details?: { problems?: unknown } }) =>

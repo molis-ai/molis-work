@@ -22,7 +22,8 @@ const ASKED = { why: "约下周的复盘会", questions: [
 
 type Tool = { name: string; input_schema: { properties: { questions: { items: { properties: Record<string, { enum?: string[] }> } } } } };
 
-test("AC-27-1 AC-27-3 AC-27-5 AC-27-6: the model is offered the six types, and the card's values reach the run as the Runtime checks them", { timeout: 30_000 }, async t => {
+// AC-11 (the Molis adapter): the Host hands the Runtime its question types and reads the values back as the Runtime checks them.
+test("AC-11 AC-27-1 AC-27-3 AC-27-5 AC-27-6: the model is offered the six types, and the card's values reach the run as the Runtime checks them", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-question-types-"));
   const bodies: Array<{ tools?: Tool[]; messages?: unknown }> = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {

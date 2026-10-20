@@ -1,10 +1,12 @@
 import type { Context, Hono } from "hono";
-import { streamSSE } from "hono/streaming";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions, type AlchemistOperationName } from "../../shared/contracts/actions.js";
 import { AlchemistOperationError, type AlchemistActionInvoker } from "../services/action-operations.js";
 
-/** Transport mappings only. All business checks and side effects are owned by the plugin operations. */
+/**
+ * Transport mappings only. All business checks and side effects are owned by the plugin operations. A job's events are read through the
+ * `alchemist.runs.events` action (a cursor poll); there is no event-stream route, so every route here is one request and one reply.
+ */
 export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActionInvoker): void {
   const route = (method: string, path: string, name: AlchemistOperationName, input: (c: Context) => unknown | Promise<unknown>, status: 200 | 201 | 202 = 200) => {
     app.on(method, `/api/v1${path}`, async context => {
@@ -40,7 +42,7 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   route("POST", "/ideas/:id/lenses/:lens/runs", "researchStart", c => body(c, lens(c)), 202);
   route("POST", "/runs/:id/cancel", "runCancel", identity);
   route("GET", "/runs", "runList", none);
-  route("GET", "/runs/:id/resume", "runResume", identity);
+  route("GET", "/runs/:id/continuation", "runContinuation", identity);
   route("POST", "/runs/:id/continue", "runContinue", c => body(c, identity(c)), 202);
   route("GET", "/settings/runtime", "settingsGet", none);
   route("PUT", "/settings/runtime", "settingsUpdate", body);
@@ -75,23 +77,6 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
     } catch (error) { return problem(context, error); }
   });
 
-  app.get("/api/v1/runs/:id/events", async context => {
-    const id = context.req.param("id");
-    const after = Number(context.req.query("after") ?? 0);
-    try {
-      const first = await actions.invoke(alchemistActions.runEvents, { id, after }, context.req.raw.signal);
-      return streamSSE(context, async stream => {
-        let batch = first;
-        while (!stream.aborted && !context.req.raw.signal.aborted) {
-          for (const event of batch.events) await stream.writeSSE({ id: String(event.sequence), event: event.type, data: JSON.stringify(event) });
-          if (["completed", "partial", "failed", "cancelled", "interrupted"].includes(batch.status)) return;
-          await stream.sleep(150);
-          if (stream.aborted || context.req.raw.signal.aborted) return;
-          batch = await actions.invoke(alchemistActions.runEvents, { id, after: batch.cursor }, context.req.raw.signal);
-        }
-      });
-    } catch (error) { return problem(context, error); }
-  });
   app.post("/api/v1/workspace/export", async context => {
     try {
       const result = await actions.invoke(alchemistActions.workspaceExport, { format: context.req.query("format") as "json" | "zip" }, context.req.raw.signal);

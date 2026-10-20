@@ -67,7 +67,7 @@ for (const revoke of [false, true]) test(`S-18 W5-01-ALC-RES03/06: production MC
   const actor = "runtime:alchemist-continuation";
   await f.grant(actor, f.project.project_id, [a.runContinue, a.explorationStart]);
   const gateway = await f.mcp(actor, f.project.project_id);
-  const view = await f.client.invoke(f.caller, a.runResume, { id: started.jobId }) as { confirmation?: string };
+  const view = await f.client.invoke(f.caller, a.runContinuation, { id: started.jobId }) as { confirmation?: string };
   let signal: AbortSignal | undefined;
   const generate = f.ai.generate;
   f.ai.generate = async input => { signal = input.signal; entered.resolve(); await release.promise; return generate(input); };

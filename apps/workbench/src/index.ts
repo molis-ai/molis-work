@@ -75,6 +75,7 @@ export { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT, SIDE_FRAME_FROM_SCRIPT } fro
 export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
 export { CARD_TARGET_ASK_SCRIPT } from "./scripts/client/context-card-target.js";
 export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistant-work-objects.js";
+export { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./scripts/client/assistant-step-row.js";
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
@@ -118,7 +119,7 @@ export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./p
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
 export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins } from "./plugin-catalog.js";
-export type { BuiltinPluginEntry, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
+export type { PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { pluginWorkbenchPacks } from "./plugin-workbench.js";
 export type { BuiltinPluginWorkbenchPack } from "./plugin-workbench.js";
 export {
@@ -143,5 +144,6 @@ export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, ar
 
 export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
+export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

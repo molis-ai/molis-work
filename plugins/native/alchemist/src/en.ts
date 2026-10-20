@@ -13,7 +13,8 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "已预约": "Reserved",
   "剩余": "Remaining",
   "次": "calls",
-  "上次调用的结果未知，可能已收费；继续可能重复收费。该次已预约计入原预算，不会增加预算。": "The previous call has an unknown result and may have been charged. Continuing may incur a duplicate charge. Its reservation counts against the original budget; the budget will not increase.",
+  "上次调用的结果未知，可能已收费；继续可能重复收费。": "The previous call has an unknown result and may have been charged. Continuing may incur a duplicate charge.",
+  "该次已预约计入原预算，不会增加预算。": "Its reservation counts against the original budget; the budget will not increase.",
   "炼金术士": "Alchemist",
   "写下方向": "Write a direction",
   "还没有方向": "No directions yet",
@@ -301,4 +302,5 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "沿用成果的理由与仍需重核的内容": "Why the results are reused, and what still needs rechecking",
   "例如：沿用访谈问题；价格和竞品变化重新核对。": "For example: reuse the interview questions; recheck pricing and competitor changes.",
   "检查所选内容的适用性": "Check whether the selected items apply",
+  "保存固定版本": "Save fixed version",
 };

@@ -77,3 +77,11 @@ test("问题与选项里的标记被转义", () => {
   assert.equal(html.includes("<b>粗体</b>"), false);
   assert.match(html, /&lt;img src=x/);
 });
+
+test("AC-10-9: 可以不选的单选题，选了能清掉；必答的只能换，不能清空", () => {
+  const words = new Map([["清除选择", "Clear choice"]]);
+  const html = agentQuestionHtml(choice, text => words.get(text) ?? text);
+  assert.equal(html.match(/data-ix-clear/g)?.length, 1, "能自由作答，选项就是选填的，选了可以反悔");
+  assert.match(html, /data-ix-clear aria-describedby="q-q1-pick-label"><span data-slot="button-label">Clear choice</, "按钮的字走宿主的翻译");
+  assert.doesNotMatch(agentQuestionHtml({ ...choice, allows_free_text: false }, say), /data-ix-clear/, "必答的单选题没有清空按钮");
+});

@@ -235,21 +235,28 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// User approved 2026-10-19: plugin tab groups (specs/plugin-tab-groups): a plugin's page becomes its tab and its tabs a coloured group.
-// The tab rules, the group client, the drag slot that opens and closes by width, the split-pane ⌘-click handoff and the
-// screen-reader text add 14,570 B to workbench.js and the group styles 3,389 B to workbench.css, after
-// the location chip, its drag path and its per-plugin tints were removed (−4,260 B on each stylesheet). Each increase is
-// spent once, from exactly these starts; later growth stays frozen. W5-01's spent 1,113,068 → 1,115,299 start and the
-// Alchemist continuation's spent 50,619 → 52,373 are refused.
+// specs/project-knowledge (2026-10-19, each under the 10 KB the user lets review admit, AGENTS.md): the 项目资料 settings page
+// styles (+6.6 KB, in both sheets, as the model and memory settings are, since the settings cover renders in the workbench), the
+// shared picker's (+1.9 KB) and the side panel's import dialog in the workbench sheet; +881 B of workbench.js for the side
+// panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed, and the dialog-aware Escape and searching state of the 10-19 review. Each is spent once from exactly
+// main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1115299, 1129869],
-  "/assets/molis-work-workbench.css": [1589812, 1593201],
+  "/assets/molis-work-workbench.js": [1128644, 1129525],
+  "/assets/molis-work-workbench.css": [1593165, 1603154],
+  "/assets/molis-work-settings.css": [982397, 988933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
+// An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
+// first freeze; from the next PR on it only falls like every other.
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+const APPROVED_NEW_ASSETS = {
+  "/assets/molis-work-knowledge.js": 26361,
+};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
+    if (base[asset] === undefined && allowed <= (APPROVED_NEW_ASSETS[asset] ?? -1)) continue;
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
@@ -263,7 +270,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  if (reference[asset] === undefined) return bytes <= (APPROVED_NEW_ASSETS[asset] ?? -1) ? [] : [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 

@@ -198,7 +198,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
   const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
-    pact: (content, badge) => paintBlock(blocks.agreements, L("当前约定"), "list", content, badge) });
+    pact: (content, badge) => paintBlock(blocks.agreements, L("AI 记下的约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
@@ -1981,7 +1981,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const paintMore = () => {
     if (!morePop) return;
     const rows = [...(compose.dataset.crowded === "chips" ? [noticeBtn] : []).filter((btnEl) => btnEl && !btnEl.hidden).map((btnEl) => moreItem(btnEl.title, btnEl.textContent.trim(), () => { setMore(false); btnEl.click(); })),
-      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
+      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }), ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [moreItem(L("选择项目资料…"), L("可多选，读原文给助理"), () => { setMore(false); document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })); })] : []),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
@@ -2098,8 +2098,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // What was in hand goes in the strip with the object it came from, so the work is linked under it; no words are
     // written for the person (spec §21.2 point 4). It stands for the page's selection, which is not carried twice.
     const object = tidyMessage({ message_id: "open", purpose: "delegate", source: { surface: "page" }, object: detail.object })?.object;
-    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text).slice(0, 4) : [];
-    brought.forEach((item, index) => files.push(Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
+    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && (typeof item.text === "string" && item.text || item.subject && !files.some((file) => file.reference?.subject?.kind === item.subject.kind && file.reference.subject.id === item.subject.id))).slice(0, 10) : [];
+    brought.forEach((item, index) => files.push(item.subject ? { material_id: "kn-" + crypto.randomUUID(), kind: "object", title: item.title.slice(0, 200), explicit: true, reference: { subject: { kind: item.subject.kind, id: item.subject.id } }, object: { kind: item.subject.kind, id: item.subject.id, title: item.title.slice(0, 200) }, ...(source ? { source } : {}) } : Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
       text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {}, object ? { object } : {})));
     if (brought.length) sel = null;
     syncSend(); paintMats(); setPanel(true); input.focus();
@@ -2155,7 +2155,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");
-  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, view: () => (view && view.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
+  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
     take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {

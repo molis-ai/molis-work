@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
 /** One streamed provider turn through the production model adapter. */
 function turn(text = "好的。", tool?: { name: string; input: object }): string {
@@ -39,7 +39,7 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
   const model = createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     requests.push(JSON.parse(raw));
     res.writeHead(200, { "content-type": "text/event-stream" });
@@ -65,7 +65,8 @@ async function assistantAsking(t: TestContext, asked: object, done: string) {
 
 // specs/ai-interaction-experience T1 (AC-27-5, AC-27-6): the Assistant's card takes words, a number, a date and a date and time; a value past its
 // limit is refused by the real Runtime beside its own field with the limit named, and the corrected answer continues the same work.
-test("AC-27-5: the Assistant answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
+// AC-11 (the package in use, end to end): the vendored Prologue package's real Runtime, through the Host, to the page and back.
+test("AC-11 AC-27-5: the Assistant answers words, a number, a date and a date and time, and a refused field says its limit", { timeout: 240_000 }, async t => {
   const page = await assistantAsking(t, ASKED, "复盘会安排好了。"); if (!page) return;
   const { command, sessionId, evaluate, waitFor, click, requests } = page;
   const card = "[data-ix-question]";

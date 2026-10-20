@@ -77,7 +77,8 @@ const definition = (capability_id: string, operation: "query" | "command", kind:
 });
 
 /** Read-only lookups a round can be given on top of the four job actions ("Lookup alpha" …), each counted apart. */
-const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet"];
+export const LOOKUPS = ["alpha", "bravo", "charlie", "delta", "echo", "foxtrot", "golf", "hotel", "india", "juliet", "kilo", "lima", "mike", "november",
+  "oscar", "papa", "quebec", "romeo", "sierra", "tango", "uniform", "victor", "whiskey", "xray", "yankee", "zulu"];
 
 export async function externalChecks(t: TestContext, script: (turn: number, messages: string, tools: readonly OfferedTool[]) => ModelReply, live?: LiveModel,
   more: { readonly lookups?: number } = {}) {
@@ -165,7 +166,27 @@ export async function externalChecks(t: TestContext, script: (turn: number, mess
   };
   const wait = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.wait;
   const continuation = async () => (await adapter.collaboration!.read("p", session.session_id))[0]?.continuation;
-  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, session, start, wait, continuation, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
+  /**
+   * The Host's own meter for this session: its Runs, and the tokens they used as the provider reported them (each Run's usage
+   * receipts; a scripted reply reports 30 in and 8 out). Apart from `requests`, which counts what reached the provider.
+   */
+  const spent = async (on = adapter) => {
+    const runs = (await on.readSession(session)).runs;
+    let input = 0, output = 0;
+    for (const ref of runs) { const { tokens } = (await on.read(ref)).usage; input += tokens.input; output += tokens.output; }
+    return { runs: runs.length, input, output };
+  };
+  /**
+   * What Coding's wake loop does (plugins/native/coding/src/wake-loop.ts): told by the Host, without polling, which of the
+   * project's sessions may go on, it starts each one's next round, which takes the continuation up. Returns the rounds it started.
+   */
+  const wake = async (task: string, extra: object = {}, ms = 10_000) => {
+    const ready = (await adapter.collaboration!.awaitReady("p", ms)).filter(view => view.session_id === session.session_id);
+    const started = [];
+    while (started.length < ready.length) started.push(await start(task, extra));
+    return started;
+  };
+  return { root, requests, replies, said, usage, reviewed, switches, calls, adapter, session, start, wait, continuation, spent, wake, refs: { status: ref(status), cancel: ref(cancel), judge: ref(judge), summary: ref(summary), lookups: lookups.map(ref) }, reopen: open,
     writerWorkspaces: [{ workspace_id: "writer-0", directory: { canonical_path: writer, realpath_verified: true } }] };
 }
 

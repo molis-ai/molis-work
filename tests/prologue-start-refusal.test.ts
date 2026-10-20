@@ -64,7 +64,7 @@ test("a round the runtime refuses while packing its context leaves the session u
 // comes back with its question open and answerable; a new round before the answer is refused by the Host's own check of the
 // restored session, so the runtime's SESSION_RUN_PARKED is not reached. Answered, the round ends with it and the next one
 // carries the answer from the session's queue (AC-07).
-test("AC-07 a round parked on its question at shutdown comes back with that question to answer; answered, the next round carries the answer", { timeout: 60_000 }, async t => {
+test("AC-07 AC-11 a round parked on its question at shutdown comes back with that question to answer; answered, the next round carries the answer", { timeout: 60_000 }, async t => {
   const root = await mkdtemp(join(tmpdir(), "molis-parked-round-"));
   let requests = 0; const bodies: string[] = [];
   t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => (bodies.push(await new Request(input, init).text()), ++requests === 1)

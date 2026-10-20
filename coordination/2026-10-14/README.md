@@ -2106,3 +2106,21 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **07:52 UTC 用户问「防腐正在做吗？② 和 ③ 很久没动静了」**：② 从 06:33 起、③ 从 06:10 起都空着。两边都是报完结果就收了这一轮，没有被什么挡住；中间电脑重启过一次。① 当场重新派活，两条消息都已送达，两边都已开工：
   - ②：L1b 叠在 #857 的 `feat/project-library-l1a` 上开，和 ③ 的 S8 同批。S0（Shelf 要的平台片）从 main 开，交子代理做，内容是双实例、`imageTextAvailable`、本机页面抓取权限、读已登记原文件的服务、图片上限 50。两条新不变量开 PR 时再取空号，S-44 已给 S0b-2。之后接 S0a → S0b-1 → S0b-2。
   - ③：Goals S8 叠在 L1b 上开，暂时先叠在 `feat/project-library-l1a` 上；和 #840 在 `plugins/native/goals/package.json` 冲突，由 ③ 解。空了做 BL-370。
+
+- **07:56 UTC GitHub 恢复**：07:51 起本机代理对 github.com 返回 503（Guard Blocked）。⑤ 查到原因：重启后各会话一起重连，挤满了闸门脚本的连接上限。
+- **08:00 UTC 各线回报**：
+  - ②：
+    - L1b 在 `feat/project-library-l1b`，叠在 `feat/project-library-l1a` 上，② 自己做。
+    - S0 拆成两片。
+      - S0-1 在 `feat/plugin-materials-shelf-needs`，从 main 开，子代理在写：`imageTextAvailable`、本机页面抓取权限、读已登记原文件的服务、图片上限 50，带两条新不变量。如果原文件的登记平台核不住，子代理停下来带选项回报。上限先核 Prologue 和默认提供方，收不了 50 张就回报。
+      - S0-2（双实例）先调研、写计划，写进笔记 `s0-dual-instance-plan.md`，按 #840 之后的写法开工。碰信任边界的几条攒起来，由 ② 在自己的会话里问用户。
+  - ③：
+    - S8 在 `feat/goals-s8-project-database`，先叠在 L1a 上，L1b 出来后 merge 进来，不 rebase。分两步：
+      - 第一步是纯搬移：Goals 和 governance 的建表语句进 `databases.project`，库的形状不变。`table-owners.json` 里把 modules/goals 和 governance 登记成 shared 使用者，到 S9 删掉。
+      - 第二步等 L1b：`boards` 去掉 title、外键指向 `project_root`，`goals.board.initialize` 升到 v2。
+    - BL-370 在 `fix/bl-370-pulse-stop-while-waiting`。③ 按 D27 第 4 条裁：等待确认时 Pulse 和 Lens 都给「停止」，走 #835 的同一个取消动作。① 同意，并把 L1b 的分支名转给了 ③。
+  - ⑤：
+    - 去掉 #847 后的批次（#846、#855、#857、#858）推到了新分支 `integration/batch-1020-5`，全量在跑。旧的 batch-1020-3 头不是快进，不强推，作废，等批次合完再删。
+    - batch-1020-2 只重跑失败的分片。
+    - #847 交 ⑩ 查根因。⑤ 的判断：用例借宿主的 completeText 钩子造失败，Pages 迁进 Runtime 后改走 `complete`，钩子不生效了。只改测试的话 ⑩ 修，要动产品代码就交给 ③。
+    - CI 改动 PR 合入前，⑤ 要看到用户本人的批准原话（在 PR 里或聊天里），① 转述的不算。

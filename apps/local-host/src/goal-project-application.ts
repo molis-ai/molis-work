@@ -29,8 +29,10 @@ import {
   GoalEventApplication,
   GoalReadApplication,
   GoalDecisionAttentionSync,
+  GOALS_PLUGIN_ID,
 } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "./project-database.js";
+import { assertProjectPluginDatabase } from "./project-plugin-databases.js";
 import type { GoalRecord, ProjectGuidanceView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -205,13 +207,15 @@ export class GoalProjectApplication {
    * A new project's first records: the library's root row, then Goals' board, in one transaction; a project that has its root row
    * keeps it. The tables are Goals' own (its Manifest declares them, S8) and the platform made them when the library opened;
    * 2026-10-18 改: the Host still writes Goals' board here because Goals is composed with the project (privileges.md, PG-021).
-   * Once Goals is installed like any plugin (S9), the project is made with its root row alone.
+   * Once Goals is installed like any plugin (S9), the project is made with its root row alone. When the library refused Goals'
+   * tables, this throws that refusal before it touches them (S-42).
    */
   initializeBoard(input: {
     project_id: string;
     actor_id: string;
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
+    assertProjectPluginDatabase(this.store.db, GOALS_PLUGIN_ID);
     return this.store.db.transaction(() => {
       writeProjectRoot(this.store.db, input.project_id, this.clock().toISOString());
       return this.goals.commands.initializeBoard(input);

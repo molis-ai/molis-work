@@ -143,6 +143,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-20 | `board.title` 删掉后的动作版本（S8） | `goals.board.initialize` 由 v1 升 v2（输入没有 `title`）；输出哈希变了的动作各升一版，直接替换，不留兼容期；管理类 MCP 工具 `molis_work_v1_initialize` 名字不变，去掉 `title`；CLI `v1 init` 去掉标题参数 | ③ 裁定 |
 | 2026-10-20 | 指引里的「Project：…」行（S8） | 删掉，不为它在宿主加一层；工作台初始化脚本也不再回退读 `board.title` | ③ 裁定 |
 | 2026-10-20 | S8 并进维护八的两步 | `boards` 改建（去 `title`、外键指 `project_root`、行与 rowid 不变）和 Goals 的账本行，加进 `tests/fixtures/project-maintenance-v8.sql` 同一个事务，放在「正好一个看板」那句检查和它的临时表删掉之后；开头仍先核对 v7 的 73 张表；演练要证明维护后的库与新建的 v8 库（四个插件的声明都已打开）逐表相同，再打开不往账本添一行 | ③ 裁定，② 补充 |
+| 2026-10-20 | 建看板的请求哈希改成空请求，维护八换掉旧回执的哈希 | S8 的建看板请求不再带看板名，版本 7 的回执哈希里有它：不换的话，维护前用过的键重试会被当成键被别的请求用过（`goals.request.idempotency_key_reused`）。请求哈希按空请求算（回执的主键里已经有项目，请求里没有别的），是一个常量，维护八在重建 `idempotency_records` 之后把 `initialize_board` 的回执换成它；SQLite 里没有 sha256，按 `{project_id}` 算 SQL 写不出来。读取时不兜底旧哈希 | ⑤ 评审修，③ 认 |
 
 ## 5. 验收标准
 
@@ -152,7 +153,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | PLIB-02 | 插件第一次打开时，平台在一个事务里建它声明的表并写账本，再打开时认出同一份；L1b 起，表、列、索引与 v7 完全相同 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-database-baseline.test.ts` |
 | PLIB-03 | 声明的各条规则逐条拒绝（2.1、2.2），拒绝时一张表也不建，开头检查不过的连内存库里也不执行 | L1a | `tests/plugin-project-database-ledger.test.ts` |
 | PLIB-04 | 账本的各种不符逐条拒绝：同名对象已在、库名已归别人、发布者不同、库名或形状不同；版本不同只拒这个插件。宿主开库时被拒的插件只停它自己：动作不进项目的目录，页面说明原因，库不修补、不重建，别的插件照常 | L1a、L1b | L1a：`tests/plugin-project-database-ledger.test.ts`；L1b：`tests/project-plugin-database-refusal.test.ts` |
-| PLIB-05 | v7 库经维护后每一行不变（`boards` 只少了 `title` 的值，行与 rowid 不变），结果与新建的 v8 库（四个插件的声明都已打开）逐表相同，账本有四行，再打开不往账本添一行 | L1b、S8 | `tests/project-maintenance-v8.test.ts` |
+| PLIB-05 | v7 库经维护后每一行不变（`boards` 只少了 `title` 的值，行与 rowid 不变；建看板的幂等回执换成现行的请求哈希，维护前用过的键重试照常重放），结果与新建的 v8 库（四个插件的声明都已打开）逐表相同，账本有四行，再打开不往账本添一行 | L1b、S8 | `tests/project-maintenance-v8.test.ts` |
 | PLIB-06 | 逐句检查的每种拒绝各一条，外键读 `project_root` 放行 | L2 | |
 | PLIB-07 | 取消、撤权、换了提供方、别的安装、停用之后不写任何记录（S-18） | L2 | |
 | PLIB-08 | 同一文件只用一份 SQLite 库（测试断言客户端的连接类型） | L2 | |

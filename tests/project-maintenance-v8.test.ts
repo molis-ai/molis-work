@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -39,7 +40,8 @@ const PLUGINS = [
 ];
 const inspector: PluginProjectSchemaInspector = { scratch: () => new DatabaseSync(":memory:"), objects: db => listSqliteObjects(db as never), shape: db => describeSqliteSchema(db as never) };
 
-interface OldHome { home: string; projectId: string; databasePath: string }
+/** `receipt` is the receipt of the board's making as this build writes it, before the rehearsal gives it version 7's hash. */
+interface OldHome { home: string; projectId: string; databasePath: string; receipt: string }
 
 async function scratch(t: TestContext): Promise<string> {
   const directory = await mkdtemp(join(tmpdir(), "molis-project-maintenance-v8-"));
@@ -117,7 +119,7 @@ async function oldHome(directory: string): Promise<OldHome> {
     await bound.invoke(goalsActions.create, { title: "维护前的目标", goal_id: "KEPT-GOAL", outcome: "维护后还在", idempotency_key: "create-kept", source_kind: "runtime" as const });
     await bound.invoke(goalsActions.note, { goal_id: "KEPT-GOAL", body: "维护前的便笺", idempotency_key: "note-kept" });
   } finally { await host.close(); }
-  withDatabase(project.database_path, db => {
+  const receipt = withDatabase(project.database_path, db => {
     const at = "2026-10-01T00:00:00.000Z";
     db.prepare("INSERT INTO coding_sessions (project_id, session_id, title, state, runtime_id, created_at, updated_at) VALUES (?, 'session-kept', '维护前的会话', 'idle', 'codex', ?, ?)").run(projectId, at, at);
     db.prepare("INSERT INTO feed_sources (project_id, source_id, kind, name, status, origin, imported_at, updated_at) VALUES (?, 'source-kept', 'rss', '维护前的来源', 'ready', 'molis_work', ?, ?)").run(projectId, at, at);
@@ -125,6 +127,10 @@ async function oldHome(directory: string): Promise<OldHome> {
     db.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, 'entry-kept', 'feed_item', 'item-1', 'manual', 'open', ?, ?)").run(projectId, at, at);
     db.prepare("INSERT INTO process_items (artifact_id, project_id, owner_actor_id, producer_plugin_id, producer_binding_signature, created_at) VALUES ('process-kept', ?, 'test-user', 'io.molis.work.feed', 'official-feed-binding', ?)").run(projectId, at);
     db.exec("UPDATE sqlite_sequence SET seq = seq + 100 WHERE name = 'events'");
+    // Version 7 hashed the board's name into the receipt of the board's making; this build hashes the request without it.
+    const made = JSON.stringify(db.prepare("SELECT * FROM idempotency_records WHERE operation = 'initialize_board'").get());
+    db.prepare("UPDATE idempotency_records SET request_hash = ? WHERE operation = 'initialize_board'")
+      .run(createHash("sha256").update(JSON.stringify({ project_id: projectId, title: BOARD_TITLE })).digest("hex"));
 
     db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE");
     const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'events'").get() as { seq: number };
@@ -133,8 +139,9 @@ async function oldHome(directory: string): Promise<OldHome> {
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
     db.exec("DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON");
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+    return made;
   });
-  return { home, projectId, databasePath: project.database_path };
+  return { home, projectId, databasePath: project.database_path, receipt };
 }
 
 /** A project library a new Home would get from this build, with the plugins' tables the Host makes when it opens one. */
@@ -161,7 +168,7 @@ test("PLIB-05: this build's project library is version 8, and a version 7 one, e
 
 test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new Home gets, the root its board without a name and the ledger its plugins', every row kept", async t => {
   const directory = await scratch(t);
-  const { projectId, databasePath } = await oldHome(directory);
+  const { projectId, databasePath, receipt } = await oldHome(directory);
   const fresh = snapshot(freshDatabase(directory));
   const before = snapshot(databasePath);
   assert.equal(Object.keys(before.rows).length + 2, Object.keys(fresh.rows).length, "version 8 has two more tables, the root and the ledger");
@@ -183,7 +190,13 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the one a new 
   const ledgerIds = (rows: string[]) => rows.map(row => (JSON.parse(row) as { plugin_id: string }).plugin_id).sort();
   assert.deepEqual(ledgerIds(fresh.rows.plugin_project_databases!), [CODING_PLUGIN_ID, FEED_PLUGIN_ID, GOALS_PLUGIN_ID, SCHEDULE_PLUGIN_ID].sort(), "a new library records four plugins");
   assert.deepEqual(ledgerIds(after.rows.plugin_project_databases!), ledgerIds(fresh.rows.plugin_project_databases!), "and so does the maintained one");
-  assert.deepEqual(without(after.rows, "project_root", "plugin_project_databases", "boards"), without(before.rows, "boards"), "every row of every other version 7 table is as it was, the counter of events included");
+  // Outside the board, the one row the maintenance rewrites is the receipt of the board's making: it gets the hash this build writes.
+  const madeBoard = (row: string) => (JSON.parse(row) as { operation: string }).operation === "initialize_board";
+  assert.equal(before.rows.idempotency_records!.filter(madeBoard).length, 1);
+  assert.notDeepEqual(before.rows.idempotency_records!.filter(madeBoard), [receipt], "version 7 hashed the board's name into it");
+  assert.deepEqual(after.rows.idempotency_records!.filter(madeBoard), [receipt], "the maintenance gives it the hash this build writes, nothing else of it changes");
+  const otherReceipts = (rows: Record<string, string[]>) => ({ ...rows, idempotency_records: rows.idempotency_records!.filter(row => !madeBoard(row)) });
+  assert.deepEqual(without(otherReceipts(after.rows), "project_root", "plugin_project_databases", "boards"), without(otherReceipts(before.rows), "boards"), "every row of every other version 7 table is as it was, the counter of events included");
   const board = JSON.parse(before.rows.boards![0]!) as { project_id: string; title: string; active_goal_id: string | null; created_at: string; updated_at: string };
   assert.equal(board.project_id, projectId);
   assert.equal(board.title, BOARD_TITLE, "the rehearsal's board has the name version 7 gave it");
@@ -226,11 +239,14 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   });
   new LocalProjectDatabase(databasePath).close();
   new LocalProjectDatabase(databasePath, { existingOnly: true }).close();
+  const making = withDatabase(databasePath, db => db.prepare("SELECT actor_id, idempotency_key FROM idempotency_records WHERE operation = 'initialize_board'").get() as { actor_id: string; idempotency_key: string });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const reference = molisWorkHostProjectReference({ projectId, databasePath });
     const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(projectId, "KEPT-GOAL"));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1, "the note written before the maintenance");
+    const retried = await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, ...making }));
+    assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);
   assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");

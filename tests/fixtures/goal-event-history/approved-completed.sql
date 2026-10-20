@@ -1103,7 +1103,7 @@ CREATE TABLE IF NOT EXISTS "idempotency_records" (
           created_at TEXT NOT NULL,
           PRIMARY KEY (project_id, actor_id, operation, idempotency_key)
         );
-INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','0f9326d5c36b2448d19263ed58dc07612f8eb0a6903ac5f91b7386e2b40c8c34','{"project_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
+INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','initialize_board','demo-board','44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a','{"project_id":"goalboard-v1-demo","observed_event_cursor":1}','2026-09-10T07:03:28.489Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-PLATFORM','6482c3a8d0633f75f1cda11eeefc3dd7ca543d0d43f9eca0eb3a38ba4a3b3eba','{"relation_id":"relation-46303826-25b2-4b8e-ad5e-b76617d90fc9","observed_event_cursor":15}','2026-09-10T07:03:28.510Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-WORKSPACE','c82e6659f90d83cf44078a6802429aab882e5248f7fb69d6deaae3603242a0cd','{"relation_id":"relation-d0cedc75-3cc4-4977-a253-247efa2b82fb","observed_event_cursor":16}','2026-09-10T07:03:28.512Z');
 INSERT INTO idempotency_records VALUES('goalboard-v1-demo','demo-user','add_relation','demo-part-ADOPTION','8c4c953cbbc131dd0107694b8bc264106228d57464282ad08412d37cae240fbc','{"relation_id":"relation-4814cf00-c15c-4d86-b625-15f7c60df9b7","observed_event_cursor":17}','2026-09-10T07:03:28.513Z');

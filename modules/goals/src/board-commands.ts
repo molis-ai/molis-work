@@ -13,7 +13,8 @@ export class MolisWorkCommands {
     if (!input.project_id.trim()) {
       throw goalErrors["goals.request.invalid"]("Board ID 不能为空");
     }
-    const hash = requestHash({ project_id: input.project_id });
+    // The receipt is already keyed by the project and the request carries nothing else, so it hashes the empty request.
+    const hash = requestHash({});
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<{ project_id: string; observed_event_cursor: number }>(
         input.project_id,

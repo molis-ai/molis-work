@@ -7,6 +7,8 @@
 --     foreign keys point at boards(project_id), are not touched;
 --   * the eleven tables whose foreign key pointed at boards(project_id) point it at project_root(project_id) instead
 --     (coding_sessions, events, feed_items, feed_materials, feed_out_rules, feed_source_runs, feed_sources, idempotency_records, inbox_entries, library_artifacts, process_items); nothing else about them changes, and every row keeps its rowid;
+--   * the receipts of the board's making (idempotency_records, operation initialize_board) get the request hash this build
+--     writes: version 7 hashed the board's name into it, and the request has none now, so a retry with a key used before replays;
 --   * plugin_project_databases (plugin-runtime), the ledger of the plugins' own tables, with one row each for Coding, Feed,
 --     Goals and Schedule: the tables they declare in their Manifests (databases.project, version 1) are already in the
 --     library, so the ledger records them as made by their publisher, and the Host opens them as it would after making them.
@@ -396,6 +398,9 @@ INSERT INTO maintenance_new_idempotency_records (rowid, project_id, actor_id, op
   SELECT rowid, project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at FROM idempotency_records;
 DROP TABLE idempotency_records;
 ALTER TABLE maintenance_new_idempotency_records RENAME TO idempotency_records;
+-- The board's making is keyed by the project and its request carries nothing else now: its receipts hash the empty request
+-- (sha256 of "{}"), as this build writes them. The row count and every other column stay.
+UPDATE idempotency_records SET request_hash = '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a' WHERE operation = 'initialize_board';
 
 -- inbox_entries: the foreign key points at project_root.
 CREATE TABLE maintenance_new_inbox_entries (

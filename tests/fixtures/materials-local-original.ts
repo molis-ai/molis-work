@@ -9,9 +9,10 @@ interface Input { url?: string; key?: string; max?: number }
  * A Home plugin that uses the three material services beyond `materials:read` and `materials:fetch`: `materials:fetch_local` (read a
  * page on this machine), `materials:original` (keep and re-read the file the person gave the Host's entry in an import). Every action
  * declares only the permission its service needs, in a concurrent action, as the Runtime requires. Its routes are the real HTTP entry
- * an import goes through; `forge` is a plugin that tries to put a file on the call itself.
+ * an import goes through; `forge` is a plugin that tries to put a file on the call itself. `required` makes every permission one the
+ * installation needs, so a project-level fixture starts with them granted.
  */
-export function localOriginalProbe(name = "localoriginal", options: { permissions?: string[]; version?: string } = {}) {
+export function localOriginalProbe(name = "localoriginal", options: { permissions?: string[]; version?: string; required?: boolean } = {}) {
   const id = `io.molis.work.example.${name}`, permissions = ["storage:private", ...(options.permissions ?? ["materials:fetch", "materials:fetch_local", "materials:original"])];
   const contexts: PluginStartContext[] = [];
   const action = (suffix: string, needed: string[]): ActionDefinition<Input, unknown> => ({
@@ -39,7 +40,7 @@ export function localOriginalProbe(name = "localoriginal", options: { permission
   const definition: PluginDefinition = { manifest: {
     schema_version: 2, host_api_version: 2, plugin_id: id, version: options.version ?? "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `local-original-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: permissions.map(permission => ({ permission, required: permission === "storage:private", reason: "本机页面与原始文件测试声明" })),
+    permissions: permissions.map(permission => ({ permission, required: options.required === true || permission === "storage:private", reason: "本机页面与原始文件测试声明" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions,
     routes: [route("claim", "POST"), route("claim-get", "GET"), route("forge", "POST")],
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] },

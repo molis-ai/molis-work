@@ -68,7 +68,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     background = pluginBackgroundFor(definition, context, assertActive);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive), background: background?.client });
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client });
     return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();

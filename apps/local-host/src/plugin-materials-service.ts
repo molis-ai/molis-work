@@ -10,9 +10,12 @@ import type { PluginPlatformHome } from "./home-side.js";
 
 const MATERIAL_PERMISSIONS = ["materials:read", "materials:fetch", "materials:fetch_local", "materials:original"];
 
-/** Same trust boundary as services.model; a sandbox or platform without a Home receives no material service. */
+/**
+ * Same trust boundary as services.model; a sandbox or platform without a Home receives no material service. `project_id` is the
+ * project the Host started this activation for (`null` for a Home-level one): original-file registrations are kept per project.
+ */
 export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
-  assertActive: () => void): PluginMaterialsClient | undefined {
+  assertActive: () => void, project_id: string | null): PluginMaterialsClient | undefined {
   if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MATERIAL_PERMISSIONS.includes(item.permission))) return undefined;
   return createPluginMaterialsClient(definition.manifest, {
     extract: (source, options) => extractHomeMaterial(home.directory, source, options),
@@ -25,5 +28,5 @@ export function pluginMaterialsFor(home: PluginPlatformHome | null | undefined, 
     claimOriginal: (key, offered, options) => registerOriginalFile(home.directory, key, offered, options.beforeEffect),
     readOriginal: (key, options) => readOriginalFile(home.directory, key, { maxBytes: options.maxBytes, signal: options.signal }),
     releaseOriginal: (key, options) => releaseOriginalFile(home.directory, key, options.beforeEffect),
-  }, { install_id: context.install_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
+  }, { install_id: context.install_id, project_id, assertActive, requireGrant: permission => context.requireGrant(permission) });
 }

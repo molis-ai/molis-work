@@ -5,7 +5,7 @@ import { request as httpRequest } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "@molis-ai/molis-work-app-local-host";
+import { ORIGINAL_FILE_MAX_BYTES, projectDeletedHooksFor, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantLocalOriginal, localOriginalProbe } from "./fixtures/materials-local-original.js";
 
@@ -103,15 +103,54 @@ test("S-46 the file the Host's entry was given is kept for this installation and
   // A plugin names a record key, never a path: a path or a path-like key is only an unknown record.
   for (const key of [mine, "/etc/passwd", "../../etc/passwd", "doc/../doc"]) await assert.rejects(env.read(one, key), { code: "material.original.not_registered" }, key);
   for (const key of ["", "bad\nkey", "k".repeat(201)]) await assert.rejects(env.read(one, key), { code: "plugin.materials_original_key_invalid" }, JSON.stringify(key));
-  // Below the plugin layer: another plugin, another installation, another key are other rows.
-  const key = { plugin_id: one.id, install_id: env.installId(one), record_key: "doc" };
+  // Below the plugin layer: another plugin, another installation, a project, another key are other rows.
+  const key = { plugin_id: one.id, install_id: env.installId(one), project_id: null, record_key: "doc" };
   assert.equal((await readOriginalFile(env.home, key)).toString("utf8"), "第一份原始文件");
-  for (const other of [{ ...key, plugin_id: two.id }, { ...key, install_id: env.installId(two) }, { ...key, install_id: "install-from-before" }, { ...key, record_key: "Doc" }]) {
+  for (const other of [{ ...key, plugin_id: two.id }, { ...key, install_id: env.installId(two) }, { ...key, install_id: "install-from-before" }, { ...key, project_id: "project-1" }, { ...key, record_key: "Doc" }]) {
     await assert.rejects(readOriginalFile(env.home, other), { code: "material.original.not_registered" }, JSON.stringify(other));
   }
   await assert.rejects(importFile(env, one, "gone", env.file("keep.txt", "x")).then(async () => { await env.host.homeActionClient().invoke(person(one.permissions), one.release, { key: "gone" }); return env.read(one, "gone"); }), { code: "material.original.not_registered" }, "release removes it");
   assert.equal((await env.read(one, "doc")).text, "第一份原始文件", "releasing one record leaves the others");
   assert.equal((await env.read(two, "doc")).text, "second plugin's file");
+});
+
+test("S-46 a project-level plugin's registrations stay in their project: the same installation and key in another project read nothing, and deleting the project forgets them, not the file", { timeout: 60_000 }, async t => {
+  const probe = localOriginalProbe("origprojects", { required: true }), env = await serveHomeRuntime(t, { pluginFixtures: { project: [probe.definition] } });
+  const a = await env.project("原始文件 A"), b = await env.project("原始文件 B");
+  const files = realpathSync(mkdtempSync(join(tmpdir(), "originals-")));
+  t.after(() => rmSync(files, { recursive: true, force: true }));
+  const inA = join(files, "a.txt"), inB = join(files, "b.txt");
+  writeFileSync(inA, "A 项目导入的文件"); writeFileSync(inB, "B 项目导入的文件");
+  type Project = typeof a;
+  const importInto = (project: Project, key: string, file: string) =>
+    send(env, `/projects/${project.project_id}/api/plugins/${probe.id}/claim`, { body: { key }, headers: { [HEADER]: encodeURIComponent(file) } });
+  const as = (project: Project) => person(probe.permissions, project.project_id);
+  const read = async (project: Project, key: string) => ((await env.host.actionClient(project.reference).invoke(as(project), probe.original, { key })) as { text: string }).text;
+  const unregistered = { code: "material.original.not_registered" };
+
+  assert.deepEqual(await importInto(a, "item-1", inA), { status: 200, body: { claimed: "item-1" } });
+  assert.equal(await read(a, "item-1"), "A 项目导入的文件");
+  await assert.rejects(read(b, "item-1"), unregistered, "the same plugin, installation and record key in another project");
+  // The installation's id is the same in both projects: the project is what keeps the rows apart.
+  const installs = [...new Set(probe.contexts.map(context => context.install_id))];
+  assert.equal(installs.length, 1);
+  assert.deepEqual(new Set(probe.contexts.map(context => context.project_id)), new Set([a.project_id, b.project_id]));
+  const key = { plugin_id: probe.id, install_id: installs[0]!, project_id: a.project_id, record_key: "item-1" };
+  for (const other of [{ ...key, project_id: b.project_id }, { ...key, project_id: null }]) await assert.rejects(readOriginalFile(env.home, other), unregistered, JSON.stringify(other));
+
+  assert.deepEqual(await importInto(b, "item-1", inB), { status: 200, body: { claimed: "item-1" } });
+  assert.equal(await read(b, "item-1"), "B 项目导入的文件");
+  assert.equal(await read(a, "item-1"), "A 项目导入的文件", "B's import under the same key replaced nothing in A");
+  await env.host.actionClient(b.reference).invoke(as(b), probe.release, { key: "item-1" });
+  await assert.rejects(read(b, "item-1"), unregistered);
+  assert.equal(await read(a, "item-1"), "A 项目导入的文件", "releasing in B leaves A's");
+
+  // Deleting a project forgets its registrations; the file is the person's and stays, and the other project keeps its own.
+  await importInto(b, "item-1", inB);
+  assert.equal(await projectDeletedHooksFor(env.home).clear("plugin-originals", a.project_id), true);
+  await assert.rejects(readOriginalFile(env.home, key), unregistered);
+  assert.equal(await read(b, "item-1"), "B 项目导入的文件");
+  assert.equal(readFileSync(inA, "utf8"), "A 项目导入的文件");
 });
 
 test("S-46 reading re-resolves the path first: a symlink put in its place, a moved folder, a removed file and a folder are all refused, and nothing is listed or written", { timeout: 60_000 }, async t => {
@@ -164,7 +203,7 @@ test("S-46 a file offered through a symlink is kept as the real file it leads to
 
 test("S-46 a call the Runtime cancels, revokes or stops before the write registers or releases nothing", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origcancel"), env = await serve(t, [probe]), file = env.file("a.txt", "kept");
-  const key = { plugin_id: probe.id, install_id: env.installId(probe), record_key: "doc" };
+  const key = { plugin_id: probe.id, install_id: env.installId(probe), project_id: null, record_key: "doc" };
   const stopped = () => Promise.reject(Object.assign(new Error("revoked"), { code: "actions.forbidden" }));
   await assert.rejects(registerOriginalFile(env.home, key, file, stopped), { code: "actions.forbidden" });
   await assert.rejects(readOriginalFile(env.home, key), { code: "material.original.not_registered" }, "a refused registration wrote nothing");

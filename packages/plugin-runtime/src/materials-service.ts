@@ -14,10 +14,15 @@ export interface PluginMaterialsDispatch extends PluginMaterialRequest {
   /** Recheck immediately before a network request, download or native extraction effect. */
   beforeEffect(): Promise<void>;
 }
-/** Whose registration an original file belongs to: the plugin, its installation, and the key the plugin chose for its own record. */
+/**
+ * Whose registration an original file belongs to: the plugin, its installation, the project its activation runs in, and the key the
+ * plugin chose for its own record. An installation's id is the same in every project, so the project is what keeps one project's
+ * registrations from another's; a Home-level activation has none (`null`), and its registrations are the same in every project.
+ */
 export interface PluginOriginalFileKey {
   readonly plugin_id: string;
   readonly install_id: string;
+  readonly project_id: string | null;
   readonly record_key: string;
 }
 /**
@@ -38,6 +43,8 @@ export interface PluginMaterialsPort {
 }
 export interface PluginMaterialsGate {
   readonly install_id: string;
+  /** The project this activation runs in, from the Host's start list; `null` for a Home-level activation. */
+  readonly project_id: string | null;
   assertActive(): void;
   requireGrant(permission: string): void;
 }
@@ -72,7 +79,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
     await beforeEffect();
     return result;
   }
-  const originalKey = (record_key: unknown): PluginOriginalFileKey => ({ plugin_id: manifest.plugin_id, install_id: gate.install_id, record_key: originalRecordKey(record_key) });
+  const originalKey = (record_key: unknown): PluginOriginalFileKey => ({ plugin_id: manifest.plugin_id, install_id: gate.install_id, project_id: gate.project_id, record_key: originalRecordKey(record_key) });
   const original = declared("materials:original") ? port : undefined;
   return Object.freeze({
     ...(declared("materials:read") ? { extract: (source: MaterialSource, request: PluginMaterialRequest = {}) =>

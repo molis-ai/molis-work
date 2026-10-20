@@ -1,21 +1,24 @@
-import { constants } from "node:fs";
+import { constants, existsSync } from "node:fs";
 import { lstat, open, realpath, stat, type FileHandle } from "node:fs/promises";
 import path from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOriginalFileKey } from "@molis-ai/molis-work-plugin-runtime";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 /**
- * The original files plugins may read again: for each plugin installation and its own record key, the real path of the file the person
- * gave the Host's entry in an import (material-original-entry.ts). A plugin never names a path; the Host records the one it was handed.
+ * The original files plugins may read again: for each plugin installation, the project its activation runs in and its own record key,
+ * the real path of the file the person gave the Host's entry in an import (material-original-entry.ts). A plugin never names a path;
+ * the Host records the one it was handed. An installation's id is the same in every project, so `project_id` keeps one project's
+ * registrations from another's; it is '' for a Home-level activation, whose registrations every project shares. A project's rows go
+ * with the project (`forgetProjectOriginalFiles`).
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
  */
 export const ORIGINAL_FILES_BASELINE: SqliteBaseline = { version: 1, schema: `
   CREATE TABLE plugin_original_files (
-    plugin_id TEXT NOT NULL, install_id TEXT NOT NULL, record_key TEXT NOT NULL,
+    plugin_id TEXT NOT NULL, install_id TEXT NOT NULL, project_id TEXT NOT NULL, record_key TEXT NOT NULL,
     real_path TEXT NOT NULL, registered_at TEXT NOT NULL,
-    PRIMARY KEY (plugin_id, install_id, record_key));
+    PRIMARY KEY (plugin_id, install_id, project_id, record_key));
 ` };
 export const ORIGINAL_FILES_HOME_STORE: HomeStoreDeclaration = { path: "plugin-originals", library: { baseline: ORIGINAL_FILES_BASELINE } };
 
@@ -38,7 +41,7 @@ function withStore<T>(home: string, use: (db: ReturnType<typeof openBaselineHome
   const db = openBaselineHomeSqlite(home, ORIGINAL_FILES_HOME_STORE.path, ORIGINAL_FILES_BASELINE);
   try { return use(db); } finally { db.close(); }
 }
-const identity = (key: PluginOriginalFileKey) => [key.plugin_id, key.install_id, key.record_key];
+const identity = (key: PluginOriginalFileKey) => [key.plugin_id, key.install_id, key.project_id ?? "", key.record_key];
 
 /**
  * Keeps the real path of the file the Host's entry offered, under this plugin installation's own key (replacing an earlier one for the
@@ -50,14 +53,20 @@ export async function registerOriginalFile(home: string, key: PluginOriginalFile
   try { real = await realpath(offered); } catch { throw materialOriginalErrors.missing("找不到这个原始文件"); }
   if (!(await stat(real).catch(() => undefined))?.isFile()) throw materialOriginalErrors.not_file("原始文件必须是一个普通文件");
   await beforeEffect();
-  withStore(home, db => db.prepare(`INSERT INTO plugin_original_files (plugin_id, install_id, record_key, real_path, registered_at) VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT (plugin_id, install_id, record_key) DO UPDATE SET real_path = excluded.real_path, registered_at = excluded.registered_at`)
+  withStore(home, db => db.prepare(`INSERT INTO plugin_original_files (plugin_id, install_id, project_id, record_key, real_path, registered_at) VALUES (?, ?, ?, ?, ?, ?)
+    ON CONFLICT (plugin_id, install_id, project_id, record_key) DO UPDATE SET real_path = excluded.real_path, registered_at = excluded.registered_at`)
     .run(...identity(key), real, new Date().toISOString()));
 }
 
 export async function releaseOriginalFile(home: string, key: PluginOriginalFileKey, beforeEffect: () => Promise<void>): Promise<void> {
   await beforeEffect();
-  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND record_key = ?").run(...identity(key)));
+  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND record_key = ?").run(...identity(key)));
+}
+
+/** A deleted project's registrations, whatever plugin made them; the files themselves are the person's and stay where they are. */
+export function forgetProjectOriginalFiles(home: string, projectId: string): void {
+  if (!projectId || !existsSync(homeSqlitePath(home, ORIGINAL_FILES_HOME_STORE.path))) return;
+  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE project_id = ?").run(projectId));
 }
 
 /** The path must still lead to exactly what was registered: the same real path, with no link anywhere along it. */
@@ -78,7 +87,7 @@ async function assertRegisteredPath(registered: string): Promise<void> {
 export async function readOriginalFile(home: string, key: PluginOriginalFileKey, options: { maxBytes?: number; signal?: AbortSignal } = {}): Promise<Buffer> {
   const maxBytes = options.maxBytes ?? ORIGINAL_FILE_MAX_BYTES;
   if (!Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > ORIGINAL_FILE_MAX_BYTES) throw materialOriginalErrors.invalid_limit("读取上限必须是 1 到 32 MiB 之间的整数");
-  const row = withStore(home, db => db.prepare("SELECT real_path FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND record_key = ?")
+  const row = withStore(home, db => db.prepare("SELECT real_path FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ? AND record_key = ?")
     .get(...identity(key)) as { real_path: string } | undefined);
   if (!row) throw materialOriginalErrors.not_registered("没有登记过这个原始文件");
   const registered = row.real_path;

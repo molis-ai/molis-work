@@ -251,10 +251,12 @@ const headErrors = (measured, budget, base) => {
 //   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
 // - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
 //   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
+// - re-anchored on main's budgets after A2-3 (#805) spent its allowance (workbench.js 1129726 → 1134948, the stylesheets'
+//   starts 4–24 B lower): the same +3,161 / +1,631 / +1,627 / +1,627 / +403 B as above.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129525, 1132686],
-  "/assets/molis-work-workbench.css": [1603154, 1604785],
-  "/assets/molis-work-settings.css": [988933, 990560],
+  "/assets/molis-work-workbench.js": [1134948, 1138109],
+  "/assets/molis-work-workbench.css": [1603130, 1604761],
+  "/assets/molis-work-settings.css": [988929, 990556],
   "/assets/molis-work-arrival.css": [698519, 700146],
   "/assets/molis-work-pages-editor.js": [706933, 707336],
 };

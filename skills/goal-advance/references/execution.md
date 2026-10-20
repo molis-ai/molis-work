@@ -1,8 +1,10 @@
 # Recording and completing work
 
-Use this reference for ordinary work on a connected Goal. Examples use `act(action, args)` to mean invoking the host-provided MCP action tool for that action (`molis_work_v1_action_<action>__v1`) and reading its result. Keep the returned IDs and versions; replace the example content and operation keys for your task.
+Use this reference for ordinary work on a connected Goal. Examples use `act(action, args)` to mean invoking the host-provided MCP action tool for that action (`molis_work_v1_action_<action>__v<version>`, using the current version returned by the directory) and reading its result. Keep the returned IDs and versions; replace the example content and operation keys for your task.
 
-Each action needs its own grant for this client in the current project: goals.list, goals.create and goals.note to start; goals.state.read, goals.events.list and goals.events.read for state and history; and goals.events.configure, goals.events.report, goals.progress.record, goals.concerns.apply, goals.decisions.request, goals.decisions.cite, goals.agreement.set, goals.closure.submit and goals.work.resume for the work operations. Missing or revoked access is resolved in **Capabilities → External access**. The same Home's system service must be running. Preserve the action and Session context on retries: a write is recorded under the Session that made it.
+`goals.events.list`, `goals.events.latest` and `goals.events.read` are version 2 (`__v2`): their output includes the `input_acknowledged` system payload. Version 1 is no longer offered; fixed workflow references and client grants must select version 2. `goals.events.acknowledge` remains version 1.
+
+Each action needs its own grant for this client in the current project: goals.list, goals.create and goals.note to start; goals.state.read, goals.events.list and goals.events.read for state and history; and goals.events.configure, goals.events.report, goals.progress.record, goals.concerns.apply, goals.decisions.request, goals.decisions.cite, goals.agreement.set, goals.closure.submit, goals.work.resume and goals.events.acknowledge for the work operations. Missing or revoked access is resolved in **Capabilities → External access**. The same Home's system service must be running. Preserve the action and Session context on retries: a write is recorded under the Session that made it.
 
 These grant ordinary work operations only. Requesting or citing a decision does not authorize a Runtime to create user approval. Missing tools require user authorization through External access; do not grant yourself access.
 
@@ -144,6 +146,23 @@ await act("goals.work.resume", {
 ```
 
 A new resume call on open work is rejected. Retry an already successful resume with its original key if needed; do not manufacture a second round. Ordinary unrelated notes on closed work remain historical additions.
+
+## Say how you will treat what the user wrote
+
+When you read a note, requirement or decision the user wrote on the Goal, and it changes what you do, record how you will handle it. Use `goals.events.read` or `goals.events.list` to get the `event_id` of that record, then:
+
+```javascript
+await act("goals.events.acknowledge", {
+  goal_id: g,
+  event_id: noteEventId,          // the user's note, requirement (agreement or configuration) or decision
+  treatment: "later-step",        // apply-now, later-step, new-task, needs-clarification, not-adopted, answered, noted or merged
+  note: "I read the refund rule and will check it in the verification step.",   // one sentence, 1 to 300 characters
+  read_cursor: observedEventCursor,   // the observed_event_cursor you had read up to
+  idempotency_key: "ack-refund-rule-1"
+});
+```
+
+This is your own statement on the Goal's timeline. It does not mean the instruction was followed, and it changes no state, requirement or decision. Records other than notes, requirements and decisions are refused, and so is a record on another Goal. Send no session or actor field: the Host records which session spoke. The result's `observed_event_cursor` is the new Goal cursor; use it for a later `goals.progress.record` that sets `expected_goal_cursor`. A cancelled Goal accepts the statement and stays cancelled.
 
 ## Read the right amount and recover
 

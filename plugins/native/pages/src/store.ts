@@ -36,8 +36,21 @@ export interface PagesImportDocumentsInput {
   readonly request_id: string;
   readonly request_hash: string;
   readonly folder_id?: string;
-  readonly documents: readonly { readonly title: string; readonly body: PagesBody }[];
+  readonly documents: readonly { readonly title?: string; readonly body?: PagesBody; readonly starred?: boolean; readonly goal_id?: string; readonly template_id?: string }[];
+  /** How a request that was already made is told, and who learns it was: the import dialog keeps `IMPORT_REPLAY`. */
+  readonly replay?: PagesReplay;
 }
+
+export interface PagesReplay {
+  /** Said when the same request comes with other content. */
+  readonly changed: string;
+  /** Said when a document the request made has since been deleted. */
+  readonly removed: string;
+  /** Called once the request is answered from what it made before, instead of making the documents again. */
+  readonly onReplay?: () => void;
+}
+
+const IMPORT_REPLAY: PagesReplay = { changed: "这次导入的文件、选择或文件夹已改变，请重新预览后导入", removed: "这批导入已完成，但部分文档已删除；不会重新创建" };
 
 /**
  * Generation attempts this process started: true while in progress, false once the call ended without being allowed to
@@ -187,26 +200,26 @@ export class PagesStore {
     return this.atomically(() => {
       const prior = this.db.get("SELECT request_hash, document_ids_json FROM page_imports WHERE project_id = ? AND request_id = ?", [project_id, input.request_id]);
       if (prior) {
-        if (prior.request_hash !== input.request_hash) {
-          throw pagesErrors.unavailable("这次导入的文件、选择或文件夹已改变，请重新预览后导入");
-        }
+        const replay = input.replay ?? IMPORT_REPLAY;
+        if (prior.request_hash !== input.request_hash) throw pagesErrors.unavailable(replay.changed);
         const ids = JSON.parse(String(prior.document_ids_json)) as string[];
-        return ids.map((id) => {
+        const documents = ids.map((id) => {
           try { return this.get(id, project_id); }
           catch (error) {
             if (error instanceof ActionError && error.code === "pages.not_found") {
-              throw pagesErrors.unavailable("这批导入已完成，但部分文档已删除；不会重新创建");
+              throw pagesErrors.unavailable(replay.removed);
             }
             throw error;
           }
         });
+        replay.onReplay?.();
+        return documents;
       }
       const folder_id = normalizeFolderId(input.folder_id, this, project_id);
       const documents = input.documents.map((document) => this.create({
         project_id,
         folder_id,
-        title: document.title,
-        body: document.body,
+        ...document,
       }));
       this.db.run("INSERT INTO page_imports (project_id, request_id, request_hash, document_ids_json, created_at) VALUES (?, ?, ?, ?, ?)",
         [project_id, input.request_id, input.request_hash, JSON.stringify(documents.map((document) => document.id)), new Date().toISOString()]);

@@ -54,6 +54,15 @@ const ALSO_REVIEWED_BY_CODING_REVIEWER = new Set([
   "plugins/native/diff",
 ]);
 
+/**
+ * A built-in plugin's src/registration.ts holds fields the Host trusts from it alone (personal, companions, the Home Runtime;
+ * W5-02, PG-065 in specs/repository-anti-corruption/privileges.md), so the platform's reviewers are asked for it whoever
+ * answers for the package. The last matching line wins: a package with reviewers of its own gets a line of its own after the
+ * pattern, naming both.
+ */
+export const REGISTRATION_PATTERN = "plugins/native/*/src/registration.ts";
+export const PLATFORM_REVIEWERS = [LEAD];
+
 /** The gate script and its rule modules, its CI helper, the gate numbers and the CI workflow: LEAD only, whatever pattern is added above them. */
 export const GATE_PATHS = [
   "scripts/check-health-gates.mjs",
@@ -93,6 +102,11 @@ export function renderCodeowners(packages) {
     "",
     `# Also reviewed by ${CODING_REVIEWER}`,
     ...reviewed.map((item) => `/${item.path}/ ${ownerOf(item).handles.join(" ")}`),
+    "",
+    "# A built-in plugin's registration holds trusted fields: the platform's reviewers as well (W5-02)",
+    `/${REGISTRATION_PATTERN} ${PLATFORM_REVIEWERS.join(" ")}`,
+    ...reviewed.filter((item) => item.path.startsWith("plugins/native/"))
+      .map((item) => `/${item.path}/src/registration.ts ${[...new Set([...ownerOf(item).handles, ...PLATFORM_REVIEWERS])].join(" ")}`),
     "",
     "# The gates and the CI workflow stay with the lead alone",
     ...GATE_PATHS.map((gatePath) => `/${gatePath} ${LEAD}`),

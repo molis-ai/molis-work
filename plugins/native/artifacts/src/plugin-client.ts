@@ -3,13 +3,18 @@ import type {
   PluginArtifactClient, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionDefinition, ActionRegistryPort, SyncActionClient, ActionCallContext, ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { createPluginArtifactOperations, type PluginArtifactOperationsInput } from "./plugin-operations.js";
 import { pluginArtifactContracts, referenceInput, processInput, artifactInput } from "./plugin-action-contracts.js";
 
-/** Created by the trusted Host for one installation; authors receive only the returned clients. */
+/**
+ * Created by the trusted Host for one installation; authors receive only the returned clients. Its calls run under the caller
+ * the Host issued that same session (`plugin_caller`), so they stop with the session.
+ */
 export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsInput, "authorize"> & {
   actions: { registry: ActionRegistryPort; client: SyncActionClient; project_id: string };
   context: PluginStartContext;
+  plugin_caller: HostPluginCaller;
 }): { client: PluginArtifactClient; process: PluginProcessItemClient; dispose(): void } {
   const { context, actor_id } = input;
   const manifest = structuredClone(input.manifest);
@@ -35,7 +40,7 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
     authorize: permission => context.requireGrant(permission) });
   const { providerId, read, head, own, publish, recordItem, processHead, processOwn, list } = sdkArtifactActions(context.install_id);
   const definitions = [read, head, own, publish, recordItem, processHead, processOwn, list];
-  const caller: ActionCallContext = { actor_id, project_id: input.actions.project_id, audience: "plugin",
+  const caller: ActionCallContext = { actor_id, project_id: input.actions.project_id, audience: "plugin", host_plugin: input.plugin_caller,
     plugin_install_id: context.install_id, permissions: manifest.permissions.map(item => item.permission), allowed_actions: definitions };
   const dispose = input.actions.registry.registerProvider({
     provider: { provider_id: providerId, title: `${manifest.name} · 成果 SDK`, kind: "system", project_id: input.actions.project_id },

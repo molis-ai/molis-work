@@ -5,11 +5,11 @@ import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-
 
 /**
  * Host owns both connections; read calls use SQLite read-only enforcement, not a SQL keyword filter. A write asks the original
- * caller again (`assertPluginActionCurrent`) before its wait, right after it in the same turn as `BEGIN`, before every
+ * caller of `installId`'s action again (`assertPluginActionCurrent`) before its wait, right after it in the same turn as `BEGIN`, before every
  * statement and before `COMMIT`: a call cancelled or revoked at any of these points writes nothing, whatever `beforeEffect` the
  * Plugin handed in.
  */
-export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void): {
+export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string): {
   client: PluginDatabase; close(): void;
 } {
   if (!/^[a-z][a-z0-9-]*$/u.test(declaration.store_name)) throw new Error("插件库名称必须是可信的单个目录名");
@@ -25,7 +25,7 @@ export function openPluginDatabase(home: string, declaration: PluginDatabaseDecl
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };
-  const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(); };
+  const permitWrite = () => { permit(declaration.write_permission); assertPluginActionCurrent(installId); };
   const reads = (db: ReturnType<typeof openReadOnlyHomeSqlite>, check: () => void): PluginDatabaseReader => ({
     get(sql, parameters = []) { check(); query(sql); return db.prepare(sql).get(...parameters) ?? null; },
     all(sql, parameters = []) { check(); query(sql); return db.prepare(sql).all(...parameters); },

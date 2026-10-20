@@ -70,6 +70,10 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   };
 }
 
+/**
+ * The action client for one request. Its calls share one authority snapshot, so a caller must not keep the client across requests
+ * (in a cached handler, say): a grant given later would stay out of its snapshot until the process restarts.
+ */
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[]): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();

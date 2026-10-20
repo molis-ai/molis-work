@@ -80,6 +80,7 @@
 | BL-343 | 卡片结果里没有「撤销」：操作卡跑完后，结果在卡上和输入框上方那一行，可撤回的改动却只列在侧栏（`view.undoable`），不知道是哪张卡改的 | [ai-interaction-experience](ai-interaction-experience/spec.md) §15.11「撤销」、AC-06 | 明确后续做 | 要先让撤回记录认得是哪张卡，是合同改动，按 `docs/system/CONTRACT-CHANGES.md` 做 | 合同改动 | 中 | 未分配 |
 | BL-344 | 同排推荐算不算达到需求书 §3 第 2 条「与输入框平齐、横向展开」（参考图 1）：下一步现在是输入框上方的一行，助理和 Coding 都有（情境线 [context-program §21.9](context-program/spec.md)、本需求书 §15.11）；AC-02 与 AC-12 示例 2 按这一条判 | [ai-interaction-experience](ai-interaction-experience/spec.md) §3、AC-02、AC-12 | 部分实现 | 要用户看实物定；不达到，再改助理面板的版面（版面原归情境线，情境线 2026-10-20 也收尾） | 用户看实物 | 中 | 未分配 |
 | BL-345 | 交互线的浏览器与真实模型验证没补：AC-06 卡片结果的走查；AC-09 在一次性 Home 里用真实模型跑一轮 Coding（Diff → 命令审批 → 报告）；AC-10 Coding 问卷卡三个宽度与深色的评审截图和 §15.10「待补浏览器验证」；AC-11 用真实模型在产品里走一遍助理与 Coding 的带类型提问，下次换包时对照上游源码逐项核；AC-12 `generated-ai.md` 的真实模型冒烟（先在隔离 Home 的设置页配模型）。真实中文输入法与读屏是 BL-016 | [ai-interaction-experience](ai-interaction-experience/spec.md) §12、§15.10、AC-06、AC-09～AC-12 | 部分实现 | 用户 2026-10-19 暂停了本机的浏览器用例、一次性 Home 实走和截图；需求书的验收要等这些补齐才能归档 | 用户恢复浏览器验证 | 高 | 未分配 |
+| BL-373 | 助理的注意规则选不到创作台装的 Runtime 插件页面：PG-036-1 让写规则时只认已装插件的页面（`apps/local-host/src/assistant/assistant-pages.ts` 取各项目显示的插件页面，再加 `home`），但创作台装的 Runtime 插件由 `plugin-builder/agent-surface.ts` 的 `installedPluginStages` 列出，要项目库和 Coding 服务，不在这份列表里，给它们写规则会被拒。原来的 SURFACES 枚举本来也不含它们，不算回归 | PR #845（PG-036-1） | 已知缺口 | 「项目里装了哪些页面」现在有两个来源（显示的插件目录、创作台装的阶段），应由平台给一份；做法和创作台的去向（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 行）一起定 | 创作台去向 | 低 | ③（防腐线） |
 
 ## 4. 搜索、放置与工作流
 

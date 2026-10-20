@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm, readdir, writeFile } from "node:fs/promises";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createExtractablePdf, openShelfStore, hashBytes } from "@molis-ai/molis-work-module-shelf";
+import { createExtractablePdf, hashBytes } from "@molis-ai/molis-work-module-shelf";
 import { shelfActions as a, SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
-import { shelfActionProvider } from "../apps/local-host/src/shelf-actions.js";
+import { openHostShelfStore, shelfActionProvider } from "../apps/local-host/src/shelf-actions.js";
 import { extractMaterial } from "../apps/local-host/src/material-extraction.js";
 import { materialImageTextAvailable } from "../apps/local-host/src/material-native.js";
 
@@ -35,13 +35,13 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
     try {
       const { item } = await service.invoke(caller, a.admit, { filename: "source.pdf", bytes_base64: pdf.toString("base64"), mime: "application/pdf" });
       assert.match(item.preview_text!, /Preserve the original PDF/);
-      const store = openShelfStore(home), copy = join(home, "shelf", item.relative_path), before = store.snapshot().results;
+      const store = openHostShelfStore(home), copy = join(home, "shelf", item.relative_path), before = (await store.snapshot()).results;
       paused = true;
       pending = service.invoke(context, a.extract, { recipe: "extract_text", item_id: item.item_id });
       const code = stop === "cancel" ? undefined : stop === "revoke" ? "actions.forbidden" : stop === "withdraw" ? "actions.provider_changed" : stop === "copy-change" ? "shelf.hash_changed" : "shelf.cancelled";
       rejected = assert.rejects(pending, code ? { code } : { name: "AbortError" });
       await entered.promise;
-      const job = store.snapshot().running_jobs[0]!; assert.ok(job);
+      const job = (await store.snapshot()).running_jobs[0]!; assert.ok(job);
       const fast = await service.invoke(caller, a.admit, { text: "Another material while parsing", title: "fast" });
       assert.equal(fast.item.kind, "markdown");
       if (stop === "cancel") controller.abort();
@@ -51,12 +51,12 @@ for (const stop of ["cancel", "revoke", "withdraw", "copy-change", "job-cancel"]
       if (stop === "job-cancel") assert.equal((await service.invoke(caller, a.cancelJob, { job_id: job.job_id })).job.status, "cancelled");
       if (stop === "cancel" || stop === "job-cancel") assert.equal(extractionSignal?.aborted, true, "cancellation reaches the actual extractor");
       release.resolve(); await rejected;
-      assert.deepEqual(store.snapshot().results, before);
+      assert.deepEqual((await store.snapshot()).results, before);
       assert.deepEqual(await readdir(join(home, "shelf", "jobs", job.job_id, "output")), []);
-      assert.deepEqual(store.snapshot().running_jobs, []);
+      assert.deepEqual((await store.snapshot()).running_jobs, []);
       if (stop === "copy-change") await writeFile(copy, pdf);
       assert.equal(hashBytes(store.readFile(item.item_id).bytes), item.origin_hash);
-      store.hide(item.item_id); // A terminated execution cannot keep the material busy for another 20 minutes.
+      await store.hide(item.item_id); // A terminated execution cannot keep the material busy for another 20 minutes.
       allowed = true; paused = false;
       if (stop === "withdraw") dispose = service.registerProvider(registration);
       const fresh = await service.invoke(caller, a.admit, { filename: "fresh.pdf", bytes_base64: pdf.toString("base64") });
@@ -80,14 +80,16 @@ test("PDF admission cancellation after parsing leaves no saved copy", async () =
   const rejected = assert.rejects(pending, { name: "AbortError" });
   try {
     await entered.promise; controller.abort(); release.resolve(); await rejected;
-    assert.deepEqual(await readdir(join(home, "shelf", "files")), []);
+    // The folders appear with the first write now, not when the shelf is opened: a shelf nothing was saved to may not have `files/` yet.
+    const copies = join(home, "shelf", "files");
+    assert.deepEqual(existsSync(copies) ? await readdir(copies) : [], []);
   } finally { controller.abort(); release.resolve(); await Promise.allSettled([pending, rejected]); dispose(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("Shelf preserves all selected PDF/image materials, OCR language and line-level uncertainty", async () => {
   const home = await mkdtemp(join(tmpdir(), "shelf-mixed-extract-"));
   const seen: unknown[] = [];
-  const store = openShelfStore(home, { disabled: true }, { imageTextAvailable: () => true, extract: async (source, options) => {
+  const store = openHostShelfStore(home, { disabled: true }, { imageTextAvailable: () => true, extract: async (source, options) => {
     if (source.file_name.endsWith(".pdf")) return extractMaterial(source, options);
     seen.push(options?.ocrLanguages);
     return { text: "Clear\nUncertain\nUnknown", extractor: "fixture", pages: [{ number: 1, text: "Clear\nUncertain\nUnknown", method: "ocr", confidence: 0.8,
@@ -95,9 +97,9 @@ test("Shelf preserves all selected PDF/image materials, OCR language and line-le
       coverage: { status: "partial", processed_pages: 1, total_pages: 2, issues: ["仅提取第一张图片"] } };
   } });
   try {
-    const first = store.admit({ filename: "one.pdf", bytes: pdf });
-    const second = store.admit({ filename: "two.pdf", bytes: createExtractablePdf("Second selected document") });
-    const third = store.admit({ filename: "scan.png", bytes: Buffer.from("fixture bytes") });
+    const first = await store.admit({ filename: "one.pdf", bytes: pdf });
+    const second = await store.admit({ filename: "two.pdf", bytes: createExtractablePdf("Second selected document") });
+    const third = await store.admit({ filename: "scan.png", bytes: Buffer.from("fixture bytes") });
     const result = await store.runJob({ recipe: "extract_text", item_ids: [first.item_id, second.item_id, third.item_id], option_id: "en" });
     assert.deepEqual(seen, [["en-US"]]);
     const text = store.readFile(result.result!.item_id).bytes.toString("utf8");
@@ -140,7 +142,7 @@ test("Shelf retains 32 MiB admissions while the common extractor keeps its small
   const home = await mkdtemp(join(tmpdir(), "shelf-pdf-limit-"));
   const split = pdf.indexOf("startxref");
   const large = Buffer.concat([pdf.subarray(0, split), Buffer.alloc(26 * 1024 * 1024, 32), pdf.subarray(split)]);
-  const store = openShelfStore(home, { disabled: true }, { extract: extractMaterial });
+  const store = openHostShelfStore(home, { disabled: true }, { extract: extractMaterial });
   try {
     await assert.rejects(extractMaterial({ file_name: "large.pdf", bytes: large }), { code: "material.invalid_data" });
     const item = await store.admitFile({ filename: "large.pdf", bytes: large });
@@ -157,17 +159,17 @@ test("an old running record without a live execution is preserved without replay
   let calls = 0;
   const ports = { extract: (...args: Parameters<typeof extractMaterial>) => { calls++; return extractMaterial(...args); } };
   try {
-    const store = openShelfStore(home, { disabled: true }, ports);
-    const item = store.admit({ filename: "source.pdf", bytes: pdf });
+    const store = openHostShelfStore(home, { disabled: true }, ports);
+    const item = await store.admit({ filename: "source.pdf", bytes: pdf });
     const completed = await store.runJob({ recipe: "extract_text", item_id: item.item_id });
     const file = join(home, "shelf", "catalog.json"), catalog = JSON.parse(readFileSync(file, "utf8"));
     catalog.jobs.push({ ...completed.job, job_id: "interrupted", status: "running", result_item_id: null, finished_at: null });
     await writeFile(file, JSON.stringify(catalog));
-    const before = readFileSync(file, "utf8"), reopened = openShelfStore(home, { disabled: true }, ports);
-    assert.deepEqual(reopened.snapshot().running_jobs, []);
+    const before = readFileSync(file, "utf8"), reopened = openHostShelfStore(home, { disabled: true }, ports);
+    assert.deepEqual((await reopened.snapshot()).running_jobs, []);
     assert.equal(calls, 1); assert.equal(readFileSync(file, "utf8"), before);
-    reopened.hide(item.item_id);
-    assert.equal(reopened.cancelJob("interrupted").status, "cancelled");
-    assert.equal(calls, 1); assert.equal(reopened.snapshot().results.length, 1);
+    await reopened.hide(item.item_id);
+    assert.equal((await reopened.cancelJob("interrupted")).status, "cancelled");
+    assert.equal(calls, 1); assert.equal((await reopened.snapshot()).results.length, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });

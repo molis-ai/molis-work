@@ -4,8 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, openHostShelfStore, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, handleShelfNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -79,7 +78,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
       const item = (await request("/api/shelf/items", { filename, bytes_base64: bytes.toString("base64") })).body.item;
       assert.equal((await request(`/api/shelf/items/${item.item_id}/project-material`)).status, 400, filename);
     }
-    const sample = openShelfStore(home, { disabled: true }).seedSample();
+    const sample = await openHostShelfStore(home, { disabled: true }).seedSample();
     assert.equal((await request(`/api/shelf/items/${sample.item_id}/project-material`)).status, 400);
     assert.deepEqual([...new Set(documents().listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: IMPORTED_DOCUMENT_TYPE }).map(row => row.artifact_id))], [save.body.reference.artifact_id]);
   } finally {

@@ -254,7 +254,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1603154, 1604893],
   "/assets/molis-work-settings.css": [988933, 990668],
   "/assets/molis-work-arrival.css": [698519, 700254],
-  "/assets/molis-work-pages-editor.js": [706942, 707345],
+  "/assets/molis-work-pages-editor.js": [706933, 707336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -40,8 +40,10 @@ function harness() {
   const grants = new Set(["artifact:read", "artifact:write"]);
   const authorized: string[] = [];
   let author: string | undefined;
+  let callerCurrent = true;
   const operations = (declaration = manifest(), actor_id = ACTOR, project_id = DEMO_PROJECT_ID) => createPluginArtifactOperations({
     api, process, manifest: declaration, actor_id, project_id, author: () => author, assertInput: assertActionInput,
+    assertCallerCurrent() { if (!callerCurrent) throw new ActionError("actions.forbidden", "Caller revoked"); },
     authorize(permission) {
       authorized.push(permission);
       if (!grants.has(permission)) throw new ActionError("actions.forbidden", "Grant revoked");
@@ -50,6 +52,7 @@ function harness() {
   const snapshot = () => ({ artifacts: api.query.listArtifacts(DEMO_PROJECT_ID), process: process.query.listArtifacts(DEMO_PROJECT_ID),
     cursor: store.eventCursor(DEMO_PROJECT_ID) });
   return { store, api, process, grants, authorized, operations, snapshot, setAuthor(value: string) { author = value; },
+    revokeCaller() { callerCurrent = false; },
     close() { store.close(); rmSync(directory, { recursive: true, force: true }); } };
 }
 
@@ -288,12 +291,26 @@ test("W5-01-D1-04: projected direct inputs use the Kernel validator and refusals
   } finally { rig.close(); }
 });
 
+test("W5-01-D1-04: a publish or record whose original caller is no longer current writes nothing; reads still answer", () => {
+  const rig = harness();
+  try {
+    const ops = rig.operations();
+    const report = ops.client.publish(artifact("before-revoke")).artifact;
+    const before = rig.snapshot();
+    rig.revokeCaller();
+    assert.throws(() => ops.client.publish(artifact("after-revoke")), { code: "actions.forbidden" });
+    assert.throws(() => ops.process.record(item("after-revoke")), { code: "actions.forbidden" });
+    assert.deepEqual(rig.snapshot(), before, "neither store nor the journal changed");
+    assert.deepEqual(ops.client.read(report), report, "the caller check guards writes only");
+  } finally { rig.close(); }
+});
+
 test("W5-01-D1-04: factory options mutation cannot change the bound actor, project or owner stores", () => {
   const rig = harness(), other = harness();
   try {
     const foreign = rig.operations(manifest(), "other-person").process.record(item("another-person-process")).artifact;
     const options = { api: rig.api, process: rig.process, manifest: manifest(), actor_id: ACTOR, project_id: DEMO_PROJECT_ID,
-      assertInput: assertActionInput, authorize(permission: "artifact:read" | "artifact:write") {
+      assertInput: assertActionInput, assertCallerCurrent() {}, authorize(permission: "artifact:read" | "artifact:write") {
         if (!rig.grants.has(permission)) throw new ActionError("actions.forbidden", "Grant revoked");
       } };
     const ops = createPluginArtifactOperations(options);

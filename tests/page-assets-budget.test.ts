@@ -696,7 +696,7 @@ test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded a
     "/assets/molis-work-workbench.css": [1603154, 1604893],
     "/assets/molis-work-settings.css": [988933, 990668],
     "/assets/molis-work-arrival.css": [698519, 700254],
-    "/assets/molis-work-pages-editor.js": [706942, 707345],
+    "/assets/molis-work-pages-editor.js": [706933, 707336],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

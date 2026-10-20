@@ -21,11 +21,12 @@ export function renderFoundationSection(): string {
       ${specimen("从右到左", strip("视图（从右到左）", ' dir="rtl"'))}
       ${specimen("放得下 · 不淡出", strip("视图（放得下）", "", VIEWS.slice(0, 3)))}
     </div>
-    <p class="mw-catalog__hint">复制：剪贴板真的收下才显示「已复制」，约 2.5 秒后淡回；失败说复制失败；三种文字占同一宽度，连按以最后一次为准。折叠：按自然高度展开，途中反向从当前高度接着走，收起后里面不能获得焦点。会变的数字：等宽数字，宽度按取值范围里最宽的值预留，9 → 10、59 秒 → 1 分 0 秒都不推旁边的按钮。</p>
+    <p class="mw-catalog__hint">复制：剪贴板真的收下才显示「已复制」，约 2.5 秒后淡回；失败说复制失败；三种文字占同一宽度，连按以最后一次为准。折叠：按自然高度展开，途中反向从当前高度接着走，收起后里面不能获得焦点。会变的数字：等宽数字，宽度按取值范围里最宽的值预留，9 → 10、59 秒 → 1 分 0 秒都不推旁边的按钮。一直在长的记录：在底部就跟着，往上滚、按键或选字就停，新的行在「新消息」后面等着，点它一次平滑回到最新。</p>
     <div class="mw-catalog__specimens">
       <figure class="mw-catalog__specimen"><figcaption>复制 · 成功与失败</figcaption><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="ok">复制</button><button type="button" class="mw-btn mw-btn--secondary" data-catalog-copy="fail">复制（会失败）</button></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>折叠 · 自然高度</figcaption>${renderCollapsible({ summary: "这一轮读过的文件（3）", body: "<p>specs/visual-ui-experience/spec.md</p><p>DESIGN.md</p><p>packages/design-system/src/styles/disclosure.ts</p>" })}</figure>
       <figure class="mw-catalog__specimen"><figcaption>会变的数字 · 宽度不跳</figcaption><div class="mw-catalog-row"><span class="mw-num" data-num-ghost="59 分 59 秒" data-catalog-elapsed>0 秒</span><button type="button" class="mw-btn mw-btn--secondary">停止</button></div></figure>
+      <figure class="mw-catalog__specimen"><figcaption>跟随到底 · 往上滚就停</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>↓ 新消息</button></div></figure>
     </div>
   </section>`;
 }

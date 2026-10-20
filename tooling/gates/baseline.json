@@ -148,7 +148,7 @@
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/craft-finish.ts": 2133,
     "file packages/design-system/src/styles/momentum.ts": 823,
-    "file packages/design-system/src/styles/primitives.ts": 1268,
+    "file packages/design-system/src/styles/primitives.ts": 1266,
     "file packages/im-ui/src/browser/controller.ts": 964,
     "function packages/im-ui/src/browser/controller.ts#startIm": 955,
     "function packages/im-ui/src/views.ts#createViews": 164,

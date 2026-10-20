@@ -1,10 +1,10 @@
 # 最近三天 PR 复审确认问题的修复
 
-状态：实现中（2026-10-20）。审计范围是 2026-10-17 至 2026-10-20 合入 main 的 227 个 PR；完整报告见 [docs/reviews/pr-review-2026-10-17-to-20.md](../../docs/reviews/pr-review-2026-10-17-to-20.md)。本 spec 只收**经本次复核确认**的问题；报告里仍是 concern、但本次没有确认的项不在这里扩成实现，见 §1.4。
+状态：已实现，待评审（2026-10-20；PR #901）。审计范围是 2026-10-17 至 2026-10-20 合入 main 的 227 个 PR；完整报告见 [docs/reviews/pr-review-2026-10-17-to-20.md](../../docs/reviews/pr-review-2026-10-17-to-20.md)。本 spec 只收**经本次复核确认**的问题；报告里仍是 concern、但本次没有确认的项不在这里扩成实现，见 §1.4。
 
 审计基线是 `origin/main` `3ba9185d7`（2026-10-20 16:07 UTC）。本 spec 的编号前缀是 `PRR`，实现时把编号写进测试名或测试旁注释。
 
-实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03 已按用户选择的 B 落实（首次授权目录，之后按相对路径读；每次读取都查安装的 `directory:read`，符号链接/越界/超限拒绝），Cognia 不再 import `node:fs`；PRR-12 已完成：Lingguang 的 Manifest 声明 `stage` view，工作台按 Manifest 渲染 Plugin 自己的 UI contribution，删掉了 `renderLingguangContribution`、slot 表、renderer 包装和页面池里的插件 id 分支；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 已改为真实打开再关闭（测试改名 `PRR-21 QA-017 opens the side panel`；本机 Chrome CDP 失败，未跑通）；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（基于 `3ba9185d7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
+实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03 已按用户选择的 B 落实（首次授权目录，之后按相对路径读；每次读取都查安装的 `directory:read`，符号链接/越界/超限拒绝），Cognia 不再 import `node:fs`；PRR-12 已完成：Lingguang 的 Manifest 声明 `stage` view，工作台按 Manifest 渲染 Plugin 自己的 UI contribution，删掉了 `renderLingguangContribution`、slot 表、renderer 包装和页面池里的插件 id 分支；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 已改为真实打开再关闭（测试改名 `PRR-21 QA-017 opens the side panel`；本机 Chrome CDP 失败，CI 的 Product subset 待跑）；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（PR #901，已 rebase 到 `88e19e0b7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；PR 的必需 CI 已绿；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
 
 ## 1. 确认结果
 

@@ -2176,3 +2176,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - #867：两条要改已在本地修完。installed-plugin-host 那 3 条超时只在 macOS 上出现，放长超时都能过，PR 原来的 head 也一样。接下来推上去，等 S8 同批。
   - #843 评审建议 2 的 BL 行，由 ⑤ 单开一个文档 PR 补，不碰 Codex 的分支。
   - ③：S8 不改 `plugins/native/goals/package.json`，所以不依赖 #840。
+- **11:0x UTC 进展**：
+  - **#776 合入 main `986a3f8a0`**，Codex 走正常合并队列（run 39411460526）。合入前它解了 SECURITY-INVARIANTS S-18 的冲突，两边都留了。GitHub 自动把 #797 的 base 改成 main，现在有冲突，Codex 正在同步。
+  - #872：⑩ 把注释并到上一行行尾，新 head `0162856df`，client.ts 回到 1671 行，和 merge-base 一样。shelf.js 下发字节不变（75673）。⑤ 核过，CI 后 merge-only 排队。远端状态 CLEAN。
+  - #867：#776 合入后远端 DIRTY（head 还是 `cdcda41b1`）。① 已告诉 ⑤：推本地修复前再合一次最新 main，门禁在合入后的树上跑。
+  - #870：⑩ 的修复 `461750c2e` 在 heavy.sh 跑构建和 8 个相关用例，过了再推到 ② 的分支、更新正文。
+  - ②：Prologue 占位串修复的测试、S0-2a 在 #776 合入后的复跑，两份都在 heavy.sh 排队。#826、#840、#843 归 Codex，要推先在评论里说明。

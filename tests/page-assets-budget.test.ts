@@ -684,6 +684,8 @@ for (const [asset, old] of [
   // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
   ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604893], ["/assets/molis-work-settings.css", 990668],
   ["/assets/molis-work-arrival.css", 700254],
+  // The Coding scroll-owner allowance (#864, VUX-26) is spent.
+  ["/assets/molis-work-workbench.js", 1134508],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -696,12 +698,14 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-20): Coding's conversation takes the one scroll owner; the workbench script may grow
-// once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
-// baseline still fails.
-test("VUX-26 the Coding scroll-owner allowance is bounded and spent once; other assets and later growth still fail", () => {
+// specs/visual-ui-experience (2026-10-20): the remaining copy buttons and conversations take the shared mechanisms; each
+// asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
+// the new baseline still fails.
+test("VUX-19 VUX-26 the shared copy and scroll consumers' allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134508, 1134763],
+    "/assets/molis-work-workbench.js": [1134763, 1134964],
+    "/assets/molis-work-plugins/shelf.js": [75866, 75964],
+    "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

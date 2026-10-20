@@ -1,3 +1,5 @@
+import { isKnowledgeOrganize, organizedCardFor } from "./knowledge-organize.js";
+
 /** The ending review's answer (D1②) for the claims a test wants it to find: the next step as the ending, a sentence per kind. */
 export function reviewAnswer(claims: readonly string[]): string {
   const sentence = (kind: string) => claims.includes(kind) ? `（${kind} 的原句）` : "";
@@ -22,6 +24,16 @@ export function endingReviewAnswer(body: { system?: unknown; messages?: unknown 
 export function endingReviewReply(raw: string): string | undefined {
   if (!raw.startsWith("{")) return undefined;
   return endingReviewAnswer(JSON.parse(raw) as { system?: unknown; messages?: unknown }, () => []);
+}
+
+/**
+ * For a loopback model that is the Home's configured model and scripts a round's turns in order: answers the Home's own model
+ * work that is not the round's, so the script spends its turns only on the round's calls. That is the ending review ("nothing
+ * found"), and project knowledge's card for each piece it organizes in the background a moment after something in the project
+ * changed (specs/project-knowledge §5), told apart by its registered instruction (knowledge.organize). Undefined for the round's calls.
+ */
+export function asideReply(raw: string): string | undefined {
+  return endingReviewReply(raw) ?? (isKnowledgeOrganize(raw) ? organizedCardFor(raw) : undefined);
 }
 
 /**

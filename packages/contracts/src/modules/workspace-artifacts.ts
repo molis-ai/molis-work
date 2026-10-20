@@ -199,7 +199,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
-export const workspaceArtifactErrors = defineErrorCodes("work.workspace", {
+export const workspaceArtifactErrors = /* @__PURE__ */ defineErrorCodes("work.workspace", {
   invalid_ref: "invalid",
   handle_not_opaque: "invalid",
   invalid_path: "invalid",
@@ -314,6 +314,23 @@ export function parseFilePath(value: unknown, allowRoot = false): string[] {
     return segment;
   });
 }
+
+/**
+ * A file in a project's linked folder as one object: Files lists it under this kind in the side panel, and project knowledge
+ * finds and reads it by the same subject, so it is one piece wherever it shows up. The id is `<workspace_id>:<a/b/c>`.
+ */
+export const WORKSPACE_FILE_SUBJECT_KIND = "workspace_file";
+export function workspaceFileSubjectId(workspaceId: string, path: readonly string[]): string {
+  return `${workspaceId}:${path.join("/")}`;
+}
+/** The folder and path a workspace file subject names; the path is checked as every workspace path is. Null when it names none. */
+export function parseWorkspaceFileSubjectId(id: string): { workspace_id: string; path: string[] } | null {
+  const at = id.indexOf(":");
+  if (at <= 0) return null;
+  try { return { workspace_id: id.slice(0, at), path: parseFilePath(id.slice(at + 1).split("/")) }; } catch { return null; }
+}
+/** Folders that are built, fetched or tool state rather than the project's own files: walking a workspace skips them unless asked by name. */
+export const WORKSPACE_SKIPPED_FOLDERS = ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"] as const;
 
 /** Display only. Never feed this back into anything that resolves a path. */
 export function pathLabel(path: readonly string[]): string {
@@ -751,12 +768,12 @@ const workspaceRead = (title: string, description: string, input: Record<string,
 });
 export const workspaceReadActions = {
   file: { capability_id: "projects.workspace.files.read", version: 1, operation: "query",
-    action: workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。kind 为 bytes（整份文件，供图片、PDF 预览）时，只有宿主运行的、在 Manifest 的 capabilities.consumes 里列出本动作并持有 workspace:read 的插件能用；其他调用方（用户、内置 Agent、工作流、MCP 客户端、生成的沙箱插件）用 bytes 会被拒绝（actions.forbidden），请读目录或文本",
+    action: /* @__PURE__ */ workspaceRead("读取项目目录文件", "按路径列出当前项目已关联工作目录中的条目，或读取一个文本文件；只读，路径相对于工作目录。kind 为 bytes（整份文件，供图片、PDF 预览）时，只有宿主运行的、在 Manifest 的 capabilities.consumes 里列出本动作并持有 workspace:read 的插件能用；其他调用方（用户、内置 Agent、工作流、MCP 客户端、生成的沙箱插件）用 bytes 会被拒绝（actions.forbidden），请读目录或文本",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, path: { type: "array", items: { type: "string", minLength: 1 }, maxItems: 256, title: "路径" },
         kind: { enum: ["directory", "text", "bytes"], title: "读取目录、文本，或整份文件（bytes，仅限宿主运行的插件）" } }, ["workspace_id", "path", "kind"]),
   } as ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>,
   git: { capability_id: "projects.workspace.git.inspect", version: 1, operation: "query",
-    action: workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",
+    action: /* @__PURE__ */ workspaceRead("读取项目仓库状态", "读取当前项目已关联工作目录的 Git 状态、摘要、差异或冲突文件；只读，不改变仓库",
       { workspace_id: { type: "string", minLength: 1, title: "工作目录" }, kind: { enum: ["status", "summary", "pr-support", "diff", "conflict"], title: "读取什么" },
         path: { type: ["array", "string"], title: "路径" }, side: { enum: ["index", "worktree"], title: "差异一侧" } }, ["workspace_id", "kind"]),
   } as ActionDefinition<WorkspaceGitQuery, WorkspaceGitResult>,

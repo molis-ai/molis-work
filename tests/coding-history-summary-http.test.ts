@@ -36,6 +36,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as any[])[1].run_id) as Output;
       if (definition.capability_id === agent.draftText.capability_id) {
@@ -125,6 +126,7 @@ test("a round whose digest the model is still writing runs beside the project's 
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: earlier.map(item => item.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return earlier.find(item => item.ref.run_id === (args as any[])[1].run_id) as Output;
       if (definition.capability_id === agent.draftText.capability_id) { asked.resolve(); await gate.promise; if (modelFails) throw new Error("模型两分钟内没有写完，已停止"); return { text: "1. 目标与要求：给习惯加归档。", usage: { input: 5000, output: 400 } } as Output; }

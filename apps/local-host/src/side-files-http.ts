@@ -74,25 +74,28 @@ export async function handleSideFilesHttp(request: IncomingMessage, response: Se
       json(200, { page });
       return true;
     }
+    const sendRaw = (file: FileContent) => {
+      // Only kinds the panel shows in a frame or an image, never a document that could run in this origin.
+      if (file.encoding !== "base64" || !RAW_TYPES.has(file.media_type)) { json(415, { error: "这种文件不能直接显示" }); return true; }
+      // nosniff pins the declared type, so the bytes are only ever shown as an image or by the PDF viewer (a sandboxed
+      // frame would stop the viewer from rendering at all).
+      response.writeHead(200, { "content-type": file.media_type, "content-disposition": "inline", "cache-control": "no-store", "x-content-type-options": "nosniff" });
+      response.end(Buffer.from(file.data, "base64"));
+      return true;
+    };
     const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
     if (!kind || !id || !source.action.file_source!.kinds.some(entry => entry.kind === kind)) { json(400, { error: "没有说明要预览哪个文件" }); return true; }
     const provider = source.provider.provider_id;
     // A 成果 version previews through its type's owner (artifact-positioning A4b), the same as in the 成果库.
-    const owned = kind === ARTIFACT_SUBJECT_KIND && route === "content" ? await ownerPreview(id, views, (view, input) => client.invoke(caller, referenceOf(view), input), ports) : null;
-    if (owned) { json(200, { content: owned, via: "owner" }); return true; }
+    const owned = kind === ARTIFACT_SUBJECT_KIND ? await ownerPreview(id, views, (view, input) => client.invoke(caller, referenceOf(view), input), ports) : null;
+    if (owned && route !== "raw") { json(200, { content: owned, via: "owner" }); return true; }
+    // The owner's preview of a 成果 also gives the frame its bytes (an imported PDF in the side panel), under the same rule as below.
+    if (owned) return sendRaw(owned);
     const content = views.find(view => isFileContentSource(view.action) && view.availability.available && view.provider.provider_id === provider
       && view.action.file_source?.kinds.some(entry => entry.kind === kind));
     if (content) {
       const file = await client.invoke(caller, referenceOf(content), { subject: { kind, id } }) as FileContent;
-      if (route === "raw") {
-        // Only kinds the panel shows in a frame or an image, never a document that could run in this origin.
-        if (file.encoding !== "base64" || !RAW_TYPES.has(file.media_type)) { json(415, { error: "这种文件不能直接显示" }); return true; }
-        // nosniff pins the declared type, so the bytes are only ever shown as an image or by the PDF viewer (a sandboxed
-        // frame would stop the viewer from rendering at all).
-        response.writeHead(200, { "content-type": file.media_type, "content-disposition": "inline", "cache-control": "no-store", "x-content-type-options": "nosniff" });
-        response.end(Buffer.from(file.data, "base64"));
-        return true;
-      }
+      if (route === "raw") return sendRaw(file);
       json(200, { content: file, via: "content" });
       return true;
     }

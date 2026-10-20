@@ -34,13 +34,13 @@ test("a pinned document, form, deck and table each continue as a new object of t
   const continueFrom = async (artifact: { artifact_id: string; version: number }, plugin_id: string) => (await post("/api/artifacts/continue", { reference: artifact, plugin_id }, 201)).open as { surface: string; id: string; title: string };
 
   // Pages: a new document with the version's title and text.
-  const page = (await post("/api/pages", { title: "方案", markdown: "第一稿" })).document as { id: string; version: number };
-  const pinnedPage = (await post(`/api/pages/${page.id}/promote`, { expected_version: page.version })).artifact as { artifact_id: string; version: number };
+  const page = (await post("/api/plugins/io.molis.work.pages/pages", { title: "方案", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinnedPage = (await post(`/api/plugins/io.molis.work.pages/pages/${page.id}/promote`, { expected_version: page.version })).artifact as { artifact_id: string; version: number };
   assert.match(await detail(pinnedPage), /data-artifact-continue="io\.molis\.work\.pages"[^>]*>在 Pages 继续</);
   const pageOpen = await continueFrom(pinnedPage, "io.molis.work.pages");
   assert.notEqual(pageOpen.id, page.id);
   assert.equal(pageOpen.surface, "pages");
-  const copiedPage = (await get(`/api/pages/${pageOpen.id}`)).document as { title: string; body: unknown };
+  const copiedPage = (await get(`/api/plugins/io.molis.work.pages/pages/${pageOpen.id}`)).document as { title: string; body: unknown };
   assert.equal(copiedPage.title, "方案");
   assert.match(JSON.stringify(copiedPage.body), /第一稿/);
 

@@ -3,6 +3,8 @@ export interface CommentSideHost {
   translate(value: string): string;
   projectId: string | (() => string);
   route(path: string): string;
+  /** Where this plugin's documents live: `/api/plugins/<plugin id>/pages`. */
+  api: string;
   controlHeaders(): Record<string, string>;
 }
 export interface CommentDraft {

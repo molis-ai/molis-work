@@ -9,6 +9,7 @@ import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
 import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
+import { knowledgeClientTag } from "./settings-knowledge.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -86,7 +87,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
           if (typeof item === "string" && item) document.querySelector("[data-side-view-root] > [data-work-surface]")?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: item } }));
         });
       }
-    </script>`,
+    </script>${knowledgeClientTag()}`,
   });
 }
 

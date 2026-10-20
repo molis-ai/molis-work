@@ -235,13 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 23, layers (VUX-29).
-// +275 B of workbench.js: a floating <details> closes on Escape (innermost, focus to its summary) and on a press outside, and
-// is marked as a layer while open (802 B minified). Tried first: the workbench's own Escape and outside-press closing for the
-// project, account, Feed source and plugin "more" menus is deleted (−527 B); only "close once something is chosen" stays.
-// Spent once from exactly the roving-focus slice's budget (#902).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 24, cut text (VUX-05).
+// +1,203 B of workbench.js: the page's one tooltip, moved out of craft-finish into its own program, also shows a name, path
+// or summary cut by an ellipsis or a line clamp, on a pointer's rest, keyboard focus and a press and hold (4,214 B
+// minified). Tried first: the old tooltip code in craft-finish is deleted (about −3 KB), not kept beside it. +134 B in each
+// stylesheet: a cut text's tooltip may wrap, up to 420 px. Spent once from exactly the layers slice's budgets (#904).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1161486, 1161761],
+  "/assets/molis-work-workbench.js": [1161761, 1162964],
+  "/assets/molis-work-workbench.css": [1607833, 1607967],
+  "/assets/molis-work-settings.css": [991858, 991992],
+  "/assets/molis-work-arrival.css": [702153, 702287],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

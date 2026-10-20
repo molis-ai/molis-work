@@ -1306,6 +1306,7 @@ const CRAFT_BASE_STYLES = `
     transition: opacity var(--dur-press) var(--ease-quint), transform var(--dur-press) var(--ease-quint);
   }
   .craft-tip[data-shown] { opacity: 1; transform: translate(var(--tip-x, 0), var(--tip-y, 0)); }
+  .craft-tip[data-cut] { width: max-content; max-width: min(420px, calc(100vw - 12px)); white-space: normal; overflow-wrap: anywhere; }
   .craft-tip kbd { margin-left: 8px; padding: 0 4px; border-radius: 4px; background: color-mix(in srgb, var(--tip-ink) 16%, transparent); color: inherit; font: inherit; font-size: 11px; opacity: .8; }
 
   /* ─── Directory: rows on the desk; the selected one takes the neutral selection fill ── */
@@ -1952,78 +1953,8 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
     paintRecent();
   }
 
-  /* Rail tooltips: one element in the page, placed beside the control, so no scroll column clips it. */
-  const TIP_TARGETS = ".workbench-bar :is(.dock-pin, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
-  const tip = document.createElement("div");
-  tip.className = "craft-tip";
-  tip.setAttribute("aria-hidden", "true");
-  let tipOwner = null, tipTimer = 0, lastHidden = 0;
-  const hoverable = matchMedia("(hover: hover) and (pointer: fine)");
-  const labelFor = (node) => {
-    if (node.matches(".navigator-project-selector")) return node.querySelector("strong")?.textContent?.trim() || node.getAttribute("aria-label") || "";
-    return node.dataset.craftTip || node.dataset.craftTitle || node.getAttribute("title") || node.getAttribute("aria-label") || "";
-  };
-  const place = (node) => {
-    const box = node.getBoundingClientRect();
-    const above = node.closest(".workbench-bar");
-    const x = box.left + box.width / 2 - tip.offsetWidth / 2;
-    const y = above ? box.top - tip.offsetHeight - 8 : box.bottom + 8;
-    tip.style.setProperty("--tip-x", Math.round(Math.max(6, Math.min(innerWidth - tip.offsetWidth - 6, x))) + "px");
-    tip.style.setProperty("--tip-y", Math.round(Math.max(6, y)) + "px");
-    tip.style.transformOrigin = above ? "bottom center" : "top center";
-  };
-  const showTip = (node) => {
-    const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram), .personal-account-copy");
-    if (name && name.getBoundingClientRect().width > 2) return;
-    const text = labelFor(node);
-    if (!text) return;
-    if (node.hasAttribute("title")) { node.dataset.craftTitle = node.getAttribute("title"); node.removeAttribute("title"); }
-    tip.textContent = text;
-    const mac = /Mac|iPhone|iPad/.test(navigator.platform);
-    const shortcut = node.matches(".navigator-project-search") ? (mac ? "⌘K" : "Ctrl K")
-      : railShortcuts().indexOf(node) >= 0 ? (mac ? "⌥" : "Alt ") + (railShortcuts().indexOf(node) + 1) : "";
-    if (shortcut) {
-      const key = document.createElement("kbd");
-      key.textContent = shortcut;
-      tip.append(key);
-    }
-    if (!tip.isConnected) body.append(tip);
-    tipOwner = node;
-    place(node);
-    requestAnimationFrame(() => { if (tipOwner === node) tip.setAttribute("data-shown", ""); });
-  };
-  const hideTip = () => {
-    clearTimeout(tipTimer);
-    if (!tipOwner) return;
-    if (tipOwner.dataset.craftTitle != null) { tipOwner.setAttribute("title", tipOwner.dataset.craftTitle); delete tipOwner.dataset.craftTitle; }
-    tipOwner = null;
-    tip.removeAttribute("data-shown");
-    lastHidden = Date.now();
-  };
-  const queueTip = (node) => {
-    if (tipOwner === node) return;
-    hideTip();
-    const warm = Date.now() - lastHidden < 500;
-    tipTimer = setTimeout(() => showTip(node), warm ? 0 : 420);
-  };
-  document.addEventListener("pointerover", (event) => {
-    if (!hoverable.matches || event.pointerType === "touch") return;
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (node) queueTip(node);
-  });
-  document.addEventListener("pointerout", (event) => {
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (!node || (event.relatedTarget instanceof Node && node.contains(event.relatedTarget))) return;
-    hideTip();
-  });
-  document.addEventListener("focusin", (event) => {
-    const node = event.target instanceof Element ? event.target.closest(TIP_TARGETS) : null;
-    if (node && node.matches(":focus-visible")) queueTip(node);
-  });
-  document.addEventListener("focusout", hideTip);
-  document.addEventListener("pointerdown", hideTip, true);
-  document.addEventListener("scroll", hideTip, true);
-  addEventListener("blur", hideTip);
+  /* The tooltip is its own program (browser/tip.ts); it reads the rail's shortcuts from here. */
+  window.molisRailShortcuts = railShortcuts;
 
   /* Presentation of drag: the source leaves a faded hole; drop areas become visible. */
   const endDrag = () => {
@@ -2033,7 +1964,6 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   document.addEventListener("dragstart", (event) => {
     const source = event.target instanceof Element ? event.target.closest("[draggable='true']") : null;
     if (!source) return;
-    hideTip();
     requestAnimationFrame(() => {
       if (!source.matches(".tab-item, .tab-item *")) source.setAttribute("data-craft-drag-source", "");
       body.setAttribute("data-craft-dragging", "");

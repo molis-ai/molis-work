@@ -23,3 +23,5 @@ export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-c
 export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-focus-client.js", import.meta.url), "utf8").trim();
 /** A floating `<details>` closes on Escape and on a press outside (`browser/floating-details.ts`, VUX-29). */
 export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
+/** The page's one tooltip: icon-only controls and text cut short (`browser/tip.ts`, VUX-05). */
+export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();

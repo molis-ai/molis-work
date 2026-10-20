@@ -493,7 +493,8 @@ for (const fail of [false, true]) test(`Listener revocation during a provider ${
 });
 
 // One owner per table (repository-anti-corruption §9.5 #2): Listener Host's run ledger names its Source by id and keeps no
-// foreign key into the Sources module's table; a Source's runs go when Listener Host forgets the Source.
+// foreign key into the Sources module's table; a Source's runs go when Listener Host forgets the Source. Its one foreign key is the
+// project's own row (PG-020 L1b: the library's root is project_root, no longer Goals' board).
 test("Listener Host's run ledger keeps no foreign key into the Sources table", () => {
   const directory = mkdtempSync(join(tmpdir(), "listener-runs-owner-"));
   const store = new LocalProjectDatabase(join(directory, "project.sqlite"));

@@ -1419,12 +1419,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       event.preventDefault(); event.stopPropagation(); tabMenu.hidePopover();
       (tabMenuAnchor?.querySelector(".tab-item-trigger") || tabMenuAnchor)?.focus({preventScroll:true}); return;
     }
-    if (event.target.closest("input")) return;
-    if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
-    const buttons = [...tabMenu.querySelectorAll("button")];
-    const index = buttons.indexOf(document.activeElement);
-    const next = event.key === "Home" ? 0 : event.key === "End" ? buttons.length - 1 : (index + (event.key === "ArrowDown" ? 1 : -1) + buttons.length) % buttons.length;
-    event.preventDefault(); buttons[next]?.focus();
+    // Arrows, Home and End move through its items by the shared roving focus (design-system browser/roving-focus.ts).
   });
   // One item of the tab menu, for a tab's menu and a group's alike; a tab's puts focus back on the active tab.
   const menuItem = (paneId, refocus) => (label, icon, key, action) => {

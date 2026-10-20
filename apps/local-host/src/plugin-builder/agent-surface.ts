@@ -10,7 +10,7 @@ import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platfo
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
-import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
+import { resolvePluginComponentCall, escapeHtml, renderIconSprite, PLUGIN_COMPONENTS, PLUGIN_COMPONENT_STYLES, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES, THEME_BOOTSTRAP_SCRIPT } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderPromptVersion, AGENT_STUDIO_STYLES, AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';
@@ -342,7 +342,7 @@ function page(title: string, body: string, script: string, controlToken: string)
   // Plugins are drawn with the UI catalog's components, so the page carries the product's own stylesheet, theme and select menu.
   return '<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="molis-work-control-token" content="' + escapeHtml(controlToken) + '"><title>' + escapeHtml(title)
     + '</title><script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>html,body{margin:0}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}' + SELECT_MENU_STYLES + PLUGIN_COMPONENT_STYLES + AGENT_STUDIO_STYLES + '</style></head><body>' + renderIconSprite() + body
-    + '<script>' + UI_REQUEST_CLIENT_SCRIPT + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + FIELD_FIT_CLIENT_SCRIPT + '</script></body></html>';
+    + '<script>' + UI_REQUEST_CLIENT_SCRIPT + script + '</script><script>' + SELECT_MENU_CLIENT_SCRIPT + FIELD_FIT_CLIENT_SCRIPT + ROVING_FOCUS_CLIENT_SCRIPT + '</script></body></html>';
 }
 function html(response: ServerResponse, body: string) {
   response.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' }); response.end(body);

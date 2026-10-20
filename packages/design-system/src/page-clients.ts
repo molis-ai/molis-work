@@ -19,3 +19,5 @@ export const MEDIA_ZOOM_CLIENT_SCRIPT = readFileSync(new URL("../dist/media-zoom
 export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-text-client.js", import.meta.url), "utf8").trim();
 /** `window.molisFit`, intrinsic sizing's fallback for engines without `field-sizing` (`browser/field-fit.ts`, VUX-16). */
 export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-client.js", import.meta.url), "utf8").trim();
+/** Roving focus in tabs, radios, toolbars, menus and listboxes (`browser/roving-focus.ts`, VUX-28). */
+export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-focus-client.js", import.meta.url), "utf8").trim();

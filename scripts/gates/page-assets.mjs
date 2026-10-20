@@ -235,16 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 21, text wrapping (VUX-04).
-// +72 B in each of the three stylesheets: a reply written while it streamed wraps line by line (balance and pretty may move
-// lines already read as the text grows); +27 B of workbench.js for the mark the stream helper puts on such a reply. Tried
-// first: the board's narrow list-and-detail rule kept out of the product stylesheets, in the board's own styles. Spent once
-// from exactly the intrinsic sizing slice's budget (#894).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 22, roving focus (VUX-28).
+// +3,060 B of workbench.js: the one keyboard program for tabs, radios, toolbars, menus and listboxes (3,447 B minified: arrows by
+// orientation and writing direction, Home/End, one tab stop kept right as items come and go, scrolling only the item's own
+// strip). Tried first: the tab menu's own copy of the same arrows is deleted (−387 B); the other pages' handlers that also
+// choose on arrow or own more keys stay. Spent once from exactly the text-wrap slice's budget (#900).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1158399, 1158426],
-  "/assets/molis-work-arrival.css": [702081, 702153],
-  "/assets/molis-work-settings.css": [991786, 991858],
-  "/assets/molis-work-workbench.css": [1607761, 1607833],
+  "/assets/molis-work-workbench.js": [1158426, 1161486],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

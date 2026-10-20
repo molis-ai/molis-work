@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { MESSAGES_ROOT, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import { MESSAGES_ROOT, REGISTRATION_SOURCE, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 // specs/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
 // dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
@@ -582,12 +582,40 @@ test("RAC-59: the catalog may use an import alias for the owner's stable diction
   assert.equal(run.code, 0, run.out);
 });
 
-test("RAC-59: removing Images' real catalog registration is detected even while its import remains", () => {
+// W5-02: a plugin writes its catalog entry in its own src/registration.ts; the generated catalog lists it.
+const registerOwn = (owner: string, field = "messages") => put(`plugins/native/${owner}/src/registration.ts`,
+  `import { ${owner.toUpperCase()}_MESSAGES } from "./messages.js";\nexport const registration = { ${field}: ${owner.toUpperCase()}_MESSAGES };\n`);
+
+test("RAC-59 W5-02-REG-01: a plugin's own registration registers its stable dictionary", () => {
+  branch("stable-own-registration", () => {
+    put("plugins/native/alpha/src/messages.ts", stableAlpha);
+    registerOwn("alpha");
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+});
+
+test("RAC-59 W5-02-REG-01: a registration that names the dictionary in another field, or a file that is not a registration, registers nothing", () => {
+  for (const [name, mutate] of [
+    ["own-wrong-field", () => registerOwn("alpha", "unused")],
+    ["own-other-file", () => put("plugins/native/alpha/src/catalog-entry.ts", 'import { ALPHA_MESSAGES } from "./messages.js";\nexport const registration = { messages: ALPHA_MESSAGES };\n')],
+  ] as const) {
+    branch(name, () => { put("plugins/native/alpha/src/messages.ts", stableAlpha); mutate(); });
+    const run = gate("--base", "main");
+    assert.equal(run.code, 1, run.out);
+    assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
+  }
+});
+
+test("RAC-59 W5-02-REG-01: removing Images' real registration of its messages is detected even while its import remains", () => {
   assert.deepEqual(real.scan.stableErrors, []);
-  const original = readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8");
+  const own = "plugins/native/images/src/registration.ts";
+  assert.match(own, REGISTRATION_SOURCE);
+  const original = readFileSync(path.join(repoRoot, own), "utf8");
   assert.match(original, /messages: IMAGES_MESSAGES/);
-  const disconnected = scanFile(MESSAGES_ROOT, original.replace("messages: IMAGES_MESSAGES,", ""));
-  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === MESSAGES_ROOT ? disconnected : file));
+  assert.match(readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8"), /registration as imagesRegistration\b/, "the catalog lists Images' own registration");
+  const disconnected = scanFile(own, original.replace("messages: IMAGES_MESSAGES,", ""));
+  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === own ? disconnected : file));
   assert.equal(changed.stableErrors.length, 1);
   assert.match(changed.stableErrors[0], /stable dictionary IMAGES_MESSAGES .*not registered/);
 });

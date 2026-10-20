@@ -82,6 +82,7 @@ export interface DesktopPanelServiceOptions {
 }
 
 export interface HostCapabilityCallOptions {
+    query_only?: true;
     signal?: AbortSignal;
     plugin_caller?: HostPluginCaller;
     before_effect?: () => void | Promise<void>;

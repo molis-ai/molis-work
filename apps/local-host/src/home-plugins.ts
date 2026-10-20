@@ -131,7 +131,7 @@ export class HomePluginHost {
     const repository = new SqlitePluginRuntimeRepository(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor, qualifyCaller: identity.qualifyCaller });
+      providerFor: identity.providerFor });
     const runtime = new PluginRuntime(repository, executor, { actions: { registry: this.options.registry,
       providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({

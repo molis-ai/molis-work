@@ -3,7 +3,7 @@ export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalIntentSourceKinds, type GoalEventAcknowledgementsApi, type CreateGoalIntentInput, type CreateGoalIntentResult, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventDirectoryItem, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction as action, goalActor, protectBuiltinGoalAction } from "./action-contract.js";
+import { goalAction as action, goalActor } from "./action-contract.js";
 import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
 import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsEventActions, createGoalsEventActionHandlers } from "./event-command-actions.js";
@@ -119,8 +119,7 @@ export async function readGoalResumeFacts(actions: Pick<BoundActionClient, "invo
 }
 
 /** The plugin keeps its original transaction, event history and idempotency owner. */
-export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables, trustedPluginCaller }: {
-  trustedPluginCaller?: (caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext) => boolean;
+export function createGoalsActionHandlers({ events, acknowledgements, projectId, history, planning, guidance, lifecycle, tree, configuration, readGoal, readContract, collection, board, deliverables }: {
   events: GoalEventApplication; acknowledgements: GoalEventAcknowledgementsApi; projectId: string; history: GoalHistoryQueryPorts; planning: GoalsPlanningActionPorts;
   guidance: GoalsGuidanceActionPorts; lifecycle: GoalsLifecycleActionPorts; tree: GoalTreeApplicationApi; configuration: GoalsConfigurationActionPorts;
   readGoal: Parameters<typeof createGoalDocumentActionHandler>[1]["goal"];
@@ -131,7 +130,7 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
   deliverables: Omit<GoalDeliverablePorts, "projectId" | "goalExists" | "boundObjects">;
 }): ActionHandlerBinding[] {
   const goalExists = (goalId: string) => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId));
-  const bindings: ActionHandlerBinding[] = [
+  return [
     ...createGoalsDeliverableActionHandlers({ ...deliverables, projectId, goalExists, boundObjects: goalId => boundGoalObjects(collection.inputs.list(projectId), goalId) }),
     ...createGoalsInputActionHandlers(projectId, collection.inputs, goalId => Boolean(readGoal(goalId) && events.readDirectoryItem(projectId, goalId))),
     { ...goalsActions.subject, handle: (_caller, input) => {
@@ -203,5 +202,4 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
     { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), project_id: projectId,
       ...goalActor(caller) }) },
   ];
-  return bindings.map(binding => protectBuiltinGoalAction(binding, trustedPluginCaller));
 }

@@ -92,6 +92,7 @@ const SYSTEM_TYPE_LABELS: Record<string, string> = {
   completion_reopened: "继续此目标",
   work_resumed: "显式继续",
   event_owner_continued: "转交事件记录",
+  input_acknowledged: "处理说明",
 };
 
 const JOURNAL_TYPE_LABELS: Record<string, string> = {

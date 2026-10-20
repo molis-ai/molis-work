@@ -12,7 +12,14 @@ export interface GoalEventStateWriteDeps {
 }
 
 /** Ordinary records a cancelled goal still takes. Anything else needs the goal to be resumed first. */
-const ORDINARY_RECORD_OPERATIONS: ReadonlySet<string> = new Set(["record_goal_note", "record_goal_progress"]);
+const ORDINARY_RECORD_OPERATIONS: ReadonlySet<string> = new Set(["record_goal_note", "record_goal_progress", "acknowledge_goal_event"]);
+
+/** The kind a write names for its actor: `user`, `runtime`, or none. Anything else is refused. */
+export function eventActorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null {
+  if (kind == null) return null;
+  if (kind !== "user" && kind !== "runtime") throw goalErrors["goals.event_report.invalid_actor_kind"]("actor_kind 只能是 user 或 runtime");
+  return kind;
+}
 
 /** Resuming is the one explicit way out of "cancelled", so a cancelled goal takes it too. */
 export function cancelledGoalTakes(operation: string): boolean {

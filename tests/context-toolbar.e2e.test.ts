@@ -18,12 +18,13 @@ const MEASURE = `(() => {
   const bar = document.querySelector(".mw-ctx:not(.mw-ctx--static)"), box = bar.getBoundingClientRect(), selection = getSelection().getRangeAt(0).getBoundingClientRect();
   return { role: bar.getAttribute("role"), above: box.bottom <= selection.top + 0.5, below: box.top >= selection.bottom - 0.5,
     actions: bar.querySelectorAll("[data-key]").length, tools: bar.querySelectorAll("[data-group]").length, folded: Boolean(bar.querySelector("[data-fold]")),
+    star: Boolean(bar.querySelector("[data-assistant]")), tight: bar.hasAttribute("data-tight"),
     heights: [...bar.querySelectorAll(".mw-btn")].map(node => Math.round(node.getBoundingClientRect().height)), inside: box.left >= 0 && box.right <= innerWidth };
 })()`;
-type Measured = { role: string; above: boolean; below: boolean; actions: number; tools: number; folded: boolean; heights: number[]; inside: boolean };
+type Measured = { role: string; above: boolean; below: boolean; actions: number; tools: number; folded: boolean; star: boolean; tight: boolean; heights: number[]; inside: boolean };
 
 for (const [width, height, touch, actions] of [[1440, 900, false, 3], [390, 844, true, 2]] as const) {
-  test(`context toolbar at ${width}px: next to the selection, no focus taken, ${actions} actions, ${touch ? "44px targets" : "tools in line"}, a form under it`, async (t) => {
+  test(`T06 QA-014 context toolbar at ${width}px: next to the selection, no focus taken, ${actions} actions, ${touch ? "44px targets" : "tools in line"}, a form under it`, async (t) => {
     const browser = await openGoalBrowser(t, "seeded");
     if (!browser) return;
     const { command, sessionId, evaluate, waitFor, navigate, origin } = browser;
@@ -42,6 +43,8 @@ for (const [width, height, touch, actions] of [[1440, 900, false, 3], [390, 844,
     const bar = await evaluate<Measured>(MEASURE);
     assert.equal(bar.role, "toolbar");
     assert.equal(bar.actions, actions, "three recommended actions; two in a narrow window");
+    assert.equal(bar.star, true, "short titles leave room for the assistant, including at 390px");
+    assert.equal(bar.tight, false, "short titles fit without truncation");
     assert.ok(bar.inside, "inside the window");
     assert.ok(bar.tools >= 1);
     if (touch) { assert.ok(bar.heights.every(size => size >= 44), `44px on a finger: ${bar.heights}`); assert.ok(bar.folded, "the format tools fold into one menu"); }
@@ -52,6 +55,19 @@ for (const [width, height, touch, actions] of [[1440, 900, false, 3], [390, 844,
     assert.match(await log(), /选了推荐动作：a/u, "the choice reached the host by its key");
     assert.equal(await evaluate<string>(`getSelection().toString()`), selected, "the selection is still the person's");
     assert.equal(await evaluate<boolean>(`document.activeElement.closest(".mw-ctx") === null`), true, "the focus did not move into the bar");
+
+    if (!touch) {
+      // T06: the focused third action moves into 更多 on resize; keyboard navigation keeps a reachable point.
+      await evaluate(`document.querySelector(".mw-ctx:not(.mw-ctx--static) [data-key='c']").focus()`);
+      await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+      await waitFor(`!document.querySelector(".mw-ctx:not(.mw-ctx--static) [data-key='c']")`);
+      assert.equal(await evaluate<boolean>(`document.activeElement.hasAttribute("data-more")`), true, "the removed action hands focus to 更多");
+      await click(".mw-ctx:not(.mw-ctx--static) [data-more]");
+      await key("Escape", { windowsVirtualKeyCode: 27 });
+      assert.equal(await evaluate<boolean>(`document.querySelector(".mw-ctx-menu") === null && document.activeElement.hasAttribute("data-more")`), true, "closing the menu returns to the surviving 更多 button");
+      await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: touch }, sessionId);
+      await waitFor(`document.querySelector(".mw-ctx:not(.mw-ctx--static) [data-key='c']") !== null`);
+    }
 
     // ⌘. moves in, Esc puts the bar away.
     await evaluate(`document.dispatchEvent(new KeyboardEvent("keydown", { key: ".", metaKey: true, bubbles: true }))`);

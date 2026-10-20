@@ -111,7 +111,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   let runtime: PluginRuntime | undefined;
   try {
     const owner = await localWebActionContext(host, ref, LOCAL_OWNER_PERMISSIONS);
-    await host.actionClient(ref).invoke(owner, { capability_id: pagesActions.create.capability_id, version: 1 }, { title: "周报草稿", markdown: "# 本周\n\n- 完成侧栏" });
+    await host.actionClient(ref).invoke(owner, pagesActions.create, { title: "周报草稿", markdown: "# 本周\n\n- 完成侧栏" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;

@@ -224,19 +224,19 @@ function renderTreeFooter(view: GoalsTreeView, collection: GoalCollectionModel<G
   return `<footer class="tree-footer" data-tree-footer><span data-tree-filter-count data-tree-suffix="${escapeHtml(collectionSuffix)}">${L("共 {count} 个{suffix}目标", { count: view.goals.length, suffix: "" })}</span><small>${collectionNote}</small></footer>`;
 }
 
-function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
+function renderGoalStageList(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, proposals = ""): string {
   const { selectedId, archiveView, trashView } = collection;
-  return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
+  return `<div class="goal-stage-list" data-goal-stage-list data-tree-scroll tabindex="0" aria-label="${L("目标列表")}"><div class="goal-list-view" data-goal-list-view>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div></div>`;
 }
 
 function renderGoalDirectory(_view: GoalsTreeView, _collection: GoalCollectionModel<GoalsTreeItem>, _initiallyOpen: boolean): string {
   return "";
 }
 
-function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>): string {
+function renderGoalRefreshDirectory(view: GoalsTreeView, collection: GoalCollectionModel<GoalsTreeItem>, proposals = ""): string {
   const { selectedId, archiveView, trashView } = collection;
   return `<div data-refresh-tree-chrome hidden>${renderTreeChrome(view)}</div>
-    <div data-tree-scroll>${renderGoalList(view, selectedId, archiveView, trashView)}</div>
+    <div data-tree-scroll>${archiveView || trashView ? "" : proposals}${renderGoalList(view, selectedId, archiveView, trashView)}</div>
     ${renderTreeFooter(view, collection)}`;
 }
 

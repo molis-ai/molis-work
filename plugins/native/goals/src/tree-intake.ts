@@ -16,5 +16,5 @@ export const GOALS_TREE_INTAKE: ActionIntake = {
 /** What the card says once the proposal is filed: it is not in force yet, and the way on is Goals. */
 export const GOALS_TREE_SUBMIT_RESULT: ActionResultView = {
   summary: "已提交目标提案：要在 Goals 里确认才生效",
-  link: { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals" },
+  link: { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals#{/proposal/proposal_id}" },
 };

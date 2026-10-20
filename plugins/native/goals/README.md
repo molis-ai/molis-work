@@ -25,6 +25,8 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 可对照现有调用方 [apps/local-host/src/goal-project-application.ts](../../../apps/local-host/src/goal-project-application.ts) 阅读装配方式。
 
+完成卡的「去 Goals 确认」定位到本次提案；列表中的待确认区也包含未关联现存 Goal 的提案。采用或退回仍由原受保护决定入口处理，刷新后已决定提案离开待确认区，原 Goal 详情入口继续可用（context-program W4-2-13）。
+
 ## 接入与边界
 
 `goalsActions` 当前提供 65 项 project 动作（2026-10-07 从构建产物数出），由 Manifest 声明并在项目动作服务中注册，其中 59 项可按授权供 MCP 使用，6 项仅供受保护的用户操作；另有 2 项 Home 动作 `personalPlanningActions`（见下文个人方法）：

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ActionService, rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
+import { ActionService, forgetInDirectoryPass, inDirectoryPass, rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "project-one", audience: "user", permissions: [] };
@@ -54,4 +54,18 @@ test("VUX-37 a read that fails inside a directory is not kept for the actions af
   const views = service.discover(context);
   assert.deepEqual(views.map(view => view.availability.available), [false, true]);
   assert.equal(reads, 2);
+});
+
+test("VUX-37 a write within a directory makes the next read in it fresh, and the reads before it stay shared", () => {
+  const scope = {};
+  let reads = 0;
+  const read = () => rememberInDirectoryPass(scope, "install", () => ++reads);
+  const seen = inDirectoryPass(() => {
+    const first = [read(), read()];
+    forgetInDirectoryPass(scope, "install");
+    return [...first, read(), read()];
+  });
+  assert.deepEqual(seen, [1, 1, 2, 2]);
+  forgetInDirectoryPass(scope, "install");
+  assert.equal(read(), 3, "outside a pass there is nothing to forget, and a read reads");
 });

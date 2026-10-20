@@ -549,4 +549,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "文末": "at the end",
   // A result card in the Assistant panel, picked up as what is in hand (W3-A3b).
   "拿起": "Pick up",
+  // The account a connected document source reads with (home model settings, the side panel's import, Jelly).
+  "账号连接": "Account connection",
 };

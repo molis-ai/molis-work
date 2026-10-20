@@ -133,7 +133,7 @@ async function installFileSource(browser: AuditBrowser, key: string, openId: str
 }
 
 async function createPage(browser: AuditBrowser, title: string): Promise<string> {
-  const response = await fetch(browser.origin + "/projects/" + browser.projectId + "/api/pages", { method: "POST", headers: {
+  const response = await fetch(browser.origin + "/projects/" + browser.projectId + "/api/plugins/io.molis.work.pages/pages", { method: "POST", headers: {
     origin: browser.origin, "content-type": "application/json", "x-molis-work-control-token": browser.controlToken, "x-molis-work-idempotency-key": randomUUID(),
   }, body: JSON.stringify({ title }) });
   assert.equal(response.status, 200, await response.clone().text());

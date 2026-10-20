@@ -16,7 +16,7 @@ async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof 
     const originalPagesFetch = window.fetch.bind(window);
     window.pagesListFailure = '目录暂时离线';
     window.restorePagesFetch = () => { window.fetch = originalPagesFetch; };
-    window.fetch = (...args) => new URL(String(args[0]), location.href).pathname.endsWith('/api/plugins/pages')
+    window.fetch = (...args) => new URL(String(args[0]), location.href).pathname.endsWith('/api/plugins/io.molis.work.pages/pages')
       ? Promise.reject(new Error(window.pagesListFailure)) : originalPagesFetch(...args);
   ` }, sessionId);
   try {

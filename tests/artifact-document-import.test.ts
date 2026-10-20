@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,11 +9,12 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import {
-  DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
+  artifactAnalysisContext, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument,
   type ArtifactDocumentImportPorts, type ImportedArtifactDocument,
 } from "@molis-ai/molis-work-plugin-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
@@ -57,13 +59,9 @@ async function fixture(t: test.TestContext) {
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
   const { store, coordinator, post, get, origin, restart } = await fixture(t);
   const before = store.snapshot(DEMO_PROJECT_ID);
-  // The 成果库's one import entry is a dialog in its directory (artifact-positioning A3); there is no import page.
+  // Importing is one entry for the whole project, the side panel's 资料 tab (specs/project-knowledge §8); the 成果库 points there.
   const directory = await (await get("/artifacts")).text();
-  assert.match(directory, /data-artifact-import-open/);
-  assert.match(directory, /<dialog[^>]*data-artifact-import-dialog/);
-  for (const source of ["notion", "feishu", "lark", "google-docs", "file"]) {
-    assert.ok(directory.includes(`value="${source}"`), source);
-  }
+  assert.doesNotMatch(directory, /data-artifact-import-open|data-artifact-import-dialog/);
   const oldPage = await get("/artifacts/import");
   assert.doesNotMatch(await oldPage.text(), /data-artifact-import-form/);
   const file = { source: "file", filename: "导入验收.md", content: markdown };
@@ -414,9 +412,83 @@ test("any file imports as a 成果 with its original bytes and real media type; 
   assert.equal(continued.status, 201, await continued.clone().text());
   const result = await continued.json() as { open: { surface: string; id: string; title: string } };
   assert.deepEqual([result.open.surface, result.open.title], ["pages", "接着写"]);
-  const pages = (await (await fetch(`${origin}/api/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
+  const pages = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`)).json() as { documents: Array<{ id: string; title: string }> }).documents;
   assert.deepEqual(pages.filter(document => document.title === "接着写").map(document => document.id), [result.open.id], "exactly one document, the one that opens");
   const refused = await fetch(origin + "/api/artifacts/continue", { method: "POST", headers: headers(), body: JSON.stringify({ reference: image, plugin_id: "io.molis.work.pages" }) });
   assert.equal(refused.status, 400);
   await refused.text();
+});
+
+/** A one-page PDF with a text layer: the lines are drawn in Helvetica, the offsets in the cross-reference table are exact. */
+function pdfWith(lines: string[]): Buffer {
+  const stream = `BT /F1 14 Tf 72 720 Td 18 TL ${lines.map(line => `(${line}) '`).join(" ")} ET`;
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>",
+    `<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  let body = "%PDF-1.4\n";
+  const offsets: number[] = [];
+  objects.forEach((object, index) => { offsets.push(body.length); body += `${index + 1} 0 obj\n${object}\nendobj\n`; });
+  const xref = body.length;
+  body += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n${offsets.map(offset => `${String(offset).padStart(10, "0")} 00000 n \n`).join("")}`
+    + `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+  return Buffer.from(body, "latin1");
+}
+
+test("PMAT-14 a PDF or Word file keeps its original, and the text read out of it is what readers of the 成果 get", async t => {
+  const { coordinator, post } = await fixture(t);
+  const original = (filename: string, mime: string, bytes: Uint8Array) => ({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
+  const saved = async (body: unknown) => {
+    const response = await post(body);
+    assert.equal(response.status, 201, await response.clone().text());
+    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    return { result, record: coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)! };
+  };
+
+  const pdf = pdfWith(["Quarterly review notes", "The beta pass code is MW-0042."]);
+  const fromPdf = await saved(original("review.pdf", "application/pdf", pdf));
+  const pdfPayload = fromPdf.record.payload as { content: string; original_file: { data_base64: string } };
+  assert.match(pdfPayload.content, /The beta pass code is MW-0042\./u);
+  assert.deepEqual(Buffer.from(pdfPayload.original_file.data_base64, "base64"), pdf, "the original is kept byte for byte");
+  const pdfContext = artifactAnalysisContext(fromPdf.record);
+  assert.match(pdfContext.content, /beta pass code is MW-0042/u, "a reader gets the text");
+  assert.doesNotMatch(pdfContext.content, /data_base64|JVBERi0/u, "never the original's bytes");
+
+  const { zipSync } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate") as { zipSync(entries: Record<string, Uint8Array>): Uint8Array };
+  const docx = zipSync({
+    "[Content_Types].xml": Buffer.from('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/></Types>'),
+    "word/document.xml": Buffer.from('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>保留事实：试点在三月开始</w:t></w:r></w:p></w:body></w:document>'),
+  });
+  const fromWord = await saved(original("方案.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", docx));
+  assert.match((fromWord.record.payload as { content: string }).content, /保留事实：试点在三月开始/u);
+  assert.match(artifactAnalysisContext(fromWord.record).content, /试点在三月开始/u);
+
+  // A file it cannot read is still imported: the original is kept, the import says so, and its text is empty, so project
+  // knowledge lists it by its name and sends it to no model (PMAT-44).
+  const broken = await saved(original("scan.pdf", "application/pdf", Buffer.from("%PDF-1.4\nnot really a pdf\n%%EOF\n", "latin1")));
+  assert.equal((broken.record.payload as { content: string }).content, "");
+  assert.match(broken.result.warnings.join("\n"), /Agent 只能看到它的名字/u, "the import says no text was read, and what that means");
+  assert.equal(artifactAnalysisContext(broken.record).content, "");
+});
+
+test("PMAT-47 Office, OpenDocument, EPUB and RTF files are read as Markdown; an image is recognized, or the import says why not", async t => {
+  const { coordinator, post } = await fixture(t);
+  const imported = async (filename: string, mime: string, bytes: Uint8Array) => {
+    const response = await post({ source: "file", filename, original_file: { filename, mime, data_base64: Buffer.from(bytes).toString("base64") } });
+    assert.equal(response.status, 201, await response.clone().text());
+    const result = await response.json() as { artifact_id: string; version: number; warnings: string[] };
+    return { warnings: result.warnings, content: (coordinator.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { content: string }).content };
+  };
+  const sheet = await imported("价目.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", xlsx([["型号", "价格"], ["TP-2", "1299"]]));
+  assert.match(sheet.content, /\| 型号 \| 价格 \|\n\| --- \| --- \|\n\| TP-2 \| 1299 \|/u, "a sheet is a Markdown table");
+  assert.deepEqual(sheet.warnings, []);
+  assert.match((await imported("复盘.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation", pptx("第四季度重点：仓库扩容"))).content, /第四季度重点：仓库扩容/u);
+  const text = await imported("制度.odt", "application/vnd.oasis.opendocument.text", odt("值班制度", "夜班每两周轮换一次。"));
+  assert.match(text.content, /^# 值班制度\n\n夜班每两周轮换一次。$/u, "a heading stays a heading, with no front matter or HTML");
+  assert.match((await imported("手册.epub", "application/epub+zip", epub("保修", "背包保修三年。"))).content, /# 保修\n\n背包保修三年。/u);
+  assert.match((await imported("说明.rtf", "application/rtf", rtf("退款说明", "七天内原路退回。"))).content, /退款说明\n\n七天内原路退回。/u);
+  // A blank image has nothing to recognize; where the macOS helper is missing the import says that instead. Either way the
+  // original is kept with no text and the warning says what agents can see.
+  const image = await imported("空白.png", "image/png", blankPng());
+  assert.equal(image.content, "");
+  assert.match(image.warnings.join("\n"), /^(?:图片里没有识别出文字|这台电脑不能识别文字（需要 macOS 的文字识别组件）)，只保存了原件；Agent 只能看到它的名字。$/u);
 });

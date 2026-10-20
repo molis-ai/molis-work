@@ -10,8 +10,6 @@ export const alchemistStateErrors = defineErrorCodes("alchemist", {
   job_not_found: "not_found",
   job_not_resumable: "conflict",
   lens_run_exists: "invalid",
-  lens_run_not_cancellable: "invalid",
-  lens_run_not_found: "invalid",
   opportunity_action_failed: "invalid",
   opportunity_already_converted: "invalid",
   opportunity_cannot_be_converted: "invalid",
@@ -25,4 +23,6 @@ export const alchemistStateErrors = defineErrorCodes("alchemist", {
   research_budget_exhausted: "conflict",
   research_plan_not_found: "invalid",
   resume_context_changed: "conflict",
+  run_not_cancellable: "conflict",
+  run_not_found: "not_found",
 });

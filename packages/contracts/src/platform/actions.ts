@@ -47,8 +47,8 @@ export interface ActionSceneReference {
 /**
  * The host's number for one operation (a page request, an MCP tool call, an Assistant or Agent round, a command, a timer
  * firing); every call that operation causes carries it. It is a diagnostic handle that names no one and grants nothing:
- * only the host assigns it, a handler may log or return it but must not decide anything by it, and it is never read from
- * business input.
+ * only the host assigns it, a handler may log or return it, and may count what one operation used by it (project knowledge's
+ * read budget per Agent round), but must never decide who may do what by it; it is never read from business input.
  */
 export interface ActionCallOrigin {
   readonly call_id?: string;
@@ -506,14 +506,21 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function id(v: unknown): v is string { return text(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
+/**
+ * A provider id is only ever matched exactly against the directory, and the platform makes ids that follow no one alphabet: an external
+ * MCP server's is `system.connectors#mcp:<connection>` or `<plugin_id>#mcp:<server>`, with the server's own id in it. What is refused is
+ * what no provider can be named: a blank id, a control character, or one longer than any the platform makes.
+ */
+const PROVIDER_ID_LIMIT = 512;
+function providerId(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0 && v.length <= PROVIDER_ID_LIMIT && !/\p{Cc}/u.test(v); }
 function version(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
 
-/** Exact selections do not grant permission; the action service checks live authority. */
+/** Exact selections do not grant permission; the action service checks live authority, so a wider provider id reaches no new provider. */
 export type ExactActionReference = ActionReference & { readonly provider_id: string };
 export function parseExactActionReferences(value: unknown): ExactActionReference[] {
   if (!Array.isArray(value) || value.length > 100) throw new ActionError("actions.reference_invalid", "Invalid action selection or more than 100 actions");
   const refs = value.map(item => {
-    if (!object(item) || !id(item.capability_id) || !version(item.version) || !id(item.provider_id)) {
+    if (!object(item) || !id(item.capability_id) || !version(item.version) || !providerId(item.provider_id)) {
       throw new ActionError("actions.reference_invalid", "An action selection requires its exact identity, version and provider");
     }
     return { capability_id: item.capability_id, version: item.version, provider_id: item.provider_id };

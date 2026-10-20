@@ -36,6 +36,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }, { workspace_id: "foreign", canonical_path: home + "-other", realpath_verified: true }] as Output;
       if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) return [{ workspace_id: "foreign", canonical_path: home + "-other", branch: "writer/a", base_commit: "abc123" }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return ["planner", "builder", "reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: input[0].session_id === "sdk-app" ? runs.map(run => run.ref) : [] } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(runs.find(run => run.ref.run_id === input[1].run_id)) as Output;
       if (definition.capability_id === agent.listSubagents.capability_id) return [{subagent_id:"child",role_id:"writer",role_name:"运费子任务",state:"completed",task:"补边界测试",result:"写入已返回，尚未检查",workspace_path:home+"-other"}] as Output;

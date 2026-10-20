@@ -24,7 +24,7 @@ export function mountComments(host: CommentSideHost): void {
     const response=await fetch(url,{method:body===undefined?'GET':'POST',headers:host.controlHeaders(),...(body===undefined?{}:{body:JSON.stringify(body)})});
     const data=await response.json();if(!response.ok)throw new Error(data.error||L('文档请求失败'));return data;
   };
-  const pagePath=(id: string)=>'/api/plugins/pages/'+encodeURIComponent(id)+'/comments';
+  const pagePath=(id: string)=>host.api+'/'+encodeURIComponent(id)+'/comments';
   const target=()=>({provider_id:'io.molis.work.pages',subject_kind:'pages_document',subject_id:context!.object_ref.id,thread_id:active});
   const button=(label: string,fn: ()=>void)=>{const node=document.createElement('button');node.type='button';node.className='mw-btn mw-btn--ghost';node.textContent=label;node.addEventListener('click',fn);return node;};
   const needsSave=()=>!!context?.unsaved&&!(draft().ai&&draft().includeDraft&&draft().anchor?.kind!=='text');

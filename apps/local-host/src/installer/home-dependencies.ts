@@ -5,21 +5,50 @@ import path from "node:path";
 
 import type { RuntimeDependencyPackage } from "./home-contract.js";
 
+/**
+ * The dependencies the workspace removes with a pnpm override (`parent>child: '-'` under `overrides` in pnpm-workspace.yaml), as
+ * `parent>child`. pnpm never installs them, so the release does not look for them either (they are optional by the workspace's
+ * own decision; the reason is beside each override). Only that exact shape counts; any other override changes a version, which
+ * the installed tree already shows.
+ */
+export async function removedByOverrides(sourceDirectory: string): Promise<Set<string>> {
+  let text: string;
+  try { text = await fs.readFile(path.join(sourceDirectory, "pnpm-workspace.yaml"), "utf8"); }
+  catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+    // A release has no workspace file: it carries the pairs its source removed in its own package.json (home-release.ts).
+    const release = JSON.parse(await fs.readFile(path.join(sourceDirectory, "package.json"), "utf8")) as { "molis-work"?: { removed_dependencies?: unknown } };
+    const listed = release["molis-work"]?.removed_dependencies;
+    return new Set(Array.isArray(listed) ? listed.filter((pair): pair is string => typeof pair === "string" && /^[^>\s]+>[^>\s]+$/u.test(pair)) : []);
+  }
+  const removed = new Set<string>();
+  let inOverrides = false;
+  for (const line of text.split("\n")) {
+    if (/^\S/u.test(line)) inOverrides = line.trimEnd() === "overrides:";
+    const pair = inOverrides ? line.match(/^\s+['"]?([^'"\s>]+)>([^'"\s:]+)['"]?:\s*['"]-['"]\s*$/u) : null;
+    if (pair) removed.add(`${pair[1]}>${pair[2]}`);
+  }
+  return removed;
+}
+
 export async function collectRuntimeDependencies(
   rootPackageJson: string,
   rootMetadata: {
+    name?: unknown;
     dependencies?: Record<string, unknown>;
     optionalDependencies?: Record<string, unknown>;
   },
+  removed: ReadonlySet<string> = new Set(),
 ): Promise<RuntimeDependencyPackage[]> {
   const packages = new Map<string, RuntimeDependencyPackage>();
   const byDirectory = new Map<string, RuntimeDependencyPackage>();
   const pending: Array<{ name: string; fromPackageJson: string; optional: boolean }> = [];
   const enqueue = (
-    metadata: { dependencies?: Record<string, unknown>; optionalDependencies?: Record<string, unknown> },
+    metadata: { name?: unknown; dependencies?: Record<string, unknown>; optionalDependencies?: Record<string, unknown> },
     fromPackageJson: string,
   ) => {
     for (const name of Object.keys(metadata.dependencies ?? {})) {
+      if (removed.has(`${String(metadata.name)}>${name}`)) continue;
       pending.push({ name, fromPackageJson, optional: false });
     }
     for (const name of Object.keys(metadata.optionalDependencies ?? {})) {

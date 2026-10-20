@@ -1187,6 +1187,13 @@ test("in this repository: shared core recommends the full suite, a document alon
 
 test("in this repository, each file on the assembly list recommends the full suite, and the barrels and ordinary files of the two packages do not", () => {
   for (const file of ASSEMBLY) assert.deepEqual(realAt(file).full.map((entry: { rule: string }) => entry.rule), ["assembly"], file);
+  // W5-02: a plugin's own catalog entry is the catalog's; the rest of its package is not the assembly.
+  for (const file of ["plugins/native/feed/src/registration.ts", "plugins/native/plugin-builder/src/registration.ts"]) {
+    assert.deepEqual(realAt(file).full.map((entry: { rule: string }) => entry.rule), ["assembly"], file);
+  }
+  for (const file of ["plugins/native/feed/src/index.ts", "plugins/native/feed/package.json"]) {
+    assert.equal(realAt(file).full.some((entry: { rule: string }) => entry.rule === "assembly"), false, file);
+  }
   for (const file of ["apps/local-host/src/index.ts", "apps/workbench/src/index.ts", "apps/local-host/src/action-gateway.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/settings-models.ts"]) {
     assert.deepEqual(realAt(file).full, [], file);
   }

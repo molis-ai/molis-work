@@ -27,7 +27,7 @@ import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from '@m
 import type { PluginPlatformOptions } from '../plugin-platform.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type CapabilityImplementations, type Lane } from './capabilities.js';
-import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
+import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
 
@@ -228,8 +228,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
     const ports: AgentBuilderPorts = {
       projectId: options.projectId,
       // What a design may use: the project's unified action directory, as offered to generated plugins.
-      catalog: async () => (await studio.catalog()).filter(entry => entry.offered).map(entry => ({ id: entry.id, title: entry.title, source: entry.source.title + (entry.installed ? '' : '（这个项目还没启用；用到时会先问用户要不要启用）'), effect: entry.effect, execution: entry.execution,
-        description: entry.description + (entry.execution.cost === 'metered' ? '（会产生费用：只放在由用户点击触发的 command 里）' : entry.execution.cost === 'unknown' ? '（提供方未声明费用）' : ''), input: entry.input, ...(entry.output ? { output: entry.output } : {}) })),
+      catalog: async () => designerCatalog(await studio.catalog()),
       catalogVersion: CATALOG_VERSION,
       // A design that uses a plugin this project has not enabled waits for the person; enabling it continues the build.
       async missingPlugins(design) {

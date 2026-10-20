@@ -135,6 +135,8 @@ export interface HostPluginCaller {
 
 /** In-process authority callbacks are separate from serializable business inputs. */
 export interface HostCapabilityCallOptions {
+  /** Host-enforced narrowing inherited from a read-only callback; Plugin invocation options cannot remove it. */
+  query_only?: true;
   /** Cancellation narrows this invocation; it never grants caller authority. */
   signal?: AbortSignal;
   /** Host-only binding. The Plugin SDK executor always overrides a supplied value. */

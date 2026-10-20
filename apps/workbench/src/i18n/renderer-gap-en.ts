@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "无法关联工作区": "Unable to link workspace",
   "组里还有 {n} 个标签": "Tabs in this group: {n}",
   "撤销关闭 {plugin}": "Reopen {plugin}",
   "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",

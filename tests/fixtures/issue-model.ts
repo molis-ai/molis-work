@@ -4,7 +4,7 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { endingReviewReply } from "./ending-review.js";
+import { asideReply } from "./ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -43,8 +43,8 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const raw = Buffer.concat(chunks).toString("utf8"), review = endingReviewReply(raw);
-    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const raw = Buffer.concat(chunks).toString("utf8"), review = asideReply(raw);
+    // The ending review (D1②) and knowledge's background cards are answered aside, so neither spends a scripted turn or counts as a request.
     if (review) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, review)); return; }
     const body = JSON.parse(raw); requests.push(body);
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }

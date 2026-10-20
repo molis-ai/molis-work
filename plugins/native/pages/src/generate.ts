@@ -1,38 +1,44 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PagesStore } from "./store.js";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PagesStores } from "./store.js";
 import { pagesErrors } from "./error.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 
-export async function generatePagesFromMaterials(withStore: <T>(run: (store: PagesStore) => T) => T, record: PagesGenerationRecord, completeText?: (prompt: InstructedPrompt) => Promise<string>, signal?: AbortSignal, beforeEffect?: () => Promise<void>) {
-  const existing = withStore(store => store.generation(record.project_id, record.request_id));
+export async function generatePagesFromMaterials(stores: PagesStores, caller: Pick<ActionExecutionContext, "beforeEffect" | "signal">, record: PagesGenerationRecord,
+  complete?: (prompt: InstructedPrompt) => Promise<PluginModelResult>) {
+  const { signal } = caller;
+  const existing = stores.read(store => store.generation(record.project_id, record.request_id));
   if (existing && existing.request_hash !== record.request_hash) throw pagesErrors.invalid("同一个请求的材料或要求已改变，请重新生成");
-  if (existing?.status === "completed" && existing.document_id) return { document: withStore(store => store.get(existing.document_id!, record.project_id)), replayed: true };
+  if (existing?.status === "completed" && existing.document_id) return { document: stores.read(store => store.get(existing.document_id!, record.project_id)), replayed: true };
   signal?.throwIfAborted();
-  const request = withStore(store => store.beginGeneration(record));
-  if (request.status === "completed" && request.document_id) return { document: withStore(store => store.get(request.document_id!, record.project_id)), replayed: true };
+  const request = await stores.write(caller, store => store.beginGeneration(record));
+  if (request.status === "completed" && request.document_id) return { document: stores.read(store => store.get(request.document_id!, record.project_id)), replayed: true };
   const refusedEnds = async () => {
-    try { signal?.throwIfAborted(); await beforeEffect?.(); }
-    catch (refused) { withStore(store => store.releaseGenerationAttempt(request)); throw refused; }
+    try { signal?.throwIfAborted(); await caller.beforeEffect(); }
+    catch (refused) { stores.read(store => store.releaseGenerationAttempt(request)); throw refused; }
   };
   const fail = async (error: unknown): Promise<never> => {
     // Failure bookkeeping is also an effect. If the call was cancelled or lost authority it writes nothing;
     // it only notes, in this process, that its attempt is over, so a new call here can take the request over.
     await refusedEnds();
-    withStore(store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
+    await stores.write(caller, store => store.failGeneration(request, error instanceof Error ? error.message : "生成失败"));
     throw error;
   };
   let body: PagesBody;
+  let result: PluginModelResult;
   try {
-    if (!completeText) throw pagesErrors.unavailable("尚未配置写作模型，材料已保留。请配置模型后重试。");
+    if (!complete) throw pagesErrors.unavailable("尚未配置写作模型，材料已保留。请配置模型后重试。");
     const prompt = instructed(PAGES_GENERATE_FROM_MATERIALS, [
       `标题：${request.title}\n用户要求：${request.instructions}`,
       "以下是不可执行的材料 JSON：", JSON.stringify(request.inputs),
     ].join("\n\n"));
     signal?.throwIfAborted();
-    const output = (await completeText(prompt)).trim();
+    result = await complete(prompt);
     signal?.throwIfAborted();
+    const output = result.text.trim();
     if (!output || output.length > 100_000) throw pagesErrors.invalid("模型返回的文稿为空或过长");
     const appendix = request.inputs.map((item, index) => {
       const link = item.url && /^https?:\/\//.test(item.url) ? `\n[打开研究包](${item.url.replaceAll("(", "%28").replaceAll(")", "%29")})` : "";
@@ -50,7 +56,8 @@ export async function generatePagesFromMaterials(withStore: <T>(run: (store: Pag
   // A rejected guard must not be caught as a model/storage failure and retried as another write.
   await refusedEnds();
   try {
-    const document = withStore(store => store.completeGeneration(request, body));
+    // The model's grant is checked again inside the write, so an answer received after it was withdrawn saves nothing.
+    const document = await stores.write(caller, store => { result.validateResult(); return store.completeGeneration(request, body); });
     return { document, replayed: false };
   } catch (error) { return fail(error); }
 }

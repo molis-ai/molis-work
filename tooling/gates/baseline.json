@@ -1,5 +1,5 @@
 {
-  "giantUnits": 127,
+  "giantUnits": 126,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -31,11 +31,7 @@
       "lines": 278,
       "methods": 41
     },
-    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 301,
-      "methods": 22
-    },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 281,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 272,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 168,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
@@ -214,7 +210,7 @@
     "file plugins/native/pages/src/client.ts": 1115,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
-      "lines": 374,
+      "lines": 346,
       "methods": 28
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
@@ -243,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 483,
+  "testInternalImports": 478,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -396,7 +392,7 @@
     "tests/jelly-source-providers.test.ts": 3,
     "tests/list-silent-refresh.test.ts": 5,
     "tests/local-web-actions.test.ts": 2,
-    "tests/material-documents.test.ts": 2,
+    "tests/material-documents.test.ts": 1,
     "tests/material-extraction.test.ts": 5,
     "tests/material-web.test.ts": 2,
     "tests/mcp-action-grants.test.ts": 2,
@@ -408,13 +404,10 @@
     "tests/pages-drag-preview.test.ts": 1,
     "tests/pages-drag-target.test.ts": 1,
     "tests/pages-import-content.test.ts": 1,
-    "tests/pages-import-files.test.ts": 1,
     "tests/pages-input-rules.test.ts": 1,
-    "tests/pages-project-binding.test.ts": 1,
-    "tests/pages-publication.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
     "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 7,
+    "tests/personal-plugins-review-fixes.test.ts": 6,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -759,7 +752,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 16,
+  "hostPluginFilesTotal": 14,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -768,8 +761,6 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/pages-actions.ts#actions": 1,
-    "apps/local-host/src/pages-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/schedule-actions.ts#actions": 1,
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
@@ -802,16 +793,16 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 378,
+  "pluginOutsideMentionsTotal": 376,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
-    "coding#outside-files": 16,
+    "coding#outside-files": 17,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
     "diff#outside-files": 8,
-    "feed#outside-files": 40,
+    "feed#outside-files": 41,
     "files#outside-files": 10,
     "form#outside-files": 8,
     "git#outside-files": 13,
@@ -821,10 +812,10 @@
     "issues#outside-files": 4,
     "jelly#outside-files": 6,
     "lingguang#outside-files": 9,
-    "pages#outside-files": 19,
+    "pages#outside-files": 14,
     "plugin-builder#outside-files": 19,
     "ppt#outside-files": 8,
-    "schedule#outside-files": 18,
+    "schedule#outside-files": 19,
     "shelf#outside-files": 16,
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
@@ -1068,7 +1059,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 179,
+  "unknownCastsTotal": 177,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1116,7 +1107,6 @@
     "plugins/native/jelly/src/content.ts": 1,
     "plugins/native/lingguang/src/store.ts": 5,
     "plugins/native/pages/src/code-highlight.ts": 1,
-    "plugins/native/pages/src/store.ts": 2,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/native/plugin-builder/src/agent-experience.ts": 1,
     "plugins/native/plugin-builder/src/agent-validation.ts": 1,

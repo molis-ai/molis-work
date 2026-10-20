@@ -20,6 +20,7 @@ export function typedCapabilityInvocation(caller: ActionCallContext, definition:
   };
   const assertProvider = () => {
     if (host.registry.registrationToken(definition) !== token) throw new ActionError("actions.provider_replaced", "能力提供方已重启，不能继续原副作用");
+    if (caller.query_only && (definition.operation !== "query" || definition.action?.execution?.cost === "metered")) throw new ActionError("actions.forbidden", "只读调用不能执行写入或付费能力");
     const available: ActionAvailability = requireSynchronous(host.registry.availability(caller, definition));
     if (!available.available) throw new ActionError(available.code, available.reason, { kind: available.kind });
   };

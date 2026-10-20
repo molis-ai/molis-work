@@ -439,6 +439,7 @@ export class LocalHost<Runtime> {
     // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
     // not offered to plugins stays out of its reach.
     const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
+      ...(options?.query_only ? { query_only: true as const } : {}),
       ...callSignal(capability.operation, () => this.ensureEntry(reference), signal),
       ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
       ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {

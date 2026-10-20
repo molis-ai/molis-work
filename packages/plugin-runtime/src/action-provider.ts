@@ -1,6 +1,7 @@
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { type ActionAvailability, type ActionCallContext, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runInPluginAction } from "./action-scope.js";
+import { pluginSceneHandler } from "./scene-provider.js";
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
@@ -27,24 +28,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;
-      const configuration = grantAvailability(declaration.configuration_permissions ?? []);
-      return { ...h, availability: grantAvailability(declaration.permissions, h.availability),
-        configuration_availability: grantAvailability(declaration.configuration_permissions ?? [], h.configuration_availability),
-        ...(h.targets ? { targets: async (caller: ActionCallContext) => {
-          const targets = await h.targets!(caller);
-          const state = configuration(caller);
-          return targets.map(target => {
-            const activation = grantAvailability(target.activation_permissions ?? [])(caller);
-            return { ...target, ...(!state.available ? { availability: state } : {}),
-              ...(!activation.available ? { activation_availability: activation } : {}) };
-          });
-        } } : {}),
-        bind: (caller, binding, options) => {
-          const state = grantAvailability(options?.required_permissions ?? declaration.configuration_permissions ?? [])(caller);
-          if (!state.available) throw new ActionError(state.code, state.reason);
-          return h.bind(caller, binding, options);
-        },
-      };
+      return pluginSceneHandler(declaration, h, installId, grantAvailability);
     }),
     availability: () => {
       const current = state.record();

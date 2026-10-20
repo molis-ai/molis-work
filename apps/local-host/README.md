@@ -65,6 +65,8 @@ Gmail 上手读取复用 `resolveApiConnection` 与连接生命周期，支持�
 
 Git 审查把全部有效 push URL 纳入修订，执行固定的提交与目标；目标后来改变就拒绝。本机命令环境中的临时远端固定已解析的地址，原远端不被改写，跟踪信息仍记原远端；pre-push hook 收到临时远端名。冲突审查绑定完整 UTF-8 正文、普通文件身份和路径，拒绝后来修改或替换的文件、目录及链接；实际写入不跟随链接，固定正文在临时 Git index 中准备，再按 Git 的锁协议发布。内容转换会改变审查字节时拒绝，正文已经写入后的失败会明确要求核对结果。回归见 `tests/git-operations.test.ts`。
 
+插件调用自己的动作、声明消费的动作或 typed 能力时，Host 捕获 Runtime 中原动作或场景的调用者；下游写入前同步复查原调用者，不能只信插件传入的等待回调。只读场景的约束跟随调用，typed 口按真实注册的操作与费用拒绝写入或付费查询。回归：`tests/security-invariants-plugin-scenes.test.ts`。
+
 PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信任的进程内开发执行。应用通过 openWorkSessionRegistry 组合 Work 与 Ledger，关闭 Registry 时释放其拥有的连接。
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。

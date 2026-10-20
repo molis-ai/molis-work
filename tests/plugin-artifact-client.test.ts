@@ -11,11 +11,16 @@ import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifact
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { assertPluginActionCurrent, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
-import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
+
+/** A bare kernel has no action gateway; the client still runs under the caller its Host would issue the session. */
+const sessionCaller = (manifest: PluginManifest, context: PluginStartContext, actor: string): HostPluginCaller =>
+  ({ plugin_id: manifest.plugin_id, install_id: context.install_id, actor_id: actor, project_id: DEMO_PROJECT_ID, declaration: { manifest }, assertActive: () => {} });
 
 test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
@@ -49,7 +54,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
         const hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
-          actor_id: options.actor ?? "author", assertCallerCurrent: assertPluginActionCurrent });
+          actor_id: options.actor ?? "author", plugin_caller: sessionCaller(manifest, context, options.actor ?? "author"), assertCallerCurrent: () => assertPluginActionCurrent(context.install_id) });
         client = hosted.client; dispose = hosted.dispose;
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
@@ -157,7 +162,8 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
         artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
         process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor, assertCallerCurrent: assertPluginActionCurrent });
+        hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor,
+          plugin_caller: sessionCaller(manifest, context, actor), assertCallerCurrent: () => assertPluginActionCurrent(context.install_id) });
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };

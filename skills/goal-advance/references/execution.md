@@ -1,6 +1,8 @@
 # Recording and completing work
 
-Use this reference for ordinary work on a connected Goal. Examples use `act(action, args)` to mean invoking the host-provided MCP action tool for that action (`molis_work_v1_action_<action>__v1`) and reading its result. Keep the returned IDs and versions; replace the example content and operation keys for your task.
+Use this reference for ordinary work on a connected Goal. Examples use `act(action, args)` to mean invoking the host-provided MCP action tool for that action (`molis_work_v1_action_<action>__v<version>`, using the current version returned by the directory) and reading its result. Keep the returned IDs and versions; replace the example content and operation keys for your task.
+
+`goals.events.list`, `goals.events.latest` and `goals.events.read` are version 2 (`__v2`): their output includes the `input_acknowledged` system payload. Version 1 is no longer offered; fixed workflow references and client grants must select version 2. `goals.events.acknowledge` remains version 1.
 
 Each action needs its own grant for this client in the current project: goals.list, goals.create and goals.note to start; goals.state.read, goals.events.list and goals.events.read for state and history; and goals.events.configure, goals.events.report, goals.progress.record, goals.concerns.apply, goals.decisions.request, goals.decisions.cite, goals.agreement.set, goals.closure.submit, goals.work.resume and goals.events.acknowledge for the work operations. Missing or revoked access is resolved in **Capabilities → External access**. The same Home's system service must be running. Preserve the action and Session context on retries: a write is recorded under the Session that made it.
 

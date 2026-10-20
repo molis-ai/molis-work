@@ -43,6 +43,8 @@ Web is an optional viewing and user-confirmation surface, not a prerequisite for
 
 An action tool appears only after the user grants that action to this client for its scope (Home-wide or a project). In **Capabilities → External access**, choose the client and scope, search by name or provider, review the required permissions, and grant or revoke each action. A grant binds the exact capability version and provider; discovery and every call check the latest grants, so the next call after a revocation is refused, though a client may need to refresh its own tool list. Binding a project grants no action.
 
+`goals.events.list`, `goals.events.latest` and `goals.events.read` are now @2 (their MCP tool names end in `__v2`), with the `input_acknowledged` system record in their output. @1 is no longer registered. Select @2 again in fixed workflow references and external client grants, then refresh the tool directory. `goals.events.acknowledge` stays at @1.
+
 Common Goals actions:
 
 | Purpose | Actions |

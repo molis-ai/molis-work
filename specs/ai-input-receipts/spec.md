@@ -988,7 +988,7 @@ interface AgentInputView {
 - **谁说的。** 作者和 `by` 只从调用上下文来：MCP 调用取运行时 id 与稳定会话（`runtime:<id>:<会话>`），助理取助理身份，其他取 agent；输入里带 `actor_id`、`project_id`、`session_id`、`actor_kind`、`by` 一律 `actions.input_invalid`。没有稳定会话的 MCP 调用在派发时被拒（`kernel.runtime_identity_missing`），什么都不写。这是 S-17 的一个新入口，测试已进 S-17 与 S-18 两行。
 - **能说明什么。** 笔记、约定（含配置）、本人的决定。进展、请求决定、报告、建意图、别的处理说明都不能：`goals.event_acknowledgement.reference_kind`；不存在的、别的 Goal 的、别的项目的统一 `…reference_missing`。`read_cursor` 必须是项目里已有的整数游标且不小于被引用记录：`…cursor_invalid`、`…cursor_before_reference`。空的说明复用 `goals.event_note.body_required`。游标是会话自己的说法，宿主只核它存在、不早于那条记录，不核它真读了什么。
 - **时间线。** 一行「处理说明」：「Claude Code 会话 X 在游标 N 读到了你的笔记「标题」」，下面是处理方式和它写的话，再一句「AI 自己说的，Molis 没有核对」，带定位按钮回到被说明的那条。「你的」只在被引用的记录是本人写的时候写，否则只写「这条笔记」。运行时的显示名取 `RUNTIME_DISPLAY_NAMES`（P7：安装检测、桌面启动、角色导入原来各留一份，现在读同一张表）。英文在 `plugins/native/goals/src/document-en.ts`。页面在服务端画，工作台脚本没有变。
-- **对已有读法的影响（P2，不升版本）。** `goals.events.list`、`latest`、`read` 本来就会返回 `system` 记录，操作名是开放字符串；多的只是一个新的 `operation` 值与载荷形状。逐个消费者查过（清单随 PR 说明提交）：没有谁因为不认识的值失败，所以三个动作不升 @2；它们的输出哈希因载荷联合多了一支而变，快照随之更新。
+- **对已有读法的影响（2026-10-20 合同复核）。** `goals.events.list`、`latest`、`read` 的严格输出 schema 中，`systemPayload.anyOf` 新增 `input_acknowledged` 分支；三个动作统一升到 @2，删除 @1 登记，不留并行兼容。HTTP 与插件内调用从 `goalsActions` 取同一份当前定义；固定 MCP 工具名改为 `molis_work_v1_action_goals.events.{list,latest,read}__v2`，安装用例的固定授权同步升版，Skill 与 MCP 文档写明新名字。既有外部授权与工作流程固定引用要重新选择 @2；本次不修改真实 Home。只改语义标签的动作不升版。验证覆盖 MCP 发现与旧工具拒绝、HTTP 读取、分页、原文回读、处理说明主路径与动作快照；复用此前已通过且不涉及固定版本消费者的回归证据。
 - **验收编号与证据：**
   - RCPT-376：有稳定会话的 MCP 调用方对本人写的笔记说明处理方式：一条 `input_acknowledged` 系统记录，作者是会话的审计身份，`by` 来自上下文，`reference` 指向那条笔记；`goals.events.read`、`list`、`latest` 读得回，时间线照常显示；同键重试回放，换了内容的同键报 `goals.request.idempotency_key_reused`（`tests/goals-event-acknowledge.test.ts`）。
   - RCPT-377：只接受笔记、约定、配置和本人的决定；进展、请求决定、报告、处理说明本身都拒，报 `reference_kind`；不存在、别的 Goal、别的项目的 `gevt-` 报 `reference_missing`；取消的 Goal 照收且仍是取消，回收站、归档的沿用原码；每次被拒，事件数与游标都没变（同上；`tests/goal-event-write-rules.test.ts`）。
@@ -997,7 +997,7 @@ interface AgentInputView {
   - RCPT-380：agent、mcp 看得到、调得动；`plugin`、`user`、`workflow` 即使带 `goals:write` 也报 `actions.forbidden`；另一个项目的上下文报 `actions.scope_mismatch`；都不写（同上）。
   - RCPT-381：取消、撤权、停用三种，处理器没开始就被拒：不写事件、不写幂等记录，调用记录里只有「未执行」一行，不含说明原文，之后同键的允许调用仍是第一次写（同上）。
   - RCPT-382：时间线的 HTML 写出会话、游标、被说明的笔记、处理方式、它写的话、「AI 自己说的，Molis 没有核对」和定位按钮；被引用的笔记不是本人写的就不写「你的」；英文页有英文（同上；英文页由真正的英文 `L` 调同一个渲染函数得到）。
-  - RCPT-383：动作快照新增 `goals.events.acknowledge@1` 一行：受众 agent、mcp，`plugin` 关；`goals.events.*` 三行的输出哈希变化在 PR 里说明（同上）。
+  - RCPT-383：动作快照新增 `goals.events.acknowledge@1` 一行：受众 agent、mcp，`plugin` 关；`goals.events.list/latest/read` 各只有 @2 一行，真实 MCP 只发现 @2 并拒绝旧 @1 工具，三条新版本均能读回 `input_acknowledged`（同上；`tests/action-contract-snapshot.test.ts`）。
 
 ### 阶段 5：个人助理深化
 

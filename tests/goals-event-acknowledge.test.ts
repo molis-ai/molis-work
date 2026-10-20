@@ -21,7 +21,11 @@ import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
  * under the session's own identity, and changes nothing else. Everything here goes through the public action, the real MCP server, or the
  * timeline's history route; each refusal checks that nothing was written.
  */
-const TOOL = (id: string) => `molis_work_v1_action_${id}__v1`;
+const TOOL = (id: string) => {
+  const definition = Object.values(goalsActions).find(action => action.capability_id === id);
+  assert.ok(definition, `Goals declares ${id}`);
+  return `molis_work_v1_action_${id}__v${definition.version}`;
+};
 const ACK = TOOL("goals.events.acknowledge");
 const NOTE = "先别动登录页，接口先做完";
 const SAID = "先做接口，登录页放到下一步";
@@ -104,6 +108,14 @@ test("RCPT-376: a stable-session MCP caller says how it will treat the person's 
     const goal_id = "ACK-MCP";
     const note = await r.person.invoke(goalsActions.create, { goal_id, title: "接口先行", outcome: "先交付接口", idempotency_key: "create" })
       .then(() => r.person.invoke(goalsActions.note, { goal_id, body: NOTE, idempotency_key: "note" }));
+    // RCPT-383: the strict output union changed, so only @2 is offered; the old pinned tools cannot silently receive it.
+    const catalog = await r.mcp.handleMessage({ jsonrpc: "2.0", id: 1, method: "tools/list", params: {} }) as { result: { tools: Array<{ name: string }> } };
+    const names = catalog.result.tools.map(tool => tool.name);
+    for (const id of ["goals.events.list", "goals.events.latest", "goals.events.read"]) {
+      assert.ok(names.includes(`molis_work_v1_action_${id}__v2`));
+      assert.ok(!names.includes(`molis_work_v1_action_${id}__v1`));
+      await assert.rejects(r.mcp.callTool(`molis_work_v1_action_${id}__v1`, { goal_id, event_id: note.event_id }), { code: "mcp.tool_unknown" });
+    }
     const noted = await r.call("goals.events.read", { goal_id, event_id: note.event_id }) as GoalWorkEventRecord;
     const input = { goal_id, event_id: note.event_id, treatment: "later-step", note: SAID, read_cursor: note.observed_event_cursor, idempotency_key: "ack-1" };
 
@@ -125,7 +137,7 @@ test("RCPT-376: a stable-session MCP caller says how it will treat the person's 
     assert.deepEqual(await r.call("goals.events.acknowledge", input), { ...said, replayed: true });
     await assert.rejects(r.call("goals.events.acknowledge", { ...input, treatment: "noted" }), { code: "goals.request.idempotency_key_reused" });
 
-    // What already reads the Goal's records reads this one, unchanged in shape (P2): the lists, the latest page and one record.
+    // All three @2 reads accept the new strict system payload: the lists, the latest page and one record.
     const listed = await r.call("goals.events.list", { goal_id }), latest = await r.call("goals.events.latest", { goal_id });
     for (const page of [listed, latest]) {
       assert.equal((page.events as GoalWorkEventRecord[]).filter(event => operationOf(event) === "input_acknowledged").length, 1);
@@ -339,9 +351,9 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
 });
 
 // RCPT-383: the callable contract is written down in tooling/gates/actions (the action-contract snapshot, which tests/action-contract-snapshot
-// checks against the Manifests): the new action is one row at @1 that only an Agent or an MCP session may call, and the three event reads keep
-// their version and their audiences. A change in their output hashes is the new `system` operation, and is said in the PR (docs/system/CONTRACT-CHANGES.md).
-test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for agent and mcp only, and the event reads stay at @1", async () => {
+// checks against the Manifests): the new action is one row at @1 that only an Agent or an MCP session may call, and the three event reads
+// are registered only at @2 for the expanded strict system payload (docs/system/CONTRACT-CHANGES.md).
+test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for agent and mcp only, and the event reads only at @2", async () => {
   const text = await readFile(new URL("../tooling/gates/actions/actions.tsv", import.meta.url), "utf8");
   const header = text.split("\n").find(line => line.startsWith("capability_id\t"))!.split("\t");
   const rows = text.split("\n").filter(line => line && !line.startsWith("#") && !line.startsWith("capability_id\t")).map(line => {
@@ -359,7 +371,7 @@ test("RCPT-383: the action snapshot has one goals.events.acknowledge@1 row for a
   assert.equal(row!.permissions, "goals:write");
   for (const id of ["goals.events.list", "goals.events.latest", "goals.events.read"]) {
     const reads = of(id);
-    assert.deepEqual(reads.map(read => read.version), ["1"], `${id} stays at @1`);
+    assert.deepEqual(reads.map(read => read.version), ["2"], `${id} is registered only at @2`);
     assert.equal(reads[0]!.audiences, "agent,mcp,user,workflow");
   }
 });

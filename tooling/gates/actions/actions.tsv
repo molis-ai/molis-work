@@ -281,9 +281,9 @@ goals.directory.read	1	io.molis.work.goals	io.molis.work.goals	query	query	proje
 goals.document.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	ca5f7a11f246	8bf65d634466	-
 goals.events.acknowledge	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp	goals:write	goal	-	-	4e96f00944cb	66058b0bebac	1ae0dcb1ca7b
 goals.events.configure	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	75b94487fb81	f9f6505389b6	9a20bdba744a
-goals.events.latest	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	4885e15fa184	c95b98822cc4	-
-goals.events.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	aa36b75931f1	c95b98822cc4	-
-goals.events.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	86a2eae02821	e7a385c78e6e	-
+goals.events.latest	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	4885e15fa184	c95b98822cc4	-
+goals.events.list	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	aa36b75931f1	c95b98822cc4	-
+goals.events.read	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	86a2eae02821	e7a385c78e6e	-
 goals.events.report	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	7e13db31e039	0dc1bead100c	9a20bdba744a
 goals.fragment.offers	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	goals:read	molis.any-object	molis.fragment-offers.input.v1	molis.fragment-offers.output.v1	0dbe645dfc7a	1e3af5170ce2	e28887c02970
 goals.guidance.add	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	1650e00d1011	a49fb1a4d66b	9a20bdba744a

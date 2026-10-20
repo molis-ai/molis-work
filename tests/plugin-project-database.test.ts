@@ -199,6 +199,8 @@ test("a start list that declares a library wrongly does not start at all, and no
     assert.equal(homeStores().get("unlisted"), undefined);
     await refuse("not registered", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: "unlisted" } }], /没有登记/);
     await refuse("another baseline", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, version: 2 } }], /基线不同/);
+    // PART-02 (specs/plugin-project-partition): a project's plugin keeps its data in the project already; only a Home plugin's library is split by project.
+    await refuse("partitioned", [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, partition: "project" } as PluginDatabaseDeclaration }], /Home 级插件/);
     for (const name of ["Dataset", "../data", "a/b", ""]) {
       await refuse(`name ${JSON.stringify(name)}`, [{ definition: probe().definition, bundled: true, database: { ...DECLARATION, store_name: name } }], /库名|目录名/);
     }

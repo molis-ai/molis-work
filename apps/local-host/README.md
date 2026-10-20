@@ -5,7 +5,7 @@
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 
-`HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
+`HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除，按项目分开的库（`partition: "project"`，`plugin-database-partitions.ts`）除外：它按调用所在的项目给库，删项目时由 `plugin-project-cleanup.ts` 在 `onProjectDeleted` 的同一轮关掉、`purge` 之后删目录，改动后跑 `tests/plugin-database-partition.test.ts`、`tests/plugin-database-partition-deletion.test.ts`（[specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)）。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
 

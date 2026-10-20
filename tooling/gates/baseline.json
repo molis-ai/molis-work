@@ -25,8 +25,8 @@
       "lines": 553,
       "methods": 23
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41

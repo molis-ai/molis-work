@@ -79,9 +79,11 @@ const ROUTES: RouteMaker[] = [
       const incoming = received ? delegationView(a, execution, received, letters) : null;
       const referenced = [...new Set(savedMaterials(context, record.session_id).map(materialArtifact).flatMap(ref => ref && /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
+      const relatedIds = [...new Set([...outgoing.map(item => item.to_session), incoming?.from_session, ...referenced].filter((id): id is string => Boolean(id)))];
+      // The page refreshes this while a session is open: the project's outputs are listed only when there is a related session to show them under.
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
-      for (const output of sessionOutputs(context)) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
-      const related = [...new Set([...outgoing.map(item => item.to_session), incoming?.from_session, ...referenced].filter((id): id is string => Boolean(id)))].map(id => {
+      for (const output of relatedIds.length ? sessionOutputs(context) : []) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
+      const related = relatedIds.map(id => {
         let session: { title: string; state: string; updated_at: string } | null = null;
         try { session = execution.sessions.get(projectId, id); } catch { session = null; }
         const relation = [outgoing.some(item => item.to_session === id) ? "你委派给它" : "", incoming?.from_session === id ? "它委派给你" : "", referenced.includes(id) ? "你引用了它的成果" : ""].filter(Boolean);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
-import { codingManifest, codingOutputReferences } from "@molis-ai/molis-work-plugin-coding";
+import { codingManifest, codingOutputReferences, codingOutputs } from "@molis-ai/molis-work-plugin-coding";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   CHANGESET_REFERENCE, CHANGE_SET_MARKDOWN, CODING_PLUGIN, PROJECT_ID, REPORT_BODY, REPORT_REFERENCE,
@@ -86,4 +86,13 @@ test("W5-01-CODING-06 Coding lists its own outputs by type through the platform,
   assert.deepEqual(codingOutputReferences(context, "coding.changeset.v1"), [CHANGESET_REFERENCE]);
   assert.deepEqual(codingOutputReferences(context, "coding.plan.v1").map(row => row.artifact_id), ["coding-plan:session-a:run-1"]);
   assert.deepEqual(codingOutputReferences(context, "coding.diagram.v1"), [], "a type nothing was pinned under");
+  // One listing and one read per listed version, however many kinds are asked for: the page refreshes these while a session is open.
+  const calls = { list: 0, read: 0 }, client = platform.artifacts(CODING_PLUGIN);
+  const counted = startContext(CODING_PLUGIN, { processItems: platform.processItems(CODING_PLUGIN), artifacts: { ...client,
+    listConsumable: () => { calls.list++; return client.listConsumable(); }, read: reference => { calls.read++; return client.read(reference); } } });
+  const outputs = codingOutputs(counted, ["coding.report.v1", "coding.changeset.v1", "coding.plan.v1"]);
+  assert.deepEqual(outputs.map(output => output.reference.artifact_id),
+    [REPORT_REFERENCE.artifact_id, "coding-report:session-b:run-2", CHANGESET_REFERENCE.artifact_id, "coding-plan:session-a:run-1"]);
+  assert.equal(outputs[0]?.record.artifact_id, REPORT_REFERENCE.artifact_id, "the version read for the listing comes with it, so a route does not read it again");
+  assert.deepEqual(calls, { list: 1, read: 5 }, "another producer's report is read once to be left out; the archived one is not listed at all");
 });

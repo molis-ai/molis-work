@@ -2701,12 +2701,14 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 ### F. 固定成果交给别的插件（2026-10-21，PG-090 的 Coding 半边，C3）
 宿主不再替 Coding 和 Shelf 拼这条边界：Coding 的固定成果怎样变成文字归 Coding，Shelf 经平台的成果服务和它声明消费的动作来取。测试在 `tests/coding-results-document.test.ts`、`tests/shelf-coding-results.test.ts`、`tests/shelf-coding-results-platform.test.ts`。
 
+能不能读到正文，看的是插件消费了这个动作，不看它消费了哪种成果。Coding 的处理器看不到调用方的 Manifest：Runtime 交给插件的调用上下文不带调用方的签发对象（PG110-17）。所以一个项目插件只要声明 `capabilities.consumes: ["coding.results.document"]` 并持有 `artifact:read`，就能读到本项目任何一份 Coding 固定报告和固定变更的正文，不必在 `artifacts.consumes`、`process_items.consumes` 里声明这两种类型。消费动作本身也是 Manifest 声明，创作台做的插件还要人逐项批准（PG110-14）。要不要让平台把调用方的类型声明交给提供方去核，是信任边界的设计，待用户定（⑤ 评审 #905）。
+
 1. **W5-01-CODING-01** Coding 声明只给 plugin 受众的查询 `coding.results.document@1`（权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）；人、Agent、工作流、MCP 都选不到它。`coding.artifacts.preview@1` 的动作 id 与版本不变。
 2. **W5-01-CODING-02** 一份固定报告答它自己的 Markdown，逐字节一致。
 3. **W5-01-CODING-03** 一份固定变更按文件答审查文本的修改前后和写入结果；没有可读的文本审查时，答固定的一句话。
 4. **W5-01-CODING-04** 已归档、其他项目、不可用、其他种类、签名不符、成果里的身份与引用不一致、项目里没有的版本，一律用 Coding 自己的 `coding.shelf_material_invalid` 拒绝，并用中文告诉使用者。
 5. **W5-01-CODING-05** 别的生产者钉死的版本，平台在 Coding 读到之前就以 `artifacts.plugin_denied` 拒绝。
-6. **W5-01-CODING-06** Coding 自己的报告、变更、计划列表经平台 `listConsumable()` 按类型和生产者取，没有宿主端口；已归档和别的生产者的版本不算当前成果。
+6. **W5-01-CODING-06** Coding 自己的报告、变更、计划列表经平台 `listConsumable()` 按类型和生产者取，没有宿主端口；已归档和别的生产者的版本不算当前成果。一次请求只列一次、每个版本只读一次：页面开着会话时会反复刷新这些列表。
 7. **W5-01-CODING-07** Shelf 对一份固定报告的预览（标题、正文、来源、内容哈希、指纹）与宿主原来拼出的一字不差。
 8. **W5-01-CODING-08** 同上，固定变更，连同代码围栏的长度。
 9. **W5-01-CODING-09** 这个动作的定义只在合同包 `@molis-ai/molis-work-contracts/modules/coding` 一处（含输入输出类型），Coding 与 Shelf 都从那里取，任何一边都没有第二份；Coding 的 Manifest 声明的就是这个对象，Shelf 的 Manifest `capabilities.consumes` 写它的 `capability_id` 并持有 `artifact:read`；Shelf 自己动作的受众不变。

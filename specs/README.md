@@ -34,7 +34,9 @@
 - [agent-approval](agent-approval/spec.md)：Agent 产出的变更与外部效果的真人批准门；N 个有写权限的真人、`/approve <sha>` 绑定 head、push 后过期、Agent/bot 不计；2026-10-18 新立，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
 - [project-knowledge](project-knowledge/spec.md)：项目资料——平台通用的资产管理、导入与召回；导入的文档、插件成果与对象、工作区文件统一成资料目录，整理出卡片与大纲做渐进式召回，embedding 可选；Coding「＋ 材料」并入后删旧路。2026-10-19 新立，需求已对齐，待审。
+- [plugin-project-database](plugin-project-database/spec.md)：项目库里的插件表——插件在 Manifest 里声明，平台第一次打开时建表、记账本、核对发布者与版本，项目身份改成 `project_root`（PG-020、PG-021）；L1a 已做（声明、检查与打开函数），宿主还不按它建表。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
+- [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
 
 ## 现行规范
 

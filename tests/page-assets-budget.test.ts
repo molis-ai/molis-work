@@ -679,6 +679,8 @@ for (const [asset, old] of [
   // Main has also spent the W5-02 P0 and proposal starts.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.js", 1129640],
   ["/assets/molis-work-workbench.js", 1129470],
+  // The visual branch's older stylesheet starts are retired into the exact current predecessor.
+  ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
   // The after-write checker settings allowance (#805) is spent in the predecessor.
   ["/assets/molis-work-workbench.js", 1129726],
 ] as const) {
@@ -698,9 +700,9 @@ for (const [asset, old] of [
 // baseline still fails.
 test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1129525, 1132686],
-    "/assets/molis-work-workbench.css": [1603154, 1604785],
-    "/assets/molis-work-settings.css": [988933, 990560],
+    "/assets/molis-work-workbench.js": [1134948, 1138109],
+    "/assets/molis-work-workbench.css": [1603130, 1604761],
+    "/assets/molis-work-settings.css": [988929, 990556],
     "/assets/molis-work-arrival.css": [698519, 700146],
     "/assets/molis-work-pages-editor.js": [706933, 707336],
   } as const;

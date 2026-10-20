@@ -236,7 +236,7 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
-// admission from exactly main's budget (#851 carries #854, #856 and #860; user re-approved the re-anchoring 2026-10-20):
+// admission from the exact #805 + #848 + #853 predecessor (#851 carries #854, #856 and #860; reviewed 2026-10-20):
 // - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
 //   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
 // - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
@@ -251,10 +251,12 @@ const headErrors = (measured, budget, base) => {
 //   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
 // - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
 //   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
+// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,161 B, and the three
+// stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129525, 1132686],
-  "/assets/molis-work-workbench.css": [1603154, 1604785],
-  "/assets/molis-work-settings.css": [988933, 990560],
+  "/assets/molis-work-workbench.js": [1134948, 1138109],
+  "/assets/molis-work-workbench.css": [1603130, 1604761],
+  "/assets/molis-work-settings.css": [988929, 990556],
   "/assets/molis-work-arrival.css": [698519, 700146],
   "/assets/molis-work-pages-editor.js": [706933, 707336],
 };

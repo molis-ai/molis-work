@@ -6,7 +6,7 @@ import { createSessionLedger } from "./session-registry.js";
 import { existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { purgeProjectMemories } from "@molis-ai/molis-work-service-memory";
-import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
+import { MEMORY_LEDGER_STORE, TEXT_SEARCH_STORE, clearKnowledgeProject, homeSqlitePath, openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -84,6 +84,8 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     pluginBuilderProjectOwner(home),
     // Without a running Assistant nothing is queued or running for these works, so their rows are all there is to clear.
     { id: "assistant", label: "助理在这个项目里的工作", clear: async projectId => { await purgeAssistantProject(home, projectId); } },
+    // Project knowledge's cards (what the person edited on them, and what organizing used) are a plain library any process clears.
+    { id: "knowledge", label: "项目资料的卡片与整理记录", clear: projectId => { clearKnowledgeProject(home, projectId); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

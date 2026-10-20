@@ -8,6 +8,10 @@ import { pagesMethods } from "./methods.js";
 
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID };
 
+const PAGES_BODY_BYTES = 1_000_000;
+/** An import carries the uploaded files themselves (base64), up to a hundred of them. */
+const PAGES_IMPORT_BYTES = 15_000_000;
+
 export const pagesManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
@@ -19,10 +23,31 @@ export const pagesManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+  // Declaration order is match order: the fixed paths come before the ones that take a document id.
+  routes: [
+    { route_id: "pages.comments.list", method: "GET", path: "/pages/:id/comments" },
+    { route_id: "pages.comments.append", method: "POST", path: "/pages/:id/comments", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.list", method: "GET", path: "/pages" },
+    { route_id: "pages.templates", method: "GET", path: "/pages/templates" },
+    { route_id: "pages.create", method: "POST", path: "/pages", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.import.preview", method: "POST", path: "/pages/import/preview", max_body_bytes: PAGES_IMPORT_BYTES },
+    { route_id: "pages.import", method: "POST", path: "/pages/import", max_body_bytes: PAGES_IMPORT_BYTES },
+    { route_id: "pages.folders.create", method: "POST", path: "/pages/folders", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.folders.update", method: "POST", path: "/pages/folders/:id", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.folders.delete", method: "POST", path: "/pages/folders/:id/delete", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.ai", method: "POST", path: "/pages/:id/ai", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.promote", method: "POST", path: "/pages/:id/promote", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.extract", method: "POST", path: "/pages/:id/extract", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.get", method: "GET", path: "/pages/:id" },
+    { route_id: "pages.update", method: "POST", path: "/pages/:id", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.delete", method: "POST", path: "/pages/:id/delete", max_body_bytes: PAGES_BODY_BYTES },
+    { route_id: "pages.discard", method: "POST", path: "/pages/:id/discard", max_body_bytes: PAGES_BODY_BYTES },
+  ],
   permissions: [
     ...PAGES_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: false, reason: "读写交接内容" })),
     { permission: "storage:private", required: true, reason: "本机文档库" },
     { permission: "artifact:write", required: true, reason: "把文档存为成果" },
+    { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的文档" },
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...PAGES_ACTIONS, ...Object.values(pagesContentActions)],

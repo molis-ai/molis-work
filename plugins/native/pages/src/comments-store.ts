@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import type { DatabaseSync } from "node:sqlite";
 import type { PagesCommentAnchor, PagesCommentMessage, PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { pagesErrors } from "./error.js";
+import type { PagesSql } from "./store.js";
 
 type StoredThread = Omit<PagesCommentThread, "detached">;
 export interface AppendPagesComment {
@@ -32,24 +32,25 @@ export function pageAnnotations(body: PagesRecord["body"]): Map<string, { text: 
 
 /** The Pages-owned discussion log is independent of document versions, so replies cannot overwrite edits. */
 export class PagesComments {
-  constructor(private readonly db: DatabaseSync, private readonly page: (id: string, projectId: string) => PagesRecord) {}
+  constructor(private readonly db: PagesSql, private readonly atomically: <T>(run: () => T) => T,
+    private readonly page: (id: string, projectId: string) => PagesRecord) {}
 
   list(pageId: string, projectId: string): PagesCommentThread[] {
     const page = this.page(pageId, projectId);
     const marks = pageAnnotations(page.body);
-    return this.db.prepare("SELECT body FROM page_comments WHERE page_id=? ORDER BY created_at,thread_id").all(pageId)
+    return this.db.all("SELECT body FROM page_comments WHERE page_id=? ORDER BY created_at,thread_id", [pageId])
       .map(row => this.present(JSON.parse(String(row.body)) as StoredThread, marks));
   }
 
   get(pageId: string, threadId: string, projectId: string): PagesCommentThread {
     const page = this.page(pageId, projectId);
-    const row = this.db.prepare("SELECT body FROM page_comments WHERE page_id=? AND thread_id=?").get(pageId, threadId);
+    const row = this.db.get("SELECT body FROM page_comments WHERE page_id=? AND thread_id=?", [pageId, threadId]);
     if (!row) throw pagesErrors.not_found("找不到这条评论");
     return this.present(JSON.parse(String(row.body)) as StoredThread, pageAnnotations(page.body));
   }
 
   append(input: AppendPagesComment, projectId: string): PagesCommentThread {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const page = this.page(input.page_id, projectId);
       let thread = this.read(input.page_id, input.thread_id);
       const body = input.body.trim();
@@ -82,7 +83,7 @@ export class PagesComments {
   }
 
   reply(pageId: string, threadId: string, projectId: string, message: PagesCommentMessage): PagesCommentThread {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const page = this.page(pageId, projectId);
       const thread = this.read(pageId, threadId);
       if (!thread) throw pagesErrors.not_found("原评论已不存在");
@@ -96,19 +97,14 @@ export class PagesComments {
   }
 
   private read(pageId: string, threadId: string): StoredThread | null {
-    const row = this.db.prepare("SELECT body FROM page_comments WHERE page_id=? AND thread_id=?").get(pageId, threadId);
+    const row = this.db.get("SELECT body FROM page_comments WHERE page_id=? AND thread_id=?", [pageId, threadId]);
     return row ? JSON.parse(String(row.body)) as StoredThread : null;
   }
   private save(thread: StoredThread): void {
-    this.db.prepare("INSERT INTO page_comments(page_id,thread_id,body,created_at) VALUES (?,?,?,?) ON CONFLICT(page_id,thread_id) DO UPDATE SET body=excluded.body")
-      .run(thread.page_id, thread.thread_id, JSON.stringify(thread), new Date().toISOString());
+    this.db.run("INSERT INTO page_comments(page_id,thread_id,body,created_at) VALUES (?,?,?,?) ON CONFLICT(page_id,thread_id) DO UPDATE SET body=excluded.body",
+      [thread.page_id, thread.thread_id, JSON.stringify(thread), new Date().toISOString()]);
   }
   private present(thread: StoredThread, marks: ReturnType<typeof pageAnnotations>): PagesCommentThread {
     return { ...thread, detached: thread.anchor.kind === "text" && !marks.has(thread.anchor.mark_id ?? "") };
-  }
-  private transaction<T>(run: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = run(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
   }
 }

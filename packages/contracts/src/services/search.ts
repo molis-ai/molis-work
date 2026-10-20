@@ -189,6 +189,8 @@ export interface SearchIndexSourceRecord {
   synced_at: number | null;
   checked_at: number | null;
 }
+/** The most of a document's text the search index holds; words past it are found only by reading the piece itself. */
+export const SEARCH_INDEX_CONTENT_CHARS = 32_000;
 export interface SearchIndexDocument {
   source_key: string;
   kind: string;
@@ -238,7 +240,17 @@ export interface SearchIndexPort {
   upsert(documents: readonly SearchIndexDocument[]): void;
   remove(sourceKey: string, keys: readonly { kind: string; object_id: string }[]): void;
   document(sourceKey: string, kind: string, objectId: string): SearchIndexDocument | null;
+  /** Every document indexed for one project: the catalog project knowledge organizes (specs/project-knowledge §5). */
+  documents(projectId: string): SearchIndexDocument[];
   search(query: SearchIndexQuery): { matches: SearchIndexMatch[]; total: number };
+  /**
+   * One project's documents that hold some of the words of a question (CJK adjacent pairs and words), best first: the loose
+   * ranking project knowledge fills a search and orders its catalog with (specs/project-knowledge §6.4). Not the system search,
+   * and not filtered by caller: the knowledge service applies its own visibility rule before anything is shown. With `snippets`,
+   * the best ones carry the indexed text around where most of the terms meet (empty for a summary-only document, and past the
+   * first few); without, `snippet` is empty.
+   */
+  related(projectId: string, query: string, limit: number, snippets?: boolean): Array<{ kind: string; object_id: string; snippet: string }>;
   clear(): number;
   close(): void;
 }

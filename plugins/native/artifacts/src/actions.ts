@@ -4,7 +4,7 @@ import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseAr
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./goal-context.js";
-import type { ExternalDocumentSource } from "./document-import.js";
+import type { ExternalDocumentSource, ModelRequired } from "./document-import.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
@@ -12,7 +12,8 @@ import { text, id, version, object, array, nullable, reference, consumerTypes, r
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
   consumable: { type: "boolean" }, reason: { enum: ["compatible_consumer", "consumer_missing", "artifact_unavailable", "artifact_archived"] } })) };
 const browser = object({ versions: array(record), ...selection });
-const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text) });
+const imported = object({ artifact_id: id, version, title: text, reused: { type: "boolean" }, url: text, warnings: array(text),
+  model_required: object({ approximate_bytes: nullable({ type: "integer", minimum: 1 }) }) }, ["artifact_id", "version", "title", "reused", "url", "warnings"]);
 const sources = { enum: ["notion", "feishu", "lark", "google-docs"] };
 const read = ["artifacts:read"], write = [...read, "artifacts:write"];
 const subjectDefinition = defineSubjectContextAction("artifacts.subject.read", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
@@ -21,9 +22,13 @@ const subject: ActionDefinition<{ subject_id: string }, ActionSubjectContext> = 
   action: { ...subjectDefinition.action, audiences: ["user", "agent", "workflow", "mcp"], plugin: false } };
 /** A local file: a text document by its `content`, any other file by its `original_file` bytes (A3). */
 export interface ArtifactFileImport { source: "file"; filename: string; content?: string; title?: string;
-  source_id?: string; original_file?: { filename: string; mime: string; data_base64: string } }
+  source_id?: string; original_file?: { filename: string; mime: string; data_base64: string };
+  /** The person agreed to download the local speech model for this transcription; the Host honours it only from a person (S-39, PMAT-48). */
+  allow_model_download?: boolean }
 export interface ArtifactExternalImport { source: ExternalDocumentSource; url: string; connection_id?: string }
-export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[] }
+export interface ArtifactImportResult { artifact_id: string; version: number; title: string; reused: boolean; url: string; warnings: string[];
+  /** The transcription needs the local speech model first (PMAT-48): ask the person, then import again with `allow_model_download`. */
+  model_required?: ModelRequired }
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema, permissions = read, scheduling?: ActionDefinition['action']['scheduling']): ActionDefinition<I, O> {
   return { capability_id: `artifacts.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "project", ...(scheduling ? { scheduling } : {}), audiences: ["user", "agent", "workflow", "mcp"], permissions, subject_kinds: ["artifact"], input_schema: input, output_schema: output } };
@@ -73,7 +78,8 @@ export const artifactsActions = {
   export: define<{ reference: ArtifactReference }, { filename: string; mime: string; content: string }>("export", "导出成果版本", "导出原成果记录为 JSON，不注册新版本或改变发布状态", "query", object({ reference }), object({ filename: text, mime: text, content: text })),
   importFile: define<ArtifactFileImport, ArtifactImportResult>("import.file", "导入本地文件", "把任何本地文件存为个人成果：Markdown、TXT、HTML 读出正文，其他文件保存原件（最多 6 MB）；同内容重复导入重用原版本", "command",
     object({ source: { const: "file" }, filename: { ...text, minLength: 1, maxLength: 255 }, content: { ...text, description: "文本文件的 UTF-8 正文，解码后最多 2 MB" }, title: { ...text, maxLength: 500 },
-      source_id: { ...text, minLength: 1, maxLength: 512 }, original_file: object({ filename: { ...text, minLength: 1, maxLength: 255 }, mime: { ...text, maxLength: 128 }, data_base64: { ...text, maxLength: 8_000_000 } }) }, ["source", "filename"]), imported, write, "concurrent"),
+      source_id: { ...text, minLength: 1, maxLength: 512 }, original_file: object({ filename: { ...text, minLength: 1, maxLength: 255 }, mime: { ...text, maxLength: 128 }, data_base64: { ...text, maxLength: 8_000_000 } }),
+      allow_model_download: { type: "boolean", description: "这个人同意为转写音视频下载本机语音模型；只有人亲自导入时有效" } }, ["source", "filename"]), imported, write, "concurrent"),
   importExternal: define<ArtifactExternalImport, ArtifactImportResult>("import.external", "导入外部文档", "使用当前 Home 已连接的文档账号读取链接，保存个人快照；不写回来源，不自动同步", "command",
     object({ source: sources, url: { ...text, minLength: 1, maxLength: 4096 }, connection_id: id }, ["source", "url"]), imported, [...write, "connectors:document:read"], "concurrent"),
   importSources: define<Record<string, never>, { sources: Record<string, boolean>; connections: ConnectorConnectionView[] }>("import.sources", "文档来源连接状态", "查看文档导入支持来源是否已连接，不返回凭据", "query", object({}), object({ sources: { type: "object", additionalProperties: { type: "boolean" } }, connections: array({ type: "object", additionalProperties: true }) })),
@@ -155,7 +161,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
         && currentProject(edge.target.project_id) && edge.source.module === "goals" && currentProject(edge.source.project_id))
         .map(edge => edge.source.id);
-      return artifactAnalysisContext(artifact, goalIds);
+      return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
     }),
     bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();
@@ -169,7 +175,9 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
         // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
         return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
-          title: record.title, summary, updated_at: record.created_at, content: "summary", open: { surface: "artifacts", id: artifactVersionPath(record) } };
+          // An imported document is read as its text, so its text is indexed and organized (specs/project-knowledge PMAT-14); other types keep their summary.
+          title: record.title, summary, updated_at: record.created_at, content: record.artifact_type_id === DOCUMENT_ARTIFACT_TYPE ? "context" : "summary",
+          open: { surface: "artifacts", id: artifactVersionPath(record) } };
       });
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {

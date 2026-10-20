@@ -45,6 +45,9 @@ for (const width of [1440, 390]) test(`placement ${width}px: capture in the pers
   const projectTitle = await evaluate<string>(`fetch('/api/placement/spaces').then(r => r.json()).then(v => v.spaces.find(s => s.project_id === ${text(projectId)}).title)`);
   await click("[data-pages-new]");
   await card("存到 个人空间");
+  // The card comes once the workbench has described the new document; Pages opens it after it has read its list again. The two
+  // requests run side by side (both through the Runtime now), so the document is read once it is the open one, not at the card.
+  await waitFor(`[...document.querySelectorAll('[data-assistant-context]')].some(element => element.getClientRects().length && JSON.parse(element.getAttribute('data-assistant-context') || '{}').object?.kind === 'pages_document')`, 12_000);
   const doc = await current();
   assert.equal(doc?.kind, "pages_document");
   await evaluate(`(() => { const input = document.querySelector('[data-pages-title]'); input.focus(); input.value = '上线前检查清单'; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);

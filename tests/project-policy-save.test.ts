@@ -13,7 +13,7 @@ test("project policy saves atomically replace history, replay lost responses, an
   t.after(() => { store.close(); rmSync(directory, { recursive: true, force: true }); });
   const goals = new GoalsModule(store.db, {});
   writeProjectRoot(store.db, "project", "2026-10-20T00:00:00.000Z");
-  goals.commands.initializeBoard({ project_id: "project", title: "项目规则", actor_id: "user", idempotency_key: "init" });
+  goals.commands.initializeBoard({ project_id: "project", actor_id: "user", idempotency_key: "init" });
   const input = { project_id: "project", actor_id: "user", user_confirmed: true,
     policy: { ...DEFAULT_GOAL_POLICY }, idempotency_key: "save-one" };
   const first = goals.commands.saveProjectPolicy(input);

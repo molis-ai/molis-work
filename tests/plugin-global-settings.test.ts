@@ -11,9 +11,9 @@ import {
   chordLabel,
   defaultShelfDeviceSettings,
   defaultShelfHotKeys,
-  openShelfStore,
   parseSettingsWriteBody,
 } from "@molis-ai/molis-work-module-shelf";
+import { openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import {
   SHELF_SETTINGS_CLIENT_SCRIPT,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
@@ -120,9 +120,9 @@ test("INTEGRATION-FIX72-02: Shelf refuses old missing settings without rewriting
       current_clip_id: null,
     });
     await writeFile(filename, original);
-    assert.throws(() => openShelfStore(homeDirectory).settings(), { code: "shelf.invalid_file", kind: "invalid" });
+    assert.throws(() => openHostShelfStore(homeDirectory).settings(), { code: "shelf.invalid_file", kind: "invalid" });
     assert.equal(await readFile(filename, "utf8"), original);
-    const current = openShelfStore(join(homeDirectory, "current"));
+    const current = openHostShelfStore(join(homeDirectory, "current"));
     assert.equal(current.settings().drop_wheel_enabled, true);
     assert.deepEqual(current.settings().hotkeys, defaultShelfHotKeys());
   } finally {
@@ -383,11 +383,11 @@ test("Connectors settings page is a Host global section, not a plugin settings-p
 
 test("Shelf drop-wheel preference persists through the store and HTTP settings page", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-http-"));
-  const store = openShelfStore(homeDirectory);
+  const store = openHostShelfStore(homeDirectory);
   assert.equal(store.settings().drop_wheel_enabled, true);
-  assert.equal(store.saveSettings({ drop_wheel_enabled: false }).drop_wheel_enabled, false);
-  assert.equal(openShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
-  store.saveSettings({ drop_wheel_enabled: true });
+  assert.equal((await store.saveSettings({ drop_wheel_enabled: false })).drop_wheel_enabled, false);
+  assert.equal(openHostShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
+  await store.saveSettings({ drop_wheel_enabled: true });
 
   const token = "plugin-settings-http-token-012345678901";
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });
@@ -437,7 +437,7 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   });
   assert.equal(written.status, 200);
   assert.equal((await written.json() as { drop_wheel_enabled: boolean }).drop_wheel_enabled, false);
-  assert.equal(openShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
+  assert.equal(openHostShelfStore(homeDirectory).settings().drop_wheel_enabled, false);
   const reread = await (await fetch(`${origin}/api/shelf/settings`)).json() as { drop_wheel_enabled: boolean };
   assert.equal(reread.drop_wheel_enabled, false);
   const after = await (await fetch(`${origin}/settings/shelf`)).text();
@@ -451,7 +451,7 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   });
   assert.equal(bare.status, 400);
   assert.equal(((await bare.json()) as { error: string }).error, HOTKEY_MODIFIER_REQUIRED);
-  assert.equal(openShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 2);
+  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 2);
 
   const remapped = await fetch(`${origin}/api/shelf/settings`, {
     method: "POST",
@@ -465,8 +465,8 @@ test("Shelf drop-wheel preference persists through the store and HTTP settings p
   };
   assert.equal(remappedBody.drop_wheel_enabled, false);
   assert.equal(remappedBody.hotkeys.toggle.key_code, 14);
-  assert.equal(openShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
-  assert.equal(openShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
+  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.toggle.key_code, 14);
+  assert.equal(openHostShelfStore(homeDirectory).settings().hotkeys.capture.key_code, 13);
   const remappedPage = await (await fetch(`${origin}/settings/shelf`)).text();
   assert.match(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset>/);
   assert.doesNotMatch(remappedPage, /data-key-code="14"[^>]*>[\s\S]{0,80}?data-shelf-hotkey-reset hidden/);
@@ -532,15 +532,15 @@ test("Shelf hotkey recording maps KeyboardEvent.code to Carbon and rejects bare 
 test("Shelf store keeps the wheel when only a hotkey is patched and repairs a bare chord", async () => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-plugin-settings-hotkeys-"));
   try {
-    const store = openShelfStore(homeDirectory);
-    store.saveSettings({ drop_wheel_enabled: false });
-    const saved = store.saveSettings({
+    const store = openHostShelfStore(homeDirectory);
+    await store.saveSettings({ drop_wheel_enabled: false });
+    const saved = await store.saveSettings({
       hotkeys: { toggle: { key_code: 14, carbon_modifiers: 6144 } },
     });
     assert.equal(saved.drop_wheel_enabled, false);
     assert.equal(saved.hotkeys.toggle.key_code, 14);
     assert.equal(saved.hotkeys.capture.key_code, 13);
-    const repaired = store.saveSettings({
+    const repaired = await store.saveSettings({
       hotkeys: { toggle: { key_code: 2, carbon_modifiers: 0 } },
     });
     assert.equal(repaired.hotkeys.toggle.key_code, 2);

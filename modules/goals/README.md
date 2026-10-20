@@ -51,7 +51,7 @@ node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goals-query-
 ## 开发要求
 
 - 负责：Goal 约定与要求、工作事件与关注项、关系图、项目规则、生命周期、项目指导与规划事实。
-- 不负责：用户决定（归 Governance）、真实 Session 与终端（归 Work 与 Runtime Host）、跨模块来源。
+- 不负责：用户决定（归 Governance）、真实 Session 与终端（归 Work 与 Runtime Host）、跨模块来源；这些表的建表语句（归 `plugins/native/goals`，在它的 Manifest `databases.project` 里声明，S8；本包暂用自己的 SQL 读写，登记在 `tooling/gates/table-owners.json`，S9 搬进插件后删）。
 - 公开入口：`@molis-ai/molis-work-module-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/goals`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：

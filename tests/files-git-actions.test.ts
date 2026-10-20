@@ -29,7 +29,7 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", title: "Workspace actions", actor_id: caller.actor_id, idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: caller.actor_id, idempotency_key: "init" }));
     const directory = await client.discover(caller);
     // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
     const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,

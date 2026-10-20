@@ -1,7 +1,7 @@
 import type { ProjectDataDeclaration } from "../modules/projects.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
-import type { HomeStoreDeclaration, PluginDatabaseDeclaration } from "./plugin-database.js";
+import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginFilesDeclaration } from "./plugin-files.js";
 import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
@@ -79,7 +79,7 @@ export interface PluginRegistration {
   readonly runtime?: {
     readonly scope: "home";
     readonly create: () => PluginDefinition;
-    readonly database?: PluginDatabaseDeclaration;
+    readonly database?: HomePluginDatabaseDeclaration;
     readonly files?: PluginFilesDeclaration;
     readonly model_configuration?: PluginModelConfigurationDeclaration;
     readonly image_generation?: PluginImageGenerationDeclaration;

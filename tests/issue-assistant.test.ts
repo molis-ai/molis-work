@@ -10,7 +10,7 @@ import { MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } 
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }, text = "已按操作回执完成这一轮。"): string {
   const events: string[] = [];
@@ -34,7 +34,7 @@ async function assistantHome(t: TestContext) {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8");
     // Ending reviews and background memory extraction share this model, but must not consume the next business turn.
-    const ancillary = endingReviewReply(raw) ?? (raw.includes("你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西") ? '{"candidates":[]}' : undefined);
+    const ancillary = asideReply(raw) ?? (raw.includes("你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西") ? '{"candidates":[]}' : undefined);
     if (ancillary) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, ancillary)); return; }
     requests.push(JSON.parse(raw));
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(replies.shift() ?? reply());

@@ -114,6 +114,16 @@ export function describeSqliteSchema(db: SqliteBaselineDatabase): SqliteSchemaSh
   return shape;
 }
 
+/** One entry of a database's schema table. `automatic`: made by SQLite itself for a PRIMARY KEY or UNIQUE, without a statement. */
+export interface SqliteSchemaObject { type: string; name: string; table: string; automatic: boolean }
+
+/** Every object of a database, its own bookkeeping tables included, so a caller can tell what exists besides tables. */
+export function listSqliteObjects(db: SqliteBaselineDatabase): SqliteSchemaObject[] {
+  return (db.prepare("SELECT type, name, tbl_name AS \"table\", sql IS NULL AS automatic FROM sqlite_master ORDER BY type, name").all() as
+    Array<{ type: string; name: string; table: string; automatic: number }>)
+    .map(row => ({ type: row.type, name: row.name, table: row.table, automatic: Boolean(row.automatic) }));
+}
+
 /** Describe the current creation statements with SQLite itself, without opening or changing a Home library. */
 export function describeSqliteBaseline(baseline: SqliteBaseline): SqliteSchemaShape {
   const reference = new DatabaseSync(":memory:");

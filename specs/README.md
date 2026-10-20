@@ -13,7 +13,7 @@
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。
-- [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理按统筹排序逐片做。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现。
+- [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [status-ring-system](status-ring-system/spec.md)：统一轻量环刻状态组件、规格板与适用业务场景；本分支已实现，待合入。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
 - [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；已与 main（#471、#472）对账、Molis 依赖换成过渡包（P1 + Computer Use），A1 改为核对 #472，P2a–P2g 与输入回执第四刀随 P3 第二次换包。
@@ -29,7 +29,7 @@
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。
 - [plugin-tab-groups](plugin-tab-groups/spec.md)：插件标签与按插件着色的标签组，取代「插件默认页不占标签」；实现中。
 - [ai-interaction-experience](ai-interaction-experience/spec.md)：跨插件 AI 交互；I0 预览已在工作台框架里按实物重做并走查，待用户看实物；共享组件与产品接入未开始。
-- [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（收尾中）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
+- [computer-use](computer-use/spec.md)：个人助理的完整 Computer Use——操作 macOS 桌面应用，过程与结果在侧栏的「电脑」「文件」与对话里交给用户（等真机验收，BL-325）。能力切片已合入，门禁与全量由 CI 证明；二十步、带截图的 Shelf、五类拒绝和同进程 sheet 等真机验收。
 - [skill-packs](skill-packs/spec.md)：技能包（内容包）与个人助理 / Coding 的装配；只有内容、没有运行时/动作/存储的包可以安装，两边共享一份目录；2026-10-18 新立，尚未实现。
 - [agent-approval](agent-approval/spec.md)：Agent 产出的变更与外部效果的真人批准门；N 个有写权限的真人、`/approve <sha>` 绑定 head、push 后过期、Agent/bot 不计；2026-10-18 新立，尚未实现。
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。

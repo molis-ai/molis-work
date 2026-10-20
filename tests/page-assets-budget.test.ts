@@ -672,14 +672,15 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1130033],
   // The project-knowledge allowances (#839) are spent.
   ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
-  // The plugin-switch allowance (#854, VUX-35, VUX-36) is spent.
-  ["/assets/molis-work-workbench.js", 1129525],
-  // The overflow-fade allowances (#856, VUX-27) are spent.
+  // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
   ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
   ["/assets/molis-work-arrival.css", 698467],
   // The copy, disclosure and live-number allowances (#860, VUX-19, VUX-22, VUX-42) are spent.
   ["/assets/molis-work-workbench.js", 1130995], ["/assets/molis-work-workbench.css", 1603559], ["/assets/molis-work-settings.css", 989369],
   ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
+  // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
+  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
+  ["/assets/molis-work-arrival.css", 698519],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

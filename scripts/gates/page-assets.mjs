@@ -235,17 +235,18 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the remaining copy buttons answer
-// through the one copy feedback and the remaining conversations take the one scroll owner (VUX-19, VUX-26). +201 B of
-// workbench.js (an icon-only copy button answers with a check or a cross in its own box; the inline reference's toast went),
-// +98 B of Shelf (a refused clipboard is said on the bar instead of swallowed, with the files copy's hint folded into the same
-// helper), +36 B of Lingguang (its two copy buttons). Tried first: no fallback beside the shared helpers, one hint helper
-// for every copy on the Shelf bar, comments out of the shipped strings (+316 → +201, +227 → +98, +115 → +36); the studio's
-// own bottom check went (−7 B). Spent once from exactly the Coding scroll-owner slice's budget (#864).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): a long side group shows five and one
+// "show more" for the rest (VUX-08), through one shared `window.molisShowMore` that every long list can take. +970 B of
+// workbench.js (811 B the minified helper: tucking, a key that keeps the person's reveal over redraws, focus handed to the
+// first revealed row; the rest the Assistant's three groups calling it with a failure kept in sight) and +55 B in each of the
+// three stylesheets that carry the micro-interactions (the button sits at the start of a column, not stretched). Tried first:
+// no per-group copy of the logic, the label from one translated string, the button's look from the existing ghost button.
+// Spent once from exactly the remaining-consumers slice's budget (#866).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134763, 1134964],
-  "/assets/molis-work-plugins/shelf.js": [75866, 75964],
-  "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
+  "/assets/molis-work-workbench.js": [1134964, 1135934],
+  "/assets/molis-work-workbench.css": [1605339, 1605394],
+  "/assets/molis-work-settings.css": [991114, 991169],
+  "/assets/molis-work-arrival.css": [700700, 700755],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

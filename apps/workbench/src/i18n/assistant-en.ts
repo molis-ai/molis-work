@@ -458,6 +458,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "复制": "Copy",
   "已复制": "Copied",
   "复制失败": "Could not copy",
+  "再显示 {n} 项": "Show {n} more",
   "没能复制，请手动选中文字": "Could not copy; select the text instead",
   "个子任务": "sub-tasks",
   "项有变化": "changed",

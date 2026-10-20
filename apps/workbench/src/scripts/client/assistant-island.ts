@@ -791,7 +791,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     node.replaceChildren(head, body);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
-  const stack = (cards) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); return box; };
+  const stack = (cards, key) => { const box = el("div", "assistant-stack"); cards.forEach((one) => box.append(one)); if (key) window.molisShowMore?.(box, { key, label: L("再显示 {n} 项"), keep: ":has(> .is-blocked)" }); return box; };
   const progress = (done, total, label) => {
     const meter = el("span", "assistant-progress"); const fill = el("span"); fill.style.width = Math.round(total ? done / total * 100 : 0) + "%"; meter.append(fill);
     meter.setAttribute("role", "img"); meter.setAttribute("aria-label", label + " " + done + "/" + total);
@@ -1041,11 +1041,11 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
           sub: [scope, undone ? L(UNDONE[change.kind]) : KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
       });
       // Three groups of one kind (VUX-08): what it made, what it changed and how each stands, what still runs elsewhere; a failure shows folded.
-      const list = (...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards)))); return box.children.length ? box : null; };
+      const list = (block, ...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards, work.work_id + ":" + block + ":" + label)))); return box.children.length ? box : null; };
       const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
-      paintBlock(node, L("产出"), "package", list(["", made]), String(made.length));
-      paintBlock(blocks.changes, L("变更"), "edit", list(["", changes], [L("停止时仍在执行"), stopped], [L("记住的事"), remembered]), failed ? failed + " " + L("项失败") : canUndo ? canUndo + " " + L("项可撤销") : String(changes.length + stopped.length + remembered.length), failed > 0);
-      paintBlock(blocks.background, L("后台任务"), "clock", list(["", background]), missed ? missed + " " + L("项没有完成") : running ? running + " " + L("项进行中") : String(jobs.length), missed > 0);
+      paintBlock(node, L("产出"), "package", list("results", ["", made]), String(made.length));
+      paintBlock(blocks.changes, L("变更"), "edit", list("changes", ["", changes], [L("停止时仍在执行"), stopped], [L("记住的事"), remembered]), failed ? failed + " " + L("项失败") : canUndo ? canUndo + " " + L("项可撤销") : String(changes.length + stopped.length + remembered.length), failed > 0);
+      paintBlock(blocks.background, L("后台任务"), "clock", list("background", ["", background]), missed ? missed + " " + L("项没有完成") : running ? running + " " + L("项进行中") : String(jobs.length), missed > 0);
     });
   };
 

@@ -11,3 +11,5 @@ export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflo
 export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-feedback-client.js", import.meta.url), "utf8").trim();
 /** `window.molisFollow`, one owner for a growing conversation's scroll (`browser/scroll-follow.ts`, VUX-26). */
 export const SCROLL_FOLLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/scroll-follow-client.js", import.meta.url), "utf8").trim();
+/** `window.molisShowMore`, one "show more" for a long list (`browser/show-more.ts`, VUX-08). */
+export const SHOW_MORE_CLIENT_SCRIPT = readFileSync(new URL("../dist/show-more-client.js", import.meta.url), "utf8").trim();

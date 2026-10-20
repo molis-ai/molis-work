@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, renderCollapsible, renderToggleGroup,
+  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, SHOW_MORE_CLIENT_SCRIPT, renderCollapsible, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
 import type { ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
@@ -26,7 +26,7 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
     style.textContent = ":root{--ease-quint:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--motion-fast:130ms;--motion-normal:250ms}" + ${JSON.stringify(MICRO_INTERACTION_STYLES)} + "body{font:14px system-ui}";
     document.head.append(style);
     document.body.innerHTML = ${JSON.stringify(body)};
-    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
+    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
   })()`);
   return page;
 }
@@ -91,6 +91,30 @@ test("VUX-19 an icon-only copy button answers with a check or a cross in its own
   await page.evaluate(`void window.molisCopy(document.getElementById("copy"), "坏", { done: "已复制", failed: "复制失败" })`);
   await page.wait(`document.getElementById("copy").dataset.copy === "failed"`);
   await page.wait(`document.querySelector("[role=status].mw-sr-only")?.textContent === "复制失败"`);
+});
+
+test("VUX-08 show more: one over the limit is shown, drawn again it keeps one button, and the press reveals and focuses by keyboard", { timeout: 60_000 }, async t => {
+  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul>`);
+  if (!page) return;
+  const draw = (id: string, count: number) => page.evaluate(`(() => { const list = document.getElementById(${JSON.stringify(id)});
+    list.innerHTML = Array.from({ length: ${count} }, (_, i) => '<li><button type="button">第 ' + (i + 1) + ' 行</button></li>').join('');
+    window.molisShowMore(list, { key: ${JSON.stringify(id)}, label: '再显示 {n} 项' }); })()`);
+  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => !n.hidden).length`);
+  await draw("six", 6);
+  assert.equal(await seen("six"), 6, "a single item over the limit is shown, not put behind a button for it");
+  assert.equal(await page.evaluate("document.querySelector('#six .mw-show-more')"), null);
+  await draw("nine", 9);
+  await page.evaluate(`window.molisShowMore(document.getElementById('nine'), { key: 'nine', label: '再显示 {n} 项' })`);
+  assert.equal(await page.evaluate<number>("document.querySelectorAll('#nine .mw-show-more').length"), 1, "called again, one button");
+  assert.equal(await seen("nine"), 5);
+  await page.evaluate("document.querySelector('#nine .mw-show-more').focus()");
+  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.wait("!document.querySelector('#nine .mw-show-more')");
+  assert.equal(await seen("nine"), 9);
+  assert.equal(await page.evaluate<string>("document.activeElement.textContent"), "第 6 行", "focus lands on the first revealed row's control");
+  await draw("nine", 9);
+  assert.equal(await seen("nine"), 9, "drawn again under the same key, it stays revealed");
 });
 
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {

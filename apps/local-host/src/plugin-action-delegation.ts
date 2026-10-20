@@ -1,7 +1,8 @@
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
-import { pluginActionProvider } from "./plugin-action-provider.js";
+import { pluginActionProvider, pluginActionView } from "./plugin-action-provider.js";
 import { checkedReference } from "./plugin-action-query.js";
 
 /** The Manifest permission that gives a plugin `services.actions.directory`. Declared and granted like any other; never implied by who published the plugin. */
@@ -66,6 +67,15 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       const result = await options.client.invoke(caller, pinned, input);
       await retained(); await check(); retained.assertCurrent(); source();
       return result as Output;
+    },
+    // The target `invoke` would pin, reached the same way, and the input schema check its dispatch makes; nothing runs, nothing is
+    // logged and no guard is kept, so a plugin can refuse a bad input before it records an attempt.
+    check: async (reference: ActionReference, input: unknown) => {
+      const ref = checkedReference(reference), { caller, source } = delegate(originOf());
+      source();
+      const view = await pluginActionView(options.client, caller, ref);
+      source();
+      assertActionInput(view.action.input_schema, input);
     },
   };
 }

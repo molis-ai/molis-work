@@ -31,7 +31,7 @@ Contracts use a strict, bounded JSON Schema subset. Object schemas require `prop
 `required`, and `additionalProperties:false`; arrays require `items`. Supported constraints
 are enum/const, numeric ranges, string/array lengths, and string date/date-time/URI formats.
 Unsupported schema keywords fail validation. Operations are explicitly `query` or `command`;
-queries cannot declare storage/artifact writes or events. Examples require exactly one of
+queries cannot declare storage/artifact/project-database writes or events. Examples require exactly one of
 `output`, `outputIncludes`, or a declared `error`. The later build-gate host runs examples.
 
 On macOS, `/usr/bin/sandbox-exec` launches the same Node executable as the trusted host,
@@ -66,6 +66,14 @@ ownership checks. Capability adapters must preserve this identity when calling o
 plugins. Logical resource names map to host-approved resources; never join untrusted names
 to a filesystem path. Adapters must honor cancellation before committing side effects.
 Missing adapters, missing effect declarations, or omitted grants deny the call.
+
+`projectDatabase.get/all/transaction` reach the plugin's own tables in the project's library through the
+Host's `services.project_database`, adapted by `sandboxDatabase`. The broker bounds what crosses before the
+adapter sees it: SQL of at most 16384 characters without NUL, at most 256 parameters that are null, finite
+numbers or strings, and a transaction of 1 to 64 `{ sql, parameters }` statements. The Host's client then
+checks every statement against the plugin's tables. A transaction is one Host write transaction, so a refused
+statement writes none of it. BLOBs, infinities and integers past 2^53 do not cross back. The Host's refusal
+codes (`plugin.project_database.*`) reach the plugin; other failures become `sandbox.database_error`.
 
 The trusted Host can pass per-call `limits.operationTimeoutMs` and `limits.serviceTimeoutMs`
 from current capability metadata. They are copied when the call enters the queue and do
@@ -124,16 +132,17 @@ answers and validates every resulting address; it does not change production def
 
 ## 开发要求
 
-- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、能力调用）。
+- 负责：生成插件的 macOS 进程隔离与异步宿主中介（网络、存储、项目库、能力调用）。
 - 不负责：插件产品状态、模型执行、安装流程与构建门禁。
 - 公开入口：`@molis-ai/molis-work-plugin-sandbox`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin-sandbox`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（共享执行生命周期）。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 沙箱不自带能力：宿主必须显式提供授予与已连接的服务，异步中介调用必须被等待。
-  - 查询操作不能声明存储或成果写入、也不能发事件。
+  - 查询操作不能声明存储、成果或项目库的写入，也不能发事件。
+  - 项目库（`projectDatabase`）：跨通道的语句先有界再交给宿主，宿主的客户端逐句对照本插件的表；一个事务在宿主一侧整个提交或整个不写；操作声明了、人也批准了才放行。
   - 读权限只覆盖暂存的 bundle/worker、Node 可执行文件与必要系统路径；CPU 是整个进程的预算。
   - 私有存储按完整身份串行，回调拿到快照，只在成功且信号仍有效时原子落盘；适配器在提交副作用前遵守取消。
   - 一次操作发起的 SDK 服务调用，在调起这次 `call()` 当时的异步上下文里运行（`AsyncResource`），不在进程启动时的上下文里，所以宿主按调用上下文给出的东西（调用编号）跟着这次操作走；沙箱不读、不传这些值，也不依赖提供它们的包。
   - 沙箱不能直接联网，Host 必须显式装配网络适配器。`createHttpsProxy` 要求精确批准的域名、443 端口、URL 不带凭据、每个 DNS 答案必须是公网地址；fake-IP 需注入批准的 DoH 解析器。现有生成式 Host 适配器的代理策略见上文，不能把两者误写成同一实现。
-- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/plugin-sandbox.test.ts tests/plugin-sandbox-network.test.ts tests/security-invariants-plugin-project-database.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-PLATFORM.md](../../docs/platform/PLUGIN-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

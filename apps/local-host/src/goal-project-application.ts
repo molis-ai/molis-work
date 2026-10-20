@@ -13,7 +13,7 @@ import {
   type GoalsSqliteDatabase,
   type PlanningMethodPack,
 } from "@molis-ai/molis-work-module-goals";
-import type { GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventAcknowledgementsApi, GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   GoalTreeQueryApplication,
   GoalTreeInputReader,
@@ -57,6 +57,7 @@ export class GoalProjectApplication {
   readonly goals: GoalsApplicationApi;
   readonly goalEvents: GoalEventApplication;
   readonly goalInputs: GoalInputBindingsApi;
+  readonly goalAcknowledgements: GoalEventAcknowledgementsApi;
   readonly goalQueries: GoalReadApplication;
   readonly goalTree: GoalTreeQueryApplication;
   readonly goalTreeInputs: GoalTreeInputReader;
@@ -122,6 +123,7 @@ export class GoalProjectApplication {
       },
     );
     this.goalsModule = goalsModule;
+    this.goalAcknowledgements = goalsModule.acknowledgements;
     this.goals = {
       commands: goalsModule.commands,
       lifecycle: goalsModule.lifecycle,

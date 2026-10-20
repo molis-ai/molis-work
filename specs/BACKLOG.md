@@ -187,6 +187,8 @@
 | BL-355 | 附件占位串碰撞，一次模型调用实际只能带 10 张原图：Molis 的上限写的是 30（`horizontal/agent-host/src/adapters/prologue-inference-materials.ts`），但 vendored Prologue 把占位串写成 `PROLOGUE-ATTACHMENT-<随机段>-<序号>`，序号不定宽、没有结尾，`…-1` 是 `…-10` 到 `…-19` 的开头；Host 要求每个占位串在请求体里恰好一处，所以带第 11 张起整次以 `MODEL_NETWORK_FAILED`（An attachment placeholder appeared more than once）拒发。今天 11 到 30 张的调用都失败，是已有缺陷，不是 #870 引入的。修法（① 10-20 裁）：Prologue 占位串加结尾、带 11/21/50 张的测试（[molis-ai/prologue#56](https://github.com/molis-ai/prologue/pull/56)）→ 换 vendored 包 → Molis 上限提到 50，改文案、测试与文档。提到 50 时还要顾到一批吸入默认最多 30 份（Molis 按来源目录一批，同一目录 50 张会超），在组装运行时（`prologue-node-port.ts`）把 `resource.intake.maxItemsPerBatch` 配成 50；它也是一轮 Agent 文本材料的上限，Molis 自己的 30 份上限（`prologue-frozen.ts`）不变 | #870 评审第 4 件（① 10-20） | 已知缺口 | 要 Prologue 的修复先合入、再换包 | molis-ai/prologue#56 合入；换 vendored 包 | 中 | ② |
 | BL-356 | 插件卸载或丢弃数据时，原文件登记（#870 的只读原文件服务记在 Home 里的登记）不跟着清：今天只有沙箱插件能丢弃数据，沙箱插件拿不到材料服务，所以走不到；等非沙箱插件能卸载、丢弃数据时，按插件与安装（和项目）删掉它的登记，并补一条断言删干净的测试。#870 在 `docs/system/SECURITY-INVARIANTS.md` §4「未覆盖」记一句 | #870 评审（⑩ 10-20，发现 2，② 降级为不挡合并） | 已知缺口 | 现在走不到；不挡 #870 | 非沙箱插件能卸载、丢弃数据 | 低 | ② |
 
+| BL-392 | Runtime 显示名在 contracts 的 `RUNTIME_DISPLAY_NAMES` 之外还有几处：安装器 `apps/local-host/src/installer/runtime-config-adapters.ts` 的 `displayName`、Work 插件 `plugins/native/work/src/ui/terminal.ts` 和 `ui/render.ts`、Shelf `modules/shelf/src/runtimes.ts` 的 `title`。这几处和别的逐 Runtime 数据（重启说明、可执行文件名、安装地址）写在一起；表里改一个名字，这些地方还是旧名字 | [#837](https://github.com/molis-ai/molis-work/pull/837) 评审（D20 的 P7） | 明确后续做 | 不在 P7 点名的两份私有表里；Shelf 正由防腐线迁移，Work 也在它的名单上，迁到哪个插件就顺手改读那张表 | 无 | 低 | ③ 防腐线 |
+
 ## 8. 交给第二步（防腐整理）
 
 本轮按「没有旧用户」清除兼容逻辑、统一装配路径。下列是梳理时看到、属于第二步范围的具体对象；第二步的完整清单在 [合入后审查 §12](archive/post-merge-review/spec.md#12-交给第二步的清单)。

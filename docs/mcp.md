@@ -43,12 +43,14 @@ Web 是可选查看和用户确认界面，不是连接项目或推进 Goal 的�
 
 动作工具只在用户为这个客户端、这个范围（全局或某个项目）逐项授权后出现。在「能力 → 对外接入」选择客户端和范围，可按名称或来源搜索、查看所需权限并逐项授权或撤销。授权准确绑定能力版本与提供方；发现和每次实际执行都检查最新授权，撤销后原连接的下一次调用也会被拒绝；客户端自己的工具列表可能需要刷新。项目绑定本身不授予任何动作。
 
+`goals.events.list`、`goals.events.latest`、`goals.events.read` 当前为 @2（MCP 工具名分别以 `__v2` 结尾），输出包含 `input_acknowledged` 系统记录。@1 已不再登记；固定的工作流程引用和外部客户端授权需重新选择 @2，刷新工具目录。`goals.events.acknowledge` 仍是 @1。
+
 常用的 Goals 动作：
 
 | 用途 | 动作 |
 | --- | --- |
 | 发现、创建与状态 | `goals.list`、`goals.create`、`goals.state.read` |
-| 普通记录与历史 | `goals.note`、`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.events.list`、`goals.events.read` |
+| 普通记录与历史 | `goals.note`、`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.events.acknowledge`（读到本人的笔记、要求或决定后说明怎么处理；只给 MCP 与助理、Agent）、`goals.events.list`、`goals.events.read` |
 | 约定、决定与收尾 | `goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume` |
 | 结构提案 | `goals.tree.submit`、`goals.tree.read`、`goals.tree.check` |
 | 按需规划 | `goals.planning.catalog`（不含正文的目录）、`goals.planning.read`（可按 `method_ids` 读正文）、`goals.planning.save`、`goals.planning.impact`、`goals.planning.graph.check` |

@@ -34,7 +34,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plu
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";

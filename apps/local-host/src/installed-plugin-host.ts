@@ -73,7 +73,7 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 
 /**
  * Reminders and scheduled operations are kept in Schedule's tables: a refused Schedule offers neither, and leaves what is there
- * as it is (S-42). Reminders are left out where the caller brings its own actions (the project's directory registers them).
+ * as it is (S-46). Reminders are left out where the caller brings its own actions (the project's directory registers them).
  */
 function registerScheduleProviders(store: LocalProjectDatabase, actions: PluginPlatformOptions['actions'], services: {
   reminders: ReturnType<typeof hostScheduleReminders> | null; scheduledRuns: ReturnType<typeof createScheduledOperations>;

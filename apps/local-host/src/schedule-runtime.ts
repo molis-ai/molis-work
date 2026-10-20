@@ -128,7 +128,7 @@ export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date)
     async tick(at) {
       // The wakeups this index serves are Schedule's (tasks, reminders, operations), and claiming one moves its job on before the
       // handler runs. So a refused Schedule claims none: its due jobs wait as they are until its library is put right, instead of
-      // being taken, spent and recorded as failed, or a claim's preparation stopping the whole round (S-42).
+      // being taken, spent and recorded as failed, or a claim's preparation stopping the whole round (S-46).
       if (!inner.active || projectPluginDatabaseRefusal(db, SCHEDULE_PLUGIN_ID)) return { invoked: 0, failed: 0, skipped: 0 };
       const runner = runners.get(db) ?? missingRunner;
       const when = at ?? now?.() ?? new Date();

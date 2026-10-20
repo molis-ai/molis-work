@@ -118,7 +118,7 @@ const jobs = (path: string) => withDatabase(path, db => db.prepare(
   "SELECT job_id, capability_id, enabled, next_due_at, lease_until, lease_token, last_wakeup_id FROM schedule_jobs ORDER BY job_id").all().map(row => JSON.stringify(row)));
 const wakeups = (path: string) => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_wakeups").get() as { count: number }).count);
 
-test("PLIB-04/S-42: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
+test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
   const { projectId, databasePath } = await project(await scratch(t));
   const due = new Date("2026-10-01T00:00:00.000Z"), later = new Date("2026-10-02T00:00:00.000Z");
   // A one-off reminder (a claim would turn it off before its handler ran) and a scheduled operation (a claim prepares it first).

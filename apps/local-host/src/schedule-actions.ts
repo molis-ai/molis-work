@@ -24,7 +24,7 @@ export function scheduleActionProvider(runtime: MolisWorkProjectRuntime, readine
 
 /**
  * The plugin whose tables a provider reads and writes: its own `plugin_id`, or Schedule's for the two system providers that keep
- * reminders and scheduled operations in Schedule's tables. A refused Schedule takes those out with its own actions (S-42).
+ * reminders and scheduled operations in Schedule's tables. A refused Schedule takes those out with its own actions (S-46).
  */
 export function providerTablesOwner(provider: ActionProviderRegistration["provider"]): string | undefined {
   return provider.plugin_id ?? ([SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_PROVIDER_ID].includes(provider.provider_id) ? scheduleManifest.plugin_id : undefined);

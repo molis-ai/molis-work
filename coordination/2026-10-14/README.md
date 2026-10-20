@@ -2102,3 +2102,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 「真实业务产生通知」那一段，现在做不了：main 上没有任何业务发出指向 Shelf 条目的通知，用例没有真实来源可走。记成 BL-400（① 的号段），由 ⑤ 加进 #784 的 `specs/BACKLOG.md` 第 3 节。放在 #784 里，是因为来源链接指向 #784 新增的 spec，单独先合会断链。
   - ⑤ 在 #784 上写明：QA-018 部分修复，剩下的是 BL-400。
 - **07:28 UTC CI 分支**仍没推：gh 令牌的权限还是 `delete_repo`、`gist`、`read:org`、`repo`，没有 `workflow`。等用户加。
+
+- **07:52 UTC 用户问「防腐正在做吗？② 和 ③ 很久没动静了」**：② 从 06:33 起、③ 从 06:10 起都空着。两边都是报完结果就收了这一轮，没有被什么挡住；中间电脑重启过一次。① 当场重新派活，两条消息都已送达，两边都已开工：
+  - ②：L1b 叠在 #857 的 `feat/project-library-l1a` 上开，和 ③ 的 S8 同批。S0（Shelf 要的平台片）从 main 开，交子代理做，内容是双实例、`imageTextAvailable`、本机页面抓取权限、读已登记原文件的服务、图片上限 50。两条新不变量开 PR 时再取空号，S-44 已给 S0b-2。之后接 S0a → S0b-1 → S0b-2。
+  - ③：Goals S8 叠在 L1b 上开，暂时先叠在 `feat/project-library-l1a` 上；和 #840 在 `plugins/native/goals/package.json` 冲突，由 ③ 解。空了做 BL-370。

@@ -2128,3 +2128,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **08:05 UTC CI 改动开成 #862**：用户给 gh 加了 `workflow` 权限（第三次授权成功：第一次被重启打断，第二次 Enter 没传到终端，第三次换成不用按 Enter 的写法）。① 推了 `ci/integration-full-suite-all-failures`，开 #862，已交 ⑤。只改 CI，按 §6 只需要 Verify，可以 merge-only。改的是门禁，合入前要用户本人在 PR 或聊天里确认。
   - ⑩ 报：#847 已修（`f102c8eff`，推到 `migrate/pages-runtime`），可以进下一批。
   - ③ 报：S8 第一步和 BL-370 的子代理还在做，没提交；L1b 出来后，③ 先 merge 进 S8 再派第二步。推送一次只推一个分支。
+
+- **08:2x UTC #862 已合入 main，提交 `88c87d0a1`**：用户本人在 ⑤ 的会话里批准，原话记在 PR 上。#858 由作者自己合入（`c59172ffe`）。
+  - batch-1020-6（#846、#855、#857、#847）上一轮在第 7 片红了，是 `pages-import-entry.e2e` 的 413 那条，又是 #847 的问题：导入改走 Runtime 路由 `/api/plugins/io.molis.work.pages/pages/import`，用例替身里的正则还是旧路径。⑤ 在 #847 上修了正则（`404d37d08`，断言没动），把带 #862 的 main 合进批次后重推（`77c1f081f`）。这是第一轮按新规则跑的：16 片都跑完，最多 10 台。
+  - batch-1020-2 第 2 次只重跑失败的分片，还在跑。batch-1020-5 是 batch-1020-6 的子集，按旧规则跑，留着备用：如果 6 里只剩 #847 红，可以直接用 5 的结果先合另外三个。
+  - ③：BL-370 有两个测试文件没过，正在单独重跑，PR 正文的草稿已经写好。

@@ -582,7 +582,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
     const code=pre.querySelector('code');if(code)paintBlock(code);
     const button=make('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
-    lifetime.listen(button,'click',async()=>{ try { await navigator.clipboard.writeText(pre.querySelector('code')?.textContent || pre.textContent); button.textContent='已复制'; } catch { button.textContent='复制失败，请手动选择'; } }); pre.append(button);
+    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>pre.querySelector('code')?.textContent || pre.textContent,{done:'已复制',failed:'复制失败'})); pre.append(button);
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');

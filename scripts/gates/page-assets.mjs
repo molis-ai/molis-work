@@ -235,17 +235,18 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): the shared overflow fade (VUX-27), one
-// sensor and one mask for every horizontal strip that hides its scrollbar, in place of the assistant strip's own sensor and
-// masks. +879 B of workbench.js for the sensor (TypeScript, bundled by esbuild), +460–488 B of each stylesheet for the
-// eight-sample mask. Tried first: one gradient for both sides and both writing directions (the direction is a variable),
-// short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet). Spent once from exactly the
-// plugin-switch slice's budget (#854).
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): the shared copy feedback (VUX-19), the
+// natural-height disclosure and the measured thumb's resize/font/label triggers (VUX-22), and reserved-width live numbers
+// (VUX-42–45). +1,521 B of workbench.js (the copy helper, bundled TypeScript, which replaces the assistant's two hand-written
+// copy timers), +1,299–1,334 B of each stylesheet, +64 B of the Pages editor (its find count reserves its width). Tried
+// first: the status region reuses `.mw-sr-only`, no token fallbacks, the collapsible's old padding rule folded in, one
+// selector per face; Coding's own copy code went (−185 B). Spent once from exactly the overflow-fade slice's budget (#856).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1130116, 1130995],
-  "/assets/molis-work-workbench.css": [1603099, 1603559],
-  "/assets/molis-work-settings.css": [988881, 989369],
-  "/assets/molis-work-arrival.css": [698467, 698955],
+  "/assets/molis-work-workbench.js": [1130995, 1132516],
+  "/assets/molis-work-workbench.css": [1603559, 1604893],
+  "/assets/molis-work-settings.css": [989369, 990668],
+  "/assets/molis-work-arrival.css": [698955, 700254],
+  "/assets/molis-work-pages-editor.js": [706942, 707006],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

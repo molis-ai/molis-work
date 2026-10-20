@@ -827,7 +827,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-code-copy, ${ASSIST} .assistant-code-more { height: 22px; padding: 0 8px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-code-copy[data-done] { color: var(--tone-done, #3a8f5c); }
+  ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
   ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
@@ -903,9 +903,9 @@ const CRAFT_BASE_STYLES = `
   /* Copy an answer: it appears with the pointer over the round (always on touch) and says when it is done. */
   ${ASSIST} .assistant-copy { align-self: flex-start; margin: -6px 0 0 -6px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font: inherit; font-size: 11px; cursor: pointer;
     opacity: 0; transition: opacity var(--dur-hover) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
-  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-done]) { opacity: 1; }
+  ${ASSIST} :is(.assistant-round:hover .assistant-copy, .assistant-copy:focus-visible, .assistant-copy[data-copy]) { opacity: 1; }
   ${ASSIST} .assistant-copy:hover { background: var(--nav-hover); color: var(--ink); }
-  ${ASSIST} .assistant-copy[data-done] { color: var(--hue-green-fill); }
+  ${ASSIST} .assistant-copy[data-copy=done] { color: var(--hue-green-fill); }
   @media (hover: none) { ${ASSIST} .assistant-copy { opacity: 1; } }
   /* A later round opens with when it began. */
   ${ASSIST} .assistant-round-time { display: flex; align-items: center; gap: 10px; margin: 8px 0 2px; color: var(--faint); font-size: 11px; }

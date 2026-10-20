@@ -104,7 +104,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(refresh,'click',()=>void load());
   for(const name of ['select','keyup','mouseup'])lifetime.listen(text,name,controls);
   lifetime.listen(q('[data-files-close]'),'click',()=>{result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});});
-  lifetime.listen(q('[data-files-copy]'),'click',async()=>{const epoch=generation;try{await navigator.clipboard.writeText(text.value);if(!active(epoch))return;q('[data-files-capture-status]').textContent='文件正文已复制。';q('[data-files-copy]').textContent='已复制';lifetime.timeout(()=>{if(active(epoch))q('[data-files-copy]').textContent='复制全文';},1800);}catch{if(active(epoch))q('[data-files-capture-status]').textContent='复制失败，可在正文中手动选择并复制。';}});
+  lifetime.listen(q('[data-files-copy]'),'click',async()=>{const epoch=generation,copied=await window.molisCopy?.(q('[data-files-copy]'),text.value,{done:'已复制',failed:'复制失败'});if(active(epoch))q('[data-files-capture-status]').textContent=copied?'文件正文已复制。':'复制失败，可在正文中手动选择并复制。';});
   result.querySelectorAll('[data-files-capture]').forEach(button=>lifetime.listen(button,'click',async()=>{
     if(!current || captureBusy)return;
     const saved={...current},epoch=generation,ticket=readTicket,port=button.dataset.filesCapture;

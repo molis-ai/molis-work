@@ -1,4 +1,5 @@
-import type { AssistantWork, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantRound, AssistantWork, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { StoredWork } from "./assistant-store.js";
 
 /** The fields `T` may leave out. */
@@ -20,4 +21,11 @@ export function workView(work: StoredWork, state: AssistantWorkState, delegated_
   // An optional field is in the view only when the work has it.
   for (const key of Object.keys(optional) as Array<keyof typeof optional>) if (optional[key] !== undefined) Object.assign(view, { [key]: optional[key] });
   return view;
+}
+
+/** The model a round really ran on, from the run's own frozen start and switch (specs/visual-ui-experience VUX-11); none without a run. */
+export function roundModel(run: AgentRunView | undefined): Pick<AssistantRound, "model"> {
+  if (!run?.frozen?.model_id) return {};
+  const { model_id, model_context, reasoning_effort } = run.frozen, now = run.model_switch?.now;
+  return { model: { model_id, ...(now && now !== model_id ? { now } : {}), ...(model_context ? { window_tokens: model_context.window_tokens } : {}), ...(reasoning_effort ? { reasoning_effort } : {}) } };
 }

@@ -235,18 +235,19 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 工作环境 and 连接与工具
-// groups (VUX-08/09), read from each owner by the Host when the work changes (the user's decision ②). +4,555 B of
-// workbench.js: the two groups' drawing (scope, directory, repository and branch, each connection by its status, what can and
-// cannot be called) with 27 English strings and four more glyphs; +39 B in each of the three stylesheets that carry the side
-// groups (their grid column is minmax(0, 1fr), so a long line in a card ellipsizes instead of widening the side column, a
-// fault of #861). Tried first: the island's own cards, stacks and blocks passed in, one counting helper for "{n}" strings
-// (−80 B), the island not growing (the 上下文 wrapper went). Spent once from exactly the 上下文 slice's budget (#871).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 用量 told apart (VUX-11):
+// the context window with its share, this round's input, output, cache reads and writes, reasoning and cost, the account's
+// quota, each from the runtime's own report for the round with estimates marked and unknowns read as 暂不可用, and the model the
+// round really ran on (start → now). +2,761 B of workbench.js: the box's drawing moved out of the island into a factory (the
+// island shrank 31 lines) with 12 English strings; +280 B in each of the three stylesheets that carry the side groups (one
+// part per measure, a label and its number per row). Tried first: the island's progress bar and blocks passed in, one
+// coverage-mark helper (−20 B), the stylesheet's rules written compact with the note kept out of the shipped text (−59 B).
+// Spent once from exactly the 工作环境 and 连接与工具 slice's budget (#873).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1138107, 1142662],
-  "/assets/molis-work-workbench.css": [1605394, 1605433],
-  "/assets/molis-work-settings.css": [991169, 991208],
-  "/assets/molis-work-arrival.css": [700755, 700794],
+  "/assets/molis-work-workbench.js": [1142662, 1145423],
+  "/assets/molis-work-workbench.css": [1605433, 1605713],
+  "/assets/molis-work-settings.css": [991208, 991488],
+  "/assets/molis-work-arrival.css": [700794, 701074],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

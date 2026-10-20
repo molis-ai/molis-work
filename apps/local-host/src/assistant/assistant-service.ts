@@ -13,7 +13,7 @@ import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
 import { cardView } from "./assistant-card-view.js";
-import { workView } from "./assistant-work-view.js";
+import { roundModel, workView } from "./assistant-work-view.js";
 import { AssistantOffers } from "./assistant-offers.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import {
@@ -1833,7 +1833,7 @@ export class AssistantService {
     return { run_id: round.run_id, text: round.text, context: round.context, started_at: round.started_at, ...(round.character ? { character: { ...round.character } } : {}), ...(round.written_by === "host" ? { written_by: "host" as const } : {}),
       materials: round.materials.map(({ text: _text, ...rest }) => rest.kind === "image" && rest.image && !this.holdsImage(rest.image) ? { ...rest, expired: true } : rest),
       phase: view?.phase ?? "unknown", turns: spokenTurns(view?.turns ?? []), activity: presentActivity(view?.activity ?? [], titles, view ? isTerminalAgentPhase(view.phase) : false), awaiting_input: view?.awaiting_input ?? [],
-      ...(view?.usage ? { usage: view.usage } : {}), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
+      ...(view?.usage ? { usage: view.usage } : {}), ...roundModel(view), ...(view?.stop_reason ? { stop_reason: stopInWords(view.stop_reason, round.work_budget) } : {}),
       ...(view?.todo?.length ? { steps: view.todo.map(({ id, text, state }) => ({ id, text, state })) } : {}), ended_at: view?.ended_at ?? null };
   }
 

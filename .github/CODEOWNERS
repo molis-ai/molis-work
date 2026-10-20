@@ -15,6 +15,13 @@
 /plugins/native/jelly/ @yijunw0212 @jingxusandra-gif
 /plugins/native/shelf/ @yijunw0212 @jingxusandra-gif
 
+# A built-in plugin's registration holds trusted fields: the platform's reviewers as well (W5-02)
+/plugins/native/*/src/registration.ts @yijunw0212
+/plugins/native/coding/src/registration.ts @yijunw0212 @jingxusandra-gif
+/plugins/native/diff/src/registration.ts @yijunw0212 @jingxusandra-gif
+/plugins/native/jelly/src/registration.ts @yijunw0212 @jingxusandra-gif
+/plugins/native/shelf/src/registration.ts @yijunw0212 @jingxusandra-gif
+
 # The gates and the CI workflow stay with the lead alone
 /scripts/check-health-gates.mjs @yijunw0212
 /scripts/gates/ @yijunw0212

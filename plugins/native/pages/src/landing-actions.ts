@@ -2,7 +2,7 @@ import { ActionError, type ActionDefinition, type ActionExecutionContext, type A
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { pagesErrors } from "./error.js";
 import { landPagesText, type PagesLandingMode, type PagesLandingWrite } from "./landing.js";
-import type { PagesStore } from "./store.js";
+import type { PagesStores } from "./store.js";
 
 /**
  * 「放进左边」 for Pages (specs/context-program §14, §21.8 step 4): three writes into the document open on the left, at
@@ -35,16 +35,15 @@ export const definePagesLandingActions = (document: ActionSchema) => ({
   quote: define(document, "quote", "作为引用插入", "把文字作为引用块插入到打开的文档里光标处或文末，下方写明出处；适合别人的原话", ["cursor", "end"]),
 });
 
-export function createPagesLandingHandlers(actions: ReturnType<typeof definePagesLandingActions>, withStore: <T>(run: (store: PagesStore) => T) => T): ActionHandlerBinding[] {
+export function createPagesLandingHandlers(actions: ReturnType<typeof definePagesLandingActions>, stores: PagesStores): ActionHandlerBinding[] {
   return Object.entries(actions).map(([mode, definition]) => ({
     capability_id: definition.capability_id, version: definition.version,
     handle: async (caller: ActionExecutionContext, value: unknown) => {
       const { id: pageId, expected_version, ...write } = value as LandingInput;
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
       const projectId = caller.project_id;
-      // Cancelled or no longer allowed: nothing is written. Past this point the read, the check and the write are one step.
-      await caller.beforeEffect();
-      return withStore(store => {
+      // Cancelled or no longer allowed: nothing is written. The read, the check and the write are one step.
+      return stores.write(caller, store => {
         const before = store.get(pageId, projectId);
         if (before.version !== expected_version) throw pagesErrors.conflict("文档已改变，请重新选择位置后再放进去");
         const body = landPagesText(before.body, { ...write, mode: mode as PagesLandingMode }) as PagesRecord["body"];

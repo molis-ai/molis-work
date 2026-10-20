@@ -13,8 +13,8 @@
 // The check also runs in `pnpm test:contracts` (tests/action-contract-snapshot.test.ts). It needs the packages built.
 //
 // FOUR FILES
-//   actions.tsv       the actions the built-in Manifests declare (`actions`), read from the workbench's BUILTIN_PLUGIN_CATALOG, the
-//                     list the Manifest contract test walks. Pure: no Host is started.
+//   actions.tsv       the actions the built-in Manifests declare (`actions`), read from the workbench's BUILTIN_PLUGIN_CATALOG (generated
+//                     from each plugin's src/registration.ts), the list the Manifest contract test walks. Pure: no Host is started.
 //   scenes.tsv        the consumer scenes they declare (`action_scenes`).
 //   host-actions.tsv  what a Host with every built-in plugin enabled registers that NO Manifest declares: the `system.*`
 //                     providers, the Runtime SDK services, and plugin-owned actions registered in code beside the Manifest. It is

@@ -12,13 +12,16 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
 
-async function fixture() {
+async function fixture(plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "goals-configuration-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Configuration", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
+  // A plugin among the Host's fixtures when a test needs one; a restart of the same Home is given it again.
+  const fixtures = plugin ? { pluginFixtures: { project: [plugin.definition] } } : {};
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...fixtures, actionAvailability: (_caller, view) =>
     denied.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Configuration disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "real-user", audit_actor_id: "not-the-user", actor_kind: "user", audience: "user",
     project_id: project.project_id, permissions: ["goals:read", "goals:write", "goals:decide"],
@@ -26,7 +29,7 @@ async function fixture() {
   const client = host.actionClient(ref), actions = bindActionClient(client, () => caller);
   for (const id of ["parent", "child", "other"]) await actions.invoke(goalsActions.create, { goal_id: id, title: id, idempotency_key: `create-${id}` });
   const snapshot = () => host.withProject(ref, r => r.store.snapshot(project.project_id));
-  return { home, project, ref, host, caller, client, actions, denied, snapshot,
+  return { home, project, ref, host, caller, client, actions, denied, snapshot, fixtures,
     async close() { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
@@ -96,7 +99,9 @@ test("relation actions preserve original receipts, direction, history, graph rul
 });
 
 test("project policy actions preserve normalized receipts, original binding history and user-only authority", async t => {
-  const f = await fixture(); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
+  // A plugin that holds every Goals permission, started by the Host (S-15).
+  const configurer = callerPlugin("goalsconfigurer", "project", { "goals:read": true, "goals:write": true, "goals:decide": true });
+  const f = await fixture(configurer); const { host, ref, project, caller, client, actions, snapshot, denied } = f;
   const input = { policy: { ...DEFAULT_GOAL_POLICY }, user_confirmed: true, idempotency_key: "existing-policy" };
   try {
     const old = await host.withProject(ref, r => r.coordinator.goals.commands.saveProjectPolicy({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
@@ -112,6 +117,8 @@ test("project policy actions preserve normalized receipts, original binding hist
     assert.deepEqual((await actions.invoke(goalsActions.policyResolve, { goal_id: "parent" })).policy, DEFAULT_GOAL_POLICY);
     assert.deepEqual((await actions.invoke(goalsActions.policyResolve, { goal_id: "child" })).policy, { human_approval: true });
     const next = { ...input, policy: { human_approval: true }, idempotency_key: "next" };
+    // The plugin's call carries the caller the Host issued it, claiming the person's permissions and operation.
+    const asPlugin = await projectPluginCaller(host, ref, configurer, caller.permissions, { user_action: caller.user_action });
     const stable = await snapshot();
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, user_confirmed: false }), { code: "goals.policy.confirmation_required" });
     await assert.rejects(actions.invoke(goalsActions.policySave, { ...next, policy: { ...next.policy, cross_reviewers: 2 } }), { code: "actions.input_invalid" }, "a rule is only the user's acceptance");
@@ -124,8 +131,9 @@ test("project policy actions preserve normalized receipts, original binding hist
         ? { from_goal_id: "child", to_goal_id: "parent", type: "extends", reason: "Forged", idempotency_key: "forged" }
         : { relation_id: "missing", reason: "Forged", idempotency_key: "forged" };
       for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
-        assert.equal((await client.discover({ ...caller, audience })).some(v => v.capability_id === definition.capability_id), false);
-        await assert.rejects(client.invoke({ ...caller, audience }, definition, payload as never), { code: "actions.forbidden" });
+        const claimed = audience === "plugin" ? asPlugin : { ...caller, audience };
+        assert.equal((await client.discover(claimed)).some(v => v.capability_id === definition.capability_id), false);
+        await assert.rejects(client.invoke(claimed, definition, payload as never), { code: "actions.forbidden" });
       }
       await assert.rejects(client.invoke({ ...caller, user_action: undefined }, definition, payload as never), { code: "goals.configuration_user_required" });
       await assert.rejects(client.invoke({ ...caller, actor_kind: "runtime" }, definition, payload as never), { code: "goals.configuration_user_required" });
@@ -155,7 +163,7 @@ test("project policy actions preserve normalized receipts, original binding hist
     await assert.rejects(actions.invoke(goalsActions.policySave, next), { code: "actions.plugin_disabled" });
     await assert.rejects(actions.invoke(goalsActions.policyHistory, {}), { code: "actions.plugin_disabled" });
     await host.close();
-    const restarted = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+    const restarted = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null, ...f.fixtures });
     try {
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.policyHistory, {}), after);
       assert.deepEqual(await restarted.actionClient(ref).invoke(caller, goalsActions.policySave, next), { ...saved, replayed: true });

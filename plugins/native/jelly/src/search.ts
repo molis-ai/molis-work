@@ -43,7 +43,7 @@ export function createJellySearchHandlers(withStore: <T>(run: (store: JellyStore
     { ...jellySearchActions.note, handle: (_caller, input) => {
       const note = read().notes.find(entry => entry.id === id(input));
       if (!note || note.archived_at) throw missing("笔记");
-      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), goal_ids: [], session_id: null, open: open(note.id) });
+      return subjectContext({ subject: { kind: JELLY_NOTE_SUBJECT_KIND, id: note.id }, revision: String(note.revision), title: note.title || "未命名笔记", content: noteText(note), goal_ids: [], session_id: null, open: open(note.id) }, input as { offset?: number });
     } },
   ];
 }

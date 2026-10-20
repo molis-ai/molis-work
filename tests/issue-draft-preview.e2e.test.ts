@@ -12,7 +12,7 @@ const digestImages = `(items => Promise.all(items.map(async image => {
 const thumbnails = digestImages + "([...d.querySelectorAll('[data-issue-thumbs] img')].map(i => ({ name: i.alt, data_url: i.src })))";
 
 test("ISSUE-45 image drafts survive full navigation, removal, sending and undo beyond localStorage quota", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-draft-preview");
   await v.go("/"); await v.chord(); await v.composerFocused();
@@ -76,7 +76,7 @@ test("ISSUE-45 a failed draft write rejects the new image visibly and preserves 
 });
 
 test("ISSUE-45 sending clears immediately without erasing words typed during the disk write", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, 'empty', undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, 'empty'); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b);
   await v.go('/plugins/issues'); await v.press('[data-issue-composer] [name=description]');

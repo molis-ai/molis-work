@@ -62,7 +62,7 @@ test("Pages import: a 413 clears the submission, so the retry carries a new requ
   await evaluate(`(() => {
     const real = window.fetch.bind(window); window.__importRequestIds = [];
     window.fetch = (input, init) => {
-      if (init && init.method === "POST" && /\\/api\\/plugins\\/pages\\/import\\?/.test(String(input && input.url || input))) {
+      if (init && init.method === "POST" && /\\/api\\/plugins\\/io\\.molis\\.work\\.pages\\/pages\\/import\\?/.test(String(input && input.url || input))) {
         window.__importRequestIds.push(JSON.parse(init.body).request_id);
         if (window.__importRequestIds.length === 1) return Promise.resolve(new Response(JSON.stringify({ error: "请求内容过大", code: "actions.input_too_large" }), { status: 413, headers: { "content-type": "application/json" } }));
       }

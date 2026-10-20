@@ -20,6 +20,7 @@ import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
 import { homeBackgroundTasks } from "./web-catalog.js";
@@ -174,6 +175,9 @@ export const boardRoute: WebRoute<ProjectRuntimeContext> = { id: "board", handle
 export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "search", handle: ({ request, response, url, localHost, hostReference }) =>
     handleSearchHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
+  // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
+  { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
+    handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },
   { id: "placement", handle: ({ request, response, url, localHost, hostReference }) =>
     handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).

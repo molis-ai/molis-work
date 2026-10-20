@@ -9,7 +9,7 @@ import { GoalProjectApplication, withConnectorConnections } from "@molis-ai/moli
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.
@@ -45,7 +45,7 @@ async function openCoding(t: TestContext, asked: readonly Asked[]) {
     let raw = "";
     for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    const review = asideReply(raw);
     res.writeHead(200, { "content-type": "text/event-stream" });
     if (review) { res.end(turn(review)); return; }
     // The round is the one whose task is the person's first message; other text in the request (another session's work in

@@ -15,6 +15,7 @@ export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
+export { localWebActionContext } from "./local-web-actions.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -129,7 +130,6 @@ export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-doc
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
-export { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 

@@ -43,12 +43,14 @@ Web is an optional viewing and user-confirmation surface, not a prerequisite for
 
 An action tool appears only after the user grants that action to this client for its scope (Home-wide or a project). In **Capabilities → External access**, choose the client and scope, search by name or provider, review the required permissions, and grant or revoke each action. A grant binds the exact capability version and provider; discovery and every call check the latest grants, so the next call after a revocation is refused, though a client may need to refresh its own tool list. Binding a project grants no action.
 
+`goals.events.list`, `goals.events.latest` and `goals.events.read` are now @2 (their MCP tool names end in `__v2`), with the `input_acknowledged` system record in their output. @1 is no longer registered. Select @2 again in fixed workflow references and external client grants, then refresh the tool directory. `goals.events.acknowledge` stays at @1.
+
 Common Goals actions:
 
 | Purpose | Actions |
 | --- | --- |
 | Find, create and read state | `goals.list`, `goals.create`, `goals.state.read` |
-| Notes and history | `goals.note`, `goals.events.configure`, `goals.events.report`, `goals.progress.record`, `goals.events.list`, `goals.events.read` |
+| Notes and history | `goals.note`, `goals.events.configure`, `goals.events.report`, `goals.progress.record`, `goals.events.acknowledge` (after reading the person's note, requirement or decision, say how you will treat it; MCP, the Assistant and Agents only), `goals.events.list`, `goals.events.read` |
 | Agreement, decisions and closure | `goals.concerns.apply`, `goals.decisions.request`, `goals.decisions.cite`, `goals.agreement.set`, `goals.closure.submit`, `goals.work.resume` |
 | Tree proposals | `goals.tree.submit`, `goals.tree.read`, `goals.tree.check` |
 | Optional planning | `goals.planning.catalog` (catalog without instructions), `goals.planning.read` (instructions by `method_ids`), `goals.planning.save`, `goals.planning.impact`, `goals.planning.graph.check` |

@@ -23,9 +23,9 @@
 让模型直接吐 SVG 意味着模型输出变成应用自己 DOM 里的标记，中间只隔着一个消毒器——
 那种白名单是会被绕过的。现在标签一律作为文本节点进入，注入面不存在。
 
-**固定材料按精确版本进入本轮。** Coding 有六个可选输入：Files 的 before / after / selection，
-Git 的 git-changeset / git-result，以及 Shelf 的 materials。Shelf 明确选择的固定材料通过原持久连线进入 materials 输入；其他已保存版本仍可从原 Artifact 目录选用，不另建输入账。用户在 Shelf 确认保存完整文字，再在 Coding 材料选择器中选定本项目精确版本；宿主读取原文并冻结来源，
-生产者发布新版本不改写在跑任务和历史报告。无材料可以直接执行。
+**本轮材料是项目资料。** 用户在统一的资料选择器里为下一轮选资料（成果、导入的文档、Pages、工作目录里的文件、别的会话的报告……，`specs/project-knowledge` PMAT-18）；
+一轮开始时 Coding 逐份经 `knowledge.read` 读出，主人给的是此刻的正文与版本，长的只放开头并告诉 Agent 怎样接着读；读不到的一份让这一轮在开始前停下。
+Coding 不按类型解析材料，也没有输入端口。运行中的这一轮保持开始时读到的内容。无材料可以直接执行。
 
 **目标关联用于下一轮。** 会话可选择本项目 Goal，先看完整合同与进展再确认固定版本。发送前若目标变化，
 需要重新查看确认；归档、删除或超限显式拒绝，不截断或偷换版本。报告依据本轮固定来源保存归属，
@@ -80,6 +80,7 @@ Directory candidates and browsing preferences come from the [current-project set
   - 提示词与方法正文随目录条目声明，Manifest 只写声明。
   - 路由只做装配：委派信件的视图（`delegation-view.ts`）与等待/唤醒的判断和文本（`waits.ts`）是纯函数，不读存储、不调宿主。
   - 编辑框的草稿是 `src/browser/draft.ts` 里有类型的 TypeScript（`tsconfig.browser.json` 检查），构建时 esbuild 打成 `dist/draft-bundle.js`，`src/draft-client.ts` 读成页面客户端调用的工厂（同 Forms 的做法，W4-04）。输入框归哪个会话只看 `owns`：换到别的会话后、它的首次读取认领之前，敲字、追加、保存都不写进它。页面脚本新拆出的部分照这样写，不再新增 `*_SCRIPT` 文本常量（`pnpm health:check` 拦）。
+  - 工作台上的装配也是这样：`src/browser/workbench.ts` 把 Coding 的页面客户端、Files 与 Git 的面板和伴随页（Files、Git、Diff、Text Stats 借这一份包）接起来，esbuild 打成 `dist/workbench-bundle.js`，`src/workbench-client.ts` 读成登记里的 `clientFactory`。Files、Git 的客户端由登记的 `clientUses` 经 `host.clients` 交来，评审动作经 `host.reviews`（宿主的，Coding 不拿决定权），不 import 那两个插件；伴随页有客户端就交给它，没有就读该插件的 `/state`，不按插件名分支（只剩返回按钮的文案和 Diff 的 `change_index`）。
   - `coding_sessions`、`coding_plan_drafts` 只由本包读写；宿主的跨项目后台任务列表用 `listCodingBackgroundSessions`（只读，不建表，库里没有 Coding 的表就抛错），先用 `holdsCodingSessions` 问这个库有没有用过 Coding：没用过的项目安静地什么也不列，读不了的才记一条日志（W5-13）。
   - 一轮的建议（`offers`）落成会话的操作卡（specs/ai-interaction-experience D25）：存在插件私有存储的 `cards:<session_id>` 下，整份用 `compareAndSet` 原子替换；每条建议按 `offer_id` 只落一张，落卡在调用自己的 `beforeEffect()` 之后，建议的动作此刻已不在这一轮的授权里就不落。卡只经宿主的 `agent.offers.run` 执行（只跑建议点名的那个动作、过动作自己的输入检查），点击以卡的修订号认领，第二次点击不再执行；结果按失败的 kind 记（D26）。页面路由 `coding.card-run`、`coding.card-dismiss`；角色 coordinator、builder 带 `suggest-action`。
 - 改动后必跑：`node scripts/run-tests.mjs tests/coding-action-cards.test.ts tests/coding-action-cards.e2e.test.ts tests/coding-effect-control.test.ts tests/coding-runtime-regressions.test.ts tests/coding-material-consumption.test.ts tests/coding-background-wait.test.ts tests/coding-background-tasks.test.ts tests/coding-message-wait.test.ts tests/coding-session-messages.test.ts tests/coding-client-lifecycle.e2e.test.ts tests/coding-actions.test.ts tests/coding-artifacts.test.ts tests/coding-capabilities.test.ts tests/coding-commands.test.ts tests/coding-companion-inputs.test.ts tests/coding-delegation-waits.test.ts tests/coding-history-summary-http.test.ts tests/coding-mcp-settings-client.test.ts tests/coding-product-http.test.ts tests/coding-companion-http.test.ts tests/builtin-plugin-agent-texts.test.ts`

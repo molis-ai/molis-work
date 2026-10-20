@@ -33,23 +33,23 @@
 
 ## 2. 现状
 
-156 个单元：33 个文件、40 个类、83 个函数。判定分布：
+155 个单元：33 个文件、39 个类、83 个函数。判定分布：
 
 | 判定 | 文件 | 类 | 函数 | 合计 |
 | --- | ---: | ---: | ---: | ---: |
-| 拆 | 14 | 39 | 78 | 131 |
+| 拆 | 14 | 38 | 78 | 130 |
 | 归线 | 15 | 1 | 5 | 21 |
 | 例外 | 4 | 0 | 0 | 4 |
-| 合计 | 33 | 40 | 83 | 156 |
+| 合计 | 33 | 39 | 83 | 155 |
 
 - **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（21 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 一项挂在 W5-01 下：路线 W5-01 原有“Shelf 和 Characters 混合插件”一项，决定 #26 把其中 Characters 的部分提到第 4 波，那个切片在路线里还没有自己的片号（见下）。
-- **拆**（131 个，101 个文件）：其中 123 个归 W5-10（94 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 123 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
+- **拆**（130 个，100 个文件）：其中 122 个归 W5-10（93 个文件，32 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 122 个里），其余 8 个归 W5-04、W5-07、W5-09（W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
 - 全部单元里，45 个只超出阈值不到 20%（9 个文件、27 个函数、9 个类；类按行数与方法数里超得多的那一项算），其中 37 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### W5-10 怎么做
 
-路线里 W5-10 的标题是“其余巨大单元拆分”，原文点名了助理协作者、Pages 编辑器的 `mount`、`hoverHandlePlugin` 与 `commands.ts`，之后“按决定搬助理包”。本清单把它的范围定为所有判定为“拆 · W5-10”的单元（123 个，94 个文件），做成一串 PR：**每个包一个 PR**，先做任务书 §4.5 第 3 条点名的助理、平台记忆服务、Pages 编辑器（Prologue 节点适配器的初始化函数与 Coding 的路由绑定已有 W4-06、W4-07），其余按窗口内被改动得最多的先做（并列的，单元多的在前，再按路径；窗口的定义在下表后面）。每个 PR 只拆自己包里的单元，拆完就在同一个 PR 里改本表对应的行并更新本地快查。下表是这一串的顺序：
+路线里 W5-10 的标题是“其余巨大单元拆分”，原文点名了助理协作者、Pages 编辑器的 `mount`、`hoverHandlePlugin` 与 `commands.ts`，之后“按决定搬助理包”。本清单把它的范围定为所有判定为“拆 · W5-10”的单元（122 个，93 个文件），做成一串 PR：**每个包一个 PR**，先做任务书 §4.5 第 3 条点名的助理、平台记忆服务、Pages 编辑器（Prologue 节点适配器的初始化函数与 Coding 的路由绑定已有 W4-06、W4-07），其余按窗口内被改动得最多的先做（并列的，单元多的在前，再按路径；窗口的定义在下表后面）。每个 PR 只拆自己包里的单元，拆完就在同一个 PR 里改本表对应的行并更新本地快查。下表是这一串的顺序：
 
 | 顺序 | 批次（包） | 文件 | 单元 | 窗口内改动它的合并数 | 备注 |
 | ---: | --- | ---: | ---: | ---: | --- |
@@ -70,7 +70,7 @@
 | 15 | `packages/storage` | 2 | 2 | 4 |  |
 | 16 | `horizontal/search` | 1 | 1 | 4 | 按需搜索来源已删（W2-03），可直接拆 |
 | 17 | `plugins/native/todo` | 1 | 1 | 4 |  |
-| 18 | `modules/goals` | 7 | 10 | 3 |  |
+| 18 | `modules/goals` | 6 | 9 | 3 |  |
 | 19 | `modules/functions` | 1 | 2 | 3 |  |
 | 20 | `packages/design-system` | 1 | 2 | 3 |  |
 | 21 | `packages/kernel` | 1 | 1 | 3 | `registerProvider` 已在 W3-01 降到阈值下；W3-05 的交叉校验在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行 |
@@ -132,7 +132,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-06 | 声明式贡献挂载器代替 15 个 Goals 挂载适配器；`goals-page-renderer.ts` 改名，留在工作台 | — | 不拆那两个函数（适配器是别的文件） |
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表 | 2 | 已拆完：按顺序尝试的路由表（`web-route-table.ts`），表写在宿主里、`*-http` 模块不动（统筹 10-17 定，理由见防腐 spec §4.5 一行） |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
-| W5-10 | 其余巨大单元拆分（范围见上） | 123 | 123 个，含助理协作者、Pages 编辑器与命令 |
+| W5-10 | 其余巨大单元拆分（范围见上） | 122 | 122 个，含助理协作者、Pages 编辑器与命令 |
 | W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
@@ -232,7 +232,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### 业务事实 Module `modules/*`
 
-21 个单元（拆 21），15 个文件、6 个包。路径前缀 `modules/`。
+20 个单元（拆 20），14 个文件、6 个包。路径前缀 `modules/`。
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
@@ -242,7 +242,6 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `goals` | `src/event-facts.ts` | `GoalEventFacts` 类 576 行 / 35 方法 | 拆 · W5-10 | `configureRequested`（106）和 `configureInTransaction`（109）、`report`（83）三块最大。`applyConcern`、`requestDecision`、`citeDecision`、`recordTrustedDecision`、`setAgreement`、`submitClosure`、`resumeWork` 在 `GoalEventFacts`、`GoalEventState`、`GoalEventStateEffects` 三层各有一份，前两层的是三到六行的转发：让调用方直接拿 `GoalEventState` 的入口，转发层去掉；配置、报告、读取各成协作者。 | 2 |
 | `goals` | `src/event-state-effects.ts` | `GoalEventStateEffects` 类 539 行 / 12 方法<br>`recordTrustedDecision` 函数 155 行 | 拆 · W5-10 | `recordTrustedDecision`（155，在类里，类和方法各计一次）、`submitClosure`（118）、`requestDecision`（82）三个大方法各成命令类，`resumeWork`、`citeDecision`、`reopenCompletion`、`reassessAfterReports` 随各自的主题。 | 1 |
 | `goals` | `src/event-state-repository.ts` | `GoalEventStateRepository` 类 408 行 / 30 方法 | 拆 · W5-10 | 30 个方法按表分组：所有者与工作状态、约定与进度、顾虑、决定请求、已应用决定、结论与收尾。每组一个表访问类。 | 2 |
-| `goals` | `src/event-state.ts` | `GoalEventState` 类 365 行 / 21 方法 | 拆 · W5-10 | `insertSystem`（52）、`writeProgress`（46）、`recordProgress`（38）、`readWorkState`（30）、`adoptOwner`（28）是实际逻辑；`applyConcern`、`requestDecision` 等七个是对 `GoalEventStateEffects` 的三行转发（见 `event-facts.ts` 一行）。进度与工作状态一组，所有者与作用域检查一组，转发层去掉。 | 3 |
 | `goals` | `src/guidance-commands.ts` | `GuidanceCommands` 类 368 行 / 3 方法<br>`update` 函数 201 行 | 拆 · W5-10 | 只有 3 个方法但 `update` 201 行、`add` 149 行。`update` 依次是读取并规范化输入、校验（确认、动作、必填）、`edit` 分支、构造请求与哈希、事务（141 行的 `return`），各成函数；`add`、`update` 成两个命令类。`update` 在类里（类和方法各计一次）。 | 1 |
 | `goals` | `src/lifecycle-archive.ts` | `setTrashed` 函数 185 行<br>`setTrashed callback 1` 函数 174 行 | 拆 · W5-10 | `setTrashed` 的返回里是 174 行的事务回调（同一段计两次），按步骤拆；`GoalArchiveCommands` 其余方法留在类里。 | 2 |
 | `private-work-context` | `src/project-binding-commands.ts` | `RuntimeProjectBindingCommands` 类 333 行 / 12 方法 | 拆 · W5-10 | `bindRuntimeContextInTransaction` 102 行、`unbindRuntimeContext` 57、`rejectRuntimeContextSuggestion` 51：绑定、解绑、拒绝建议各一个命令类，成员关系与日志助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`）单独成文件。 | 0 |

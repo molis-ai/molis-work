@@ -235,20 +235,28 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// Reviewed 2026-10-19: the outcome slot's result buttons and the delivery note (#789 with #803, specs/context-program
-// §21.9 SLOT-03, specs/ai-input-receipts §9.2 3e-2a): the next-step row binds each outcome record once with the island's
-// bindText, and the page places the Host-drawn note after the tray, renews it only when its text changes and opens a
-// supplement's receipt. The record's key, class and aria-live are written by the Host (−139 B) and the review shortened the
-// placing and pressing (−28 B). That adds 442 B to workbench.js, spent once from exactly this start; later growth stays
-// frozen. The receipts review fixes' spent start (workbench.js 1,129,841) is refused, like every spent start before it.
+// W4-2-13 (#801, reviewed 2026-10-20): opening the exact proposal and preserving unfinished reasons across
+// list/detail refresh needs 410 B from #822's exact budget. Same-script simplification first saved 408 B;
+// the remaining growth restores the real approval flow. The spent #826 allowance is replaced, not accumulated.
+// The project-knowledge stylesheet allowances remain unchanged: settings styles in both sheets, plus the shared picker
+// and side-panel import dialog in the workbench sheet (specs/project-knowledge, approved 2026-10-19).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1130033, 1130475],
+  "/assets/molis-work-workbench.js": [1129470, 1129880],
+  "/assets/molis-work-workbench.css": [1593165, 1603154],
+  "/assets/molis-work-settings.css": [982397, 988933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
+// An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
+// first freeze; from the next PR on it only falls like every other.
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+const APPROVED_NEW_ASSETS = {
+  "/assets/molis-work-knowledge.js": 26361,
+};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
+    if (base[asset] === undefined && allowed <= (APPROVED_NEW_ASSETS[asset] ?? -1)) continue;
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
@@ -262,7 +270,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  if (reference[asset] === undefined) return bytes <= (APPROVED_NEW_ASSETS[asset] ?? -1) ? [] : [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 

@@ -9,14 +9,22 @@ import { formActions as actions, FORM_ACTION_PERMISSIONS, FORM_ANSWER_FORMAT, op
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
-async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null) {
-  const home = await mkdtemp(join(tmpdir(), "form-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
+import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
+async function fixture(t: test.TestContext, completeText: HostCompleteText | null = null, plugin?: CallerPlugin) {
+  const home = await mkdtemp(join(tmpdir(), "form-actions-")),
+    host = new MolisWorkLocalHost({ homeDirectory: home, completeText, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Form", actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: FORM_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
+}
+/** A plugin that holds every Form permission; its call carries the caller the Host issued its session (S-15). */
+async function withFormPlugin(t: test.TestContext) {
+  const plugin = callerPlugin("formcaller", "project", Object.fromEntries(FORM_ACTION_PERMISSIONS.map(permission => [permission, true])));
+  const f = await fixture(t, null, plugin);
+  return { ...f, plugin: await projectPluginCaller(f.host, f.ref, plugin, FORM_ACTION_PERMISSIONS) };
 }
 const questions = [
   { id: "text", type: "text" as const, title: "原问题", required: true },
@@ -145,8 +153,8 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
 });
 
 test("a form that is not collecting takes no answer from an agent, MCP, a workflow or a plugin; only the person's own trial fill goes in", async t => {
-  const f = await fixture(t);
-  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const f = await withFormPlugin(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => audience === "plugin" ? f.plugin : { ...f.caller, audience });
   const outside = ["agent", "mcp", "workflow", "plugin"] as const;
   let { form } = await f.bound.invoke(actions.create, { title: "收集中才收" });
   const id = form.id;
@@ -217,8 +225,8 @@ test("the store itself refuses every source but the trial fill while a form is n
 });
 
 test("answer files go into a form that is not collecting only when the person imports them; every other caller is refused", async t => {
-  const f = await fixture(t);
-  const as = (audience: ActionAudience) => bindActionClient(f.client, () => ({ ...f.caller, audience }));
+  const f = await withFormPlugin(t);
+  const as = (audience: ActionAudience) => bindActionClient(f.client, () => audience === "plugin" ? f.plugin : { ...f.caller, audience });
   const outside = ["agent", "mcp", "workflow", "plugin"] as const;
   let { form } = await f.bound.invoke(actions.create, { title: "答卷文件" });
   const id = form.id;

@@ -57,7 +57,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => agentHost,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
     // The person's own authority in the work's scope, as the web Host gives it.
     scopeActions: async work => {
@@ -91,6 +91,19 @@ test("an object picked with “@” is checked with its owner and read by it bef
     await assert.rejects(service.send({ text: "再看看这个", request_id: "mention-send-2", work_id: sent.work.work_id, materials: [{ ...picked, reference: { hit_id: "forged-hit" } }] }, {}),
       (error: unknown) => error instanceof ActionError && /引用的「供应商准入问卷」/.test(error.message));
     assert.equal(requests.length, before, "no model call ran");
+
+    // PMAT-17 / PMAT-23: a piece chosen in the project-knowledge picker names only its subject; the Host reads it through
+    // knowledge.read, with the person's authority, before the round, and the model is told where the text came from.
+    const piece = { material_id: "ref-2", kind: "object" as const, title: "供应商准入问卷", explicit: true,
+      reference: { subject: { kind: found.subject.kind, id: form.id } }, object: { kind: found.subject.kind, id: form.id, title: "供应商准入问卷" } };
+    await service.send({ text: "这份还要补什么", request_id: "mention-send-3", work_id: sent.work.work_id, materials: [piece] }, {});
+    await until(async () => requests.length > before && (await service.read(sent.work.work_id)).work.state === "completed", "round with a picked piece");
+    assert.ok(requests.at(-1)!.includes("用户从项目资料里选的一份") && requests.at(-1)!.includes("逾期不补齐的暂停合作"), "the piece's text, read now");
+    const afterPiece = requests.length;
+    await assert.rejects(service.send({ text: "还有这个", request_id: "mention-send-4", work_id: sent.work.work_id,
+      materials: [{ ...piece, reference: { subject: { kind: found.subject.kind, id: "missing-form" } } }] }, {}),
+      (error: unknown) => error instanceof ActionError && /项目资料「供应商准入问卷」读不到/.test(error.message));
+    assert.equal(requests.length, afterPiece, "a piece that cannot be read stops the round before any model call");
 
     // Which kind an open tab is, from what plugins declare for their searchable objects.
     const kinds = await service.surfaceKinds({ project_ref: reference });

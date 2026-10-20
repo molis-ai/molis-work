@@ -711,7 +711,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 VUX-09 the 上下文 group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1136122, 1138151],
+    "/assets/molis-work-workbench.js": [1136122, 1138483],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

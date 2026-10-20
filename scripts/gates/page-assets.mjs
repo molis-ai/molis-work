@@ -237,13 +237,14 @@ const headErrors = (measured, budget, base) => {
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 材料 becomes 上下文,
 // with what waits to be sent, what the latest round used (its selection too) and what earlier rounds used apart (VUX-08/09).
-// +2,029 B of workbench.js: the pending list read from the strip's items, the split by the latest round's start, each
-// round's selection, and the group moved out of assistant-island.ts into its own factory (the giant-unit gate keeps the island
+// +2,361 B of workbench.js: the pending list read from the strip's items, each object under the latest round whose
+// materials name it (after review, +332 B: the Host records a relation before the round starts, so time alone misplaced
+// it) with the round said for an earlier one, each round's selection, and the group moved out of assistant-island.ts into its own factory (the giant-unit gate keeps the island
 // from growing), whose parameters are named twice. Tried first: the island's own tiles, glyphs and blocks passed in rather
 // than copied; the shipped script is not minified, so the factory sits at the shallowest indent.
 // Spent once from exactly the 产出 split slice's budget (#869).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1136122, 1138151],
+  "/assets/molis-work-workbench.js": [1136122, 1138483],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

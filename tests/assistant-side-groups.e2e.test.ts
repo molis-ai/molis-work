@@ -129,7 +129,9 @@ test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working obje
 
 // VUX-08/09 「上下文显示待发送/本次实际使用/历史引用」: what the next Send carries, what the latest round used and what earlier
 // rounds used are three places, never one list. The two rounds' materials and the work's material objects are added to the
-// view the page reads, in the contract's shape; the pending one is put in as a page hands one over.
+// view the page reads, in the contract's shape; the pending one is put in as a page hands one over. The Host records an
+// object's relation before the round starts (the Send links it, then dispatches), and a second use keeps the first record,
+// so an object is placed by the rounds whose materials name it, not by its time.
 test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used and what earlier rounds used apart", { timeout: 120_000 }, async t => {
   const browser = await sendBrowser(t); if (!browser) return;
   const { evaluate, waitFor } = browser;
@@ -139,12 +141,14 @@ test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used
     const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
     if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
     const view = await response.json(), round = view.rounds[0];
-    view.rounds = [{ ...round, run_id: "r-early", started_at: ${JSON.stringify(early)}, materials: [{ material_id: "m-old", kind: "text", title: "旧会议纪要", explicit: true }] },
-      { ...round, run_id: "r-late", started_at: ${JSON.stringify(late)}, materials: [{ material_id: "m-new", kind: "file", title: "本周数据.csv", explicit: true }],
+    const page = (id, title) => ({ material_id: "m-" + id, kind: "object", title, explicit: true, object: { kind: "pages_document", id } });
+    view.rounds = [{ ...round, run_id: "r-early", started_at: ${JSON.stringify(early)}, materials: [{ material_id: "m-old", kind: "text", title: "旧会议纪要", explicit: true }, page("p-old", "上周周报"), page("p-both", "项目说明")] },
+      { ...round, run_id: "r-late", started_at: ${JSON.stringify(late)}, materials: [{ material_id: "m-new", kind: "file", title: "本周数据.csv", explicit: true }, page("p-new", "本周计划"), page("p-both", "项目说明")],
         context: { ...(round.context || {}), source: { surface: "pages" }, captured_at: ${JSON.stringify(late)}, selection: { text: "第三季度  收入", truncated: false } } }];
     view.objects = [...(view.objects || []).filter((o) => o.relation !== "material"),
-      { relation: "material", subject: { kind: "pages_document", id: "p-old" }, title: "上周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: "2026-10-19T08:10:00.000Z" },
-      { relation: "material", subject: { kind: "pages_document", id: "p-new" }, title: "本周计划", recorded_revision: "4", current_revision: "4", state: "current", recorded_at: "2026-10-19T09:00:05.000Z" }];
+      { relation: "material", subject: { kind: "pages_document", id: "p-old" }, title: "上周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-both" }, title: "项目说明", recorded_revision: "2", current_revision: "2", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-new" }, title: "本周计划", recorded_revision: "4", current_revision: "4", state: "current", recorded_at: "2026-10-19T08:59:59.000Z" }];
     return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
   }; })()`);
   await openWork(browser, id);
@@ -162,7 +166,9 @@ test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used
   assert.doesNotMatch(read.pending, /本周数据|本周计划|旧会议纪要|上周周报/, "nothing already used is shown as waiting");
   assert.deepEqual(read.groups.map(([label]) => label), ["本次使用", "历史引用"]);
   assert.match(read.groups[0]![1], /本周计划/); assert.match(read.groups[0]![1], /本周数据\.csv/); assert.match(read.groups[0]![1], /选中的内容：第三季度 收入/, "what the round saw of the page is part of what it used");
+  assert.match(read.groups[0]![1], /项目说明/, "used in both rounds, it is under the latest");
   assert.doesNotMatch(read.groups[0]![1], /上周周报|旧会议纪要/);
-  assert.match(read.groups[1]![1], /上周周报/); assert.match(read.groups[1]![1], /旧会议纪要.*第 1 轮|第 1 轮.*旧会议纪要/);
+  assert.doesNotMatch(read.groups[1]![1], /项目说明/, "each object once");
+  assert.match(read.groups[1]![1], /上周周报.*第 1 轮/, "an object an earlier round used says which round"); assert.match(read.groups[1]![1], /旧会议纪要.*第 1 轮|第 1 轮.*旧会议纪要/);
   assert.equal(read.badge, "1 项待发送", "what waits is the summary while nothing changed");
 });

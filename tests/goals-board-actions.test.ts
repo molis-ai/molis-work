@@ -6,12 +6,13 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
 
-async function fixture(projectId: string) {
+async function fixture(projectId: string, plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "goals-board-actions-"));
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId });
   let denied: string | undefined;
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}), actionAvailability: (_caller, view) =>
     view.capability_id === denied ? { available: false, code: "actions.plugin_disabled", reason: "管理动作已停用" } : { available: true } });
   // The management entries act as the person on this machine (§9.5 #6).
   const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: ref.project_id,
@@ -21,12 +22,17 @@ async function fixture(projectId: string) {
 }
 
 test("PLIB-15 board initialization (version 2, no name) keeps original receipts and requires trusted management through the registered action", async () => {
-  const f = await fixture("initial"); const { host, ref, caller, client, block } = f;
+  // A plugin that holds the Goals permissions, started by the Host.
+  const initializer = callerPlugin("boardinitializer", "project", { "goals:read": true, "goals:write": true });
+  const f = await fixture("initial", initializer); const { host, ref, caller, client, block } = f;
   const input = { idempotency_key: "initial" };
   try {
+    // The plugin's call carries the caller the Host issued its session (S-15), claiming the person's permissions and management entry.
+    const asPlugin = await projectPluginCaller(host, ref, initializer, caller.permissions, { user_action: caller.user_action });
     for (const audience of ["mcp", "agent", "workflow", "plugin"] as const) {
-      assert.equal((await client.discover({ ...caller, audience })).some(v => v.capability_id === goalsActions.initialize.capability_id), false);
-      await assert.rejects(client.invoke({ ...caller, audience }, goalsActions.initialize, input), { code: "actions.forbidden" });
+      const claimed = audience === "plugin" ? asPlugin : { ...caller, audience };
+      assert.equal((await client.discover(claimed)).some(v => v.capability_id === goalsActions.initialize.capability_id), false);
+      await assert.rejects(client.invoke(claimed, goalsActions.initialize, input), { code: "actions.forbidden" });
     }
     await assert.rejects(client.invoke({ ...caller, user_action: undefined }, goalsActions.initialize, input), { code: "goals.management_required" });
     await assert.rejects(client.invoke({ ...caller, user_action: { ...caller.user_action!, source: "web" } }, goalsActions.initialize, input), { code: "goals.management_required" });

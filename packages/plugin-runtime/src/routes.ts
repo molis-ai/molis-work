@@ -156,8 +156,8 @@ export class PluginRouteRouter {
     const binding = (instance.contribution.routes ?? [])
       .find((candidate) => candidate.route_id === match.route_id);
     if (!binding) {
-      // The redemption check refuses this shape at start; reaching here means the
-      // Plugin is running in a state it should not be, which is not the caller's fault.
+      // A full redemption refuses this shape at start; a partial half (S0-2) may leave the route to its other half,
+      // which this router does not reach. Either way the caller did nothing wrong, and the call fails closed.
       return actionErrorResponse(new ActionError("actions.execution_failed", "能力执行失败"));
     }
 

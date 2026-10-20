@@ -15,6 +15,7 @@ import {
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 test("Schedule tasks register as project actions shared by HTTP, Host callers and production MCP", { timeout: 120_000 }, async t => {
@@ -23,7 +24,8 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
   const project = await catalog.createProject({ display_name: "Schedule actions", actor_id: "owner" });
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const policy = projectActionAvailability(async (_options, run) => run(catalog), home);
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy });
+  const watcher = callerPlugin("reminderwatcher", "project");
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: policy, pluginFixtures: { project: [watcher.definition] } });
   // The Home is served so that the MCP client's grants are saved the way a person saves them.
   const served = await serveTestHost(t, { home, host });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
@@ -34,6 +36,9 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     const directory = (await client.discover(caller)).filter(row => row.provider.plugin_id === "io.molis.work.schedule");
     assert.deepEqual(directory.map(row => row.capability_id).sort(), SCHEDULE_ACTIONS.map(row => row.capability_id).sort());
     assert.ok(directory.every(row => row.availability.available && row.provider.project_id === project.project_id));
+    const probe = registerProbe(host.actionRegistry(ref), "project");
+    await startProjectPlugins(host, ref);
+    const plugin = callAs(await issuedCaller(probe, watcher, project.project_id), SCHEDULE_ACTION_PERMISSIONS);
 
     // The HTTP paths are thin: the 201 status and the owner's validation messages come through.
     let changed = 0;
@@ -74,7 +79,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     const disabled = (await client.discover(caller)).find(row => row.capability_id === s.list.capability_id)!;
     assert.equal(disabled.availability.available, false);
     await assert.rejects(bound.invoke(s.list, {}), { code: "actions.plugin_disabled" });
-    const reminders = (await client.discover({ ...caller, audience: "plugin" })).filter(row => row.capability_id.startsWith("reminders."));
+    const reminders = (await client.discover(plugin)).filter(row => row.capability_id.startsWith("reminders."));
     assert.deepEqual(reminders.map(row => row.capability_id).sort(), ["reminders.add", "reminders.cancel"]);
     assert.ok(reminders.every(row => row.availability.available && row.provider.kind === "system"), "common reminders do not acquire the optional conversation UI's enablement requirement");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });

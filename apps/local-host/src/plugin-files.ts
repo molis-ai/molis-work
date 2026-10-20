@@ -16,7 +16,7 @@ const hasCode = (error: unknown, code: string) => error instanceof Error && "cod
 const unsafe = () => filesErrors.plugin_file_unsafe("私有文件只能位于声明的普通目录中，不能使用符号链接或非普通文件");
 
 /** The two executors use this same IO port. It keeps no descriptor or filesystem work alive after an operation. */
-export function openPluginFiles(home: string, declaration: PluginFilesDeclaration, authorize: (permission: string) => void): {
+export function openPluginFiles(home: string, declaration: PluginFilesDeclaration, authorize: (permission: string) => void, installId: string): {
   client: PluginFilesClient; close(): void;
 } {
   const root = realpathSync(home);
@@ -47,7 +47,7 @@ export function openPluginFiles(home: string, declaration: PluginFilesDeclaratio
   const current = (control: PluginExecutionControl) => {
     control.signal?.throwIfAborted();
     requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
-    assertPluginActionCurrent();
+    assertPluginActionCurrent(installId);
     permit(declaration.write_permission);
   };
   return { client: Object.freeze({

@@ -636,7 +636,7 @@ test("protected Web user entry records a decision; Host-injected identity is req
   try {
     const actions = new ActionService();
     actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: BOARD },
-      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, projectId: BOARD,
+      definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, acknowledgements: data.app.goalAcknowledgements, projectId: BOARD,
         board: { immediate: operation => data.store.immediate(operation), query: data.store.goalsQuery,
         initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
         adoptOwner: input => data.app.goalEvents.adoptOwner(input) },

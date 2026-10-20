@@ -106,7 +106,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`）声明的每个动作，一行一个 `capability_id@version`。`provider` 列是 Manifest 的 `plugin_id`；`registered_provider` 列是宿主登记这个动作用的提供方 id（从宿主的动作目录读出） |
+| `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`，由各插件的 `src/registration.ts` 生成）声明的每个动作，一行一个 `capability_id@version`。`provider` 列是 Manifest 的 `plugin_id`；`registered_provider` 列是宿主登记这个动作用的提供方 id（从宿主的动作目录读出） |
 | `actions/scenes.tsv` | 它们声明的消费场景（`action_scenes`），一行一个 `scene_id@version`，同样有 `provider` 与 `registered_provider` 两列 |
 | `actions/host-actions.tsv` | 所有内置插件在一个项目里启用时，宿主登记着、却没有任何内置 Manifest 声明的动作：`system.*` 提供方、每个 Runtime 插件的 SDK 服务、写在代码里而不在自己 Manifest 里的插件动作（Shelf 的 27 个）和由场景派生的开关动作（Feed、Inbox 各 3 个 `scenes.*`）。一行一个 `capability_id@version via 提供方`；提供方列是宿主登记用的 id |
 | `actions/host-scenes.tsv` | 宿主登记着、却没有任何内置 Manifest 声明的消费场景：现在只有首页的 `home.dock@1`（提供方 `system.home`，由 `apps/local-host/src/home-actions.ts` 里的首页提供方登记）。一行一个 `scene_id@version via 提供方`，列与 `scenes.tsv` 相同、没有 `registered_provider`（`provider` 列本身就是宿主登记用的 id）。绑定存下这个场景的 `scene_id`、`version` 和提供方 id，内核重新绑定时比对提供方（`actions.provider_changed`），规则的适用范围也按它认 |

@@ -398,6 +398,7 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly audit_actor_id?: string;
+    readonly delegated_by?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
@@ -412,7 +413,9 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly original_file?: HostOfferedOriginalFile;
     readonly query_only?: true;
+    readonly read_only_effects?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];
@@ -464,7 +467,9 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainAuthority?: (references: readonly ActionReference[], options?: {
+        readonly audience?: "workflow";
+    }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
@@ -651,12 +656,16 @@ export interface ActionSceneDefinition {
     readonly event_schema?: ActionSchema;
 }
 
+export interface ActionSceneExecutionContext extends ActionCallContext {
+    beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
     readonly scene_id: string;
     readonly version: number;
     bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
     targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
-    bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+    bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
     prepare?(context: ActionCallContext, event: unknown): {
         input: unknown;
         state?: unknown;
@@ -664,11 +673,11 @@ export interface ActionSceneHandlerBinding {
         input: unknown;
         state?: unknown;
     }>;
-    consume(context: ActionCallContext, input: unknown, result: unknown, execution: {
+    consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: {
         binding: ActionSceneBinding;
         state?: unknown;
     }): unknown | Promise<unknown>;
-    failed?(context: ActionCallContext, input: unknown, error: unknown, execution: {
+    failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: {
         binding: ActionSceneBinding;
         state?: unknown;
     }): unknown | Promise<unknown>;
@@ -2064,6 +2073,11 @@ export interface HomeOpenTarget {
     id: string | null;
     title: string;
     label: string;
+}
+
+export interface HostOfferedOriginalFile {
+    readonly path: string;
+    readonly install_id: string;
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];

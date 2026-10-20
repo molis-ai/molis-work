@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 
 import {
@@ -340,7 +341,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
-  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", read("apps/workbench/src/builtin-plugins.ts"))) {
+  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
   if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
@@ -1396,8 +1397,17 @@ export function checkGoalTreeApplicationOwnership(coordinator, host, application
   return errors;
 }
 
+// The built-in catalog's entries as one array text, whether the catalog writes them in place or lists each plugin's own
+// src/registration.ts (W5-02, scripts/gates/catalog-entries.mjs).
+export function builtinCatalogText(repositoryRoot) {
+  const native = path.join(repositoryRoot, "plugins/native");
+  const files = fs.existsSync(native) ? fs.readdirSync(native).map(directory => `plugins/native/${directory}/package.json`) : [];
+  return catalogText({ files, read: (file) => { try { return fs.readFileSync(path.join(repositoryRoot, file), "utf8"); } catch { return null; } } });
+}
+
 // Check both registration styles. An import alone is not a registered contribution:
 // the pack must list it and the composition root must register that pack's entries.
+// `descriptors` is the catalog's entries as one array text (builtinCatalogText).
 export function hasWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
   if (workbench.includes(`host.register(${name})`)) return true;
   const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
@@ -1466,7 +1476,7 @@ export function checkPackageBoundaries(repositoryRoot) {
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));
       return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
         fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
-        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/builtin-plugins.ts"), "utf8"));
+        builtinCatalogText(repositoryRoot));
     })()).map(message => `[proposal-ui-owner] ${message}`),
     ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
     ...checkGoalTreeApplicationOwnership(...[

@@ -8,6 +8,10 @@
 
 - **项目库 v8：项目是自己的根，插件的表由插件声明**（`feat/project-library-l1b`，PG-020、PG-021，`specs/plugin-project-database` L1b）：项目库多一张 `project_root`（一库一行，项目本身）和插件的表的账本 `plugin_project_databases`；原来指向 Goals 看板 `boards` 的 11 张表改指 `project_root`；Coding、Feed、Goals、Schedule 的表不再在基线里，改由各自 Manifest 的 `databases.project` 声明，宿主开库时建表、记账本、再打开时核对，不符只停那个插件（Goals 的 31 张表含 `boards` 与治理的 4 张，S8）；`boards` 去掉 `title` 列，外键指 `project_root`，项目名只在项目目录里。新构建拒绝 v7 的项目库（`SqliteSchemaVersionError`），有 v7 项目库的 Home 在维护之前不装新构建：先做 `docs/releases/CHECKLIST.md` 4.3 维护八里的项目库一项（脚本 `tests/fixtures/project-maintenance-v8.sql`，演练 `tests/project-maintenance-v8.test.ts`），维护应用之后这两份文件与 v7 的建库快照一起删，这里写明哪个提交还有它们。
 - **Goals 的看板不再有名字，四个动作升版本**（`feat/goals-s8-project-database`，S8，`specs/plugin-project-database`）：`boards` 去掉 `title` 列，项目的名字只在项目目录里；`goals.board.initialize` 由 v1 升 v2（输入只有 `idempotency_key`），输出里带看板的 `goals.snapshot.read`、`goals.contract.read`、`goals.collection.read` 也各升到 v2，直接替换，不留 v1，固定旧版本的客户端要重新发现：MCP 的动作工具名 `molis_work_v1_action_goals.snapshot.read__v1`、`…goals.contract.read__v1`、`…goals.collection.read__v1` 变成 `__v2`；管理 MCP 工具 `molis_work_v1_initialize` 名字不变，不再收 `title`；命令行 `v1 init` 不再收标题；Feed 的 `feed.goals.context` 所需的 `goals.contract.read` 固定到 v2（`feed.goals.context@1` 的输入输出不变，动作合同快照只在它的依赖声明一格上变了；它只给用户入口，仓库里没有固定它的引用，所以不升版本）。快照、目标约定、目标集合和 `board.created` 事件的内容里不再有看板名字，项目长期说明的提示词前缀不再有 “Project: …” 一行。
+- **插件 Agent 的连接器接入按会话核对。** 一轮直接调用动作或人点该轮建议，都带宿主核过的原会话；同一插件的另一会话不能继续它准备的接入。升级前在会话里准备但尚未完成的接入，请回原会话重新准备，再继续连接。
+- **插件 Agent 的 Goals 提议按会话区分幂等键。** 作者和提交会话取宿主核过的运行记录；同一个幂等键在不同会话里会分别产生提议。升级前已用过的幂等键不再回放旧提议，重新提交前先查看已有提议，避免把同一内容再提交一份。
+- **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
+- **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
 
 ### 变化
 

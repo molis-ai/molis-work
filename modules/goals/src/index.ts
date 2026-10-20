@@ -3,6 +3,7 @@ import type {
   AddGoalRelationInput,
   AddProjectGuidanceInput,
   CreateGoalInput,
+  GoalEventAcknowledgementsApi,
   GoalEventFactsApi,
   PlanningMethodPack,
   GoalsCommandApi,
@@ -27,7 +28,10 @@ import { ConfirmedRelationCommands } from "./confirmed-relations.js";
 import { GoalLifecycleCommands } from "./lifecycle-commands.js";
 import { GoalsPlanningEngine } from "./planning/engine.js";
 import { GoalsQueryService } from "./query.js";
+import { GoalEventAcknowledgements } from "./event-acknowledgement.js";
 import { GoalEventFacts } from "./event-facts.js";
+import { GoalEventFactsRepository } from "./event-facts-repository.js";
+import { GoalEventStateRepository } from "./event-state-repository.js";
 import { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
 
 export const packageDescriptor = {
@@ -70,6 +74,7 @@ export class GoalsModule {
   readonly planning: GoalsPlanningEngine;
   readonly query: GoalsQueryApi;
   readonly events: GoalEventFactsApi;
+  readonly acknowledgements: GoalEventAcknowledgementsApi;
 
   constructor(
     db: GoalsSqliteDatabase,
@@ -84,6 +89,7 @@ export class GoalsModule {
       options.personalPlanningMethodPacks,
     );
     this.events = new GoalEventFacts(context);
+    this.acknowledgements = new GoalEventAcknowledgements(context, new GoalEventFactsRepository(db), new GoalEventStateRepository(db));
     const lifecycle = new GoalLifecycleCommands(context, { validateRelationGraph: hooks.validateRelationGraph });
     const goals = new GoalCommands(context, {
       validateRelationGraph: hooks.validateRelationGraph,

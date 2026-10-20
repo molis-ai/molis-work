@@ -14,7 +14,7 @@ import {
   type GoalsSqliteDatabase,
   type PlanningMethodPack,
 } from "@molis-ai/molis-work-module-goals";
-import type { GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { GoalEventAcknowledgementsApi, GoalsApplicationApi, GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import {
   GoalTreeQueryApplication,
   GoalTreeInputReader,
@@ -60,6 +60,7 @@ export class GoalProjectApplication {
   readonly goals: GoalsApplicationApi;
   readonly goalEvents: GoalEventApplication;
   readonly goalInputs: GoalInputBindingsApi;
+  readonly goalAcknowledgements: GoalEventAcknowledgementsApi;
   readonly goalQueries: GoalReadApplication;
   readonly goalTree: GoalTreeQueryApplication;
   readonly goalTreeInputs: GoalTreeInputReader;
@@ -125,6 +126,7 @@ export class GoalProjectApplication {
       },
     );
     this.goalsModule = goalsModule;
+    this.goalAcknowledgements = goalsModule.acknowledgements;
     this.goals = {
       commands: goalsModule.commands,
       lifecycle: goalsModule.lifecycle,
@@ -208,7 +210,7 @@ export class GoalProjectApplication {
    * keeps it. The tables are Goals' own (its Manifest declares them, S8) and the platform made them when the library opened;
    * 2026-10-18 改: the Host still writes Goals' board here because Goals is composed with the project (privileges.md, PG-021).
    * Once Goals is installed like any plugin (S9), the project is made with its root row alone. When the library refused Goals'
-   * tables, this throws that refusal before it touches them (S-42).
+   * tables, this throws that refusal before it touches them (S-46).
    */
   initializeBoard(input: {
     project_id: string;

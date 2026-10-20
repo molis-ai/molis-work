@@ -29,7 +29,7 @@ export function goalAction<Input, Output>(id: string, title: string, description
 }
 
 
-/** Goals' complete shared contracts consumed by Coding and installed plugin clients. Permission and trusted caller checks stay at the owner. */
+/** Goals' complete shared contracts consumed by Coding and installed plugin clients. The action gateway checks who calls and what it holds; Goals keeps no list of plugins. */
 export const goalPluginActions = {
   list: goalAction<GoalListActionInput, GoalEventDirectoryPage>("goals.list", "目标目录", "读取当前项目未归档和未丢弃的目标；分页游标来自上次列表结果", "query",
     object({ work_status: { enum: [...goalEventWorkStatuses] }, limit: { type: "integer", minimum: 1, maximum: 100 }, after_cursor: text }, []),

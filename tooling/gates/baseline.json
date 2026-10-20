@@ -22,11 +22,11 @@
     "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 538,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 183,
     "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 553,
+      "lines": 543,
       "methods": 23
     },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 195,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 187,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
+    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41
@@ -99,7 +99,7 @@
       "methods": 29
     },
     "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 547,
+      "lines": 545,
       "methods": 34
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
@@ -153,7 +153,7 @@
     "function packages/im-ui/src/browser/controller.ts#startIm": 957,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 404,
+      "lines": 396,
       "methods": 15
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -239,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 478,
+  "testInternalImports": 477,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -312,7 +312,7 @@
     "tests/cognia-http.test.ts": 1,
     "tests/cognia-prologue.test.ts": 3,
     "tests/companion-actions.test.ts": 4,
-    "tests/companion-client-lifecycle.e2e.test.ts": 2,
+    "tests/companion-client-lifecycle.e2e.test.ts": 1,
     "tests/connector-account-actions.test.ts": 1,
     "tests/connector-api-oauth.test.ts": 6,
     "tests/connector-authorization-recovery.test.ts": 3,
@@ -480,11 +480,11 @@
   },
   "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
-  "compatMarkerTotal": 9,
+  "compatMarkerTotal": 8,
   "compatMarkers": {
     "apps/local-host/src/material-pdf-worker.ts": 1,
     "apps/local-host/src/pdf-document-parser.ts": 1,
-    "apps/local-host/src/plugin-builder/installed.ts": 3,
+    "apps/local-host/src/plugin-builder/installed.ts": 2,
     "apps/workbench/src/i18n/en.ts": 1,
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
@@ -548,7 +548,7 @@
     "plugins/native/goals/src/document-collection.ts": 1,
     "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
   },
-  "scriptConstantsTotal": 129,
+  "scriptConstantsTotal": 127,
   "scriptConstants": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "apps/desktop/src/shell.ts": 1,
@@ -561,8 +561,6 @@
     "apps/workbench/src/scripts/client/agent-review.ts": 1,
     "apps/workbench/src/scripts/client/attention.ts": 1,
     "apps/workbench/src/scripts/client/bootstrap.ts": 1,
-    "apps/workbench/src/scripts/client/coding-companions.ts": 1,
-    "apps/workbench/src/scripts/client/coding-setup.ts": 1,
     "apps/workbench/src/scripts/client/deferred-plugin-client.ts": 1,
     "apps/workbench/src/scripts/client/documents-state.ts": 1,
     "apps/workbench/src/scripts/client/editing-graph.ts": 1,
@@ -657,27 +655,27 @@
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
     "plugins/native/artifacts/src/works-client.ts": 1,
     "plugins/native/artifacts/src/port-input-ui.ts": 1,
-    "plugins/native/issues/src/client.ts": 1,
+    "plugins/native/alchemist/src/client.ts": 1,
+    "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
-    "plugins/native/plugin-builder/src/agent-studio.ts": 2,
+    "plugins/native/characters/src/client.ts": 2,
+    "plugins/native/coding/src/client.ts": 2,
+    "plugins/native/dataset/src/client.ts": 1,
     "plugins/native/images/src/client.ts": 1,
+    "plugins/native/issues/src/client.ts": 1,
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
+    "plugins/native/lingguang/src/client.ts": 1,
+    "plugins/native/pages/src/client.ts": 2,
+    "plugins/native/pages/src/import-client.ts": 1,
+    "plugins/native/plugin-builder/src/agent-studio.ts": 2,
+    "plugins/native/ppt/src/client.ts": 1,
     "plugins/native/schedule/src/client.ts": 4,
     "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
-    "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
-    "plugins/native/characters/src/client.ts": 2,
-    "plugins/native/pages/src/client.ts": 2,
-    "plugins/native/pages/src/import-client.ts": 1,
-    "plugins/native/dataset/src/client.ts": 1,
-    "plugins/native/ppt/src/client.ts": 1,
-    "plugins/native/alchemist/src/client.ts": 1,
-    "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/workflows/src/client.ts": 1,
-    "plugins/native/coding/src/client.ts": 2,
     "plugins/native/shelf/src/settings-client.ts": 4,
     "packages/im-ui/src/browser/transport.ts": 1,
     "plugins/native/work/src/ui/content-client.ts": 2,
@@ -793,19 +791,19 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 373,
+  "pluginOutsideMentionsTotal": 370,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
     "characters#outside-files": 11,
-    "coding#outside-files": 16,
+    "coding#outside-files": 15,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
     "diff#outside-files": 8,
     "feed#outside-files": 40,
-    "files#outside-files": 10,
+    "files#outside-files": 9,
     "form#outside-files": 8,
-    "git#outside-files": 13,
+    "git#outside-files": 12,
     "goals#outside-files": 58,
     "images#outside-files": 6,
     "inbox#outside-files": 17,
@@ -1179,7 +1177,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 491,
+  "explicitAnyTotal": 486,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1303,7 +1301,7 @@
     "tests/prologue-compaction-continue.test.ts": 1,
     "tests/prologue-compaction.test.ts": 8,
     "tests/prologue-git.test.ts": 2,
-    "tests/prologue-inference-images.test.ts": 7,
+    "tests/prologue-inference-images.test.ts": 2,
     "tests/prologue-inference-native.test.ts": 1,
     "tests/prologue-materials.test.ts": 5,
     "tests/prologue-model-retry.test.ts": 1,

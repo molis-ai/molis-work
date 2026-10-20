@@ -82,6 +82,7 @@ export interface DesktopPanelServiceOptions {
 }
 
 export interface HostCapabilityCallOptions {
+    query_only?: true;
     signal?: AbortSignal;
     plugin_caller?: HostPluginCaller;
     before_effect?: () => void | Promise<void>;
@@ -200,6 +201,8 @@ export interface OpenDesktopPanelInput {
     host_session_id?: string | null;
     user_confirmed: boolean;
 }
+
+export declare const RUNTIME_DISPLAY_NAMES: Readonly<Record<SupportedRuntimeId, string>>;
 
 export type RuntimeConnectionState = "not_detected" | "molis_work_unavailable" | "not_connected" | "needs_repair" | "connected" | "conflict";
 

@@ -3,15 +3,21 @@ import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-co
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
-/** Delegate a query under the active caller, with the source installation's additional restrictions. */
-export async function invokePluginQuery<Output>(context: PluginStartContext, manifest: PluginManifest,
-  options: { client: ActionClient; project_id?: string; assertActive(): void }, reference: ActionReference, input: unknown): Promise<Output> {
+/** A copy of the reference with only its three fields, or a refusal when the plugin supplied anything else. Shared by the query and directory delegations. */
+export function checkedReference(reference: ActionReference): ActionReference {
   const ref = { capability_id: reference?.capability_id, version: reference?.version, ...(reference?.provider_id !== undefined ? { provider_id: reference.provider_id } : {}) };
   if (typeof ref.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(ref.capability_id)
     || !Number.isSafeInteger(ref.version) || ref.version < 1
     || ref.provider_id !== undefined && (typeof ref.provider_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(ref.provider_id))) {
     throw new ActionError("actions.reference_invalid", "查询引用需要有效的动作、版本和提供方");
   }
+  return ref;
+}
+
+/** Delegate a query under the active caller, with the source installation's additional restrictions. */
+export async function invokePluginQuery<Output>(context: PluginStartContext, manifest: PluginManifest,
+  options: { client: ActionClient; project_id?: string; assertActive(): void }, reference: ActionReference, input: unknown): Promise<Output> {
+  const ref = checkedReference(reference);
   const scope = currentPluginAction();
   if (!scope || scope.install_id !== context.install_id || !scope.caller.retainAuthority) throw new ActionError("actions.forbidden", "查询委托只能由本插件正在执行的动作发起");
   if (options.project_id !== undefined && scope.caller.project_id !== options.project_id) throw new ActionError("actions.scope_mismatch", "查询所在的项目与插件实例不一致");

@@ -1,6 +1,7 @@
 import type { GoalProgressArtifactSource, GoalEventScope, GoalEventSystemPayload, GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsDecisionEvent } from "./decision-view.js";
 import type { GoalsDocumentUiPrimitives } from "./document-ui-model.js";
+import { renderAcknowledgementBody, type AcknowledgementContext } from "./event-acknowledgement-body.js";
 import { JOURNAL_TYPE_LABELS, SYSTEM_TYPE_LABELS, type GoalHistoryIndexItem } from "./event-history-map.js";
 
 export function renderProgressSource(source: GoalProgressArtifactSource | undefined, escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"]): string {
@@ -12,6 +13,8 @@ export interface GoalHistoryBodyLookups {
   workEvent?: GoalWorkEventRecord | null;
   journal?: GoalsDecisionEvent | null;
   requirementNames?: Readonly<Record<string, string>>;
+  /** Who wrote the record an acknowledgement answers, so the card can say 「你的」 only for the person's own. */
+  acknowledgedActorKind?: AcknowledgementContext["acknowledgedActorKind"];
 }
 
 export function renderHistoryItemBody(
@@ -20,7 +23,7 @@ export function renderHistoryItemBody(
   primitives: Pick<GoalsDocumentUiPrimitives, "translate" | "escapeHtml">,
 ): string {
   const { translate: L, escapeHtml } = primitives;
-  if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, L, escapeHtml, lookups.requirementNames);
+  if (item.source === "event_work" && lookups.workEvent) return renderWorkEventBody(lookups.workEvent, L, escapeHtml, lookups.requirementNames, lookups.acknowledgedActorKind);
   if (item.source === "journal" && lookups.journal) return renderJournal(lookups.journal, L, escapeHtml, item.relation);
   return `<article class="event"><h2>${escapeHtml(item.title)}</h2><p class="event-meta">${escapeHtml(item.type_label)} · ${escapeHtml(item.actor_id)}</p><p>${L("原文当前不可读。记录仍保留原 ID 和来源。")}</p></article>`;
 }
@@ -30,6 +33,7 @@ export function renderWorkEventBody(
   L: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
+  acknowledgedActorKind: AcknowledgementContext["acknowledgedActorKind"] = null,
 ): string {
   const typeName = event.kind === "report"
     ? (event.type?.name || L("工作记录"))
@@ -62,7 +66,7 @@ export function renderWorkEventBody(
       ${extras ? `<h3>${L("新增完成要求")}</h3><ul>${extras}</ul>` : ""}
     </article>`;
   }
-  return renderSystemPayload(event.title, meta, event.payload, L, escapeHtml, requirementNames);
+  return renderSystemPayload(event.title, meta, event.payload, L, escapeHtml, requirementNames, { actorId: event.actor_id, acknowledgedActorKind });
 }
 
 function verdictLabel(verdict: string, L: GoalsDocumentUiPrimitives["translate"]): string {
@@ -78,6 +82,7 @@ function renderSystemPayload(
   L: GoalsDocumentUiPrimitives["translate"],
   escapeHtml: GoalsDocumentUiPrimitives["escapeHtml"],
   requirementNames: Readonly<Record<string, string>> = {},
+  acknowledgement: AcknowledgementContext = { actorId: "", acknowledgedActorKind: null },
 ): string {
   const heading = `<article class="event"><h2>${escapeHtml(title)}</h2><p class="event-meta">${escapeHtml(meta)}</p>`;
   switch (payload.operation) {
@@ -111,6 +116,8 @@ function renderSystemPayload(
       return `${heading}<p>${payload.reopened ? L("原完成事实保留，并开启新一轮工作。") : L("普通新写入进入事件服务。")}</p></article>`;
     case "observation_note":
       return `${heading}<p>${escapeHtml(payload.body)}</p></article>`;
+    case "input_acknowledged":
+      return renderAcknowledgementBody(heading, payload, acknowledgement, L, escapeHtml);
     default:
       return `${heading}<p>${L("系统记录")}</p></article>`;
   }

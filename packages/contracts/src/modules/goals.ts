@@ -638,6 +638,12 @@ export type {
   CreateGoalIntentResult,
   GoalIntentSourceKind,
   GoalConfigurationWorkEventRecord,
+  AcknowledgeGoalEventInput,
+  GoalEventAcknowledgementBy,
+  GoalEventAcknowledgementCategory,
+  GoalEventAcknowledgementReference,
+  GoalEventAcknowledgementTreatment,
+  GoalEventAcknowledgementsApi,
   GoalEventAdoptedPlanningRef,
   GoalEventAdoptedPlanningRequest,
   GoalEventAgreementChange,
@@ -732,6 +738,8 @@ export type {
   SubmitGoalEventClosureInput,
 } from "./goal-events.js";
 export {
+  goalEventAcknowledgementCategories,
+  goalEventAcknowledgementTreatments,
   goalEventClosureKinds,
   goalIntentSourceKinds,
   goalEventConcernActions,

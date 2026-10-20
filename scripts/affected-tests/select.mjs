@@ -277,7 +277,8 @@ export function selectAffected({ root, changes, packages, index, options = {} })
     const item = packageOf(packages, change.path);
     return item && (FULL_REGRESSION.corePackages.includes(item.dir) || FULL_REGRESSION.corePackagePrefixes.some((prefix) => item.dir.startsWith(prefix)));
   }).map((change) => change.path));
-  group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)).map((change) => change.path));
+  group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)
+    || FULL_REGRESSION.assemblyPatterns.some((pattern) => pattern.test(change.path))).map((change) => change.path));
   const storage = codeChanges.filter((change) => touchesStorage(root, change, packageOf(packages, change.path))).map((change) => change.path);
   group("storage", "storage or migration", storage);
   if (changedPackages.size >= FULL_REGRESSION.packageSpan) full.push({ rule: "spans-packages", detail: `${changedPackages.size} packages changed (${FULL_REGRESSION.packageSpan} or more): ${sample([...changedPackages.keys()].map((item) => item.dir))}` });

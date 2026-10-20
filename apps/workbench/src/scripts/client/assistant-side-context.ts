@@ -153,6 +153,8 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
  * - 上下文窗口: the latest call's prompt against the window the round was packed against, with the model and when; a share
  *   is drawn only when both are known. An estimate says so; a field the runtime left unknown reads 暂不可用.
  * - 本轮: input and output, then cache read and write and reasoning when reported. Cost only as the runtime reported it.
+ *   Always the latest round: one with no report yet reads 进行中 (or 暂不可用 once ended) with its own model, never the
+ *   numbers of a round before it.
  * - The account's quota and reset have no source here, so they read 暂不可用.
  * - 这项工作: the work's own total and its cap, as before.
  */
@@ -165,7 +167,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
   return { paint(work) {
     const node = box(), view = current();
     if (!node) return;
-    const usage = work && view && view.usage ? view.usage : null, round = work && view ? [...view.rounds].reverse().find((one) => one.usage) || null : null;
+    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last && (last.usage || last.model) ? last : null;
     const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;
@@ -177,17 +179,18 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
     details.open = wasOpen === undefined ? over : wasOpen || over;
     details.append(el("summary", "", L("用量") + (usage ? " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + number(usage.budget_tokens) : "") : "") + (over ? " · " + L("已到上限") : "")));
     if (round) {
-      const tokens = round.usage.tokens, coverage = round.usage.coverage || {}, model = round.model, context = round.usage.context, windowSize = model && model.window_tokens;
+      const report = round.usage, wait = round.ended_at ? L("暂不可用") : L("进行中");
+      const tokens = report ? report.tokens : {}, coverage = report && report.coverage || {}, model = round.model, context = report && report.context, windowSize = model && model.window_tokens;
       const used = context && context.coverage !== "unknown" ? context.tokens : null;
       const where = [model ? (model.now ? model.model_id + " → " + model.now : model.model_id) : "", round.ended_at ? L("更新于") + " " + new Date(round.ended_at).toLocaleTimeString() : L("进行中")].filter(Boolean).join(" · ");
       details.append(section(L("上下文窗口"), used !== null && windowSize ? progress(Math.min(used, windowSize), windowSize, L("上下文窗口")) : null,
-        row(L("已用"), used === null ? L("暂不可用") : marked(used, context.coverage) + (windowSize ? " / " + number(windowSize) + " · " + Math.min(100, Math.round(used / windowSize * 100)) + "%" : " · " + L("窗口大小暂不可用"))),
+        row(L("已用"), used === null ? report ? L("暂不可用") : wait : marked(used, context.coverage) + (windowSize ? " / " + number(windowSize) + " · " + Math.min(100, Math.round(used / windowSize * 100)) + "%" : " · " + L("窗口大小暂不可用"))),
         where ? el("p", "assistant-material-origin", where) : null));
-      details.append(section(L("本轮"), row(L("输入"), marked(tokens.input, coverage.input)), row(L("输出"), marked(tokens.output, coverage.output)),
+      details.append(!report ? section(L("本轮"), row(L("输入"), wait, true), row(L("输出"), wait, true)) : section(L("本轮"), row(L("输入"), marked(tokens.input, coverage.input)), row(L("输出"), marked(tokens.output, coverage.output)),
         tokens.cached_input ? row(L("缓存读取"), marked(tokens.cached_input, coverage.cached_input)) : null, tokens.cache_creation ? row(L("缓存写入"), marked(tokens.cache_creation, coverage.cache_creation)) : null,
         tokens.reasoning ? row(L("推理"), number(tokens.reasoning)) : null,
-        row(L("费用"), typeof round.usage.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + round.usage.cost_usd.toFixed(4) + tag(coverage.cost_usd) : L("暂不可用"), typeof round.usage.cost_usd !== "number"),
-        round.usage.unavailable_reason ? el("p", "assistant-material-origin", round.usage.unavailable_reason) : null));
+        row(L("费用"), typeof report.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + report.cost_usd.toFixed(4) + tag(coverage.cost_usd) : L("暂不可用"), typeof report.cost_usd !== "number"),
+        report.unavailable_reason ? el("p", "assistant-material-origin", L(report.unavailable_reason)) : null));
       details.append(section(L("账户额度"), row(L("额度与重置"), L("暂不可用"), true)));
     }
     if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));

@@ -448,6 +448,11 @@ export const ASSISTANT_EN: Record<string, string> = {
   "本轮": "This round",
   "缓存写入": "Cache write",
   "推理": "Reasoning",
+  // The runtime's own words for a usage report it could not complete (horizontal/agent-host prologue-stream).
+  "运行时尚未报告用量": "The runtime has not reported usage yet",
+  "部分调用用量未知，已知小计不代表完整用量": "Some calls' usage is unknown; the known subtotal is not the full usage",
+  "用量含保守估算，不全是服务方报的数": "Usage includes a conservative estimate; not all of it is what the provider reported",
+  "中断前用量未完整保存，已报告部分仍保留": "Usage before the interruption was not fully saved; what was reported is kept",
   "费用": "Cost",
   "账户额度": "Account quota",
   "额度与重置": "Quota and reset",

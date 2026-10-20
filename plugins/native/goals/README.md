@@ -80,7 +80,7 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 `goals.tree.decide` 只接受 user audience、goals:decide 及受保护 Host 注入的用户和操作出处；普通 MCP、模型、工作流和插件不能通过自填 authority 获得审批权。管理 `goal_tree_decide` 与 CLI `goal-tree-decide` 经同一私有工厂调该动作：Host 用 `managementTreeAuthority` 固定本人和 management 来源，输入的证据只能指向对话及整组确认（`conversation_ref`、`message_ref`、`whole_confirmation_prompted`、`prompted_proposal_id`），身份或来源声明返回 `goals.goal_tree_proposal.authority_source_invalid`。管理 `event_decide` 的出处由 `managementEventDecisionAuthority` 给出，默认为 `management:<项目>` 与 `management-event-decision:<键>`；共用 owner 仍以 `goals.event_decision_authority_invalid` 拒证据身份。旧 Runtime 对话自报确认帮助器已删除，历史记录中的 runtime_dialogue 来源仍保留可读。
 
-动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
+动作提交的 submitted_session_id 从可信 ActionCallContext.runtime_session_id 注入，经常驻网关保持，插件 Agent 的一轮取宿主在启动时核过归属的那条会话（审计作者 `agent:<runtime_id>:<会话>`，幂等按会话分开）；管理入口背后没有 Runtime 会话，提案记 `submitted_session_id: null`。业务输入不能覆盖它。原始用户身份和整组提示由 user_action 提供，审计 Runtime 身份不能替代用户。
 
 关系和项目规则的 Web 写入、规则设置页、所选目标正文均消费共同动作；原领域事务、关系方向、规则合并及历史绑定保持不变。三项直接写入要求 user audience、goals:decide、Host 提供的真实用户与 web/management 出处，普通 MCP 无法授予这些权限。原 HTTP commands/query 端口和没有调用者的 Workbench/CLI/MCP GoalsApplicationApi 转发工厂已删除。整页目录的历史组合也通过集合动作读取。
 

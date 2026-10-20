@@ -710,6 +710,14 @@ interface AgentInputView {
 - RC-19（走查 D，D32）：写入门没直接记住、又是人要求记的（`remember` 被拦成建议），助理工作面板的卡片写「你刚才让我记住：X」，下面只写范围，主按钮「记住」一下记住；为什么没直接记住（记忆服务自己的 `hold_reason`）只在详情里。`remember` 工具回给模型的只有结果「没有直接记住，已作为建议放在工作面板，等用户认可」，不带门槛原文。D32-b（10-19，#800 的评测里模型自己编了「允许记住还没开」）：这句后面再加「这个范围的“允许记住”是开着的，没直接记住的原因写在卡片的详情里」。记忆服务在「允许记住」关着时直接拒绝、不留建议（`horizontal/memory/src/service.ts` 的 `commit`），所以只要结果是建议，这句就是实话；关着时回给模型的仍是「没有记住：你关掉了“允许记住”…」，不出这一句（`tests/assistant-memory.test.ts` 的 RC-19 两处断言）。门槛本身（`horizontal/memory/src/spoken.ts`）不动；合同 `AssistantMemoryCandidate` 加 `held`（只在人要求记、被拦下时有，是记忆服务给的原因）。
 - G13（「你说过」）：运行中补充的原话算本人说过的：记忆的「原话」与一轮结束交给学习的话，都从运行视图读（SDK 的输入记录，`kind: "user"` 且带 `steer` 的回合，截掉宿主加的选区与材料），Molis 不另存。只覆盖助理自己的运行时；交给 Coding 执行的工作里的补充不在内（读 Coding 会话要另走 Coding 的动作，留待以后）。
 
+**BL-144 实现记录（2026-10-19，补 D14c 的缺口；统筹 DISPATCH-1019-0710 第 6 项）：**
+
+- **缺口。** 页面代写的话（交还浏览器的说明、插件交来的请求，助理按 `written_by: "page"` 收）交给正在跑的 Coding 一轮时，`coding.runs.control` 的补充没有 `source`，助理转给 Coding 的端口只好把它去掉，Coding 那边就记成本人的话：回执条照人的话画，R1 的摘要也把它当「用户补充」带走（§20.5）。
+- **做法。** 合同 `services/agent-inputs` 加 `AGENT_INPUT_SOURCES`（`person`、`host`），`agent.inputs.send` 的 schema 与 Coding 补充分支的 schema 都从它取，只写一份。Coding 的补充分支多一个可选的 `source`，`runControl` 原样交给 `agent.inputs.send`；按 `docs/system/CONTRACT-CHANGES.md` 升到第 7 版，第 1～6 版解析不到。助理调 Coding 的客户端（`assistant-coding.ts`）钉第 7 版，`assistant-service.ts` 不再去掉 `source`。`host` 到运行时还是原来那条路：Agent Host 交给 SDK 的 `app` 来源，记成 `notice`，Coding 画成「Molis 的说明，不是你发的话」（RC-12），R1 不计入。本人的话照旧不带 `source`。
+- **调用方。** `coding.runs.control` 只给本人（`user`），MCP 不暴露。固定版本的引用只有助理一处，同一个改动里改完。Coding 页面上人自己打的字照旧不带 `source`；但「重试这个子任务」（`plugins/native/coding/src/subagent-cards-client.ts`）是页面代写的话（拼进了上次的错误和模型写的分工），现在仍记成本人的话，这一片没修，记为 BL-182。
+- **验收编号与证据：**
+  - RCPT-368：`coding.runs.control` 第 7 版的补充收 `person`、`host` 两种来源，拒别的值、拒空串，也拒别的控制带来源；`runControl` 把来源原样交给 `agent.inputs.send`（`tests/coding-run-control-contract.test.ts`）。第 1～6 版解析不到（`tests/coding-actions.test.ts`）。页面代写、交给正在跑的 Coding 一轮的话带 `source: "host"` 到 Coding 的控制，本人的话不带（`tests/assistant-coding-executor.test.ts`）。
+
 ### 阶段 2：Prologue 通用能力
 
 可与阶段 1 并行。依赖 Prologue 负责人认可，以及推送上游的授权。
@@ -1123,7 +1131,7 @@ interface AgentInputView {
 | D14 | D5 修订：问题待回答时输入框怎么选目标 | 目标芯片三种状态、默认值显示在芯片上（见 §4.1）：「写进问卷：补充要求」（交互线）、「补充这一轮」（本线 1e，一条 steer，排在回答之后，带回执）。有自由文本题默认第一种，没有默认第二种；无问题时芯片不出现 | 比 D5 原来的每次点选少一次点击，默认值一直看得见，也不会把补充误当成回答。SDK 侧「补充排在回答之后」已是现行行为（S1：补充与回答分开，等人时补充排着队，回答后的下一个模型边界才放进上下文） |
 | D14a | 1e 的芯片先做哪两态（统筹 2026-10-15） | 「回答上面的问题 ↔ 补充这一轮」两态，默认回答；或只做「补充这一轮」一态，等交互线 | 两态：今天宿主「一道自由文本题、没带材料就当回答」的自动判断马上去掉，默认值摆到明处。交互线的「写进问卷」落地时，由那个 PR 把「回答」这一态换掉（问题合同归交互线）；1e 只留一个可替换的地方：`assistant-send.ts` 回执工厂里的 `CHOICES` 与 `target()`，宿主侧是 `assistant-inputs.ts` 的 `deliver` 里 `target === "answer"` 一支 |
 | D14b | 没有芯片的发送（统筹 2026-10-15） | 一律按补充发；或照旧自动判断 | 一律按补充发，不让它悄悄变成回答：回执条写「已补充到这一轮；问题仍在等你回答」。注意：助理唯一的输入框就在底栏里（`assistant-dock.ts` 的 composer），芯片就放在它上面；没有芯片的是页面代写的发送（交还浏览器的说明、插件交来的请求）与定时轮次，它们都不带 `target`。底栏以后要不要再分别处理，由情境线定 |
-| D14c | 页面代写的补充交给 Coding 时的来源 | 已知缺口，不在 1e 修 | Coding 的 `runs.control` 补充 schema 没有 `source`，助理转给 Coding 的端口把 `source` 去掉，所以页面代写、交给 Coding 一轮的补充在 Coding 那边记成人的话（助理自己的运行时按 `host` 记）。要修就得给 `coding.runs.control` 升版加 `source`，归 Coding 的下一次控制合同改动（`specs/BACKLOG.md` BL-144） |
+| D14c | 页面代写的补充交给 Coding 时的来源 | 已知缺口，不在 1e 修；2026-10-19 由 BL-144 补上：`coding.runs.control` 升第 7 版，补充带 `source` | 原来 Coding 的 `runs.control` 补充 schema 没有 `source`，助理转给 Coding 的端口把 `source` 去掉，所以页面代写、交给 Coding 一轮的补充在 Coding 那边记成人的话（助理自己的运行时按 `host` 记）。修法与证据见阶段 1 的「BL-144 实现记录」（RCPT-368） |
 | D20 | §20「有效要求跨摘要与续做保留」是否接受、怎么排 | 接受并先修摘要丢补充；或先做 3a | 用户 2026-10-16 经统筹弹窗接受 §20；顺序 R1 → 3a → 3c → 3b/3d/3e，RCPT-103–107 随各自的片做 |
 | D15 | `AgentRunControl` 的搬迁先后 | 交互线 C1 搬出 `answer` 分支，本线搬出 `steer` 分支（见 §6.2「改现有控制合同」）；先就绪的一方先合，后合的一方在同一个 PR 里改完所有消费者 | 两边改同一个联合类型，API 快照与调用方都会动；不并行抢改 |
 
@@ -1652,5 +1660,5 @@ mkdir -p /tmp/consumer && cd /tmp/consumer && \
 - **写法**：一节「用户在执行中补充过、仍然有效的话（原话，按发送顺序；后面说的与前面冲突时以后说的为准）」，每条是「用户在第 N 轮补充（输入 <id>）：“原话”」。是本人原话的引用，不是宿主给模型的指令；冲突那一句是事实说明。按范围的纠正（RCPT-104）留给 3a 的「当前约定」。
 - **放在哪**：`plugins/native/coding/src/history-digest.ts` 的三处用同一节：模型摘要材料（取代原来只留最后五条的那一行，排在各轮之前，裁剪碰不到）、模型摘要的宿主事实之后（模型摘要漏了也照样进下一次请求）、备用摘要（纯代码，不多调模型）。
 - **预算**：这一节上限 16 000 字；超出时最早的让位，写明条数和输入 id，不悄悄丢；各轮内容先缩。
-- **已知缺口**：页面代写、经助理交给 Coding 的补充，在 Coding 里记成本人的话（D14c，`specs/BACKLOG.md` BL-144），R1 会把它们也当作「用户补充」带进摘要。修法是 BL-144 的 `coding.runs.control` 升版带 `source`，R1 不另绕。
+- **原来的缺口（2026-10-19 已补）**：页面代写、经助理交给 Coding 的补充，原来在 Coding 里记成本人的话（D14c），R1 会把它们也当作「用户补充」带进摘要。BL-144 让 `coding.runs.control` 第 7 版的补充带 `source`，这些话在 Coding 里记成 `notice`，R1 本来就不计入，R1 没有另绕（RCPT-368）。
 - **证据**：`tests/coding-history-requirements.test.ts` 用 `tests/fixtures/coding-product-host.ts`（真 HTTP、目录、Agent Host、装好的 SDK，只拦 provider 的 `fetch`）跑两轮：第一轮扣住模型回复时发六条补充，读完后 compact，第二轮先摘要再开跑；断言落在第二轮真正发给 provider 的请求体上。RCPT-101 是模型摘要只提最后一条的情形；RCPT-102 是摘要调用被拒（400）与返回空两种，另核对 provider 请求数正好是一次摘要尝试加本轮自己的一次。`tests/coding-long-session.test.ts` 覆盖排除规则、跨轮最新状态与预算让位。真实模型与 RCPT-107 的人工实操未做。

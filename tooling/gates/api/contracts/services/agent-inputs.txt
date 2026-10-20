@@ -4,6 +4,8 @@
 
 export declare const AGENT_INPUT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$";
 
+export declare const AGENT_INPUT_SOURCES: readonly AgentInputSource[];
+
 export declare const AGENT_STEER_MODES: readonly AgentSteerMode[];
 
 export type AgentInputImpact = "objective" | "scope" | "priority" | "approach" | "acceptance" | "outputs" | "constraint";

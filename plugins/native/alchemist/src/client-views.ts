@@ -4,6 +4,7 @@ const states={waiting:'等待确认继续',planned:'计划已保存',queued:'排
 const ringStates={planned:'saved',queued:'queued',running:'running',completed:'done',partial:'partial',failed:'failed',cancelled:'stopped',interrupted:'interrupted',not_started:'idle',exploring:'doing',archived:'archived',disabled:'disabled'};
 const status=value=>'<span class="alc-state" data-state="'+esc(value)+'"'+(ringStates[value]?' data-mw-state="'+ringStates[value]+'"':'')+'>'+tx(states[value]||value)+'</span>';
 const paraHtml=value=>'<p>'+esc(value||'')+'</p>';
+const dataId=id=>'data-id="'+esc(id)+'"';
 const bullets=values=>'<ul>'+values.map(value=>'<li>'+esc(value)+'</li>').join('')+'</ul>';
 const section=(title,value,block)=>'<section '+(block?'data-alc-block="'+esc(block)+'"':'')+'><h3>'+tx(title)+'</h3>'+(Array.isArray(value)?bullets(value):paraHtml(value))+'</section>';
 const empty=text=>'<div class="alc-empty">'+tx(text)+'</div>';
@@ -13,7 +14,7 @@ function renderList(){
 const q=$('search').value.trim().toLowerCase(),match=(...v)=>v.join(' ').toLowerCase().includes(q), el=$('rows'),scroll=$('[data-alchemist=directory]').scrollTop;
 root.querySelectorAll('[data-alc-collection]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.alcCollection===view)));
 $('pulse-note').hidden=view!=='pulse';
-$('list-actions').innerHTML=view==='pulse'?button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(pulse.latestRun?status(pulse.latestRun.status):''):view==='decisions'?button('活动记录','activity'):view==='directions'?button(archived?'隐藏已归档':'查看已归档','archived-toggle'):'';
+$('list-actions').innerHTML=view==='pulse'?pulseActions(pulse.latestRun):view==='decisions'?button('活动记录','activity'):view==='directions'?button(archived?'隐藏已归档':'查看已归档','archived-toggle'):'';
 let html='';
 if(view==='directions')for(const [state,label] of [['active','方向'],...(archived?[['archived','已归档']]:[])])html+=group(label,data.directions.filter(d=>d.status===state&&match(d.title,d.description)).map(d=>{const run=data.explorations.find(e=>e.directionId===d.id);return row('direction',d.id,d.title,run?.understanding?.summary||d.description,d.status==='archived'?'archived':run?.status||'not_started');}));
 if(view==='ideas')for(const [value,label] of [['exploring','研究中'],['build','去做'],['hold','先放着'],['drop','不做']])html+=group(label,data.ideas.filter(i=>i.lifecycle===value&&match(i.title)).map(i=>row('idea',i.id,i.title,'v'+i.currentVersion,i.lifecycle,i.currentVersion)));
@@ -23,11 +24,13 @@ const folded=new Set([...el.querySelectorAll('details:not([open])')].map(d=>d.da
 el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.dataset.alcGroup))d.open=false;});$('[data-alchemist=directory]').scrollTop=scroll;
 }
 const waiting=id=>jobs.some(j=>j.jobId===id&&!j.accepted);
+const stopButton=(label,id)=>button(label,'cancel',false,'data-job="'+esc(id)+'"');
 const resumeButton=j=>j&&!j.accepted?button('查看继续条件','continue-job',false,'data-job="'+esc(j.jobId)+'"'):'';
+const pulseActions=r=>button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(r?status(r.status)+(active(r.status)&&!waiting(r.jobId)?stopButton('停止',r.jobId):''):'');
 function paintDir(d){
 const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0],ok=!noRun(run);ctx={kind:'direction',directionId:d.id,label:d.title};target=null;
 setTitle(d.title); mainEl.innerHTML=paraHtml(d.description)+(run&&ok?'<div class="alc-progress">'+status(waiting(run.jobId)?'waiting':run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode&&ok?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
-runs.map((r,index)=>'<section><h3>'+tx(index?'此前的候选':'候选想法')+' · '+r.cards.length+'</h3><div class="alc-candidates">'+r.cards.map(c=>'<article class="alc-candidate"><h3>'+esc(c.title)+'</h3>'+status(c.status)+paraHtml(c.highlight)+section('给谁',c.targetUser)+section('机制',c.mechanism)+'<div class="alc-actions">'+button(c.status==='kept'?'查看已保留想法':'查看详情','card',false,'data-id="'+esc(c.id)+'"')+'</div></article>').join('')+'</div></section>').join('');
+runs.map((r,index)=>'<section><h3>'+tx(index?'此前的候选':'候选想法')+' · '+r.cards.length+'</h3><div class="alc-candidates">'+r.cards.map(c=>'<article class="alc-candidate"><h3>'+esc(c.title)+'</h3>'+status(c.status)+paraHtml(c.highlight)+section('给谁',c.targetUser)+section('机制',c.mechanism)+'<div class="alc-actions">'+button(c.status==='kept'?'查看已保留想法':'查看详情','card',false,dataId(c.id))+'</div></article>').join('')+'</div></section>').join('');
 mainEl.insertAdjacentHTML('afterbegin',noModel());
 footer.innerHTML=resumeButton(jobs.find(j=>j.directionId===d.id))+ (d.status==='archived'?button('恢复方向','restore-direction'):button(run?'重新炼化':'开始炼化','explore',true,active(run?.status)?'disabled':'')+button('编辑方向','edit-direction')+button('归档方向','archive-direction')+button('讨论这个方向','chat'));
 }
@@ -48,7 +51,7 @@ mainEl.innerHTML=ideaTabs(focus.panel)+(stopped?'':'<div class="alc-progress">'+
 (lens.status==='partial'?'<p class="alc-warning">'+tx('预算范围内只完成了部分研究。补充研究后才能正式决策。')+'</p>':'')+
 (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paraHtml(c.conclusion)+paraHtml(c.rationale)+cited(c.supportingEvidenceIds,'支持来源')+cited(c.counterEvidenceIds,'反向来源')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(waiting(lens.run?.jobId)?'任务已暂停，确认继续条件后才会运行。':active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
 if(lens.evidence?.length)mainEl.insertAdjacentHTML('beforeend','<details><summary>'+tx('全部来源')+' · '+lens.evidence.length+'</summary>'+lens.evidence.map(e=>evidence(e,'已采集')).join('')+'</details>');
-footer.innerHTML=waiting(lens.run?.jobId)?'':active(lens.status)?button('停止研究','cancel',false,'data-job="'+esc(lens.run?.jobId)+'"'):button(report?'重新研究':'开始研究','plan',true);
+footer.innerHTML=waiting(lens.run?.jobId)?'':active(lens.status)?stopButton('停止研究',lens.run?.jobId):button(report?'重新研究':'开始研究','plan',true);
 footer.innerHTML+=resumeButton(jobs.find(j=>j.jobId===lens.run?.jobId));
 if(lens.status==='planned'&&lens.plan)footer.innerHTML+=button('继续已确认计划','resume-plan');
 if(report)footer.innerHTML+=button('保存固定版本','reuse-publish',false,'data-report="'+esc(report.id)+'" '+(canReuse?'':'disabled'))+(canReuse?'':'<p role="status">'+tx('成果入口尚未连接；可以先沿用研究方法。')+'</p>');
@@ -62,14 +65,14 @@ else{mainEl.innerHTML+=value.gate.ready?muted(tx('两份研究属于当前版本
 }
 function renderPulse(bundle){
 const r=bundle.report;setTitle(r.title);ctx={kind:'pulse',label:r.title,pulseReportId:r.id};target={kind:'pulse_report',objectId:r.id,revision:r.revision};
-mainEl.innerHTML=muted(new Date(r.createdAt).toLocaleString()+' · '+esc(r.runtimeLabel))+status(r.status)+section('本期观察',r.summary,'summary')+(r.coverageGaps.length?section('来源缺口',r.coverageGaps):'')+r.findings.map(f=>section(f.title,f.fact,f.id)+section('需求推断',f.demandInference)+section('反向信号',f.counterSignals)).join('')+'<h3>'+tx('可以探索的机会')+'</h3>'+bundle.opportunities.map(o=>'<section class="alc-claim"><h3>'+esc(o.title)+'</h3>'+paraHtml(o.highlight)+paraHtml(o.rationale)+section('需求推断',o.demandInference)+section('反向信号',o.counterSignals)+section('未知',o.unknowns)+'<div class="alc-actions">'+(o.convertedDirectionId?button('打开方向','converted',false,'data-id="'+esc(o.convertedDirectionId)+'"'):button('转为方向','convert',true,'data-id="'+esc(o.id)+'"')+(o.status==='new'?button('留待以后','save-opportunity',false,'data-id="'+esc(o.id)+'"'):'<span>'+tx('已保存')+'</span>'))+'</div></section>').join('')+'<details><summary>'+tx('原始信号')+' · '+bundle.signals.length+'</summary>'+bundle.signals.map(s=>evidence({title:s.title,url:s.url,excerpt:s.summary},s.sourceId)).join('')+'</details>';
-footer.innerHTML=button('采集市场信号','pulse-start',true)+button('来源设置','sources');
+mainEl.innerHTML=muted(new Date(r.createdAt).toLocaleString()+' · '+esc(r.runtimeLabel))+status(r.status)+section('本期观察',r.summary,'summary')+(r.coverageGaps.length?section('来源缺口',r.coverageGaps):'')+r.findings.map(f=>section(f.title,f.fact,f.id)+section('需求推断',f.demandInference)+section('反向信号',f.counterSignals)).join('')+'<h3>'+tx('可以探索的机会')+'</h3>'+bundle.opportunities.map(o=>'<section class="alc-claim"><h3>'+esc(o.title)+'</h3>'+paraHtml(o.highlight)+paraHtml(o.rationale)+section('需求推断',o.demandInference)+section('反向信号',o.counterSignals)+section('未知',o.unknowns)+'<div class="alc-actions">'+(o.convertedDirectionId?button('打开方向','converted',false,dataId(o.convertedDirectionId)):button('转为方向','convert',true,dataId(o.id))+(o.status==='new'?button('留待以后','save-opportunity',false,dataId(o.id)):'<span>'+tx('已保存')+'</span>'))+'</div></section>').join('')+'<details><summary>'+tx('原始信号')+' · '+bundle.signals.length+'</summary>'+bundle.signals.map(s=>evidence({title:s.title,url:s.url,excerpt:s.summary},s.sourceId)).join('')+'</details>';
+footer.innerHTML=pulseActions();
 }
 function renderSettings(){
 target=null;setTitle(L('研究偏好'));ctx={kind:'surface',label:L('研究偏好'),surface:'ideas'};
 mainEl.innerHTML='<section class="alc-settings-section"><h3>'+tx('模型与预算')+'</h3><p>'+tx('模型凭据由 Molis Work 管理。这里只选择研究模型和调用上限。')+' '+modelLink()+'</p>'+paraHtml(runtime.models.find(m=>m.id===runtime.modelId)?.label||L('使用可用模型'))+button('修改研究设置','runtime')+'</section>'+
-'<section class="alc-settings-section"><h3>'+tx('个人判断偏好')+'</h3><p class="alc-muted">'+tx('只作为你的偏好，不作为市场证据。')+'</p>'+button('添加偏好','taste',true)+rules.taste.map(r=>'<section class="alc-claim"><h3>'+esc(r.title)+' '+status(r.status)+'</h3>'+paraHtml(r.statement)+section('适用范围',r.appliesTo)+section('例外',r.exceptions)+(r.status==='active'?button('停用','disable-taste',false,'data-id="'+esc(r.id)+'"'):'')+'</section>').join('')+'</section>'+
-'<section class="alc-settings-section"><h3>'+tx('研究方法')+'</h3><p class="alc-muted">'+tx('在研究报告里选择原文、添加注释，再把反馈沉淀为方法。')+'</p>'+button('继续待确认方法','reuse-pending')+rules.playbook.map(r=>'<section class="alc-claim">'+paraHtml(r.methodChange)+status(r.status)+section('作用范围',L(({report:'仅本报告',direction:'当前方向',global_market_space:'所有后续市场研究'})[r.scope.kind]))+section('正例',r.positiveExamples)+section('反例',r.negativeExamples)+muted(tx('实际使用次数')+' · '+r.applications.length)+(r.status==='active'?button('修改方法','revise-playbook',false,'data-id="'+esc(r.id)+'"')+button('停用','disable-playbook',false,'data-id="'+esc(r.id)+'"'):'')+'</section>').join('')+'</section>'+
+'<section class="alc-settings-section"><h3>'+tx('个人判断偏好')+'</h3><p class="alc-muted">'+tx('只作为你的偏好，不作为市场证据。')+'</p>'+button('添加偏好','taste',true)+rules.taste.map(r=>'<section class="alc-claim"><h3>'+esc(r.title)+' '+status(r.status)+'</h3>'+paraHtml(r.statement)+section('适用范围',r.appliesTo)+section('例外',r.exceptions)+(r.status==='active'?button('停用','disable-taste',false,dataId(r.id)):'')+'</section>').join('')+'</section>'+
+'<section class="alc-settings-section"><h3>'+tx('研究方法')+'</h3><p class="alc-muted">'+tx('在研究报告里选择原文、添加注释，再把反馈沉淀为方法。')+'</p>'+button('继续待确认方法','reuse-pending')+rules.playbook.map(r=>'<section class="alc-claim">'+paraHtml(r.methodChange)+status(r.status)+section('作用范围',L(({report:'仅本报告',direction:'当前方向',global_market_space:'所有后续市场研究'})[r.scope.kind]))+section('正例',r.positiveExamples)+section('反例',r.negativeExamples)+muted(tx('实际使用次数')+' · '+r.applications.length)+(r.status==='active'?button('修改方法','revise-playbook',false,dataId(r.id))+button('停用','disable-playbook',false,dataId(r.id)):'')+'</section>').join('')+'</section>'+
 '<section><h3>'+tx('本地数据')+'</h3><p>'+tx('导出当前项目的方向、研究、决策和讨论，不含模型凭据。')+'</p><div class="alc-actions">'+button('导出 JSON','export-json')+button('导出 ZIP','export-zip')+'</div></section>';
 footer.innerHTML='';
 }

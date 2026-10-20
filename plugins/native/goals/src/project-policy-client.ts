@@ -48,18 +48,16 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
       submit.textContent = L("正在保存…");
       errorBox.hidden = true;
       try {
-        const response = await fetch(routePrefix + "/api/policy-bindings", {
+        await molisWorkRequest(routePrefix + "/api/policy-bindings", {
           method: "POST",
-          headers: molisWorkControlHeaders(),
-          body: JSON.stringify({
+          body: {
             user_confirmed: true,
             idempotency_key: saveKey || (saveKey = crypto.randomUUID()),
             scope: "project_default",
             policy: { human_approval: values.has("human_approval") },
-          }),
+          },
+          fallback: L("项目默认工作规则保存失败"),
         });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || L("项目默认工作规则保存失败"));
         sessionStorage.setItem(receiptKey, JSON.stringify({
           title: L("项目工作规则已保存"),
           detail: L("这个项目的共同规则已更新：用户确认“{human}”。之后收尾的 Goal 会采用这条规则。", {
@@ -72,7 +70,7 @@ export const PROJECT_RULES_CLIENT_SCRIPT = `
         }
         location.reload();
       } catch (error) {
-        errorBox.textContent = error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目默认工作规则保存失败，请检查输入后重试");
+        errorBox.textContent = error instanceof TypeError || error?.code === "ui_host.outcome_unknown" ? L("无法连接本地服务，输入已保留，请重试。") : error.message || L("项目默认工作规则保存失败，请检查输入后重试");
         errorBox.hidden = false;
         saving = false;
         form.removeAttribute("aria-busy");

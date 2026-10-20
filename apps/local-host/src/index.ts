@@ -274,6 +274,7 @@ export {
 export { ASSISTANT_RULES_PROVIDER } from "./assistant/assistant-rule-actions.js";
 export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
+export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";

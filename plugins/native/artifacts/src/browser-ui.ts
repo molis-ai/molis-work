@@ -2,7 +2,6 @@ import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui"
 import { icon } from "@molis-ai/molis-work-design-system";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
-import { renderArtifactImportDialog, type ArtifactImportUiModel } from "./import-ui.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
 import type { ArtifactPluginInput } from "./actions.js";
 
@@ -31,8 +30,6 @@ export interface ArtifactBrowserUiModel {
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
   /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
   readonly pluginInputs?: ReadonlyArray<ArtifactPluginInput>;
-  /** The import dialog's connected services; the directory offers the 成果库's one import entry when present (A3). */
-  readonly importForm?: Pick<ArtifactImportUiModel, "connections" | "connectionStatus">;
   readonly primitives: {
     escape(value: string): string;
     text(value: string): string;
@@ -40,10 +37,9 @@ export interface ArtifactBrowserUiModel {
   };
 }
 
-function directory({ view, routePrefix, primitives: p, importForm, typeTitles }: ArtifactBrowserUiModel): string {
-  // The one import entry (specs/artifact-positioning A3): a dialog in the workbench, never a page of its own.
-  const importLink = importForm ? `<header class="plugin-stage-chrome artifact-stage-chrome"><button class="mw-btn mw-btn--ghost tree-create artifact-import-entry" type="button" data-artifact-import-open>${icon("plus")}<span>${p.text("导入")}</span></button>${renderArtifactImportDialog({ ...importForm, routePrefix, primitives: p })}</header>` : "";
-  if (!view.versions.length) return `${importLink}<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">${icon("package")}</span><strong>${p.text("还没有成果")}</strong><p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在这里导入文件，固定下来的版本都在这里。")}</p></div>`;
+// Importing files and documents is the side panel's 资料 tab (specs/project-knowledge §9); they show here once saved.
+function directory({ view, routePrefix, primitives: p, typeTitles }: ArtifactBrowserUiModel): string {
+  if (!view.versions.length) return `<div class="mw-empty" data-artifact-list-empty><span class="mw-empty__mark">${icon("package")}</span><strong>${p.text("还没有成果")}</strong><p>${p.text("在 Pages、问卷、演示稿、数据表里「存为固定版本」，或在侧栏「资料」里导入文件，固定下来的版本都在这里。")}</p></div>`;
   const groups = new Map<string, Array<(typeof view.versions)[number]>>();
   for (const artifact of view.versions) {
     const list = groups.get(artifact.artifact_type_id);
@@ -85,7 +81,7 @@ function directory({ view, routePrefix, primitives: p, importForm, typeTitles }:
       <div class="artifact-stage-group-body" role="list">${rows}</div>
     </details>`;
   }).join("");
-  return `${importLink}<nav aria-label="${p.text("成果版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
+  return `<nav aria-label="${p.text("成果版本")}" class="mw-dir__list artifact-version-list">${folds}</nav>`;
 }
 
 function documentPreview(artifact: NonNullable<ArtifactBrowserView["selected"]>, p: ArtifactBrowserUiModel["primitives"], routePrefix: string, ownerPreview = false): string {

@@ -109,18 +109,17 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         submit.textContent = L("正在保存…");
         errorBox.hidden = true;
         try {
-          const response = await fetch(route("/api/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
+          await molisWorkRequest(route("/api/goals/" + encodeURIComponent(relationForm.dataset.goalId) + "/relations"), {
             method: "POST",
-            headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": relationForm.dataset.idempotencyKey ||= crypto.randomUUID() },
-            body: JSON.stringify({
+            key: relationForm.dataset.idempotencyKey ||= crypto.randomUUID(),
+            body: {
               direction: values.get("direction"),
               type: values.get("type"),
               target_goal_id: values.get("target_goal_id"),
               reason: String(values.get("reason") || "").trim(),
-            }),
+            },
+            fallback: "关系建立失败",
           });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "关系建立失败");
           await refreshBoard(true);
           showFactorReceipt(
             "relations",
@@ -128,7 +127,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
             L("已建立：{relation}。准确方向和建立原因已进入完整记录。", { relation: relationSummary }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系建立失败，请检查目标、方向和原因"));
+          errorBox.textContent = humanDecisionError(unreachable(error) ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系建立失败，请检查目标、方向和原因"));
           errorBox.hidden = false;
           submit.disabled = false;
           submit.textContent = submitLabel;
@@ -153,13 +152,12 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
         controls.forEach(control => { control.disabled = true; });
         errorBox.hidden = true;
         try {
-          const response = await fetch(route("/api/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
+          await molisWorkRequest(route("/api/relations/" + encodeURIComponent(relationDeactivateForm.dataset.relationId) + "/deactivate"), {
             method: "POST",
-            headers: { ...molisWorkControlHeaders(), "x-molis-work-idempotency-key": relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID() },
-            body: JSON.stringify({ reason }),
+            key: relationDeactivateForm.dataset.idempotencyKey ||= crypto.randomUUID(),
+            body: { reason },
+            fallback: "关系解除失败",
           });
-          const result = await response.json();
-          if (!response.ok) throw new Error(result.error || "关系解除失败");
           await refreshBoard(true);
           showFactorReceipt(
             "relations",
@@ -167,7 +165,7 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
             L("与「{goal}」的关系已停止生效；原方向和解除原因仍保留在完整记录中。", { goal: relatedGoal }),
           );
         } catch (error) {
-          errorBox.textContent = humanDecisionError(error instanceof TypeError ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系解除失败，请检查解除原因后重试"));
+          errorBox.textContent = humanDecisionError(unreachable(error) ? L("无法连接本地服务，输入已保留，请重试。") : error.message, L("关系解除失败，请检查解除原因后重试"));
           errorBox.hidden = false;
           submit.disabled = false;
         } finally {
@@ -180,8 +178,10 @@ const GOALS_RELATION_SUBMIT_SCRIPT = `      const relationForm = submittedForm.c
 `;
 
 export const GOALS_RELATION_CLIENT_FACTORY_SCRIPT = `(host) => {
-    const { form, currentLocale, route, controlHeaders: molisWorkControlHeaders, translate: L,
+    const { form, currentLocale, route, translate: L,
       refreshBoard, requireFormFacts, requireDecisionText, showFactorReceipt, humanDecisionError } = host;
+    // A write the Host never answered: the person's input is still in the form.
+    const unreachable = (error) => error instanceof TypeError || error?.code === "ui_host.outcome_unknown";
 ${GOALS_RELATION_PREVIEW_SCRIPT}
     const handleGoalRelationChange = (changed) => {
 ${GOALS_RELATION_CHANGE_SCRIPT}    };

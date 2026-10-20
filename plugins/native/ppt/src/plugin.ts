@@ -1,5 +1,5 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PPT_ARTIFACT_SCHEMA_VERSION, PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pptManifest } from "./manifest.js";
@@ -46,20 +46,16 @@ export function createPptPlugin(): PluginDefinition {
         },
       } : {}),
       promote: async (caller, id, projectId, expectedVersion, publishArtifact) => {
-        const current = () => { caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(), "最终授权检查必须同步完成"); };
         await caller.beforeEffect();
+        // The library and the 成果 service ask this call's caller themselves, in the same turn as each write.
         const facade: PptPromoteStore = {
           get: (recordId, project) => stores.read(store => store.get(recordId, project)),
-          beginPublication: (...args) => database.transaction(() => caller.beforeEffect(), transaction => {
-            current(); return new PptStore(transaction).beginPublication(...args);
-          }),
-          completePublication: (...args) => database.transaction(() => caller.beforeEffect(), transaction => {
-            current(); return new PptStore(transaction).completePublication(...args);
-          }),
+          beginPublication: (...args) => stores.write(caller, store => store.beginPublication(...args)),
+          completePublication: (...args) => stores.write(caller, store => store.completePublication(...args)),
         };
-        return promotePpt(facade, id, projectId, value => { current(); return publishArtifact(value); },
+        return promotePpt(facade, id, projectId, publishArtifact,
           { actorId: caller.actor_id, expectedVersion, readArtifact: artifactPorts.readArtifact ? value => artifactPorts.readArtifact!(value, caller) : undefined, lineHead: artifactPorts.lineHead,
-            beforePublish: async () => { await caller.beforeEffect(); current(); } });
+            beforePublish: () => caller.beforeEffect() });
       } };
     return { kind: "app", views: [pptUiContribution],
       actions: [...createPptActionHandlers(ports), ...createPptContentHandlers(stores)],

@@ -26,23 +26,23 @@
 
 统筹另派的两项，不属于本需求书：[#790](https://github.com/molis-ai/molis-work/pull/790)（`6ce961f31`，BL-149 的 spec，在 `specs/issue-home-v0/spec.md`），[#799](https://github.com/molis-ai/molis-work/pull/799)（`fa14cfa6e`，防腐 T0 的特权表）。
 
-**在途**（都在 ⑤ 手里，本线不再推送）
+**交接时在途的处理结果**（2026-10-20 核对；本线不再推送）
 
-| PR | 分支 @ 头提交 | 内容 | 还差什么 |
+| PR | 交接时分支 @ 头提交 | 内容 | 当前状态 |
 | --- | --- | --- | --- |
 | [#777](https://github.com/molis-ai/molis-work/pull/777) | `claude/handbook-coding-run` @ `b2d69387d` | §9.5「Coding 小跑结果」：holdFinish 不设；BL-176 那行改为指向 prologue#53。只改文档 | 已合入 `8b9df4e7a` |
-| [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | 已合入 `c679dc172`。8 个浏览器用例改了没在本机跑（10-19 起这台机器暂停浏览器用例，PR 里写明了） |
+| [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | 已合入 `c679dc172`。10-20 已补定向 10 文件 / 80 项，含真实设置保存、重读和 480px 中英截图；随后完整 CI 通过。原 MiniMax 小样本评测未重跑，不等于本人验收 |
 | [#825](https://github.com/molis-ai/molis-work/pull/825) | `claude/qa-021-rac-trace` @ `65275d89e` | 修 QA-021：防腐的 RAC-44、55、60 逐部分指向证明 | 已合入 `202625fde` |
-| [prologue#53](https://github.com/molis-ai/prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 统筹评审过，可合；最后一个提交是 ⑤ 推的。按约定，等某次换 Prologue 包把它带上再合。[#814](https://github.com/molis-ai/molis-work/pull/814) 换到的是 `a51607fb`，不含它；下一次换包还没人领 |
+| [prologue#53](https://github.com/molis-ai/prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 仍 OPEN，保留原评审与换包协调条件。[#814](https://github.com/molis-ai/molis-work/pull/814) 的 `a51607fb` 不含它；下一次换包已有 [#887](https://github.com/molis-ai/molis-work/pull/887)，由该 PR 原负责人推进，目标 `753dbae8` 带上游 #54～57，也明确不含 #53。本交接 #828 已合入 `3ba9185d7`；#53 仍是未带入的上游后续，不能把 #887 当作它已落地 |
 
 **分支与工作树**
 - **已删**：
   - 本线各片的临时工作树；#819 的工作树 `bl149`；qa-021 的工作树（交接 PR 推送后删）。
   - 已合入或已推送的本地分支：`claude/cu-security-status`、`claude/handbook-skill-chapter`、`claude/handbook-coding-run`、`claude/qa-021-rac-trace`、`claude/bl149-issue-naming`、`claude/handbook-cu-line-964f30`。
-  - 远端分支不由本线删（删远端分支要用户确认）。
+  - 已合入 PR 的远端分支由仓库设置自动删除；本次不另行删除其他分支。
 - **本会话的工作树** `.claude/worktrees/handbook-cu-line-964f30`，在 `claude/remember-owners` @ `c4af0f836` 上：
   - 有 3 个本地提交，从没推送。内容已经由 #800 和之后的 main 带上，没有要留的。
-  - 本会话归档时由 app 清掉工作树；本地分支直接 `git branch -D claude/remember-owners`。
+  - 本会话归档时由 app 清掉工作树；归档后由 ① 核对内容已留存、分支未被工作树使用，再处理本地分支 `claude/remember-owners`。本次交接不执行删除。
 - **`bl149w`**（`claude/bl149-issue-naming-src` @ `29ccb2c09`）：
   - 只在本地，在本会话的临时目录下（路径用 `git worktree list` 查）；它的提交已经在 #819 的历史里。
   - #819 合入之前先留着；合入后由 ① 用 `git worktree remove --force <路径>` 和 `git branch -D claude/bl149-issue-naming-src` 删。

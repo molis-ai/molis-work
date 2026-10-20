@@ -5,12 +5,11 @@ import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest, PAGES_ACTION_PERMISSIONS, preparePagesImport } from "@molis-ai/molis-work-plugin-pages";
 import { readMaterialDocuments, readMaterialUploads } from "../apps/local-host/src/material-documents.js";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { preparePagesFileImport } from "../apps/local-host/src/pages-import.js";
 
 const { zipSync } = createRequire(new URL("../apps/local-host/package.json", import.meta.url))("fflate") as { zipSync(entries: Record<string, Uint8Array>, options?: { level: number }): Uint8Array };
 const docx = () => zipSync({
@@ -58,13 +57,13 @@ for (const mode of ["cancelled", "revoked", "replaced"] as const) for (const pre
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
     let permitted = true, pause = true, controller = new AbortController();
     const register = () => service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: "a" },
-      definitions: pagesManifest.actions!, handlers: [...createPagesActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: false, code: "offline", reason: "unused" }),
+      definitions: pagesManifest.actions!, handlers: [...createPagesActionHandlers({ ...ownPagesStores(run => run(store)), modelAvailability: () => ({ available: false, code: "offline", reason: "unused" }),
         async prepareImport(files, caller) {
-          const prepared = await preparePagesFileImport(files, { signal: caller.signal });
+          const prepared = preparePagesImport(await readMaterialUploads(files.map(file => ({ file_name: file.name, data_base64: file.data })), { signal: caller.signal }));
           if (pause) { entered.resolve(); await release.promise; }
           return prepared;
         },
-      }), ...createPagesContentHandlers(service)] });
+      }), ...createPagesContentHandlers(bindActionClient(service, () => caller()))] });
     let dispose = register(), pending: Promise<unknown> | undefined;
     const caller = (): ActionCallContext => ({ actor_id: "owner", audience: "user", project_id: "a", permissions: PAGES_ACTION_PERMISSIONS, signal: controller.signal,
       validate_permissions() { if (!permitted) throw new ActionError("actions.revoked", "权限已撤销"); } });

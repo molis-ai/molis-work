@@ -19,7 +19,7 @@ import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { pagesActionProvider } from "./pages-actions.js";
-import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
+import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { workflowsActionProvider } from "./workflows-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
@@ -189,7 +189,7 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => providerTablesOwner(entry.provider)));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {

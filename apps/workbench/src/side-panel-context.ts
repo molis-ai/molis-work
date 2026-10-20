@@ -2,10 +2,11 @@
  * it draws: a microtask ran between every change of one click and measured the page each time. */
 export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
   let entries=[...panel.querySelectorAll('[data-side-context-owner]')];
-  let epoch=0,signature='',context=null,source=null,lastTool=null,queued=false,target=null;
+  let epoch=0,signature='',context=null,source=null,lastTool=null,queued=false,target=null,sendPending=false;
   const watched=new WeakMap();
   const visible=node=>!!node&&!node.hidden&&node.getClientRects().length>0&&getComputedStyle(node).visibility!=='hidden';
   const send=()=>{
+    sendPending=false;
     for(const entry of entries){
       const frame=panel.querySelector('[data-side-body="'+entry.dataset.sideTab+'"] iframe');
       frame?.contentWindow?.postMessage({type:'molis:side-context',context_epoch:epoch,
@@ -44,7 +45,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
       next=inspect(pane,paneId,document.querySelector('[data-tab-id][aria-current="page"]')?.dataset.tabId||'');
     }
     const key=JSON.stringify(next);
-    if(key===signature&&owner===source)return;
+    if(key===signature&&owner===source){if(sendPending)send();return;}
     signature=key;context=next;source=owner;epoch++;
     if(next?.object_ref.id!==target?.value?.page_id)target=null;
     const active=current();
@@ -57,6 +58,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     send();
   };
   function schedule(){if(!queued){queued=true;(document.hidden?setTimeout:requestAnimationFrame)(update);}}
+  const publish=()=>{sendPending=true;schedule();};
   document.addEventListener('molis-work:plugins-changed',event=>{
     const next=event.detail?.next;if(!next)return;
     const all=[...next.querySelectorAll('[data-side-tab]')],theirs=all.filter(tab=>tab.hasAttribute('data-side-context-owner'));
@@ -75,7 +77,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
   document.addEventListener('molis:side-shown',event=>{
     if(!entries.some(entry=>entry.dataset.sideTab===event.detail?.tab))lastTool=event.detail?.tab;
     if(event.detail?.target)target={tab:event.detail.tab,value:event.detail.target};
-    send();
+    publish();
   });
   document.addEventListener('load',event=>{if(event.target instanceof HTMLIFrameElement)schedule();},true);
   const result=(data)=>{
@@ -88,7 +90,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     if(source?.contentWindow===event.source){result(event.data);return;}
     const entry=entries.find(entry=>panel.querySelector('[data-side-body="'+entry.dataset.sideTab+'"] iframe')?.contentWindow===event.source);
     if(!entry)return;
-    if(event.data?.type==='molis:side-ready')send();
+    if(event.data?.type==='molis:side-ready')publish();
     if(event.data?.type!=='molis:side-context-command'||entry.hidden||!context)return;
     // Asked under a context that has since moved on (the document was just saved, another one opened): nothing runs, and the
     // view hears so, to ask again under the context it is about to receive, rather than wait for an answer that never comes.

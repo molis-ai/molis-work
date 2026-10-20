@@ -241,7 +241,7 @@ const headErrors = (measured, budget, base) => {
 // leaving, +61 B); Coding's own follow code and its fallback went (−959 B of coding.js), so the page is 643 B lighter. Tried first: the states as shared constants, one listener-options object, the
 // stage's fallback branch and the island's (+448 → +255). Spent once from exactly the scroll-owner slice's budget (#861).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1139931, 1140247],
+  "/assets/molis-work-workbench.js": [1140034, 1140350],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

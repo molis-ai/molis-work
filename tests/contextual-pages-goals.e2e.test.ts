@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { GoalProjectApplication, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -27,13 +29,13 @@ const RING = `document.querySelectorAll('${BAR} button:not(:disabled)').length`;
 const FOCUSED = "(() => { const node = document.activeElement; return node && node.closest('.mw-ctx') ? (node.getAttribute('data-key') || (node.hasAttribute('data-id') ? node.getAttribute('data-group') + '/' + node.getAttribute('data-id') : node.textContent.trim())) : null; })()";
 
 /** A Pages document open in the browser, one real text selection at a time, and the Pages documents in the project as its owner reads them. */
-async function openPagesSelection(t: TestContext, blocks: object[]) {
+async function openPagesSelection(t: TestContext, blocks: object[], goalId?: string, title = SOURCE) {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return null;
   const { command, sessionId, navigate, evaluate, waitFor, origin, projectId, homeDirectory } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
   const owner = openPagesStore(homeDirectory);
-  const source = (() => { try { return owner.create({ project_id: projectId!, title: SOURCE, body: { type: "doc", content: blocks } }); } finally { owner.close(); } })();
+  const source = (() => { try { return owner.create({ project_id: projectId!, title, goal_id: goalId, body: { type: "doc", content: blocks } }); } finally { owner.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${source.id}` }, sessionId));
   await waitFor(`document.querySelector('[data-pages-editor] .ProseMirror')?.textContent.includes(${JSON.stringify(lines({ content: blocks }).at(-1))})`);
   await evaluate(`(() => { const original = window.fetch; window.created = []; window.focusSeen = null;
@@ -157,11 +159,11 @@ test("S2 W4-2-08 contextual Pages: the bar recommends another plugin's entry and
 
 // W4-2-08 (specs/context-program §21.10): 「拆成目标步骤」 is a proposal, so it never goes straight in and rules alone do not put it on a
 // slot of the bar (decision D-1); it waits under 「更多」 (decision D-4), where it is chosen. What it proves is the whole way from there: a
-// draft and no write, a card that refuses and runs again, and a proposal that waits for Goals.
-test("S2 W4-2-08 contextual Goals: 拆成目标步骤 under 更多 is a draft for a card → a refused run writes nothing → run again files one proposal → 去 Goals 确认", { timeout: 150_000 }, async t => {
-  const browser = await openPagesSelection(t, [paragraph(PLAN), paragraph(SECOND)]);
+// draft and no write, a card that refuses and runs again, and the exact proposal approved through its completion link (W4-2-13).
+for (const goalId of [undefined, "CORE"]) test(`S2 W4-2-08 W4-2-13 contextual Goals (${goalId ?? "independent"}): selection → draft → refusal → one proposal → completion link → approve persists Goals`, { timeout: 150_000 }, async t => {
+  const browser = await openPagesSelection(t, [paragraph(PLAN), paragraph(SECOND)], goalId, "秋季发布笔记：新手引导改版、二十位用户试用与反馈整理的完整计划");
   if (!browser) return;
-  const { evaluate, waitFor, click, projectId, source, select, store } = browser;
+  const { evaluate, waitFor, click, navigate, reloadPage, command, sessionId, origin, projectId, source, select, store } = browser;
   await select(0);
   await waitFor(`Boolean(${BUTTON("记成待办")}) && window.focusSeen`, 10_000);
   assert.equal(await evaluate(`[...document.querySelectorAll('${BAR} button')].some(button => button.textContent.trim().startsWith('拆成目标步骤'))`), false, "rules alone put no proposal on a slot of the bar");
@@ -214,7 +216,73 @@ test("S2 W4-2-08 contextual Goals: 拆成目标步骤 under 更多 is a draft fo
   const done = `document.querySelector('[data-card="${card.card_id}"]')`;
   assert.equal(await evaluate(`${done}.textContent.includes('已提交目标提案：要在 Goals 里确认才生效')`), true);
   const link = await evaluate<{ text: string; href: string | null }>(`(() => { const link = [...${done}.querySelectorAll('a')].find(node => node.textContent.includes('去 Goals 确认')); return { text: link ? link.textContent.trim() : '', href: link ? link.getAttribute('href') : null }; })()`);
-  assert.deepEqual([link.text, link.href], ["去 Goals 确认", `/projects/${projectId}/?openPlugin=goals`]);
+  const coordinator = new GoalProjectApplication(store);
+  const proposal = coordinator.goalTree.listGoalTreeProposals({ project_id: projectId! }).proposals[0]!;
+  assert.equal(proposal.root_goal_id, goalId ?? null);
+  assert.deepEqual([link.text, link.href], ["去 Goals 确认", `/projects/${projectId}/?openPlugin=goals#${proposal.proposal_id}`]);
   assert.equal(await evaluate("document.querySelector('[data-pages-editor] .ProseMirror').textContent"), PLAN + SECOND, "the source document is not written");
+  const other = coordinator.goalTreeSubmission.submitGoalTreeProposal({ project_id: projectId!, actor_id: "browser-planner", summary: "另一份尚未决定的计划",
+    idempotency_key: "other-proposal", items: [{ item_id: "other-step", kind: "goal", operation: "create", payload: { goal_id: "other-step", title: "另一个目标步骤" },
+      source_refs: ["conversation://other-plan"], reason: "必须由人单独决定", confidence: 1 }] }).proposal;
+  const before = store.snapshot(projectId!);
+  const goalItems = proposal.items.filter(item => item.kind === "goal");
+  assert.equal(goalItems.length, 2);
+  assert.ok(goalItems.every(item => !before.goals.some(goal => goal.goal_id === item.payload.goal_id)), "submitting a proposal materializes no Goals");
   await evaluate("window.fetch = window.cardFetch");
+  await navigate(() => click(`[data-card="${card.card_id}"] a[href="${link.href}"]`));
+  const entry = `#${proposal.proposal_id}`;
+  const form = `${entry} [data-goal-tree-proposal-id="${proposal.proposal_id}"]`;
+  await waitFor(`document.querySelector(${JSON.stringify(entry)})?.open && document.querySelector(${JSON.stringify(form)})?.getBoundingClientRect().width > 0`);
+  assert.equal(await evaluate("location.hash"), "", "the navigation anchor is consumed once");
+  assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), false, "another pending proposal is not opened");
+  if (!goalId) {
+    const evidence = join(process.cwd(), ".impeccable/qa/review/contextual-pages-goals");
+    await mkdir(evidence, { recursive: true });
+    for (const width of [1440, 390]) {
+      await command("Emulation.setDeviceMetricsOverride", { width, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+      await evaluate(`(() => { document.documentElement.dataset.theme = document.documentElement.dataset.resolvedTheme = ${width === 390 ? '"dark"' : '"light"'}; document.querySelector(${JSON.stringify(entry + " > summary")}).scrollIntoView({ block: "center" }); })()`);
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true, "the proposal fits the viewport");
+      const capture = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+      await writeFile(join(evidence, `proposal-${width}.png`), Buffer.from(capture.data, "base64"));
+      await evaluate(`document.querySelector(${JSON.stringify(form + " .decision-actions")}).scrollIntoView({ block: "center" })`);
+      await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+      const footer = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+      await writeFile(join(evidence, `proposal-actions-${width}.png`), Buffer.from(footer.data, "base64"));
+    }
+    await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  }
+  const otherForm = `#${other.proposal_id} [data-goal-tree-decision-form]`;
+  await click(`#${other.proposal_id} > summary`);
+  await click(otherForm + ' textarea[name="reason"]');
+  await command("Input.insertText", { text: "另一份计划先保留这段未提交的意见。" }, sessionId);
+  await click(form + ' textarea[name="reason"]');
+  await command("Input.insertText", { text: "确认这两步，按选中的发布计划推进。" }, sessionId);
+  await command("Network.enable", {}, sessionId);
+  await command("Network.setBlockedURLs", { urls: [origin + `/projects/${projectId}/api/goal-tree-proposals/${proposal.proposal_id}/decision`] }, sessionId);
+  await click(form + ' button[value="confirm"]');
+  await waitFor(`!document.querySelector(${JSON.stringify(form + " [data-decision-error]")}).hidden && !document.querySelector(${JSON.stringify(form + ' button[value="confirm"]')}).disabled`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(form + ' textarea[name="reason"]')}).value`), "确认这两步，按选中的发布计划推进。");
+  assert.deepEqual(store.snapshot(projectId!).goals, before.goals, "a refused approval writes no Goals");
+  await command("Network.setBlockedURLs", { urls: [] }, sessionId);
+  await click(form + ' button[value="confirm"]');
+  await waitFor(`!document.querySelector(${JSON.stringify(entry)})`, 15_000);
+  assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), true, "another proposal stays expanded through the forced refresh");
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(otherForm + ' textarea[name="reason"]')}).value`), "另一份计划先保留这段未提交的意见。", "approving this proposal preserves another proposal's unsubmitted reason");
+  const after = store.snapshot(projectId!);
+  assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === proposal.proposal_id)?.state, "approved");
+  assert.equal(after.goal_tree_proposals.find(item => item.proposal_id === other.proposal_id)?.state, "pending");
+  for (const item of goalItems) {
+    assert.equal(after.goals.filter(goal => goal.goal_id === item.payload.goal_id && goal.title === item.payload.title).length, 1);
+    assert.equal(after.relations.filter(relation => relation.from_goal_id === item.payload.goal_id && relation.to_goal_id === goalId && relation.type === "part_of" && relation.state === "active").length, goalId ? 1 : 0);
+  }
+  await reloadPage();
+  assert.deepEqual(store.snapshot(projectId!).goals, after.goals, "approved Goals survive reload without repetition");
+  assert.deepEqual(store.snapshot(projectId!).relations, after.relations);
+  const openBeforeMissing = await evaluate(`document.querySelector('#${other.proposal_id}').open`);
+  await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/?openPlugin=goals#missing-proposal` }, sessionId));
+  await waitFor(`document.readyState === "complete" && Boolean(document.querySelector('#${other.proposal_id}'))`);
+  assert.equal(await evaluate(`document.querySelector('#${other.proposal_id}').open`), openBeforeMissing, "a missing target preserves the existing disclosure state");
+  assert.deepEqual(store.snapshot(projectId!).goal_tree_proposals, after.goal_tree_proposals);
+
 });

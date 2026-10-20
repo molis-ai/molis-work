@@ -32,7 +32,7 @@ test("W4-2-07: 拆成目标步骤 is declared by goals.tree.submit as a proposal
   const { intake, undo, result_view } = goalsActions.treeSubmit.action;
   assert.deepEqual([intake?.intake_id, intake?.verb, intake?.effect, intake?.multiple, intake?.prepare, undo],
     ["breakdown", "拆成目标步骤", "proposes", undefined, { capability_id: "goals.fragment.offers", version: 1 }, undefined], "a proposal has no undo: withdrawing it is the approval decision");
-  assert.deepEqual(result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals" });
+  assert.deepEqual(result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals#{/proposal/proposal_id}" });
   assert.match(result_view!.summary, /要在 Goals 里确认才生效/u);
   assert.deepEqual(goalsActions.fragmentOffers.action.fragment_offer_choices?.map(choice => choice.offer_id), ["progress"]);
   assert.deepEqual(inspectActionDeclarations([goalsActions.treeSubmit, goalsActions.fragmentOffers], undefined), []);

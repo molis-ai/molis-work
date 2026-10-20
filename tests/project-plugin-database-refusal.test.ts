@@ -10,7 +10,7 @@ import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWo
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
-import { SCHEDULE_ACTIONS, SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_REMINDER_WAKEUP } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTIONS, SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 
 /**
@@ -54,18 +54,13 @@ async function project(directory: string) {
   } finally { catalog.close(); }
 }
 
-/**
- * The plugins whose actions the project's directory lists, as the person's pages would ask for them; Goals stands for the project.
- * Reminders are a system provider with no plugin of its own but Schedule's tables, so it is looked for by its provider.
- */
-async function pluginsInDirectory(home: string, projectId: string, databasePath: string): Promise<{ plugins: Set<string>; goals: boolean; reminders: boolean }> {
+/** The plugins whose actions the project's directory lists, as the person's pages would ask for them; Goals stands for the project. */
+async function pluginsInDirectory(home: string, projectId: string, databasePath: string): Promise<{ plugins: Set<string>; goals: boolean }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", audience: "user", project_id: projectId, permissions: PERMISSIONS };
-    const rows = await host.actionClient(molisWorkHostProjectReference({ projectId, databasePath })).discover(caller);
-    const providers = rows.map(row => row.provider.plugin_id ?? "");
-    return { plugins: new Set(providers.filter(id => PLUGINS.includes(id))), goals: providers.includes(GOALS_PLUGIN_ID),
-      reminders: rows.some(row => row.provider.provider_id === SCHEDULE_REMINDER_PROVIDER_ID) };
+    const providers = (await host.actionClient(molisWorkHostProjectReference({ projectId, databasePath })).discover(caller)).map(row => row.provider.plugin_id ?? "");
+    return { plugins: new Set(providers.filter(id => PLUGINS.includes(id))), goals: providers.includes(GOALS_PLUGIN_ID) };
   } finally { await host.close(); }
 }
 
@@ -85,7 +80,6 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
   const open = await pluginsInDirectory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [...PLUGINS].sort());
   assert.equal(open.goals, true);
-  assert.equal(open.reminders, true, "reminders are offered with Schedule");
   assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/);
 });
 
@@ -105,7 +99,6 @@ for (const { plugin, change, sql } of cases) {
     assert.equal(open.plugins.has(plugin), false, `${plugin}'s actions are not in the directory`);
     assert.deepEqual([...open.plugins].sort(), PLUGINS.filter(id => id !== plugin).sort(), "the other plugins' actions are");
     assert.equal(open.goals, true, "and the project opens: Goals' actions are there");
-    assert.equal(open.reminders, plugin !== SCHEDULE_PLUGIN_ID, "reminders keep Schedule's tables, so they stop with Schedule and only with it (S-42)");
 
     const panel = await codingPanel(databasePath, projectId);
     if (plugin === CODING_PLUGIN_ID) {

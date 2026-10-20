@@ -13,6 +13,8 @@ import { freshStart, type StreamTextOptions, type StreamTextResult } from "../st
  *   reduced motion show at once. At most a few pieces ease at a time; an older one is finished when a newer one comes, so
  *   nothing queues behind a fast reply. A finished piece goes back to plain text: no lasting spans.
  * - Without `reveal` (a restore, a redraw, the last update) every piece still easing is finished.
+ * - A container once written to with `reveal` is marked `data-streamed` for as long as it is shown: its text wraps line by
+ *   line (append-stable), so a line already read never moves as the reply grows or when it ends (VUX-04).
  */
 const LIVE = 6, WHOLE = "pre, code, button, svg";
 /** What the renderer gave for a node when it was put in; a node is compared by this, never by what the page did to it since. */
@@ -87,6 +89,7 @@ function patch(container: HTMLElement, parent: Node, incoming: Node[], shown: bo
 }
 
 function molisStreamText(container: HTMLElement, html: string, { reveal: show = false }: StreamTextOptions = {}): StreamTextResult {
+  if (show) container.dataset.streamed = "";
   const shown = show && !matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (!shown) { for (const piece of easing.get(container) ?? []) finish(piece); easing.delete(container); }
   const template = document.createElement("template");

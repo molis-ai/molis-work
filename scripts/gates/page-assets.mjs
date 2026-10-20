@@ -235,22 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 20, one intrinsic sizing for
-// fields that grow with what is written (VUX-16). +1,604 B of workbench.js: the fallback for engines without
-// `field-sizing` (older WebKit in the desktop shell), which also keeps a caret at the end whole in view; +183/+120/+61 B
-// of the three stylesheets for its one rule; +9 to +67 B in Lingguang, the plugin builder, PPT and Workflows, which call
-// `molisFit` where they set a value by code. Tried first: Coding's, IM's, Goals', Issues' and the plugin form's own
-// height code deleted (coding.js −107 B, issues.js −39 B), and the rule's string written out so the fallback's bundle
-// leaves it behind (−181 B). Spent once from exactly the review-fix slice's budget (#890).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 21, text wrapping (VUX-04).
+// +72 B in each of the three stylesheets: a reply written while it streamed wraps line by line (balance and pretty may move
+// lines already read as the text grows); +27 B of workbench.js for the mark the stream helper puts on such a reply. Tried
+// first: the board's narrow list-and-detail rule kept out of the product stylesheets, in the board's own styles. Spent once
+// from exactly the intrinsic sizing slice's budget (#894).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1156795, 1158399],
-  "/assets/molis-work-arrival.css": [701898, 702081],
-  "/assets/molis-work-settings.css": [991666, 991786],
-  "/assets/molis-work-workbench.css": [1607700, 1607761],
-  "/assets/molis-work-plugins/lingguang.js": [25301, 25359],
-  "/assets/molis-work-plugins/plugin-builder.js": [115396, 115438],
-  "/assets/molis-work-plugins/ppt.js": [30958, 31025],
-  "/assets/molis-work-plugins/workflows.js": [82552, 82561],
+  "/assets/molis-work-workbench.js": [1158399, 1158426],
+  "/assets/molis-work-arrival.css": [702081, 702153],
+  "/assets/molis-work-settings.css": [991786, 991858],
+  "/assets/molis-work-workbench.css": [1607761, 1607833],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

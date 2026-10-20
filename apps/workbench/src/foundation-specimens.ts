@@ -44,7 +44,10 @@ export function renderFoundationSection(): string {
 }
 
 /** The specimen boxes are narrower than the strips, so the strips overflow the way a narrow pane makes them. */
-export const FOUNDATION_SPECIMEN_STYLES = `.mw-catalog-fit{width:min(100%,280px)}.mw-catalog-stream{width:min(100%,280px);min-height:120px;font-size:13px;line-height:20px}.mw-catalog-stream p{margin:0 0 8px}.mw-catalog-stream[data-slow]{--dur-reveal:360ms}`
+// The board's list-and-detail composition (catalog only): too narrow for a list beside its detail, the list goes above it
+// instead of squeezing the detail to a sliver (VUX-30).
+export const FOUNDATION_SPECIMEN_STYLES = `@media (max-width:600px){.mw-compose--split{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);height:440px}.mw-compose--split .mw-compose__list{max-height:160px;border-right:0;border-bottom:1px solid var(--line)}}`
+  + `.mw-catalog-fit{width:min(100%,280px)}.mw-catalog-stream{width:min(100%,280px);min-height:120px;font-size:13px;line-height:20px}.mw-catalog-stream p{margin:0 0 8px}.mw-catalog-stream[data-slow]{--dur-reveal:360ms}`
   // The comparison's upper bound only; the product's one blurred keyframes is the design system's 2 px reveal.
   + `.mw-catalog-stream[data-catalog-stream="6"] .mw-fresh{animation-name:mw-catalog-fresh-6}@keyframes mw-catalog-fresh-6{from{opacity:0;filter:blur(6px)}}`
   + `.mw-catalog-media{width:min(100%,280px);height:180px;border-radius:8px;background:var(--wash)}.mw-catalog-fade-box{width:min(100%,280px)}.mw-catalog-fade-box [data-catalog-fade]{max-width:100%;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.mw-catalog-fade-box .mw-toggle{flex:none;white-space:nowrap}.mw-catalog-row{display:flex;align-items:center;gap:8px}`

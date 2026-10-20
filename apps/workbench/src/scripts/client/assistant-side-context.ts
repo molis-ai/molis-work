@@ -5,21 +5,23 @@
  *
  * - 待发送 is what the strip above the input names, read from the island (`pending()`); removing one stays in the strip.
  * - 本次使用 and 历史引用 are the work's own facts: each round's materials and the selection it saw, and the objects the work holds as materials,
- *   placed by when they were recorded against the latest round's start. Objects are read again from their owners
- *   (`view.objects`), so one that changed since says so.
+ *   each once, under the latest round that used it (a round's materials name their objects). Only an object no round names
+ *   (recorded outside a Send) is placed by when it was recorded against the latest round's start. Objects are read again
+ *   from their owners (`view.objects`), so one that changed since says so.
  * - The drop zone stays first: dropping or picking a file adds to 待发送.
  */
 export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere, sidePreview,
   readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
   const GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   const nameOf = (material) => material.title.replace(/^(方法|用|图片|引用)：/, "");
-  const objectTile = (object) => {
+  const objectTile = (object, round) => {
     const state = objectState(object), open = openObject(object);
     const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
     box.append(tile(objectGlyph(object), state ? "attention" : ""));
     if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
     else box.append(el("span", "assistant-item-title", objectTitle(object)));
-    box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("引用")));
+    box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), [state || surfaceName(object.open && object.open.surface) || L("引用"),
+      round ? L("第 {n} 轮").replace("{n}", String(round)) : ""].filter(Boolean).join(" · ")));
     box.title = objectDetail(object);
     return box;
   };
@@ -45,12 +47,15 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
     const seen = (round) => [...(round.materials || []).filter((material) => !material.object),
       ...(round.context && round.context.selection ? [{ kind: "selection", title: L("选中的内容") + "：" + round.context.selection.text.replace(/\s+/g, " ").slice(0, 28) }] : [])];
     rounds.forEach((round, index) => seen(round).forEach((material) => { const key = material.kind + ":" + material.title; used.delete(key); used.set(key, { material, round: index + 1, now: round === latest }); }));
+    const at = new Map();
+    rounds.forEach((r, i) => (r.materials || []).forEach((m) => m.object && at.set(m.object.kind + ":" + m.object.id, i + 1)));
+    const roundOf = (o) => at.get(o.subject.kind + ":" + o.subject.id), usedNow = (o) => roundOf(o) ? roundOf(o) === rounds.length : Date.parse(o.recorded_at) >= since;
     const waiting = pending();
-    const now = [...objects.filter((o) => Date.parse(o.recorded_at) >= since).map(objectTile), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
-    const before = [...objects.filter((o) => !(Date.parse(o.recorded_at) >= since)).map(objectTile), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
+    const now = [...objects.filter(usedNow).map((o) => objectTile(o)), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
+    const before = [...objects.filter((o) => !usedNow(o)).map((o) => objectTile(o, roundOf(o))), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
     const node = block();
     const signature = JSON.stringify([work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
-      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at]), [...used.keys()], latest && latest.run_id]);
+      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at, roundOf(o)]), [...used.keys()], latest && latest.run_id]);
     if (!node || node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -75,15 +80,18 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
 
 /**
  * The Assistant's 工作环境 and 连接与工具 groups (VUX-08/09; the user's 2026-10-20 decision ②): what the Host reads from each
- * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again only when the work,
- * its revision or its state changes, never on every redraw. A part its owner could not answer says so in its own row.
+ * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again when the work,
+ * its revision or its state changes, never on every redraw. A connection or a repository changes without the work changing,
+ * so a read older than 15 s is asked again whenever the side is in sight and redrawn (the page coming back to the front
+ * redraws) or focus enters it (opening it does); a failed read is tried again 3 s later. A part its owner could not answer
+ * says so in its own row.
  * - 工作环境: the scope (personal, or the project); for Coding, the session's directory and its repository, branch, distance to
  *   upstream and what is not committed. A conflict is the summary and stands out.
- * - 连接与工具: each connection by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
+ * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
  *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. Coding keeps its own tools.
  */
 export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
-  let asked = "", held = null;
+  let asked = "", held = null, at = 0, asking = false, last = null;
   const count = (text, value) => L(text).replace("{n}", String(value));
   const CONNECTION = { connected: "已连接", "needs-authorization": "需要登录授权", failed: "连接失败", disconnected: "未连接", unchecked: "还没检查", incomplete: "还没设置完", off: "已关闭" };
   const TOOLS = { callable: "工具可调用", partial: "部分工具可调用", blocked: "工具不可调用", "none-discovered": "还没发现工具" };
@@ -112,26 +120,31 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
         sub: [L(CONNECTION[one.state] || one.state), one.account || "", one.state === "connected" ? L(TOOLS[one.tools] || one.tools) : ""].filter(Boolean).join(" · "),
         subTone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : "" }));
       if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
-      if (linked.length) box.append(group(L("连接"), stack(linked, work.work_id + ":tools:connections")));
+      if (linked.length) box.append(group(L("你的连接"), stack(linked, work.work_id + ":tools:connections")));
       const callable = can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
       if (can.executor === "coding") callable.unshift(card({ icon: "terminal", title: "Coding Agent", sub: can.callable.length || can.unavailable.length ? L("自己的读写与命令，加上为这个会话选的 MCP 工具") : L("自己的读写与命令；MCP 工具在 Coding 里为会话选择") }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
       if (callable.length) box.append(group(L("可调用"), stack(callable, work.work_id + ":tools:callable")));
-      const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + one.reason : ""), subTone: "blocked" }));
+      const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + L(one.reason) : ""), subTone: "blocked" }));
       if (blocked.length) box.append(group(L("现在不能用"), stack(blocked, work.work_id + ":tools:blocked")));
       const needs = connections.filter((one) => ["needs-authorization", "failed"].includes(one.state)).length, total = can.callable.reduce((sum, one) => sum + one.count, 0);
       paintBlock(tools, L("连接与工具"), "link", box.children.length ? box : null, needs ? count("{n} 项要处理", needs) : total ? count("{n} 项可用", total) : "", needs > 0);
     });
   };
-  return { paint(work) {
+  const side = () => environmentBlock()?.parentElement;
+  const surround = (work) => {
+    last = work;
     const key = work ? work.work_id + ":" + work.revision + ":" + work.state : "";
     if (!work) { asked = ""; held = null; paint(null, null); return; }
-    if (key !== asked) {
-      asked = key;
-      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } }).catch(() => {});
+    if (!asking && (key !== asked || (Date.now() - at > 15000 && side()?.checkVisibility()))) {
+      asked = key; asking = true; at = Date.now();
+      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } })
+        .catch(() => { at -= 12000; }).finally(() => { asking = false; });
     }
     paint(work, held && held.id === work.work_id ? held.read : null);
-  } };
+  };
+  document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+  return { paint: surround };
 }`;
 
 /**
@@ -140,6 +153,8 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
  * - 上下文窗口: the latest call's prompt against the window the round was packed against, with the model and when; a share
  *   is drawn only when both are known. An estimate says so; a field the runtime left unknown reads 暂不可用.
  * - 本轮: input and output, then cache read and write and reasoning when reported. Cost only as the runtime reported it.
+ *   Always the latest round: one with no report yet reads 进行中 (or 暂不可用 once ended) with its own model, never the
+ *   numbers of a round before it.
  * - The account's quota and reset have no source here, so they read 暂不可用.
  * - 这项工作: the work's own total and its cap, as before.
  */
@@ -152,7 +167,7 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
   return { paint(work) {
     const node = box(), view = current();
     if (!node) return;
-    const usage = work && view && view.usage ? view.usage : null, round = work && view ? [...view.rounds].reverse().find((one) => one.usage) || null : null;
+    const usage = work && view && view.usage ? view.usage : null, last = work && view ? view.rounds[view.rounds.length - 1] : null, round = last && (last.usage || last.model) ? last : null;
     const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
     if (node.dataset.signature === signature) return;
     const wasOpen = node.querySelector("details")?.open;
@@ -164,17 +179,18 @@ export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress
     details.open = wasOpen === undefined ? over : wasOpen || over;
     details.append(el("summary", "", L("用量") + (usage ? " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + number(usage.budget_tokens) : "") : "") + (over ? " · " + L("已到上限") : "")));
     if (round) {
-      const tokens = round.usage.tokens, coverage = round.usage.coverage || {}, model = round.model, context = round.usage.context, windowSize = model && model.window_tokens;
+      const report = round.usage, wait = round.ended_at ? L("暂不可用") : L("进行中");
+      const tokens = report ? report.tokens : {}, coverage = report && report.coverage || {}, model = round.model, context = report && report.context, windowSize = model && model.window_tokens;
       const used = context && context.coverage !== "unknown" ? context.tokens : null;
       const where = [model ? (model.now ? model.model_id + " → " + model.now : model.model_id) : "", round.ended_at ? L("更新于") + " " + new Date(round.ended_at).toLocaleTimeString() : L("进行中")].filter(Boolean).join(" · ");
       details.append(section(L("上下文窗口"), used !== null && windowSize ? progress(Math.min(used, windowSize), windowSize, L("上下文窗口")) : null,
-        row(L("已用"), used === null ? L("暂不可用") : marked(used, context.coverage) + (windowSize ? " / " + number(windowSize) + " · " + Math.min(100, Math.round(used / windowSize * 100)) + "%" : " · " + L("窗口大小暂不可用"))),
+        row(L("已用"), used === null ? report ? L("暂不可用") : wait : marked(used, context.coverage) + (windowSize ? " / " + number(windowSize) + " · " + Math.min(100, Math.round(used / windowSize * 100)) + "%" : " · " + L("窗口大小暂不可用"))),
         where ? el("p", "assistant-material-origin", where) : null));
-      details.append(section(L("本轮"), row(L("输入"), marked(tokens.input, coverage.input)), row(L("输出"), marked(tokens.output, coverage.output)),
+      details.append(!report ? section(L("本轮"), row(L("输入"), wait, true), row(L("输出"), wait, true)) : section(L("本轮"), row(L("输入"), marked(tokens.input, coverage.input)), row(L("输出"), marked(tokens.output, coverage.output)),
         tokens.cached_input ? row(L("缓存读取"), marked(tokens.cached_input, coverage.cached_input)) : null, tokens.cache_creation ? row(L("缓存写入"), marked(tokens.cache_creation, coverage.cache_creation)) : null,
         tokens.reasoning ? row(L("推理"), number(tokens.reasoning)) : null,
-        row(L("费用"), typeof round.usage.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + round.usage.cost_usd.toFixed(4) + tag(coverage.cost_usd) : L("暂不可用"), typeof round.usage.cost_usd !== "number"),
-        round.usage.unavailable_reason ? el("p", "assistant-material-origin", round.usage.unavailable_reason) : null));
+        row(L("费用"), typeof report.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + report.cost_usd.toFixed(4) + tag(coverage.cost_usd) : L("暂不可用"), typeof report.cost_usd !== "number"),
+        report.unavailable_reason ? el("p", "assistant-material-origin", L(report.unavailable_reason)) : null));
       details.append(section(L("账户额度"), row(L("额度与重置"), L("暂不可用"), true)));
     }
     if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));

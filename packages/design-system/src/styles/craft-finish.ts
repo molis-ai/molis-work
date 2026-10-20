@@ -646,7 +646,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
   ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
-  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { padding-top: 0; visibility: hidden; transition: padding-top var(--dur-move) var(--ease-quint), visibility 0s var(--dur-move); }
+  ${ASSIST} .assistant-block[data-folded] .assistant-block-body { visibility: hidden; transition: visibility 0s var(--dur-move); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }
   ${ASSIST} .assistant-block-sub { margin: 8px 0 2px; color: var(--faint); font-size: 11px; }
   /* The name opens what it names, and its target is the whole row; the row's own actions sit above it. */
@@ -697,7 +697,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-badge { margin-left: auto; padding: 0 8px; border-radius: 999px; background: var(--wash); color: var(--muted); font-size: 11px; font-weight: 400; line-height: 18px; white-space: nowrap; }
   ${ASSIST} .assistant-block-badge.is-attention { background: color-mix(in srgb, var(--tone-attention, #c27c0e) 15%, transparent); color: var(--tone-attention, #c27c0e); }
   ${ASSIST} .assistant-block--attention .assistant-block-head { box-shadow: none; padding-top: 2px; }
-  ${ASSIST} .assistant-block-body { min-height: 0; overflow: clip; overflow-clip-margin: 6px; padding-top: 6px; transition: padding-top var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block-body { min-height: 0; overflow: clip; overflow-clip-margin: 6px; } ${ASSIST} .assistant-block-body::before { /* the space under the head is content, so the row clips it as it folds; nothing but the row moves */ content: ""; display: block; height: 6px; }
   ${ASSIST} .assistant-group-list { display: flex; flex-direction: column; gap: 10px; }
   ${ASSIST} .assistant-group > .assistant-block-sub { margin: 0 0 6px; }
   /* Cards: glyph, title and one line; the title opens it and the whole card is its target; actions sit above that. */

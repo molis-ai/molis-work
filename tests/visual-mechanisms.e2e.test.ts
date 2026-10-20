@@ -94,12 +94,12 @@ test("VUX-19 an icon-only copy button answers with a check or a cross in its own
 });
 
 test("VUX-08 show more: one over the limit is shown, drawn again it keeps one button, and the press reveals and focuses by keyboard", { timeout: 60_000 }, async t => {
-  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul>`);
+  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul><ul id="rows"></ul><style>#rows>li{display:flex}</style>`);
   if (!page) return;
   const draw = (id: string, count: number) => page.evaluate(`(() => { const list = document.getElementById(${JSON.stringify(id)});
     list.innerHTML = Array.from({ length: ${count} }, (_, i) => '<li><button type="button">第 ' + (i + 1) + ' 行</button></li>').join('');
     window.molisShowMore(list, { key: ${JSON.stringify(id)}, label: '再显示 {n} 项' }); })()`);
-  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => !n.hidden).length`);
+  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => n.getClientRects().length > 0).length`);
   await draw("six", 6);
   assert.equal(await seen("six"), 6, "a single item over the limit is shown, not put behind a button for it");
   assert.equal(await page.evaluate("document.querySelector('#six .mw-show-more')"), null);
@@ -115,6 +115,10 @@ test("VUX-08 show more: one over the limit is shown, drawn again it keeps one bu
   assert.equal(await page.evaluate<string>("document.activeElement.textContent"), "第 6 行", "focus lands on the first revealed row's control");
   await draw("nine", 9);
   assert.equal(await seen("nine"), 9, "drawn again under the same key, it stays revealed");
+  // Rows that set their own display (a plugin's flex rows) are still tucked: the button's count and what is shown agree.
+  await draw("rows", 8);
+  assert.equal(await seen("rows"), 5, "a row's own display: flex does not bring a tucked row back");
+  assert.equal(await page.evaluate<string>("document.querySelector('#rows .mw-show-more').textContent"), "再显示 3 项");
 });
 
 test("VUX-32 media zoom: about the point looked at, held in bounds, by pinch, two fingers, double click and keys; only the image takes the gesture", { timeout: 60_000 }, async t => {
@@ -199,10 +203,12 @@ test("VUX-22 a collapsible opens to its natural height, reverses midway, grows w
   const body = renderCollapsible({ summary: "详情", body: `<p id="line">第一行</p><button id="inside">里面的按钮</button>` });
   const page = await openPage(t, `<div id="host">${body}</div><p id="after">之后的段落</p>`);
   if (!page) return;
-  const height = () => page.evaluate<number>(`document.querySelector(".mw-collapsible__body").getBoundingClientRect().height`);
+  // The room the body takes in the page: the fold's height below its summary (the clipped row, not the body's own box).
+  const ROOM = `(() => { const d = document.querySelector(".mw-collapsible"); return d.getBoundingClientRect().height - d.querySelector("summary").getBoundingClientRect().height; })()`;
+  const height = () => page.evaluate<number>(ROOM);
   // The body's height in every frame for a while after `act`, read in the page so no frame is missed.
-  const frames = (act: string, ms = 400) => page.evaluate<number[]>(`new Promise(resolve => { const body = document.querySelector(".mw-collapsible__body"), seen = [], start = performance.now();
-    ${act}; const step = () => { seen.push(Math.round(body.getBoundingClientRect().height)); if (performance.now() - start < ${ms}) requestAnimationFrame(step); else resolve(seen); }; requestAnimationFrame(step); })`);
+  const frames = (act: string, ms = 400) => page.evaluate<number[]>(`new Promise(resolve => { const seen = [], start = performance.now();
+    ${act}; const step = () => { seen.push(Math.round(${ROOM})); if (performance.now() - start < ${ms}) requestAnimationFrame(step); else resolve(seen); }; requestAnimationFrame(step); })`);
   assert.equal(await height(), 0, "closed: the body takes no room");
   const opening = await frames(`document.querySelector(".mw-collapsible").open = true`);
   const full = await height();
@@ -211,7 +217,7 @@ test("VUX-22 a collapsible opens to its natural height, reverses midway, grows w
 
   // Content added while open: the body grows to it, no fixed ceiling.
   await page.evaluate(`document.getElementById("line").insertAdjacentHTML("afterend", "<p>第二行</p><p>第三行</p><p>第四行</p>")`);
-  await page.wait(`document.querySelector(".mw-collapsible__body").getBoundingClientRect().height > ${full + 40}`);
+  await page.wait(`${ROOM} > ${full + 40}`);
 
   // Reversed midway: closing during the opening continues from the height reached, down to nothing.
   const grown = await height();
@@ -221,7 +227,7 @@ test("VUX-22 a collapsible opens to its natural height, reverses midway, grows w
   assert.ok(reached > 0 && reached < grown, `closing was stopped midway at ${reached}`);
   assert.ok(Math.abs(reopening[0]! - reached) < grown / 3, `reopening continues from ${reached}, not from 0 or the top (${reopening.slice(0, 4).join(", ")})`);
   await page.evaluate(`document.querySelector(".mw-collapsible").open = false`);
-  await page.wait(`document.querySelector(".mw-collapsible__body").getBoundingClientRect().height === 0`);
+  await page.wait(`${ROOM} === 0`);
   await sleep(350);
   assert.equal(await page.evaluate<boolean>(`(() => { const inside = document.getElementById("inside"); inside.focus(); return document.activeElement === inside; })()`), false, "a closed body takes no focus");
 

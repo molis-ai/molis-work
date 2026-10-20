@@ -244,10 +244,10 @@ const headErrors = (measured, budget, base) => {
 // keeps the old switch where the helper is absent. Tried first: one controller for every listener (−180 B), the pinch math
 // shared with the wheel's, comments out of the shipped CSS. Spent once from exactly the Coding MCP tools slice's budget (#876).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1145571, 1149347],
-  "/assets/molis-work-workbench.css": [1605713, 1606175],
-  "/assets/molis-work-settings.css": [991488, 991950],
-  "/assets/molis-work-arrival.css": [701074, 701536],
+  "/assets/molis-work-workbench.js": [1146460, 1150236],
+  "/assets/molis-work-workbench.css": [1605610, 1606072],
+  "/assets/molis-work-settings.css": [991385, 991847],
+  "/assets/molis-work-arrival.css": [700971, 701433],
   "/assets/molis-work-plugins/issues.js": [26331, 26861],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

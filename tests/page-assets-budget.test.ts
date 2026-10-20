@@ -680,30 +680,30 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
-  ["/assets/molis-work-arrival.css", 698519],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
   // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
-  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604893], ["/assets/molis-work-settings.css", 990668],
-  ["/assets/molis-work-arrival.css", 700254],
+  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604785], ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-arrival.css", 700146],
   // The Coding scroll-owner allowance (#864, VUX-26) is spent.
   ["/assets/molis-work-workbench.js", 1134508],
   // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
-  ["/assets/molis-work-workbench.js", 1134763], ["/assets/molis-work-plugins/shelf.js", 75866],
+  ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
   ["/assets/molis-work-plugins/lingguang.js", 25265],
   // The show-more allowances (#868, VUX-08) are spent.
-  ["/assets/molis-work-workbench.js", 1134964], ["/assets/molis-work-workbench.css", 1605339], ["/assets/molis-work-settings.css", 991114],
-  ["/assets/molis-work-arrival.css", 700700],
+  ["/assets/molis-work-workbench.js", 1135021], ["/assets/molis-work-workbench.css", 1605196], ["/assets/molis-work-settings.css", 990971],
+  ["/assets/molis-work-arrival.css", 700557],
   // The 产出 split allowance (#869, VUX-08) is spent.
-  ["/assets/molis-work-workbench.js", 1135934],
+  ["/assets/molis-work-workbench.js", 1135978],
   // The 上下文 allowance (#871, VUX-08/09) is spent.
-  ["/assets/molis-work-workbench.js", 1136078],
+  ["/assets/molis-work-workbench.js", 1136122],
   // The 工作环境 and 连接与工具 allowance (#873, VUX-08/09) is spent.
-  ["/assets/molis-work-workbench.js", 1138107], ["/assets/molis-work-workbench.css", 1605394], ["/assets/molis-work-settings.css", 991169],
-  ["/assets/molis-work-arrival.css", 700755],
+  ["/assets/molis-work-workbench.js", 1138483], ["/assets/molis-work-workbench.css", 1605291], ["/assets/molis-work-settings.css", 991066],
+  ["/assets/molis-work-arrival.css", 700652],
   // The 用量 allowance (#874, VUX-11) is spent.
-  ["/assets/molis-work-workbench.js", 1142662], ["/assets/molis-work-workbench.css", 1605433], ["/assets/molis-work-settings.css", 991208],
-  ["/assets/molis-work-arrival.css", 700794],
+  ["/assets/molis-work-workbench.js", 1143359], ["/assets/molis-work-workbench.css", 1605330], ["/assets/molis-work-settings.css", 991105],
+  ["/assets/molis-work-arrival.css", 700691],
   // The Coding MCP tools allowance (#876, VUX-08/09) is spent.
-  ["/assets/molis-work-workbench.js", 1145423],
+  ["/assets/molis-work-workbench.js", 1146308],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -721,10 +721,10 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-32 the media zoom allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1145571, 1149347],
-    "/assets/molis-work-workbench.css": [1605713, 1606175],
-    "/assets/molis-work-settings.css": [991488, 991950],
-    "/assets/molis-work-arrival.css": [701074, 701536],
+    "/assets/molis-work-workbench.js": [1146460, 1150236],
+    "/assets/molis-work-workbench.css": [1605610, 1606072],
+    "/assets/molis-work-settings.css": [991385, 991847],
+    "/assets/molis-work-arrival.css": [700971, 701433],
     "/assets/molis-work-plugins/issues.js": [26331, 26861],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

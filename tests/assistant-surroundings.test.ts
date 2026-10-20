@@ -93,4 +93,6 @@ test("VUX-09 a remote's address is shown as owner/name only, whatever form it ta
   assert.equal(repositoryName("git@github.com:molis-ai/molis-work.git"), "molis-ai/molis-work");
   assert.equal(repositoryName("ssh://git@host:22/team/repo"), "team/repo");
   assert.equal(repositoryName("/Users/me/code/repo"), "code/repo");
+  // A query or fragment after the path (a token some remotes carry) never reaches the page.
+  assert.equal(repositoryName("https://host/owner/name.git?private_token=abc#x"), "owner/name");
 });

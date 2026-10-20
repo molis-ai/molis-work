@@ -7,7 +7,6 @@ import { CodingExecutor, type PersonActions } from "./assistant-coding.js";
 import { agentActions } from "./assistant-directory.js";
 import type { AssistantServicePorts } from "./assistant-service.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
-import { L } from "../web-locale.js";
 
 const RUNTIME = "prologue";
 /** One answer serves the panel's redraws for this long, while the work stays at the same revision. */
@@ -74,8 +73,8 @@ async function environmentOf(work: StoredWork, ports: SurroundingsPorts, coding:
 const available = (views: readonly ActionView[], reference: { capability_id: string; version: number }, provider?: string) =>
   views.find(view => view.capability_id === reference.capability_id && view.version === reference.version && (!provider || view.provider.provider_id === provider) && view.availability.available);
 
-/** owner/name of a remote's address, never its credentials: https://user:token@host/owner/name.git and git@host:owner/name both read owner/name. */
-export const repositoryName = (url: string) => url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/?/i, "").replace(/^[^@/]+@[^:/]+:/, "").replace(/\.git\/?$/, "").split("/").filter(Boolean).slice(-2).join("/") || null;
+/** owner/name of a remote's address, never its credentials or a query after it: https://user:token@host/owner/name.git and git@host:owner/name both read owner/name. */
+export const repositoryName = (url: string) => url.replace(/[?#].*$/, "").replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/?/i, "").replace(/^[^@/]+@[^:/]+:/, "").replace(/\.git\/?$/, "").split("/").filter(Boolean).slice(-2).join("/") || null;
 
 async function gitOf(actions: PersonActions, workspaceId: string): Promise<AssistantWorkGit | null> {
   const view = available(await actions.discover(), workspaceReadActions.git);
@@ -106,15 +105,18 @@ async function connectionsOf(ports: SurroundingsPorts): Promise<Pick<AssistantWo
   } catch (error) { return { connections: [], connections_problem: why(error) }; }
 }
 
-/** Why a chosen MCP tool cannot be called now, or "" when it can: its server is gone, off, not connected, or no longer offers it. */
+/**
+ * Why a chosen MCP tool cannot be called now, or "" when it can: its server is gone, off, not connected, or no longer offers
+ * it. In Chinese, the page translates it: the Host holds a read for a few seconds without a language.
+ */
 function mcpBlocked(ref: AgentMcpToolRef, servers: readonly AgentMcpServerView[]) {
   const server = servers.find(one => one.id === ref.server);
-  if (!server) return L("这个服务的配置已移除");
-  if (!server.enabled) return L("服务已关闭");
-  if (server.health === "disconnected") return L("服务未连接");
-  if (server.health === "unavailable") return L("服务连接不可用");
-  if (server.health === "not-reattached") return L("服务需要重新连接");
-  return server.tools.some(tool => tool.tool === ref.tool && (!ref.version || tool.version === ref.version)) ? "" : L("服务里已没有这个工具");
+  if (!server) return "这个服务的配置已移除";
+  if (!server.enabled) return "服务已关闭";
+  if (server.health === "disconnected") return "服务未连接";
+  if (server.health === "unavailable") return "服务连接不可用";
+  if (server.health === "not-reattached") return "服务需要重新连接";
+  return server.tools.some(tool => tool.tool === ref.tool && (!ref.version || tool.version === ref.version)) ? "" : "服务里已没有这个工具";
 }
 
 async function codingTools(coding: Promise<CodingSetup>): Promise<AssistantWorkSurroundings["tools"]> {

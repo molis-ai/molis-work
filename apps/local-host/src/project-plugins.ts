@@ -2,12 +2,11 @@ import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
-import { codingShelfMaterial } from "./coding-shelf-material.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PLUGIN_ID, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
@@ -136,11 +135,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         return ports.characterSpawn(request);
       });
     const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        // Coding's reports are 成果; its change sets are process items. Shelf can take a copy of either.
-        references: () => [...artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE }),
-          ...processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1" })]
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
-        preview: record => codingShelfMaterial(record, ports.projectId, ports.routePrefix ?? ""),
+        // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
+        projectPath: () => ports.routePrefix ?? "",
         receive: async preview => {
           const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
           const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
@@ -155,16 +151,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         models: () => ports.execution?.models() ?? Promise.resolve([]),
         sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-        reportReferences: () => artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        changeSetReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        // Confirmed plans, so another session can cite one as a fixed material.
-        planReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } };
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
       onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };

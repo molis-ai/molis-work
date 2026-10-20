@@ -18,6 +18,7 @@ import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
+import { codingResultDocument } from "./results-document.js";
 
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
@@ -108,7 +109,7 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, codingArtifactPreview],
+  actions: [...CODING_ACTIONS, codingArtifactPreview, codingResultDocument],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

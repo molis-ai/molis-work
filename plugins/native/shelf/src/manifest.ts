@@ -2,6 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
+import { codingResultDocument } from "./coding-result.js";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */
@@ -31,7 +32,8 @@ export const shelfManifest: PluginManifest = {
     { permission: "storage:private", required: true, reason: "本机置物架文件与摘录" },
     { permission: "artifact:read", required: true, reason: "读取明确选择接收的 Coding 成果" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
+  capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
   // Redeemed by this project's Runtime instance. The personal store's actions are Home-level; the Host registers them from `SHELF_ACTIONS`.
   actions: SHELF_RUNTIME_ACTIONS,
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },

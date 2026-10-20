@@ -107,15 +107,15 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
   const gone = await f.mcp();
   const names = (await gone.tools).map(tool => tool.name);
   for (const action of NEEDS_MODEL) {
-    const name = actionMcpToolName({ ...action, version: 1 });
+    const name = actionMcpToolName(action);
     assert.ok(!names.includes(name), `${name} is left out of tools/list`);
     await assert.rejects(gone.callTool(name, {}), { code: "actions.connection_required" });
   }
-  assert.ok(names.includes(actionMcpToolName({ ...alchemistActions.pulseStart, version: 1 })), "the market pulse needs no model and stays listed");
+  assert.ok(names.includes(actionMcpToolName(alchemistActions.pulseStart)), "the market pulse needs no model and stays listed");
   f.configureModel();
   for (const action of NEEDS_MODEL) assert.deepEqual(await f.availability(action.capability_id, AGENT), { available: true }, action.capability_id);
   const listed = (await f.mcp().tools).map(tool => tool.name);
-  for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName({ ...action, version: 1 })), `${action.capability_id} comes back with a model`);
+  for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName(action)), `${action.capability_id} comes back with a model`);
 });
 
 test("the person's own Alchemist page keeps its handling without a model: it can still send a message and start a run that is recorded as stopped", async t => {

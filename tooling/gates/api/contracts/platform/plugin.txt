@@ -2975,9 +2975,16 @@ export interface PluginManifest {
     agent?: AgentManifest;
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+    databases?: import("platform/plugin-database").PluginManifestDatabases;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
+
+export interface PluginManifestDatabases {
+    readonly project?: PluginDatabaseDeclaration;
+}
+
+export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
@@ -2985,6 +2992,7 @@ export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signa
 
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
+    readDocuments?(files: readonly MaterialUpload[], request?: PluginMaterialDocumentsRequest): Promise<MaterialDocumentBatch>;
     readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
 }
 

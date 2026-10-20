@@ -67,7 +67,7 @@ test("W5-01-SHM-01 false images, byte limits and nonvision models refuse without
   const f = await modelRuntimeFixture(t);
   for (const request of [
     { images: [{ bytes: Buffer.from("not an image") }] },
-    { images: Array.from({ length: 31 }, () => ({ bytes: png })) },
+    { images: Array.from({ length: 51 }, () => ({ bytes: png })) },
     { images: [{ bytes: new Uint8Array(32 * 1024 * 1024 + 1) }] },
     { images: [{ bytes: png }], selection: { ...f.selection, model_id: "text" } },
   ]) {

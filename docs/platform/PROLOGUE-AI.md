@@ -152,7 +152,7 @@ Cognia 同时保留已登记的知识角色与回答指令：角色作为共享�
 - **路径**：宿主端口 → `hostTextGeneration` → agent-host 的 Prologue 推理，和别的调用方同一条；不新开供应商直连，不向 Prologue 传调用编号（2026-10-10）。宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型）照旧有效，每次调用时才读。`availability()` 可以接在动作的 `availability` 上。
 - **模型显示名**：`services.model.availability()` 可带 `runtime_label`，表示当前配置的提供方与模型（仅显示名和模型 ID）；读取只查元数据，不解密、不发请求。实例停止、缺授权或配置不可用时不带标签。模型执行仍按实际调用时的配置与授权复核。
 - **明确选择模型**：`complete(prompt, { selection: { provider_id, model_id } })` 和 `availability(selection)` 指向同一个已配置模型。不指定时才使用默认，目标缺失、停用或连接失效时拒绝，不回退到其他模型或环境配置。Runtime 在第一次等待前复制两个 ID，插件之后改原对象不改变本次请求；地址和凭据由 Host 解析，派出前和返回后仍检查当前配置。模型清单与供应商设置不由此接口管理。
-- **原图与模型清单**：请求的 `images` 只收 `{ bytes, label? }`，首次等待前复制；最多 30 张、单张 32 MiB、总共 128 MiB。Host 用私有临时文件接现有 SDK intake，文件名由 Host 生成，结束清理，不接受插件路径或 URL；SDK 保留格式检查与不支持视觉模型的拒绝。`choices()` 只投影可用模型的 provider_id/model_id/label/vision/reasoning_effort，安装失效或缺 model:invoke 拒绝，读取零联网、零解密；选择仍由插件自己的设置 owner 保存。
+- **原图与模型清单**：请求的 `images` 只收 `{ bytes, label? }`，首次等待前复制；最多 50 张、单张 32 MiB、总共 128 MiB。Host 用私有临时文件接现有 SDK intake，文件名由 Host 生成，结束清理，不接受插件路径或 URL；SDK 保留格式检查与不支持视觉模型的拒绝。`choices()` 只投影可用模型的 provider_id/model_id/label/vision/reasoning_effort，安装失效或缺 model:invoke 拒绝，读取零联网、零解密；选择仍由插件自己的设置 owner 保存。
 - **回执与最终提交**：成功返回 `execution` 的真实 run_ref/state/configuredModel/reportedModels/usage；只有注入纯文字替身时缺省。普通推理失败、空正文与 JSON 解码失败在已有推理事实时保留原回执，不伪造调用/用量。结果和可记账失败提供 `validateResult()`，它保留原动作及实际派出时的 Host 绑定；插件在最后一次 `await beforeEffect()` 后立即同步调用，再提交业务。原调用结束、另一个动作借用或连接/模型改变均拒绝，失败记账同样受限。回归见 `tests/security-invariants-plugin-model-materials.test.ts`。
 - **后台边界**：动作返回后的有限继续执行须经 `services.background` 保留原授权，不能直接留一个游离的异步调用（见插件开发手册）。
 
@@ -202,7 +202,7 @@ node scripts/run-tests.mjs tests/action-before-effect.test.ts tests/agent-budget
 
 可信 Local Host 可以给 `hostTextGeneration` 传 `images: [{ root_path, relative_path, label? }]`。根目录及相对路径必须由 Host 从当前已授权材料中解析，不能从模型输出或插件 JSON 直接授权。已配置模型必须声明 `vision: true`；环境变量配置的模型不推定具备视觉能力，也不自动换模型。配置、视觉声明和凭据在实际派出及返回时仍重新核对。
 
-Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 30 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
+Agent Host 复用同一 Runtime 的只读 workspace、Node Host intake 和 Session attachments，按实际字节识别 PNG/JPEG/GIF/WebP，不把 OCR 文本冒充原图。单图最多 32 MiB，每次最多 50 张、合计 128 MiB，还受 Home 共享资源余量约束；超限拒绝整次派出。普通 `resources.stage().publishDurable()` 没有 Host 字节位置，不能用来伪造模型附件。附件不会向模型开放目录或文件工具。
 
 读取前、异步等待后及网络派出前保留原授权检查，成功、失败、取消都撤销附件并销毁 Host 暂存字节，输入原件不变。取消可先释放调用方，关闭执行 owner 仍等待资源清理。任务材料如何选择、PDF/目录如何组织、结果何时写入仍归消费者；SDK 支持附件并不代表某个插件已完成迁移。真实协议和字节回归见 `tests/prologue-inference-images.test.ts`，模型视觉声明与变更见 `tests/host-configured-text.test.ts`。
 
@@ -310,7 +310,7 @@ Builder `images` 是宿主持有的 PNG 字节（最多 9 张、总共 12 MiB）
 
 UI 复查只使用隔离验收数据，不截整个工作台；只使用当前选定且声明 `vision: true` 的模型，缺失或失败时不宣称视觉通过。
 
-Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限仍是 30 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。
+Work 助理的 Agent 图文材料路径当前最多 6 张图，与 Issue 图文草稿上限一致，入口和适配器均独立检查；直接 inference 的原图上限是 50 张。图片不静默截断，不支持视觉的模型拒绝这轮请求。
 
 
 AI通过共同动作服务修改已有对象时，必须带schema声明的读取版本；版本表需覆盖全部ids。Kernel与助理preflight共用检查，缺前提为`actions.version_required`，错类型等schema错误仍为`actions.input_invalid`。本人页面、非AI工作流与可信插件自调保留现行合同，活跃handler的真实嵌套调用只豁免额外版本规则，仍受原权限、安装、signal与beforeEffect约束；取消或超时后旧promise不能延长豁免。独立创建无版本字段时不新增前提。

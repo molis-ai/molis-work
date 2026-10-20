@@ -52,7 +52,7 @@ Run 的启动/读取/控制、审查队列读取。调用前宿主会检查插�
   - 前台 SDK 写入保留原调用控制到实际 Node storage commit；最终 checker 必须同步。只有初始 Run 持久记录提交后，drive 才脱离前台信号，派出仍核独立安装授权。Session 以 SDK 记录和 owner 索引都已提交为接受点；索引前拒绝时由 SDK 清理本次未接受 Session，清理失败明确报出。尚未接受的排队效果不会因包装函数返回而丢失原 checker。
   - thinking 与显式输出预算合成同一个 params；文档文本提取 finally 回收本次原件和派生资源，保留其他消费者持有的附件。
   - 每一轮的冻结记录带宿主给的调用编号（`frozen.call_id`）：来自启动权限 `AgentStartAuthority.call_id`，经 `AgentHost.start` 交给适配器；适配器不读请求体里的同名字段，所以插件塞的值不会成为一轮的编号。编号只写在这份冻结记录里，不交给 Prologue（用户 2026-10-10 决定）；它不是工具调用的 `call_id`。回归：`tests/agent-start-authority.test.ts`。
-  - 原图输入经可信 Host 选定路径、Node Host intake 与 Session attachments；只读根不交给模型工具。支持 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 30 张/128 MiB，共享资源总量仍限 128 MiB。完成/失败/取消撤销资源，关闭时等待实际清理。回归：`tests/prologue-inference-images.test.ts`。
+  - 原图输入经可信 Host 选定路径、Node Host intake 与 Session attachments；只读根不交给模型工具。支持 PNG/JPEG/GIF/WebP，单图 32 MiB、每次 50 张/128 MiB，共享资源总量仍限 128 MiB。完成/失败/取消撤销资源，关闭时等待实际清理。回归：`tests/prologue-inference-images.test.ts`。
   - 一个 Home 一个执行 owner；另一个进程得到 `agent.inference.home_in_use` 或 `agent.storage_busy`，经 `inferenceServiceUnavailableReason` 转成给人看的原因。
   - 派出前复核（`beforeDispatch`、凭据核对）拒绝时，调用方拿到复核自己抛的错误（`isDispatchRefusal` 为真），不得改写成模型或网络失败；SDK 侧对应 `EFFECT_NOT_AUTHORIZED`。
   - 角色必须是 Manifest 声明过的，能力必须 Runtime 真支持，目录必须宿主授权且 realpath 已核；`unsupported` 就是不能用，不降级不伪装。

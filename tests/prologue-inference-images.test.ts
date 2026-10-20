@@ -61,6 +61,26 @@ test("original images use both Prologue protocols, preserve source/order and rel
   }
 }));
 
+// BL-355: the vendored Prologue's placeholders had no end, so "…-1" was the start of "…-10" and every call from the 11th image on was refused whole.
+test("50 original images from one folder are one call: each reaches the model exactly once, in order", { timeout: 60_000 }, async () => fixture(async f => {
+  const pictures = Array.from({ length: 50 }, (_, index) => Buffer.concat([png, Buffer.from([index])]));
+  for (const [index, bytes] of pictures.entries()) await writeFile(join(f.root, `${index}.png`), bytes);
+  for (const protocol of ["openai-compatible", "anthropic-compatible"]) {
+    const request = f.input({ protocol, images: pictures.map((_, index) => ({ root_path: f.root, relative_path: `${index}.png` })) });
+    if (protocol === "anthropic-compatible") request.endpoint = request.endpoint.replace("/chat/completions", "/messages");
+    const before = f.requests.length;
+    const result = await f.adapter.inference.completeTextResult(request);
+    assert.equal(result.state, "completed"); assert.equal(f.requests.length, before + 1);
+    const sent = f.requests.at(-1), body = JSON.stringify(sent);
+    assert.equal(body.includes("PROLOGUE-ATTACHMENT-"), false);
+    const images = sent.messages.at(-1).content.filter((block: any) => block.type === "image" || block.type === "image_url").map((block: any) =>
+      block.type === "image" ? block.source.data : block.image_url.url.split(",")[1]);
+    assert.deepEqual(images.map((value: string) => Buffer.from(value, "base64")), pictures);
+    for (const bytes of pictures) assert.equal(body.split(bytes.toString("base64")).length - 1, 1);
+    assert.deepEqual(await f.staged(), []);
+  }
+}));
+
 test("invalid structured output retains the execution receipt and destroys image bytes", async () => fixture(async f => {
   await assert.rejects(f.adapter.inference.completeTextResult(f.input({ structured: { mode: "local", schema: { type: "object" } } })), (error: any) => {
     assert.equal(error.code, "MODEL_STRUCTURED_INVALID"); assert.equal(error.execution.state, "failed"); assert.equal(error.execution.usage[0]?.output.tokens, 2); return true;
@@ -76,7 +96,7 @@ test("intake rejects false image types, path escapes, symlinks, count and byte l
     await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: [{ root_path: f.root, relative_path: "one.png" }, { root_path: f.root, relative_path }] })));
     assert.deepEqual(await f.staged(), []); assert.equal(f.requests.length, 0);
   }
-  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 31 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "agent.inference.image_limit" });
+  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 51 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "agent.inference.image_limit" });
   assert.equal(f.requests.length, 0);
   // The size boundary is checked on bytes, independently of external image quality/decoding.
   await writeFile(join(f.root, "large.png"), tooLarge.subarray(0, 32 * 1024 * 1024));

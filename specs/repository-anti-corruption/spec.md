@@ -620,7 +620,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - 行为变化（按预期变化处理）：
   - 页面的写请求之后不再 `invalidateWebView`：插件路由没有这一步。
   - 提供方缺失或有多个时由目录报 `actions.dependency_missing` 或 `actions.provider_ambiguous`；无效的流程或运行 id 现在进到动作，由动作的输入校验或 `workflows.not_found` 拒绝，不再在路由层给 404。
-  - `workflows:read`、`workflows:write`、`actions:delegate` 成为必需权限：合同影响是已授权的要在设置页重新授权；动作版本不升（只是权限与受众的声明变化，形状没变）。
+  - `workflows:read`、`workflows:write`、`actions:delegate` 成为必需权限。当前随宿主发布的安装按共同 `bundledGrants` 规则取得 Manifest 的必需权限，用户关闭过的可选 `model:invoke` 保持关闭，不要求另到设置页重新授权；缺少必需权限的直接 Runtime 启动仍拒绝。动作版本不升（动作形状未变）。
   - 每次 `invoke` 都重新在目录里找一次提供方，不再沿用宿主启动时绑定的那一份；提示词覆盖与「模型已不可用」的措辞改由 `services.model` 给出。
   - 与旧路径相比 MCP 与 Agent 没有变宽：旧的提供方本来就用原调用者（`actions.invoke(caller, …)`）去调站点与步骤，现在改经目录，仍是原调用者，`allowed_actions` 与 `validate_authority` 一路带着，另外多一道安装的 `actions:delegate`。所以 MCP 没被授权、Agent 清单里没有的步骤被拒（`workflows.unavailable`），步骤不运行；调用途中被撤权仍是 `mcp.action_revoked`。页面上也没有变窄：旧路由按本地用户的全部权限，现在以本人身份，本人能到达的照旧能到达。
   - 旧的 `/api/workflows…` 不留别名；客户端改用 `/api/plugins/io.molis.work.native.workflows/workflows…`。
@@ -3616,7 +3616,7 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 | 已审包 / 覆盖 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
 | --- | --- | --- |
-| `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/workflows` / 20 文件 | 拥有项目流程定义、编排、attempt/receipt 与交接计算；站点内容归插件，经 provider/version 固定动作消费，Host 管授权/模型；现由 Plugin Runtime 装配 | CAS/幂等接收/unknown/重试现有断言有效；保存串写、搜索打开、按 §12.10 停止当前步骤待修，真实模型质量另验 |
 | `plugins/native/alchemist` / 135 文件 | 单一 Studio 拥有 Direction/Idea 版本、研究证据/报告、Taste/Playbook 与 job/checkpoint；Host 仅装配 AI、搜索/关闭 | 后台 lease/事务/重开有有效证据；前台 effect、client lifecycle/搜索待修。固定成果 reuse 为已披露未接线，纠正入口不冒充全链已实现 |
 | `plugins/native/work` / 48 文件 | 组织 Session 发现/内容/交接、工作区/终端；私有加密事实归 private-work-context，原生传输归 runtime-host | read/resume 快照、unknown、回执事务有效；等待后控制缺失必修，真实送达回执例外按用户 §12.10。原生 transport fixture 不等用户实际 Codex 会话 |
 | `plugins/native/issues` / 16 文件 | Home 内 Issue 自有 schema/命令/原文/版本/capture 草稿，Runtime 管身份安装与授权；不是 Goal/项目或 Host 特例 | 真 Home/HTTP/stdio MCP、CAS/撤销有证据；手工页重复仍由原 writer 修；模型分类/IME/跨 App 实操未验，无重复新缺陷 |

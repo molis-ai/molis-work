@@ -1,5 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginManifest, PluginPrivateStorage, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertPluginActionCurrent } from "./action-scope.js";
 
 export interface PluginPrivateStorageDatabase {
   exec(sql: string): unknown;
@@ -42,6 +43,8 @@ export class SqlitePluginPrivateStorage {
         throw pluginErrors.storage_input_invalid("私有存储 key 必须为非空字符串");
       }
     };
+    // A write inside an action also asks that action's original caller, in the same turn as the statement.
+    const authorizeWrite = (key: string) => { authorize(key); assertPluginActionCurrent(); };
     return {
       get: key => {
         authorize(key);
@@ -50,7 +53,7 @@ export class SqlitePluginPrivateStorage {
         return row?.item_value ?? null;
       },
       set: (key, value) => {
-        authorize(key);
+        authorizeWrite(key);
         if (typeof value !== "string") {
           throw pluginErrors.storage_input_invalid("私有存储值必须由 Plugin 编码为字符串");
         }
@@ -58,12 +61,12 @@ export class SqlitePluginPrivateStorage {
           ON CONFLICT (install_id, item_key) DO UPDATE SET item_value = excluded.item_value`).run(installId, key, value);
       },
       delete: key => {
-        authorize(key);
+        authorizeWrite(key);
         return Number(this.db.prepare("DELETE FROM plugin_private_values WHERE install_id = ? AND item_key = ?")
           .run(installId, key).changes) > 0;
       },
       compareAndSet: (key, expected, value) => {
-        authorize(key);
+        authorizeWrite(key);
         if ((expected !== null && typeof expected !== "string") || typeof value !== "string") {
           throw pluginErrors.storage_input_invalid("比较值必须为字符串或 null，新值必须为字符串");
         }

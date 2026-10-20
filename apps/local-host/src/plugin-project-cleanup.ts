@@ -40,9 +40,9 @@ export function assertProjectCleanupEntries(entries: readonly PluginProjectClean
   }
 }
 
-/** What the deletion asks of the running instance: close its library of the project (`HomePluginExecutor.clearProjectLibrary`). */
+/** What the deletion asks of the executor: close and refuse the installation's library of the project (`HomePluginExecutor.clearProjectLibrary`). */
 export interface PluginProjectLibraries {
-  clearProjectLibrary(installId: string, projectId: string): (() => void) | undefined;
+  clearProjectLibrary(installId: string, projectId: string): () => void;
 }
 
 /**

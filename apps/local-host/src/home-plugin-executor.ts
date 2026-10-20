@@ -4,7 +4,7 @@ import { createPluginOwnerFilesClient, type SqlitePluginPrivateStorage } from "@
 import { UiHost, createPluginUiClient } from "@molis-ai/molis-work-ui-host";
 import { pluginHostActions } from "./plugin-actions-client.js";
 import { openPluginDatabase } from "./plugin-database.js";
-import { openPartitionedPluginDatabase, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
+import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { openPluginFiles } from "./plugin-files.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
@@ -19,6 +19,8 @@ import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase }>();
+  /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
+  private readonly partitionDeletions = new Map<string, PartitionDeletions>();
   constructor(private readonly options: {
     home: string; actorId: string; client: ActionClient;
     database(definition: PluginDefinition): HomePluginDatabaseDeclaration | undefined;
@@ -74,7 +76,9 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
-      if (declaration?.partition === "project") partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context.install_id);
+      if (declaration?.partition === "project") {
+        partitions = openPartitionedPluginDatabase(this.options.home, declaration, authorize, context.install_id, this.deletionsOf(context.install_id));
+      }
       else if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
       const fileDeclaration = this.options.files(definition);
       if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
@@ -118,11 +122,18 @@ export class HomePluginExecutor implements PluginExecutor {
   }
 
   /**
-   * The running instance's part of deleting a project, when its library is partitioned by project: the project's library is closed and
-   * refused (`PartitionedPluginDatabase.clearProject`); the returned function lets it be opened again once the files are gone.
+   * The executor's part of deleting a project, when the installation's library is partitioned by project: the running instance closes
+   * the project's library (`PartitionedPluginDatabase.clearProject`); running or not, the project is refused to every call begun so far
+   * and, until the returned function says the files are gone, to an instance started meanwhile too.
    */
-  clearProjectLibrary(installId: string, projectId: string): (() => void) | undefined {
-    return this.sessions.get(installId)?.partitions?.clearProject(projectId);
+  clearProjectLibrary(installId: string, projectId: string): () => void {
+    return this.sessions.get(installId)?.partitions?.clearProject(projectId) ?? beginPartitionClearing(this.deletionsOf(installId), projectId);
+  }
+
+  private deletionsOf(installId: string): PartitionDeletions {
+    let deletions = this.partitionDeletions.get(installId);
+    if (!deletions) this.partitionDeletions.set(installId, deletions = partitionDeletions());
+    return deletions;
   }
 
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }

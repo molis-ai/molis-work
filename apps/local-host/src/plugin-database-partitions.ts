@@ -21,6 +21,32 @@ interface Part {
   remove(): void;
 }
 
+/**
+ * The deletions of one installation's project libraries. The executor keeps them per installation, across its instances: an
+ * instance started while a deletion's `purge` runs still finds the project being cleared, and the calls begun before it refused.
+ */
+export interface PartitionDeletions {
+  /** The last call begun when a project's library was deleted: calls begun up to then never reach the project's library again. */
+  readonly deletedUpTo: Map<string, number>;
+  /** Deletions of the project under way, until its files are gone. */
+  readonly clearing: Map<string, number>;
+}
+
+export const partitionDeletions = (): PartitionDeletions => ({ deletedUpTo: new Map(), clearing: new Map() });
+
+/** Refuses the project's library to every call begun so far, and to all until the returned function says its files are gone. */
+export function beginPartitionClearing({ deletedUpTo, clearing }: PartitionDeletions, projectId: string): () => void {
+  deletedUpTo.set(projectId, lastBegunPluginInvocation());
+  clearing.set(projectId, (clearing.get(projectId) ?? 0) + 1);
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    const left = clearing.get(projectId)! - 1;
+    if (left) clearing.set(projectId, left); else clearing.delete(projectId);
+  };
+}
+
 /** A Home plugin's library partitioned by project (`partition: "project"`), with the same client the Plugin knows. */
 export interface PartitionedPluginDatabase {
   readonly client: PluginDatabase;
@@ -41,11 +67,9 @@ export interface PartitionedPluginDatabase {
  * the same checks as an unpartitioned one (`openPluginDatabase`).
  */
 export function openPartitionedPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void,
-  installId: string): PartitionedPluginDatabase {
+  installId: string, deletions: PartitionDeletions): PartitionedPluginDatabase {
   const parts = new Map<string, Part>();
-  // The last call begun when a project's library was deleted: calls begun up to then never reach the project's library again.
-  const deletedUpTo = new Map<string, number>();
-  const clearing = new Map<string, number>();
+  const { deletedUpTo, clearing } = deletions;
   let closed = false;
 
   const project = (): string => {
@@ -91,17 +115,9 @@ export function openPartitionedPluginDatabase(home: string, declaration: PluginD
       },
     } satisfies PluginDatabase),
     clearProject(projectId) {
-      deletedUpTo.set(projectId, lastBegunPluginInvocation());
-      clearing.set(projectId, (clearing.get(projectId) ?? 0) + 1);
+      const release = beginPartitionClearing(deletions, projectId);
       const part = parts.get(projectId);
       parts.delete(projectId);
-      let released = false;
-      const release = () => {
-        if (released) return;
-        released = true;
-        const left = clearing.get(projectId)! - 1;
-        if (left) clearing.set(projectId, left); else clearing.delete(projectId);
-      };
       try { part?.remove(); } catch (error) { release(); throw error; }
       return release;
     },

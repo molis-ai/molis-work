@@ -53,6 +53,31 @@ test("PART-10 deleting a project: the Plugin hears of it, its library closes and
   assert.deepEqual(await f.invoke(read, {}, "p1"), ["rebuilt"]);
 });
 
+test("PART-10 an instance started while the purge runs, after a restart or with the plugin stopped when the deletion began, still finds the project being cleared", async t => {
+  const f = partitionHome(t), { platform, record } = await f.ready();
+  for (const projectId of ["p1", "p2"]) await f.invoke(write, { text: "gone" }, projectId);
+  const purges = new Map([["p1", deferred()], ["p2", deferred()]]);
+  probe.purge = (_home, projectId) => { probe.trace.push(`purge:${projectId}`); return purges.get(projectId)!.promise; };
+
+  const first = f.hooks.clear(PROBE, "p1");
+  await platform.runtime.stop(record.install_id);
+  const second = f.hooks.clear(PROBE, "p2");
+  await platform.runtime.start(record.install_id);
+  for (const projectId of ["p1", "p2"]) {
+    await assert.rejects(f.invoke(write, { text: "lost" }, projectId), { code: "actions.unavailable" },
+      "a write here would open a library the purge's removal then swallows");
+    await assert.rejects(f.invoke(read, {}, projectId), { code: "actions.unavailable" });
+  }
+
+  for (const purged of purges.values()) purged.resolve();
+  assert.deepEqual(await Promise.all([first, second]), [true, true]);
+  for (const projectId of ["p1", "p2"]) {
+    assert.equal(existsSync(partitionDirectory(f.home, projectId)), false);
+    assert.equal(await f.invoke(write, { text: "rebuilt" }, projectId), "stored", "once the files are gone the id is free again");
+    assert.deepEqual(await f.invoke(read, {}, projectId), ["rebuilt"]);
+  }
+});
+
 test("PART-11 deleting a project with the plugin not running, or with no Host at all, removes its library of the project", async t => {
   const f = partitionHome(t), { platform, record } = await f.ready();
   for (const projectId of ["p1", "p2", "p3"]) await f.invoke(write, { text: projectId }, projectId);

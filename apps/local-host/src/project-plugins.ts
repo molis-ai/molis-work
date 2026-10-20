@@ -16,6 +16,7 @@ import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plug
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
 import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
+import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
@@ -24,6 +25,7 @@ import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
+import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -215,10 +217,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory));
+    const report = await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
     record.running = report.running.includes(CODING_PLUGIN_ID);
-    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
+    record.error = projectPluginDatabaseRefusal(ports.store.db, CODING_PLUGIN_ID)?.message ?? [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
@@ -254,6 +256,10 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
       "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
+  }, {
+    definition: createWorkflowsPlugin(), bundled: true, database: WORKFLOWS_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
+      "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
   }];
 }
 

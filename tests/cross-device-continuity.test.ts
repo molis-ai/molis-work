@@ -30,7 +30,7 @@ test("real Goal/Artifact actions survive phone retry, two members, revocation, r
   const projectId='shared-project',goalId='PHONE-GOAL';
   const dbPath=join(directory,'project.sqlite');
   const db=new LocalProjectDatabase(dbPath),app=new GoalProjectApplication(db);
-  app.initializeBoard({project_id:projectId,title:'接续验证',actor_id:'desktop',idempotency_key:'init'});
+  app.initializeBoard({project_id:projectId,actor_id:'desktop',idempotency_key:'init'});
   app.goalEvents.createIntent({project_id:projectId,actor_id:'desktop',idempotency_key:'seed-goal',goal_id:goalId,title:'完成真实接续',outcome:'手机记录后桌面继续'});
   app.goalEvents.createIntent({project_id:projectId,actor_id:'desktop',idempotency_key:'private-goal',goal_id:'PRIVATE',title:'私人目标不得出现在共享响应'});
   app.artifacts.commands.registerVersion({...pinnedArtifact('操作说明'),project_id:projectId,artifact_id:'shared-artifact',version:2,actor_id:'desktop',artifact_type_id:'io.test.document',schema_version:1,

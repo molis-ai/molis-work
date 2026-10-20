@@ -45,6 +45,7 @@ async function setup(t: test.TestContext, completeText: HostCompleteText | null 
   return { home, host, reference, actions, release, pageId: document.id, pass };
 }
 
+// W5-01-WORKFLOWS-07: a stopped or revoked call leaves no business record; the nested calls go through the action directory.
 test("W2-18-WF-STOP-01: stop reaches Form's final effect after its model wait and no later station runs", { timeout: 25_000 }, async t => {
   const entered = Promise.withResolvers<void>(), finish = Promise.withResolvers<void>(), childFinished = Promise.withResolvers<void>();
   const f = await setup(t, async () => { entered.resolve(); await finish.promise; return JSON.stringify({ status: "done", questions: [{ title: "Late generated question", type: "text" }] }); }, () => childFinished.resolve());

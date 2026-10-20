@@ -19,6 +19,7 @@ import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from ".
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { CODING_PROJECT_DATABASE } from "./database.js";
 
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
@@ -108,6 +109,7 @@ export const codingManifest: PluginManifest = {
     subscribes: [],
   },
   agent: codingAgentManifest,
+  databases: { project: CODING_PROJECT_DATABASE },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, codingArtifactPreview, codingResultDocument],
   routes: [

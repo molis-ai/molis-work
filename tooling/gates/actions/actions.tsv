@@ -184,7 +184,7 @@ feed.connections.status	1	io.molis.work.feed	io.molis.work.feed	query	query	proj
 feed.content.list	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user,workflow	feed:read	feed_item	molis.workflow.content.list.input.v1	molis.workflow.content.list.output.v1	d746974fa9af	4f4504a9e9ef	d7f62141b39f
 feed.content.read	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	agent,mcp,user,workflow	feed:read	feed_item	molis.workflow.content.read.input.v1	molis.workflow.content.read.output.v1	340e9001c04b	a92de13478a1	d4c6bf3e24b2
 feed.content.receive	2	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	agent,mcp,user,workflow	feed:write	feed_item	molis.workflow.content.receive.input.v2	molis.workflow.content.receive.output.v1	e37e71e46d14	61645e9b2fb4	81e35a01ccce
-feed.goals.context	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	feed:read,goals:read	feed_item	-	-	69dea76baae0	c340833cdd90	753b8aee1360
+feed.goals.context	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	feed:read,goals:read	feed_item	-	-	69dea76baae0	c340833cdd90	a962f9bb7345
 feed.home.events	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	feed:read,inbox:read	feed_item,source	molis.home-events.window.v1	molis.home-events.collection.v1	88db02166b7c	6c66039065c7	-
 feed.items.disposition	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user,workflow	feed:read,feed:write	feed_item	-	-	a245edc9cb3b	3ec94f5f1dd8	-
 feed.items.get	1	io.molis.work.feed	io.molis.work.feed	query	query	project	read	-	user	feed:read	feed_item	-	-	e7b581b16414	0750f455ed65	-
@@ -264,11 +264,11 @@ goals.artifact_inputs.add	1	io.molis.work.goals	io.molis.work.goals	command	oper
 goals.artifact_inputs.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	ca5f7a11f246	7de5615b4397	-
 goals.artifact_inputs.pin	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	concurrent	agent,mcp,user,workflow	goals:write	goal	-	-	0fcc936e0e34	6f3b34501279	9a20bdba744a
 goals.artifact_inputs.remove	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	irreversible	-	agent,mcp,user,workflow	goals:write	goal	-	-	cb9d95abd1d1	ffe64f3e9a62	9a20bdba744a
-goals.board.initialize	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:write	goal	-	-	8eaeaa1a5a07	cc75bd7992ca	9a20bdba744a
+goals.board.initialize	2	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:write	goal	-	-	e19af0e958e2	cc75bd7992ca	9a20bdba744a
 goals.closure.submit	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	f764c470b46e	f6d71465247f	9a20bdba744a
-goals.collection.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	2b295c72b8d8	-
+goals.collection.read	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	2e3dbd273f2e	-
 goals.concerns.apply	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	ef44d2e93316	52074553bcfa	9a20bdba744a
-goals.contract.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	ca5f7a11f246	9346d2d99196	-
+goals.contract.read	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	ca5f7a11f246	44fb26f3314c	-
 goals.create	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	d2d4a79ba4b6	ddb29ddbb8af	9a20bdba744a
 goals.decisions.cite	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	agent,mcp,user,workflow	goals:write	goal	-	-	111d35fe20c4	2b56cfdf0546	9a20bdba744a
 goals.decisions.record	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:decide	goal	-	-	b69961e0a805	5514564f0575	9a20bdba744a
@@ -316,7 +316,7 @@ goals.relations.add	1	io.molis.work.goals	io.molis.work.goals	command	operation	
 goals.relations.deactivate	1	io.molis.work.goals	io.molis.work.goals	command	operation	project	write	-	user	goals:decide	goal	-	-	029ff9703508	338f29ad9546	9a20bdba744a
 goals.relations.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	fbcf8ea78968	6ff388b12763	-
 goals.search.entries	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	goals:read	goal	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	8e6491bdcc28
-goals.snapshot.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	b2bc535fb214	-
+goals.snapshot.read	2	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	d746974fa9af	e2d67bd42a39	-
 goals.state.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,plugin,user,workflow	goals:read	goal	-	-	ca5f7a11f246	44a85190e657	-
 goals.subject.read	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	goals:read	goal	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	1b694155359d	-
 goals.timeline.list	1	io.molis.work.goals	io.molis.work.goals	query	query	project	read	-	agent,mcp,user,workflow	goals:read	goal	-	-	4885e15fa184	e2921f100e03	-

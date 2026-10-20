@@ -26,7 +26,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/overflow-fade.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/overflow-fade-client.js && ../../node_modules/.bin/esbuild src/browser/copy-feedback.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/copy-feedback-client.js",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "dependencies": {

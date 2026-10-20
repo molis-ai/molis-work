@@ -35,7 +35,7 @@ test("an action client asked not to prepare the project calls Goals without star
     const listed = await providers(bare);
     assert.ok(listed.has(GOALS_PLUGIN_ID), "Goals is registered when the project opens, so it needs no preparation");
     assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => listed.has(plugin)), [], "no Runtime plugin was started by listing the actions");
-    await managementGoals(bare, "unprepared").invoke(goalsActions.initialize, { title: "未准备", idempotency_key: "init" });
+    await managementGoals(bare, "unprepared").invoke(goalsActions.initialize, { idempotency_key: "init" });
     assert.deepEqual((await bindActionClient(bare, () => caller).invoke(goalsActions.snapshot, {})).goals, [], "the calls reached Goals");
     const after = await providers(bare);
     assert.deepEqual(RUNTIME_PLUGINS.filter(plugin => after.has(plugin)), [], "and still started no Runtime plugin");
@@ -106,7 +106,7 @@ test("a Run reads the project guidance through the Goals action, once, whether o
   const guidanceRows = (rows: readonly Settlement[]) => rows.filter(row => row.capability_id.includes("guidance"));
   try {
     const management = managementGoals(host.actionClient(reference), "guided");
-    await management.invoke(goalsActions.initialize, { title: "说明", idempotency_key: "init" });
+    await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const settled = watchSettlements(host);
 

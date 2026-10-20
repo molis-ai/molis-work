@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 
 import {
+  CODING_PROJECT_DATABASE,
   CodingSessionStore,
   toDirectoryEntries,
 } from "@molis-ai/molis-work-plugin-coding";
@@ -17,8 +18,9 @@ const BOARD = "board-a";
 
 function open(path: string) {
   const db = new DatabaseSync(path);
-  db.exec("CREATE TABLE IF NOT EXISTS boards (project_id TEXT PRIMARY KEY)");
-  db.prepare("INSERT OR IGNORE INTO boards (project_id) VALUES (?)").run(BOARD);
+  db.exec("CREATE TABLE IF NOT EXISTS project_root (project_id TEXT PRIMARY KEY)");
+  db.prepare("INSERT OR IGNORE INTO project_root (project_id) VALUES (?)").run(BOARD);
+  db.exec(CODING_PROJECT_DATABASE.schema);
   return db;
 }
 

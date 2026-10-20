@@ -4,18 +4,37 @@ import Database from "better-sqlite3";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "@molis-ai/molis-work-module-goals";
+import { GoalInputBindings } from "@molis-ai/molis-work-module-goals";
+import { GOALS_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalInputBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
+import { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
+
+// The tables are the ones Goals declares for a project's library; the rows only fill their required columns. The board is keyed to the
+// project's root row, which the platform's baseline makes (PLIB-13), so a project's root goes in before its board.
+function createLibrary(db: Database.Database): void {
+  db.exec(PROJECT_ROOT_SCHEMA_SQL);
+  db.exec(GOALS_PROJECT_DATABASE.schema);
+}
+
+function insertBoard(db: Database.Database, projectId: string): void {
+  writeProjectRoot(db, projectId, "2026-09-01T00:00:00Z");
+  db.prepare("INSERT INTO boards (project_id, created_at, updated_at) VALUES (?, '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')").run(projectId);
+}
+
+function insertGoal(db: Database.Database, goalId: string, projectId: string): void {
+  db.prepare(`INSERT INTO goals (goal_id, project_id, title, outcome, why, business_logic, definition_state, decomposition_state,
+    validity_state, fulfillment_state, created_at, updated_at) VALUES (?, ?, 'Goal', 'Outcome', 'Why', 'Logic', 'draft', 'abstract',
+    'valid', 'unmet', '2026-09-01T00:00:00Z', '2026-09-01T00:00:00Z')`).run(goalId, projectId);
+}
 
 test("Goal input receipts retain opaque locators and snapshots, isolate Projects, and share rollback", () => {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
-    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
-    INSERT INTO boards VALUES ('project-a'), ('project-b');
-    INSERT INTO goals VALUES ('goal-a', 'project-a');
-    ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
+  createLibrary(db);
+  insertBoard(db, "project-a");
+  insertBoard(db, "project-b");
+  insertGoal(db, "goal-a", "project-a");
   try {
     const inputs = new GoalInputBindings(db, createContextLedger(db, { authorize: () => true }));
     const record: GoalInputBindingRecord = { binding_id: "binding-a", project_id: "project-a", goal_id: "goal-a",
@@ -29,7 +48,7 @@ test("Goal input receipts retain opaque locators and snapshots, isolate Projects
     assert.deepEqual(inputs.list("project-a"), [record]);
     assert.deepEqual(inputs.list("project-b"), []);
     assert.throws(() => db.transaction(() => {
-      db.prepare("INSERT INTO goals VALUES ('goal-new', 'project-a')").run();
+      insertGoal(db, "goal-new", "project-a");
       inputs.register({ ...record, binding_id: "rolled-back", goal_id: "goal-new" });
       throw new Error("later action failed");
     }).immediate(), /later action failed/);
@@ -45,10 +64,9 @@ const feedReceipt: GoalInputBindingRecord = {
 };
 
 function seedGoal(db: Database.Database): void {
-  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY);
-    CREATE TABLE goals (goal_id TEXT PRIMARY KEY, project_id TEXT NOT NULL REFERENCES boards(project_id));
-    INSERT INTO boards VALUES ('project-a');
-    INSERT INTO goals VALUES ('goal-a', 'project-a'); ${GOAL_INPUT_BINDINGS_SCHEMA_SQL}`);
+  createLibrary(db);
+  insertBoard(db, "project-a");
+  insertGoal(db, "goal-a", "project-a");
 }
 
 test("Feed input provenance is recorded once and survives reopen independently of current Feed links", () => {

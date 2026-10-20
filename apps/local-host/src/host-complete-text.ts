@@ -6,6 +6,7 @@ import { ActionError, type ActionAvailability } from "@molis-ai/molis-work-contr
 import { MINIMAX_ANTHROPIC_BASE_URL } from "./model-provider-templates.js";
 import { configuredTextModelSnapshot, openConfiguredModels, selectConfiguredTextModel, validateTextModelUrl, type TextModelSelection } from "./configured-models.js";
 import { L } from "./web-locale.js";
+import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 
 export interface HostTextRequestOptions {
   signal?: AbortSignal;
@@ -57,8 +58,17 @@ export function hostCompleteText(options: HostTextOptions = {}): HostCompleteTex
   return generate && (async (prompt, request) => (await generate(prompt, request)).value);
 }
 
-/** The same guarded model binding, with the complete execution receipt for consumers that need it. */
+/**
+ * The same guarded model binding, with the complete execution receipt for consumers that need it. Asked by the availability checks
+ * of one action directory, it reads the model settings once for each Home and selection; a call outside a directory reads afresh.
+ */
 export function hostTextGeneration(options: HostTextOptions = {}): HostTextGeneration | undefined {
+  if (options.env !== undefined || options.resolveInference) return readHostTextGeneration(options);
+  const home = options.homeDirectory ?? resolveMolisWorkHome();
+  return rememberInDirectoryPass(hostTextGeneration, JSON.stringify([home, options.selection ?? null]), () => readHostTextGeneration({ ...options, homeDirectory: home }));
+}
+
+function readHostTextGeneration(options: HostTextOptions): HostTextGeneration | undefined {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
   if (options.env === undefined) {
     const opened = openConfiguredModels(home);

@@ -30,7 +30,7 @@ export async function knowledgeWorkspace(t: import("node:test").TestContext) {
   const host = new MolisWorkLocalHost({ completeText: null, workspacesFor: async projectId => projectId === "a" ? [workspace] : [] });
   const reference = (projectId: string) => molisWorkHostProjectReference({ databasePath: join(root, `${projectId}.sqlite`), projectId });
   for (const projectId of ["a", "b"]) {
-    await host.withProject(reference(projectId), runtime => runtime.coordinator.initializeBoard({ project_id: projectId, title: "Knowledge workspace", actor_id: "web-user", idempotency_key: "init" }));
+    await host.withProject(reference(projectId), runtime => runtime.coordinator.initializeBoard({ project_id: projectId, actor_id: "web-user", idempotency_key: "init" }));
   }
   const cards = openKnowledgeCards({ homeDirectory: root });
   t.after(async () => { cards.close(); await host.close(); await rm(root, { recursive: true, force: true }); });

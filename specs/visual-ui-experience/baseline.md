@@ -47,14 +47,14 @@
 
 ## 原始证据与复现
 
-测量脚本：[http-baseline.mjs](evidence/http-baseline.mjs)。完整样本：[04](evidence/http-04.json)、[05](evidence/http-05.json)、[06](evidence/http-06.json)。原始文件保留响应头/响应体耗时、状态码、字节、环境、数据规模及进程统计；不输出控制令牌或真实数据。
+测量脚本：[http-baseline.mjs](../../scripts/visual/http-baseline.mjs)。完整样本：[04](evidence/http-04.json)、[05](evidence/http-05.json)、[06](evidence/http-06.json)。原始文件保留响应头/响应体耗时、状态码、字节、环境、数据规模及进程统计；不输出控制令牌或真实数据。
 
 ```sh
 pnpm install --frozen-lockfile --offline
 pnpm build
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-1.json
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-2.json
-node specs/visual-ui-experience/evidence/http-baseline.mjs /tmp/molis-visual-http-repeat-3.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-1.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-2.json
+node scripts/visual/http-baseline.mjs /tmp/molis-visual-http-repeat-3.json
 node scripts/run-tests.mjs tests/workbench-asset-cache.test.ts tests/catalog-read-contention.test.ts
 ```
 
@@ -80,3 +80,68 @@ node scripts/run-tests.mjs tests/workbench-asset-cache.test.ts tests/catalog-rea
 采样表同时记录适用于该路径的 DOM 节点数、主线程长任务、逐帧耗时及错过显示帧的情况、内存随操作轮数的趋势、请求数与资源字节，并将解析、布局、绘制与 Host/模型等待分开。帧结果记录显示刷新率及采样方法，不把 rAF 回调间隔直接叫做真实绘制帧率；有限样本报告范围与分位数，不只取最快一次。长列表、长文档、长会话、代码行数、图片像素和并行面板数在修改前固定，重开/关闭轮数也固定；资源在相同生命周期点比较，不用单次内存末值证明无泄漏。2026-10-18 仅补齐这份测量覆盖要求，未新增性能实测。
 
 已确定的约束：页面资源遵守 [spec 的阶段预算与现行体积控制](spec.md#6-模块边界输入输出与取舍)，默认只许变小；功能必需且同资源省不回的增长按决定 #17 在 PR 写明理由、字节数和已试省法，经评审单次放行，单个资源一次增长超过 10 KB 或新增资源先问用户。保留资源再验证行为与真实功能；不增加无必要查询/轮询；首次反馈、实际可操作与业务完成分开比较，不能拿更早占位替代完成更快。耗时改善须大于同条件重复测量的波动，关键非目标路径不得显著退化；新增效果的成本、内存和请求代价一并报告。尚无干净浏览器样本，因此本轮不编造整体验收阈值或“已流畅”的结论。
+
+## 2026-10-19 项目页准备路径：动作目录重复计算（VUX-35、VUX-36、VUX-37）
+
+**定位**：对 main `0744d7dd3` 跑 `http-baseline.mjs` 并 `--cpu-prof`，一次热请求约 250 ms，几乎都在 Host 组装页面前问动作目录：页面的每次插件查询都重新算一遍本人的授权目录（约 400 个动作、各问一次可用性，另加场景与绑定），一个请求约 30 次；每次目录里 Pages 每个动作重开一次文稿库，每个用模型的动作重开一次模型设置库，Plugin Runtime 每个动作读一次安装记录；内核 `usages` 每条绑定、宿主每个带 `required_scene` 的动作又各自重算一遍目录。
+
+**改动**（只去重复读，不改结果与授权）：
+
+- 同一请求的本人动作客户端只算一次授权上下文（`apps/local-host/src/local-web-actions.ts`）；撤权仍由每次调用的 `validate_authority` 现读安装、由派发现查可用性拒绝。
+- 一次同步目录叫一轮（`packages/kernel/src/directory-pass.ts`）：提供方自身状态、模型设置、安装记录在轮内各读一次，轮外每次现读；读失败不留存。宿主的依赖检查在一轮发现里共用一份场景与绑定，内核 `usages`、`targets` 一次调用只算一份目录。
+- 证明：`tests/action-directory-pass.test.ts`（一轮只问一次、下一轮现读并看到变化、轮外不留、失败不留），以及受影响的 164 个文件（含 S-15 撤权、动作网关、场景、模型可用性）全部通过。
+
+**同条件对照**：同一台机器、同一时段交替运行 main（`origin/main` 干净工作树）与本分支各 3 个独立进程，负载 3.0–4.0；HTTP 每路径 30 次，浏览器为无头 Chrome、1440×900、动效开启（隐藏 `navigator.webdriver`）、新配置目录。原始数据与汇总脚本在 `evidence/2026-10-19-directory-pass/`（汇总：[summarize.cjs](evidence/2026-10-19-directory-pass/summarize.cjs)，`node summarize.cjs <该目录>`）；本分支各文件的 `commit` 是基点、`dirty` 计数是当时未提交的同一份改动。
+
+| 路径 | main 中位数（p95 或范围） | 本分支 |
+| --- | ---: | ---: |
+| 项目主页热请求（HTTP，n=30） | 277.1 ms（p95 319.1） | 63.5 ms（p95 72.3） |
+| Coding 分屏文档（HTTP，n=30） | 277.3 ms（p95 588.7） | 66.7 ms（p95 70.4） |
+| 项目主页首次请求（HTTP，n=3） | 1,184.6 ms（1,067.7–1,194.9） | 915.4 ms（912.2–917.1） |
+| 浏览器首开：响应头 / 首次内容绘制 / 可操作（n=3） | 1,109 / 1,288 / 1,683 ms | 939 / 1,128 / 1,346 ms |
+| 浏览器重开：响应头 / 首次内容绘制 / 可操作（n=15） | 276 / 376 / 531 ms | 70 / 180 / 212 ms |
+| Pages 首次进入到可用（n=3） | 416.7 ms | 199.5 ms |
+| 项目目录 `/`（不经此路径，对照） | 2.0 ms | 2.1 ms |
+
+“可操作”指常驻输入可输入、插件条存在、没有显示中的表面仍在加载客户端；它晚于首次内容绘制，两者分开报告。长任务、请求数（18）、传输量（首开 4,092 KB、重开 893 KB）、DOM 节点（22,620）和反复切换后的堆走势两边相同，说明本次只缩短了 Host 准备，没有拿占位换时间；这些未改善的读数是下一批浏览器侧问题：
+
+- 点插件条一次的指针事件处理中位数 72 ms、最长 104 ms（Event Timing），超过一帧数倍。
+- 项目页 DOM 22,620 个节点，首开解码 4 MB。
+- 反复切换 5 个插件 10 轮，GC 后堆 6.02 → 6.40 MB 单调上升（节点、监听器不变），需要确认是否为保留的状态或累积。
+
+局限：机器上同时有其他会话负载；浏览器为无头模式，不代表 macOS 壳或真实显示刷新；数据规模为种子数据（19 个 Goal、11 个插件），没有长助理会话。
+
+## 2026-10-19 插件切换的一次按下：强制样式计算（VUX-35、VUX-36）
+
+**定位**：上一节留下的“点插件条 72 ms”。在无头 Chrome 里对每次按下录 Chrome 性能追踪（带 `devtools.timeline.stack` 与 `invalidationTracking`），按触发样式计算的脚本位置与失效原因归类。一次按下的处理本身只占十几毫秒，其余是样式计算：多处脚本在同一次点击里读布局（`getClientRects`、`getComputedStyle`、`checkVisibility`、`scrollTop`），每读一次就把前面写下的改动结算一遍；几条 `:has()` 规则让 Chrome 每次相关改动都重查整个切换器（528 个元素）或整个工作区。
+
+**改动**（只改读写时机与样式条件的写法，外观与行为不变）：
+
+- 状态环只对在动的环做可见性判断，新挂上的环直接画成当前状态、不再演一次落定（`packages/design-system/src/state-ring-client.ts`）；分段滑块的测量改到下一帧、一帧只量一次（`styles/micro-interactions.ts`）；侧栏情境每帧读一次，不再每个微任务读（`apps/workbench/src/side-panel-context.ts`）。
+- 切走时只记录滚动过的元素，不逐个读整个表面的 `scrollTop`（`scripts/client/system-tabs.ts`）；Goal 详情是否叠放先看开关再量宽度（`immersive-navigation.ts`）；删掉对隐藏标签行的 `scrollIntoView`（`frame-container.ts`，那一行始终隐藏）。
+- 样式条件改为元素上的标记：拖动目录宽度时工作区带 `is-tree-resizing`，分屏用已有的 `[data-split]`，市场有可用更新时切换器与菜单带 `data-market-updates`；插件创作台预览页的 `html:has(…)` 只看 `body` 的直接子元素。守卫：`tests/style-has-scope.test.ts`（页面根上的 `:has()` 只许看子元素，工作区、底栏、切换器上不许用 `:has()`；把旧规则放回去会失败），规则写进 DESIGN.md「Don't」。
+
+**同条件对照**：同一台机器、同一时段，本分支与回退这些源码改动后的同一分支（只差上面这些文件，测量脚本相同）各 3 个独立进程；无头 Chrome、1440×900、动效开启、新配置目录、种子数据；顺序 pages、home、todo、home、feed、home、issues、home、pages、home、todo、home，每次按下前若入口不在底栏就先打开切换器、等它的打开动效结束再量入口位置。原始数据、脚本与汇总在 `evidence/2026-10-19-click-path/`（脚本 [click-path.mjs](evidence/2026-10-19-click-path/click-path.mjs)，汇总 `node summarize.cjs <该目录>`，追踪归类在 `forced-style.txt`）。
+
+| 每次按下（3 次运行共 36 次） | 回退 | 本分支 |
+| --- | ---: | ---: |
+| 点击到下一次绘制（Event Timing）中位数 / p90 / 最长 | 72 / 88 / 88 ms | 40 / 56 / 56 ms |
+| 事件处理本身中位数 | 40 ms | 18 ms |
+| 之后 700 ms 内样式计算耗时中位数（p90） | 66 ms（86） | 27 ms（31） |
+| 样式计算次数 / 布局次数中位数 | 50 / 11 | 42 / 8 |
+| 6 次按下（含打开切换器）脚本强制的样式与布局合计 | 419 ms | 138 ms |
+
+Event Timing 的时长以 8 ms 为粒度。三次运行各自的中位数：回退 72、64、72 ms，本分支 40、32、40 ms。
+
+**测量脚本的更正**：上一版浏览器基线在打开切换器后只等两帧就量入口位置，切换器还在打开动效里，有的按下落在入口旁边（追踪里点击目标是列表本身、处理 1 ms、下一次绘制要等到 1 s 后的下一次按下）。`browser-baseline.mjs` 与本节脚本都改为等有限时长的动效结束，并断言按下的位置确实落在入口上。上一节的“72 ms”来自每次都等表面就绪的进入场景，表面未就绪会超时失败，所以那组数字不受影响。
+
+**仍未处理**（下一片或交给对应片）：
+
+- 打开切换器时把列表里约 500 个元素从 `display: none` 显示出来，一次样式计算 11–28 ms；要省需要让列表更轻或改显示方式，未做。
+- 助理岛读当前页面情境（`assistant-island.ts` 的 `visible`）在每次切换里仍强制样式计算（6 次按下合计约 20 ms）；该文件是巨大单元、正由 PR #631 重写，留到助理那一片一起改。
+- 短窗口（高度 ≤ 560px）里“Goal 记录表单打开时底栏让位”仍用 `.immersive-workspace:has(.is-editing-goal)`：表单是 Goals 插件的节点、底栏是宿主的，换成标记要先定由谁发出，已在守卫里单列。
+- DOM 规模（22,620 个节点）与反复切换后的堆走势未动。
+
+页面资源：`molis-work-workbench.js` 增加 591 字节（先把说明移出发给页面的脚本、去掉分段滑块的先读后写拆分，从 +868 降到 +591），按决定 #17 在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 登记一次；三份样式表各小了 52–55 字节，预算已随之降低。
+
+局限同上一节：无头 Chrome，不代表 macOS 壳与真实刷新率；机器上有其他会话负载（3 次运行之间的波动见原始数据）。

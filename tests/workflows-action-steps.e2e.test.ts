@@ -156,7 +156,7 @@ test('unknown plugin long results survive a late navigation response and render 
         window.__workflowOldReadDone = false;
         window.fetch = async (...args) => {
           const response = await original(...args);
-          if (String(args[0]).endsWith('/api/workflows/${prior.workflow_id}')) {
+          if (String(args[0]).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
             await response.clone().text();
             requestAnimationFrame(() => requestAnimationFrame(() => { window.__workflowOldReadDone = true; }));
           }

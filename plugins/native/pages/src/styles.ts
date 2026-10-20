@@ -534,7 +534,7 @@ export const PAGES_STYLES = `
     background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
   }
   .pages-find button:hover { background: var(--nav-hover); }
-  .pages-find-count { min-width: 2.5em; font-size: 12px; color: var(--faint); text-align: right; }
+  .pages-find-count { font-size: 12px; color: var(--faint); }
   .pages-find-hit { background: var(--hue-yellow-soft, var(--content-hover)); border-radius: 2px; }
   .pages-find-hit.is-current { background: color-mix(in srgb, var(--plugin-pages, var(--ink)) 28%, transparent); }
   .pages-slash, .pages-pop {

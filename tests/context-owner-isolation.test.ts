@@ -26,7 +26,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
   };
   try {
     const first = compose();
-    first.coordinator.initializeBoard({ project_id: "project", title: "Original project", actor_id: "user", idempotency_key: "board" });
+    first.coordinator.initializeBoard({ project_id: "project", actor_id: "user", idempotency_key: "board" });
     first.coordinator.goals.commands.createGoal("project", { goal_id: "goal", title: "Original goal", outcome: "Report",
       why: "User requirement", business_logic: "Preserve content", acceptance_criteria: [] }, { actor_id: "user", idempotency_key: "goal" });
     const goal = first.coordinator.goalQueries.readGoalContract("project", "goal").goal;

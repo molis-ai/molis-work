@@ -147,7 +147,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
   const bare = new MolisWorkLocalHost({ homeDirectory: join(root, "bare"), completeText: null });
   const bareReference = molisWorkHostProjectReference({ databasePath: join(root, "bare-project.sqlite"), projectId: "project-bare" });
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-one", title: "读取", actor_id: "web-user", idempotency_key: "init" }));
+    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-one", actor_id: "web-user", idempotency_key: "init" }));
     const client = host.actionClient(reference);
     const text = { workspace_id: workspace.workspace_id, path: ["chart.png"] };
 
@@ -205,7 +205,7 @@ test("one read action serves everyone: the whole file is for plugins, and a call
     assert.equal(status.summary?.branch, "main");
 
     // Without a workspace port on the Host there is no read to depend on: the dependents say so.
-    await bare.withProject(bareReference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-bare", title: "无工作区", actor_id: "web-user", idempotency_key: "init" }));
+    await bare.withProject(bareReference, runtime => runtime.coordinator.initializeBoard({ project_id: "project-bare", actor_id: "web-user", idempotency_key: "init" }));
     const bareDirectory = await bare.actionClient(bareReference).discover({ ...person(everything), project_id: "project-bare" });
     for (const definition of reading) {
       const row = bareDirectory.find(item => item.capability_id === definition.capability_id);

@@ -235,15 +235,31 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W4-2-13 (#801, reviewed 2026-10-20): opening the exact proposal and preserving unfinished reasons across
-// list/detail refresh needs 410 B from #822's exact budget. Same-script simplification first saved 408 B;
-// the remaining growth restores the real approval flow. The spent #826 allowance is replaced, not accumulated.
-// The project-knowledge stylesheet allowances remain unchanged: settings styles in both sheets, plus the shared picker
-// and side-panel import dialog in the workbench sheet (specs/project-knowledge, approved 2026-10-19).
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
+// admission from the exact #805 + #848 + #853 predecessor (#851 carries #854, #856 and #860; reviewed 2026-10-20):
+// - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
+//   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
+// - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
+//   assistant strip's own: +879 B of workbench.js, +460–488 B of each stylesheet; tried first: one gradient for both sides
+//   and directions, short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet);
+// - the shared copy feedback (VUX-19), the natural-height disclosure and the measured thumb's triggers (VUX-22), reserved-width
+//   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
+//   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
+//   face; Coding's own copy code went (−185 B).
+// - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
+//   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
+//   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
+// - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
+//   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
+// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,264 B, and the three
+// stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
+// The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129470, 1129880],
-  "/assets/molis-work-workbench.css": [1593165, 1603154],
-  "/assets/molis-work-settings.css": [982397, 988933],
+  "/assets/molis-work-workbench.js": [1134920, 1138184],
+  "/assets/molis-work-workbench.css": [1603130, 1604761],
+  "/assets/molis-work-settings.css": [988929, 990556],
+  "/assets/molis-work-arrival.css": [698519, 700146],
+  "/assets/molis-work-pages-editor.js": [706933, 707336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

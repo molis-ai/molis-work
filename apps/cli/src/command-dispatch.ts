@@ -24,7 +24,7 @@ export async function dispatchCliProjectCommand(
   switch (operation) {
   case "init":
     bound(String(project_id));
-    print(await actions.invoke(goalsActions.initialize, { title: String(input.title), idempotency_key: String(input.idempotency_key) }));
+    print(await actions.invoke(goalsActions.initialize, { idempotency_key: String(input.idempotency_key) }));
     break;
   case "goal-tree-propose":
     bound(project_id);

@@ -21,7 +21,7 @@ test("the workflow editor offers every native plugin's workflow commands, derive
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const response = await fetch(`${origin}/projects/${encodeURIComponent(project.project_id)}/api/workflows/steps/actions`, {
+    const response = await fetch(`${origin}/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.native.workflows/workflows/steps/actions`, {
       headers: { origin, "x-molis-work-control-token": TOKEN } });
     assert.equal(response.status, 200, await response.clone().text());
     const { actions } = await response.json() as { actions: Array<{ ref: { capability_id: string }; group: string }> };

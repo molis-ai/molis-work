@@ -89,7 +89,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
   const client = localHost.client(reference);
   try {
     const management = managementGoals(localHost.actionClient(reference), "board");
-    await management.invoke(goalsActions.initialize, { title: "Guidance", idempotency_key: "init" });
+    await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
       content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const request: AgentStartRequest = { project_id: "board", plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: "probe", session_id: "s" },

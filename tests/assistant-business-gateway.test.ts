@@ -1304,7 +1304,7 @@ test("the project layer of a project work is the project's guidance, read throug
   const work = { work_id: "work", project_ref } as StoredWork;
   try {
     const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
-    await management.invoke(goalsActions.initialize, { title: "说明", idempotency_key: "init" });
+    await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const settled = watchSettlements(host);
 

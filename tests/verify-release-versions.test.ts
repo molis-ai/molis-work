@@ -220,7 +220,7 @@ test("a plugin-owned database declaration has a listed literal baseline with the
 
 test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown) { return openBaselineHomeSqlite(home, declaration.store_name, declaration); }";
+  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
   put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
   put("apps/alpha/src/bridge.ts", bridge);
   failsWith(run(), "apps/alpha/src/bridge.ts: openBaselineHomeSqlite is called with declaration");
@@ -228,6 +228,8 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   put("apps/local-host/src/plugin-database.ts", bridge + "\nopenBaselineHomeSqlite(home, 'other', { version: 1, schema: `` });");
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with an inline baseline");
   put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+  put("apps/local-host/src/plugin-database.ts", bridge.replace("partition?.project_id)", "partition?.project_id, extra)"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
 });
 

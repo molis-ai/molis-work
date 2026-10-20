@@ -48,6 +48,8 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
   await waitFor("document.querySelector('[data-global-menu] [data-plugin-id=market]')");
   await waitFor("!document.querySelector('[data-global-menu] [data-plugin-id=market] [data-market-update-count]').hidden");
   assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-market-update-count]').textContent"), "1", "update reminder appears before opening the market");
+  // VUX-36: the switcher lights its dot from a mark the market sets, not from a style rule that looks inside the whole switcher.
+  assert.equal(await evaluate<string>("getComputedStyle(document.querySelector('[data-plugin-picker][data-market-updates] > .plugin-picker-trigger'), '::after').content"), '""');
 
   await click('[data-global-menu] [data-plugin-id="market"]');
   await waitFor("document.querySelector('[data-work-surface=market]') && !document.querySelector('[data-work-surface=market]').hidden");
@@ -67,6 +69,7 @@ test("plugin market sends a manual upgrade after a real browser click", { timeou
   await click('[data-market-plugin="coding"] [data-market-upgrade]');
   await waitFor("document.querySelector('[data-market-status]')?.textContent === '已升级至 v2.0.0'");
   await waitFor("document.querySelector('[data-market-plugin=coding] [data-market-add]')?.textContent === '移除' && document.querySelector('[data-global-menu] [data-market-update-count]').hidden");
+  assert.equal(await evaluate<boolean>("document.querySelector('[data-plugin-picker]').hasAttribute('data-market-updates')"), false, "the dot goes out with the count");
   assert.equal(await evaluate<boolean>("document.querySelector('[data-market-plugin=coding] [data-market-version]').hidden"), true);
   assert.equal(await evaluate<string>("document.querySelector('[data-global-menu] [data-plugin-id=market]').getAttribute('aria-label')"), "插件市场");
   assert.deepEqual(await evaluate("window.__pluginUpgradeRequests"), [1, 2].map(() => ({

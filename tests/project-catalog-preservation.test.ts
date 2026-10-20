@@ -70,7 +70,7 @@ test("simultaneous stable project preparation adopts the winner without deleting
       const id = `project-onboarding-${randomUUID()}`;
       const records = await Promise.all(catalogs.map(c => c.createProject({ project_id: id, display_name: "共同身份", actor_id: "user" })));
       for (const record of records) assert.deepEqual(record, records[0]);
-      assert.equal(snapshot(records[0]!).board.title, "共同身份");
+      assert.equal(snapshot(records[0]!).board.project_id, id);
       assert.equal(createdEvents(catalogs[0]!.databasePath, id), 1);
       assert.equal((await fs.readdir(join(home, "projects"))).some(name => name.startsWith(".staging-")), false);
     } finally { for (const c of catalogs) c.close(); }

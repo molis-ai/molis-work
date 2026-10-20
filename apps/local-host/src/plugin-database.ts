@@ -8,20 +8,25 @@ import { openReadOnlyHomeSqlite, openBaselineHomeSqlite } from "@molis-ai/molis-
  * caller of `installId`'s action again (`assertPluginActionCurrent`) before its wait, right after it in the same turn as `BEGIN`, before every
  * statement and before `COMMIT`: a call cancelled or revoked at any of these points writes nothing, whatever `beforeEffect` the
  * Plugin handed in.
+ *
+ * `partition` opens one project's library of a library partitioned by project (`plugin-database-partitions.ts`); its `refuse` is
+ * asked first on every read and write, so the partitions can say why that project's library is gone.
  */
-export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string): {
+export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string,
+  partition?: { readonly project_id: string; refuse(): void }): {
   client: PluginDatabase; close(): void;
 } {
   if (!/^[a-z][a-z0-9-]*$/u.test(declaration.store_name)) throw new Error("插件库名称必须是可信的单个目录名");
   authorize("storage:private");
-  const writer = openBaselineHomeSqlite(home, declaration.store_name, declaration);
+  const writer = openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id);
   let reader: ReturnType<typeof openReadOnlyHomeSqlite>;
   try {
     writer.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 1000;");
-    reader = openReadOnlyHomeSqlite(home, declaration.store_name);
+    reader = openReadOnlyHomeSqlite(home, declaration.store_name, partition?.project_id);
   } catch (error) { writer.close(); throw error; }
   let closed = false;
   const permit = (permission: string) => {
+    partition?.refuse();
     if (closed) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };

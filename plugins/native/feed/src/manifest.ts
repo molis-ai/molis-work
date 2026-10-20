@@ -10,6 +10,7 @@ import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 
 import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 import { feedArtifactPreview } from "./artifact-preview.js";
+import { FEED_PROJECT_DATABASE } from "./database.js";
 export { FEED_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const FEED_PROJECT_PLUGIN_ID = "feed";
@@ -30,12 +31,16 @@ export const feedManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [...new Set([...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源" })),
+  permissions: [
+    ...[...new Set([...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源" })),
+    { permission: "storage:private", required: true, reason: "项目里的消息出口规则" },
+  ],
   capabilities: { provides: [], consumes: [] },
   actions: [feedArtifactPreview, ...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedSubjectAction, feedSourceSubjectAction, feedSearchEntriesAction, feedHomeEventsAction],
   artifacts: { produces: [{ artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID, schema_version: FEED_CAPTURE_SCHEMA_VERSION, title: "捕获的消息",
     preview: { capability_id: "feed.artifacts.preview", version: 1 } }], consumes: [] },
   requires: [],
+  databases: { project: FEED_PROJECT_DATABASE },
   action_scenes: [feedCaptureScene],
   ui: {
     contributions: [FEED_UI_CONTRIBUTION_ID],

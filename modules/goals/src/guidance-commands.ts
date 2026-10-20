@@ -25,11 +25,7 @@ export class GuidanceCommands {
   read(projectId: string): ProjectGuidanceView {
     this.context.requireBoard(projectId);
     const repository = this.context.repository;
-    const board = repository.db
-      .prepare("SELECT title FROM boards WHERE project_id = ?")
-      .get(projectId) as { title: unknown };
     return projectGuidanceView({
-      projectTitle: String(board.title ?? ""),
       entries: repository.listProjectGuidanceEntries(projectId, true),
       revisions: repository.listProjectGuidanceRevisions(projectId),
     });

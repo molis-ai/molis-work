@@ -15,7 +15,7 @@ async function watchSaves(editor: Editor, { hold = false, refuse = false } = {})
     window.fetch = async (input, init) => {
       const url = new URL(String(input), location.origin);
       const id = url.pathname.split('/').at(-1);
-      const owned = url.pathname.includes('/api/workflows/') && [${JSON.stringify(editor.a.workflow_id)}, ${JSON.stringify(editor.b.workflow_id)}].includes(id);
+      const owned = url.pathname.includes('/api/plugins/io.molis.work.native.workflows/workflows/') && [${JSON.stringify(editor.a.workflow_id)}, ${JSON.stringify(editor.b.workflow_id)}].includes(id);
       if (!owned || init?.method !== 'POST') {
         const response = await original(input, init);
         if (owned) { await response.clone().text(); window.__wfReads.push(id); }
@@ -82,7 +82,7 @@ for (const target of ["B", "directory"] as const) {
 
 test("W2-18-WFSAVE-02: title and link debounces belong to A when B opens before either timer", { timeout: 90_000 }, async t => {
   const editor = await openEditor(t);
-  await editor.web.post(`/projects/${editor.projectId}/api/workflows/${editor.a.workflow_id}`, {
+  await editor.web.post(`/projects/${editor.projectId}/api/plugins/io.molis.work.native.workflows/workflows/${editor.a.workflow_id}`, {
     revision: editor.a.revision, chain: { stations: [{ plugin: "feed" }, { plugin: "inbox" }],
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] },
   });

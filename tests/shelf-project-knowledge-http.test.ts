@@ -16,7 +16,7 @@ test("Shelf saves the confirmed full text into project knowledge, a new version 
   const home = mkdtempSync(join(tmpdir(), "shelf-knowledge-")), dbPath = join(home, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
   const otherPath = join(home, "other.db"), otherStore = new LocalProjectDatabase(otherPath);
-  new GoalProjectApplication(otherStore).initializeBoard({ project_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "init-other" });
+  new GoalProjectApplication(otherStore).initializeBoard({ project_id: "other-project", actor_id: "web-user", idempotency_key: "init-other" });
   otherStore.close();
   // Shelf copies are personal (Home); saving one into a project runs in that project's action client.
   const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

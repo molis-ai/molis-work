@@ -93,7 +93,6 @@ export function seedDemoBoard(databasePath: string, projectId = DEMO_PROJECT_ID)
     if (exists) return;
     coordinator.initializeBoard({
       project_id: projectId,
-      title: "让第一次使用 Molis Work 的人在一个项目里用几个插件完成一件真实工作",
       actor_id: DEMO_ACTOR,
       idempotency_key: "demo-board",
     });

@@ -20,6 +20,7 @@ export { LocalCatalogMetadata } from "./catalog-metadata.js";
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
 
 export {
+  homeSqlitePartitionDirectory,
   homeSqlitePath,
   openHomeSqliteDatabase,
   openReadOnlyHomeSqlite,

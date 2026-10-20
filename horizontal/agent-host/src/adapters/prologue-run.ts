@@ -146,14 +146,14 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
  * the round works in a directory whose workspace has the person's checkers now. Without it the pack may still declare the
  * check, and nothing is asked.
  */
-async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, attempt: { index: number }, tools: readonly PackTool[] | undefined) {
+async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, attempt: { run_id?: string }, tools: readonly PackTool[] | undefined) {
   const workspaceAt = deps.options.checks?.workspaceAt, projectId = index.owner.project_id, store = createPrologueWriteCheckers(deps.runtime);
   const declared = tools?.some(tool => tool.afterWriteCheck === true) === true;
   const workspace = !declared || mode.none || mode.business || !input.root_path || !workspaceAt ? undefined : await workspaceAt(projectId, input.root_path);
   if (!workspace || !(await store.read(projectId, workspace)).checkers.length) return undefined;
   return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}),
     // A round stopped while the index was being read keeps nothing either: the check is in the change itself, just before the write.
-    note: (key, note, signal) => deps.index.update(input.session_id, saved => { signal?.throwIfAborted(); const held = saved.attempts[attempt.index]; if (held) (held.write_checks ??= {})[key] = note; }) });
+    note: (key, note, signal) => deps.index.update(input.session_id, saved => { signal?.throwIfAborted(); const held = attempt.run_id && saved.attempts.find(item => item.run_id === attempt.run_id); if (held) (held.write_checks ??= {})[key] = note; }) });
 }
 
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
@@ -574,7 +574,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const ref = state.sessions.get(input.session_id);
   const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none);
   ensureStopGuard(runtime, state, input.session_id);
-  const attempted = { index: -1 }, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
+  const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
   const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
   const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
@@ -598,7 +598,6 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     ...(actionTools?.names.length ? { action_tool_scope: actionTools.scope } : {}),
     ...(materials.stepBoard ? { step_board: materials.stepBoard.ref, step_prefix: materials.stepBoard.prefix } : {}), ...(childRoles.size ? { subagent_roles: [...childRoles], subagent_roots: childRoots } : {}),
     ...(surface.desktop_target ? { desktop_target: surface.desktop_target } : {}) });
-  attempted.index = attemptIndex;
   const dispatchGuard = async () => {
     await input.beforeDispatch?.();
     if (!mode.none && !mode.business) {
@@ -627,6 +626,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     }
     throw error;
   });
+  attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).

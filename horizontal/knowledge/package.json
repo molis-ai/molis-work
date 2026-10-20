@@ -1,0 +1,43 @@
+{
+  "name": "@molis-ai/molis-work-service-knowledge",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Project knowledge: one catalog over the declared search and file sources, read from each owner with the caller's authority.",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*"
+  },
+  "molis-work": {
+    "path": "horizontal/knowledge",
+    "kind": "horizontal",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/services/knowledge",
+    "migrationGoals": [
+      "goal-reorg-f2"
+    ],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [
+      "knowledge.recall.v1"
+    ]
+  }
+}

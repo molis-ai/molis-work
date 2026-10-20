@@ -109,6 +109,8 @@ async function openCoding(t: TestContext) {
 const ALL_CLOSED = { task: true, send: true, intent: true, model: true };
 /** What sets a session's next round beside the box and in its「+」menu; each opens a dialog of the same name. */
 const CONTEXT = ["workspace", "goal", "writer-directories", "material", "method", "mcp", "actions", "character", "delegate"];
+// Materials are picked in the page's one knowledge picker (specs/project-knowledge PMAT-17), not a dialog of Coding's own.
+const DIALOGS = CONTEXT.filter(name => name !== "material");
 
 test("AC-05: while「新会话」is being made, the composer of the session shown takes and sends nothing; then the new session's box opens empty", { timeout: 90_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
@@ -240,7 +242,7 @@ test("AC-05: a choice open in a dialog when「新会话」is pressed is closed u
   const second = await evaluate<string>("hold.id");
   assert.notEqual(second, first);
   assert.equal(await evaluate<boolean>(`${dialog}.open`), false, "the first session's method dialog closed when the new one came on show");
-  for (const name of CONTEXT) assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-${name}-dialog]').open`), false, `${name} dialog`);
+  for (const name of DIALOGS) assert.equal(await evaluate<boolean>(`document.querySelector('${coding} [data-coding-${name}-dialog]').open`), false, `${name} dialog`);
   for (const moment of ["before a state read", "after one"]) {
     if (moment === "after one") await afterAStateRead();
     assert.equal(await evaluate<string>(`${box}.value`), FIRST_WORDS, "the box still shows the first session's words");

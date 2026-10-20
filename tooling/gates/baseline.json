@@ -31,8 +31,12 @@
       "lines": 278,
       "methods": 41
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 272,
-    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "lines": 301,
+      "methods": 22
+    },
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 281,
+    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 168,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
@@ -41,8 +45,8 @@
     "file apps/workbench/src/functions/client.ts": 1274,
     "function apps/workbench/src/goals-page-renderer.ts#createWorkbenchGoalsPageRenderer": 217,
     "function apps/workbench/src/goals-page-renderer.ts#renderMolisWorkWeb": 181,
-    "file apps/workbench/src/i18n/en.ts": 3324,
-    "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 179,
+    "file apps/workbench/src/i18n/en.ts": 3323,
+    "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 319,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
@@ -173,7 +177,7 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 174,
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 153,
+    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
       "lines": 377,
@@ -185,10 +189,10 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1618,
+    "file plugins/native/coding/src/client.ts": 1599,
     "file plugins/native/coding/src/styles.ts": 812,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
-    "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
+    "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
       "lines": 120,
       "methods": 27
@@ -210,7 +214,7 @@
     "file plugins/native/pages/src/client.ts": 1115,
     "function plugins/native/pages/src/editor-browser.ts#mount": 451,
     "class plugins/native/pages/src/store.ts#PagesStore": {
-      "lines": 346,
+      "lines": 374,
       "methods": 28
     },
     "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": 225,
@@ -219,7 +223,7 @@
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1692,
+    "file plugins/native/shelf/src/client.ts": 1672,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
@@ -239,7 +243,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 480,
+  "testInternalImports": 483,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -392,7 +396,7 @@
     "tests/jelly-source-providers.test.ts": 3,
     "tests/list-silent-refresh.test.ts": 5,
     "tests/local-web-actions.test.ts": 2,
-    "tests/material-documents.test.ts": 1,
+    "tests/material-documents.test.ts": 2,
     "tests/material-extraction.test.ts": 5,
     "tests/material-web.test.ts": 2,
     "tests/mcp-action-grants.test.ts": 2,
@@ -404,10 +408,13 @@
     "tests/pages-drag-preview.test.ts": 1,
     "tests/pages-drag-target.test.ts": 1,
     "tests/pages-import-content.test.ts": 1,
+    "tests/pages-import-files.test.ts": 1,
     "tests/pages-input-rules.test.ts": 1,
+    "tests/pages-project-binding.test.ts": 1,
+    "tests/pages-publication.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
     "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 6,
+    "tests/personal-plugins-review-fixes.test.ts": 7,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -442,7 +449,6 @@
     "tests/secret-store-keychain-retry.test.ts": 1,
     "tests/shelf-ai-host.test.ts": 4,
     "tests/shelf-client-boundaries.e2e.test.ts": 1,
-    "tests/shelf-coding-materials-http.test.ts": 2,
     "tests/shelf-material-extraction.test.ts": 3,
     "tests/shelf-plugin.test.ts": 1,
     "tests/shelf-recipes.test.ts": 2,
@@ -490,7 +496,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 131,
+  "emptyCatchesInScriptsTotal": 130,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -523,7 +529,6 @@
     "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/alchemist/src/client.ts": 1,
     "plugins/native/alchemist/src/work-reuse/client.ts": 2,
-    "plugins/native/artifacts/src/import-client.ts": 1,
     "plugins/native/characters/src/client.ts": 1,
     "plugins/native/coding/src/changeset-client.ts": 1,
     "plugins/native/coding/src/client.ts": 10,
@@ -653,10 +658,9 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 65,
+  "rawFetchInScriptsTotal": 63,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
-    "plugins/native/artifacts/src/import-client.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
     "plugins/native/artifacts/src/works-client.ts": 1,
     "plugins/native/artifacts/src/port-input-ui.ts": 1,
@@ -668,7 +672,7 @@
     "plugins/native/jelly/src/client.ts": 1,
     "plugins/native/jelly/src/client-material.ts": 1,
     "plugins/native/schedule/src/client.ts": 4,
-    "plugins/native/shelf/src/client.ts": 7,
+    "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/result-client.ts": 1,
     "plugins/native/lingguang/src/client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
@@ -755,7 +759,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 14,
+  "hostPluginFilesTotal": 16,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -764,6 +768,8 @@
     "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1,
+    "apps/local-host/src/pages-actions.ts#actions": 1,
+    "apps/local-host/src/pages-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/schedule-actions.ts#actions": 1,
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
@@ -796,7 +802,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 376,
+  "pluginOutsideMentionsTotal": 381,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -815,7 +821,7 @@
     "issues#outside-files": 4,
     "jelly#outside-files": 6,
     "lingguang#outside-files": 9,
-    "pages#outside-files": 14,
+    "pages#outside-files": 19,
     "plugin-builder#outside-files": 19,
     "ppt#outside-files": 8,
     "schedule#outside-files": 19,
@@ -1062,7 +1068,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 177,
+  "unknownCastsTotal": 179,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1110,6 +1116,7 @@
     "plugins/native/jelly/src/content.ts": 1,
     "plugins/native/lingguang/src/store.ts": 5,
     "plugins/native/pages/src/code-highlight.ts": 1,
+    "plugins/native/pages/src/store.ts": 2,
     "plugins/native/plugin-builder/src/agent-authoring.ts": 1,
     "plugins/native/plugin-builder/src/agent-experience.ts": 1,
     "plugins/native/plugin-builder/src/agent-validation.ts": 1,
@@ -1182,7 +1189,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 508,
+  "explicitAnyTotal": 491,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1236,7 +1243,6 @@
     "tests/coding-cooperation-http.test.ts": 6,
     "tests/coding-goal-context-http.test.ts": 9,
     "tests/coding-history-summary-http.test.ts": 4,
-    "tests/coding-materials-http.test.ts": 3,
     "tests/coding-message-wait.test.ts": 3,
     "tests/coding-plan-dependencies.test.ts": 1,
     "tests/coding-plans-http.test.ts": 11,
@@ -1263,13 +1269,13 @@
     "tests/dataset-actions.test.ts": 5,
     "tests/dataset-mcp.test.ts": 2,
     "tests/document-pin-after-move.test.ts": 20,
-    "tests/files-product-http.test.ts": 4,
+    "tests/files-product-http.test.ts": 2,
     "tests/fixtures/alchemist-actions.ts": 1,
     "tests/form-actions.test.ts": 4,
     "tests/form-mcp.test.ts": 1,
     "tests/function-agent-authoring.e2e.test.ts": 1,
     "tests/functions-draft-retention.test.ts": 4,
-    "tests/git-product-http.test.ts": 12,
+    "tests/git-product-http.test.ts": 7,
     "tests/goal-relation-http.test.ts": 1,
     "tests/graph-home-refinement.e2e.test.ts": 10,
     "tests/home-talk.e2e.test.ts": 1,
@@ -1323,8 +1329,6 @@
     "tests/scene-only-mcp.test.ts": 1,
     "tests/schedule-task-runner.test.ts": 3,
     "tests/shelf-ai-host.test.ts": 2,
-    "tests/shelf-coding-materials-http.test.ts": 5,
-    "tests/shelf-project-results-http.test.ts": 2,
     "tests/side-files-artifacts.test.ts": 2,
     "tests/side-panel-assistant-surface.test.ts": 9,
     "tests/side-panel-platform.test.ts": 1,

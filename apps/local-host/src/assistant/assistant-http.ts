@@ -140,6 +140,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     scopeActions: async work => personClient(work.project_ref),
     // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
     readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
+    // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
+    knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
+    knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
   }, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
     actorId: WEB_ACTOR, host: async () => { await ports.agentReady();return ports.agentHost; },

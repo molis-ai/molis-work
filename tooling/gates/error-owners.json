@@ -190,6 +190,13 @@
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
     },
+    "knowledge": {
+      "paths": [
+        "horizontal/knowledge/",
+        "apps/local-host/src/knowledge-*"
+      ],
+      "reason": "The project knowledge horizontal (specs/project-knowledge) and its Host wiring; its codes start with knowledge."
+    },
     "listener": {
       "paths": [
         "horizontal/listener-host/",

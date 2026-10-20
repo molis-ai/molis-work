@@ -6,8 +6,6 @@ export declare const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput,
     item: ShelfItemRecord;
 }>;
 
-export declare const SHELF_TEXT_MATERIAL_TYPE = "shelf.text-material.v1";
-
 export interface ShelfAdmitActionInput {
     text?: string;
     title?: string;
@@ -331,5 +329,3 @@ export declare const modulesShelfContract: {
     readonly maturity: "partial";
     readonly ssot: "docs/modules/shelf.md";
 };
-
-export declare function parseShelfTextMaterial(value: unknown): ShelfTextMaterial;

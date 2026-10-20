@@ -38,7 +38,6 @@
 | BL-105 | 打开 Molis Work 的重做：项目选择页（预选上次项目、右边是项目简介）、开场与 Welcome、新建项目引导、更新页（#159） | [project-arrival-flow](archive/project-arrival-flow/spec.md) | 无 | 中 | 用户 |
 | BL-109 | #150 性能修复：完整视觉走查，以及原生窗口里的输入与导航验收 | [performance-preserving-fixes](archive/performance-preserving-fixes/spec.md) | 无 | 中 | 用户 |
 | BL-111 | 首页一屏与侧栏间距：首页在一屏内放下、侧栏间距对齐 | [home-one-screen](archive/home-one-screen/spec.md) | 无 | 低 | 用户 |
-| BL-174 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1、§11.6](quick-create/spec.md)、[context-program §21.5](context-program/spec.md)（W4-1，统筹 10-18；§11.6 的计划随 #804 进 main） | 无（W4-1 已合入） | 中 | 未分配 |
 
 ## 2. 待你决定
 
@@ -75,12 +74,13 @@
 | BL-182 | Coding 子任务卡上的「重试这个子任务」是页面代写的话，仍记成本人的补充：`plugins/native/coding/src/subagent-cards-client.ts` 在父轮还在跑时经 `/sessions/:id/control` 发一条 `kind: "steer"` 的补充，文字是页面拼的（嵌了 `child.error` 和模型写的 `child.task`），不带 `source`。回执条照人的话画，R1 摘要把它当「用户补充」一直带下去，模型也把自己写的分工当成人的原话读 | [ai-input-receipts BL-144 实现记录](ai-input-receipts/spec.md)、D14c | 已知缺口 | 改法是给这条补充带 `source: "host"`，`coding.js` 会变大，要走页面资源的一次性放行；降成说明后模型还会不会照着重新派出子任务，是产品判断，要先看一次实走 | BL-144（#793） | 中 | 回执线 |
 | BL-165 | 设计/无障碍内容包：把 design 角色包的 accessibility-review（WCAG 2.1 AA）、design-critique、design-handoff、design-system、ux-copy 做成可安装的技能包，供个人助理、Coding 的 UI 任务与 Pages 使用；不新增平台能力，走 [skill-packs](skill-packs/spec.md) | [Anthropic 评估 §9 N10](../docs/reviews/anthropic-ecosystem-assessment-2026-10-18.md) | 明确后续做 | 先有技能包格式与注册表；内容由设计线提供 | skill-packs | 低 | 未分配 |
 | BL-246 | Coding 问卷卡收下回答后的回执只在页面上留一瞬（宿主收下回答就撤题，页面随后马上重读、撤卡），读屏读不读得完整未验证；要不要让回执多留一次重读，由真机读屏的结果（BL-016）决定 | [ai-interaction-experience AC-10-8](ai-interaction-experience/spec.md) | 已知缺口 | 要真机读屏的结果（BL-016 的 VoiceOver 验收）才能定；读不完整时，改成已答的卡在清理时多留一轮，并在用例里断言重读之后回执还在 | BL-016 | 低 | 未分配 |
-| BL-330 | 创建入口的「✦ 一句话新建」（W4-3）：插件页标题栏与右栏插件格各一个，一行输入 → 起草服务 → 同一张卡或直接建；C10「主人声明的撤销此刻可用就直接建，否则出卡片」在这条路上照同一规则 | [context-program §9 W4、§13 C9/C10、§21.4 W4-3](context-program/spec.md)、[quick-create §5、§8](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | #801（W4-2）合入 | 中 | 未分配 |
+| BL-174 | 没有模型时，规则推的那一个去处按内容挑（清单项、带动词的短句 → 记成待办；较长的叙述 → 记下灵光）：要在 `intake` 声明里写它收哪类内容，是改合同。现在规则只按共同目录的顺序挑第一个，代码不点名任何插件 | [quick-create §6.1、§11.6](quick-create/spec.md)、[context-program §21.5](context-program/spec.md) | 未实现 | 情境线 2026-10-20 交接，计划已写，没开工 | 无（W4-1、#804 已合入） | 中 | 未分配 |
+| BL-330 | 创建入口的「✦ 一句话新建」（W4-3）：插件页标题栏与右栏插件格各一个，一行输入 → 起草服务 → 同一张卡或直接建；C10「主人声明的撤销此刻可用就直接建，否则出卡片」在这条路上照同一规则 | [context-program §9 W4、§13 C9/C10、§21.4 W4-3](context-program/spec.md)、[quick-create §5、§8](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | 无（#801 / W4-2 已合入） | 中 | 未分配 |
 | BL-332 | 批量创建（F3，W4-5）：`intake` 的 `multiple`，一张批量卡片逐条取消、逐条请求号；Todo「提取待办」先做 | [context-program §9 W4、§21.4 W4-5](context-program/spec.md)、[quick-create F3](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | BL-330（卡片组件） | 中 | 未分配 |
 | BL-335 | 拖放（W5）：把手上的东西拖到落点，浮条出现在松手处 | [context-program §9 W5](context-program/spec.md)、[side-shelf P4](side-shelf/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工 | 无（W3 已合入） | 低 | 未分配 |
 | BL-336 | W6：Shelf 的动作进动作池；左→右（Shelf、灵光的创建入口）；F8 材料篮 = Shelf 多选交给助理；F12 讨论输入框作为落点 | [context-program §9 W6](context-program/spec.md)、[side-shelf P5、P6](side-shelf/spec.md)、[context-toolbar F8、F12](context-toolbar/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工 | W4（BL-330～BL-333） | 低 | 未分配 |
 | BL-337 | W7 起：F4（先做 G1）、F13 运行工作流；F6、F7、F10；旁问与分叉；F9；各插件专属动作与存量补齐；Coding 专属的去处（放进下一轮、补充这一轮、放进输入框、新开会话、收进 Shelf，K1～K3） | [context-program §9 W7 起、§16.5 C5/C6/K1～K4](context-program/spec.md)、[context-toolbar §10.7、§11.6](context-toolbar/spec.md)、[quick-create §6.2](quick-create/spec.md) | 明确后续做 | 情境线 2026-10-20 交接，没开工；每项独立小 PR | W4～W6 | 低 | 未分配 |
-| BL-338 | 情境线的浏览器走查与截图欠账：§21.9「待补浏览器验证」三条、§21.10 W4-2、quick-create §11.10 W4-6a、#830 的三个浏览器文件与 390 宽中英浅深截图、#831 的三个浏览器文件；W3、W4 各片在隔离 Home 的 1440/1024/800/390 与深色截图 | [context-program §21.6、§21.9、§21.10、交接（2026-10-20）](context-program/spec.md)、[quick-create §11.10](quick-create/spec.md) | 已知缺口 | 用户 2026-10-19 暂停浏览器验证 | 浏览器验证恢复；#801、#804、#830、#831 合入 | 中 | 未分配 |
+| BL-338 | 情境线剩余浏览器实走与截图：§21.9「待补浏览器验证」三条、quick-create §11.10 W4-6a、W3/W4 各片 1440/1024/800/390 与中英明暗完整人工矩阵。#801 已补提案确认闭环及 390 深色 / 1440 浅色实操，#830 已补定向浏览器与图像回归，#831 已随完整回归通过；不重复记为未跑，覆盖明细见交接表 | [context-program §21.6、§21.9、§21.10、交接（2026-10-20）](context-program/spec.md)、[quick-create §11.10](quick-create/spec.md) | 已知缺口 | 2026-10-20 合并验证补了部分路径，尚未覆盖完整产品矩阵 | 四条前置 PR 已合入；剩余矩阵另排 | 中 | 未分配 |
 | BL-339 | 情境总纲收尾：§16.5 需求对照表按现在的代码重核（停在 2026-10-14），核出的缺口另拆行；真实 Home 全面验证；全量回归对照基线；两组真实 Jev 评估（R15，要用户授权）；桌面原生拖出；一骏本人验收；三份子需求书（side-shelf、context-toolbar、quick-create）与总纲归档 | [context-program §9「收尾」、§16.5、状态句](context-program/spec.md) | 明确后续做 | 各波还没做完 | BL-330～BL-338 | 低 | 未分配 |
 | BL-341 | 交互能力的第二批入口没有逐个接入（P5）：PPT、Pages、Cognia、插件创作台，按需求书 §14.3 末尾的顺序一个入口一片，每片补上这个插件的调用路径、界面与用例证据；AC-09 里「其他插件的结构化接续」也在这里 | [ai-interaction-experience](ai-interaction-experience/spec.md) §14.3、§17 P5、AC-01、AC-09 | 明确后续做 | 首批（助理、Coding、Form）先做完；交互线 2026-10-20 收尾，没有开工 | 无（生成插件另见 BL-245） | 中 | 未分配 |
 | BL-342 | Coding 的输入框没有目标芯片：问卷里只有一道文本题时，助理的输入框会默认「写进问卷：<题目>」，回车只填那一栏、不发给 AI（D14 修订后的 R4，#702）；Coding 的输入框还是直接发给 AI | [ai-interaction-experience](ai-interaction-experience/spec.md) AC-03 | 部分实现 | 原定另开一片；Coding 客户端的页面资源预算很紧，要先在同一个资源里省出字节 | 无 | 中 | 未分配 |
@@ -102,8 +102,8 @@
 | BL-045 | 问卷外网公开链接与托管填写；PPT 富排版（图片、图表、母版） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 与本机优先定位不符 / 非本期 | 无 | 低 | 未分配 |
 | BL-046 | 图片插件真实厂商生成未测；图生图、蒙版编辑、多图批处理、厂商异步协议 | [work-placement §13](archive/work-placement/spec.md)、[images-plugin](archive/images-plugin/spec.md) | 明确后续做 | 本机没配图像厂商 | 无 | 低 | 未分配 |
 | BL-112 | 全局搜索：工具行先出现，内容结果稍后到达并排在上面，结果在指针下移动，刚瞄准的一行可能被挤开（产品动线用例因此间歇失败，用例已改为等结果稳定） | [post-merge-review §6.1](archive/post-merge-review/spec.md#61-修复合入后的最终回归2026-10-02) | 已知缺口 | 「内容在前」是搜索的设计；可改为给内容预留位置，或已显示的行不再移动，要搜索负责人定 | 无 | 低 | 未分配 |
-| BL-331 | `attach` 的 `find`（F2，W4-4）：用 `search.references@1` 取候选，目标不在落点时一律放末尾或建关联；Pages「追加到文档」先做，要改 `ItemAttach.find` 的形状（改合同） | [context-program §21.4 W4-4、§21.8](context-program/spec.md)、[quick-create F2](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | #801（W4-2）合入 | 中 | 未分配 |
-| BL-333 | 内容站派生创建入口与「放进 Inbox」（W4-6b）：内容站的声明派生出创建入口，Inbox 用它加「放进 Inbox」，Pages 与 Inbox 共用 SDK 里的段落工具（SDK 新增，算共享核心） | [quick-create §11.5](quick-create/spec.md)（随 #804 进 main） | 未实现 | 计划已写，没实施 | #804（W4-6a）、#801（W4-2）合入；排在 BL-174 之后 | 中 | 未分配 |
+| BL-331 | `attach` 的 `find`（F2，W4-4）：用 `search.references@1` 取候选，目标不在落点时一律放末尾或建关联；Pages「追加到文档」先做，要改 `ItemAttach.find` 的形状（改合同） | [context-program §21.4 W4-4、§21.8](context-program/spec.md)、[quick-create F2](quick-create/spec.md) | 未实现 | 情境线 2026-10-20 交接，没开工 | 无（#801 / W4-2 已合入） | 中 | 未分配 |
+| BL-333 | 内容站派生创建入口与「放进 Inbox」（W4-6b）：内容站的声明派生出创建入口，Inbox 用它加「放进 Inbox」，Pages 与 Inbox 共用 SDK 里的段落工具（SDK 新增，算共享核心） | [quick-create §11.5](quick-create/spec.md) | 未实现 | 计划已写，没实施 | BL-174；#804（W4-6a）、#801（W4-2）已合入 | 中 | 未分配 |
 
 ## 5. 插件
 

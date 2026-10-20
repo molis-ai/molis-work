@@ -34,6 +34,7 @@ import type { AlchemistAiPort } from "../runtime/host-port.js";
 import type { LocalSecurityOptions } from "../security/local-session.js";
 import { createCalibrationMemoryService } from "../services/calibration-memory.js";
 import { createCancelLensRunService } from "../services/cancel-lens-run.js";
+import { createCancelPulseRunService } from "../services/cancel-pulse-run.js";
 import { createExplorationService } from "../services/create-exploration.js";
 import { createResearchPlanService } from "../services/create-research-plan.js";
 import { createDecisionWorkspaceService } from "../services/decision-workspace.js";
@@ -199,7 +200,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     decisions,
   });
   const startLensRun = createStartLensRunService({ database, clock, idFactory, jobs, research });
-  const cancelLensRun = createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) });
   const startPulseRun = createStartPulseRunService({
     database,
     pulse,
@@ -265,10 +265,11 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     listRuntimeModels: () => runtimeSettings.listModels(),
     createResearchPlan,
     startLensRun,
-    cancelLensRun,
+    cancelLensRun: createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) }),
     getResearchWorkspace,
     decisionWorkspace,
     startPulseRun,
+    cancelPulseRun: createCancelPulseRunService({ database, jobs, pulse, now: clock.now, onCancel: id => worker.cancel(id) }),
     opportunityActions,
     calibrationMemory,
     runtimeSettings,

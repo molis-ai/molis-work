@@ -107,7 +107,8 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   assert.equal((await call(a.pulseReports, {})).latestRun, undefined);
   const missingRun = await f.runtime.app.request("http://localhost/api/v1/runs/missing/cancel", { method: "POST" });
   assert.equal(missingRun.status, 404);
-  assert.deepEqual(await missingRun.json(), { code: "alchemist.lens_run_not_found", message: "没有找到这次研究。" });
+  // W5-01-ALC-RES09: one cancel action stops either kind of run, so a job that is neither is "not found" for both.
+  assert.deepEqual(await missingRun.json(), { code: "alchemist.run_not_found", message: "没有找到这次研究或市场脉搏。" });
   await call(a.pulseSourceUpdate, { sourceId: "github", enabled: true });
   const pulse = await call(a.pulseStart, { sourceIds: ["github"] }); await f.runtime.runPending();
   assert.equal((await call(a.runEvents, { id: pulse.run.jobId })).status, "completed");
@@ -128,7 +129,8 @@ test("Alchemist Pulse, cancellation and exports use real repositories and preser
   const { idea } = await call(a.cardKeep, { id: cards[0]!.id });
   const { plan } = await call(a.researchPlan, { id: idea.id, lens: "market_space", ideaVersion: 1, modelPolicy: "auto", budget: { kind: "calls", limit: 3 } });
   const { run } = await call(a.researchStart, { id: idea.id, lens: "market_space", planId: plan.id });
-  assert.equal((await call(a.runCancel, { id: run.jobId })).run.status, "cancelled");
+  const stopped = await call(a.runCancel, { id: run.jobId });
+  assert.deepEqual([stopped.kind, stopped.run.status], ["lens", "cancelled"]);
   const callsBefore = f.requests.length; await f.runtime.runPending(); assert.equal(f.requests.length, callsBefore);
   assert.equal((await call(a.runEvents, { id: run.jobId })).status, "cancelled");
   const exported = await call(a.workspaceExport, { format: "json" });

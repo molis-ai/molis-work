@@ -1,9 +1,11 @@
 import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
@@ -58,6 +60,8 @@ const OPEN = target("delegate.open", ["user", "agent", "mcp", "workflow"], ["del
 const NO_WORKFLOW = target("delegate.no_workflow", ["user", "agent", "mcp"], ["delegate:read"]);
 const NO_AGENT = target("delegate.workflow_but_not_agent", ["user", "workflow"], ["delegate:read"]);
 const NEEDS_MORE = target("delegate.needs_more", ["user", "agent", "mcp", "workflow"], ["delegate:read", "delegate:admin"]);
+/** A target in no project, so a caller with no project reaches it as well: what refuses it is then the caller's own action list or its authority check. */
+const HOME_OPEN: ActionDefinition = { ...OPEN, capability_id: "delegate.home_open", action: { ...OPEN.action, title: "delegate.home_open", scope: "home" } };
 const ref = (definition: ActionDefinition): ActionReference => ({ capability_id: definition.capability_id, version: definition.version });
 
 async function setup(t: TestContext, probes: readonly Probe[] = [delegateProbe("delegator")], grants: readonly string[] = GRANTED) {
@@ -87,6 +91,7 @@ test("W5-01-DELEGATE-01 S-41 only a plugin whose Manifest declares actions:deleg
   assert.equal(undeclared.contexts.at(-1)!.services!.actions!.directory, undefined);
   assert.equal(typeof declared.contexts.at(-1)!.services!.actions!.directory!.invoke, "function");
   assert.equal(typeof declared.contexts.at(-1)!.services!.actions!.directory!.discover, "function");
+  assert.equal(typeof declared.contexts.at(-1)!.services!.actions!.directory!.check, "function");
 });
 
 test("W5-01-DELEGATE-01 S-41 a declared but not granted permission refuses discover and invoke, and the target never runs", async t => {
@@ -201,7 +206,7 @@ test("W5-01-DELEGATE-05 S-41 discover lists what the delegated caller sees: not 
   for (const hidden of [NO_WORKFLOW, NEEDS_MORE]) assert.equal(listed.includes(hidden.capability_id), false);
 });
 
-test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow only, as for Workflows: an agent's call reaches a target open to workflow but not to agents, not one closed to workflow", async t => {
+test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow only, as for Workflows: an agent caller without per-action grants reaches a target open to workflow but not to agents, not one closed to workflow", async t => {
   const s = await setup(t); s.offer([NO_AGENT, NO_WORKFLOW]);
   const agent: ActionCallContext = { ...s.caller, audience: "agent", actor_id: "runtime:agent" };
   assert.equal(await s.run({ op: "invoke", reference: ref(NO_AGENT) }, agent), "done");
@@ -209,6 +214,70 @@ test("W5-01-DELEGATE-05 S-41 the target's audience is checked against workflow o
   s.ran.length = 0;
   await assert.rejects(s.run({ op: "invoke", reference: ref(NO_WORKFLOW) }, agent), { code: "actions.dependency_missing" });
   assert.deepEqual(s.ran, []);
+});
+
+/**
+ * A caller shaped like the one `apps/local-host/src/mcp-action-client.ts` makes: `audience: "mcp"`, `allowed_actions` only the actions this client was granted
+ * (`mcp-action-grants.ts` `resolveMcpActionContext`), and `validate_authority` / `assert_authority_current` that refuse an action outside that table with
+ * `mcp.action_revoked` (`assertMcpActionAuthority`). The delegated call inherits both, so the client reaches what it was granted and no more.
+ */
+function mcpShaped(base: ActionCallContext, granted: () => readonly ActionReference[]): ActionCallContext {
+  const assertGranted = (reference?: ActionReference) => {
+    if (reference && !granted().some(item => item.capability_id === reference.capability_id && item.version === reference.version)) {
+      throw new ActionError("mcp.action_revoked", "此客户端的能力授权已撤销或发生变化，请重新检查对外接入设置");
+    }
+  };
+  return { ...base, actor_id: "mcp:client", audience: "mcp", get allowed_actions() { return granted().map(item => ({ ...item })); },
+    validate_authority: async reference => assertGranted(reference), assert_authority_current: reference => assertGranted(reference) };
+}
+
+test("W5-01-DELEGATE-05 S-41 a caller shaped like an MCP client cannot delegate past its own grants: a target open to workflow but not granted to it is refused and never runs", async t => {
+  const s = await setup(t); s.offer([OPEN]);
+  // The client holds `delegate:read` through some other granted action, so the permission is not what refuses the target: only its grant table is.
+  const granted: ActionReference[] = [{ capability_id: s.probe.action.capability_id, version: 1 }];
+  const mcp = mcpShaped(s.caller, () => granted);
+  await assert.rejects(s.run({ op: "invoke", reference: ref(OPEN) }, mcp), { code: "actions.dependency_missing" });
+  assert.deepEqual(s.ran, []); assert.equal(s.probe.delivered(), null);
+  assert.equal(s.probe.seen.at(-1)!.audience, "mcp"); assert.deepEqual(s.probe.seen.at(-1)!.allowed_actions?.map(item => item.capability_id), [s.probe.action.capability_id]);
+  // The same client with the target in its table reaches it, as workflow: the refusal above was the client's grants and nothing else.
+  granted.push(ref(OPEN));
+  assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, mcp), "done");
+  assert.deepEqual(s.ran, [OPEN.capability_id]); assert.equal(s.targetsSeen.at(-1)!.audience, "workflow"); assert.equal(s.targetsSeen.at(-1)!.actor_id, "mcp:client");
+});
+
+test("W5-01-DELEGATE-05 S-41 a caller shaped like an MCP client whose grant on the target was withdrawn after its action list was made is refused by its own authority check, and the target never runs", async t => {
+  const s = await setup(t); s.offer([OPEN]);
+  // The target is still in `allowed_actions`, but the client's authority check no longer accepts it (mcp.action_revoked): the nested call asks that check too.
+  const listed = [{ capability_id: s.probe.action.capability_id, version: 1 }, ref(OPEN)], accepted: ActionReference[] = [listed[0]!];
+  const withdrawn: ActionCallContext = { ...mcpShaped(s.caller, () => accepted), get allowed_actions() { return listed.map(item => ({ ...item })); } };
+  await assert.rejects(s.run({ op: "invoke", reference: ref(OPEN) }, withdrawn), { code: "mcp.action_revoked" });
+  assert.deepEqual(s.ran, []); assert.equal(s.probe.delivered(), null);
+  accepted.push(ref(OPEN));
+  assert.equal(await s.run({ op: "invoke", reference: ref(OPEN) }, withdrawn), "done");
+  assert.deepEqual(s.ran, [OPEN.capability_id]);
+});
+
+test("W5-01-DELEGATE-03 S-41 a plugin calling its own action through services.actions.invoke delegates only as far as that caller reaches: not to another plugin's target, which never runs", async t => {
+  // `plugin-actions-client.ts` `actionCaller` makes this caller: the user audience (so `originOf` lets it through), the plugin's own grants, `allowed_actions` of
+  // its own actions and `required_actions` only, and an authority check that knows only the actions the plugin declares. The delegated call inherits all of it.
+  const selfcall = delegateProbe("selfcall", { permissions: ["delegate:read"] });
+  const s = await setup(t, [selfcall], [...GRANTED, "delegate:read"]);
+  const home = s.host.actionRegistry().registerProvider({ provider: { provider_id: "delegation-home-targets", title: "Delegation home targets", kind: "system" }, definitions: [HOME_OPEN],
+    handlers: [{ ...HOME_OPEN, handle: async (caller: ActionExecutionContext) => { s.ran.push(HOME_OPEN.capability_id); s.targetsSeen.push(caller); return "done"; } }] });
+  t.after(home);
+  // The person reaches the home-scoped target by delegating from the plugin's action: the target itself is open, and the plugin holds the permission.
+  assert.equal(await s.run({ op: "invoke", reference: ref(HOME_OPEN) }, s.caller, selfcall), "done");
+  assert.deepEqual(s.ran, [HOME_OPEN.capability_id]); assert.equal(selfcall.delivered(), '"done"');
+  s.ran.length = 0; selfcall.contexts.at(-1)!.services!.storage!.delete("delivered");
+  let depth = 0;
+  selfcall.behavior.handle = async (context, caller) => depth++ === 0
+    ? context.services!.actions!.invoke(selfcall.action, { op: "invoke", reference: ref(HOME_OPEN) }, caller)
+    : context.services!.actions!.directory!.invoke(ref(HOME_OPEN), {});
+  await assert.rejects(s.run({ op: "invoke" }, s.caller, selfcall), { code: "actions.dependency_missing" });
+  assert.equal(depth, 2);
+  const inner = selfcall.seen.at(-1)!;
+  assert.equal(inner.audience, "user"); assert.deepEqual(inner.allowed_actions?.map(item => item.capability_id), [selfcall.action.capability_id]);
+  assert.deepEqual(s.ran, []); assert.equal(selfcall.delivered(), null);
 });
 
 for (const mutation of ["source-stop", "source-revoke", "target-replace", "parent-revoke", "cancel"] as const) {
@@ -247,4 +316,103 @@ test("W5-01-DELEGATE-07 S-41 the call log row names the plugin beside the origin
   // The plugin's own action row is the original caller's call, with no delegation on it.
   const own = s.log().find(row => row.capability_id === s.probe.action.capability_id)!;
   assert.deepEqual([own.actor_id, own.audience, own.delegated_by], ["runtime:logged", "agent", undefined]);
+  // The delegated call keeps the original call's call_id, so a lookup by that id shows the original and the call it delegated (the latter with delegated_by).
+  assert.equal(typeof own.call_id, "string"); assert.equal(rows[0]!.call_id, own.call_id);
+});
+
+/** What `LOCAL_OWNER_PERMISSIONS` gives the person over the Host's own project settings; no probe here declares it. */
+const PERSON_HOLDS = "projects:settings";
+
+/**
+ * A project plugin whose page route runs its action as the person on the page, the production path: `web-request.ts` gives the route the
+ * person's caller, `projectRouteControl` carries it and `bindPluginActionRoute` passes it on. The action then delegates through the directory.
+ */
+function routeProbe(name: string) {
+  const id = `io.molis.work.example.${name}`, contexts: PluginStartContext[] = [];
+  const action: ActionDefinition<Directive, unknown> = { capability_id: `${name}.run`, version: 1, operation: "command", action: {
+    title: "Use the action directory from a page", description: "Reach another action as the person on the page", kind: "operation", scope: "project", scheduling: "concurrent",
+    audiences: ["user"], permissions: ["storage:private"], subject_kinds: [],
+    input_schema: { type: "object", properties: { op: { type: "string" }, reference: { type: "object" }, input: { type: "object" } }, additionalProperties: false },
+  } };
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
+    publisher: { publisher_id: "example", signature: `delegate-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [{ permission: "storage:private", required: true, reason: "Keep what the delegated call returned" },
+      { permission: DELEGATE, required: true, reason: "Call other actions as the person who asked" }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [action],
+    routes: [{ route_id: "run", method: "POST", path: "/run", permission: "storage:private" }],
+  }, async start(context) {
+    contexts.push(context);
+    return { kind: "app", actions: [{ ...action, async handle(caller, raw) {
+      const directive = raw as Directive, result = await context.services!.actions!.directory!.invoke(directive.reference!, directive.input ?? {});
+      await caller.beforeEffect();
+      context.services!.storage!.set("delivered", JSON.stringify(result));
+      return result;
+    } }], routes: [bindPluginActionRoute(context, action, request => request.body as Directive, "run")] };
+  } };
+  return { id, definition, grants: () => contexts.at(-1)!.grants, delivered: () => contexts.at(-1)!.services!.storage!.get("delivered") };
+}
+
+test("W5-01-DELEGATE-08 S-43 from the page, a project plugin's route reaches a target needing a permission the person holds and the plugin does not; not one the person lacks or one closed to workflow", async t => {
+  const probe = routeProbe("routed");
+  const s = await openTestHome(t, { catalogPolicy: false, host: { pluginFixtures: { project: [probe.definition] } } });
+  const project = await s.createProject("Route delegation", []);
+  const held = target("delegate.person_holds", ["user", "workflow"], [PERSON_HOLDS]);
+  const lacked = target("delegate.person_lacks", ["user", "workflow"], ["delegate:admin"]);
+  const closed = target("delegate.person_holds_not_workflow", ["user"], [PERSON_HOLDS]);
+  const ran: string[] = [];
+  t.after(s.host.actionRegistry(project.reference).registerProvider({ provider: { provider_id: "delegation-targets", title: "Delegation targets", kind: "system" },
+    definitions: [held, lacked, closed], handlers: [held, lacked, closed].map(definition => ({ ...definition, handle: async () => { ran.push(definition.capability_id); return "done"; } })) }));
+  const run = (definition: ActionDefinition) => fetch(`${s.origin}/projects/${project.project_id}/api/plugins/${probe.id}/run`, { method: "POST",
+    headers: { origin: s.origin, "content-type": "application/json", "x-molis-work-control-token": s.controlToken, "x-molis-work-idempotency-key": randomUUID() },
+    body: JSON.stringify({ op: "invoke", reference: ref(definition) }) });
+  for (const refused of [lacked, closed]) {
+    const response = await run(refused);
+    assert.notEqual(response.status, 200);
+    assert.equal((await response.json() as { code?: string }).code, "actions.dependency_missing");
+  }
+  assert.deepEqual(ran, []); assert.equal(probe.delivered(), null);
+  // The plugin answers for its own action's permission only; the target's is the person's.
+  assert.equal(probe.grants().includes(PERSON_HOLDS), false);
+  const response = await run(held);
+  assert.equal(response.status, 200, await response.clone().text());
+  assert.equal(await response.json(), "done");
+  assert.deepEqual(ran, [held.capability_id]); assert.equal(probe.delivered(), '"done"');
+});
+
+const TYPED: ActionDefinition = { ...OPEN, capability_id: "delegate.typed", action: { ...OPEN.action, title: "delegate.typed",
+  input_schema: { type: "object", properties: { title: { type: "string" } }, required: ["title"], additionalProperties: false } } };
+
+test("W5-01-DELEGATE-09 S-43 check refuses an input the target's schema rejects with the code invoke gives, and runs and logs nothing either way", async t => {
+  const s = await setup(t); s.offer([TYPED]);
+  const inputs: unknown[] = [];
+  s.probe.behavior.handle = async context => { await context.services!.actions!.directory!.check(ref(TYPED), inputs.at(-1)); return "checked"; };
+  for (const bad of [{}, { title: 3 }, { title: "A title", extra: true }]) {
+    inputs.push(bad);
+    await assert.rejects(s.run({ op: "invoke" }), { code: "actions.input_invalid" });
+  }
+  inputs.push({ title: "A title" });
+  assert.equal(await s.run({ op: "invoke" }), "checked");
+  assert.deepEqual(s.ran, []);
+  assert.equal(s.log().some(row => row.capability_id === TYPED.capability_id), false);
+  s.probe.behavior.handle = undefined;
+  await assert.rejects(s.run({ op: "invoke", reference: ref(TYPED), input: { title: 3 } }), { code: "actions.input_invalid" });
+  assert.deepEqual(s.ran, []); assert.equal(s.probe.delivered(), null);
+});
+
+test("W5-01-DELEGATE-09 S-43 check refuses what invoke refuses before the target runs: a malformed reference, a target closed to workflow or needing a permission the caller lacks, a call outside a running action, and a withdrawn grant", async t => {
+  const s = await setup(t); s.offer([OPEN, NO_WORKFLOW, NEEDS_MORE]);
+  const aim: { current: ActionReference } = { current: ref(OPEN) };
+  s.probe.behavior.handle = async context => { await context.services!.actions!.directory!.check(aim.current, {}); return "checked"; };
+  aim.current = { capability_id: "../x", version: 1 };
+  await assert.rejects(s.run({ op: "invoke" }), { code: "actions.reference_invalid" });
+  for (const refused of [NO_WORKFLOW, NEEDS_MORE]) {
+    aim.current = ref(refused);
+    await assert.rejects(s.run({ op: "invoke" }), { code: "actions.dependency_missing" });
+  }
+  aim.current = ref(OPEN);
+  assert.equal(await s.run({ op: "invoke" }), "checked");
+  await assert.rejects(s.probe.contexts.at(-1)!.services!.actions!.directory!.check(ref(OPEN), {}), { code: "actions.forbidden" });
+  await s.regrant(s.probe, WITHOUT_GRANT);
+  await assert.rejects(s.run({ op: "invoke" }), { code: "actions.forbidden" });
+  assert.deepEqual(s.ran, []);
 });

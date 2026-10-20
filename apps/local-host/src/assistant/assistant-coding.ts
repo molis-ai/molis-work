@@ -69,6 +69,14 @@ export class CodingExecutor {
     return { ...read, runs: read.runs.filter((run): run is AgentRunView => !("unchanged" in run)) };
   }
 
+  /** The directory the session's next round runs in, as Coding has it: its own setting, else Coding's current one. */
+  async workspace(sessionId: string): Promise<{ workspace_id: string; name: string; path: string } | null> {
+    const read = await this.read(sessionId, 1);
+    const state = await this.call<{ workspace?: { workspace_id?: string } | null; workspaces?: Array<{ workspace_id: string; canonical_path: string; display_name?: string | null }> }>("state", {});
+    const id = read.configuration?.workspace_id ?? state.workspace?.workspace_id, found = state.workspaces?.find(row => row.workspace_id === id);
+    return found ? { workspace_id: found.workspace_id, name: found.display_name || found.canonical_path.split("/").filter(Boolean).at(-1) || found.canonical_path, path: found.canonical_path } : null;
+  }
+
   /** A new round with the session's own settings, or Coding's defaults: carry out the task, first model, current directory. */
   async start(sessionId: string, task: string, read: CodingSessionRead): Promise<void> {
     let { intent, provider_id, model_id, workspace_id } = read.configuration ?? {};

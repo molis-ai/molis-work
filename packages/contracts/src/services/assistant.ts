@@ -387,6 +387,43 @@ export interface AssistantWorkObject {
   open?: { surface: string; id: string };
 }
 
+/**
+ * Where a work runs and what it can reach and call (specs/visual-ui-experience VUX-08/09), for its side groups 工作环境 and
+ * 连接与工具: read from each owner when asked (`GET /api/assistant/works/<id>/surroundings`), kept nowhere. A part its owner
+ * could not answer says so in its `problem` instead of failing the rest.
+ */
+export interface AssistantWorkSurroundings {
+  environment: {
+    scope: { kind: "personal" } | { kind: "project"; project_id: string; title: string | null };
+    /** For a work Coding carries: its session's directory, and that directory's repository as the project's workspace reads it. */
+    coding?: { workspace: { name: string; path: string } | null; git: AssistantWorkGit | null; problem?: string };
+  };
+  /** The person's connections, each as its own status says: set up, signed in, and whether its tools can be called. */
+  connections: AssistantWorkConnection[];
+  connections_problem?: string;
+  /** What this work's executor can call now: the Assistant's actions by provider, and the ones that cannot run with their owner's reason. Coding keeps its own tools. */
+  tools: { executor: "assistant" | "coding"; callable: Array<{ provider: string; count: number }>; unavailable: Array<{ title: string; provider: string; reason: string }>; problem?: string };
+  read_at: string;
+}
+/** A directory's repository: its branch (null on a detached HEAD), how far it is from its upstream, and what is not committed. */
+export interface AssistantWorkGit {
+  /** The remote's owner/name, without any credentials in its address; null with no remote. */
+  repository: string | null;
+  branch: string | null;
+  ahead: number;
+  behind: number;
+  changed: number;
+  conflicted: number;
+}
+export interface AssistantWorkConnection {
+  connection_id: string;
+  title: string;
+  account: string | null;
+  state: "connected" | "needs-authorization" | "failed" | "disconnected" | "unchecked" | "incomplete" | "off";
+  /** Whether its tools can be called now (`none-discovered`: none found yet). */
+  tools: "callable" | "partial" | "blocked" | "none-discovered";
+}
+
 /** A work that relates to an object, for the object's own page ("this document belongs to …"). */
 export interface AssistantRelatedWork {
   work_id: string;

@@ -669,6 +669,23 @@ export interface AssistantWork {
     budget_tokens?: number;
 }
 
+export interface AssistantWorkConnection {
+    connection_id: string;
+    title: string;
+    account: string | null;
+    state: "connected" | "needs-authorization" | "failed" | "disconnected" | "unchecked" | "incomplete" | "off";
+    tools: "callable" | "partial" | "blocked" | "none-discovered";
+}
+
+export interface AssistantWorkGit {
+    repository: string | null;
+    branch: string | null;
+    ahead: number;
+    behind: number;
+    changed: number;
+    conflicted: number;
+}
+
 export interface AssistantWorkObject {
     relation: AssistantRelation;
     subject: {
@@ -691,6 +708,42 @@ export interface AssistantWorkObject {
 }
 
 export type AssistantWorkState = "idle" | "running" | "waiting-input" | "waiting-review" | "paused" | "completed" | "failed" | "stopped" | "needs-check";
+
+export interface AssistantWorkSurroundings {
+    environment: {
+        scope: {
+            kind: "personal";
+        } | {
+            kind: "project";
+            project_id: string;
+            title: string | null;
+        };
+        coding?: {
+            workspace: {
+                name: string;
+                path: string;
+            } | null;
+            git: AssistantWorkGit | null;
+            problem?: string;
+        };
+    };
+    connections: AssistantWorkConnection[];
+    connections_problem?: string;
+    tools: {
+        executor: "assistant" | "coding";
+        callable: Array<{
+            provider: string;
+            count: number;
+        }>;
+        unavailable: Array<{
+            title: string;
+            provider: string;
+            reason: string;
+        }>;
+        problem?: string;
+    };
+    read_at: string;
+}
 
 export interface AssistantWorkView {
     work: AssistantWork;

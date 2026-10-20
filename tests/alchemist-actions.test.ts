@@ -4,7 +4,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { alchemistActions as a, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
+import { alchemistActions as a, alchemistManifest, ALCHEMIST_ACTION_PERMISSIONS, createAlchemistHttpApp } from "@molis-ai/molis-work-plugin-alchemist";
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
 async function fixture(t: test.TestContext) {
@@ -65,8 +65,6 @@ test("Alchemist unified operations preserve direction → cards → research →
     const events = await call(a.runEvents, { id: run.jobId }); assert.equal(events.status, "completed");
     assert.equal(events.events.at(-1)!.type, "completed");
     assert.deepEqual((await call(a.runEvents, { id: run.jobId, after: events.cursor })).events, []);
-    const stream = await f.runtime.app.request(`http://localhost/api/v1/runs/${run.jobId}/events`);
-    assert.match(await stream.text(), /event: completed/);
   }
   const research = await call(a.researchGet, { id, version: 1 });
   assert.equal(research.lenses.market_space.status, "completed"); assert.equal(research.lenses.build_cost.status, "completed");
@@ -169,15 +167,15 @@ test("Alchemist Kernel validates authority and schemas before side effects; HTTP
   assert.equal((await f.call(a.bootstrap, {})).directions.length, 1);
 });
 
-test("W2-18-ALCHEMIST-EFFECT-01: cancelled discussion writes no reply; event observers leave accepted jobs intact", async t => {
+test("W2-18-ALCHEMIST-EFFECT-01: cancelled discussion writes no reply; an abandoned event read leaves accepted jobs intact", async t => {
   const f = await fixture(t);
   const { direction } = await f.call(a.directionCreate, { description: "验证观察窗口关闭不会取消后台研究" });
   const receipt = await f.call(a.explorationStart, { id: direction.id });
-  const observer = new AbortController();
-  const response = await f.runtime.app.request(`http://localhost/api/v1/runs/${receipt.jobId}/events`, { signal: observer.signal });
-  const reader = response.body!.getReader();
-  assert.match(new TextDecoder().decode((await reader.read()).value), /event: queued/);
-  observer.abort(); await reader.cancel();
+  // Events are read by cursor through the action (there is no event-stream route): a reader that gives up half way is not a cancel.
+  const first = await f.call(a.runEvents, { id: receipt.jobId! });
+  assert.ok(first.events.some(event => event.type === "queued"));
+  const observer = new AbortController(), abandoned = f.service.invoke({ ...f.caller, signal: observer.signal }, a.runEvents, { id: receipt.jobId!, after: first.cursor });
+  observer.abort(); await Promise.allSettled([abandoned]);
   assert.equal((await f.call(a.runEvents, { id: receipt.jobId! })).status, "queued");
   await f.runtime.runPending();
   assert.equal((await f.call(a.runEvents, { id: receipt.jobId! })).status, "completed");
@@ -204,4 +202,41 @@ test("W2-18-ALCHEMIST-EFFECT-02: a genuine model failure remains explained and a
   assert.ok("assistantMessage" in recovered); assert.equal(recovered.assistantMessage.responseState, "complete");
   assert.deepEqual((await f.call(a.conversationList, {})).messages.map(row => [row.author, row.responseState]),
     [["user", "complete"], ["assistant", "failed"], ["user", "complete"], ["assistant", "complete"]]);
+});
+
+test("W5-01-ALC-LIFE-09: a job's events are read by cursor through the action; there is no event-stream route", async t => {
+  const f = await fixture(t);
+  const { direction } = await f.call(a.directionCreate, { description: "事件只经动作按游标读取，不再有事件流路由" });
+  const receipt = await f.call(a.explorationStart, { id: direction.id });
+  const stream = await f.runtime.app.request(`http://localhost/api/v1/runs/${receipt.jobId}/events`);
+  assert.equal(stream.status, 404);
+  assert.notEqual(stream.headers.get("content-type")?.split(";")[0], "text/event-stream");
+  await f.runtime.runPending();
+  const read = await f.call(a.runEvents, { id: receipt.jobId! });
+  assert.equal(read.status, "completed"); assert.equal(read.events.at(-1)!.type, "completed");
+  assert.deepEqual((await f.call(a.runEvents, { id: receipt.jobId!, after: read.cursor })).events, []);
+});
+
+test("W5-01-ALC-RES-AUTH-04: exactly the four model actions declare model:invoke beside alchemist:generate; without it only they are refused", async t => {
+  const modelActions = [a.reuseAssess, a.conversationSend, a.explorationStart, a.researchStart];
+  for (const definition of modelActions) {
+    assert.ok(definition.action.permissions.includes("model:invoke") && definition.action.permissions.includes("alchemist:generate"), definition.capability_id);
+    assert.equal(definition.action.execution?.cost, "metered", definition.capability_id);
+    assert.equal(definition.action.scheduling, "concurrent", definition.capability_id);
+    assert.equal(definition.version, 1, definition.capability_id);
+  }
+  assert.deepEqual(Object.values(a).filter(definition => definition.action.permissions.includes("model:invoke")).map(definition => definition.capability_id).sort(), modelActions.map(definition => definition.capability_id).sort(),
+    "the Pulse collects sources and runs no model: it does not carry it");
+  // The Manifest asks for it as an optional permission (switching it off takes only those four actions away); the person's own page is granted it with the rest.
+  assert.equal(alchemistManifest.permissions.find(entry => entry.permission === "model:invoke")?.required, false);
+  assert.ok(alchemistManifest.permissions.filter(entry => entry.permission !== "model:invoke").every(entry => entry.required));
+  assert.ok(ALCHEMIST_ACTION_PERMISSIONS.includes("model:invoke"));
+  const home = await mkdtemp(join(tmpdir(), "alchemist-model-grant-")), f = alchemistFixture(home, "a", ALCHEMIST_ACTION_PERMISSIONS.filter(permission => permission !== "model:invoke"));
+  t.after(async () => { await f.close(); await rm(home, { recursive: true, force: true }); });
+  const { direction } = await f.bound.invoke(a.directionCreate, { description: "没有系统模型授权时只有四个模型动作被拒绝" });
+  await assert.rejects(f.bound.invoke(a.explorationStart, { id: direction.id }), { code: "actions.forbidden" });
+  await assert.rejects(f.bound.invoke(a.conversationSend, { body: "如何验证", context: { kind: "direction", label: "方向", directionId: direction.id } }), { code: "actions.forbidden" });
+  assert.equal(f.requests.length, 0);
+  assert.equal((await f.bound.invoke(a.bootstrap, {})).directions[0]!.id, direction.id);
+  await f.bound.invoke(a.runList, {});
 });

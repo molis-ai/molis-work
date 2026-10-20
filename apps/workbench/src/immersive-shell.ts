@@ -261,7 +261,7 @@ export function renderWorkbenchBar(
     </div>
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
-      <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、文件、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、文件、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
+      <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
       ${renderSidePanel(primitives, parts.sideTabs ?? [])}
       ${parts.projectChrome}
     </div>

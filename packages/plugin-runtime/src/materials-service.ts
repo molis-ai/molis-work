@@ -1,6 +1,6 @@
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { MaterialSourceContent, PluginManifest, PluginMaterialRequest, PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { MaterialExtraction, MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
+import type { MaterialSourceContent, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { currentPluginAction } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
@@ -17,6 +17,7 @@ export interface PluginMaterialsDispatch extends PluginMaterialRequest {
 export interface PluginMaterialsPort {
   extract(source: MaterialSource, options: PluginMaterialsDispatch): Promise<MaterialExtraction>;
   readSource(url: string, options: PluginMaterialsDispatch): Promise<MaterialSourceContent>;
+  readDocuments(files: readonly MaterialUpload[], options: PluginMaterialsDispatch): Promise<MaterialDocumentBatch>;
 }
 export interface PluginMaterialsGate {
   readonly install_id: string;
@@ -48,7 +49,9 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
   }
   return Object.freeze({
     ...(declared("materials:read") ? { extract: (source: MaterialSource, request: PluginMaterialRequest = {}) =>
-      run("materials:read", request, options => port.extract(source, options)) } : {}),
+      run("materials:read", request, options => port.extract(source, options)),
+      readDocuments: (files: readonly MaterialUpload[], request: PluginMaterialDocumentsRequest = {}) =>
+        run("materials:read", request, options => port.readDocuments(files, options)) } : {}),
     ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest = {}) =>
       run("materials:fetch", request, options => port.readSource(url, options)) } : {}),
   });

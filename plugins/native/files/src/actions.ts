@@ -3,8 +3,8 @@ import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { object, id, integer, path, rootPath, workspace, fileResult, nullable, snapshot, publication } from "@molis-ai/molis-work-contracts/modules/workspace-action-schemas";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline,
-  workspaceReadActions, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { parseFilePath, parseFileSnapshot, parseFileTextSelection, fileSnapshotFitsInline, parseWorkspaceFileSubjectId, workspaceFileSubjectId,
+  workspaceReadActions, WORKSPACE_FILE_SUBJECT_KIND, WORKSPACE_SKIPPED_FOLDERS, type WorkspaceFileResult, type FileSnapshot } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { parseReadingPosition, serializeReadingPosition, READING_POSITION_KEY, type ReadingPosition } from "./position.js";
 import { filesErrors } from "./errors.js";
@@ -32,8 +32,7 @@ export const filesActions = {
   capture: readingFolder(define<FileCaptureInput, { saved: ArtifactVersionResult; port: "before" | "after" | "selection"; snapshot: FileSnapshot }>("files.capture", "固定文件快照", "重新读取并核对已查看的指纹，保存固定全文或选区；不改写原文件", object({ workspace_id: id, path, port: { enum: ["before", "after", "selection"] }, fingerprint: id, start: integer, end: integer }, ["workspace_id", "path", "port", "fingerprint"]), object({ saved: publication, port: { enum: ["before", "after", "selection"] }, snapshot }))),
 };
 /** Workspace files in the side panel (specs/archive/side-panel): listed through the same browsing grant, previewed as text. */
-export const WORKSPACE_FILE_KIND = "workspace_file";
-const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_KIND, title: "工作区文件", surface: "files" }];
+const workspaceFileKinds: FileSourceKind[] = [{ kind: WORKSPACE_FILE_SUBJECT_KIND, title: "工作区文件", surface: "files" }];
 export const filesSideActions = {
   entries: readingFolder(defineFileEntriesAction("files.side.entries", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
   content: readingFolder(defineFileContentAction("files.side.content", workspaceFileKinds, "工作区文件", ["artifact:read", "storage:private"])),
@@ -41,7 +40,7 @@ export const filesSideActions = {
 export const FILES_ACTIONS = [...Object.values(filesActions), ...Object.values(filesSideActions)];
 /** A tree walk stops here: the side panel lists what a person browses, not a whole dependency cache. */
 const SIDE_MAX_FILES = 2000, SIDE_MAX_DEPTH = 8;
-const SIDE_SKIPPED = new Set(["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"]);
+const SIDE_SKIPPED = new Set<string>(WORKSPACE_SKIPPED_FOLDERS);
 const MEDIA: Record<string, string> = { md: "text/markdown", markdown: "text/markdown", txt: "text/plain", json: "application/json", ts: "text/typescript", tsx: "text/typescript",
   js: "text/javascript", mjs: "text/javascript", css: "text/css", html: "text/html", yml: "application/yaml", yaml: "application/yaml", py: "text/x-python",
   csv: "text/csv", png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif", webp: "image/webp", svg: "image/svg+xml", pdf: "application/pdf" };
@@ -75,7 +74,6 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
   function readable(result: WorkspaceFileResult): asserts result is Extract<WorkspaceFileResult, { outcome: "text" }> {
     if (result.outcome !== "text") throw filesErrors.invalid(result.outcome === "changed" ? "文件在读取时变化，请刷新" : "文件当前不可读取，无法固定快照");
   }
-  const sideId = (workspaceId: string, path: readonly string[]) => `${workspaceId}:${path.join("/")}`;
   return [
     bindOwnerPluginAction(context, filesSideActions.entries, async (input: FileEntriesInput, beforeWrite) => {
       const current = await workspace(beforeWrite);
@@ -88,8 +86,8 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
           if (files.length >= SIDE_MAX_FILES) return;
           if (entry.kind === "directory") { if (depth < SIDE_MAX_DEPTH && !SIDE_SKIPPED.has(entry.name) && !entry.name.startsWith(".")) await walk(entry.path, depth + 1); continue; }
           if (entry.kind !== "file") continue;
-          const id = sideId(current.workspace_id, entry.path);
-          files.push({ subject: { kind: WORKSPACE_FILE_KIND, id }, revision: id, title: entry.name, folder: [current.name, ...entry.path.slice(0, -1)],
+          const id = workspaceFileSubjectId(current.workspace_id, entry.path);
+          files.push({ subject: { kind: WORKSPACE_FILE_SUBJECT_KIND, id }, revision: id, title: entry.name, folder: [current.name, ...entry.path.slice(0, -1)],
             media_type: mediaOf(entry.name), size: null, updated_at: null, open: { surface: "files", id } });
         }
       };
@@ -98,9 +96,9 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     }, browsing),
     bindOwnerPluginAction(context, filesSideActions.content, async (input, beforeWrite) => {
       const current = await workspace(beforeWrite);
-      const [workspaceId, ...rest] = String(input.subject?.id ?? "").split(":");
-      if (workspaceId !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
-      const path = parseFilePath(rest.join(":").split("/").filter(Boolean));
+      const named = parseWorkspaceFileSubjectId(String(input.subject?.id ?? ""));
+      if (named?.workspace_id !== current.workspace_id) throw Object.assign(new Error("这个文件不在当前浏览目录里"), { code: "files.not_found" });
+      const path = named.path;
       const title = path.at(-1) ?? "文件", media = mediaOf(title);
       // Pictures and PDFs are shown as they are; everything else, SVG included, as text.
       const whole = (media.startsWith("image/") && media !== "image/svg+xml") || media === "application/pdf";

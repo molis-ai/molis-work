@@ -9,7 +9,7 @@ import { pinnedArtifact } from "./fixtures/artifacts.js";
 for (const width of [1440, 390]) {
   test(`成果库 ${width}px: titles, the side panel, the Goal card and the import dialog read as one product`, { timeout: 120_000 }, async t => {
     const b = await openGoalBrowser(t, "seeded", undefined, null); if (!b) return;
-    const { command, sessionId, evaluate, waitFor, navigate, store, projectId, surfaceReady } = b;
+    const { command, sessionId, evaluate, waitFor, click, navigate, store, projectId } = b;
     await command("Emulation.setDeviceMetricsOverride", { width, height: width === 390 ? 844 : 950, deviceScaleFactor: 1, mobile: width === 390 }, sessionId);
     const coordinator = new GoalProjectApplication(store);
     coordinator.artifacts.commands.registerVersion({ project_id: projectId!, actor_id: "web-user", artifact_id: "pages-brief", version: 1,
@@ -44,19 +44,12 @@ for (const width of [1440, 390]) {
     // The Goal's overview says what it hands in, without opening 「完成要求」 (F6), and leads there.
     assert.match(goal, /data-event-reader="requirements" data-goal-deliverables-entry><span>交付物<\/span><span>1 份<\/span>/);
 
-    // The import dialog has room around its content (the side panel, which covers a phone screen, is put away first).
-    await evaluate("document.dispatchEvent(new CustomEvent('molis:side-close'))");
-    // On a phone the version fills the screen; the list with its import button is one step back.
-    if (!await evaluate("[...document.querySelectorAll('[data-artifact-import-open]')].some(button => button.getClientRects().length)")) {
-      await evaluate("document.querySelector('[data-artifact-collapse]')?.click()");
-      // The list reloads after stepping back; wait until it no longer shows the version, then use its import button.
-      await waitFor("!document.querySelector('[data-artifact-detail] [data-artifact-id]') && [...document.querySelectorAll('[data-artifact-import-open]')].some(button => button.getClientRects().length)", 10_000);
-    }
-    // The 成果 surface's client loads on first use (#150); its buttons work once it is ready.
-    await surfaceReady("artifacts");
-    await evaluate("[...document.querySelectorAll('[data-artifact-import-open]')].find(button => button.getClientRects().length)?.click()");
-    await waitFor("document.querySelector('[data-artifact-import-dialog]')?.open === true");
-    assert.ok(await evaluate<number>("parseFloat(getComputedStyle(document.querySelector('[data-artifact-import-dialog]')).paddingLeft)") >= 16);
+    // Importing is the side panel's 资料 tab (specs/project-knowledge PMAT-14); its dialog has room around its content at every width.
+    await evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'files' } }))");
+    await waitFor("Boolean(document.querySelector('[data-knowledge-import-open]')?.getClientRects().length)", 10_000);
+    await click("[data-knowledge-import-open]");
+    await waitFor("document.querySelector('[data-knowledge-import-dialog]')?.open === true");
+    assert.ok(await evaluate<number>("parseFloat(getComputedStyle(document.querySelector('[data-knowledge-import-dialog] form')).paddingLeft) + parseFloat(getComputedStyle(document.querySelector('[data-knowledge-import-dialog]')).paddingLeft)") >= 16);
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   });
 }

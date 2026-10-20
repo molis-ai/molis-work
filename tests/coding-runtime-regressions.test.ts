@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { codingSdkRuntime, codingToolResponse } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
@@ -158,15 +158,19 @@ test("a real inserted SDK step and its verdict are saved in a fixed report that 
   await fixture.reopenSdk(); assert.deepEqual(body(await fixture.call(path)), saved, "fixed report preserves its original graph, verdict, Markdown and version");
 });
 
+// Materials are pieces of project knowledge (specs/project-knowledge PMAT-18); a fixed report is named by its subject.
+type Piece = { kind: string; id: string; title: string };
+const pick = (reference: ArtifactReference, title: string): Piece => ({ kind: "artifact", id: artifactSubjectId(reference), title });
+
 // W2-18-CODING-DELIVERY-01: actual SDK letters, fixed reports and the next SDK Run's frozen material version.
 test("30 materials refuse a new delivery without committing receipts; removing one permits acceptance and actual consumption", { timeout: 120_000 }, async t => {
   const fixture = await codingSdkRuntime(t); fixture.create("A"); body(await fixture.call("/sessions/A", { configuration }, "PATCH"));
   t.mock.method(globalThis, "fetch", async () => cogniaModelResponse("DELIVERED_FIXED_TEXT"));
   const delegated = body<Delegated>(await fixture.call("/sessions/A/delegations", { title: "Report", task: "Produce fixed reports." })), target = delegated.session.session_id;
-  const references: ArtifactReference[] = [];
+  const references: Piece[] = [];
   for (let index = 0; index < 30; index++) {
     const ref = await start(fixture, target, `Fixed report ${index}`);
-    references.push(body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${target}/runs/${ref.run_id}/report`, {})).reference);
+    references.push(pick(body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${target}/runs/${ref.run_id}/report`, {})).reference, `Fixed report ${index}`));
   }
   body(await fixture.call("/sessions/A", { materials: references }, "PATCH"));
   const deliveredRun = await start(fixture, target, "The new delivered report."), result = body<{ delegation: { deliveries: Array<{ delivery_id: string; artifact: ArtifactReference }> } }>(
@@ -175,18 +179,18 @@ test("30 materials refuse a new delivery without committing receipts; removing o
   const source = fixture.sessions.get(DEMO_PROJECT_ID, "A").runtime_session_id!, before = await fixture.adapter.messages!.read(DEMO_PROJECT_ID, source);
   assert.ok((await fixture.call(path, { decision: "accept" }))!.status >= 400);
   assert.deepEqual(await fixture.adapter.messages!.read(DEMO_PROJECT_ID, source), before, "neither delivery nor parent letter advances at capacity");
-  assert.deepEqual(body<{ materials: ArtifactReference[] }>(await fixture.call("/sessions/A")).materials, references);
+  assert.deepEqual(body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials, references);
   body(await fixture.call("/sessions/A", { materials: references.slice(1) }, "PATCH")); body(await fixture.call(path, { decision: "accept" }));
-  const material = body<{ materials: ArtifactReference[] }>(await fixture.call("/sessions/A")).materials;
-  assert.equal(material.length, 30); assert.deepEqual(material.at(-1), delivery.artifact);
+  const material = body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials;
+  assert.equal(material.length, 30); assert.deepEqual([material.at(-1)!.kind, material.at(-1)!.id], ["artifact", artifactSubjectId(delivery.artifact)]);
   const consumed = await start(fixture, "A", "Read all accepted materials.");
   const frozen = (await fixture.adapter.read(consumed)).frozen.text_materials;
   assert.ok(frozen.some(item => item.source_artifact_id === delivery.artifact.artifact_id && item.source_version === delivery.artifact.version));
   // Already present at capacity: taking this exact version records acceptance and never adds a duplicate.
   const next = body<Delegated>(await fixture.call("/sessions/A/delegations", { title: "Existing", task: "Produce one report." }));
-  const existingRun = await start(fixture, next.session.session_id, "Existing fixed report."), existing = body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${next.session.session_id}/runs/${existingRun.run_id}/report`, {})).reference;
+  const existingRun = await start(fixture, next.session.session_id, "Existing fixed report."), existing = pick(body<{ reference: ArtifactReference }>(await fixture.call(`/sessions/${next.session.session_id}/runs/${existingRun.run_id}/report`, {})).reference, "Existing fixed report");
   const included = [...material.slice(1), existing]; body(await fixture.call("/sessions/A", { materials: included }, "PATCH"));
   const handed = body<{ delegation: { deliveries: Array<{ delivery_id: string }> } }>(await fixture.call(`/sessions/${next.session.session_id}/delegations/${next.delegation.delegation_id}/deliveries`, { run_id: existingRun.run_id, kind: "report" }));
   body(await fixture.call(`/sessions/A/delegations/${next.delegation.delegation_id}/deliveries/${handed.delegation.deliveries[0]!.delivery_id}`, { decision: "accept" }));
-  assert.deepEqual(body<{ materials: ArtifactReference[] }>(await fixture.call("/sessions/A")).materials, included);
+  assert.deepEqual(body<{ materials: Piece[] }>(await fixture.call("/sessions/A")).materials, included);
 });

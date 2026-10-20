@@ -96,6 +96,7 @@ export async function createRelease(
         dependencies: Object.fromEntries(
           source.runtimeDependencies.map((dependency) => [dependency.name, dependency.version]),
         ),
+        ...(source.removedDependencies.length ? { "molis-work": { removed_dependencies: source.removedDependencies } } : {}),
       },
       null,
       2,

@@ -8,7 +8,7 @@ import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugi
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
 export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
-  SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
+  SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, SCHEDULE_PLUGIN_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { SandboxError, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
@@ -17,6 +17,7 @@ import { createPluginPlatform, type PluginPlatformOptions } from './plugin-platf
 import { configuredModelChoices } from './configured-models.js';
 import { hostScheduleReminders } from './schedule-reminders.js';
 import { scheduleServiceFor } from './schedule-runtime.js';
+import { projectPluginDatabaseRefusal } from './project-plugin-databases.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
 import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
@@ -68,6 +69,21 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
   // Keep the owner visible until its processes and registrations are gone.
   try { await (await entry.ready).close(); }
   finally { if (boards?.get(projectId) === entry) boards.delete(projectId); }
+}
+
+/**
+ * Reminders and scheduled operations are kept in Schedule's tables: a refused Schedule offers neither, and leaves what is there
+ * as it is (S-42). Reminders are left out where the caller brings its own actions (the project's directory registers them).
+ */
+function registerScheduleProviders(store: LocalProjectDatabase, actions: PluginPlatformOptions['actions'], services: {
+  reminders: ReturnType<typeof hostScheduleReminders> | null; scheduledRuns: ReturnType<typeof createScheduledOperations>;
+}): { open: boolean; dispose: () => void } {
+  if (projectPluginDatabaseRefusal(store.db, SCHEDULE_PLUGIN_ID)) return { open: false, dispose: () => {} };
+  const disposeScheduledOperations = actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: actions.project_id },
+    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers(actions.project_id, services.scheduledRuns) });
+  const disposeReminders = services.reminders ? actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
+    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, services.reminders) }) : undefined;
+  return { open: true, dispose: () => { disposeScheduledOperations(); disposeReminders?.(); } };
 }
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
@@ -142,10 +158,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     },
     selection: () => { const raw = storage.get(INSTALLED_MODEL_KEY); return raw ? JSON.parse(raw) : configuredModelChoices(homeDirectory)[0] ?? null; } });
   const disposePlatform = registerPlatformCapabilities(actions, { generate });
-  const disposeScheduledOperations = actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_OPERATION_PROVIDER_ID, title: 'Schedule 定时操作', kind: 'system', project_id: actions.project_id },
-    definitions: SCHEDULE_OPERATION_ACTIONS, handlers: createScheduledOperationActionHandlers(actions.project_id, scheduledRuns) });
-  const disposeReminders = !options.actions ? actions.registry.registerProvider({ provider: { provider_id: SCHEDULE_REMINDER_PROVIDER_ID, title: 'Schedule 提醒', kind: 'system', project_id: actions.project_id },
-    definitions: REMINDER_ACTIONS, handlers: createReminderActionHandlers(actions.project_id, reminders) }) : undefined;
+  const scheduleProviders = registerScheduleProviders(store, actions, { reminders: options.actions ? null : reminders, scheduledRuns });
   const exposed = new Map<string, InstalledPluginActions>(), recoveryErrors = new Map<string, string>();
   const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
   const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: () => closed, withdraw,
@@ -172,7 +185,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const registerPrompts = (release: AgentRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(homeDirectory, generatedRegistration(release, releases.versions(release.buildId), state, releaseVersion(release.version)), promptScope(recordFor(release.pluginId)!.install_id));
   const lifecycle = installedLifecycle({ platform, storage, privateStorage, secrets, recoveryErrors, closed: () => closed, recordFor, releaseFor, approvedFor, definition, expose, withdraw, registerPrompts,
-    cancelScheduled: (pluginId, installId) => { reminders.cancelInstallation(pluginId, installId); scheduledRuns.cancelInstallation(pluginId, installId); },
+    cancelScheduled: (pluginId, installId) => { if (scheduleProviders.open) { reminders.cancelInstallation(pluginId, installId); scheduledRuns.cancelInstallation(pluginId, installId); } },
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
@@ -180,7 +193,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   let stopScheduledRuns: (() => void) | undefined;
   const close = async () => {
     if (closed) return;
-    closed = true; stopScheduledRuns?.(); disposePlatform(); disposeScheduledOperations(); disposeReminders?.();
+    closed = true; stopScheduledRuns?.(); disposePlatform(); scheduleProviders.dispose();
     await platform.closeCoordination();
     for (const id of [...exposed.keys()]) withdraw(id);
     const failures: unknown[] = [];

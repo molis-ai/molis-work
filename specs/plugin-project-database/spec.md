@@ -134,7 +134,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-20 | 根行几时写、几行（L1b 日常取舍） | 一库正好一行。建项目时与 Goals 的看板在同一个写事务里写（`GoalProjectApplication.initializeBoard` 先写根行），已有根行的项目保留它；项目目录读库时核对根行正好一行、与看板同 id，否则按库无效拒绝 | ② |
 | 2026-10-20 | 宿主替哪些插件开库（L1b 日常取舍） | 从工作台的内置插件目录里取项目级、声明了 `databases.project` 的条目，不另写名单；Home 级插件不在项目库建表。装进项目的插件到 L2 随服务一起开 | ② |
 | 2026-10-20 | 恢复路径开不开插件的表（L1b 日常取舍） | 不开。`existingOnly` 只读已经在这一版的库，恢复不该给库建表或写账本 | ② |
-| 2026-10-20 | 宿主装配的插件被拒时停什么（L1b 日常取舍） | 只停它自己的部分：它的动作提供方不登记；Coding 不进 Runtime 启动，页面说明原因；Schedule 的叫醒在碰表之前抛出这条拒绝，Scheduler 跳过 Schedule 自己的维护，别的插件的闹钟照常；Feed 没有出口规则，Feed 里属于 Modules 的部分照常。库不修补、不重建 | ② |
+| 2026-10-20 | 宿主装配的插件被拒时停什么（L1b 日常取舍） | 只停它自己的部分：它的动作提供方不登记，用它的表的 system 提供方（Schedule 的提醒、定时操作）也不登记；Coding 不进 Runtime 启动，页面说明原因；Schedule 被拒时项目的 Scheduler 一个任务也不认领（这里登记的叫醒都是 Schedule 的，认领会先把任务往后推或关掉），到点的任务原样等库修好，叫醒在碰表之前仍抛出这条拒绝作兜底（⑤ 评审改）；Feed 没有出口规则，Feed 里属于 Modules 的部分照常。库不修补、不重建 | ② |
 | 2026-10-20 | Feed 的权限（L1b 日常取舍） | Feed 原来没有 `storage:private`，补上并标必需（2.1 要求两个读写权限都在 Manifest 里），与 Coding、Schedule 一样 | ② |
 | 2026-10-20 | 账本行与 S8 的分工（L1b 日常取舍） | L1b 的维护写 Coding、Feed、Schedule 三行；Goals 一行和 `boards` 的改建随 S8 加进同一份维护脚本，与 ③ 对齐 | ② |
 | 2026-10-20 | CHECKLIST 里插件库的位置怎么写（L1b 日常取舍） | `projects/<project_id>/molis-work.db#<store_name>`，每个插件一行，版本门禁按位置区分各行；项目库这次的维护并进维护八，不另起名字 | ② |
@@ -174,7 +174,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 
 **L1b（2026-10-20，分支 `feat/project-library-l1b`，叠在 L1a 上）**
 
-- 新写和重写的用例全过：`tests/project-database-baseline.test.ts` 6 条，`tests/project-plugin-database-refusal.test.ts` 4 条，`tests/project-maintenance-v8.test.ts` 6 条。维护八只在一次性 Home 上演练。
+- 新写和重写的用例全过：`tests/project-database-baseline.test.ts` 6 条，`tests/project-plugin-database-refusal.test.ts` 5 条，`tests/project-maintenance-v8.test.ts` 6 条。维护八只在一次性 Home 上演练。
 - 相关用例 42 个文件全过。范围是：外键改到 `project_root` 的用例、三个插件和宿主装配、账本、Store 版本、发布核对。其中 Schedule 的两个恢复用例会开浏览器。
 - API 快照和动作合同快照都与源码一致，不用刷新。
 - 共享核心的全量和 ③ 的 S8 同一批跑。

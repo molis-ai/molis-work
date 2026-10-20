@@ -6,11 +6,11 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseCodingSurface, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
-import { SCHEDULE_ACTIONS, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
+import { SCHEDULE_ACTIONS, SCHEDULE_OPERATION_WAKEUP, SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP } from "@molis-ai/molis-work-plugin-schedule";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 
 /**
@@ -112,3 +112,34 @@ for (const { plugin, change, sql } of cases) {
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
   });
 }
+
+/** The jobs the Scheduler keeps, with what a claim would move on: whether it is on, when it is next due, its lease and last wakeup. */
+const jobs = (path: string) => withDatabase(path, db => db.prepare(
+  "SELECT job_id, capability_id, enabled, next_due_at, lease_until, lease_token, last_wakeup_id FROM schedule_jobs ORDER BY job_id").all().map(row => JSON.stringify(row)));
+const wakeups = (path: string) => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_wakeups").get() as { count: number }).count);
+
+test("PLIB-04/S-42: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
+  const { projectId, databasePath } = await project(await scratch(t));
+  const due = new Date("2026-10-01T00:00:00.000Z"), later = new Date("2026-10-02T00:00:00.000Z");
+  // A one-off reminder (a claim would turn it off before its handler ran) and a scheduled operation (a claim prepares it first).
+  const store = new LocalProjectDatabase(databasePath);
+  try {
+    const schedule = scheduleServiceFor(store.db, () => due);
+    schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_REMINDER_WAKEUP, object_ref: "reminder-due", title: "到点的一次性提醒", due_at: due.toISOString() });
+    schedule.register({ plugin_id: SCHEDULE_PLUGIN_ID, capability_id: SCHEDULE_OPERATION_WAKEUP, object_ref: `${projectId}|operation-due`, title: "到点的定时操作", due_at: due.toISOString() });
+  } finally { store.close(); }
+  withDatabase(databasePath, db => { db.exec(`UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`); });
+  const before = { jobs: jobs(databasePath), wakeups: wakeups(databasePath), library: library(databasePath) };
+  assert.equal(before.jobs.length, 2, "both jobs are due");
+
+  const reopened = new LocalProjectDatabase(databasePath);
+  try {
+    const schedule = scheduleServiceFor(reopened.db, () => later);
+    assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 0 }, "the round claims none of them");
+    assert.deepEqual(await schedule.tick(later), { invoked: 0, failed: 0, skipped: 0 }, "and the next round runs as well: no job stops the rounds");
+  } finally { reopened.close(); }
+
+  assert.deepEqual(jobs(databasePath), before.jobs, "neither job is turned off, moved on or leased");
+  assert.equal(wakeups(databasePath), before.wakeups, "and no wakeup is recorded as failed");
+  assert.deepEqual(library(databasePath), before.library, "the library is left as it was");
+});

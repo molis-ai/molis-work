@@ -75,7 +75,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); store.close(); await rm(directory, { recursive: true, force: true }); });
   await (await fetch(origin + "/health")).text();
   const headers = () => ({ "content-type": "application/json", origin, "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() });
-  const created = await fetch(`${origin}/api/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "交付方案", markdown: "第一稿" }) });
+  const created = await fetch(`${origin}/api/plugins/io.molis.work.pages/pages`, { method: "POST", headers: headers(), body: JSON.stringify({ title: "交付方案", markdown: "第一稿" }) });
   assert.equal(created.status, 200, await created.clone().text());
   const document = (await created.json() as { document: { id: string; version: number } }).document;
   const subject = { kind: "pages_document", id: document.id };

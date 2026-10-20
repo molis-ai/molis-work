@@ -61,8 +61,8 @@ async function environmentOf(work: StoredWork, ports: SurroundingsPorts): Promis
 const available = (views: readonly ActionView[], reference: { capability_id: string; version: number }, provider?: string) =>
   views.find(view => view.capability_id === reference.capability_id && view.version === reference.version && (!provider || view.provider.provider_id === provider) && view.availability.available);
 
-/** owner/name of a remote's address, never its credentials: https://user:token@host/owner/name.git and git@host:owner/name both read owner/name. */
-export const repositoryName = (url: string) => url.replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/?/i, "").replace(/^[^@/]+@[^:/]+:/, "").replace(/\.git\/?$/, "").split("/").filter(Boolean).slice(-2).join("/") || null;
+/** owner/name of a remote's address, never its credentials or a query after it: https://user:token@host/owner/name.git and git@host:owner/name both read owner/name. */
+export const repositoryName = (url: string) => url.replace(/[?#].*$/, "").replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/?/i, "").replace(/^[^@/]+@[^:/]+:/, "").replace(/\.git\/?$/, "").split("/").filter(Boolean).slice(-2).join("/") || null;
 
 async function gitOf(actions: PersonActions, workspaceId: string): Promise<AssistantWorkGit | null> {
   const view = available(await actions.discover(), workspaceReadActions.git);

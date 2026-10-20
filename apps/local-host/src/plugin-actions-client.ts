@@ -1,7 +1,7 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
+import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
@@ -116,9 +116,13 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     outer: ReturnType<typeof currentPluginInvocation>) => {
     if (!scope.caller) return ownActions(scope, outer);
     const caller = scope.caller;
+    // The plugin answers for its own action's permissions. What a nested call adds is the person's to hold, checked by the person's own
+    // caller, only when the plugin holds `actions:delegate`: it reaches those targets as the person through its directory anyway (user
+    // decision 2026-10-20). Without it, every permission a nested call carries must be the plugin's too.
+    const delegates = declaresActionDelegation(manifest) && context.grants.includes(ACTIONS_DELEGATE_PERMISSION);
     const check = (permissions: readonly string[] = []) => {
       options.assertActive();
-      for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission);
+      for (const permission of [...definition.action.permissions, ...(delegates ? [] : permissions)]) context.requireGrant(permission);
       assertCapturedPluginActionCurrent(outer, context.install_id);
     };
     return bindActionClient(scope.client, () => ({ ...caller, query_only: pluginInvocationReadOnly(outer) ?? caller.query_only,

@@ -32,7 +32,7 @@ export async function dispatchMcpProjectTool(
   switch (name) {
   case "molis_work_v1_initialize": {
     const actions = management(); bound(actions, String(arguments_.project_id));
-    result = await actions.invoke(goalsActions.initialize, { title: String(arguments_.title), idempotency_key: String(arguments_.idempotency_key) });
+    result = await actions.invoke(goalsActions.initialize, { idempotency_key: String(arguments_.idempotency_key) });
     break;
   }
   case "molis_work_v1_event_decide": {

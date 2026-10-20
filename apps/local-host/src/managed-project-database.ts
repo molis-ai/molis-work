@@ -7,14 +7,12 @@ import { catalogErrors } from "./project-catalog-contract.js";
 export async function initializeProjectDatabase(
   databasePath: string,
   projectId: string,
-  displayName: string,
   actorId: string,
 ): Promise<void> {
   const store = new LocalProjectDatabase(databasePath);
   try {
     new GoalProjectApplication(store).initializeBoard({
       project_id: projectId,
-      title: displayName,
       actor_id: actorId,
       idempotency_key: `project-catalog-create-${projectId}`,
     });

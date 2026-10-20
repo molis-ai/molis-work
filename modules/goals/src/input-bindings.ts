@@ -3,23 +3,6 @@ import type { GoalInputBindingRecord, GoalInputBindingsApi } from "@molis-ai/mol
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { GoalsSqliteDatabase } from "./repository.js";
 
-export const GOAL_INPUT_BINDINGS_SCHEMA_SQL = `
-  CREATE TABLE input_bindings (
-    binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    input_name TEXT NOT NULL,
-    source_type TEXT NOT NULL,
-    source_ref TEXT NOT NULL,
-    source_edge_key TEXT,
-    snapshot_digest TEXT,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
-    reason TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
-`;
-
 type BindingRow = GoalInputBindingRecord & { source_edge_key: string | null };
 
 /** Goals owns confirmation receipts; Ledger owns their cross-module source endpoints. */

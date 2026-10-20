@@ -11,7 +11,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-create-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: "board", title: "创建", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: "board", actor_id: "user-1", idempotency_key: "init" });
   return { directory, store, app };
 }
 
@@ -114,7 +114,7 @@ test("listGoals continues from saved sort keys after the cursor goal changes", (
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   try {
     const app = new GoalProjectApplication(store, () => new Date("2026-09-10T00:00:00.000Z"));
-    app.initializeBoard({ project_id: "board", title: "分页", actor_id: "page-user", idempotency_key: "init" });
+    app.initializeBoard({ project_id: "board", actor_id: "page-user", idempotency_key: "init" });
     for (const goal_id of ["PAGE-A", "PAGE-B", "PAGE-C", "PAGE-D"]) {
       app.goalEvents.createIntent({
         project_id: "board", goal_id, title: goal_id, actor_id: "page-user", actor_kind: "user",

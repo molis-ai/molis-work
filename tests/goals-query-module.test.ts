@@ -21,7 +21,6 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     const coordinator = new GoalProjectApplication(store);
     coordinator.initializeBoard({
       project_id: "board-query",
-      title: "Goals Query",
       actor_id: "user-1",
       idempotency_key: "initialize",
     });

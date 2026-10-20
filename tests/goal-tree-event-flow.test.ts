@@ -12,7 +12,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-02-tree-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: "board", title: "树", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: "board", actor_id: "user-1", idempotency_key: "init" });
   return { directory, store, app };
 }
 

@@ -39,10 +39,14 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   assert.ok(operations.length > 0); const cliId = operations.at(-1)!;
   assert.notEqual(cliId, FORGED_CALL); assert.match(cliId, /^[0-9a-f]{8}-[0-9a-f-]{27}$/);
   assert.deepEqual(env.host.callLog!.find(cliId), [], "a successful snapshot read has no durable invocation row");
-  const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string }[] } };
-  assert.ok(listed.result.tools.some(tool => tool.name === "molis_work_v1_initialize"), "management discovery does not require a Runtime gateway grant");
+  const listed = await mcp.handleMessage({ id: 2, method: "tools/list" }) as { result: { tools: { name: string; inputSchema: { properties?: Record<string, unknown>; required?: string[] } }[] } };
+  const initialize = listed.result.tools.find(tool => tool.name === "molis_work_v1_initialize");
+  assert.ok(initialize, "management discovery does not require a Runtime gateway grant");
+  // PLIB-15 (S8): the tool keeps its name and no longer asks for a title: the project's name is the directory's, not Goals'.
+  assert.deepEqual(initialize.inputSchema.required, ["project_id", "idempotency_key"]);
+  assert.equal("title" in (initialize.inputSchema.properties ?? {}), false);
   const reply = await mcp.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-    arguments: { database_path: alias, project_id: env.project.project_id, title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` },
+    arguments: { database_path: alias, project_id: env.project.project_id, idempotency_key: `project-catalog-create-${env.project.project_id}` },
     _meta: { call_id: FORGED_CALL, "molis-work/callId": FORGED_CALL } } }) as { result: McpToolResult };
   assert.notEqual(reply.result.isError, true, JSON.stringify(reply.result));
   const replay = JSON.parse(reply.result.content.find(block => block.type === "text")!.text);
@@ -51,7 +55,7 @@ test("W3-07-7-03 CLI and management MCP reuse the resident project and its actua
   assert.deepEqual(env.host.callLog!.find(FORGED_CALL), []);
   assert.deepEqual(fallbackOpened, [], "neither entry opens another project executor");
   assert.deepEqual(env.opened, [env.reference.storage_key], "the resident reuses its already-open catalog path");
-  const direct = await env.post({ ...env.body({ title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias });
+  const direct = await env.post({ ...env.body({ idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias });
   assert.equal(direct.status, 200, "the gateway also canonicalizes an alias supplied directly");
 });
 
@@ -64,7 +68,7 @@ test("W3-07-7-01 a stopped resident and a standalone database retain the origina
     { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost });
   assert.deepEqual(fallbackOpened, [env.reference.storage_key]);
   const standalone = join(env.home, "standalone.db");
-  await runV1Cli(["init", "--db", standalone, "--json", JSON.stringify({ project_id: "standalone", title: "独立项目", idempotency_key: "standalone" })],
+  await runV1Cli(["init", "--db", standalone, "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
     { homeDirectory: env.home, actionServiceUrl: "invalid-address", localHost: fallbackHost });
   assert.deepEqual(fallbackOpened, [env.reference.storage_key, standalone]);
 });

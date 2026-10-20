@@ -52,7 +52,6 @@ function fixture(options: { human?: boolean } = {}) {
   writeProjectRoot(store.db, BOARD, "2026-10-20T00:00:00.000Z");
   module.commands.initializeBoard({
     project_id: BOARD,
-    title: "事件事实",
     actor_id: "user-1",
     idempotency_key: "init-board",
   });
@@ -332,7 +331,7 @@ test("invalid structure, missing required fields, cross-goal refs and a later ba
   try {
     writeProjectRoot(data.store.db, OTHER_BOARD, "2026-10-20T00:00:00.000Z");
     data.module.commands.initializeBoard({
-      project_id: OTHER_BOARD, title: "另一个项目", actor_id: "user-1", idempotency_key: "init-other",
+      project_id: OTHER_BOARD, actor_id: "user-1", idempotency_key: "init-other",
     });
     data.module.commands.createGoal(OTHER_BOARD, {
       goal_id: OTHER_GOAL, title: "其他 Goal", outcome: "隔离", why: "跨引用", business_logic: "不可借用。",
@@ -596,7 +595,7 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
       const module = openModule(fresh);
       writeProjectRoot(fresh.db, BOARD, "2026-10-20T00:00:00.000Z");
       module.commands.initializeBoard({
-        project_id: BOARD, title: "新库", actor_id: "user-1", idempotency_key: "fresh-board",
+        project_id: BOARD, actor_id: "user-1", idempotency_key: "fresh-board",
       });
       module.commands.createGoal(BOARD, {
         goal_id: GOAL, title: "新库 Goal", outcome: "同样能力", why: "建库路径", business_logic: "新库直接可用。",

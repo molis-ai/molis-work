@@ -183,7 +183,7 @@ test("a live market pulse: the person picks the account through the actions, the
   const ref = molisWorkHostProjectReference({ databasePath: join(directory, "project.sqlite"), projectId: "project-a" });
   const host = new MolisWorkLocalHost({ homeDirectory: directory, alchemist: { ai: () => ai } });
   t.after(() => host.close());
-  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pulse token", actor_id: "setup", idempotency_key: "init" }));
+  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "alice", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.actionClient(ref), () => caller);
 

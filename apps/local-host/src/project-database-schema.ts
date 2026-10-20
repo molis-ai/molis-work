@@ -1,13 +1,5 @@
 import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
-import {
-  GOAL_BOARDS_SCHEMA_SQL,
-  GOAL_EVENT_FACTS_SCHEMA_SQL,
-  GOAL_EVENT_STATE_SCHEMA_SQL,
-  GOAL_INPUT_BINDINGS_SCHEMA_SQL,
-  GOALS_SCHEMA_SQL,
-} from "@molis-ai/molis-work-module-goals";
-import { GOVERNANCE_SCHEMA_SQL } from "@molis-ai/molis-work-module-governance-collaboration";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-module-sources";
@@ -35,18 +27,12 @@ import { PROJECT_BROWSING_SETTINGS_SCHEMA_SQL } from "./project-browsing-setting
  * No plugin's table is here (PLIB-01): a plugin declares its own in its Manifest (`databases.project`), and the platform makes
  * them the first time the library opens with that plugin and records them in `plugin_project_databases`
  * (`project-plugin-databases.ts`). The project's root row comes first; every project table points its foreign key at it.
- * 2026-10-18 改: Goals' tables, `boards` among them, are still here until Goals declares them (S8).
+ * Goals' and Governance's tables are not here either: Goals declares them (S8).
  */
 export const PROJECT_DATABASE_BASELINE: SqliteBaseline = {
   version: 8,
   schema: [
     PROJECT_ROOT_SCHEMA_SQL,
-    GOAL_BOARDS_SCHEMA_SQL,
-    GOALS_SCHEMA_SQL,
-    GOAL_INPUT_BINDINGS_SCHEMA_SQL,
-    GOAL_EVENT_FACTS_SCHEMA_SQL,
-    GOAL_EVENT_STATE_SCHEMA_SQL,
-    GOVERNANCE_SCHEMA_SQL,
     ARTIFACTS_SCHEMA_SQL,
     PROCESS_ITEMS_SCHEMA_SQL,
     LOCAL_JOURNAL_SCHEMA_SQL,

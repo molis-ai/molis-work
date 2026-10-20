@@ -135,7 +135,7 @@ test("a document imported before the Home named its owner is re-imported by the 
 
 test("a real Home's coordinator reads the person as the owner of every personal 成果", async () => {
   const storage = new LocalProjectDatabase(":memory:"), project = new GoalProjectApplication(storage);
-  project.initializeBoard({ project_id: "p", title: "p", actor_id: person, idempotency_key: "p" });
+  project.initializeBoard({ project_id: "p", actor_id: person, idempotency_key: "p" });
   try {
     const registration = (actor: string, version: number): RegisterArtifactVersionInput => ({ project_id: "p", actor_id: actor, artifact_id: "report", version,
       artifact_type_id: "io.example.report", schema_version: 1, producer, content: { kind: "inline", payload: { version } }, ...pinnedArtifact("Report") });

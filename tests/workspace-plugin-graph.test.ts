@@ -205,11 +205,11 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
     assert.equal(shelfReport().source, undefined);
     assert.equal(shelfReport().origin, "user");
 
-    platform.wiring.unbind("io.molis.work.coding", "materials");                         // another port is put back to its default
+    platform.wiring.unbind("io.molis.work.shelf", "coding-changeset");                   // another port is put back to its default
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.deepEqual(shelfReport().artifact, pinned, "putting back another port does not replace the given version");
-    assert.equal(platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.coding")!.ports.find(port => port.port === "materials")!.source?.source_plugin_id,
-      "io.molis.work.shelf", "the port that was put back follows its default source again");
+    assert.equal(platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-changeset")!.source?.source_plugin_id,
+      "io.molis.work.coding", "the port that was put back follows its default source again");
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 });
 

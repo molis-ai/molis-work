@@ -5,7 +5,7 @@ import { computeBuildSourceDigest, digestPaths, type MolisWorkBuildManifest } fr
 import { REQUIRED_RELEASE_SKILL_FILES } from "./home-contract.js";
 import type { InspectedSource, RuntimeDependencyPackage } from "./home-contract.js";
 import { pathState, readText, readJsonIfPresent } from "./home-files.js";
-import { collectRuntimeDependencies } from "./home-dependencies.js";
+import { collectRuntimeDependencies, removedByOverrides } from "./home-dependencies.js";
 import { runtimeDependencyReleaseEntries } from "./package-release-files.js";
 import { releaseAssetPaths } from "./release-assets.js";
 
@@ -46,7 +46,8 @@ export async function inspectSource(
     }
   }
   await assertFreshRepositoryBuild(sourceDirectory);
-  const runtimeDependencies = await collectRuntimeDependencies(packageJson, packageMetadata);
+  const removed = await removedByOverrides(sourceDirectory);
+  const runtimeDependencies = await collectRuntimeDependencies(packageJson, packageMetadata, removed);
   const bundledNodeCandidate = path.join(sourceDirectory, "runtime", "node");
   const bundledNodeState = await pathState(bundledNodeCandidate);
   if (bundledNodeState && !bundledNodeState.isFile()) {
@@ -59,7 +60,7 @@ export async function inspectSource(
     bundledNodePath != null,
   );
   const license = typeof packageMetadata.license === "string" ? packageMetadata.license : undefined;
-  return { directory: sourceDirectory, version, license, runtimeDependencies, bundledNodePath, contentDigest };
+  return { directory: sourceDirectory, version, license, runtimeDependencies, removedDependencies: [...removed].sort(), bundledNodePath, contentDigest };
 }
 
 export async function assertFreshRepositoryBuild(sourceDirectory: string): Promise<void> {

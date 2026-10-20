@@ -47,8 +47,8 @@ export interface ActionSceneReference {
 /**
  * The host's number for one operation (a page request, an MCP tool call, an Assistant or Agent round, a command, a timer
  * firing); every call that operation causes carries it. It is a diagnostic handle that names no one and grants nothing:
- * only the host assigns it, a handler may log or return it but must not decide anything by it, and it is never read from
- * business input.
+ * only the host assigns it, a handler may log or return it, and may count what one operation used by it (project knowledge's
+ * read budget per Agent round), but must never decide who may do what by it; it is never read from business input.
  */
 export interface ActionCallOrigin {
   readonly call_id?: string;

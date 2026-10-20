@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -35,20 +36,22 @@ test("Coding formal routes preserve drafts and isolate projects across server re
       assert.equal(created.status,201);
       projects.push(created.body.project.project_id);
     }
-    // Shelf is personal and always available; it is not a per-project opt-in.
-    const shelfOutput = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/material-output`;
-    assert.deepEqual((await request(shelfOutput)), { status: 200, body: { reference: null } });
-    assert.equal((await request(shelfOutput, 'POST', { reference: null, expected_reference: null }, false)).status, 403);
+    // Shelf is personal and always available; it is not a per-project opt-in. What it saves into a project is project knowledge.
     const shelfItem = await request('/api/shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
     assert.equal(shelfItem.status, 200);
+    // It is saved through the 成果库's import, so a project without the 成果库 refuses it, as the side panel's import does.
+    const elsewhere = `/projects/${projects[1]}/api/shelf/items/${shelfItem.body.item.item_id}/project-material`;
+    const refused = await request(elsewhere, 'POST', { expected_fingerprint: (await request(elsewhere)).body.fingerprint });
+    assert.equal(refused.status, 403, JSON.stringify(refused.body));
+    assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts' })).status, 200);
     const projectMaterial = `/projects/${projects[0]}/api/shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const materialPreview = await request(projectMaterial);
     assert.equal(materialPreview.status, 200);
     const fixedMaterial = await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint });
-    assert.equal(fixedMaterial.status, 200);
-    assert.equal((await request(shelfOutput, 'POST', { reference: fixedMaterial.body.reference, expected_reference: null })).status, 200);
-    assert.deepEqual((await request(shelfOutput)).body.reference, fixedMaterial.body.reference);
-    assert.deepEqual((await request(`/projects/${projects[1]}/api/plugins/io.molis.work.shelf/material-output`)).body.reference, null);
+    assert.equal(fixedMaterial.status, 200, JSON.stringify(fixedMaterial.body));
+    assert.equal(fixedMaterial.body.reference.version, 1);
+    assert.deepEqual((await request(projectMaterial, 'POST', { expected_fingerprint: materialPreview.body.fingerprint })).body.reference, fixedMaterial.body.reference, "the same text saved again keeps its version");
+    assert.equal((await request(`/projects/${projects[0]}/api/plugins/io.molis.work.shelf/material-output`)).status, 404, "there is no material output to choose any more");
     const plugin = (project: string) => `/projects/${project}/api/plugins/io.molis.work.coding`;
     // W3-02-C: not enabled in this project is 403 actions.plugin_disabled (it was 404 plugin_not_enabled).
     const notEnabled = await request(plugin(projects[0])+'/state'); assert.equal(notEnabled.status,403); assert.equal(notEnabled.body.code,'actions.plugin_disabled');
@@ -59,10 +62,9 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal(created.status,200);
     const session=created.body.session.session_id;
     assert.equal(created.body.session.state,'idle');
-    const shelfChoices = await request(a+'/sessions/'+session+'/materials');
-    assert.equal(shelfChoices.status, 200);
-    assert.equal(shelfChoices.body.materials[0].source, 'Shelf 材料输入');
-    assert.deepEqual(shelfChoices.body.materials[0].reference, fixedMaterial.body.reference);
+    // What Shelf saved is a piece of the project's knowledge, found like any other (specs/project-knowledge §9).
+    const found = await request(`/projects/${projects[0]}/api/knowledge/search?q=${encodeURIComponent('固定端口材料')}`);
+    assert.ok(found.body.cards?.some((card: { subject: { kind: string; id: string } }) => card.subject.kind === 'artifact' && card.subject.id === artifactSubjectId(fixedMaterial.body.reference)), JSON.stringify(found.body));
     const draft='保留需求、证据与未解决问题\n不要假装已经执行。';
     const configuration={intent:'execute',provider_id:'saved-provider',model_id:'saved-model',workspace_id:'saved-workspace'};
     const question_drafts={ '["run-1","question-1",1]': { answers: [{question:1,indexes:[2],other:'保留原输入'}] } };

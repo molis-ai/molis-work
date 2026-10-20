@@ -25,6 +25,16 @@ export function endingReviewReply(raw: string): string | undefined {
 }
 
 /**
+ * For a loopback model that is the Home's configured model and scripts a round's turns in order: answers the Home's own model
+ * work that is not the round's, so the script spends its turns only on the round's calls. That is the ending review ("nothing
+ * found"), and project knowledge's card for each piece it organizes in the background a moment after something in the project
+ * changed (specs/project-knowledge §5), told apart by its registered instruction (knowledge.organize). Undefined for the round's calls.
+ */
+export function asideReply(raw: string): string | undefined {
+  return endingReviewReply(raw) ?? (raw.includes("你在给项目里的一份资料写卡片") ? JSON.stringify({ title: "测试资料", brief: "测试替身写的卡片。" }) : undefined);
+}
+
+/**
  * For tests that script a round's model and do not look at its ending review: wraps the test's fetch double so each
  * review request is answered "nothing found" with `answer`, and the script and the request counts see only the round's
  * own calls.

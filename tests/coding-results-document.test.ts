@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codingManifest, codingOutputReferences, codingResultDocument } from "@molis-ai/molis-work-plugin-coding";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingManifest, codingOutputReferences } from "@molis-ai/molis-work-plugin-coding";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   CHANGESET_REFERENCE, CHANGE_SET_MARKDOWN, CODING_PLUGIN, PROJECT_ID, REPORT_BODY, REPORT_REFERENCE,
@@ -25,6 +26,7 @@ test("W5-01-CODING-01 the text action is a plugin-only query that reads artifact
   assert.equal(action.scope, "project");
   assert.equal(action.kind, "query");
   assert.deepEqual(Object.keys((action.output_schema as { properties: object }).properties).sort(), ["markdown", "reference", "saved_at", "title"]);
+  assert.ok(codingManifest.actions?.some(row => Object.is(row, codingResultDocument)), "Coding declares the very definition the contract exports, not a copy of it");
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(codingManifest)));
   const declared = manifest.actions?.filter(row => row.capability_id === "coding.results.document");
   assert.deepEqual(declared?.map(row => row.version), [1]);

@@ -4,7 +4,8 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
-import { checkedDocument, codingResultDocument, shelfCopyOf } from "./coding-result.js";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { checkedDocument, shelfCopyOf } from "./coding-result.js";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });

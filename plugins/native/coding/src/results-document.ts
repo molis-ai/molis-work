@@ -1,5 +1,6 @@
-import { defineErrorCodes, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { codingResultDocument, type CodingResultDocument, type CodingResultDocumentInput } from "@molis-ai/molis-work-contracts/modules/coding";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingArtifacts, type CodingChangeSet } from "./artifacts.js";
 import { codingChangeSetPreview } from "./changeset.js";
@@ -7,35 +8,6 @@ import { codingReportPreview } from "./report.js";
 
 /** The refusal of a result that is not a fixed Coding report or change set of this project, or is no longer current. */
 export const codingResultErrors = defineErrorCodes("coding", { shelf_material_invalid: "invalid" });
-
-export interface CodingResultDocumentInput { reference: ArtifactReference }
-/** One fixed Coding result as text a consumer can copy: the reader adds its own heading, source and fingerprint. */
-export interface CodingResultDocument {
-  reference: ArtifactReference;
-  title: string;
-  saved_at: string;
-  /** A report's own Markdown, or a change set's files as Markdown (the original review text before and after each write). */
-  markdown: string;
-}
-
-const reference: ActionSchema = { type: "object", properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } },
-  required: ["artifact_id", "version"], additionalProperties: false };
-
-/**
- * A fixed Coding report or change set as its Markdown, for a plugin that takes a copy of it (Shelf). Coding alone reads its own
- * records and says what they mean; the consumer sees only this document. Open to the plugin audience only, so it is neither an MCP
- * tool nor a step an agent or a workflow can pick.
- */
-export const codingResultDocument: ActionDefinition<CodingResultDocumentInput, CodingResultDocument> = {
-  capability_id: "coding.results.document", version: 1, operation: "query",
-  action: {
-    title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 执行报告或固定变更转成可复制的 Markdown 正文；已归档、不属于本项目或不是 Coding 固定成果的拒绝；只读",
-    kind: "query", scope: "project", audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],
-    input_schema: { type: "object", properties: { reference }, required: ["reference"], additionalProperties: false },
-    output_schema: { type: "object", properties: { reference, title: { type: "string" }, saved_at: { type: "string" }, markdown: { type: "string" } },
-      required: ["reference", "title", "saved_at", "markdown"], additionalProperties: false },
-  },
-};
 
 /** A Markdown fence long enough that the text inside cannot close it. */
 const literal = (value: string) => {

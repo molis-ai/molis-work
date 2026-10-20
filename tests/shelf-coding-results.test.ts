@@ -3,8 +3,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding";
-import { shelfCodingResultDocument, shelfManifest, shelfRuntimeActions } from "@molis-ai/molis-work-plugin-shelf";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { shelfManifest, shelfRuntimeActions } from "@molis-ai/molis-work-plugin-shelf";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   CHANGESET_REFERENCE, CHANGE_SET_MARKDOWN, PROJECT_ID, PROJECT_PATH, REPORT_BODY, REPORT_REFERENCE,
@@ -51,9 +52,11 @@ test("W5-01-CODING-08 the preview of a fixed change set is the very copy the hos
   });
 });
 
-test("W5-01-CODING-09 the action Shelf asks for is the one Coding declares, and Shelf's Manifest names it and holds the permission it needs", () => {
-  assert.deepEqual(shelfCodingResultDocument, codingResultDocument, "Shelf's copy of the definition cannot drift from the provider's");
+test("W5-01-CODING-09 the action Shelf asks for is the one contract definition Coding declares, and Shelf's Manifest names it and holds the permission it needs", () => {
+  // One definition in the contracts (`modules/coding`): Coding declares that very object and Shelf consumes its id; neither plugin carries a copy.
+  assert.ok(codingManifest.actions?.some(row => Object.is(row, codingResultDocument)), "Coding's Manifest declares the contract's definition");
   const manifest = parsePluginManifest(JSON.parse(JSON.stringify(shelfManifest)));
+  assert.deepEqual(manifest.capabilities.consumes, [codingResultDocument.capability_id]);
   assert.deepEqual(manifest.capabilities.consumes, ["coding.results.document"]);
   for (const permission of codingResultDocument.action.permissions) {
     assert.ok(manifest.permissions.some(row => row.permission === permission && row.required), `Shelf's Manifest requires ${permission}`);

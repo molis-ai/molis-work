@@ -2,7 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { SHELF_UI_CONTRIBUTION_ID } from "./ui.js";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { SHELF_RUNTIME_ACTIONS } from "./runtime-actions.js";
-import { codingResultDocument } from "./coding-result.js";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
 /** What the project database stores for this Plugin. */

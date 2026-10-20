@@ -18,7 +18,7 @@ import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
-import { codingResultDocument } from "./results-document.js";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */

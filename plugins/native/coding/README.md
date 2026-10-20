@@ -75,7 +75,7 @@ Directory candidates and browsing preferences come from the [current-project set
   - 后台命令读取失败保留最后事实并标未知；activation ready 后恢复持久等待消费者，服务临时故障退避重试，Runtime 不支持 waits 时明确拒绝并停止该消费者，stop 释放。委派保留已经提交或未知的原目标、原信，只能核对同一封信继续送达；失权不得返回受保护正文。
   - 收下交付先检查 30 项材料容量，已有同版本引用不重复添加；合法插步的当前 SDK 图和用户评价一起固定进报告，后续变化不改固定版本。
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
-  - 固定成果的正文只有一处写法：`coding.results.document@1`（`results-document.ts`，plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
+  - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在合同包 `@molis-ai/molis-work-contracts/modules/coding`，Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
   - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable()` 按类型取，再留下生产者是自己的版本（`outputs.ts` 的 `codingOutputReferences`）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。

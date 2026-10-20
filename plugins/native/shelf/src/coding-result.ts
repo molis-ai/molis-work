@@ -1,29 +1,8 @@
 import { createHash } from "node:crypto";
-import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { CodingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 import type { ShelfArtifactPreview } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
-
-/** What Coding answers when asked for one of its fixed results as text (its own `coding.results.document`, the plugin audience only). */
-export interface CodingResultDocument { reference: ArtifactReference; title: string; saved_at: string; markdown: string }
-
-const reference: ActionSchema = { type: "object", properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } },
-  required: ["artifact_id", "version"], additionalProperties: false };
-
-/**
- * The action Shelf consumes, as Coding declares it; tests/shelf-coding-results.test.ts holds the two to the same shape. Shelf names it
- * in its Manifest `capabilities.consumes`, and the platform calls it as this plugin with this plugin's own grants.
- */
-export const codingResultDocument: ActionDefinition<{ reference: ArtifactReference }, CodingResultDocument> = {
-  capability_id: "coding.results.document", version: 1, operation: "query",
-  action: {
-    title: "读取 Coding 固定成果的正文", description: "把本项目一份固定的 Coding 执行报告或固定变更转成可复制的 Markdown 正文；已归档、不属于本项目或不是 Coding 固定成果的拒绝；只读",
-    kind: "query", scope: "project", audiences: ["plugin"], permissions: ["artifact:read"], subject_kinds: [],
-    input_schema: { type: "object", properties: { reference }, required: ["reference"], additionalProperties: false },
-    output_schema: { type: "object", properties: { reference, title: { type: "string" }, saved_at: { type: "string" }, markdown: { type: "string" } },
-      required: ["reference", "title", "saved_at", "markdown"], additionalProperties: false },
-  },
-};
 
 /** The answer must be the document's four fields; anything else is Coding's fault, not text to put on the shelf. */
 export function checkedDocument(value: unknown): CodingResultDocument {

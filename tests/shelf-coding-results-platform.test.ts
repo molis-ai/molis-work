@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import { shelfCodingResultDocument, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import type { PluginActionClient, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -52,12 +52,12 @@ test("W5-01-CODING-13 a plugin that declares what Shelf declares and holds the g
   const home = await openTestHome(t), project = await home.createProject("Coding text", ["coding"]);
   await seed(home, project);
   const shelfLike = await consumer(t, home, project, { name: "shelf-like", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
-  const document = await shelfLike.invoke(shelfCodingResultDocument, { reference: REPORT });
+  const document = await shelfLike.invoke(codingResultDocument, { reference: REPORT });
   assert.deepEqual([document.reference, document.title, document.markdown], [REPORT, "已固定的原报告", BODY]);
   assert.equal(typeof document.saved_at, "string");
-  await assert.rejects(shelfLike.invoke(shelfCodingResultDocument, { reference: { artifact_id: "coding-report:session-a:absent", version: 1 } }), refused("coding.shelf_material_invalid"),
+  await assert.rejects(shelfLike.invoke(codingResultDocument, { reference: { artifact_id: "coding-report:session-a:absent", version: 1 } }), refused("coding.shelf_material_invalid"),
     "a version the project does not hold is refused in Coding's code: the plugin audience reaches the action");
-  await assert.rejects(shelfLike.invoke(shelfCodingResultDocument, { reference: { ...REPORT, version: 2 } }), refused("coding.shelf_material_invalid"));
+  await assert.rejects(shelfLike.invoke(codingResultDocument, { reference: { ...REPORT, version: 2 } }), refused("coding.shelf_material_invalid"));
 });
 
 test("W5-01-CODING-14 without the declaration, without the grant, without Coding in the project, or as a person or an MCP client, the text is not reachable", { timeout: 90_000 }, async t => {
@@ -66,11 +66,11 @@ test("W5-01-CODING-14 without the declaration, without the grant, without Coding
   const input = { reference: REPORT };
   // It consumes another Coding action, so the client exists, but not this one.
   const undeclared = await consumer(t, home, project, { name: "undeclared", consumes: ["coding.artifacts.preview"], permissions: shelfPermission, grants: ["artifact:read"] });
-  await assert.rejects(undeclared.invoke(shelfCodingResultDocument, input), refused("actions.forbidden"));
+  await assert.rejects(undeclared.invoke(codingResultDocument, input), refused("actions.forbidden"));
   const ungranted = await consumer(t, home, project, { name: "ungranted", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission.map(row => ({ ...row, required: false })), grants: [] });
-  await assert.rejects(ungranted.invoke(shelfCodingResultDocument, input), refused("plugin.grant_denied"));
+  await assert.rejects(ungranted.invoke(codingResultDocument, input), refused("plugin.grant_denied"));
   const elsewhere = await consumer(t, home, without, { name: "elsewhere", consumes: shelfManifest.capabilities.consumes, permissions: shelfPermission, grants: ["artifact:read"] });
-  await assert.rejects(elsewhere.invoke(shelfCodingResultDocument, input), refused("actions.plugin_disabled"), "a project that has not installed Coding does not offer its text");
+  await assert.rejects(elsewhere.invoke(codingResultDocument, input), refused("actions.plugin_disabled"), "a project that has not installed Coding does not offer its text");
   // Not an action a person, an Agent, a workflow or an MCP client can pick.
   const views = await home.inspect("runtime:coding-text", project.project_id);
   assert.ok(views.some(view => view.capability_id.startsWith("coding.")), "the same directory does list Coding's actions open to an MCP client");

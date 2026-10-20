@@ -1,7 +1,7 @@
 export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
-export { codingResultDocument, codingResultDocumentHandler, type CodingResultDocument, type CodingResultDocumentInput } from "./results-document.js";
+export { codingResultDocumentHandler } from "./results-document.js";
 export { codingOutputReferences } from "./outputs.js";
 export { codingFollowUps, CODING_NEXT_STEP, type CodingFollowUpRun } from "./next-steps.js";
 export { codingContinuation, originalTask, requestText, CONTINUATION_MARKER, MENTIONS_MARKER } from "./continuation.js";

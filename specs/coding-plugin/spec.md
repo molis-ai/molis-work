@@ -2709,7 +2709,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 6. **W5-01-CODING-06** Coding 自己的报告、变更、计划列表经平台 `listConsumable()` 按类型和生产者取，没有宿主端口；已归档和别的生产者的版本不算当前成果。
 7. **W5-01-CODING-07** Shelf 对一份固定报告的预览（标题、正文、来源、内容哈希、指纹）与宿主原来拼出的一字不差。
 8. **W5-01-CODING-08** 同上，固定变更，连同代码围栏的长度。
-9. **W5-01-CODING-09** Shelf 要的动作就是 Coding 声明的那一份，定义不得漂移；Shelf 的 Manifest 声明消费它并持有 `artifact:read`；Shelf 自己动作的受众不变。
+9. **W5-01-CODING-09** 这个动作的定义只在合同包 `@molis-ai/molis-work-contracts/modules/coding` 一处（含输入输出类型），Coding 与 Shelf 都从那里取，任何一边都没有第二份；Coding 的 Manifest 声明的就是这个对象，Shelf 的 Manifest `capabilities.consumes` 写它的 `capability_id` 并持有 `artifact:read`；Shelf 自己动作的受众不变。
 10. **W5-01-CODING-10** Shelf 的列表来自平台，按 Shelf 自己 Manifest 里的类型和端口筛选；Coding 不肯转成文字的版本不列出。
 11. **W5-01-CODING-11** 平台或 Coding 的拒绝带着自己的错误码到达使用者；找不到的版本是 Shelf 自己的 `shelf.unavailable`。
 12. **W5-01-CODING-12** 宿主不再拼这条边界：没有 `coding-shelf-material.ts`，`project-plugins.ts` 里没有 Coding 的三个列表端口，`ShelfResultPorts` 只剩 `projectPath` 和 `receive`。

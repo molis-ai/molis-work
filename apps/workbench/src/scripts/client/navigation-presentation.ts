@@ -258,8 +258,9 @@ export const DOCK_SCRIPT = `(L, projectId, host = {}) => {
     paintDock();
   });
   // The bar's width is the window's; watching it (not the Dock itself) keeps folding from feeding back into itself. The right
-  // group too: a directory button joins it after the first fit.
-  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end')]) if (node) watcher.observe(node); }
+  // group too: a directory button joins it after the first fit. And the switcher, whose name (a long plugin name) takes room
+  // from the pins.
+  if (pins && 'ResizeObserver' in window) { const watcher = new ResizeObserver(() => fit()); for (const node of [dock, dock.querySelector('.bar-end'), dock.querySelector('.plugin-picker')]) if (node) watcher.observe(node); }
 
   const searchKey = dock.querySelector('.plugin-picker-search kbd');
   if (searchKey && !/Mac|iPhone|iPad/.test(navigator.platform)) searchKey.textContent = 'Ctrl K';

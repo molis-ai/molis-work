@@ -235,13 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 27, sizing by keys is read out
-// (VUX-06). +655 B of the Pages editor: each press says the new width (pixels, share or "full width") in the page's one
-// status region, with the English copy; +25 B of the workbench script lends copy feedback's region as `window.molisAnnounce`
-// instead of a second one. Tried first: one `done` step for the three branches. Spent once from exactly #908's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 28, narrow containers (VUX-30).
+// Both stylesheets +228/+154 B: the Goals list and board leave room for a toolbar at touch height, a long Goal status gives
+// way to the title, and a pane's close is a 44 px touch target with its strip keeping the room. +37 B of the workbench
+// script: the Dock refits when the switcher's name changes. Tried first: no new rules, only the values that were fixed.
+// Spent once from exactly #910's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [708886, 709541],
-  "/assets/molis-work-workbench.js": [1163017, 1163042],
+  "/assets/molis-work-workbench.css": [1608756, 1608984],
+  "/assets/molis-work-settings.css": [992244, 992398],
+  "/assets/molis-work-workbench.js": [1163042, 1163079],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

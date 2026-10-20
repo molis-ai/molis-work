@@ -20,28 +20,33 @@ async function mcpHome() {
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
   };
+  // A tool is named after the version the Manifest serves, so an action that is revised later is called by its current name.
+  const tool = (name: string) => `alchemist.${name}__v${alchemistManifest.actions!.find(action => action.capability_id === `alchemist.${name}`)!.version}`;
   const call = async (client: Client, name: string, args: Record<string, unknown> = {}) => {
-    const result = await client.callTool({ name: `alchemist.${name}__v1`, arguments: args });
+    const result = await client.callTool({ name: tool(name), arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
-  return { connect, call, async close() { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); } };
+  return { connect, call, tool, async close() { await Promise.all(clients.map(client => client.close())); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("Alchemist standard MCP shares persisted business state across processes with project and read-only fixture grants", { timeout: 120_000 }, async () => {
-  const { connect, call, close } = await mcpHome();
+  const { connect, call, tool, close } = await mcpHome();
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     const tools = (await writer.listTools()).tools;
     // MCP offers the actions that name it as an audience; choosing which GitHub account the market pulse uses stays with the person (user only).
     const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v1`).sort();
-    assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
+    // W5-01-ALC-RES-AUTH-04: the four model actions also declare model:invoke and keep version 1 (① 10-20), so MCP still offers them under their v1 names
+    // and a client granted before sees the changed permissions and grants again, rather than finding no tool.
+    for (const name of ["reuse.assess", "conversation.send", "explorations.start", "research.start"]) assert.ok(offered.includes(`alchemist.${name}__v1`) && !offered.includes(`alchemist.${name}__v2`), `${name} is offered as v1`);
+    assert.deepEqual(tools.map(entry => entry.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
     assert.deepEqual(alchemistManifest.actions!.filter(action => !action.action.audiences.includes("mcp")).map(action => action.capability_id).sort(), ["alchemist.pulse.github", "alchemist.pulse.github.configure"], "only the account choice is kept from MCP");
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
     assert.equal((await call(reader, "workspace.read")).directions[0].id, direction.id);
     assert.deepEqual((await call(other, "workspace.read")).directions, []);
     for (const [client, name, args] of [[reader, "directions.create", { description: "只读调用不能创建方向" }], [writer, "directions.create", { description: "身份不得来自调用参数", project_id: "b" }],
       [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向" }]] as const) {
-      assert.equal((await client.callTool({ name: `alchemist.${name}__v1`, arguments: args })).isError, true);
+      assert.equal((await client.callTool({ name: tool(name), arguments: args })).isError, true);
     }
     const receipt = await call(writer, "explorations.start", { id: direction.id });
     let events: any;
@@ -55,7 +60,7 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const kept = await call(writer, "cards.keep", { id: exploration.cards[0].id });
     assert.equal(kept.version.revision.actorId, "fixture-owner");
     // The old demo record was deleted (specs/artifact-positioning P8): its read-only export is no longer offered.
-    assert.equal(tools.some(tool => tool.name === "alchemist.legacy.export__v1"), false);
+    assert.equal(tools.some(entry => entry.name === "alchemist.legacy.export__v1"), false);
     assert.equal((await call(reader, "ideas.version", { id: kept.idea.id, version: 1 })).version.content.title, "证据卡");
     const reply = await call(writer, "conversation.send", { body: "如何验证", context: { kind: "idea", label: "证据卡", ideaId: kept.idea.id, version: 1, panel: "brief" } });
     assert.equal(reply.assistantMessage.responseState, "complete");
@@ -65,7 +70,7 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     const reopened = await connect("a");
     assert.equal((await call(reopened, "ideas.version", { id: kept.idea.id, version: 1 })).version.id, kept.version.id);
     assert.equal((await call(reopened, "conversation.list")).messages[1].id, reply.assistantMessage.id);
-    assert.equal((await reopened.callTool({ name: "alchemist.cards.keep__v1", arguments: { id: exploration.cards[0].id } })).isError, true);
+    assert.equal((await reopened.callTool({ name: tool("cards.keep"), arguments: { id: exploration.cards[0].id } })).isError, true);
     assert.equal((await call(reader, "workspace.read")).ideas.length, 1);
   } finally { await close(); }
 });

@@ -47,30 +47,34 @@ test("motion uses four durations and two curves", () => {
   }
 });
 
-// specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of the shared
-// natural-height fold (0fr → 1fr), named here; every other selector, grid-template-columns and every other layout
-// property is still refused.
-const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/];
+// specs/visual-ui-experience §5 (the guard's expected change): grid-template-rows moves only on the outer row of a
+// natural-height fold (0fr → 1fr), each named here: the shared disclosure, and the Assistant's side groups, whose head is a
+// button because folding is remembered per viewer (VUX-08). Every other selector, grid-template-columns and every other
+// layout property is still refused.
+const NATURAL_HEIGHT_ROWS = [/\.mw-collapsible::details-content$/, /\.assistant-block:not\(\[hidden\], ?\.assistant-block--usage\)$/];
 test("motion never animates layout properties", () => {
   const layout = /^(?:width|height|min-width|max-width|min-height|max-height|margin(?:-[a-z]+)?|padding(?:-[a-z]+)?|top|left|right|bottom|inset|gap|grid-template-(?:columns|rows)|flex-basis|font-size|letter-spacing|border-width)$/;
-  let folds = 0;
+  const folds = new Set<RegExp>();
   for (const [name, css] of sheets()) {
     for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])transition(?:-property)?\s*:\s*([^;}]+)/g)) {
       const selector = match[1]!.trim();
       for (const part of match[2]!.split(",")) {
         const property = part.trim().split(/\s+/)[0]!;
-        if (property === "grid-template-rows" && NATURAL_HEIGHT_ROWS.some(row => row.test(selector))) { folds++; continue; }
+        const fold = property === "grid-template-rows" ? NATURAL_HEIGHT_ROWS.find(row => row.test(selector)) : undefined;
+        if (fold) { folds.add(fold); continue; }
         assert.doesNotMatch(property, layout, `${name}: ${selector.slice(-100)} → ${part.trim()}`);
       }
     }
   }
-  assert.ok(folds > 0, "the shared fold is found, so the exception is not dead");
+  assert.deepEqual(NATURAL_HEIGHT_ROWS.filter(row => !folds.has(row)), [], "every named fold is found, so no exception is dead");
 });
 
 test("the natural-height exception admits only the fold's outer row", () => {
   const refused = (selector: string) => !NATURAL_HEIGHT_ROWS.some(row => row.test(selector));
   assert.equal(refused(".mw-collapsible::details-content"), false);
-  for (const selector of [".mw-collapsible", ".mw-collapsible::details-content .inner", ".assistant-log", "details::details-content"]) assert.equal(refused(selector), true, selector);
+  assert.equal(refused("body .assistant-block:not([hidden], .assistant-block--usage)"), false);
+  for (const selector of [".mw-collapsible", ".mw-collapsible::details-content .inner", ".assistant-log", "details::details-content",
+    ".assistant-block", ".assistant-block-body", ".assistant-block:not([hidden], .assistant-block--usage) .assistant-block-body"]) assert.equal(refused(selector), true, selector);
 });
 
 test("only loading indicators loop", () => {

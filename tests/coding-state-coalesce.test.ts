@@ -81,7 +81,7 @@ test("however many pages poll the Coding directory at once, one read runs and at
 });
 
 // PG-054 (specs/repository-anti-corruption/privileges.md): Coding names no Runtime. A new session, and the methods and MCP servers the
-// project keeps, use the Runtime chosen for the project, else the first one in the platform's directory that can host a session; what
+// project keeps, use the first Runtime in the platform's directory that can host a session (there is no per-project choice yet, BL-372); what
 // a Runtime offers is read from its own capability matrix, never from its id.
 
 type Level = "supported" | "partial" | "unsupported";

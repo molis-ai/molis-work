@@ -5,21 +5,23 @@
  *
  * - 待发送 is what the strip above the input names, read from the island (`pending()`); removing one stays in the strip.
  * - 本次使用 and 历史引用 are the work's own facts: each round's materials and the selection it saw, and the objects the work holds as materials,
- *   placed by when they were recorded against the latest round's start. Objects are read again from their owners
- *   (`view.objects`), so one that changed since says so.
+ *   each once, under the latest round that used it (a round's materials name their objects). Only an object no round names
+ *   (recorded outside a Send) is placed by when it was recorded against the latest round's start. Objects are read again
+ *   from their owners (`view.objects`), so one that changed since says so.
  * - The drop zone stays first: dropping or picking a file adds to 待发送.
  */
 export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds, tile, glyph, group, sideAct, paintBlock, keepFocus, current, pending, sidePanelHere, sidePreview,
   readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, pickFile, addFiles, expired, block }) => {
   const GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
   const nameOf = (material) => material.title.replace(/^(方法|用|图片|引用)：/, "");
-  const objectTile = (object) => {
+  const objectTile = (object, round) => {
     const state = objectState(object), open = openObject(object);
     const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
     box.append(tile(objectGlyph(object), state ? "attention" : ""));
     if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
     else box.append(el("span", "assistant-item-title", objectTitle(object)));
-    box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("引用")));
+    box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), [state || surfaceName(object.open && object.open.surface) || L("引用"),
+      round ? L("第 {n} 轮").replace("{n}", String(round)) : ""].filter(Boolean).join(" · ")));
     box.title = objectDetail(object);
     return box;
   };
@@ -45,12 +47,15 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
     const seen = (round) => [...(round.materials || []).filter((material) => !material.object),
       ...(round.context && round.context.selection ? [{ kind: "selection", title: L("选中的内容") + "：" + round.context.selection.text.replace(/\s+/g, " ").slice(0, 28) }] : [])];
     rounds.forEach((round, index) => seen(round).forEach((material) => { const key = material.kind + ":" + material.title; used.delete(key); used.set(key, { material, round: index + 1, now: round === latest }); }));
+    const at = new Map();
+    rounds.forEach((r, i) => (r.materials || []).forEach((m) => m.object && at.set(m.object.kind + ":" + m.object.id, i + 1)));
+    const roundOf = (o) => at.get(o.subject.kind + ":" + o.subject.id), usedNow = (o) => roundOf(o) ? roundOf(o) === rounds.length : Date.parse(o.recorded_at) >= since;
     const waiting = pending();
-    const now = [...objects.filter((o) => Date.parse(o.recorded_at) >= since).map(objectTile), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
-    const before = [...objects.filter((o) => !(Date.parse(o.recorded_at) >= since)).map(objectTile), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
+    const now = [...objects.filter(usedNow).map((o) => objectTile(o)), ...[...used.values()].filter((one) => one.now).map((one) => materialTile({ material: one.material }))];
+    const before = [...objects.filter((o) => !usedNow(o)).map((o) => objectTile(o, roundOf(o))), ...[...used.values()].filter((one) => !one.now).map(materialTile)];
     const node = block();
     const signature = JSON.stringify([work && work.work_id, sidePanelHere(), waiting.map((one) => one.kind + ":" + one.title),
-      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at]), [...used.keys()], latest && latest.run_id]);
+      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision, o.recorded_at, roundOf(o)]), [...used.keys()], latest && latest.run_id]);
     if (!node || node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
@@ -75,15 +80,18 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
 
 /**
  * The Assistant's 工作环境 and 连接与工具 groups (VUX-08/09; the user's 2026-10-20 decision ②): what the Host reads from each
- * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again only when the work,
- * its revision or its state changes, never on every redraw. A part its owner could not answer says so in its own row.
+ * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again when the work,
+ * its revision or its state changes, never on every redraw. A connection or a repository changes without the work changing,
+ * so a read older than 15 s is asked again whenever the side is in sight and redrawn (the page coming back to the front
+ * redraws) or focus enters it (opening it does); a failed read is tried again 3 s later. A part its owner could not answer
+ * says so in its own row.
  * - 工作环境: the scope (personal, or the project); for Coding, the session's directory and its repository, branch, distance to
  *   upstream and what is not committed. A conflict is the summary and stands out.
- * - 连接与工具: each connection by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
+ * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
  *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. Coding keeps its own tools.
  */
 export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
-  let asked = "", held = null;
+  let asked = "", held = null, at = 0, asking = false, last = null;
   const count = (text, value) => L(text).replace("{n}", String(value));
   const CONNECTION = { connected: "已连接", "needs-authorization": "需要登录授权", failed: "连接失败", disconnected: "未连接", unchecked: "还没检查", incomplete: "还没设置完", off: "已关闭" };
   const TOOLS = { callable: "工具可调用", partial: "部分工具可调用", blocked: "工具不可调用", "none-discovered": "还没发现工具" };
@@ -112,7 +120,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
         sub: [L(CONNECTION[one.state] || one.state), one.account || "", one.state === "connected" ? L(TOOLS[one.tools] || one.tools) : ""].filter(Boolean).join(" · "),
         subTone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : "" }));
       if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
-      if (linked.length) box.append(group(L("连接"), stack(linked, work.work_id + ":tools:connections")));
+      if (linked.length) box.append(group(L("你的连接"), stack(linked, work.work_id + ":tools:connections")));
       const callable = can.executor === "coding" ? [card({ icon: "terminal", title: "Coding Agent", sub: L("用它自己的工具与 MCP，在 Coding 里设置") })]
         : can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
@@ -123,15 +131,20 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
       paintBlock(tools, L("连接与工具"), "link", box.children.length ? box : null, needs ? count("{n} 项要处理", needs) : total ? count("{n} 项可用", total) : "", needs > 0);
     });
   };
-  return { paint(work) {
+  const side = () => environmentBlock()?.parentElement;
+  const surround = (work) => {
+    last = work;
     const key = work ? work.work_id + ":" + work.revision + ":" + work.state : "";
     if (!work) { asked = ""; held = null; paint(null, null); return; }
-    if (key !== asked) {
-      asked = key;
-      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } }).catch(() => {});
+    if (!asking && (key !== asked || (Date.now() - at > 15000 && side()?.checkVisibility()))) {
+      asked = key; asking = true; at = Date.now();
+      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } })
+        .catch(() => { at -= 12000; }).finally(() => { asking = false; });
     }
     paint(work, held && held.id === work.work_id ? held.read : null);
-  } };
+  };
+  document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+  return { paint: surround };
 }`;
 
 /**

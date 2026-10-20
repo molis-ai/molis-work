@@ -244,10 +244,10 @@ const headErrors = (measured, budget, base) => {
 // coverage-mark helper (−20 B), the stylesheet's rules written compact with the note kept out of the shipped text (−59 B).
 // Spent once from exactly the 工作环境 and 连接与工具 slice's budget (#873).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1142662, 1145423],
-  "/assets/molis-work-workbench.css": [1605433, 1605713],
-  "/assets/molis-work-settings.css": [991208, 991488],
-  "/assets/molis-work-arrival.css": [700794, 701074],
+  "/assets/molis-work-workbench.js": [1143359, 1146120],
+  "/assets/molis-work-workbench.css": [1605330, 1605610],
+  "/assets/molis-work-settings.css": [991105, 991385],
+  "/assets/molis-work-arrival.css": [700691, 700971],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

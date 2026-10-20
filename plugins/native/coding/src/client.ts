@@ -69,9 +69,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.poll(()=>timeline.tick(turns),1000);
   // The conversation's scroll has the page's one owner (design system molisFollow, VUX-26): only the reader stops the follow,
   // only the reader's return or a word from here (back to latest, a fresh session, a restored place) starts it again.
-  const follow = window.molisFollow?.(turns, { onChange: (now) => { q('[data-coding-latest]').hidden = Boolean(reportRun) || now === 'following'; } });
-  if(follow)lifetime.own(()=>follow.dispose());
-  const following = () => !follow || follow.state === 'following';
+  const follow = window.molisFollow(turns, { onChange: (now) => { q('[data-coding-latest]').hidden = Boolean(reportRun) || now === 'following'; } });
+  lifetime.own(()=>follow.dispose());
+  const following = () => follow.state === 'following';
   // The project has one current directory: where new rounds run and what Files and Git show. Choosing it here sets it
   // for the whole project (the same setting as in project settings), then the embedded Files and Git views re-read it.
   const useProjectWorkspace = async (id) => {
@@ -196,7 +196,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       target.kind==='child'?[...q('[data-coding-subagents]').querySelectorAll('details[data-child]')].find(node=>node.dataset.child===target.child_id):[...turns.children].find(node=>node.dataset.run===target.run_id);
     if(!node || node.hidden)throw new Error('原内容暂不可读，请等待任务刷新后重试。');
     if(target.kind==='child')node.open=true;
-    node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
+    if(turns.contains(node))follow.release();node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
   }});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({...ports,openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:state=>host.receipts.step(state)});
   const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,openIntegration:integrations.open,usageSummary:codingUsageSummary,prepareRework:async(id,runId,child,notes)=>{
@@ -720,7 +720,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const wasOpen=Boolean(reportRun);
     reportTicket++;reportRun='';reportSaving=false;
     q('[data-coding-report-reader]').hidden=true;turns.hidden=false;
-    if(wasOpen) follow ? follow.restore(dialogueOffset) : turns.scrollTop=dialogueOffset;
+    if(wasOpen) follow.restore(dialogueOffset);
     if(restoreFocus && reportTrigger?.isConnected) reportTrigger.focus({preventScroll:true});
   };
   const loadReportOutput = async (id,runId,ticket) => {
@@ -938,7 +938,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
     const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.dataset.mwState=phaseRing(lastRun.phase);pill.textContent=phases[lastRun.phase]||lastRun.phase;}
-    if(pinNow) follow ? follow.pin() : turns.scrollTop=turns.scrollHeight;
+    if(pinNow) follow.pin();
     q('[data-coding-latest]').hidden=Boolean(reportRun) || pinNow; controls();
   };
   const readRecovery = async () => {
@@ -1098,7 +1098,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
         questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
       }
-      if(fresh || !draft.owns(id)) { draft.claim(id,data.draft); turns.replaceChildren(); if(!offsets.has(id))follow?.resume(); }
+      if(fresh || !draft.owns(id)) { draft.claim(id,data.draft); turns.replaceChildren(); if(!offsets.has(id))follow.resume(); }
       runtimeSessionId=data.session.runtime_session_id;queuedInputs=data.session.queued_inputs;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
@@ -1114,7 +1114,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const nextCheckpointKey=JSON.stringify([id,data.runs.at(-1)?.ref.run_id,data.runs.at(-1)?.ended_at,checkpointBusy]);
       if(fresh || checkpointKey!==nextCheckpointKey){checkpointKey=nextCheckpointKey;void readCheckpoints();}
       if(data.error) status(data.error,true);
-      if(fresh && offsets.has(id)) follow ? follow.restore(offsets.get(id)) : turns.scrollTop=offsets.get(id);
+      if(fresh && offsets.has(id)) follow.restore(offsets.get(id));
       renderDirectory(); controls();
     } catch(error) {if(!lifetime.alive)return; if(error.name!=='AbortError'&&current===id && ticket===generation){status(error.message,true);taskboard.fail(id,error.message);} }
     finally { if(ticket===generation) loading=false; }
@@ -1268,7 +1268,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         const said=[...run.turns].reverse().find(turn=>turn.kind==='assistant')?.text.trim() || '',asked=ownTask(run.turns.find(turn=>turn.kind==='user')?.text || '');
         const intent={builder:'execute',writer:'edit',reader:'discuss',reviewer:'review',planner:'plan',coordinator:'collaborate'}[run.frozen.role_id] || q('[data-coding-intent]').value;
         const id=current,modelValue=q('[data-coding-model]').value;sending=true;controls();
-        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id));status('已请它接着做；新的写入和命令仍需你审查。');follow?.resume();await refreshState();await readCurrent();}
+        try{await startRound(id,'上一轮你说「'+said+'」之后就结束了，没有调用任何工具，所以还什么都没做。请直接调用工具执行下一步，完成原任务：\\n'+asked,intent,modelValue,currentSelection(id));status('已请它接着做；新的写入和命令仍需你审查。');follow.resume();await refreshState();await readCurrent();}
         catch(error){status(error.message,true);}finally{sending=false;controls();}
       }
       // Committing a round's changes happens in Git, under Host review; the round only drafts the message.
@@ -1339,7 +1339,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(target.matches('[data-coding-board-close]')){showBoard(false);q('[data-coding-view=dialogue]')?.focus({preventScroll:true});}
       if(target.matches('[data-coding-goal-face-open]')) await openGoals();
       if(target.matches('[data-coding-goal-face-visit]') && target.dataset.goalId) host.openItem('goals',target.dataset.goalId,target.dataset.goalTitle || '');
-      if(target.matches('[data-coding-latest]')) { follow?.toLatest();target.hidden=true; }
+      if(target.matches('[data-coding-latest]')) { follow.toLatest();target.hidden=true; }
       if(target.matches('[data-coding-continue]')) { target.disabled=true; await continueRound(target.dataset.codingContinue); target.disabled=false; }
       if(target.matches('[data-coding-recover-continue]')) { target.disabled=true; await recoverAndContinue(target.dataset.codingRecoverContinue); target.disabled=false; }
       if(target.matches('[data-coding-pause]') && lastRun) {
@@ -1370,7 +1370,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(root,'click',click);
   lifetime.listen(directory.querySelector('[data-coding-search]'),'input',renderDirectory);
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
-  lifetime.observe(new MutationObserver(()=>{if(!reportRun)follow?.pin();}),turns,{childList:true,subtree:true,characterData:true});
+  lifetime.observe(new MutationObserver(()=>{if(!reportRun)follow.pin();}),turns,{childList:true,subtree:true,characterData:true});
   // Browsers without field-sizing still grow the field as the person writes.
   if(!globalThis.CSS?.supports?.('field-sizing','content'))lifetime.listen(input,'input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]'),q('[data-coding-effort]')])lifetime.listen(field,'change',()=>{
@@ -1528,7 +1528,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       const selection=currentSelection(id);if(intent==='parallel')selection.writer_assignments=structuredClone(configurations.get(id)?.writer_assignments || []);
       await startRound(id,next.task,intent,modelValue,selection,next.continue_step_board_of?{plan_revision:next.plan_revision,continue_step_board_of:next.continue_step_board_of}:{reask});
       if(!reask)status('已从断点继续：宿主核实的已发生操作已附在这一轮任务里，新的写入和命令仍需你审查。');
-      follow?.resume();await refreshState();await readCurrent();
+      follow.resume();await refreshState();await readCurrent();
     } catch(error) {if(current===id)status(error.message,true);}
     finally {sending=false;controls();}
   };

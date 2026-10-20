@@ -72,9 +72,9 @@ export class HomePluginExecutor implements PluginExecutor {
     try {
       const home = pluginHomeFor(this.options.home);
       const declaration = this.options.database(definition);
-      if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize);
+      if (declaration) database = openPluginDatabase(this.options.home, declaration, authorize, context.install_id);
       const fileDeclaration = this.options.files(definition);
-      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize);
+      if (fileDeclaration) files = openPluginFiles(this.options.home, fileDeclaration, authorize, context.install_id);
       const owned = this.options.ownerFiles(definition);
       const ownerFiles = owned ? createPluginOwnerFilesClient(manifest, owned.declaration, openPluginOwnerFiles(this.options.home, owned.declaration),
         { install_id: context.install_id, assertActive, requireGrant: authorize }) : undefined;

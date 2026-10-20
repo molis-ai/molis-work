@@ -1,6 +1,7 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport, type HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
@@ -71,19 +72,24 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
     .map(reference => ({ capability_id: reference.capability_id, version: reference.version, ...(reference.provider_id ? { provider_id: reference.provider_id } : {}) }));
   const sameAction = (left: ActionReference, right: ActionReference) => left.capability_id === right.capability_id && left.version === right.version;
-  const actionCaller = (projectId: string | null): ActionCallContext => {
+  // The Plugin's call to an action of its own. Its final check also asks the original caller of the action the Plugin made this
+  // call in (`outer`): the action it calls writes in its own handler, under its own scope, so without this a cancelled or revoked
+  // outer call would still write (S-18). Outside every action (discovery, `start`, a route) there is no outer caller to ask.
+  const actionCaller = (projectId: string | null, outer?: ReturnType<typeof currentPluginInvocation>): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (reference?: ActionReference, requiredPermissions?: readonly string[]) => {
       options.assertActive();
       for (const permission of requiredPermissions ?? []) context.requireGrant(permission);
-      if (!reference) return;
-      const action = manifest.actions?.find(item => sameAction(item, reference));
-      if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
-      for (const permission of action.action.permissions) context.requireGrant(permission);
+      if (reference) {
+        const action = manifest.actions?.find(item => sameAction(item, reference));
+        if (!action) throw new ActionError("actions.forbidden", "插件未声明提供此动作");
+        for (const permission of action.action.permissions) context.requireGrant(permission);
+      }
+      assertCapturedPluginActionCurrent(outer, context.install_id);
     };
     return {
       actor_id: options.actor_id, project_id: projectId,
-      audience: "user", permissions: context.grants,
+      audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: (options.providerId ?? context.provider_id ?? context.install_id) })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -91,17 +97,20 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // An action the Manifest lists under `capabilities.consumes`, owned by the unique provider in the actual directory. The Plugin
   // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
   // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
-  // its input schema.
-  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, providerId?: string): ActionCallContext => {
+  // its input schema. Its final check also asks the original caller of the
+  // action the Plugin made this call in (`outer`, captured when the Plugin called): the consumed action's own write runs
+  // in its own handler, under its own scope, so without this a cancelled or revoked outer call would still write (S-18).
+  const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: ReturnType<typeof currentPluginInvocation>, providerId?: string): ActionCallContext => {
     options.assertActive();
     const assertAuthority = (_reference?: ActionReference, requiredPermissions?: readonly string[]) => {
       options.assertActive();
       for (const permission of requiredPermissions ?? []) context.requireGrant(permission);
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
+      assertCapturedPluginActionCurrent(outer, context.install_id);
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
-      host_plugin: options.pluginCaller, plugin_install_id: context.install_id,
+      host_plugin: options.pluginCaller, plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -110,13 +119,18 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // action of its own still reaches a Host action it consumes. Without either there is nothing to call.
   // The person's original file reaches only this installation's own actions, from the route request that carried it.
   const offered = (scope: { original_file?: HostOfferedOriginalFile }) => scope.original_file?.install_id === context.install_id ? { original_file: scope.original_file } : {};
-  const ownActions = (scope: { project_id: string | null; client: ActionClient; original_file?: HostOfferedOriginalFile }) =>
-    bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id), ...offered(scope) }));
-  const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile }, definition: ActionDefinition) => {
-    if (!scope.caller) return ownActions(scope);
+  const ownActions = (scope: { project_id: string | null; client: ActionClient; original_file?: HostOfferedOriginalFile }, outer?: ReturnType<typeof currentPluginInvocation>) =>
+    bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer), ...offered(scope) }));
+  const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile }, definition: ActionDefinition,
+    outer: ReturnType<typeof currentPluginInvocation>) => {
+    if (!scope.caller) return ownActions(scope, outer);
     const caller = scope.caller;
-    const check = (permissions: readonly string[] = []) => { options.assertActive(); for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission); };
-    return bindActionClient(scope.client, () => ({ ...caller, ...offered(scope),
+    const check = (permissions: readonly string[] = []) => {
+      options.assertActive();
+      for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission);
+      assertCapturedPluginActionCurrent(outer, context.install_id);
+    };
+    return bindActionClient(scope.client, () => ({ ...caller, ...offered(scope), query_only: pluginInvocationReadOnly(outer) ?? caller.query_only,
       validate_authority: async reference => {
         check();
         if (definition.action.scope === "project" && !caller.project_id) throw new ActionError("actions.project_required", "请选择项目");
@@ -130,17 +144,18 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
+      const outer = currentPluginInvocation();
       const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
-      if (own) return await routedActions(scope, own).invoke(own, input, control, transport) as Output;
+      if (own) return await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output;
       if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.
       options.assertActive();
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
-      const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
+      const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
-      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, providerId)).invoke(definition, input, control, transport);
+      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, outer, providerId)).invoke(definition, input, control, transport);
     },
   };
 }

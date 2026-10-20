@@ -106,8 +106,7 @@ function renderPptNativePluginSurface(surface: "directory" | "workbench"): strin
 
 /** A built-in plugin's declarative page, found by the plugin id the page layout already carries. */
 function renderDeclarativePluginSurface(pluginId: string, surface: "directory" | "workbench" | "side"): string {
-  const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId);
-  const contribution = entry?.workbench.contributions.find(item => item.descriptor.surfaces?.some(one => one.surface_id === surface));
+  const contribution = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId)?.workbench.contributions.find(item => item.descriptor.surfaces?.some(one => one.surface_id === surface));
   return contribution ? renderDeclarativeContribution(contribution, surface, { primitives: { escape: escapeHtml, text: L } }) : "";
 }
 

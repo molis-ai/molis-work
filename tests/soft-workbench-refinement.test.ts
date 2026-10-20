@@ -32,6 +32,23 @@ test("each state has its own fixed glyph", () => {
   assert.deepEqual(Object.keys(STATUS_ICON), ["todo", "progress", "waiting", "needs-you", "blocked", "done", "cancelled"]);
 });
 
+// specs/visual-ui-experience §bezier-timing (the guard's expected change, VUX-14): the motion tokens are the four durations and
+// two curves, plus the one reveal pair (90 ms, out-cubic) chosen for newly written text. Business styles still name a token,
+// never a duration or a curve of their own, so the reveal's 90 ms appears only in its token's definition.
+const MOTION_TOKENS = { "dur-hover": "130ms", "dur-press": "130ms", "dur-move": "250ms", "dur-arrive": "420ms", "dur-moment": "640ms", "dur-reveal": "90ms",
+  "motion-instant": "130ms", "motion-fast": "130ms", "motion-normal": "250ms", "motion-arrive": "420ms",
+  "ease-quint": "cubic-bezier(.22, 1, .36, 1)", "ease-spring": "cubic-bezier(.2, 1.35, .4, 1)", "ease-reveal": "cubic-bezier(.215, .61, .355, 1)",
+  "ease-out": "var(--ease-quint)", "ease-standard": "var(--ease-quint)", "ease-swift": "var(--ease-quint)", "ease-settle": "var(--ease-spring)" };
+test("the motion tokens are the chosen set and nothing defines another", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/(?<![\w-])--((?:dur|motion|ease)-[\w-]+)\s*:\s*([^;}]+)/g)) {
+      const token = match[1]!, value = match[2]!.trim().replace(/\s+/g, " ");
+      assert.ok(token in MOTION_TOKENS, `${name}: --${token} is not one of the chosen motion tokens`);
+      assert.equal(value, MOTION_TOKENS[token as keyof typeof MOTION_TOKENS], `${name}: --${token}`);
+    }
+  }
+});
+
 test("motion uses four durations and two curves", () => {
   const allowed = new Set([130, 250, 420, 640]);
   for (const [name, css] of sheets()) {
@@ -67,6 +84,22 @@ test("motion never animates layout properties", () => {
     }
   }
   assert.deepEqual(NATURAL_HEIGHT_ROWS.filter(row => !folds.has(row)), [], "every named fold is found, so no exception is dead");
+});
+
+// The other expected change (VUX-14): `filter` moves only in the fresh-text reveal, a 2 px blur on a piece of newly written
+// text; no other keyframes, transition or element blurs, and the reveal is the only user of its duration and curve.
+test("filter animates only in the fresh-text reveal", () => {
+  for (const [name, css] of sheets()) {
+    const frames = [...css.matchAll(/@keyframes\s+([\w-]+)\s*\{((?:[^{}]*\{[^{}]*\})*)[^{}]*\}/g)];
+    for (const [, frame, body] of frames) if (/(?<![\w-])filter\s*:/.test(body!)) assert.equal(frame, "mw-fresh", `${name}: @keyframes ${frame} blurs`);
+    assert.match(css, /@keyframes mw-fresh\{from\{opacity:0;filter:blur\(2px\)\}\}/, `${name}: the reveal starts from 2 px and ends on the text as it is`);
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])transition(?:-property)?\s*:\s*([^;}]+)/g)) {
+      assert.doesNotMatch(match[2]!, /(?<![\w-])(?:filter|backdrop-filter|all)(?![\w-])/, `${name}: ${match[1]!.trim().slice(-100)} → ${match[2]}`);
+    }
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])animation(?:-name)?\s*:\s*[^;}]*(?<![\w-])mw-fresh(?![\w-])/g)) assert.equal(match[1]!.trim(), ".mw-fresh", `${name}: only .mw-fresh plays the reveal`);
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*var\(--(?:dur|ease)-reveal\)/g)) assert.equal(match[1]!.trim(), ".mw-fresh", `${name}: the reveal tokens belong to the reveal`);
+    assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.mw-fresh\{animation:none\}\}/, `${name}: reduced motion shows fresh text at once`);
+  }
 });
 
 test("the natural-height exception admits only the fold's outer row", () => {

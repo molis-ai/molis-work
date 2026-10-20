@@ -123,6 +123,20 @@ const SPECIMEN_SCRIPT = `
   let line = 0;
   if (follow) setInterval(() => { const row = document.createElement("div"); row.textContent = "第 " + (++line) + " 行 · 运行中"; log.append(row); if (follow.state === "following") follow.pin(); else latest.hidden = false; }, 700);
   latest?.addEventListener("click", () => follow?.toLatest());
+  // Newly written text, the way a reply comes in: short pieces at a model's pace, the same reveal in both, only the blur differs.
+  const SAMPLE = ["Molis 把这一轮读过的文件、改动和测试结果放在一起，", "你不用翻日志就能看到它做到哪了 👩‍💻。", "下一步：跑 tests/split-divider.e2e.test.ts，再对照基线。"];
+  const streams = [...document.querySelectorAll("[data-catalog-stream]")], replay = document.querySelector("[data-catalog-stream-replay]");
+  let timer = 0;
+  const play = () => {
+    clearInterval(timer); streams.forEach((box) => box.replaceChildren());
+    // Pieces are cut by code point, as a model's stream is: an emoji sequence may still arrive in two pieces.
+    const parts = SAMPLE.map((part) => [...part]), total = parts.flat().length; let at = 0;
+    const html = (upto) => parts.map((part, i) => part.slice(0, Math.max(0, upto - parts.slice(0, i).flat().length)).join("")).filter(Boolean).map((part) => "<p>" + part.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</p>").join("");
+    timer = setInterval(() => { at = Math.min(total, at + 3 + Math.floor(Math.random() * 4)); streams.forEach((box) => window.molisStreamText?.(box, html(at), { reveal: at < total })); if (at >= total) clearInterval(timer); }, 60);
+  };
+  replay?.addEventListener("click", play);
+  document.querySelector("[data-catalog-stream-slow]")?.addEventListener("change", (event) => streams.forEach((box) => box.toggleAttribute("data-slow", event.target.checked)));
+  if (streams.length) play();
   // The media zoom: the button says what it does next, as a preview's own control would.
   const media = document.querySelector("[data-catalog-media]"), button = document.querySelector("[data-catalog-media-zoom]");
   const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: (state) => { button.textContent = state === "fit" ? "原始尺寸" : "适应窗口"; } });

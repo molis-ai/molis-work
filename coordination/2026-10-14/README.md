@@ -2298,3 +2298,10 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ① 裁分工：③ 在 ② 的 C5 分支上补一个提交，写两份 Manifest 的权限行、那两处宿主字面量和动作快照核对；平台一半由 ② 写。
   - ③ 下一步开 C3，叠在 #892 上，只用 merge，不 rebase；② 继续做 L2+L3。
   - ⑤ 的 batch-1021-1（main 832666a16 加 #891、#892、#893）正在跑全量；#883 等 CI 绿后进合并队列，#881 排在它后面。
+- **10-21 合入**：#867、#883、#881、#892 已进 main，batch-1020-10 和 batch-1020-11 已删。
+  - batch-1021-1（#891、#893）全量 16/16 全绿，run 39476332055。
+  - #891 只差用户在 ⑤ 会话里直接批新门禁 `scripts/gates/dual-instance.mjs`（⑤ 的规矩：门禁提交要用户本人在 ⑤ 会话里确认）。
+  - ① 核过：`check-health-gates.mjs` 只多一个 import 和一项 `dualInstanceProblems`，`test:security` 只多了三个用例文件，没有放松任何东西。⑤ 的修补提交 3a77c5fff 又收紧了几处。
+  - ① 不代批，已请用户去 ⑤ 会话确认。
+- ③ C3 已开工：分支 `migrate/coding-c3-results`，叠在 #892 上，子代理在跑。
+- ② 在做 L2+L3：#867 已合，C1 只剩等 L2。

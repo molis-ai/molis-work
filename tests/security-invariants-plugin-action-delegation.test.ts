@@ -145,10 +145,33 @@ test("W5-01-DELEGATE-02 S-41 outside a running action, from another installation
 
 test("W5-01-DELEGATE-02 S-41 a malformed reference is refused before any directory is asked", async t => {
   const s = await setup(t); s.offer([OPEN]);
-  for (const bad of [{ capability_id: "../x", version: 1 }, { capability_id: OPEN.capability_id, version: 0 }, { capability_id: OPEN.capability_id, version: 1, provider_id: "bad id" }]) {
+  for (const bad of [{ capability_id: "../x", version: 1 }, { capability_id: OPEN.capability_id, version: 0 }, { capability_id: OPEN.capability_id, version: 1, provider_id: "bad\nid" },
+    { capability_id: OPEN.capability_id, version: 1, provider_id: " " }, { capability_id: OPEN.capability_id, version: 1, provider_id: "x".repeat(513) }]) {
     await assert.rejects(s.run({ op: "invoke", reference: bad }), { code: "actions.reference_invalid" });
   }
   assert.deepEqual(s.ran, []);
+});
+
+/** The provider ids the platform makes for external MCP servers: a connection in 服务连接, and a server a plugin's own MCP settings name. */
+const MCP_PROVIDERS = ["system.connectors#mcp:3b2f0c1e-6a0d-4c55-9a8e-2f1d7c9e4b10", "io.molis.work.coding#mcp:notes"] as const;
+
+test("W5-01-DELEGATE-02 S-41 a provider id the platform makes for an external MCP server (#mcp:) passes the reference check: check, invoke and a query delegation reach the target pinned to it", async t => {
+  const command = target("delegate.mcp_tool", ["user", "workflow"], ["delegate:read"]), held = target("delegate.mcp_read", ["user", "workflow"], ["delegate:read"]);
+  const query: ActionDefinition = { ...held, operation: "query", action: { ...held.action, kind: "query" } };
+  const probe = delegateProbe("mcpshaped", { consumes: [query.capability_id], permissions: ["delegate:read"] });
+  const s = await setup(t, [probe], [...GRANTED, "delegate:read"]);
+  // Only the provider's id is under test: each target is offered under one of the two shapes, by a provider of its own.
+  for (const [provider_id, definition] of [[MCP_PROVIDERS[0], command], [MCP_PROVIDERS[1], query]] as const) {
+    t.after(s.host.actionRegistry(s.project.reference).registerProvider({ provider: { provider_id, title: provider_id, kind: "system" }, definitions: [definition],
+      handlers: [{ ...definition, handle: async () => { s.ran.push(definition.capability_id); return "done"; } }] }));
+  }
+  probe.behavior.handle = async context => {
+    const actions = context.services!.actions!, tool = { ...ref(command), provider_id: MCP_PROVIDERS[0] };
+    await actions.directory!.check(tool, {});
+    return [await actions.directory!.invoke(tool, {}), await actions.invokeQuery({ ...ref(query), provider_id: MCP_PROVIDERS[1] }, {})];
+  };
+  assert.deepEqual(await s.run({ op: "invoke" }), ["done", "done"]);
+  assert.deepEqual(s.ran, [command.capability_id, query.capability_id]);
 });
 
 test("W5-01-DELEGATE-03 S-41 a call the plugin made with its own grants (plugin audience) is not widened to the workflow audience", async t => {

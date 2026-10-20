@@ -693,6 +693,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.css", 1604761],
   ["/assets/molis-work-settings.css", 990556],
   ["/assets/molis-work-workbench.js", 1134508],
+  ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

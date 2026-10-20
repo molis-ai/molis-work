@@ -632,7 +632,7 @@ QA-017的真实卡仍被:173捕获探针接管side-open，正确owner请求与�
 | Q10 | 未验证 | 一级（文审） | 周报工作流接入及逐站幂等未交付 | W7 F13 | fbc826b68 |
 | AC-S01 | 通过 | 一级、二级 | E22新origin经首页与直达均首开Shelf；选灵光后重开/刷新/Home往返保持；原浏览器1/1 | QA-013已复验 | 2571a328a（旧证据见历史段） |
 | AC-S02 | 部分通过 | 一级、二级（E17） | K3及E15/E16；E17正常铃铛到Shelf、三个真实页签/文稿与刷新二级通过；自动化页签断言及完整桌面入口仍缺 | QA-018；BL-014/400 | fbc826b68／4f1adc17f |
-| AC-S03 | 部分通过 | 一级、二级 | E24正常Shelf粘贴虚构材料、列表重开和1440/1024/390预览；无模型动作禁用并说明 | 原生拖出/终端/Agent与完整状态未验 | 73ce89eb0（旧证据见历史段） |
+| AC-S03 | 部分通过 | 一级、二级 | E24材料粘贴/预览；E25正常编辑副本A→B→C、列表重开/刷新、1440/1024/390中英浅深；390从文档焦点纯键盘进入/完成编辑。项目资料v1与剪贴板原记录仍A | 原生拖出/终端/Agent与完整异常未验 | aa327f34d（旧证据见历史段） |
 | AC-S04 | 部分通过 | 一级、二级 | E24真实Shelf选字浮条在右侧；选左边文稿后右侧浮条撤下、左侧出现。原S-30伪窗口拒绝有效 | 其他右栏格、收起及全矩阵未补齐 | 73ce89eb0（旧证据见历史段） |
 | AC-S05 | 部分通过 | 一级、二级 | E24 Shelf→Pages光标预览取消不写；B页签保存后A旧预览拒绝、刷新保B；重新选位置后键盘插入和引用插入成功，owner第5版与正文/blockquote一致 | Shelf来源已实走；标准中真实网页来源仍缺 | 73ce89eb0（旧证据见历史段） |
 | AC-S06 | 通过 | 一级、二级 | K1无落点拒产生attach；E24切项目首页再选同一Shelf段落，没有插入候选，灵光/Pages等其他入口仍可用 | 实际来源Shelf；不扩大为所有右栏格已验收 | 73ce89eb0（旧证据见历史段） |
@@ -899,7 +899,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W1-18-MEMORY-CANDIDATE-01 | 通过 | 一级 | 用例“a missing SDK candidate is refused unchanged, before and after restart”；`tests/memory-service.test.ts:721`（F1 22/22）。缺失SDK候选读取拒绝，账本和SDK候选不补写，重开仍拒绝 | — | `7d1cc4bfa` |
 | W1-18-MEMORY-TX-01 | 通过 | 一级 | 用例“W1-18-MEMORY-TX-01: a failed BEGIN leaves the ledger able to roll back and commit”；`tests/memory-ledger-transaction.test.ts:9`（F4 1/1）。真实SQLite事务锁在回调前拒绝；故障回滚；后续提交与重开一致 | — | `7d1cc4bfa` |
 | W1-18-MODEL-SCHEMA-01 | 通过 | 一级 | 用例“W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and invalid catalogs without changing them”；`tests/jelly-model.test.ts:58`（F4 12/12）。独立模型消费者拒绝旧/未来/非法目录，无修库或新建偏好副作用 | — | `7d1cc4bfa` |
-| W1-18-PIN-CURRENT-01 | 通过 | 一级 | 用例“W1-18-PIN-CURRENT-01 next pin retains a pending number and otherwise follows the current project line”；`tests/document-pin-after-move.test.ts:144`（F4 13/13）；`tests/pages-publication.test.ts:73`（F4 6/6）。当前项目版本线递增；保留待完成版本与原固定版本，不覆盖新草稿 | — | `7d1cc4bfa` |
+| W1-18-PIN-CURRENT-01 | 通过 | 一级、二级（Pages正常路径） | 原F4版本线/pending恢复证据；E25真实Pages固定v1→改草稿→旧v1保持→固定v2→从v1继续生成独立副本，改副本并刷新后原稿/两固定版不变；pages-publication定向2/2、artifact-continue浏览器2/2 | 四owner中断/跨actor/移动仍原工程证据，不外推全部二级 | aa327f34d（旧证据见历史段） |
 | W1-18-SECRET-KEY-01 | 通过 | 一级 | 用例“W1-18-SECRET-KEY-01 existing ciphertext refuses a ${fault} file key without changing credentials, and recovers with its original key”；`tests/secret-store-missing-key.test.ts:9`（F4 2/2）。缺失/损坏文件密钥拒绝轮换；密文不改，恢复原钥后可读 | — | `7d1cc4bfa` |
 | W1-18-SEMVER-01 | 通过 | 一级 | 用例“W1-18-SEMVER-01 preserves hyphens inside prerelease identifiers and follows literal precedence”；`tests/plugin-semver.test.ts:7`（F4 2/2）。预发布连字符按字面优先级比较；真实Runtime拒绝同版/降级 | — | `7d1cc4bfa` |
 | W1-18-SESSION-CONFIRM-01 | 通过 | 一级 | 用例“W1-18-SESSION-CONFIRM-01 a fresh Session only gets the exact workspace Project as a suggestion”；`tests/session-project-binding-router.test.ts:9`（F4 2/2）。新Session只建议项目；未经确认不绑定；同Session恢复且解绑不复活 | — | `7d1cc4bfa` |
@@ -1018,9 +1018,9 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | W2-18-SEND-01 | 部分通过 | 一级 | 用例“W2-18-SEND-01: waiting for A's draft sends A's intent and preserves B's selection, draft and materials”；`tests/assistant-send-intent.e2e.test.ts:6`（FB 5/5）。草稿HTTP屏障后切B，只有A收原文材料；B输入选择事实保持；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-SEND-02 | 部分通过 | 一级 | 用例“W2-18-SEND-02: chooser changes and a lost receipt retry the original scope, materials and request_id exactly once”；`tests/assistant-send-intent.e2e.test.ts:158`（FB 5/5）。选择页切项目及丢回包重试固定原scope材料request_id，只一次结果；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
 | W2-18-SETTINGS-LATE-01 | 部分通过 | 一级 | 用例“W2-18-SETTINGS-LATE-01: a delayed failed settings load cannot replace another category or its unsaved input”；`tests/workbench-async-targets.e2e.test.ts:13`（FB 6/6）。设置A延迟失败不替换B类别及未保存输入，恢复后可读；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
-| W2-18-SHELF-CACHE-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier file response cannot restore old bytes”；`tests/shelf-client-boundaries.e2e.test.ts:200`（FB 9/9）。owner同ID更新失效旧缓存；早先文件回包不恢复旧字节；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SHELF-CACHE-01 | 部分通过 | 一级、二级 | E25正常UI同材料编辑A→B→C，返回列表/收起重开/刷新后仍最新C，公开owner读回同ID与C正文；原晚文件回包不覆盖新正文定向通过 | 早期回包交错与比较视图仍一级；已知W2-18-FR | aa327f34d（旧证据见历史段） |
 | W2-18-SHELF-LIFETIME-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-LIFETIME-01: a window event belongs to one live mount; a detached mount answers nothing”；`tests/shelf-client-boundaries.e2e.test.ts:223`（FB 9/9）。全局事件只属于活挂载，卸载不读重挂只一次；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
-| W2-18-SHELF-OPEN-01 | 部分通过 | 一级 | 用例“W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted page and after remount”；`tests/shelf-client-boundaries.e2e.test.ts:183`（FB 9/9）；`tests/system-search-host.test.ts:27`（F4 1/1）。真实选定剪贴板ID打开原正文，重挂仍定位正确；搜索权限过滤；缺独立实走 | 已知（W2-18-FR） | `7d1cc4bfa` |
+| W2-18-SHELF-OPEN-01 | 部分通过 | 一级、二级 | E25正常Shelf列表选择剪贴板原记录显示A，收起重开仍该记录；编辑材料副本不改该剪贴板正文；原选定ID/移除重挂定向通过 | 系统搜索入口和强制重挂尚无独立实走；已知W2-18-FR | aa327f34d（旧证据见历史段） |
 | W2-18-STOP-FEEDBACK-01 | 部分通过 | 一级 | 用例“W2-18-STOP-FEEDBACK-01: a refused stop retains the real process and its diagnostic; a lost reply is unknown with no retry; success stops the process and follows the owner projection”；`tests/workbench-stop-feedback.e2e.test.ts:55`（FB 1/1）。真实后台子进程停止被拒/丢响应/成功分别显示；未知不自动重试；缺独立实走 | 已知（W2-18-FR、BL-141） | `7d1cc4bfa` |
 | W2-18-THINKING-BUDGET-01 | 通过 | 一级 | 用例“real Prologue SDK enforces the declared ${mode} budget”；`tests/agent-budget-prologue.test.ts:23`（F4 6/6）。锁定SDK显式7与thinking请求/frozen/usage一致；各预算耗尽不再派出 | — | `7d1cc4bfa` |
 | W2-18-TODO-DATE-01 | 通过 | 一级 | 用例“W2-18-TODO-DATE-01: new and existing todos use the same literal date and time despite contradictory model dates”；`tests/todo-organize.test.ts:48`（F4 17/17）。原文日期优先于矛盾模型；已有手改字段保护，采用后SQL及历史准确 | — | `7d1cc4bfa` |
@@ -1077,7 +1077,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | RAC-33 | 通过 | 一级 | F1材料权限与F2 lingguang-material：读取不写业务、受众同意及36MB拒绝 | 已知BL-183 | 7d1cc4bfa |
 | RAC-34 | 通过 | 一级 | F1/F2灵光模型生命周期：受控晚答拒写、原库重开、恢复轮保存；非真模型质量 | — | 7d1cc4bfa |
 | RAC-35 | 通过 | 一级 | F2 ui-request-stream＋F1同源头拒绝：跨字节/跨行、唯一末行、解析错与取消 | — | 7d1cc4bfa |
-| RAC-36 | 部分通过 | 一级、二级 | E20原Pages双选准备、灵光取消/丢弃刷新通过；对应三文件4/4，原阻断消除；历史工程范围保留，复合标准完整往返及矩阵仍缺 | QA-024已复验 | ad5a60abb |
+| RAC-36 | 部分通过 | 一级、二级 | E20双选/灵光返回与取消；E25 Pages固定版本、从旧版继续的独立副本、Shelf编辑/项目资料快照/刷新已实走，三宽中英浅深；相关4文件8/8 | QA-024已复验；复合标准全部来源/异常/对话矩阵仍缺 | aa327f34d（旧证据见历史段） |
 | RAC-37 | 通过 | 一级 | F1 Home/项目HTTP及声明拒绝：体积上限与超1字节，32MB批次正常 | — | 7d1cc4bfa |
 | RAC-38 | 通过 | 一级 | F1下载：HTML/SVG附件、空字节/中文文件名、原字节与JSON/NDJSON正确 | — | 7d1cc4bfa |
 | RAC-39 | 通过 | 一级 | F1模型标签/权限＋F2 cognia-prologue：发现不解密不请求，停用/撤权无标签 | — | 7d1cc4bfa |
@@ -1765,6 +1765,22 @@ A页签以第5版打开编辑并留草稿，B页签真实修改保存成第6版�
 
 收尾fetch main到`aa327f34d1d44b46d881b27badbbf104c3046fcc`，新增#836采用交接与#889清理文档；产品/测试源码未变化，未倒算E24执行SHA。QA-029未发现修复，状态不变。七线987项现478通过、439部分、0不通过、70未验证，七线仍不能归档；E24未执行其余线的新模型、CU二十步或用户验收。
 
+### 4.14 E25零模型固定版本与副本隔离（2026-10-21 JST）
+
+执行及收尾main均为`aa327f34d1d44b46d881b27badbbf104c3046fcc`。与E24的73ce相比只六份文档变化；复用同一生产构建，独占detached树先前移。新空Home，经正常首页创建虚构项目。调用上限0、实际0，没有读取密钥或配置模型，累计仍68/102。[实走截图与步骤](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6297800467)。
+
+**Pages→成果→Pages。** 文稿「QA版本隔离」正常输入「第一版：访谈时间周三，预算待定。」并固定v1，再把草稿改为「第二版草稿：访谈改周四，预算九百元。」。成果库v1仍原文，明确显示原对象已改；再固定为v2，两版均可正常打开。由v1「在Pages继续」新建副本，改名「QA从v1继续的副本」并加备选安排，刷新保留；公开owner只读确认原对象8a78d2d1-dccf-4a77-8771-855ddc0f132a（当前正文版本7、固定2）与新对象4ac84c0b-186b-476d-9cb4-6c70483327d8（正文版本2、尚未固定）不同，原稿和两版内容没有被副本覆盖。该独立副本是Pages正式通路；Shelf接收端只声明Coding报告/变更集，没为演练造报告或扩大consumes。
+
+**Shelf→项目资料→原稿与副本分离。** 正常粘贴「QA缓存材料／原稿A：周三开会，预算待定。」；点「存到项目资料」，查看预览再确认，完成为v1。正常编辑个人副本为「修订B：周四开会，预算九百元。」；成果库导入文件v1仍A，1024同屏左A右B。剪贴板历史仍A，正常选择及收起/重开定位正确。390中文深色，从Shelf文档焦点Tab四次到编辑开关、Space进入并聚焦正文，键盘改为「修订C：周五开会，预算一千元。」，Shift+Tab、Space完成；刷新后从列表重开仍C。owner回读同材料item_mvgzpzgd_e50e3682、正文C；固定项目资料仍A。
+
+**不发送的材料选择。** 从助理「选择项目资料」进入选择器，键盘选中该资料并添加到情境条，随后移除，没发给模型。项目资料设置显示无可用模型、可以标题/开头查找，整理量及发送模型字符量均0。只证明选择与本地状态；不证明模型收到什么或质量。
+
+三档实测截图：1440×1000英文浅色固定v1；1024×900英文浅色A/B并排与独立副本；390×844中文深色固定A和编辑/刷新C。没有把不同操作的三档合并称每个状态矩阵都齐。来源类型/动作元数据的英文混中文沿已知BL-125②，不重复立项；主观手感、触屏、读屏、原生拖放仍未验证。
+
+定向命令：`node scripts/run-tests.mjs tests/shelf-client-boundaries.e2e.test.ts tests/pages-publication.test.ts tests/artifact-continue.e2e.test.ts tests/shelf-project-knowledge-http.test.ts --test-name-pattern='W2-18-SHELF|W1-18-PIN-CURRENT|continuing from a version|Shelf saves the confirmed' --jobs 1`。四文件分别3/3、2/2、2/2、1/1，共8/8，0失败/跳过。读断言：Shelf早期文件回包/强制重挂、Pages异常head与其他actor、项目资料伪造正文/旧fingerprint拒绝均有效，但用例的预置对象/DOM事件仍为一级；不能替代本节真实UI步骤，也不扩大为人工晚到网络/中断已走。日志e25-directed.log、公开owner只读摘要e25-owner-readback.json均在忽略目录。
+
+执行器首尝试误引local-host出口，监听前失败并删除临时Home；改用仓库正式Desktop Web入口后完成，本问题归验收环境，不立产品缺陷。浏览器工具曾长时间等待，不记作产品性能数据。服务仅按自建PID停止，核对临时路径前缀、父目录及非符号链接后清理，最后出站/阻止计数均0。收尾main无新增，QA-029目标代码未改、无修复合入，不空跑或冒称已复验。987项478/439/0/70不变，七线仍不能归档。
+
 ## 5. 问题表
 
 | 编号 | 线／严重程度／类型 | 验收与章节 | 发现 main SHA | 复现步骤（隔离 Home 起） | 预期／实际 | 证据 | 疑似位置（仅线索） | 建议归属 | 回归断言 | 状态 |
@@ -1827,6 +1843,8 @@ PG-006原台账P2，指Goals内置名单特权；#812同片改为共同身份与
 E21补同一Coding问卷→补充/撤回→回答续跑→固定回执报告，E22补Pages真实计划→Goals草稿→准确提案→理由拒绝/采用→三Goal刷新，以及Pages→Todo→撤销。两条各自闭环，不能拼成未实走的助理委派全链。
 
 FU历史的Pages/灵光多选失败经E20原步骤复验已消除，QA-024关闭；现行D24手势决定保留。
+
+E24补Shelf段落→Pages落点预览/冲突拒绝/键盘插入；E25补Pages固定版→成果库旧版→Pages独立副本，以及Shelf原文→项目资料固定快照→个人副本编辑→刷新后两者分离。均是同次真实UI子链，调用0；不能代替助理委派或CU二十步。
 
 ## 7. 没验的范围和原因
 
@@ -1922,3 +1940,6 @@ FU历史的Pages/灵光多选失败经E20原步骤复验已消除，QA-024关闭
 - E23：73ce上补写后检查设置的真实空态、新增/修改/删除、双页签冲突及三宽中英浅深，13项定向通过；新QA-029仅报告。新增4项中3通过1部分，现987项477/440/0/70。模型0，累计预算仍68/102；Home/进程清理。不把缺手动撤权/断网或CU权限写成完成。
 
 - E24：零模型真实Shelf→Pages预览/拒绝过期/插入/引用、无落点及390情境条键盘已补；新增QA-030隐藏对话框标题污染，AC-S06通过，987项478/439/0/70。QA-029无修复；只改报告，未扩大模型预算。
+
+- E25：Pages固定v1/v2及旧版继续生成独立副本、Shelf项目资料快照与个人副本A/B/C、剪贴板重开、390键盘编辑均有新二级证据；调用0，四文件8/8。保留跨actor/中断/真实网络交错、系统搜索及完整矩阵缺口。
+- E25观察待核：Pages正文改名后，已打开页签与项目资料待整理卡片仍显示旧名。卡片可独立编辑，是否必须随owner标题同步需按其契约核对；未将旧题头当作“已同步”证据，也不据此关闭QA-026。

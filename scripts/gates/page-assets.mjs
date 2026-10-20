@@ -251,10 +251,11 @@ const headErrors = (measured, budget, base) => {
 //   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
 // - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
 //   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
-// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,161 B, and the three
+// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,264 B, and the three
 // stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
+// The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134948, 1138109],
+  "/assets/molis-work-workbench.js": [1134948, 1138212],
   "/assets/molis-work-workbench.css": [1603130, 1604761],
   "/assets/molis-work-settings.css": [988929, 990556],
   "/assets/molis-work-arrival.css": [698519, 700146],

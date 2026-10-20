@@ -44,7 +44,7 @@
 | #801 | W4-2 Pages「存为文档」、Goals「拆成目标步骤」两个创建入口（21.10，D-1～D-6） | `0cff74f8a` | 评审、合入；浏览器走查与截图待补（BL-338） |
 | #804 | W4-6a 内容站 `receive` 升到 v2，请求号取代「实例 + 步骤」（quick-create §11） | `7b20d36d0` | 已合入 `e7bb2d44e`；D25 可以排了；浏览器验证待补（quick-create §11.10） |
 | #830 | 修 QA-013、QA-014、QA-015：侧栏首开是 Shelf；390 宽情境条不再互相盖住；Pages 落点在写入前撤权或取消时什么都不写 | `05efb8701` | 评审、合入；三个浏览器文件本机没跑，留给 ⑤ 的批次与 CI |
-| #831 | 修 QA-016、QA-017、QA-018（只改测试） | `2e89a9e24` | 评审、合入 |
+| #831 | 修 QA-016、QA-017、QA-018（只改测试） | `2e89a9e24` | 已合入 `42d8c6f6a` |
 
 **D25**：移交 ①；#804 已合入（`e7bb2d44e`），等用户定时间。D25 是真实 Home 上的一次性维护：把 MCP 客户端授权、内置 Agent 授权和 Characters 角色里八个 `<站>.content.receive` 从 v1 改成 v2；先在一次性 Home 上演练、先备份，时间由用户定（用户 2026-10-19）。计划、演练报告和脚本已交到 ① 的笔记目录，① 正式跑之前重新演练一次。已保存的工作流不在范围内，由用户自己在编辑器里修。
 
@@ -52,7 +52,7 @@
 
 - 已删（2026-10-20，⑧）：W1 的七个工作树与本地分支（`feat/context-w1-contracts`、`-declarations`、`-derivation`、`-drafting`、`-floating`、`-manual`、`feat/context-w1-split-context-actions`，内容都在 main），`context-w2-plan` 工作树。
 - 工作树已删、本地分支留着：`feat/context-w1-toolbar`、`feat/context-w2-toolbar`、`feat/context-w2-bus-view` 的提交按标题都能在 main 里找到（合成 #411 时改过基），只是提交号不同；`context/w4-6-plan` 的提交在 #804 的分支里；`context/w4-2-create-entries` 已推送（#801）。强删本地分支要用户点头，由 ① 在 #801、#804 合入后一起处理。
-- 留着的工作树：`agent-a197fe3b87d42bdae`（`context/w4-6a-receive-v2`，#804 的子代理工作树，带锁，提交都已推送），#804 合入后由 ① 删；`agent-aac8d653cd0e97318`（`context/qa-016-018`），#831 合入后由 ① 删；`contextual-line-38bd8a`（本会话，`context/qa-013-014` 与交接分支 `context/handover-1020`），#830 与交接 PR 合入后，归档本会话时删。
+- 留着的工作树：`agent-a197fe3b87d42bdae`（`context/w4-6a-receive-v2`，#804 的子代理工作树，带锁，提交都已推送），#804 合入后由 ① 删；`agent-aac8d653cd0e97318`（`context/qa-016-018`），#831 已合入（`42d8c6f6a`），由 ① 删；`contextual-line-38bd8a`（本会话，`context/qa-013-014` 与交接分支 `context/handover-1020`），#830 与交接 PR 合入后，归档本会话时删。
 - 远端分支：本线已合入 PR 的远端分支没有删；删远端分支要先问用户。
 - 一次性 Home：本线没有留下的（D25 演练用的已删）。① 在查的八个 `molis-test-home-*` 不是本线建的。
 

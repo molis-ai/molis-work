@@ -8,8 +8,10 @@ import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectRefer
 import { goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
 import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
-import { ActionError, type ActionAvailability, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
+import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 
@@ -26,13 +28,29 @@ const SAID = "先做接口，登录页放到下一步";
 const ack = goalsActions.acknowledge.capability_id;
 const operationOf = (event: GoalWorkEventRecord) => (event.payload as { operation?: string }).operation;
 
-async function hostRig(label: string) {
+/** A probe offered to plugins only: it keeps the caller each plugin's call reached it with, which only the Host issues. */
+const PROBE: ActionDefinition<Record<string, never>, null> = { capability_id: "goals-ack.probe.peek", version: 1, operation: "query",
+  action: { title: "读取探针", description: "记下调用它的插件", kind: "query", scope: "project", audiences: ["plugin"], permissions: [], subject_kinds: [],
+    input_schema: { type: "object", additionalProperties: false } } };
+
+/** A plugin that holds Goals' read and write permissions and declares the acknowledge action, started by the Host like any other. */
+function goalsPlugin() {
+  const contexts: PluginStartContext[] = [];
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.goals-ack", version: "1.0.0",
+    name: "Goals ack", kind: "app", publisher: { publisher_id: "example", signature: "goals-ack" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: ["goals:read", "goals:write"].map(permission => ({ permission, required: true, reason: "读写目标" })),
+    capabilities: { provides: [], consumes: [PROBE.capability_id, ack] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
+    async start(context) { contexts.push(context); return { kind: "app" }; } };
+  return { definition, contexts };
+}
+
+async function hostRig(label: string, plugin?: ReturnType<typeof goalsPlugin>) {
   const home = await mkdtemp(join(tmpdir(), `goals-ack-${label}-`));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Ack", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const gate: { availability: ActionAvailability } = { availability: { available: true } };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
-    view.capability_id === ack ? gate.availability : { available: true } });
+    view.capability_id === ack ? gate.availability : { available: true }, ...(plugin ? { pluginFixtures: { project: [plugin.definition] } } : {}) });
   const project_id = project.project_id, actions = host.actionClient(ref), person = managementGoals(actions, project_id);
   const events = async (goal_id: string) => (await person.invoke(goalsActions.events, { goal_id })).events as GoalWorkEventRecord[];
   const acknowledged = async (goal_id: string) => (await events(goal_id)).filter(event => operationOf(event) === "input_acknowledged");
@@ -43,7 +61,24 @@ async function hostRig(label: string) {
   };
   const input = (goal_id: string, event_id: string, read_cursor: number, idempotency_key: string) =>
     ({ goal_id, event_id, treatment: "later-step" as const, note: SAID, read_cursor, idempotency_key });
-  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input,
+  /**
+   * What `plugin` presents on a call here, claiming `permissions`: the project's plugins start, as when the person opens the project, and
+   * the plugin reads the probe through its own SDK; its call carries the caller the Host issued its session (S-15).
+   */
+  const pluginCaller = async (plugin: ReturnType<typeof goalsPlugin>, permissions: readonly string[]): Promise<ActionCallContext> => {
+    const seen: HostPluginCaller[] = [];
+    host.actionRegistry(ref).registerProvider({ provider: { provider_id: "goals-ack-probe", title: "探针", kind: "system" }, definitions: [PROBE],
+      handlers: [{ ...PROBE, handle(context) { seen.push(context.host_plugin!); return null; } }] });
+    await host.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id, permissions: [] }, ref);
+    const started = plugin.contexts.at(-1);
+    assert.ok(started?.services?.actions, "the plugin has started and reaches actions through its own SDK");
+    await started.services.actions.invoke(PROBE, {});
+    const issued = seen.at(-1);
+    assert.ok(issued, "the probe saw the plugin's call");
+    assert.equal(issued.plugin_id, plugin.definition.manifest.plugin_id, "the caller is the one the Host issued that plugin");
+    return { actor_id: issued.actor_id, actor_kind: "user", project_id, audience: "plugin", permissions, plugin_install_id: issued.install_id, host_plugin: issued };
+  };
+  return { home, project_id, ref, host, actions, person, gate, events, acknowledged, cursor, newGoal, input, pluginCaller,
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
@@ -214,15 +249,17 @@ test("RCPT-379: who is speaking comes from the call alone; a Runtime with no sta
 });
 
 test("RCPT-380: only an Agent or an MCP session may answer; a page, a workflow or a plugin may not, and another project's context is a scope mismatch", async () => {
-  const r = await hostRig("audience");
+  const plugin = goalsPlugin(), r = await hostRig("audience", plugin);
   try {
     const goal_id = "ACK-AUDIENCE", note = await r.newGoal(goal_id), read_cursor = await r.cursor(goal_id);
     const mcp = mcpRuntimeCaller(r.project_id, "runtime:claude-code", "audience-session");
     const input = r.input(goal_id, note.event_id, read_cursor, "audience");
     const offered = async (caller: ActionCallContext) => (await r.actions.discover(caller)).some(view => view.capability_id === ack);
     for (const audience of ["agent", "mcp"] as const) assert.equal(await offered({ ...mcp, audience }), true, `${audience} is offered it`);
+    // A plugin's call is the one its SDK makes, with the caller the Host issued it; the person and a workflow are told apart by audience alone.
+    const fromPlugin = await r.pluginCaller(plugin, ["goals:read", "goals:write"]);
     for (const audience of ["plugin", "user", "workflow"] as const) {
-      const caller = { ...mcp, audience, permissions: ["goals:read", "goals:write"] };
+      const caller = audience === "plugin" ? fromPlugin : { ...mcp, audience, permissions: ["goals:read", "goals:write"] };
       assert.equal(await offered(caller), false, `${audience} is not offered it`);
       await assert.rejects(r.actions.invoke(caller, goalsActions.acknowledge, input), { code: "actions.forbidden" }, `${audience} holding goals:write is still refused`);
     }

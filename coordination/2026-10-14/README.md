@@ -2063,3 +2063,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     3. 四个交接 PR（#828、#834、#836、#838）的「在途」改成「已合入」；
     4. 之后 ⑤ 忙的时候把新 PR 转给 ⑩。
   - ②、③ 照旧把 PR 交给 ⑤。⑩ 的评论开头写「⑩ 评审」。
+
+- **06:33 UTC ⑤ 报 coding-question-card 的浏览器用例跑完**（用户只批了这一个文件的例外）：一共 6 次，都用一次性 Home、`--jobs 1`，经 heavy.sh 跑。
+  - 根因：合成的输入法回车带 `nativeVirtualKeyCode 229`，macOS 上的 Chrome 会因此把页面隐藏，页面隐藏后回执按设计不拿焦点。是用例的毛病，产品没问题。
+  - 修复开成 #859，只改测试，没有放宽断言。改了三处：AC-10-7 改在按钮滚进视野后再量；picked 断言把量过的选择器列出来；输入法回车去掉 native key code。
+  - 第 6 次跑整个文件：要修的 AC-10-1/2/7 和 AC-10-3/4/5/8 都过了。AC-22、AC-25、AC-10-6 没过，是负载 35 时 CDP/导航超时，不是断言失败，第 1 次跑时都过了。
+  - 清理：残留的两个 crashpad 进程按 pid 停了，一次性 Home 都已删。
+  - ⑤ 另修了 knowledge-round-fact（#852 上的 `9fe9ac497`）。#859 并进 batch-1020-2，新头 `978b1802f`，全量 39380838890 已排上。
+  - 浏览器例外到此用完，其他浏览器验证照旧暂停。
+  - 后续：`tests/assistant-dock-ime.e2e.test.ts` 也带 `nativeVirtualKeyCode 229/13`，macOS 上可能有同样的问题。① 请 ⑤ 记成 BL-39x。
+- **06:33 UTC ② 开了 L1a，是 #857**（head `7ca40f1c3`，从 main `d3318c37a` 开），已交 ⑤：插件可以在 Manifest 里声明 `databases.project`，SDK 检查声明的形状。对 merge-base 跑的健康门禁、boundary、secrets、文档门禁都过了，CI 还在跑。合同修复是 #855，⑤ 已审可合，进 batch-1020-3，排在 #848 之后。② 下一片是 L1b，和 ③ 的 S8 同批。

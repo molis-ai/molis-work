@@ -123,7 +123,8 @@ test("a failure in demo post-initialization restores the previous database befor
       const project = catalog.getProject(created.project_id), before = mark(project), plugins = catalog.listProjectPlugins(project.project_id);
       await fs.rename(join(home, "shelf"), join(home, "shelf-preserved"));
       await fs.writeFile(join(home, "shelf"), "fixture: storage temporarily unavailable");
-      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), /ENOTDIR/);
+      // Shelf keeps its files through the owner-files port now, which refuses a plain file where its folder should be.
+      await assert.rejects(catalog.resetDemoProject({ actor_id: "user", user_confirmed: true }), { code: "host.owner_file_unsafe" });
       assert.deepEqual(catalog.getProject(project.project_id), project);
       assert.deepEqual(snapshot(project), before);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), plugins);

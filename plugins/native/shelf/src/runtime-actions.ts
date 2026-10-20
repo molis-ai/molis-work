@@ -33,7 +33,7 @@ export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(
 export interface ShelfResultPorts {
   references(): ArtifactReference[];
   preview(record: FixedVersionRecord): ShelfArtifactPreview;
-  receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
+  receive(preview: ShelfArtifactPreview): Promise<{ item: ShelfItemRecord; snapshot: ShelfSnapshot }>;
 }
 
 /** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */
@@ -63,7 +63,7 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
       }) };
     }),
     bindOwnerPluginAction(context, shelfRuntimeActions.preview, input => read(input.reference)),
-    // Commands are rechecked by the owner binding before they run; the reads and writes below do not yield.
+    // Commands are rechecked by the owner binding before they run; the preview read and the start of the write below run in one turn, only the answer is awaited.
     bindOwnerPluginAction(context, shelfRuntimeActions.receive, input => {
       const value = read(input.reference);
       if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { openShelfStore } from '@molis-ai/molis-work-module-shelf';
+import { openHostShelfStore } from '@molis-ai/molis-work-app-local-host';
 import { openCharacters } from '@molis-ai/molis-work-module-characters';
 import { charactersManifest } from '@molis-ai/molis-work-plugin-characters';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
@@ -36,9 +36,9 @@ test('Characters opens an existing project after its manifest upgrade without lo
 test('Shelf saves the last keystroke before returning and keeps a failed draft available to retry', { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { navigate, command, sessionId, origin, projectId, click, evaluate, waitFor } = b;
-  const shelf = openShelfStore(b.homeDirectory, { disabled: true });
-  const a = shelf.admit({ filename: '最后输入.md', bytes: Buffer.from('# A\n原文 A'), mime: 'text/markdown' });
-  const second = shelf.admit({ filename: '独立材料.md', bytes: Buffer.from('# B\n原文 B'), mime: 'text/markdown' });
+  const shelf = openHostShelfStore(b.homeDirectory, { disabled: true });
+  const a = await shelf.admit({ filename: '最后输入.md', bytes: Buffer.from('# A\n原文 A'), mime: 'text/markdown' });
+  const second = await shelf.admit({ filename: '独立材料.md', bytes: Buffer.from('# B\n原文 B'), mime: 'text/markdown' });
   // Pin the viewport to the regression scenario so geometry does not depend on the host window size.
   await command('Emulation.setDeviceMetricsOverride', { width: 756, height: 469, deviceScaleFactor: 1, mobile: false }, sessionId);
   await navigate(() => command('Page.navigate', { url: `${origin}/projects/${projectId}/` }, sessionId));

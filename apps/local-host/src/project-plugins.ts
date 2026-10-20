@@ -1,8 +1,8 @@
+import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
 import { codingShelfMaterial } from "./coding-shelf-material.js";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -141,10 +141,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           ...processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1" })]
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
         preview: record => codingShelfMaterial(record, ports.projectId, ports.routePrefix ?? ""),
-        receive: preview => {
-          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
-          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: shelf.snapshot() };
+        receive: async preview => {
+          const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
+          return { item, snapshot: await shelf.snapshot() };
         },
       } : undefined;
     const codingPorts: CodingPluginPorts = { execution: {

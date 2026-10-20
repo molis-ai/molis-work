@@ -1,8 +1,9 @@
 import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
-import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -128,7 +129,7 @@ export class HomePluginHost {
     identity.remember(entries);
     const { db, storage } = openHomePluginStore(this.options.home);
     this.db = db;
-    const repository = new SqlitePluginRuntimeRepository(db);
+    const repository = pluginInstallRecords(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, qualifyCaller: identity.qualifyCaller });

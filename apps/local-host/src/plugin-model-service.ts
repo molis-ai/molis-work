@@ -10,6 +10,7 @@ import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitio
 import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions, type HostTextGenerationFailure } from "./host-complete-text.js";
 import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
 import { withPluginModelImages } from "./plugin-model-images.js";
+import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
@@ -40,17 +41,20 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
     availability(selection) {
       const injected = home.completeText();
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true };
-      let label: string | undefined;
-      const state = textModelAvailability(() => {
-        if (!configured(selection)) return false;
-        const catalog = openConfiguredModels(home.directory);
-        try {
-          const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
-          if (selected) label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`;
-          return true;
-        } finally { catalog?.storage.close(); }
+      // Every model action of every plugin asks this within one directory: read the settings once per Home and selection there.
+      return rememberInDirectoryPass(createPluginModelPort, JSON.stringify([home.directory, selection ?? null]), () => {
+        let label: string | undefined;
+        const state = textModelAvailability(() => {
+          if (!configured(selection)) return false;
+          const catalog = openConfiguredModels(home.directory);
+          try {
+            const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
+            if (selected) label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`;
+            return true;
+          } finally { catalog?.storage.close(); }
+        });
+        return state.available && label ? { ...state, runtime_label: label } : state;
       });
-      return state.available && label ? { ...state, runtime_label: label } : state;
     },
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDatabaseDeclaration,
@@ -16,7 +17,6 @@ import {
   PluginRuntime,
   PluginSupervisor,
   SqlitePluginEventsRepository,
-  SqlitePluginRuntimeRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
   type PluginCapabilityPort,
@@ -141,7 +141,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor,
+  const runtime = new PluginRuntime(pluginInstallRecords(options.db), executor,
     { actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

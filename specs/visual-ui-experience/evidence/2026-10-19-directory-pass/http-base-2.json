@@ -1,0 +1,443 @@
+{
+  "at": "2026-10-20T04:28:46.733Z",
+  "commit": "0744d7dd3b0ab4dc4ee11a4c10176f964e4fc849",
+  "environment": {
+    "node": "v24.14.0",
+    "os": "25.3.0",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpus": 10,
+    "memoryBytes": 17179869184,
+    "freeMemoryBytes": 1235304448,
+    "loadStart": [
+      3.18115234375,
+      4.98193359375,
+      4.68310546875
+    ],
+    "loadEnd": [
+      3.56689453125,
+      5.03173828125,
+      4.7021484375
+    ]
+  },
+  "scope": "Production HTTP delivery with seeded disposable data. No browser paint, input, frame, native UI or real-model latency claims.",
+  "samples": [
+    {
+      "label": "health-startup-probe",
+      "path": "/health",
+      "status": 503,
+      "headersMs": 10.41,
+      "bodyMs": 10.98,
+      "bytes": 104
+    },
+    {
+      "label": "health-startup-probe",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.75,
+      "bodyMs": 0.82,
+      "bytes": 98
+    },
+    {
+      "label": "project-first-response",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 1183.75,
+      "bodyMs": 1184.62,
+      "bytes": 772112
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.36,
+      "bodyMs": 0.4,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 4.8,
+      "bodyMs": 5.06,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 291.75,
+      "bodyMs": 292.08,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 288.54,
+      "bodyMs": 288.87,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.32,
+      "bodyMs": 0.35,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 2.04,
+      "bodyMs": 2.22,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 318.68,
+      "bodyMs": 319.11,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 280.33,
+      "bodyMs": 280.62,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.28,
+      "bodyMs": 0.31,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.78,
+      "bodyMs": 1.98,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 281.58,
+      "bodyMs": 281.9,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 588.34,
+      "bodyMs": 588.68,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.37,
+      "bodyMs": 0.41,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.92,
+      "bodyMs": 2.1,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 286.55,
+      "bodyMs": 286.97,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 284.8,
+      "bodyMs": 285.1,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.34,
+      "bodyMs": 0.36,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.85,
+      "bodyMs": 2.07,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 277.28,
+      "bodyMs": 277.57,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 274.39,
+      "bodyMs": 274.68,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.33,
+      "bodyMs": 0.36,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.77,
+      "bodyMs": 1.92,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 280.3,
+      "bodyMs": 280.59,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 280.04,
+      "bodyMs": 280.33,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.36,
+      "bodyMs": 0.38,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.99,
+      "bodyMs": 2.15,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 286.46,
+      "bodyMs": 286.77,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 325.87,
+      "bodyMs": 326.12,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.3,
+      "bodyMs": 0.33,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.93,
+      "bodyMs": 2.07,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 264.95,
+      "bodyMs": 265.26,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 248.85,
+      "bodyMs": 249.11,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.31,
+      "bodyMs": 0.34,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.83,
+      "bodyMs": 1.98,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 245.24,
+      "bodyMs": 245.53,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 246.28,
+      "bodyMs": 246.53,
+      "bytes": 631629
+    },
+    {
+      "label": "health-warm",
+      "path": "/health",
+      "status": 200,
+      "headersMs": 0.28,
+      "bodyMs": 0.3,
+      "bytes": 98
+    },
+    {
+      "label": "projects-directory-warm",
+      "path": "/",
+      "status": 200,
+      "headersMs": 1.6,
+      "bodyMs": 1.72,
+      "bytes": 428058
+    },
+    {
+      "label": "project-warm",
+      "path": "/projects/{project}/",
+      "status": 200,
+      "headersMs": 251.88,
+      "bodyMs": 252.15,
+      "bytes": 772112
+    },
+    {
+      "label": "coding-pane-http",
+      "path": "/projects/{project}/?workbenchPane=baseline&panePlugin=coding",
+      "status": 200,
+      "headersMs": 241.54,
+      "bodyMs": 241.78,
+      "bytes": 631629
+    }
+  ],
+  "assets": [
+    {
+      "label": "asset-first-response",
+      "path": "/assets/molis-work-workbench.css",
+      "status": 200,
+      "headersMs": 66.81,
+      "bodyMs": 67.81,
+      "bytes": 1603154
+    },
+    {
+      "label": "asset-revalidate",
+      "path": "/assets/molis-work-workbench.css",
+      "status": 304,
+      "headersMs": 0.63,
+      "bodyMs": 0.64,
+      "bytes": 0
+    },
+    {
+      "label": "asset-first-response",
+      "path": "/assets/molis-work-workbench.js",
+      "status": 200,
+      "headersMs": 76.71,
+      "bodyMs": 77.47,
+      "bytes": 1129525
+    },
+    {
+      "label": "asset-revalidate",
+      "path": "/assets/molis-work-workbench.js",
+      "status": 304,
+      "headersMs": 0.47,
+      "bodyMs": 0.47,
+      "bytes": 0
+    },
+    {
+      "label": "asset-first-response",
+      "path": "/assets/molis-work-knowledge.js",
+      "status": 200,
+      "headersMs": 3.18,
+      "bodyMs": 3.24,
+      "bytes": 26361
+    },
+    {
+      "label": "asset-revalidate",
+      "path": "/assets/molis-work-knowledge.js",
+      "status": 304,
+      "headersMs": 0.37,
+      "bodyMs": 0.38,
+      "bytes": 0
+    }
+  ],
+  "dataset": {
+    "goals": 19,
+    "relations": 25,
+    "goal_tree_proposals": 0,
+    "planning_method_packs": 0,
+    "project_guidance": 0,
+    "projectPluginCount": 11
+  },
+  "fixtureSetupMs": 202.15,
+  "processUntilFixtureReadyMs": 1283.9,
+  "listenToHealthReadyMs": 37.59,
+  "eventLoop": {
+    "meanMs": 87.55,
+    "maxMs": 429.65,
+    "p95Ms": 293.08
+  },
+  "memoryEnd": {
+    "rss": 667222016,
+    "heapTotal": 407977984,
+    "heapUsed": 324964480,
+    "external": 48788986,
+    "arrayBuffers": 21148926
+  }
+}

@@ -68,9 +68,13 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[]): BoundActionClient {
   const client = reference ? host.actionClient(reference) : host.homeActionClient();
+  // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
+  // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
+  let context: Promise<ActionCallContext> | undefined;
+  const current = () => context ??= localWebActionContext(host, reference, builtinPermissions).catch(error => { context = undefined; throw error; });
   return {
-    discover: async () => client.discover(await localWebActionContext(host, reference, builtinPermissions)),
+    discover: async () => client.discover(await current()),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(await localWebActionContext(host, reference, builtinPermissions), definition, input) as Output,
+      await client.invoke(await current(), definition, input) as Output,
   };
 }

@@ -164,6 +164,7 @@ export class CapabilityRegistry<Context> {
 }
 
 export { ActionService, actionSceneCompatibilityReason } from "./action-service.js";
+export { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 export { registeredActionMetadata, type RegisteredActionMetadata } from "./action-metadata.js";
 export { assertActionInput, compileActionSchema, precompileActionSchemas } from "./action-schema.js";
 export { assertActionCommandInput } from "./version-precondition.js";

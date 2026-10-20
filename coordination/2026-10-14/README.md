@@ -2233,3 +2233,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 顺手做 PG-091。
     - 下一片是 Alchemist S1（分区库），等 ⑤ 把 #883 的修复推上去再叠。
   - 两边都已开工。开了 PR 各记在自己的笔记里。
+- **10-21 用户批了四项**（在 ① 会话里逐项选「批准 (推荐)」）：
+  1. #883 的 `verify-release-versions.mjs` 例外改成恰好四个参数，加一条测试证明第五个参数照样拦。
+  2. #881 的 `check-package-boundaries.mjs` Goals 归属检查反过来，同时删 `modules/governance-collaboration/src/schema.ts`。
+  3. #881 的三个 goals 读动作升到 v2，外部 MCP 工具名 `__v1` 改成 `__v2`。
+  4. S0-2b-2 在 `scripts/gates/` 只新增双实例声明检查。
+  - 问题和答案已原样转给 ⑤（1～3）和 ②（4）。⑤ 推 #883 的修复，进下一批；#881 等 #867 改成 S-44 后同批。

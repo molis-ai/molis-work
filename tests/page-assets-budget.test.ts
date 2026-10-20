@@ -700,7 +700,7 @@ for (const [asset, old] of [
 // baseline still fails.
 test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134948, 1138212],
+    "/assets/molis-work-workbench.js": [1134920, 1138184],
     "/assets/molis-work-workbench.css": [1603130, 1604761],
     "/assets/molis-work-settings.css": [988929, 990556],
     "/assets/molis-work-arrival.css": [698519, 700146],

@@ -57,6 +57,8 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。
+
 ## 开发要求
 
 - 负责：插件身份、安装、授予、隔离、生命周期与回滚。
@@ -75,6 +77,7 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
   - 内置插件（Supervisor 条目标 `bundled`，`install` 带 `bundled: true`）一律跟当前构建（用户 2026-10-08，[发布策略](../../docs/releases/POLICY.md)第 7 节做法 A）：已有安装（未卸载，同一 install_id 即同一 plugin_id 与发布者签名）的记录与构建的清单不同，不论版本更高、更低还是同版本摘要不同，启动时都改成构建的清单（`version`、`publisher_id`、`manifest_digest`、`selected_entrypoint`、`grants`、`updated_at`；`recordToFollow`、`followBundledBuild`），不看 `upgrade_compatibility`，不调 `validateUpgrade`。`install_id`、`installation_generation`、`state`、`installed_at`、`retain_private_data` 不变，私有数据留在这次安装上；部署环境和执行信任边界仍不能借启动改变。授权与其他插件同一规则（用户 2026-10-18，改 2026-10-10 W3-06 B；[发布策略](../../docs/releases/POLICY.md)第 7.8 节）：必需的权限总有，可选的按人留下的给，可选的都能关（`runtime.grant`，插件先停；设置里的开关是下一片），关了只是用到它的动作不可用。内置插件的不同只在起点：全新安装时可选的默认都开（`bundledGrants` 不带已有授权），不论调用者传什么 `grants`。之后同一构建的启动按记录重放，不补回人关掉的（`bundledGrants` 带记录的授权，结果就是记录本身）；跟随新构建时，新清单不再声明的去掉，必需的补上，记录持有、新清单仍声明的保留，新清单声明而记录自己那个构建没声明的（`install` 的 `declared_before`，Supervisor 从发行物存档里记录自己那个（版本，摘要）的清单取，`startInstallInput`）像新装一样默认打开；存档里找不到记录自己的构建时只补必需的，不打开任何可选的，人关掉的不会被启动打开（`followBundledBuild`）。已有记录缺了必需的权限（同一构建也一样）时启动把它补上，不报 `plugin.state_invalid`（`recordToFollow`）；只缺可选的不是跟随的理由。Supervisor 对这类条目不恢复任何存档发行物（`directlyUsable` 恒为真），`upgradeCandidates` 不列它们；当前构建的发行物照旧存档，记录自己的（版本，摘要）在表里总有一行。非 `bundled` 的插件规则不变：版本更低、更高但没有声明来源、同版本不同摘要仍拒绝，Supervisor 仍恢复存档发行物；已卸载的记录不在此列，重装仍走保留数据的规则（`keptDataRefusal`）。
   - `stop()` 在返回 Promise 前撤销当前 activation 的 grant 与动作注册，再按原生命周期队列调用清理 hook；调用者不必等待清理完成，迟到的模型文字和结果就已无权交付。
   - `services.model`（W3-06 E）：`createPluginModelClient` 只在 Manifest 声明 `model:invoke`、宿主自己运行（非沙箱）的插件上由宿主建出来。`pluginActionProvider` 给每个动作处理器包一层 `runInPluginAction`（`AsyncLocalStorage`），记下正在执行的安装、动作声明和这次调用的 `ActionExecutionContext`；`complete` 只认这份记录，插件不传调用上下文。放行条件：记录属于本安装、动作声明含 `model:invoke` 且 `scheduling: "concurrent"`、调用者带 `model:invoke`、实例在运行且安装持有授权、这次调用的 `beforeEffect()` 通过，之后才查指令（只收本插件自己的 `InstructedPrompt`，`system` 也是）和限额（`PLUGIN_MODEL_LIMITS`，超出拒绝，不截断）；模型返回后同样的授权再问一遍才把结果交出去，所以动作返回之后（`actions.expired`）、取消、撤权、停用的调用拿不到结果。拒绝码都是 `plugin.model_*`，用 `defineErrorCodes("plugin", …)` 声明（`pluginModelErrors`）。端口（`PluginModelPort`）只由宿主实现；这个包不依赖 agent-host，JSON 解码也由端口的 `decodeJson` 给。作用域记录是模块级状态：一个测试进程里要从同一处加载这个包（源码和构建各一份，记录互不可见）。
+  - 场景回调由 `scene-provider.ts` 放进同一执行作用域，记录真实场景声明及读写用途；`currentPluginInvocation` 供服务和嵌套调用保存原调用者，`currentPluginAction` 仍只返回动作。只读场景不能经存储、事件、成果或嵌套调用写入，写回调结束后也不能留后台写入（`tests/security-invariants-plugin-scenes.test.ts`）。
   - 模型选择（W5-01）：`availability(selection?)` 与请求的 `selection` 只接供应商/模型 ID；Runtime 在首次等待前校验并复制，Host 解析当前已配置模型。明确选择失败不改用默认；`plugin.model_selection_invalid` 表示缺少或无效的 ID 形状，配置不可用仍按 Host 原错误返回。
   - `bundled` 只给宿主自己运行的代码（W3-06 D）：`install` 对 `bundled` 加 `execution: "sandbox"` 一律以 `plugin.grant_denied` 拒绝，不论带不带 `grants`。沙箱插件的权限是人确认的那一份，不会因为启动名单误标 `bundled` 就在全新安装时拿到 Manifest 声明的全部（`bundledGrants` 的前提）。
   - 卸载仅对当前进程的活实例执行 stop；冷安装无需加载代码。成功卸载释放已加载实现，后续确认重装可重新登记同版本实现，运行中仍拒绝重复注册。

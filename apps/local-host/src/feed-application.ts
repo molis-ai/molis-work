@@ -31,10 +31,11 @@ import {
   saveListenerRun,
   writeListenerCursor,
 } from "@molis-ai/molis-work-service-listener-host";
-import { FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
+import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   captureJudgment?: FeedApplicationPorts["captureJudgment"];
@@ -111,7 +112,8 @@ export function createLocalFeedApplication(
   return new FeedApplication({
     sources, feed: feedItems, attention, appendEvent,
     subscribeInboxCreated: listener => { inboxCreated = listener; },
-    outRules: new FeedOutRuleStore(db),
+    // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
+    ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(db) },
     artifacts: options.artifacts ?? {
       registerVersion: (input) => artifactsModule.commands.registerVersion(input),
       latestVersion: (projectId, artifactId) => artifactsModule.query.latestArtifactVersion(projectId, artifactId),

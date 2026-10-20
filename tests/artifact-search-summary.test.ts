@@ -18,7 +18,7 @@ const person: ActionCallContext = { actor_id: "web-user", project_id: projectId,
 function fixture() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec(`CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
+  db.exec(`CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('${projectId}'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);`);
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-10-09T00:00:00.000Z",

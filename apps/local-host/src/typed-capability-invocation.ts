@@ -1,6 +1,6 @@
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityDescriptor, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { CapabilityRegistry } from "@molis-ai/molis-work-kernel";
+import type { HostCapabilityCallOptions, HostCapabilityDescriptor, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { bindCall, type CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 
 /** The original typed invocation's own fences; no new dispatcher or authority source. */
 export function typedCapabilityInvocation(caller: ActionCallContext, definition: HostCapabilityDescriptor, host: {
@@ -20,7 +20,7 @@ export function typedCapabilityInvocation(caller: ActionCallContext, definition:
   };
   const assertProvider = () => {
     if (host.registry.registrationToken(definition) !== token) throw new ActionError("actions.provider_replaced", "能力提供方已重启，不能继续原副作用");
-    if (caller.query_only && (definition.operation !== "query" || definition.action?.execution?.cost === "metered")) throw new ActionError("actions.forbidden", "只读调用不能执行写入或付费能力");
+    if ((caller.query_only || caller.read_only_effects) && (definition.operation !== "query" || definition.action?.execution?.cost === "metered")) throw new ActionError("actions.forbidden", "只读调用不能执行写入或付费能力");
     const available: ActionAvailability = requireSynchronous(host.registry.availability(caller, definition));
     if (!available.available) throw new ActionError(available.code, available.reason, { kind: available.kind });
   };
@@ -39,4 +39,17 @@ export function typedCapabilityInvocation(caller: ActionCallContext, definition:
       await host.checkAvailability();
       assertAuthorityCurrent();
     } };
+}
+
+/** Bind typed origin and narrowing before opening a project or dispatching; caller options never become business input. */
+export function typedCapabilityCaller(projectId: string, signalFor: () => { signal?: AbortSignal }, options?: HostCapabilityCallOptions) {
+  const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal, plugin = options?.plugin_caller;
+  if (plugin && plugin.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
+  plugin?.assertActive();
+  return bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: projectId, audience: plugin ? "plugin" : "user", permissions: [],
+    ...(options?.query_only ? { query_only: true as const } : {}), ...signalFor(),
+    ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
+    ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {
+      signal?.throwIfAborted(); plugin?.assertActive(); requireSynchronous(current?.(), "最终授权检查必须同步完成"); signal?.throwIfAborted(); plugin?.assertActive();
+    } });
 }

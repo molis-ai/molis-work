@@ -2,6 +2,7 @@ import { type ActionAvailability, type ActionCallContext, type ActionProviderReg
 import type { PluginContribution, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { runInPluginAction } from "./action-scope.js";
 import { pluginSceneHandler } from "./scene-provider.js";
+import { pluginCallbackContext } from "./callback-context.js";
 
 /**
  * What a running Plugin offers the action service: the actions and scenes its Manifest declares, each available only while
@@ -15,7 +16,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     (context: ActionCallContext): ActionAvailability => {
       const grants = state.record()?.grants ?? [];
       if (permissions.some(p => !grants.includes(p))) return { available: false, code: "actions.plugin_permission", reason: "插件缺少能力所需授权" };
-      return own?.(context) ?? { available: true };
+      return own?.(pluginCallbackContext(context)) ?? { available: true };
     };
   return {
     provider: { provider_id: providerId, plugin_install_id: installId, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
@@ -23,7 +24,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
       const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;
       // The Plugin's services ask which action is running; the Host answers, the Plugin does not say.
-      return { ...h, handle: (context, input) => runInPluginAction({ install_id: installId, definition, caller: context }, () => h.handle(context, input)),
+      return { ...h, handle: (context, input) => runInPluginAction({ install_id: installId, definition, caller: context }, () => h.handle(pluginCallbackContext(context), input)),
         availability: grantAvailability(definition.action.permissions, h.availability) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {

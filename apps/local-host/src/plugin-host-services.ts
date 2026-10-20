@@ -12,6 +12,7 @@ import {
   createPluginInputsClient,
   createPluginOutputsClient,
   currentPluginInvocation,
+  pluginInvocationReadOnly,
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
@@ -191,7 +192,7 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
         assertCapturedPluginActionCurrent(outer, caller.install_id);
         signal?.throwIfAborted(); caller.assertActive();
       };
-      const bound = { ...options, ...(outer?.caller.query_only ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
+      const bound = { ...options, ...(pluginInvocationReadOnly(outer) ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
         caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
       }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.

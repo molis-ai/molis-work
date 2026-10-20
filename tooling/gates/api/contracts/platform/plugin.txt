@@ -415,6 +415,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly query_only?: true;
+    readonly read_only_effects?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
     readonly allowed_actions?: readonly ActionReference[];

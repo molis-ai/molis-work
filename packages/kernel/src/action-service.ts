@@ -1,4 +1,4 @@
-import { actionExecutionContext, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { registeredActionMetadata } from "./action-metadata.js";
 import {
@@ -95,6 +95,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         const registeredDefinition = { ...definition, action_provider: provider };
         const callWindows = new Map<string, number[]>();
         const execute = (context: ActionCallContext, input: unknown) => {
+          assertReadOnlyEffects(context, definition);
           context.signal?.throwIfAborted(); assertSessionAuthorship(definition.action, context);
           validateActionInput(validateInput, definition, context, input);
           const policy = definition.action.execution;

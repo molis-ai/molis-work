@@ -32,6 +32,11 @@ export function currentPluginInvocation(): PluginInvocationScope | undefined {
   return running.getStore();
 }
 
+/** Only the captured Runtime context and declared callback purpose determine this narrowing. */
+export function pluginInvocationReadOnly(scope: PluginInvocationScope | undefined): true | undefined {
+  return scope && (scope.caller.query_only || scope.caller.read_only_effects || ("scene" in scope && scope.read_only)) ? true : undefined;
+}
+
 /** Runs a Plugin's action handler inside its scope. The scope follows the handler's promises and timers, and ends with nothing: the call's `beforeEffect` is what says the action is over. */
 export function runInPluginAction<T>(scope: PluginActionScope, handle: () => T): T {
   return running.run(scope, handle);
@@ -63,7 +68,7 @@ export function currentPluginAction(): PluginActionScope | undefined {
 export function assertPluginActionCurrent(installId: string): void {
   const scope = currentPluginInvocation();
   if (!scope) return;
-  if (scope.caller.query_only || ("scene" in scope && scope.read_only)) throw new ActionError("actions.forbidden", "只读场景不能写入业务记录");
+  if (pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读场景不能写入业务记录");
   assertCapturedPluginActionCurrent(scope, installId);
 }
 

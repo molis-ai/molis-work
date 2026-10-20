@@ -1,7 +1,7 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 
@@ -79,7 +79,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: options.actor_id, project_id: projectId,
-      audience: "user", permissions: context.grants, query_only: outer?.caller.query_only, signal: outer?.caller.signal,
+      audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: (options.providerId ?? context.provider_id ?? context.install_id) })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -87,8 +87,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // An action the Manifest lists under `capabilities.consumes`, owned by the unique provider in the actual directory. The Plugin
   // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
   // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
-  // its input schema. It carries the caller the Host issued this session (a Home session's copy for the project the call
-  // is routed into), the only one the action gateway accepts (S-15). Its final check also asks the original caller of the
+  // its input schema. Its final check also asks the original caller of the
   // action the Plugin made this call in (`outer`, captured when the Plugin called): the consumed action's own write runs
   // in its own handler, under its own scope, so without this a cancelled or revoked outer call would still write (S-18).
   const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: ReturnType<typeof currentPluginInvocation>, providerId?: string): ActionCallContext => {
@@ -101,7 +100,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
-      host_plugin: options.pluginCaller, plugin_install_id: context.install_id, query_only: outer?.caller.query_only, signal: outer?.caller.signal,
+      host_plugin: options.pluginCaller, plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -119,7 +118,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
       for (const permission of [...definition.action.permissions, ...permissions]) context.requireGrant(permission);
       assertCapturedPluginActionCurrent(outer, context.install_id);
     };
-    return bindActionClient(scope.client, () => ({ ...caller, query_only: outer?.caller.query_only ?? caller.query_only,
+    return bindActionClient(scope.client, () => ({ ...caller, query_only: pluginInvocationReadOnly(outer) ?? caller.query_only,
       validate_authority: async reference => {
         check();
         if (definition.action.scope === "project" && !caller.project_id) throw new ActionError("actions.project_required", "请选择项目");

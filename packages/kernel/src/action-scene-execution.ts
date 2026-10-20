@@ -26,7 +26,7 @@ export function protectSceneReads(handler: ActionSceneHandlerBinding, registered
       assertCurrentAuthority(caller, reference, permissions);
       caller.signal?.throwIfAborted(); registered();
     };
-    const context: ActionCallContext = { ...caller, query_only: true, retain_background_authority: undefined, assert_authority_current: check };
+    const context: ActionCallContext = { ...caller, read_only_effects: true, retain_background_authority: undefined, assert_authority_current: check };
     try {
       check();
       const result = handle(context);
@@ -56,7 +56,7 @@ export async function runSceneEffect<T>(caller: ActionCallContext, options: Scen
   let active = true;
   const check = (reference?: ActionReference, permissions: readonly string[] = []) => {
     if (!active) throw new ActionError("actions.expired", "原场景回调已经结束");
-    if (caller.query_only) throw new ActionError("actions.forbidden", "只读调用不能修改场景");
+    if (caller.query_only || caller.read_only_effects) throw new ActionError("actions.forbidden", "只读调用不能修改场景");
     caller.signal?.throwIfAborted(); options.assertCurrent();
     assertCurrentAuthority(caller, options.reference, options.permissions);
     if (reference || permissions.length) assertCurrentAuthority(caller, reference, permissions);

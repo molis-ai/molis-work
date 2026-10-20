@@ -91,6 +91,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
+  /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
+  readonly read_only_effects?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */

@@ -50,6 +50,7 @@ async function setup(t: TestContext) {
   const binding: ActionSceneBinding = { binding_id: "one", scene_id: scene.scene_id, scene_version: 1, project_id: DEMO_PROJECT_ID,
     function: { ...judgment, provider_id: "scene-judgment" }, enabled: true, title: "One", revision: "1" };
   const state = { read: undefined as Read | undefined, target: "storage" as Write, mutation: undefined as Mutation | undefined,
+    scrubControl: false, raw: undefined as NestedOperation | undefined, metadata: [] as string[],
     checked: false, failJudgment: false, leave: false, throwAfterLeave: false, model: false, reads: 0, writes: 0,
     nested: undefined as { route: Nested; operation: NestedOperation; spoof?: boolean } | undefined, nestedWrites: 0, nestedReads: 0, holdChild: false,
     entered: deferred(), release: deferred(), late: undefined as Promise<void> | undefined };
@@ -73,6 +74,13 @@ async function setup(t: TestContext) {
     const passed = asked.spoof ? { ...definition, action: { ...definition.action, execution: { cost: "free" as const } } } : definition;
     return asked.route === "typed" ? services!.capabilities!.invoke(passed, {}) : services!.actions!.invoke(passed, {});
   };
+  const alterView = (caller: ActionCallContext) => {
+    Object.assign(caller.permissions, { 0: "forged:grant" });
+    if (caller.allowed_actions?.[0]) Object.assign(caller.allowed_actions[0], { capability_id: "forged.action" });
+    if (caller.allowed_capability_ids) Object.assign(caller.allowed_capability_ids, { 0: "forged.action" });
+    if (caller.signal) Object.assign(caller.signal, { throwIfAborted: () => {} });
+    Object.assign(caller, { query_only: undefined, read_only_effects: undefined, signal: undefined, assert_authority_current: () => {}, beforeEffect: async () => {} });
+  };
   const write = () => {
     if (state.target === "storage") services!.storage!.set("written", "yes");
     else if (state.target === "event") services!.events!.publish({ event_type_id: EVENT, type_version: 1, payload: {} });
@@ -87,6 +95,7 @@ async function setup(t: TestContext) {
   };
   const mutate = async (name: Mutation, caller: ActionSceneExecutionContext) => {
     if (state.mutation !== name) return;
+    if (state.scrubControl) alterView(caller);
     if (state.nested) { await nested(); return; }
     if (state.model) {
       assert.ok(services!.model);
@@ -114,7 +123,14 @@ async function setup(t: TestContext) {
     return { kind: "app", views: [], actions: [preview.handler, ...ownDefinitions.map(definition => ({ ...definition, handle: caller => nestedHandle(definition.operation === "command" ? "command" : definition.action.execution?.cost === "metered" ? "paid" : "query", caller.beforeEffect) }))], action_scenes: [{
       ...scene,
       bindings: () => { read("bindings"); return [binding]; },
-      targets: async () => { read("targets"); if (state.nested && !state.mutation) await nested(); return [{ binding_id: "one", title: "One", revision: "1" }]; },
+      targets: async caller => {
+        read("targets");
+        state.metadata = actions.client.discover(caller).map(value => value.capability_id);
+        if (state.raw) await actions.client.invoke(caller, nestedDefinition("consumed", state.raw), {});
+        if (state.scrubControl) alterView(caller);
+        if (state.nested && !state.mutation) await nested();
+        return [{ binding_id: "one", title: "One", revision: "1" }];
+      },
       prepare: (_caller, event) => { read("prepare"); return { input: event }; },
       availability: () => { read("availability"); return { available: true }; },
       configuration_availability: () => { read("configuration"); return { available: true }; },
@@ -169,7 +185,7 @@ for (const mutation of ["bind", "consume", "failed"] as const) {
   test(`S18-SCENE-WRITE ${mutation}: awaits preserve cancellation, authority and original registrations`, async t => {
     for (const failure of ["revoke", "cancel", "judgment", "scene"] as const) for (const checked of [false, true]) {
       const fixture = await setup(t), { state } = fixture, abort = new AbortController();
-      state.checked = checked;
+      state.checked = checked; state.scrubControl = true;
       let revoked = false;
       const caller = { ...fixture.caller(), signal: abort.signal,
         assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "caller was revoked"); } };
@@ -219,9 +235,17 @@ test("S18-SCENE-READ a scene cannot impersonate a concurrent action to call the 
 for (const route of ["own", "consumed", "typed"] as const) {
   test(`S18-SCENE-NESTED ${route}: read callbacks allow queries but refuse writes and metered queries`, async t => {
     const fixture = await setup(t), { state } = fixture;
-    state.nested = { route, operation: "query" };
-    assert.equal((await fixture.actions.targets(fixture.caller())).length, 1);
+    state.nested = { route, operation: "query" }; state.scrubControl = true;
+    const references = [judgment, ...(["query", "command", "paid"] as const).map(operation => nestedDefinition("own", operation))];
+    const caller = { ...fixture.caller(), allowed_actions: references.map(value => ({ capability_id: value.capability_id, version: value.version })),
+      allowed_capability_ids: references.map(value => value.capability_id) };
+    assert.equal((await fixture.actions.targets(caller)).length, 1);
+    assert.deepEqual(caller.permissions, [PERMISSION]);
+    assert.equal(caller.allowed_actions[0]!.capability_id, judgment.capability_id);
+    assert.equal(caller.allowed_capability_ids[0], judgment.capability_id);
     assert.equal(state.nestedReads, 1);
+    assert.ok(state.metadata.includes(judgment.capability_id), "authorized judgment metadata remains visible");
+    assert.ok(state.metadata.includes(nestedDefinition("own", "command").capability_id));
     for (const operation of ["command", "paid"] as const) {
       state.nested = { route, operation, spoof: operation === "paid" };
       await assert.rejects(fixture.actions.targets(fixture.caller()), error => error instanceof ActionError && ["actions.forbidden", "actions.dependency_missing"].includes(error.code));
@@ -231,7 +255,7 @@ for (const route of ["own", "consumed", "typed"] as const) {
   test(`S18-SCENE-NESTED ${route}: a child waiting to write still checks its original scene`, async t => {
     for (const failure of ["revoke", "cancel", "judgment", "scene", "none"] as const) {
       const fixture = await setup(t), { state } = fixture, abort = new AbortController();
-      state.nested = { route, operation: "command" }; state.holdChild = true;
+      state.nested = { route, operation: "command" }; state.holdChild = true; state.scrubControl = true;
       let revoked = false;
       const caller = { ...fixture.caller(), signal: abort.signal,
         assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "original scene revoked"); } };
@@ -248,3 +272,16 @@ for (const route of ["own", "consumed", "typed"] as const) {
     }
   });
 }
+
+test("S18-SCENE-READ Kernel metadata inspection does not authorize command or metered execution", async t => {
+  const fixture = await setup(t);
+  for (const operation of ["command", "paid"] as const) {
+    fixture.state.raw = operation;
+    await assert.rejects(fixture.actions.targets(fixture.caller()), { code: "actions.forbidden" });
+    assert.ok(fixture.state.metadata.includes(nestedDefinition("consumed", operation).capability_id));
+    assert.equal(fixture.state.nestedWrites, 0);
+  }
+  fixture.state.raw = "query";
+  await fixture.actions.targets(fixture.caller());
+  assert.equal(fixture.state.nestedReads, 1);
+});

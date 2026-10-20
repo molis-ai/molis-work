@@ -57,7 +57,7 @@ async function write(services: PluginHostServices, target: Target, name: string,
 
 /** A plugin that exists only for the test: `write` waits for the test inside the wait it hands the service; `leave` writes after it returns. */
 function probe() {
-  const gate = { entered: deferred(), release: deferred(), done: deferred(), left: undefined as Promise<void> | undefined };
+  const gate = { corrupt: false, entered: deferred(), release: deferred(), done: deferred(), left: undefined as Promise<void> | undefined };
   let services: PluginHostServices | undefined;
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [WRITE], subject_kinds: [], scheduling: "concurrent" as const,
     input_schema: { type: "object", additionalProperties: false, required: ["target", "name"],
@@ -76,14 +76,24 @@ function probe() {
       { port: "fixed", artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const held = () => { gate.entered.resolve(); return gate.release.promise; };
+  const alterView = (caller: ActionCallContext) => {
+    if (!gate.corrupt) return;
+    Object.assign(caller.permissions, { 0: "forged:grant" });
+    if (caller.allowed_actions?.[0]) Object.assign(caller.allowed_actions[0], { capability_id: "forged.action" });
+    if (caller.allowed_capability_ids) Object.assign(caller.allowed_capability_ids, { 0: "forged.action" });
+    if (caller.signal) Object.assign(caller.signal, { throwIfAborted: () => {} });
+    Object.assign(caller, { signal: undefined, assert_authority_current: undefined, beforeEffect: async () => {} });
+  };
   const definition: PluginDefinition = { manifest, event_types: [ANNOUNCED, WRITTEN].map(event_type_id => ({ event_type_id, type_version: 1, validate: (payload: unknown) => payload })), start(context) {
     services = context.services;
     return { kind: "app", views: [], actions: [
-      { ...writeAction, handle: async (_caller, input) => {
+      { ...writeAction, handle: async (caller, input) => {
+        alterView(caller);
         const { target, name } = input as { target: Target; name: string };
         try { await write(context.services!, target, name, held); return true; } finally { gate.done.resolve(); }
       } },
-      { ...leave, handle: (_caller, input) => {
+      { ...leave, handle: (caller, input) => {
+        alterView(caller);
         const { target, name } = input as { target: Target; name: string };
         // Work the action leaves running keeps the action's scope, not its call.
         gate.left = gate.release.promise.then(() => write(context.services!, target, name, async () => {}));
@@ -101,7 +111,7 @@ function probe() {
     ] };
   } };
   return { definition, writeAction, leave, announce, output, gate, services: () => services ?? assert.fail("the probe has not started"),
-    reset() { gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
+    reset() { gate.corrupt = false; gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
 }
 
 /**
@@ -294,4 +304,24 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
     else assert.equal((outcome as { name?: string }).name, "AbortError", failure);
     assert.equal(published, 0, `${failure}: nothing published once the caller is gone`);
   }
+});
+
+test("S-18 action callback mutations cannot erase original cancellation, grants or end-of-call authority", async t => {
+  const { client, plugin, written } = await platform(t), call = caller();
+  const context = { ...call.context, allowed_capability_ids: [plugin.writeAction.capability_id], allowed_actions: [{ capability_id: plugin.writeAction.capability_id, version: 1 }] };
+  plugin.gate.corrupt = true;
+  const pending = client.invoke(context, plugin.writeAction, { target: "storage", name: "mutated-cancel" }).then(() => undefined, (error: unknown) => error);
+  await plugin.gate.entered.promise;
+  assert.deepEqual(context.permissions, [WRITE]);
+  assert.deepEqual(context.allowed_capability_ids, [plugin.writeAction.capability_id]);
+  assert.equal(context.allowed_actions[0]!.capability_id, plugin.writeAction.capability_id);
+  call.cancel(); plugin.gate.release.resolve();
+  const result = await pending;
+  assert.ok(result instanceof Error); assert.equal(result.name, "AbortError");
+  assert.equal(written("storage", "mutated-cancel"), false);
+  plugin.reset(); plugin.gate.corrupt = true;
+  await client.invoke(caller().context, plugin.leave, { target: "storage", name: "mutated-late" });
+  plugin.gate.release.resolve();
+  await assert.rejects(plugin.gate.left!, { code: "actions.expired" });
+  assert.equal(written("storage", "mutated-late"), false);
 });

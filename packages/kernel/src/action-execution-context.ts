@@ -55,3 +55,10 @@ export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: 
     && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
       && (!ref.provider_id || ref.provider_id === provider.provider_id)));
 }
+
+/** Scene preparation can inspect an authorized judgment without acquiring permission to execute it. */
+export function assertReadOnlyEffects(caller: ActionCallContext, definition: HostCapabilityDescriptor): void {
+  if (caller.read_only_effects && (definition.operation !== "query" || definition.action?.execution?.cost === "metered")) {
+    throw new ActionError("actions.forbidden", "只读回调不能执行写入或付费能力");
+  }
+}

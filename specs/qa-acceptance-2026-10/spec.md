@@ -1,6 +1,6 @@
 # 2026-10 独立 QA 与验收
 
-状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110在4f1adc17f的原步骤仍不通过，后续#812已合入972d571dc、现为已修待复验；QA-017/018已补生产界面二级证据，自动化断言余项仍在。产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
+状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110经#812合入后在972d571dc按原六输入及定向拒绝复验，原问题已复验；QA-017/018已补生产界面二级证据，自动化断言余项仍在。产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
@@ -174,7 +174,7 @@ fetch固定main `4f1adc17f958f5a0751ca30172f52ba9be2f5261`，新建detached被�
 
 ## 3. 总览
 
-942行均有判定、实际证据与SHA；458通过、422部分通过、7不通过、55未验证、按已定决定不做0。编号包含汇总与子项，不能视为942个互不重叠的能力。通过只归其标准范围；工程通过不等于产品实操或用户认可。
+942行均有判定、实际证据与SHA；458通过、423部分通过、6不通过、55未验证、按已定决定不做0。编号包含汇总与子项，不能视为942个互不重叠的能力。通过只归其标准范围；工程通过不等于产品实操或用户认可。
 
 | 线 | 通过 | 部分通过 | 不通过 | 未验证 | 按决定不做 | 能否归档／主要缺口 |
 | --- | ---: | ---: | ---: | ---: | ---: | --- |
@@ -184,9 +184,9 @@ fetch固定main `4f1adc17f958f5a0751ca30172f52ba9be2f5261`，新建detached被�
 | Computer Use（15） | 1 | 10 | 0 | 4 | 0 | 不能：Helper三项权限及二十步真机、成本与实际裁剪/OCR；QA-008文档已复验 |
 | 回执（84） | 25 | 54 | 0 | 5 | 0 | 不能：QA-009～012、Coding模型/强杀/异常矩阵、R1与3e后续及阶段4～6 |
 | 情境（91） | 11 | 69 | 2 | 9 | 0 | 不能：QA-013～015/017/018、W1/W4后续、W5～W7及原生/完整状态矩阵；QA-016已复验，跨线多选另见QA-024 |
-| 防腐（636） | 400 | 218 | 5 | 13 | 0 | 不能：QA-021/024、已知P1 PG-110及同片PG-006、剩余迁移、同SHA全量及完整产品矩阵；QA-020已复验 |
+| 防腐（636） | 400 | 219 | 4 | 13 | 0 | 不能：QA-021/024、剩余迁移、同SHA全量及完整产品矩阵；QA-020、PG-110原问题已复验 |
 
-新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，在4f1adc17f生产网关复现仍不通过，修复#812仍未合入；PG-006名单是同片依赖，不能因安全集通过而关闭。QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
+新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，#812合入后E18在972d571dc原六输入均拒绝、处理器与副作用计数均0，另19项定向通过；原问题已复验，旧失败证据仍保留。RAC-17恢复为部分通过，不把局部修复扩大为完整授权矩阵或归档。QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
 
 ## 4. 各线逐条验收
 
@@ -204,6 +204,12 @@ fetch固定main `4f1adc17f958f5a0751ca30172f52ba9be2f5261`，新建detached被�
 **#810复验证据（E5/U3）。** 固定新main `053b16485e4b10f67b95dbebdecd51971aa842b9`，新detached树离线安装、完整构建成功。E5：`form-draft-retry`、`coding-changeset-http`、`agent-review-standing`、`coding-report-persistence`、`form-draft-questions`、`agent-question-types`、`prologue-start-refusal`、`interaction-recovery`、`prologue-review-feedback`、`prologue-stop-review`按`QA-002|AC-09|AC-11`实际14项通过；`assistant-typed-questions.e2e`与`coding-question-card.e2e`按`AC-11|AC-27-5: Coding answers`各1项通过；`form-actions.e2e --test-name-pattern=Form`3项通过（1440、390、未配置模型）。共13文件19项。日志`.impeccable/qa/review/form810-{engineering,browser,actions}.log`。AC-09的Diff/报告用受控Runtime投影，审批常驻规则的执行者为测试处理器；AC-11用现用SDK和受控provider，重开adapter不是独立Host重启。状态表“助理与Coding都能答”仅链接Assistant文件不精确，本轮Coding实证为上述额外用例；原缺少编号引用的问题已消除，整项仍部分。
 
 U3：生产Web Host、两个新临时Home（首个准备试验后删除，正式场景为第二个）；通过Form owner公开接口准备四道虚构题，使用仓库模型skill指定的`completeText`接缝，未替换页面HTTP或DOM。受控无选项响应经真实Form校验出现与U2相同错误，同一要求重试有效两题卡后旧错误隐藏、真实activeElement为q0组、原要求保留；Form owner读回仍四题/版本2。空答逐字段拒绝且调用数仍2，Tab/Space/Enter选择提交后第三响应才写五题，刷新相同；开始收集后第四有效补问保留publication提示。1440浅/深、1024/390深色与键盘已看；390页面宽与scrollWidth均390。准备试验的一选项卡在现行合同下合法，不作为无效响应证据；正式无效夹具为零选项。真实模型0次、正式受控响应4次，另准备试验1次；原41/102真实调用不增加。两个自建PID均退出0，确认临时非软链目录后删除Home。截图及复验边界见[评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270311267)；不据此声称模型效果、英文或完整异常矩阵通过。
+
+**E18交互实际入口与受阻边界（2026-10-21 JST，972d571dc）。** 生产Web Host、新一次性Home；正式模型目录配置MiniMax-M3，密钥只在内存读取，Home保存密文。通过正常助理输入请求一张会议标题、15～120分钟、可选日期、日期时间及Pages引用的问卷；真实界面显示未完成，未出现可答卡。请求计数器放行8次fetch尝试后拦截后续，故不能把这个由QA上限终止的结果当成产品问卷失败。工作记录仅有prompt、保守用量估算与最终失败，没有模型输出；显示的24,373 tokens是估算，不是服务商确认用量或费用。8次是否均到达服务商未确认，先按8次占用预算；首次底层错误未单独记录，不能猜成模型能力、密钥失效或产品回归。
+
+无凭据的Python/相同Node端点GET均返回404（网络可达），同样fetch计数包装只计1次且收到404，未复现递归；密钥仅做内存格式检查，不含控制字符。三项都不证明真实模型POST成功。1440普通界面、1024/390深色英文的失败状态已目视；390页面与scrollWidth同为390，反馈和重试入口可见。刷新后可从正常助理入口找回同一失败工作和原请求；未发送普通草稿未保留，本轮尚未证明其对应的持久化承诺，不另据此立项。没有把失败恢复观察当成问卷提交、Coding接续或所有UI矩阵通过。截图`e18-assistant-*.jpg`及`e18-failed-work-after-refresh.jpg`；关键证据待随本线评论上传。
+
+交互新增预算8次已触顶（此前4/12，本轮保守计至12/12）；额外8次询问后用户仅问含义，未授权，故尚未追加。独立的其余线继续，未实现/已知缺口仍按原编号记录。
 
 以下测试名可在对应日志逐项查；文件均为 `tests/` 下的 `.test.ts`，`e2e` 明写。表内一级的“通过”只用于工程合同标准，不代表产品或用户整体通过。
 
@@ -790,6 +796,12 @@ QA-022：`tests/attention-route.test.ts`整文件6/6通过。生产Host用正式
 
 **E6证据纠正与#820文审。** 原`anti-supp-workspace-directory.log`用`rollback`筛选没有命中实际名称，仅Node文件级成功，不能计为通过。本轮以`workspace repair and unlink`在053及旧7d分别重跑，实际各1项通过，包含repair/unlink两处400、目录恢复、cause同对象/不可枚举断言；日志`form810-workspace-repair.log`与`anti-corrected-workspace-repair.log`。F2总数仍131，因为用这1项实际执行替换原1项空跑，旧日志不再充当证据；FE-WSERR/FE-R4A3/FE-HOSTOWN的组合也按此修正。只读复核五棵QA树97份日志，没有新增同类单文件空跑候选；不把多文件摘要无名字当空跑。#820的`cdca7f748daa0a6430eaef6f6724ebb6e221ee25`仅改两行spec，工程代码/测试与053相同，文审和执行SHA分开记。G4-05主要400冲突已修，但旧owner码及源码503注释尚存，沿QA-020保留P3余项；没有把未独立测试的recovery_required补偿失败路径判通过。
 
+**E18：#812合入后的原步骤复验（2026-10-21 JST）。** 固定main `972d571dc57cc2e99d260b901820fc98adf341f5`，干净detached树离线安装并完整构建；本项模型0次。E7原脚本第一次在项目入口的第三个输入停下：三个输入都已返回`host.plugin_caller_invalid`且计数0，但旧脚本负对照固定期望`actions.forbidden`。这是现行合同先验身份、再验权限导致的错误码预期变化，原失败日志保留；没有修改仓库测试或把红项藏掉。
+
+独立观察仍用完全相同的项目/Home六输入，按生产`plugin-callers.ts`及新拒绝测试核对现行`host.plugin_caller_invalid`：六次都在处理器前拒绝，handler_delta/effect_delta均0。另运行 `node scripts/run-tests.mjs tests/security-invariants-plugin-callers.test.ts tests/goal-progress-plugin-identity.test.ts tests/runtime-provider-identity.test.ts --test-name-pattern='PG110-|W3-07-8|a plugin reaches an action' --jobs 1 --verbose`：16+2+1，共19项通过、0跳过/失败。覆盖签发对象与副本/伪造、身份范围、声明和授权交集、合法对照、撤权/停用/卸载/重开/关项目、等待后及嵌套调用零写入、插件回调不取得上游身份；Goal游标拒绝后不增，合法回执按实际actor幂等。
+
+日志为`.impeccable/qa/review/e18-pg110-original.log`、`e18-pg110-current-contract.log`与`latest-e18-pg-focused.log`。两个观察Home及定向测试Home退出后已核对删除。PG-110原已知P1改已复验；RAC-17回到部分通过，未扩大为HTTP利用覆盖、全平台授权矩阵或完整二级。新main ad5a60abb包含后续#801/#829，未倒算进本条972的证据。
+
 `F3`的61个编号对应非浏览器文件中60个通过；plugin-sandbox的19项在Homebrew Node25下启动即失败。旧fbc干净基线同文件重现；使用完全相同生产Seatbelt规则诊断，dyld无法读取Node外部libnode动态库。没有改沙箱或测试；改用本机已有独立Node24.19.0后19/19通过。此结果区分运行时分发环境，不据旧基线同红直接判无问题。`F4`的116个编号对应文件中113个通过；agent-built-plugins-workflow、installed-plugin-execution、installed-plugin-host出现沙箱启动及其后续失败，旧fbc同文件重现。直接换Node24还遇到SQLite的141/137 ABI不符，未据此判通过；另一个同SHA干净工作树用Node24离线复制安装并重建依赖后，这三个文件67/67通过（FN24）。所有选中文件显式传给runner，每文件一次性Home，不使用无参数全量。
 
 `FS`为41个补充语义文件通过；`FW`为8个完整专项文件68项通过（`anti-semantic-w5.log`）。页面资源实测25项、7,489,180字节，与merge-base比较通过（`anti-assets-actual.log`）。`web-route-table` 1/1通过，实际旧PPT/Dataset路由404（`anti-web-routes.log`）。Alchemist包内Pulse recovery真实SQLite重开及两条撤权晚返回共3/3通过（`anti-pulse-recovery.log`），取消组合另见QA-023。
@@ -986,7 +998,7 @@ FU另在同一临时Home实际创建Pages A/B与灵光A/B，正常点击能开�
 | RAC-14 | 未验证 | 一级（文审；动态未验） | 本任务明确不读取或维护真实Home；历史维护不代替当前升级后逐表核对 | 已知维护八 | 7d1cc4bfa |
 | RAC-15 | 通过 | 一级 | F0 merge-base兼容/旧名/schema/vendor/doc门禁；只对已实施清理范围成立 | — | 7d1cc4bfa |
 | RAC-16 | 部分通过 | 一级 | 报告与附录各项有现状，仍有在途和未验证项，尚非完成态 | 已知W6 | 7d1cc4bfa |
-| RAC-17 | 不通过 | 一级 | E16按E7原脚本重放生产LocalHost：项目/Home无签发或伪造caller共4次接受并越过beforeEffect；两次无权限对照正确拒绝。11项输出/场景授权通过不能覆盖此缺口 | 已知P1 PG-110；PG-006同片依赖；#812未合 | 4f1adc17f |
+| RAC-17 | 部分通过 | 一级 | E18同六输入在项目/Home均拒绝且handler/effect均0；19项签发、声明/授权、撤权、关闭、嵌套与合法对照通过。未扩成全平台/完整真机矩阵 | 已知PG-110原问题已复验；#812 | 972d571dc |
 | RAC-18 | 部分通过 | 一级 | F0与本轮定向回归；最近成功全量仅739e6cb29，非7d1 | 已知W6-05 | 7d1cc4bfa |
 | RAC-19 | 部分通过 | 一级 | 本轮完成已合入切片核对；整线W5/W6与原生用户验收仍待完成 | 已知W5/W6 | 7d1cc4bfa |
 | RAC-20 | 通过 | 一级 | F1 security-invariants-plugin-route-stream/home-route-project/plugin-model-progress：真实增量次序与唯一末行 | — | 7d1cc4bfa |
@@ -1622,9 +1634,9 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 | 编号 | 线／程度／类型 | 标准与本次SHA | 复现、预期与实际 | 证据／疑似位置 | 建议归属 | 回归断言 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 已知 PG-110 | 防腐；P1；安全 | S-15、RAC-17，D9；发现95946d38c652ac001c0ffc7c1fda7e4d774c8271，E16复验4f1adc17f958f5a0751ca30172f52ba9be2f5261 | 按E7脚本从新临时Home起，生产LocalHost注册需qa:write的虚构动作；项目/Home分别传无签发身份、伪造身份及无权限caller。预期均在handler前拒绝；实际四个身份缺陷场景均进入handler并越过beforeEffect，两个无权限对照正确拒绝。只证明进程内边界 | E7两次及E16在4f1adc17f原脚本重放结果相同；[通知评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270953798)；apps/local-host/src/local-host.ts:227、376；tests/goal-progress-plugin-identity.test.ts:58、66正向放行伪造query | HANDOFF §3③迁移；[交接每日记录D8/D9](https://github.com/molis-ai/molis-work/blob/76c39e0c821199b64953d1fce313a1f2bed00a00/coordination/2026-10-14/README.md#L1391-L1418)明确PG-006/110同片，②协作共享网关／授权 | 未由当前Host签发或失效的插件caller、伪造权限及无声明/无安装授权组合，在项目与Home网关均拒绝；handler与业务持久化增量为零 | 已修待复验；E16在4f1adc17f重放仍不通过；E17后#812已合入972d571dc，待新构建按原六场景复验；没有接受不修记录 |
+| 已知 PG-110 | 防腐；P1；安全 | S-15、RAC-17，D9；发现95946d38c652ac001c0ffc7c1fda7e4d774c8271，E16复验4f1adc17f958f5a0751ca30172f52ba9be2f5261 | 按E7脚本从新临时Home起，生产LocalHost注册需qa:write的虚构动作；项目/Home分别传无签发身份、伪造身份及无权限caller。预期均在handler前拒绝；实际四个身份缺陷场景均进入handler并越过beforeEffect，两个无权限对照正确拒绝。只证明进程内边界 | E7两次及E16在4f1adc17f原脚本重放结果相同；[通知评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270953798)；apps/local-host/src/local-host.ts:227、376；tests/goal-progress-plugin-identity.test.ts:58、66正向放行伪造query | HANDOFF §3③迁移；[交接每日记录D8/D9](https://github.com/molis-ai/molis-work/blob/76c39e0c821199b64953d1fce313a1f2bed00a00/coordination/2026-10-14/README.md#L1391-L1418)明确PG-006/110同片，②协作共享网关／授权 | 未由当前Host签发或失效的插件caller、伪造权限及无声明/无安装授权组合，在项目与Home网关均拒绝；handler与业务持久化增量为零 | 已复验；E18／972d571dc，原六输入全部host.plugin_caller_invalid且handler/effect为0，另19项定向通过；仅关闭原网关身份缺口，非整条防腐验收 |
 
-PG-006原台账P2，指Goals内置名单特权；它是上述同片修复的依赖，当前仍在，不另记为第二个安全P1。原已知P1 #709的#759已合且原草稿步骤已复验，保留7d二级证据；本轮不把它列为未关闭。
+PG-006原台账P2，指Goals内置名单特权；#812同片改为共同身份与权限规则，E18的Goal身份/typed端口两项核对拒绝与合法对照，不另记第二个安全P1；Goals后续Runtime迁移仍单列。原已知P1 #709的#759已合且原草稿步骤已复验，保留7d二级证据；本轮不把它列为未关闭。
 
 ## 6. 跨线场景
 
@@ -1716,3 +1728,5 @@ PG-006原台账P2，指Goals内置名单特权；它是上述同片修复的依�
 - 2026-10-20 E17：先完成QA-017/018生产页面实走，真实模型0；两项二级证据已补，原自动化证据缺口分别保留，不将实操冒充测试修复。390打开结果遮挡按已知BL-102扩充复现；Chrome中断后重走成功。Computer Use二十步仍由QA承担，用户只配置必要权限并判主观体验。
 
 - E17实走后为下一条线fetch到新main `972d571dc57cc2e99d260b901820fc98adf341f5`：包含#812、#826、#840、#819、#822、#882。E17实走证据只归4f1adc17f；PG-110修复已合入、改记已修待复验，原不通过证据保留。下一批在新detached树按原六场景复验，再继续七线二级；真实模型预算沿§2.12，不扩额。
+
+- E18：PG-110原六输入和19项定向在972d571dc通过，原P1已复验；RAC-17恢复部分，总计458/423/6/55。交互问卷8次fetch尝试触及QA上限、未确认服务商回复，保守计入预算，不据此判产品回归；扩额未获批准，继续其余独立二级。

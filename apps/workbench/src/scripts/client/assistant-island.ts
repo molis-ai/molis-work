@@ -385,7 +385,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const bindText = (root) => {
     root.querySelectorAll(".assistant-code").forEach((figure) => {
       const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
-      copy.addEventListener("click", () => copyFrom(copy, () => figure.querySelector("pre code").textContent));
+      copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
       more?.addEventListener("click", () => {
         figure.toggleAttribute("data-folded");
         more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");

@@ -235,20 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): media zoom (VUX-32), a new capability
-// the spec asks for: zoom about the point looked at (trackpad pinch, two fingers, double click, keys) and bounded panning,
-// in one design-system helper, `window.molisMediaZoom`. +3,776 B of workbench.js: the helper minified (3.6 KB, every
-// listener on one AbortController); +462 B in each of the three stylesheets with the shared tail (the clipping viewport, the
-// transform origin, the cursor, the one eased settle and its reduced-motion jump); +530 B of the Issues client: its preview
-// takes the helper, says what its button does next, hides 原始尺寸 when fitting already shows the picture's own pixels, and
-// keeps the old switch where the helper is absent. Tried first: one controller for every listener (−180 B), the pinch math
-// shared with the wheel's, comments out of the shipped CSS. Spent once from exactly the Coding MCP tools slice's budget (#876).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): code and changes (VUX-33). +1,949 B of
+// the Coding client: the change reader's 统一 / 并排 switch, kept on this device, that re-reads the write in the other layout
+// and keeps the line being read at the same place (and the folds the reader opened open); side by side is coloured one side
+// at a time, the net-change counts read either layout, and a code block copies its text as written. +423 B of workbench.css: the shared row geometry (number columns
+// as wide as the longest number, sticky opaque numbers out of a selection, rows as wide as the widest line) and the real
+// side-by-side columns that wrap; settings.css falls by 646 B because Coding's own column overrides are gone. Tried first:
+// the toggle reuses the shared .mw-toggle-group and its styles, the fold helper is shared by both layouts, and the 4ch/5ch
+// overrides in Coding (two places) were removed rather than restated. Spent once from exactly the media zoom slice's budget (#880).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1146460, 1150236],
-  "/assets/molis-work-workbench.css": [1605610, 1606072],
-  "/assets/molis-work-settings.css": [991385, 991847],
-  "/assets/molis-work-arrival.css": [700971, 701433],
-  "/assets/molis-work-plugins/issues.js": [26331, 26861],
+  "/assets/molis-work-plugins/coding.js": [371035, 372984],
+  "/assets/molis-work-workbench.css": [1606072, 1606495],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

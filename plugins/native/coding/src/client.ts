@@ -562,25 +562,24 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
   };
   // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
-  // spanning lines stays a comment (see diffRowTokens).
+  // spanning lines stays a comment (see diffRowTokens). Side by side colours each side on its own, as the file it shows.
   const diffRowTokens = ${diffRowTokens.toString()};
-  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => {
-    const codes=[...list.querySelectorAll(':scope > li > code')];if(!codes.some(code=>!code.parentElement.dataset.painted))return;
+  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => (list.classList.contains('diff-split') ? ['.diff-left','.diff-right'] : ['']).forEach(side => {
+    const codes=[...list.querySelectorAll(':scope > li > code'+side)].filter(code=>code.dataset.kind!=='blank');if(!codes.some(code=>!code.dataset.painted))return;
     const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
-    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
+    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.dataset.kind||code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
     const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
     rows.forEach((row,index)=>{
-      if(row.code.parentElement.dataset.painted)return;row.code.parentElement.dataset.painted='true';
+      if(row.code.dataset.painted)return;row.code.dataset.painted='true';
       if(!painted)return;
       row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=make('span');span.className='tok-'+kind;span.textContent=value;return span;}));
     });
-    list.querySelectorAll(':scope > li:not([data-painted])').forEach(row=>{row.dataset.painted='true';});
-  });
+  }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
-    const code=pre.querySelector('code');if(code)paintBlock(code);
+    const code=pre.querySelector('code'),raw=(code || pre).textContent;if(code)paintBlock(code); // copied as written, not from the colours
     const button=make('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
-    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>pre.querySelector('code')?.textContent || pre.textContent,{done:'已复制',failed:'复制失败'})); pre.append(button);
+    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>raw,{done:'已复制',failed:'复制失败'})); pre.append(button);
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');

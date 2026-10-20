@@ -70,7 +70,7 @@ export function renderAssistantReviewHtml(review: AssistantPendingReview, ports:
   if (fields.length) html += `<dl class="assistant-fields">${fields.map(field => `<dt>${say(field.label)}</dt><dd>${assistantEscape(field.value)}</dd>`).join("")}</dl>`;
   for (const field of plain) {
     const language = codeField(field.label);
-    if (language) html += `<div class="assistant-field-code"><p class="assistant-field-label">${say(field.label)}</p>${assistantCodeHtml(field.value, language, ports)}</div>`;
+    if (language) html += `<div class="assistant-field-code"><p class="assistant-field-label">${say(field.label)}</p>${assistantCodeHtml(field.value.replace(/\n$/, ""), language, ports)}</div>`;
   }
   const exact = review.fields.filter(field => field.label === "完整参数" || field.label === "能力");
   if (exact.length) html += `<details class="assistant-exact"><summary>${say("准确参数与能力")}</summary>${exact.map(field => `<p class="assistant-muted">${say(field.label)}</p><pre>${assistantEscape(field.value)}</pre>`).join("")}</details>`;

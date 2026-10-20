@@ -38,11 +38,13 @@ for (const width of [1440, 390]) {
     await click(`[data-inbox-compose] input[name=entry_id][value="${entry.entry_id}"]`);
     await evaluate(`(() => { const form = document.querySelector('[data-inbox-compose-form]'); form.elements.title.value = '研究观察草稿'; form.elements.instructions.value = '区分摘要观察和未核验信息，保留材料边界'; form.dispatchEvent(new Event('input', { bubbles: true })); })()`);
     await click('[data-inbox-compose-submit]');
-    await waitFor("document.querySelector('[data-inbox-compose-status]').textContent.includes('测试模型暂时不可用')");
+    // W5-01-SHM-01: Pages asks the model through the Runtime, which shows its public failure and keeps the injected provider message private.
+    await waitFor("document.querySelector('[data-inbox-compose-status]').textContent.includes('模型请求失败，请重试')");
+    assert.equal(await evaluate("document.querySelector('[data-inbox-compose-status]').textContent.includes('测试模型暂时不可用')"), false);
     const pages = openPagesStore(homeDirectory);
     try {
       const failed = pages.generations(projectId!)[0]!;
-      assert.equal(failed.status, "failed"); assert.equal(failed.inputs[0]!.item_id, item.item_id); assert.equal(pages.list(projectId!).length, 0);
+      assert.equal(failed.status, "failed"); assert.equal(failed.error, "模型请求失败，请重试"); assert.equal(failed.inputs[0]!.item_id, item.item_id); assert.equal(pages.list(projectId!).length, 0);
       await reloadPage();
       await openInbox();
       await waitFor("document.querySelector('[data-inbox-compose-results]').textContent.includes('恢复处理')");

@@ -103,7 +103,6 @@ async function openDoc(id: string, flashText?: string) {
       onChange: () => { queueSave(); cards.checkStale(); },
       // Selecting inside the document takes over from a multi-document selection in the list.
       onFocus: (focus: PagesFocus | null) => { lastPagesFocus = focus; if (focus && multi.size) { multi.clear(); renderDocList(); } bus.set(toSurfaceFocus(focus)); },
-      runAi: async (input: { command: string; text: string; style?: string }) => api("POST", "/api/pages-ai", input),
     });
   } else {
     E.setDoc(editor, current.body);

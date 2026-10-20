@@ -24,7 +24,6 @@ export interface CodingModelChoice { provider_id: string; model_id: string; labe
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
   sessions: CodingSessionStore;
-  materialReferences?(): ArtifactReference[];
   reportReferences?(): ArtifactReference[];
   changeSetReferences?(): ArtifactReference[];
   planReferences?(): ArtifactReference[];

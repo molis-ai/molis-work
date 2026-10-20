@@ -30,6 +30,13 @@ overrides:
   # overrides of a package it installs as a dependency, so a consumer's `npm install <archive>.tgz` still gets basic-ftp 5.x
   # (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 3.5).
   basic-ftp: 6.2.1
+  # officeparser (apps/local-host, the import's Office/OpenDocument/RTF/EPUB reader) pins its own pdfjs-dist and ships Tesseract
+  # OCR. The import reads PDFs with the Host's own pdfjs worker and recognizes images with the macOS helper, and calls
+  # officeparser with `ocr: false`, which never loads tesseract.js (a dynamic import in its OCR path only); so share the Host's
+  # pdfjs-dist and leave tesseract.js (and its 44 MB core) out of the install and the desktop payload
+  # (specs/repository-anti-corruption/dependencies-and-sdk-plan.md section 3.6).
+  officeparser>pdfjs-dist: 6.3.289
+  officeparser>tesseract.js: '-'
 
 # Allow esbuild postinstall (required by tsx for pnpm molis-work / tests).
 allowBuilds:

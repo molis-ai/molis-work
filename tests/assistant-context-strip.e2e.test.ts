@@ -82,24 +82,97 @@ test("STRIP-02: ✦助理 puts what is in hand in the strip with the object it i
   assert.deepEqual((await related()).map(work => work.relation), ["material"], "and the work is linked under the document the passage came from");
 });
 
-test("STRIP-03: more chips than fit scroll sideways: the side with more fades, the last chip is reached by keyboard and by the wheel", { timeout: 120_000 }, async t => {
+/** Where keyboard focus is, and what the browser's own tab order says is around it (STRIP-03, QA-016). */
+interface Stop {
+  index: number; total: number; positive: boolean; isInput: boolean; inStrip: boolean; label: string; focusVisible: boolean; ring: boolean;
+  rowFirst: number; rowLast: number; rowCount: number; chipIndex: number; chips: number; more: string | null;
+  row: { left: number; right: number }; button: { left: number; right: number }; chip: { left: number; right: number } | null;
+}
+
+test("STRIP-03, QA-016: more chips than fit scroll sideways: the side with more fades, Shift+Tab / Tab walk every chip from the input to the last and back with a visible focus ring, and the wheel scrolls the row", { timeout: 180_000 }, async t => {
   const b = await openNotes(t);
   if (!b) return;
   const { command, sessionId, evaluate, waitFor } = b;
   const ROW = "[data-assistant-context-strip]:not([hidden]) .assistant-strip-row";
+  // The tab order as the browser walks it: enabled, not tabindex=-1, not hidden, in document order (nothing on the page may use a positive tabindex).
+  // It is read from the live page before every press, so the expected next stop never comes from the strip's own code.
+  const STOP = `(() => {
+    const row = document.querySelector(${JSON.stringify(ROW)}), active = document.activeElement;
+    const order = [...document.querySelectorAll('button, input, select, textarea, a[href], [tabindex]')]
+      .filter(node => !node.disabled && node.tabIndex >= 0 && !node.closest('[hidden], [inert]') && node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden');
+    const inRow = order.map((node, index) => row.contains(node) ? index : -1).filter(index => index >= 0);
+    const box = node => { const r = node.getBoundingClientRect(); return { left: r.left, right: r.right }; };
+    const chip = active.closest('[data-strip-key]'), chips = [...row.querySelectorAll('[data-strip-key]')], style = getComputedStyle(active);
+    return {
+      index: order.indexOf(active), total: order.length, positive: order.some(node => node.tabIndex > 0),
+      isInput: active.matches('[data-assistant-input]'), inStrip: row.contains(active),
+      label: active.getAttribute('aria-label') || active.textContent.trim() || active.tagName,
+      focusVisible: active.matches(':focus-visible'), ring: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0,
+      rowFirst: inRow[0], rowLast: inRow.at(-1), rowCount: inRow.length, chipIndex: chips.indexOf(chip), chips: chips.length, more: row.dataset.more ?? null,
+      row: box(row), button: box(active), chip: chip ? box(chip) : null,
+    };
+  })()`;
+  const stop = () => evaluate<Stop>(STOP);
+  // A real Tab (or Shift+Tab: modifier 8) key press at the page, as a person presses it; nothing is focused by script from here on.
+  const press = async (shift: boolean) => {
+    for (const type of ["keyDown", "keyUp"]) await command("Input.dispatchKeyEvent", { type, key: "Tab", code: "Tab", windowsVirtualKeyCode: 9, ...(shift ? { modifiers: 8 } : {}) }, sessionId);
+  };
   const materials = Array.from({ length: 7 }, (_, index) => ({ title: `会议纪要第 ${index + 1} 份：秋季发布`, text: `要点 ${index + 1}` }));
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { new: true, materials: ${JSON.stringify(materials)} } }))`);
   for (const [width, height, mobile] of [[1440, 950, false], [390, 844, true]] as const) {
     await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+    // The starting point is where a person types: the Assistant's input.
     await evaluate("document.querySelector('[data-assistant-input]').focus()");
     await evaluate(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}); if (row) row.scrollLeft = 0; })()`);
     await waitFor(`document.querySelector(${JSON.stringify(ROW)})?.dataset.more === 'end'`, 10_000);
     // The cue is drawn: the row fades out on the side that has more.
     assert.notEqual(await evaluate(`getComputedStyle(document.querySelector(${JSON.stringify(ROW)})).maskImage`), "none", `${width}: the side with more fades out`);
-    // The keyboard reaches the last chip: it scrolls into view, inside the row's box.
-    await evaluate(`[...document.querySelectorAll(${JSON.stringify(ROW + " .assistant-strip-act")})].at(-1).focus()`);
+
+    // The focus ring is drawn on the focused control and the control is inside the row's box (not scrolled out of sight).
+    const shown = (at: Stop, what: string) => {
+      assert.equal(at.inStrip, true, `${width}: ${what} is in the strip (${at.label})`);
+      assert.equal(at.focusVisible, true, `${width}: ${what} matches :focus-visible (${at.label})`);
+      assert.equal(at.ring, true, `${width}: ${what} draws a focus ring (${at.label})`);
+      assert.ok(at.button.left >= at.row.left - 1 && at.button.right <= at.row.right + 1, `${width}: ${what} is inside the row's box (${at.label})`);
+    };
+    const step = async (shift: boolean, from: Stop, what: string) => {
+      await press(shift);
+      const now = await stop();
+      assert.equal(now.index, from.index + (shift ? -1 : 1), `${width}: ${what}: ${shift ? "Shift+Tab" : "Tab"} goes to the next control in the tab order and skips none (from ${from.label} to ${now.label})`);
+      return now;
+    };
+
+    // From the input, Shift+Tab walks back, one control at a time, to the last chip (the strip is drawn before the input).
+    let at = await stop();
+    assert.equal(at.isInput, true, `${width}: the walk starts in the input`);
+    assert.equal(at.positive, false, `${width}: no positive tabindex, so the document order is the tab order`);
+    assert.ok(at.rowCount >= 3, `${width}: several chips with a button each (${at.rowCount})`);
+    assert.ok(at.rowLast < at.index, `${width}: the strip's buttons come before the input in the tab order`);
+    const { rowFirst, rowLast, rowCount } = at, bound = at.index - rowLast;
+    for (let presses = 0; !at.inStrip; presses++) {
+      assert.ok(presses < bound, `${width}: the last chip is reached within ${bound} presses (the controls between it and the input)`);
+      at = await step(true, at, "from the input");
+    }
+    assert.equal(at.index, rowLast, `${width}: the first stop in the strip is the last chip's button`);
+    assert.equal(at.chipIndex, at.chips - 1, `${width}: and that button belongs to the last chip`);
+    // The last chip scrolled fully into view, inside the row's box, and the row is at its end.
     await waitFor(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}), last = [...row.querySelectorAll('[data-strip-key]')].at(-1);
-      const r = row.getBoundingClientRect(), box = last.getBoundingClientRect(); return box.left >= r.left - 1 && box.right <= r.right + 1 && row.dataset.more === 'start'; })()`, 10_000);
+      const r = row.getBoundingClientRect(), box = last.getBoundingClientRect(); return last.contains(document.activeElement) && box.left >= r.left - 1 && box.right <= r.right + 1 && row.dataset.more === 'start'; })()`, 10_000);
+    at = await stop();
+    shown(at, "the last chip");
+    assert.ok(at.chip && at.chip.left >= at.row.left - 1 && at.chip.right <= at.row.right + 1, `${width}: the whole last chip is inside the row's box`);
+    assert.equal(at.more, "start", `${width}: nothing more to the right once the last chip is reached`);
+
+    // On back through every chip's button to the first, then forward again to the last: each Tab lands on the next one.
+    let visited = 1;
+    while (at.index > rowFirst) { at = await step(true, at, "back through the strip"); shown(at, "a chip on the way back"); visited++; }
+    assert.equal(at.chipIndex, 0, `${width}: Shift+Tab reached the first chip`);
+    assert.equal(visited, rowCount, `${width}: every button in the strip had its turn on the way back`);
+    while (at.index < rowLast) { at = await step(false, at, "forward through the strip"); shown(at, "a chip on the way forward"); visited++; }
+    assert.equal(visited, rowCount * 2 - 1, `${width}: and every one on the way forward`);
+    assert.equal(at.chipIndex, at.chips - 1, `${width}: Tab reached the last chip again`);
+    await waitFor(`(() => { const row = document.querySelector(${JSON.stringify(ROW)}), last = [...row.querySelectorAll('[data-strip-key]')].at(-1);
+      const r = row.getBoundingClientRect(), box = last.getBoundingClientRect(); return last.contains(document.activeElement) && box.left >= r.left - 1 && box.right <= r.right + 1 && row.dataset.more === 'start'; })()`, 10_000);
     // The wheel scrolls the row sideways, back towards the start.
     const box = await evaluate<{ x: number; y: number }>(`(() => { const r = document.querySelector(${JSON.stringify(ROW)}).getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; })()`);
     const before = await evaluate<number>(`document.querySelector(${JSON.stringify(ROW)}).scrollLeft`);

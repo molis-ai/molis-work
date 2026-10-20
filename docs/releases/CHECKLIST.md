@@ -39,6 +39,7 @@
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
 | Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝 |
+| 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/store.ts#FORM_DATABASE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
@@ -49,7 +50,7 @@
 | Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/store.ts#IMAGES_DATABASE` | 拒绝 |
 | Jelly | `jelly/jelly.db` | 1 | `user_version` | `plugins/native/jelly/src/store.ts#JELLY_DATABASE` | 拒绝 |
 | 灵光 | `lingguang/lingguang.db` | 1 | `user_version` | `plugins/native/lingguang/src/store.ts#LINGGUANG_DATABASE` | 拒绝 |
-| Pages | `pages/pages.db` | 2 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_STORE_BASELINE` | 拒绝 |
+| Pages | `pages/pages.db` | 2 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_DATABASE` | 拒绝 |
 | PPT | `ppt/ppt.db` | 1 | `user_version` | `plugins/native/ppt/src/store.ts#PPT_DATABASE` | 拒绝 |
 | Todo | `todo/todo.db` | 1 | `user_version` | `plugins/native/todo/src/store.ts#TODO_DATABASE` | 拒绝 |
 | Workflows | `workflows/workflows.db` | 1 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_DATABASE` | 拒绝 |

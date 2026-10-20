@@ -1,14 +1,13 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { parseShelfTextMaterial, type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
 const reference = object({ artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } });
-const nullableReference = { anyOf: [reference, { type: "null" }] };
 const preview = { type: "object", properties: { title: text, text, fingerprint: text, source: { type: "object" } }, required: ["title", "text", "fingerprint", "source"] };
 const SHARED: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema, output: ActionSchema,
@@ -17,7 +16,7 @@ function define<I, O>(name: string, title: string, description: string, operatio
     scope: "project", audiences, permissions, subject_kinds: ["shelf_item", "artifact"], input_schema: input, output_schema: output } };
 }
 
-/** What this project's Runtime instance redeems: Coding results offered to Shelf, and which Shelf version the project uses as material. */
+/** What this project's Runtime instance redeems: Coding results offered to Shelf. */
 export const shelfRuntimeActions = {
   results: define<Record<string, never>, { results: { reference: ArtifactReference; title: string; connected: boolean }[] }>("results.list", "可接收的项目成果",
     "列出本项目可放进 Shelf 的 Coding 报告与变更，标出已接到输入的版本", "query", object({}),
@@ -28,11 +27,6 @@ export const shelfRuntimeActions = {
   receive: define<{ reference: ArtifactReference; expected_fingerprint: string }, { item: ShelfItemRecord; snapshot: ShelfSnapshot }>("results.receive", "把项目成果放进 Shelf",
     "按已预览的指纹把固定版本成果复制进置物架；成果变化时拒绝", "command", object({ reference, expected_fingerprint: { type: "string", minLength: 1 } }),
     { type: "object", required: ["item", "snapshot"] }, ["artifact:read", "storage:private"], ["user"]),
-  output: define<Record<string, never>, { reference: ArtifactReference | null }>("material-output.read", "当前材料输出", "读取本项目当前作为 Shelf 材料输出的固定版本",
-    "query", object({}), object({ reference: nullableReference }), ["artifact:read"]),
-  selectOutput: define<{ reference: ArtifactReference; expected_reference: ArtifactReference | null }, { reference: ArtifactReference }>("material-output.select", "选择材料输出",
-    "把一份已保存的 Shelf 材料版本设为本项目的材料输出；需提供查看时的当前输出以防覆盖", "command",
-    object({ reference, expected_reference: nullableReference }), object({ reference }), ["artifact:read", "artifact:write"]),
 };
 export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(shelfRuntimeActions);
 
@@ -42,14 +36,13 @@ export interface ShelfResultPorts {
   receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
 }
 
-/** What the artifact and output services refuse (a version that is not there, a stale expected output) and what a payload that is not a Shelf
- * material fails with is the caller's mistake (400), not a failure of ours. */
+/** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */
 const refused = <T>(run: () => T): T => {
   try { return run(); }
   catch (error) { throw error instanceof ActionError ? error : shelfErrors.invalid(error instanceof Error ? error.message : "Shelf 请求无效"); }
 };
 
-/** Owner-bound: the results land in, and the output points at, the local user's personal Shelf. */
+/** Owner-bound: the results land in the local user's personal Shelf. */
 export function shelfRuntimeActionHandlers(context: PluginStartContext, results?: ShelfResultPorts): ActionHandlerBinding[] {
   const services = context.services;
   const read = (ref: ArtifactReference) => {
@@ -57,10 +50,6 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
     const record = refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
     return results.preview(record);
-  };
-  const outputs = () => {
-    if (!services?.outputs) throw shelfErrors.unavailable("项目材料输出尚未连接");
-    return services.outputs;
   };
   return [
     bindOwnerPluginAction(context, shelfRuntimeActions.results, () => {
@@ -79,15 +68,6 @@ export function shelfRuntimeActionHandlers(context: PluginStartContext, results?
       const value = read(input.reference);
       if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");
       return results!.receive(value);
-    }),
-    bindOwnerPluginAction(context, shelfRuntimeActions.output, () => ({ reference: outputs().reference("material") })),
-    bindOwnerPluginAction(context, shelfRuntimeActions.selectOutput, input => {
-      if (!services?.artifacts) throw shelfErrors.unavailable("项目成果服务尚未连接");
-      const artifacts = services.artifacts;
-      const record = refused(() => artifacts.read(input.reference));
-      const material = refused(() => parseShelfTextMaterial(record?.payload));
-      if (input.reference.artifact_id !== "shelf-material:" + context.project_id + ":" + material.source.item_id) throw shelfErrors.invalid("Shelf 材料身份不一致");
-      return { reference: refused(() => outputs().select({ port: "material", reference: input.reference, expected_reference: input.expected_reference })) };
     }),
   ];
 }

@@ -144,5 +144,6 @@ export { BUILTIN_PLUGIN_AGENTS, artifactTypeDeclarations, artifactContinuers, ar
 
 export { pluginSurfaceClients, pluginWorkbenchClientAsset, type PluginSurfaceClient } from "./plugin-workbench.js";
 export { renderMolisWorkCapabilitiesClientScript } from "./scripts/capabilities-client.js";
+export { renderMolisWorkKnowledgeClientScript } from "./settings-knowledge.js";
 
 export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assistant-island.js";

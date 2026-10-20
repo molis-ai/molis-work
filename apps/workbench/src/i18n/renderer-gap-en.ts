@@ -1,5 +1,6 @@
 /** English for workbench renderer labels that had no entry (connectors, MCP developer tools, Home, Feed judgment, Shelf). */
 export const RENDERER_GAP_EN: Record<string, string> = {
+  "无法关联工作区": "Unable to link workspace",
   "组里还有 {n} 个标签": "Tabs in this group: {n}",
   "撤销关闭 {plugin}": "Reopen {plugin}",
   "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",
@@ -550,4 +551,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "文末": "at the end",
   // A result card in the Assistant panel, picked up as what is in hand (W3-A3b).
   "拿起": "Pick up",
+  // The account a connected document source reads with (home model settings, the side panel's import, Jelly).
+  "账号连接": "Account connection",
 };

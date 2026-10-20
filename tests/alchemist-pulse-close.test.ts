@@ -12,8 +12,8 @@ import { alchemistFixture } from "./fixtures/alchemist-actions.js";
  * own close, the project's deletion and an idle eviction all end in this `close()`: the worker stops at once, and the library
  * closes once the work in hand has settled. What the source brings back afterwards, an answer or a failure, is never recorded,
  * and the next source is never asked. The stop records nothing either: the job stays as it was, for recovery (RES01).
- * When Alchemist runs on the Plugin Runtime, this becomes the supervisor stopping the instance. The job-level cancel is the
- * other half, in plugins/native/alchemist/tests/jobs/pulse-recovery.test.ts.
+ * When Alchemist runs on the Plugin Runtime, this becomes the supervisor stopping the instance. The cancel, through the action
+ * the page, MCP and workflows share, is the other half, in tests/alchemist-pulse-cancel.test.ts (W5-01-ALC-RES09).
  */
 const FACTS = ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_signals", "pulse_reports", "activity_events"];
 

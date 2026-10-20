@@ -6,7 +6,6 @@ import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
@@ -16,6 +15,7 @@ import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
@@ -155,9 +155,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         models: () => ports.execution?.models() ?? Promise.resolve([]),
         sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-        materialReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
-          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
         reportReferences: () => artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),
@@ -262,6 +259,10 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }, {
+    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
+      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
   }, {
     definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(

@@ -5,10 +5,11 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { controlledAlchemistAi } from "./alchemist-actions.js";
 
 // Production Host/service composition with explicit test grants and controlled external AI/source ports.
-const [home, project, access] = process.argv.slice(2);
+const [home, project, access, drain] = process.argv.slice(2);
 if (!home || !project) throw new Error("Missing fixture identity");
 const { ai } = controlledAlchemistAi();
-const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" } });
+// `drain` = "held": the studio never drains by itself, so a started job stays queued (the state between a start and `runPending`) until the process ends.
+const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture", ...(drain === "held" ? { wrapStudio(runtime) { runtime.start = () => {}; } } : {}) } });
 const ref = molisWorkHostProjectReference({ databasePath: join(home, `${project}.sqlite`), projectId: project });
 await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: project, title: "Alchemist MCP", actor_id: "fixture-owner", idempotency_key: "alchemist-mcp-init" }));
 const ports = createActionMcpPorts({ service: host.actionClient(ref), serverInfo: { name: "alchemist-actions-fixture", version: "1" },

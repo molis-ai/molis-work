@@ -541,6 +541,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 - **Do** state settings scope, keep global and project preferences independent and provide a direct return to prior work.
 - **Do** pair form Cancel and Submit, label independently saved regions, preserve drafts on failure, and carry project context through global settings.
 - **Do** put a shared control, state or composition on `/__ui/catalog` when it meets the bar.
+- **Do** answer a copy with `window.molisCopy(button, text, labels)` (`packages/design-system/src/browser/copy-feedback.ts`): "copied" only after the clipboard took the text, ~2.5s, same width as the idle label, a newer press renews it and an older result never covers a newer failure. Open details with `.mw-collapsible` (natural height, 0fr → 1fr, reversible midway), and write a number that changes while it is read as `.mw-num` with the widest value of its range in `data-num-ghost`, so its width never moves the controls beside it in any font.
 - **Do** mark a horizontal strip that hides its scrollbar (tabs, chips, views, steps) with `data-overflow-fade`: the design system's one sensor fades only the side that really has more, 28px with eight alpha samples, clears it at the edge, keeps a focused item clear and shows the scrollbar under forced colours (`packages/design-system/src/styles/overflow-fade.ts`, specimen on the board under 视觉机制). Do not write a local sensor or mask, and keep close buttons and main actions outside the strip.
 
 ### Don't

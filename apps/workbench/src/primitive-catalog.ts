@@ -106,8 +106,18 @@ const BAR_SPECIMEN_SCRIPT = `
   });
 })();`;
 
-/** The arrival specimens move: the wordmark types again on demand and the caption cycles its words. */
-const ARRIVAL_SPECIMEN_SCRIPT = `
+/** The board's specimens move: the copy buttons copy (one is refused), the live number counts through its range, the arrival
+ * wordmark types again on demand and the caption cycles its words. */
+const SPECIMEN_SCRIPT = `
+(() => {
+  document.addEventListener("click", (event) => {
+    const copy = event.target.closest("[data-catalog-copy]");
+    if (copy) window.molisCopy?.(copy, () => copy.dataset.catalogCopy === "ok" ? "Molis Work" : Promise.reject(new Error("refused")));
+  });
+  const elapsed = document.querySelector("[data-catalog-elapsed]");
+  let seconds = 0;
+  if (elapsed) setInterval(() => { seconds = (seconds + 7) % 3600; elapsed.textContent = seconds < 60 ? seconds + " 秒" : Math.floor(seconds / 60) + " 分 " + (seconds % 60) + " 秒"; }, 400);
+})();
 (() => {
   const arrival = window.molisArrival;
   if (!arrival) return;
@@ -152,7 +162,7 @@ export function renderMolisWorkPrimitiveCatalog(): string {
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
-  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${ARRIVAL_SPECIMEN_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}</script>
 </body>
 </html>`;
 }

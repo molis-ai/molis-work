@@ -33,7 +33,7 @@ test("PAS-15: Host text streams, keeps reading state, copies exact code, opens n
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   await evaluate("document.querySelector('.assistant-code-copy').scrollIntoView({block:'center'})");
   await click(".assistant-code-copy");
-  await waitFor("document.querySelector('.assistant-code-copy').hasAttribute('data-done')");
+  await waitFor("document.querySelector('.assistant-code-copy').dataset.copy === 'done'");
   assert.equal(await evaluate("navigator.clipboard.readText()"), code);
   const api = `/projects/${projectId}/api/assistant`;
   await waitFor(`fetch(${JSON.stringify(api + '/works')}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`);

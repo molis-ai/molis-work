@@ -144,7 +144,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     prefill:(text)=>{if(input.value.trim()!==text.trim()){input.value=text;input.dispatchEvent(new Event('input',{bubbles:true}));}input.focus();},
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
-  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';if(draft.local(sent.id)===sent.text)void draft.save(sent.id,'');}status(said);}});
+  const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';window.molisFit?.(input);if(draft.local(sent.id)===sent.text)void draft.save(sent.id,'');}status(said);}});
   const ROLE_NAMES={planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'};
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
@@ -1369,8 +1369,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(directory.querySelector('[data-coding-search]'),'input',renderDirectory);
   // Late growth (a review card loading, a group opening) keeps a following reader at the newest line.
   lifetime.observe(new MutationObserver(()=>{if(!reportRun)follow.pin();}),turns,{childList:true,subtree:true,characterData:true});
-  // Browsers without field-sizing still grow the field as the person writes.
-  if(!globalThis.CSS?.supports?.('field-sizing','content'))lifetime.listen(input,'input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]'),q('[data-coding-effort]')])lifetime.listen(field,'change',()=>{
     const id=current;rememberConfiguration();controls();void draft.flush().then(()=>surfaceChanged(id)).catch(error=>status('配置暂未保存：'+error.message,true));
   });
@@ -1565,7 +1563,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           status('这一轮会在「'+overlaps[0].title+'」那一轮结束后自动开始。');
         } else await startRound(id,task,intent,modelValue,{workspace_id,methods,action_tools,mcp_tools,mcp_sources,materials,character,writer_assignments});
       }
-      if(current===id && input.value===task) input.value='';
+      if(current===id && input.value===task){input.value='';window.molisFit?.(input);}
       if(draft.local(id)===task) await draft.save(id,''); surfaceChanged(id); await refreshState();await readCurrent();
     } catch(error) { status(error.message,true); }
     finally { sending=false;controls(); }

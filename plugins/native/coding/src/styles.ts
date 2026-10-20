@@ -336,9 +336,9 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
   border-color:var(--ink);
   outline:var(--focus-stroke, 1px solid var(--ink)); outline-offset:var(--focus-stroke-inset, -1px);
 }
-/* The field grows with what is written, up to a limit, instead of offering a resize grip. */
+/* The field grows with what is written (data-fit, the shared intrinsic sizing), up to 320px and 40% of the frame. */
 .coding-composer-shell textarea {
-  resize:none; field-sizing:content; width:100%; min-height:56px; max-height:min(40vh,320px); overflow-y:auto; line-height:1.65;
+  --fit-max:320px; width:100%; min-height:56px; line-height:1.65;
   margin:0; padding:12px 8px 4px; border:0; border-radius:8px; background:transparent; box-shadow:none;
   caret-color:var(--ink);
 }

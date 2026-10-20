@@ -21,7 +21,7 @@ export function renderIssuesWorkbench(): string {
   return renderPluginStageShell({ surface: "issues", label: "Issue", dataset: "issues", body: `<div class="issues" data-issue-root>
     <section class="issues-home" data-issue-home>
       <form class="issues-composer" data-issue-composer>
-        <textarea data-issue-i18n name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
+        <textarea data-issue-i18n data-fit name="description" rows="3" maxlength="100000" aria-label="问题描述" placeholder="遇到什么问题？写下来，截图可以直接粘贴"></textarea>
         ${shots("thumbs")}
         <div class="issues-bar">
           <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-i18n aria-label="添加截图" title="添加截图">${icon("image")}</button>
@@ -52,7 +52,7 @@ export function renderIssuesWorkbench(): string {
           <p class="issues-flag" data-issue-flag role="status" hidden></p>
           <input class="mw-input" data-issue-i18n name="title" maxlength="200" aria-label="标题" placeholder="标题">
           ${types("edit")}
-          <textarea class="mw-textarea" data-issue-i18n name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
+          <textarea class="mw-textarea" data-issue-i18n data-fit name="description" maxlength="100000" aria-label="问题描述" placeholder="问题描述"></textarea>
           ${shots("edit-shots")}
           <div class="issues-bar">
             <button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-issue-pick data-issue-i18n aria-label="添加截图" title="添加截图">${icon("image")}</button>
@@ -84,7 +84,7 @@ export const ISSUES_STYLES = `
 .issues-home>*,.issues-page>*{max-width:720px;margin-inline:auto}
 .issues-composer{border:1px solid var(--line-strong);border-radius:12px;padding:10px 10px 8px 12px;background:var(--paper);transition:border-color var(--dur-hover) var(--ease-quint),box-shadow var(--dur-hover) var(--ease-quint)}
 .issues-composer:focus-within,.issues-composer.is-drop{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
-.issues textarea{display:block;width:100%;resize:none;overflow:hidden;font:inherit;font-size:15px;line-height:1.65;color:var(--ink);background:transparent}
+.issues textarea{display:block;width:100%;resize:none;overflow:hidden;max-height:none;font:inherit;font-size:15px;line-height:1.65;color:var(--ink);background:transparent}
 .issues-composer textarea{border:0!important;outline:0!important;box-shadow:none!important;border-radius:0;padding:0;min-height:69px}
 .issues-bar{display:flex;align-items:center;gap:6px;margin-top:6px}
 .issues-tip{flex:1;color:var(--muted);font-size:12px}

@@ -67,7 +67,7 @@ export const SURFACE_LANGUAGE_STYLES = `
     outline: none;
   }
   ${CENTERED_EDITOR} .create-compose .create-compose-title { font-size: 20px; line-height: 1.4; letter-spacing: -.02em; }
-  ${CENTERED_EDITOR} .create-compose .create-compose-outcome { min-height: 62px; font-size: 13px; line-height: 1.65; color: var(--ink-soft); }
+  ${CENTERED_EDITOR} .create-compose .create-compose-outcome { --fit-max: 260px; min-height: 62px; font-size: 13px; line-height: 1.65; color: var(--ink-soft); }
   ${CENTERED_EDITOR} .create-compose :is(.create-compose-title, .create-compose-outcome)::placeholder { color: var(--faint); }
   ${CENTERED_EDITOR} .create-compose :is(.create-compose-title, .create-compose-outcome):focus,
   ${CENTERED_EDITOR} .create-compose :is(.create-compose-title, .create-compose-outcome):focus-visible {

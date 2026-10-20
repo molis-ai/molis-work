@@ -296,7 +296,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"并排打开会话",icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:"在右侧并排打开另一个会话（也可以按住 ⌘ 或 Ctrl 点会话）"}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
+            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
             <span class="mw-sr-only" id="coding-slash-help">在空的输入框里输入斜杠打开命令列表，用上下方向键选择，回车执行。</span>
             <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="命令" hidden></div>
             <div class="coding-composer-bar">

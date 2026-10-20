@@ -22,7 +22,9 @@ const lines = (body: unknown) => ((JSON.parse(JSON.stringify(body)) as { content
 const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
 const BUTTON = (head: string) => `[...document.querySelectorAll('${BAR} button,.mw-ctx-menu button')].find(button => !button.disabled && button.textContent.trim().startsWith(${JSON.stringify(head)}))`;
 const RING = `document.querySelectorAll('${BAR} button:not(:disabled)').length`;
-const FOCUSED = "(() => { const node = document.activeElement; return node && node.closest('.mw-ctx') ? (node.getAttribute('data-key') || node.textContent.trim()) : null; })()";
+// The focused button by the name the bar gives it: an action by its key, a format tool by its group and id (six of Pages' tools are an
+// icon with no text, so their text alone would name them all alike), 更多 and ✦ by their text.
+const FOCUSED = "(() => { const node = document.activeElement; return node && node.closest('.mw-ctx') ? (node.getAttribute('data-key') || (node.hasAttribute('data-id') ? node.getAttribute('data-group') + '/' + node.getAttribute('data-id') : node.textContent.trim())) : null; })()";
 
 /** A Pages document open in the browser, one real text selection at a time, and the Pages documents in the project as its owner reads them. */
 async function openPagesSelection(t: TestContext, blocks: object[]) {

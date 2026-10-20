@@ -9,6 +9,7 @@ import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
+// W5-01-PAGES-02 / -04: Pages' actions over the official MCP client on the project Runtime, including a promote that fails at the association and is recovered.
 // Every MCP client here starts its own Host process, which takes several seconds on a loaded Linux CI runner (30–45 s for the
 // whole test at two files at once): the budget only stops a hang, it is not a speed check.
 test("official stdio MCP client queries, imports, edits and generates with actual Pages actions across isolated projects", { timeout: 120_000 }, async () => {
@@ -22,20 +23,26 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     try { await client.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return client;
   };
-  const call = async (client: Client, name: string, args: Record<string, unknown>) => {
-    const result = await client.callTool({ name: `${name}__v1`, arguments: args });
+  const call = async (client: Client, name: string, args: Record<string, unknown>, version = 1) => {
+    const result = await client.callTool({ name: `${name}__v${version}`, arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
   try {
     const a = await connect("a"), b = await connect("b"), reader = await connect("a", "read");
     const available = (await a.listTools()).tools.map(row => row.name);
-    for (const name of ["list", "get", "create", "update", "delete", "templates", "folders.create", "folders.update", "folders.delete", "import.preview", "import", "ai", "extract", "promote", "documents.import", "generations.list", "generations.get", "generate"]) assert.ok(available.includes(`pages.${name}__v1`));
-    const { document } = await call(a, "pages.create", { title: "External", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "MCP content" }] }] } });
+    for (const name of ["list", "get", "update", "delete", "templates", "folders.create", "folders.update", "folders.delete", "import.preview", "import", "ai", "extract", "promote", "documents.import", "generations.list", "generations.get", "generate"]) assert.ok(available.includes(`pages.${name}__v1`));
+    // W4-2-12: the new strict output is version 2; the old tool is absent, with no alias.
+    assert.ok(available.includes("pages.create__v2"));
+    assert.equal(available.includes("pages.create__v1"), false);
+    assert.equal((await a.callTool({ name: "pages.create__v1", arguments: { title: "Old binding" } })).isError, true);
+    const { document } = await call(a, "pages.create", { title: "External", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "MCP content" }] }] } }, 2);
     assert.deepEqual((await call(reader, "pages.get", { id: document.id })).document.body, document.body);
     assert.deepEqual((await call(b, "pages.list", {})).documents, []);
     assert.equal((await b.callTool({ name: "pages.get__v1", arguments: { id: document.id } })).isError, true);
-    assert.equal((await reader.callTool({ name: "pages.create__v1", arguments: { title: "Denied" } })).isError, true);
-    assert.equal((await a.callTool({ name: "pages.create__v1", arguments: { title: "Spoof", project_id: "b" } })).isError, true);
+    assert.equal((await reader.callTool({ name: "pages.create__v2", arguments: { title: "Denied" } })).isError, true);
+    assert.equal((await a.callTool({ name: "pages.create__v2", arguments: { title: "Spoof", project_id: "b" } })).isError, true);
+    assert.deepEqual((await call(a, "pages.list", {})).documents.map((page: { id: string }) => page.id), [document.id], "refused calls created nothing");
+    assert.deepEqual((await call(b, "pages.list", {})).documents, []);
     // W3-09-3: an AI source (here MCP) sends the version it read whenever it changes, asks about or publishes an existing document.
     const updated = (await call(a, "pages.update", { id: document.id, title: "Updated", expected_version: document.version })).document;
     assert.equal((await a.callTool({ name: "pages.update__v1", arguments: { id: document.id, title: "Stale", expected_version: document.version } })).isError, true);
@@ -87,6 +94,9 @@ test("official stdio MCP client queries, imports, edits and generates with actua
     } finally { db.close(); }
     await restarted.close();
     const recovering = await connect("a");
+    // The project's Pages instance starts with a host's first action call and the Runtime's install record is shared by the
+    // hosts of one Home: until `recovering` has asked once, `reader` would find the record stopped by the host just closed.
+    await call(recovering, "pages.list", {});
     const current = (await call(reader, "pages.get", { id: document.id })).document;
     const recovered = await call(recovering, "pages.promote", { id: document.id, expected_version: current.version });
     assert.equal(recovered.recovered, true); assert.equal(recovered.artifact.version, 1);

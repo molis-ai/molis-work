@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -55,6 +59,7 @@
       "goals.factors-ui.v1",
       "goals.dialogs-ui.v1",
       "goals.document-routes.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

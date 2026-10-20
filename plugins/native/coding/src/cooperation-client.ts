@@ -128,20 +128,29 @@ export const CODING_COOPERATION_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(force || key!==drawnKey){drawnKey=key;drawBanner(value.incoming);drawSection(value);drawBackground();}}
     catch(error){if(!lifetime.alive)return;if(id===current()){banner.hidden=true;}}finally{reading=false;}
   };
+  // What goes with the task is picked from project knowledge in the page's one picker (specs/project-knowledge PMAT-18), as the
+  // next round's materials are; the other session reads each piece through knowledge.read when its round starts.
+  let delegatePicks=[],pickTicket=0;
+  const drawPicks=()=>{const list=dialog.querySelector('[data-coding-delegate-outputs]');
+    list.replaceChildren(...(delegatePicks.length?delegatePicks.map(pick=>el('p','coding-coop-line',pick.title)):[el('p','coding-coop-note','不带项目资料。需要时点下面选择。')]));};
   const openDialog=async()=>{
-    const id=current();if(!id)return;const form=dialog.querySelector('form'),list=dialog.querySelector('[data-coding-delegate-outputs]'),message=dialog.querySelector('[data-coding-delegate-status]');
-    form.reset();message.textContent='';dialog.querySelector('[data-coding-delegate-task]').value=q('[data-coding-task]').value.trim();list.replaceChildren(el('p','coding-coop-note','正在读取可带上的固定成果…'));dialog.showModal();dialog.querySelector('[data-coding-delegate-title]').focus();
-    try{const value=await api('/sessions/'+encodeURIComponent(id)+'/materials');list.replaceChildren();
-      const choices=value.materials.filter(item=>!item.error && ['本会话的固定成果','已选固定版本','其他会话的固定成果'].includes(item.source));
-      if(!choices.length)list.append(el('p','coding-coop-note','这个会话还没有固定的报告或变更。可以先在"每轮成果"里固定。'));
-      for(const item of choices){const label=el('label','mw-check-row'),check=el('input','mw-check');check.type='checkbox';check.value=JSON.stringify(item.reference);label.append(check,el('span','',item.title));list.append(label);}}
-    catch(error){if(!lifetime.alive)return;list.replaceChildren(el('p','coding-coop-note',error.message));}
+    const id=current();if(!id)return;const form=dialog.querySelector('form'),message=dialog.querySelector('[data-coding-delegate-status]');
+    form.reset();message.textContent='';dialog.querySelector('[data-coding-delegate-task]').value=q('[data-coding-task]').value.trim();delegatePicks=[];pickTicket++;drawPicks();
+    dialog.querySelector('[data-coding-delegate-pick]').hidden=document.documentElement.dataset.knowledgePicker!=='1';
+    dialog.showModal();dialog.querySelector('[data-coding-delegate-title]').focus();
   };
+  lifetime.listen(dialog.querySelector('[data-coding-delegate-pick]'),'click',()=>{
+    document.dispatchEvent(new CustomEvent('molis-work:knowledge-pick',{detail:{request_id:'coding-delegate:'+(++pickTicket),selected:structuredClone(delegatePicks),max:30}}));
+  });
+  lifetime.listen(document,'molis-work:knowledge-picked',event=>{
+    if(String(event.detail?.request_id || '')!=='coding-delegate:'+pickTicket || !dialog.open)return;
+    delegatePicks=(event.detail.picks || []).map(pick=>({kind:pick.kind,id:pick.id,title:pick.title}));drawPicks();
+  });
   lifetime.listen(dialog.querySelector('form'),'submit',async event=>{
     event.preventDefault();const id=current(),message=dialog.querySelector('[data-coding-delegate-status]'),send=dialog.querySelector('[data-coding-delegate-create]');
     const task=dialog.querySelector('[data-coding-delegate-task]').value.trim(),title=dialog.querySelector('[data-coding-delegate-title]').value.trim();
     if(!task){message.textContent='请写下要委派的任务。';return;}
-    const materials=[...dialog.querySelectorAll('[data-coding-delegate-outputs] input:checked')].map(input=>JSON.parse(input.value));
+    const materials=delegatePicks;
     send.disabled=true;message.textContent='正在创建委派…';
     try{const result=await api('/sessions/'+encodeURIComponent(id)+'/delegations','POST',{task,...(title?{title}:{}),materials});dialog.close();
       await refreshSessions();status(result.delivery_unconfirmed?'送达结果尚未确认。请核对原请求或查看会话，不要另发一遍。':'已委派给新会话「'+result.session.title+'」。对方接受并发送后才会执行。',Boolean(result.delivery_unconfirmed));await refresh(true);}

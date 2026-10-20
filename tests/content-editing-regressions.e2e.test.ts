@@ -124,7 +124,7 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
   const store = openPagesStore(b.homeDirectory);
   const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Source A", body: { type: "doc", content: [paragraph("Original words"), { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [paragraph("Actual extracted task")] }] }] } }); } finally { store.close(); } })();
   await open(b, "pages", page.id); await b.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')");
-  await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/pages" : `/api/plugins/pages/${page.id}/extract`);
+  await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/io.molis.work.pages/pages" : `/api/plugins/io.molis.work.pages/pages/${page.id}/extract`);
   if (operation === "create") await b.click("[data-pages-new]");
   else { await b.click("[data-pages-more]"); await b.click("[data-pages-extract]"); }
   await b.waitFor("typeof window.releaseContentReply === 'function'");

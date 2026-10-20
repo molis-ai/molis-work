@@ -32,8 +32,8 @@ test("the side panel previews a pinned document through its owner, as the 成果
       return await response.json() as Record<string, any>;
     };
     const get = async (path: string) => await (await fetch(origin + path)).json() as Record<string, any>;
-    const document = (await post("/api/pages", { title: "周报", markdown: "## 本周\n\n- 完成侧栏预览" })).document as { id: string; version: number };
-    const pinned = (await post(`/api/pages/${document.id}/promote`, { expected_version: document.version })).artifact as { artifact_id: string; version: number };
+    const document = (await post("/api/plugins/io.molis.work.pages/pages", { title: "周报", markdown: "## 本周\n\n- 完成侧栏预览" })).document as { id: string; version: number };
+    const pinned = (await post(`/api/plugins/io.molis.work.pages/pages/${document.id}/promote`, { expected_version: document.version })).artifact as { artifact_id: string; version: number };
 
     const sources = (await get("/api/side/files/sources")).sources as Array<{ id: string; kinds: Array<{ kind: string }> }>;
     const library = sources.find(source => source.kinds.some(kind => kind.kind === "artifact"));

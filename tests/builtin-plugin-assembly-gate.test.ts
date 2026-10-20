@@ -12,8 +12,8 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  * started by the supervisor in `apps/local-host/src/project-plugins.ts` and get
  * install records, upgrade checks, crash recovery and per-install private storage.
  * Build-time composed plugins are wired by hand: a `registerProvider(...)` line in
- * `project-host.ts`, an `<plugin>-native-plugin-http.ts` route file, and a
- * `builtin-plugins.ts` catalog entry. The second path is frozen: the lists below may
+ * `project-host.ts` and an `<plugin>-native-plugin-http.ts` route file (the catalog entry is no hand step: each plugin's
+ * `src/registration.ts` writes it and `builtin-plugins.ts` is generated). The second path is frozen: the lists below may
  * only shrink as plugins move to the Runtime (`skills/molis-plugin-dev/host.md`).
  *
  * The lists match the disk exactly, both ways: a name that is no longer there has to leave the list, and a plugin the
@@ -35,6 +35,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["form", "@molis-ai/molis-work-plugin-form"],
   ["dataset", "@molis-ai/molis-work-plugin-dataset"],
   ["lingguang", "@molis-ai/molis-work-plugin-lingguang"],
+  ["pages", "@molis-ai/molis-work-plugin-pages"],
   ["ppt", "@molis-ai/molis-work-plugin-ppt"],
 ]);
 
@@ -44,13 +45,13 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
   "alchemist", "artifacts", "feed", "goals",
-  "inbox", "pages", "plugin-builder", "schedule", "sessions", "workflows",
+  "inbox", "plugin-builder", "schedule", "sessions", "workflows",
 ]);
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
   "alchemist", "artifact", "feed", "inbox",
-  "pages", "personal", "schedule", "shelf", "workflows",
+  "personal", "schedule", "shelf", "workflows",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {

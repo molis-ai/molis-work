@@ -45,7 +45,7 @@
 
 `PluginArtifactClient.publish/read` 保留同步作者接口，通过同一 Kernel 执行。Host 在每个安装实例启动前自动注册 `sdk.artifacts.<install_id>.read/publish`，停止或启动失败时释放；仅供 `plugin` audience，不能作为用户/MCP 工具冒充其他生产者。输入输出共用成果记录合同，身份由 Host 绑定，继续检查 `artifact:read/write`、Manifest type/schema 和实时运行授权；个人成果归这个 Home 的人，读它不再比对行为者；过程项仍归记下它的安装实例的行为者，其他行为者的安装读它报 `artifacts.plugin_denied`。旧客户端在崩溃恢复后仍失效。
 
-`createPluginArtifactOperations` 是上述 client 使用的唯一 owner 操作工厂：可信宿主固定项目、actor、两份 owner API 与 Manifest，并注入实时授权和 Kernel 输入校验器；工厂自身不登记动作。`processItems.head/readOwn` 用 producer id、签名及个人 owner 核对自己的过程版本，允许同签名升级、归档或内容失效后的恢复读取，不需要 consumes。`artifacts.listConsumable()` 列出所有可消费固定版本的精简摘要（成果在前，过程项在后），与 `read` 使用同一消费规则；查询故障仍抛出。现有成果 `head/readOwn` 的判定保持不变。
+`createPluginArtifactOperations` 是上述 client 使用的唯一 owner 操作工厂：可信宿主固定项目、actor、两份 owner API 与 Manifest，并注入实时授权、Kernel 输入校验器和原调用方检查（`assertCallerCurrent`，写入前同步问这次动作的原调用方）；工厂自身不登记动作。`processItems.head/readOwn` 用 producer id、签名及个人 owner 核对自己的过程版本，允许同签名升级、归档或内容失效后的恢复读取，不需要 consumes。`artifacts.listConsumable()` 列出所有可消费固定版本的精简摘要（成果在前，过程项在后），与 `read` 使用同一消费规则；查询故障仍抛出。现有成果 `head/readOwn` 的判定保持不变。
 
 同步是角色发布事务的要求：检查草稿修订与保存成果之间不能插入异步等待。只有明确声明同步执行的处理器可被同步调用；异步授权或 Host 策略会拒绝此次调用，不会跳过检查。Host 装配必须显式提供当前项目共享的动作注册和调用端口。SDK 作者及 Inputs/Outputs、Characters、Shelf、Coding 消费者不需要改成 Promise。公共网页权限仍与插件 SDK 权限分别校验；显式来源账号选择及其余服务迁移继续。
 

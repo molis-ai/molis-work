@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 
 /** One streamed Anthropic-format model turn: text, or one tool call. */
 function turn(text: string, tool?: { name: string; input: object }): string {
@@ -37,10 +37,10 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
     let raw = "";
     for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     const body = JSON.parse(raw) as Body; bodies.push(body);
-    // The round's tool shapes are deferred past 20 tools: its first call finds the suggest tool, the next suggests creating
+    // Past 32 tools the round's tool shapes are deferred: then its first call finds the suggest tool; the next suggests creating
     // a Goal with the one action it was given, and the last one ends the round.
     const suggest = body.tools?.find(tool => tool.name.startsWith("molis-suggest-"));
     res.writeHead(200, { "content-type": "text/event-stream" });

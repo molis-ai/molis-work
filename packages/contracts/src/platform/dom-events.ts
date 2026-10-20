@@ -126,10 +126,6 @@ export const PAGE_STATE_OWNERS = {
     files: ["apps/workbench/src/character-terminal-client.ts"],
     state: "The terminal that shows a Character run: which process it is attached to.",
   },
-  "artifacts-import": {
-    files: ["plugins/native/artifacts/src/import-client.ts"],
-    state: "The import form of the Artifacts library.",
-  },
   "goals-event-document": {
     files: ["plugins/native/goals/src/event-document-client.ts"],
     state: "The Goal event panel inside an open Goal document.",
@@ -137,6 +133,10 @@ export const PAGE_STATE_OWNERS = {
   "pages-landing": {
     files: ["plugins/native/pages/src/landing-editor.ts"],
     state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.",
+  },
+  "knowledge-picker": {
+    files: ["apps/workbench/src/browser/knowledge/picker.ts"],
+    state: "The one picker of project knowledge (specs/project-knowledge PMAT-17): what it was asked for, the person's query and their picks until they confirm.",
   },
 } as const satisfies Readonly<Record<string, PageStateOwner>>;
 
@@ -201,11 +201,6 @@ export const DOM_EVENTS = [
     summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.",
   },
   {
-    name: "molis-work:artifact-imported", kind: "announcement", owner: "artifacts-import", on: "element", bubbles: true,
-    detail: "{ href }",
-    summary: "An import into the Artifacts library finished in the form that dispatched it; the dialog that hosts the form closes on it.",
-  },
-  {
     name: "molis-work:attention", kind: "announcement", owner: "attention", on: "document",
     detail: "the /api/attention answer ({ background_tasks, notices, plugin_events_pending, board_cursor }) and started; a part that could not be read is null, started is the read's performance.now()",
     summary: "The page read what waits on the person; the Assistant's bell (with the plugin notification count) paints from it, and the board refreshes when its cursor moved.",
@@ -244,6 +239,16 @@ export const DOM_EVENTS = [
     name: "molis-work:goal-panel-presence", kind: "announcement", owner: "goals-event-document", on: "element", bubbles: true,
     detail: "none",
     summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.",
+  },
+  {
+    name: "molis-work:knowledge-pick", kind: "request", owner: "knowledge-picker", on: "document",
+    detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }",
+    summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.",
+  },
+  {
+    name: "molis-work:knowledge-picked", kind: "announcement", owner: "knowledge-picker", on: "document",
+    detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }",
+    summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.",
   },
   {
     name: "molis-work:model-ready", kind: "announcement", owner: "settings-directory", on: "document",
@@ -340,8 +345,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",
-    detail: "{ work_id?, new?, source?, materials?, object? }",
-    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent.",
+    detail: "{ work_id?, new?, source?, materials? ({ title, text } or a piece of project knowledge { title, subject: { kind, id } }), object? }",
+    summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these) and is read from its owner when the message is sent.",
   },
   {
     name: "molis:assistant-starter-choose", kind: "request", owner: "context-actions", on: "document",

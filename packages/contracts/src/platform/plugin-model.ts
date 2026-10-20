@@ -69,8 +69,11 @@ export type PluginModelFailure = ActionError & {
   readonly validateResult?: () => void;
 };
 
-/** Model display metadata only; never a credential reference or endpoint. */
-export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string };
+/**
+ * Model display metadata only; never a credential reference or endpoint. `vision` is true when the model this call would use
+ * declares that it reads images: `complete()` refuses images otherwise, so a plugin attaches them only when this is true.
+ */
+export type PluginModelAvailability = ActionAvailability & { readonly runtime_label?: string; readonly vision?: boolean };
 
 /**
  * The Host's text model, for a plugin the Host runs itself that declares `model:invoke`. It works only inside one of the plugin's

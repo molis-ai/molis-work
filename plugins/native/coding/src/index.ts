@@ -118,6 +118,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
@@ -196,6 +197,7 @@ export {
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "./workbench-client.js";
 export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 export { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";

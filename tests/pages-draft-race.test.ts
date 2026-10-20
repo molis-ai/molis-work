@@ -166,7 +166,7 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     const parsed = new URL(url, "http://pages.test");
     const payload = init?.body ? JSON.parse(String(init.body)) as { title?: string; body?: string } : {};
     if (init?.method === "POST") posts.push({ url: parsed.pathname, body: payload });
-    if (parsed.pathname === "/api/plugins/pages" && (!init?.method || init.method === "GET")) {
+    if (parsed.pathname === "/api/plugins/io.molis.work.pages/pages" && (!init?.method || init.method === "GET")) {
       return json({ documents: [...documents.values()], folders: [] });
     }
     if (parsed.pathname === "/api/board") return json({ goals: [] });
@@ -198,7 +198,7 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     await flush();
     assert.equal(timers.size, 0);
     assert.equal(posts.length, 1);
-    assert.equal(posts[0].url, "/api/plugins/pages/A");
+    assert.equal(posts[0].url, "/api/plugins/io.molis.work.pages/pages/A");
     assert.equal(posts[0].body.body, "A edited");
     assert.equal(posts[0].body.title, "A edited title");
     assert.equal(editorBody, "B stored");
@@ -213,7 +213,7 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     assert.equal(pending.length, 1);
     globalThis.fetch = (async (url: string, init?: RequestInit) => {
       const parsed = new URL(url, "http://pages.test");
-      if (init?.method === "POST" && parsed.pathname === "/api/plugins/pages/B") {
+      if (init?.method === "POST" && parsed.pathname === "/api/plugins/io.molis.work.pages/pages/B") {
         const payload = JSON.parse(String(init.body)) as { title?: string; body?: string };
         posts.push({ url: parsed.pathname, body: payload });
         await blocked;
@@ -233,13 +233,13 @@ test("Pages 切换文档会先保存离开的草稿，旧响应不能把新正�
     await switched;
     await flush();
     assert.equal(documents.get("B")?.body, "B edited");
-    assert.equal(posts.some((post) => post.url === "/api/plugins/pages/A" && post.body.body === "B edited"), false);
+    assert.equal(posts.some((post) => post.url === "/api/plugins/io.molis.work.pages/pages/A" && post.body.body === "B edited"), false);
     assert.equal(editorBody, "A edited");
     editorBody = "A again";
     change?.();
     for (const fn of timers.values()) fn();
     await flush();
-    assert.equal(posts.at(-1)?.url, "/api/plugins/pages/A");
+    assert.equal(posts.at(-1)?.url, "/api/plugins/io.molis.work.pages/pages/A");
     assert.equal(posts.at(-1)?.body.body, "A again");
   } finally {
     globalThis.setTimeout = previousTimeout;
@@ -324,9 +324,9 @@ test("Pages 保存失败时不发布、不关闭、不切走草稿", async () =>
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
     const parsed = new URL(url, "http://pages.test");
     calls.push(`${init?.method || "GET"} ${parsed.pathname}`);
-    if (parsed.pathname === "/api/plugins/pages" && (!init?.method || init.method === "GET")) return json({ documents, folders: [] });
+    if (parsed.pathname === "/api/plugins/io.molis.work.pages/pages" && (!init?.method || init.method === "GET")) return json({ documents, folders: [] });
     if (parsed.pathname === "/api/board") return json({ goals: [] });
-    if (init?.method === "POST" && parsed.pathname === "/api/plugins/pages/A") return json({ error: "磁盘满了" }, 500);
+    if (init?.method === "POST" && parsed.pathname === "/api/plugins/io.molis.work.pages/pages/A") return json({ error: "磁盘满了" }, 500);
     if (parsed.pathname.endsWith("/promote")) return json({ document: documents[0], artifact: { artifact_id: "wrong", version: 1 } });
     return json({ document: documents[0] });
   }) as typeof fetch;

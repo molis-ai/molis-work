@@ -10,6 +10,7 @@ import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
+import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
   const home = homePluginSideTabs();
@@ -61,6 +62,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   dataJson(view: TView): string;
   prefixLocalLinks(html: string, prefix: string, desktopShell?: boolean): string;
   renderWorkbenchDocument(request: WorkbenchDocumentRenderRequest): string;
+  renderGoalProposals(view: TView): string;
   renderGoalDocument(item: TItem, view: TView, selected: boolean): string;
   renderTrashGoalDocument(item: TItem, selected: boolean): string;
   goalsDocumentRenderer: {
@@ -69,8 +71,8 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   goalsTreeRenderer: {
     renderGoalRootEntry(count: number, active: boolean): string;
     renderGoalDirectory(view: TView, collection: GoalCollectionModel<TItem>, active: boolean): string;
-    renderGoalRefreshDirectory(view: TView, collection: GoalCollectionModel<TItem>): string;
-    renderGoalStageList(view: TView, collection: GoalCollectionModel<TItem>): string;
+    renderGoalRefreshDirectory(view: TView, collection: GoalCollectionModel<TItem>, proposals: string): string;
+    renderGoalStageList(view: TView, collection: GoalCollectionModel<TItem>, proposals: string): string;
     renderTreeChrome(view: TView): string;
   };
   renderCreateDialog(view: TView): string;
@@ -112,7 +114,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
 ) {
   const { L, escapeHtml, icon, htmlLang, controlTokenMeta, themeBootstrapScript: THEME_BOOTSTRAP_SCRIPT,
     renderIconSprite, clientI18nScript, dataJson, prefixLocalLinks, renderWorkbenchDocument,
-    renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer,
+    renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
     renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
@@ -132,7 +134,7 @@ function renderMolisWorkRefreshFragment(
     : goalsDocumentRenderer.renderEmptyGoalCollection(trashView, false);
   const bodyView = trashView ? "trash" : archiveView ? "archive" : "current";
   const html = `<!doctype html><html><body data-board-view="${bodyView}">
-    ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection)}
+    ${goalsTreeRenderer.renderGoalRefreshDirectory(view, collection, renderGoalProposals(view))}
     <section data-document-pane><section data-work-surface="goal">${document}</section></section>
     ${renderCreateDialog(view)}
     <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
@@ -180,7 +182,7 @@ function renderMolisWorkWeb(
   const goalDocument = `<section class="document-pane" id="goal-document-pane" data-document-pane aria-label="${escapeHtml(collectionTitle)}">
     <section class="desktop-work-surface" data-work-surface="goal" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
-  const stageList = goalsTreeRenderer.renderGoalStageList(view, collection);
+  const stageList = goalsTreeRenderer.renderGoalStageList(view, collection, renderGoalProposals(view));
   const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
     <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
@@ -316,7 +318,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
-  <script src="/assets/molis-work-workbench.js"></script>
+  <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });
   return prefixLocalLinks(html, view.route_prefix, desktopShell);

@@ -3,7 +3,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { McpAccessEntry } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import { readMcpToolPreference, type McpActionGrant, type McpToolPreference } from "./mcp-settings-store.js";
-import { actionClientAudience, resolveMcpActionContext } from "./mcp-action-grants.js";
+import { actionClientAudience, openByDefault, resolveMcpActionContext } from "./mcp-action-grants.js";
 
 const same = (grant: McpActionGrant, view: ActionView) => grant.capability_id === view.capability_id && grant.version === view.version && grant.provider_id === view.provider.provider_id;
 
@@ -20,7 +20,7 @@ export async function readMcpActionAccess(home: string, host: MolisWorkLocalHost
     const grant = grants.find(row => same(row, view));
     const accepted = current.find(row => row.capability_id === view.capability_id && row.version === view.version && row.provider.provider_id === view.provider.provider_id);
     const changed = grant && (grant.permissions.length !== new Set(view.action.permissions).size || view.action.permissions.some(permission => !grant.permissions.includes(permission)));
-    const defaultOpen = !grant && view.provider.kind === "system" && !view.action.permissions.length;
+    const defaultOpen = !grant && openByDefault(view, caller);
     const status: McpAccessEntry["status"] = grant?.enabled && changed ? "stale" : grant && !grant.enabled ? "disabled"
       : grant?.enabled || defaultOpen ? accepted?.availability.available ? defaultOpen ? "public" : "enabled" : "unavailable" : "ungranted";
     const reason = status === "stale" ? "能力所需权限已变化，请查看新权限后重新授权。"

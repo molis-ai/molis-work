@@ -5,7 +5,7 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
-import { endingReviewReply } from "./ending-review.js";
+import { asideReply } from "./ending-review.js";
 
 /** Fixed model output; the Assistant, projection, HTTP, review and business effects remain real. */
 export async function assistantTextModel(t: TestContext, home: string, text: string) {
@@ -14,8 +14,8 @@ export async function assistantTextModel(t: TestContext, home: string, text: str
   let first = true, nextReview: string | null = null;
   const model = createServer(async (request, response) => {
     let raw = ""; for await (const chunk of request) raw += chunk;
-    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    // The ending review (D1②) and knowledge's background cards are answered aside: neither is held as the first reply nor spends a scripted turn.
+    const review = asideReply(raw);
     const title = review ? null : nextReview; if (!review) nextReview = null;
     const tool = title ? { name: "change-capability", input: { capability_id: "todo.items.create", version: 1, provider_id: "io.molis.work.todo", input: { title } } } : null;
     response.writeHead(200, { "content-type": "text/event-stream" });

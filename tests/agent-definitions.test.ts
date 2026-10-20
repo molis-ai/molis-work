@@ -13,6 +13,7 @@ import type { ContextualCandidate, SurfaceFocus } from "@molis-ai/molis-work-con
 import { ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { DEFAULT_JUDGMENT_WORDING, fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
 import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
+import { codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { AgentDefinitions, agentDefinitionsFor, agentRegistration } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
 import { builtinAgents, builtinRegistrations } from "../apps/local-host/dist/agent-definitions/builtin-agents.js";
 import { handleContextualHttp, judgmentWording, judgmentWordingRevision } from "../apps/local-host/dist/contextual/contextual-http.js";
@@ -226,7 +227,7 @@ test("a run starts with the person's version of a registered prompt, and its rec
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")) }, "web-user");
   try {
     const sent = await service.send({ text: "你好", request_id: "req-00000201" }, {});
@@ -260,7 +261,7 @@ test("the ending review runs with the person's version of its instructions, and 
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")) }, "web-user");
   try {
     const sent = await service.send({ text: "看看有哪些待办", request_id: "req-00000202" }, {});
@@ -274,4 +275,16 @@ test("the ending review runs with the person's version of its instructions, and 
     const session = await host.adapter("prologue").readSession({ session_id: store.get("web-user", sent.work.work_id).session_id! });
     assert.deepEqual(session.latest_run?.frozen.ending_review, { prompt_id: "assistant-ending-review", version: 1, user_revision: 1 });
   } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+});
+
+test("PMAT-25 PMAT-30 the Assistant's and Coding's base say once when to look in project knowledge, how to search step by step down to the original, and that a card is not the text", () => {
+  const assistant = ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === "assistant-base")!.body;
+  const coding = codingPrompts.find(prompt => prompt.prompt_id === "coding-base")!.body;
+  for (const [name, body] of Object.entries({ assistant, coding })) {
+    for (const title of ["列出项目资料", "查找项目资料", "查看资料结构", "读取资料原文", "在资料里逐行查找"]) assert.ok(body.includes(`「${title}」`), `${name}: ${title}`);
+    assert.match(body, /卡片[^。]*(只用来找|只是指路)/u, `${name}: a card points the way`);
+    assert.match(body, /原文/u);
+    assert.match(body, /行号/u, `${name}: a line found leads to where reading starts`);
+  }
+  for (const id of ["assistant-work", "assistant-delegated"]) assert.doesNotMatch(ASSISTANT_PROMPTS.find(prompt => prompt.prompt_id === id)!.body, /项目资料/u, "said once, in the base");
 });

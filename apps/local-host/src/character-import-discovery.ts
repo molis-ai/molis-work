@@ -2,13 +2,16 @@ import { installedPluginSkillRoots } from "./character-import-plugins.js";
 import { constants, accessSync, closeSync, existsSync, fstatSync, lstatSync, openSync, readFileSync, readdirSync, realpathSync, statSync } from "node:fs";
 import { delimiter, isAbsolute, join, relative, resolve, sep, basename, extname } from "node:path";
 import { randomUUID } from "node:crypto";
+import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CHARACTER_IMPORT_LIMITS as LIMITS, CHARACTER_IMPORT_RUNTIMES, parseCharacterImportSnapshot,
   type CharacterImportCandidate, type CharacterImportFile, type CharacterImportRule, type CharacterImportRuntimeId,
   type CharacterImportSkill, type CharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 
 export interface CharacterDiscoveryOptions { userHome: string; env?: NodeJS.ProcessEnv; now?: () => string }
 export interface CharacterDiscoveryInput { runtime_id?: CharacterImportRuntimeId; config_root?: string; project_root?: string }
-const LABELS = { codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build" };
+// The four Runtimes Molis also runs take their names from the shared table; Cursor is import-only, so its name stays here.
+const LABELS: Record<CharacterImportRuntimeId, string> = { codex: RUNTIME_DISPLAY_NAMES.codex, "claude-code": RUNTIME_DISPLAY_NAMES["claude-code"],
+  cursor: "Cursor", opencode: RUNTIME_DISPLAY_NAMES.opencode, "grok-build": RUNTIME_DISPLAY_NAMES["grok-build"] };
 const inside = (root: string, value: string) => { const part = relative(root, value); return !part || (!isAbsolute(part) && part !== ".." && !part.startsWith(`..${sep}`)); };
 const sensitive = (name: string) => /^(?:\.git|node_modules|outputs?|\.cache|__pycache__|\.pytest_cache|\.DS_Store|\.env(?:\..*)?|\.ssh|\.aws|\.gnupg|auth(?:\.(?!md$).*)?|credentials?(?:\.(?!md$).*)?|secrets?(?:\.(?!md$).*)?|tokens?(?:\.(?!md$).*)?|sessions?|history|logs?)$/i.test(name)
   || /\.(?:pem|key|p12|pfx|sqlite|sqlite3|db|log)$/i.test(name);

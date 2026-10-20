@@ -42,7 +42,7 @@ test("a reminder the person set is told once when it comes due, where to open it
     } }] });
   const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read"] };
   const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
-  const service = new AssistantService(store, { host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
     homeActions: async () => ({ discover: () => local.homeActionClient().discover(person), invoke: (action, input) => local.homeActionClient().invoke(person, action, input) }),
     timeZone: "Asia/Shanghai" }, "web-user", () => clock);
   try {

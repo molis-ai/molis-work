@@ -9,7 +9,7 @@ import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
-import { createPagesCommentHandlers, openPagesStore, pagesCommentActions, purgePagesProject } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesCommentHandlers, openPagesStore, ownPagesStores, pagesCommentActions, purgePagesProject } from "@molis-ai/molis-work-plugin-pages";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 const body = (marked: boolean): PagesBody => ({ type: "doc", content: [{ type: "paragraph", attrs: { note: "保留块备注" }, content: [{ type: "text", text: "可定位的原文", ...(marked ? { marks: [{ type: "comment", attrs: { id: "mark-1", text: "保留原批注" } }] } : {}) }] }] });
@@ -47,7 +47,7 @@ test("PAS-02 PAS-09: Pages persists scoped threads, preserves annotations and no
 test("PAS-08 PAS-10: real action dispatcher refuses forged authorship, wrong target, revoked permissions and expired delivery", async () => {
   const home = await mkdtemp(join(tmpdir(), "pages-comments-actions-")), store = openPagesStore(home);
   const service = new ActionService(new CapabilityRegistry<ActionCallContext>());
-  service.registerProvider({ provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" }, definitions: Object.values(pagesCommentActions), handlers: createPagesCommentHandlers(run => run(store)) });
+  service.registerProvider({ provider: { provider_id: "io.molis.work.pages", kind: "plugin", title: "Pages" }, definitions: Object.values(pagesCommentActions), handlers: createPagesCommentHandlers(ownPagesStores(run => run(store))) });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: ["pages:read", "pages:write"] };
   try {
     assert.deepEqual(inspectActionDeclarations(Object.values(pagesCommentActions), undefined), []);

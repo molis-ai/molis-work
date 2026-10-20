@@ -699,9 +699,9 @@ for (const [asset, old] of [
 test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-workbench.js": [1132516, 1134338],
-    "/assets/molis-work-workbench.css": [1604893, 1605511],
-    "/assets/molis-work-settings.css": [990668, 991286],
-    "/assets/molis-work-arrival.css": [700254, 700872],
+    "/assets/molis-work-workbench.css": [1604893, 1605339],
+    "/assets/molis-work-settings.css": [990668, 991114],
+    "/assets/molis-work-arrival.css": [700254, 700700],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

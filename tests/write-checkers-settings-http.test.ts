@@ -1,4 +1,4 @@
-// The after-write checkers in the project's settings (specs/prologue-adoption §6.0p.12): PA-40, PA-41, PA-42. The page's
+// The after-write checkers in the project's settings (specs/prologue-adoption §6.0p.13): PA-40, PA-41, PA-42. The page's
 // requests go through the public web server, with the same local control guard in front; what may be saved is the action's
 // to say (tests/coding-checkers-settings.test.ts), so here the route only has to carry it there and back unchanged.
 import assert from "node:assert/strict";
@@ -170,4 +170,15 @@ test("PA-42 the form becomes the contract's shape, and a row's button changes on
   const changed = { ...b, display_name: "改过" };
   assert.deepEqual(writeCheckersAfter([a, b, c], "b", changed), [a, changed, c]);
   assert.deepEqual(writeCheckersAfter([a, b], null, c), [a, b, c]);
+});
+
+test("PA-42 editing another field preserves literal quotes, backslashes, empty and spaced arguments without shell evaluation", () => {
+  const args = ['say "hello"', "C:\\tools\\checker", "", "two words", 'quote"only', "tail\\", "$(echo literal)", "{file}"];
+  const kept = { ...NODE, args, cwd: ".", timeout_ms: 2500 };
+  const fields = writeCheckerFieldsOf(kept);
+  assert.equal(fields.args, String.raw`"say \"hello\"" "C:\\tools\\checker" "" "two words" "quote\"only" "tail\\" "$(echo literal)" {file}`);
+  assert.deepEqual(writeCheckerFromFields({ ...fields, display_name: "Changed name" }, [], kept.checker_id),
+    { ...kept, display_name: "Changed name" });
+  assert.deepEqual(writeCheckerFromFields({ ...fields, args: String.raw`"C:\tools\checker" "a\"b" "one\\two" "" {file}` }, [], kept.checker_id).args,
+    ["C:\\tools\\checker", 'a"b', "one\\two", "", "{file}"], "only escaped quotes and backslashes are decoded inside groups");
 });

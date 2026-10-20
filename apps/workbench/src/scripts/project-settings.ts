@@ -1,6 +1,6 @@
 /**
  * Project operations initialize independently of the Runtime settings dialog. The after-write checkers below the workspaces
- * (specs/prologue-adoption §6.0p.12) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
+ * (specs/prologue-adoption §6.0p.13) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
  * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets.
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `

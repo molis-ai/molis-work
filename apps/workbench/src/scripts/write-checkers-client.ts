@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 /**
- * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.12): the browser program, a page global
+ * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.13): the browser program, a page global
  * `molisWorkWriteCheckers = (host) => { … }` that the workspaces script calls with `{ section, prefix, load }` when it is there.
  * Its code is the type-checked TypeScript in src/browser/write-checkers.ts, bundled by esbuild into dist/write-checkers-client.js
  * when the package builds (its banner and footer make the constant). Only the two places that draw the workspaces section load it,

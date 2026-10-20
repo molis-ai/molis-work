@@ -3,7 +3,7 @@ import { escapeHtml, renderAlertDialog, renderButton, renderDialog, renderField,
 type Say = (text: string) => string;
 
 /**
- * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.12): the host writes every sentence of this part of
+ * The after-write checkers below the workspaces (specs/prologue-adoption §6.0p.13): the host writes every sentence of this part of
  * the page, in the page's language, so the page program (src/browser/write-checkers.ts) carries none. What it shows more than once
  * is a `<template>` with `{name}` slots: it clones one and fills the slots with `textContent`, and a part that only applies
  * sometimes has `data-if`. The two dialogs are the catalog's own (`renderDialog`, `renderAlertDialog`); deleting asks in the
@@ -25,7 +25,7 @@ export function renderWriteCheckersSection(L: Say): string {
 
   const group = `<template data-wc="group"><div>
       <div class="settings-setting-row"><div class="settings-record-title"><div><h3>{folder}</h3><p data-if="saved">${L("第 {version} 版")}</p><p data-if="unsaved">${L("还没有保存过")}</p></div></div>${act("add", L("添加检查器"), L("添加检查器（{folder}）"))}</div>
-      <p class="mw-field__hint" data-if="empty">${L("这个目录没有写后检查，写入后显示「未检查」。")}</p>
+      <p class="mw-field__hint" data-if="empty">${L("这个目录还没有配置写后检查器。")}</p>
     </div></template>`;
   const row = `<template data-wc="row"><div class="settings-setting-row">
       <span class="setting-copy"><strong>{name}</strong><code>{command}</code><span>${L("适用 {extensions} · 目录 {cwd} · 时限 {seconds} 秒")}</span></span>
@@ -41,7 +41,7 @@ export function renderWriteCheckersSection(L: Say): string {
     body: [
       field(L("名称"), undefined, { name: "display_name", required: true, attrs: { maxlength: 80, autocomplete: "off", autofocus: true } }),
       field(L("程序名"), L("只写程序名，不带路径。"), { name: "executable", required: true, placeholder: "node", attrs: { maxlength: 255, ...text } }),
-      field(L("参数"), L("用空格分开，带空格的参数加双引号；写入的文件写成单独一项 {file}。"), { name: "args", required: true, placeholder: "--check {file}", attrs: text }),
+      field(L("参数"), L("用空格分开，带空格的参数加双引号；引号内用 \\\" 和 \\\\ 表示双引号和反斜杠。写入的文件写成单独一项 {file}。"), { name: "args", required: true, placeholder: "--check {file}", attrs: text }),
       field(L("适用的扩展名"), L("用空格或逗号分开。"), { name: "applies_to", required: true, placeholder: ".js .mjs", attrs: text }),
       field(L("运行目录"), L("工作区根下的相对路径，空着就是根。"), { name: "cwd", placeholder: ".", attrs: text }),
       field(L("时限（秒）"), L("1 到 60 秒，空着是 30 秒。"), { name: "timeout_seconds", type: "number", placeholder: "30", attrs: { min: 1, max: 60, step: "0.001" } }),

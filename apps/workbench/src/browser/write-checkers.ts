@@ -10,7 +10,7 @@ type Kept = AgentWriteCheckerList;
 type Checker = Kept["checkers"][number];
 
 /**
- * What the workspaces section hands the after-write checkers (specs/prologue-adoption §6.0p.12): its own part of the page and the
+ * What the workspaces section hands the after-write checkers (specs/prologue-adoption §6.0p.13): its own part of the page and the
  * project's route prefix. The program sets `load`, which the section calls with the folders it has just read.
  */
 export interface WriteCheckersHost {
@@ -77,10 +77,10 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
     }));
     status.textContent = lists.length ? "" : say.none;
   };
-  const read = async (): Promise<boolean> => {
+  const read = async (failure: HTMLElement = status): Promise<boolean> => {
     status.textContent = say.loading;
     try { lists = (await call<{ lists: Kept[] }>()).lists; render(); return true; }
-    catch (caught) { list.replaceChildren(); molisWorkRequest.show(status, caught); return false; }
+    catch (caught) { status.textContent = ""; molisWorkRequest.show(failure, caught); return false; }
   };
   const save = async (kept: Kept, checkers: AgentWriteChecker[], target: HTMLElement): Promise<boolean> => {
     lock(true);
@@ -92,7 +92,7 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
     } catch (caught) {
       // The stale-version note replaces the failure only once the groups were read again; if that fails too, its own failure stands.
       molisWorkRequest.show(target, caught);
-      if ((caught as { code?: unknown } | null)?.code === "actions.conflict" && await read()) target.textContent = say.stale;
+      if ((caught as { code?: unknown } | null)?.code === "actions.conflict" && await read(target)) target.textContent = say.stale;
       target.hidden = false;
       return false;
     } finally { lock(false); }

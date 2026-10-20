@@ -1,6 +1,6 @@
 import type { AgentWriteChecker } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-// The after-write checkers in the project's settings, next to the workspaces (specs/prologue-adoption §6.0p.12). The page
+// The after-write checkers in the project's settings, next to the workspaces (specs/prologue-adoption §6.0p.13). The page
 // reads and saves them through the person's own two actions; the page program (src/browser/write-checkers.ts, bundled into the
 // settings script) shapes what it sends with the three functions below, and the tests read them from the package's entry.
 
@@ -26,7 +26,8 @@ export function writeCheckerFromFields(fields: WriteCheckerFields, taken: readon
     id = base;
     for (let n = 2; taken.includes(id); n++) id = base + "-" + n;
   }
-  const args = [...String(fields.args).matchAll(/"([^"]*)"|(\S+)/g)].map(match => match[1] ?? match[2] ?? "");
+  const args = [...String(fields.args).matchAll(/"((?:\\.|[^"\\])*)"|(\S+)/g)]
+    .map(match => match[1] === undefined ? match[2] ?? "" : match[1].replace(/\\(["\\])/g, "$1"));
   const extensions = String(fields.applies_to).split(/[\s,，、]+/).filter(Boolean).map(extension => extension.startsWith(".") ? extension : "." + extension);
   const cwd = String(fields.cwd).trim();
   const seconds = String(fields.timeout_seconds).trim();
@@ -34,9 +35,9 @@ export function writeCheckerFromFields(fields: WriteCheckerFields, taken: readon
     applies_to: [...new Set(extensions)], ...(cwd ? { cwd } : {}), ...(seconds ? { timeout_ms: Math.round(Number(seconds) * 1000) } : {}) };
 }
 
-/** A kept checker back in the editor's fields: an empty argument or one with a space is quoted, so it reads back as one. */
+/** Quote empty arguments and those with whitespace, quotes or backslashes; only quotes/backslashes are escaped. No shell evaluation. */
 export function writeCheckerFieldsOf(checker: Required<AgentWriteChecker>): WriteCheckerFields {
-  const word = (arg: string) => arg === "" || /\s/.test(arg) ? "\"" + arg + "\"" : arg;
+  const word = (arg: string) => arg === "" || /[\s"\\]/.test(arg) ? "\"" + arg.replace(/["\\]/g, "\\$&") + "\"" : arg;
   return { display_name: checker.display_name, executable: checker.executable, args: checker.args.map(word).join(" "),
     applies_to: checker.applies_to.join(" "), cwd: checker.cwd, timeout_seconds: String(checker.timeout_ms / 1000) };
 }

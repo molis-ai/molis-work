@@ -24,7 +24,7 @@ async function listen(t: TestContext, route: (path: string) => { status?: number
   return { hits, port: (server.address() as AddressInfo).port };
 }
 
-test("S-43 a plugin that did not declare materials:fetch_local has no local-page method, and one that declared only materials:fetch still reads public addresses only", { timeout: 60_000 }, async t => {
+test("S-44 a plugin that did not declare materials:fetch_local has no local-page method, and one that declared only materials:fetch still reads public addresses only", { timeout: 60_000 }, async t => {
   const none = localOriginalProbe("localnone", { permissions: [] }), fetchOnly = localOriginalProbe("localfetchonly", { permissions: ["materials:fetch"] });
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [none.definition, fetchOnly.definition] } });
   await grantLocalOriginal(host, none); await grantLocalOriginal(host, fetchOnly);
@@ -40,7 +40,7 @@ test("S-43 a plugin that did not declare materials:fetch_local has no local-page
   assert.deepEqual(page.hits, [], "nothing reached the local server");
 });
 
-test("S-43 a plugin that declared materials:fetch_local but was not granted it is refused before any request", { timeout: 60_000 }, async t => {
+test("S-44 a plugin that declared materials:fetch_local but was not granted it is refused before any request", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("localungranted"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   const { platform, install } = await grantLocalOriginal(host, probe), page = await listen(t);
   const url = `http://127.0.0.1:${page.port}/page`;
@@ -53,7 +53,7 @@ test("S-43 a plugin that declared materials:fetch_local but was not granted it i
   assert.equal(page.hits.length, 1, "revoked: no second request");
 });
 
-test("S-43 only plain http to 127.0.0.1, [::1] or localhost without credentials is a local page; every other address is refused before anything is sent", { timeout: 60_000 }, async t => {
+test("S-44 only plain http to 127.0.0.1, [::1] or localhost without credentials is a local page; every other address is refused before anything is sent", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("localrange"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantLocalOriginal(host, probe);
   const page = await listen(t), caller = person(probe.permissions);
@@ -75,7 +75,7 @@ test("S-43 only plain http to 127.0.0.1, [::1] or localhost without credentials 
   assert.equal(page.hits.length, 2);
 });
 
-test("S-43 the Host's own port is refused under every loopback spelling, while another local port is read", { timeout: 60_000 }, async t => {
+test("S-44 the Host's own port is refused under every loopback spelling, while another local port is read", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("localown"), { host, origin } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantLocalOriginal(host, probe);
   const own = new URL(origin).port, page = await listen(t), caller = person(probe.permissions);
@@ -89,7 +89,7 @@ test("S-43 the Host's own port is refused under every loopback spelling, while a
   assert.equal(((await host.homeActionClient().invoke(caller, probe.local, { url: `http://127.0.0.1:${page.port}/page` })) as { text: string }).text.includes("只在本机提供"), true);
 });
 
-test("S-43 a Host port stops being the Host's when its server closes, and a port two owners hold is kept until both release", () => {
+test("S-44 a Host port stops being the Host's when its server closes, and a port two owners hold is kept until both release", () => {
   const port = 61_234 + (process.pid % 1000);
   assert.equal(isHostEndpointPort(port), false);
   const first = trackHostPort(port), second = trackHostPort(port);
@@ -101,7 +101,7 @@ test("S-43 a Host port stops being the Host's when its server closes, and a port
   for (const bad of [0, -1, 70_000, 1.5, Number.NaN]) { trackHostPort(bad)(); assert.equal(isHostEndpointPort(bad), false); }
 });
 
-test("S-43 the debugging port of a browser the Host started is the Host's own until that process exits", { timeout: 30_000 }, async t => {
+test("S-44 the debugging port of a browser the Host started is the Host's own until that process exits", { timeout: 30_000 }, async t => {
   const port = 62_345 + (process.pid % 1000);
   const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore" });
   t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill(); });
@@ -114,7 +114,7 @@ test("S-43 the debugging port of a browser the Host started is the Host's own un
   assert.equal(isHostEndpointPort(port), false, "a process that already exited holds no port");
 });
 
-test("S-43 a redirect from a local page is held to the same rules, so a page cannot lead the reader anywhere else", { timeout: 60_000 }, async t => {
+test("S-44 a redirect from a local page is held to the same rules, so a page cannot lead the reader anywhere else", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("localredirect"), { host, origin } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantLocalOriginal(host, probe);
   const target = await listen(t), own = new URL(origin).port;
@@ -134,7 +134,7 @@ test("S-43 a redirect from a local page is held to the same rules, so a page can
   assert.deepEqual(target.hits, [], "no redirect reached a server the rules refuse");
 });
 
-test("S-43 localhost is connected only at loopback addresses its resolver returns, and any other answer refuses the page", async t => {
+test("S-44 localhost is connected only at loopback addresses its resolver returns, and any other answer refuses the page", async t => {
   const page = await listen(t), url = `http://localhost:${page.port}/page`;
   for (const answers of [[{ address: "192.168.1.9", family: 4 }], [{ address: "127.0.0.1", family: 4 }, { address: "10.1.2.3", family: 4 }], [{ address: "::ffff:127.0.0.1", family: 6 }], [{ address: "localhost", family: 4 }], []]) {
     await assert.rejects(readMaterialLocalPage(url, { lookup: async () => answers }), { code: "material.local_page.not_local" }, JSON.stringify(answers));
@@ -145,7 +145,7 @@ test("S-43 localhost is connected only at loopback addresses its resolver return
   assert.ok(read.text.includes("只在本机提供")); assert.equal(page.hits.length, 1);
 });
 
-test("S-43 a cancelled call, or one the Runtime stops at the last check, sends nothing to the local server", async t => {
+test("S-44 a cancelled call, or one the Runtime stops at the last check, sends nothing to the local server", async t => {
   const page = await listen(t), url = `http://127.0.0.1:${page.port}/page`, aborted = new AbortController();
   aborted.abort();
   await assert.rejects(readMaterialLocalPage(url, { signal: aborted.signal }), { name: "AbortError" });

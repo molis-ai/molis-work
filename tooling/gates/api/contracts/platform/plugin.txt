@@ -400,6 +400,7 @@ export interface ActionCallContext extends ActionCallOrigin {
         readonly provenance: "host_snapshot" | "client_reported";
     };
     readonly audit_actor_id?: string;
+    readonly delegated_by?: string;
     readonly runtime_session_id?: string;
     readonly runtime_session_missing?: true;
     readonly actor_kind?: "user" | "runtime" | null;
@@ -468,7 +469,9 @@ export interface ActionErrorOptions {
 
 export interface ActionExecutionContext extends ActionCallContext {
     readonly beforeEffect: () => Promise<void>;
-    readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+    readonly retainAuthority?: (references: readonly ActionReference[], options?: {
+        readonly audience?: "workflow";
+    }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
 
@@ -2406,6 +2409,12 @@ export interface PlacementResult {
 
 export interface PluginActionClient extends BoundActionClient {
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
+    readonly directory?: PluginActionDirectory;
+}
+
+export interface PluginActionDirectory {
+    discover(): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]>;
+    invoke<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
 }
 
 export interface PluginAppContribution {

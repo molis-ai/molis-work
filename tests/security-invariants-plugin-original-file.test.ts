@@ -43,7 +43,7 @@ async function serve(t: TestContext, probes: Probe[]) {
   return { ...env, files, file, read, installId: (probe: Probe) => env.host.homePlugins!.installation(probe.id)!.install_id };
 }
 
-test("S-44 a plugin that did not declare materials:original has no original-file methods, and one that declared it but was not granted it is refused", { timeout: 60_000 }, async t => {
+test("S-45 a plugin that did not declare materials:original has no original-file methods, and one that declared it but was not granted it is refused", { timeout: 60_000 }, async t => {
   const none = localOriginalProbe("origonone", { permissions: [] }), fetchOnly = localOriginalProbe("origfetchonly", { permissions: ["materials:fetch"] }), probe = localOriginalProbe("origungranted");
   const env = await serve(t, [none, fetchOnly, probe]), file = env.file("a.txt", "granted bytes");
   assert.equal(none.contexts.at(-1)!.services!.materials, undefined);
@@ -64,7 +64,7 @@ test("S-44 a plugin that did not declare materials:original has no original-file
   await assert.rejects(env.read(probe, "other"), { code: "material.original.not_registered" }, "the refused import registered nothing");
 });
 
-test("S-44 only the Host's entry can offer a file: nothing a plugin, an input or another audience names becomes a path", { timeout: 60_000 }, async t => {
+test("S-45 only the Host's entry can offer a file: nothing a plugin, an input or another audience names becomes a path", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origforge"), env = await serve(t, [probe]), file = env.file("secret.txt", "not offered"), encoded = encodeURIComponent(file);
   const notRegistered = async (key: string) => assert.rejects(env.read(probe, key), { code: "material.original.not_registered" }, key);
   const refusals: Array<[string, Promise<{ body: { code?: string } }>]> = [
@@ -92,7 +92,7 @@ test("S-44 only the Host's entry can offer a file: nothing a plugin, an input or
   await notRegistered("direct");
 });
 
-test("S-44 the file the Host's entry was given is kept for this installation and the plugin's own key, and read back as the same bytes", { timeout: 60_000 }, async t => {
+test("S-45 the file the Host's entry was given is kept for this installation and the plugin's own key, and read back as the same bytes", { timeout: 60_000 }, async t => {
   const one = localOriginalProbe("origone"), two = localOriginalProbe("origtwo"), env = await serve(t, [one, two]);
   const mine = env.file("mine.txt", "第一份原始文件"), theirs = env.file("theirs.txt", "second plugin's file");
   assert.deepEqual(await importFile(env, one, "doc", mine), { status: 200, body: { claimed: "doc" } });
@@ -114,7 +114,7 @@ test("S-44 the file the Host's entry was given is kept for this installation and
   assert.equal((await env.read(two, "doc")).text, "second plugin's file");
 });
 
-test("S-44 a project-level plugin's registrations stay in their project: the same installation and key in another project read nothing, and deleting the project forgets them, not the file", { timeout: 60_000 }, async t => {
+test("S-45 a project-level plugin's registrations stay in their project: the same installation and key in another project read nothing, and deleting the project forgets them, not the file", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origprojects", { required: true }), env = await serveHomeRuntime(t, { pluginFixtures: { project: [probe.definition] } });
   const a = await env.project("原始文件 A"), b = await env.project("原始文件 B");
   const files = realpathSync(mkdtempSync(join(tmpdir(), "originals-")));
@@ -153,7 +153,7 @@ test("S-44 a project-level plugin's registrations stay in their project: the sam
   assert.equal(readFileSync(inA, "utf8"), "A 项目导入的文件");
 });
 
-test("S-44 reading re-resolves the path first: a symlink put in its place, a moved folder, a removed file and a folder are all refused, and nothing is listed or written", { timeout: 60_000 }, async t => {
+test("S-45 reading re-resolves the path first: a symlink put in its place, a moved folder, a removed file and a folder are all refused, and nothing is listed or written", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origswap"), env = await serve(t, [probe]);
   const secret = env.file("secret/secret.txt", "someone else's secret"), lookalike = env.file("secret/inner.txt", "a file of the same name elsewhere");
   const cases: Array<[string, string, () => void, string]> = [];
@@ -189,7 +189,7 @@ test("S-44 reading re-resolves the path first: a symlink put in its place, a mov
   assert.equal((await env.read(probe, "small", 10)).text, "0123456789");
 });
 
-test("S-44 a file offered through a symlink is kept as the real file it leads to, so moving the link later changes nothing", { timeout: 60_000 }, async t => {
+test("S-45 a file offered through a symlink is kept as the real file it leads to, so moving the link later changes nothing", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origlink"), env = await serve(t, [probe]);
   const target = env.file("real/target.txt", "the real file"), elsewhere = env.file("real/elsewhere.txt", "somewhere else"), link = join(env.files, "link.txt");
   symlinkSync(target, link);
@@ -201,7 +201,7 @@ test("S-44 a file offered through a symlink is kept as the real file it leads to
   for (const key of ["missing", "folder"]) await assert.rejects(env.read(probe, key), { code: "material.original.not_registered" }, key);
 });
 
-test("S-44 a call the Runtime cancels, revokes or stops before the write registers or releases nothing", { timeout: 60_000 }, async t => {
+test("S-45 a call the Runtime cancels, revokes or stops before the write registers or releases nothing", { timeout: 60_000 }, async t => {
   const probe = localOriginalProbe("origcancel"), env = await serve(t, [probe]), file = env.file("a.txt", "kept");
   const key = { plugin_id: probe.id, install_id: env.installId(probe), project_id: null, record_key: "doc" };
   const stopped = () => Promise.reject(Object.assign(new Error("revoked"), { code: "actions.forbidden" }));

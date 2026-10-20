@@ -28,6 +28,8 @@ export interface ActionCallRecord {
   refused?: true;
   /** Called through the Host's typed port, with no action behind it. */
   path?: "typed";
+  /** The plugin (Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`); `actor_id` stays the original caller. */
+  delegated_by?: string;
   /** Identical consecutive outcomes (a page polling the same command) are one entry: how many, and the latest time. */
   count?: number;
   last_at?: string;
@@ -51,7 +53,7 @@ const OPERATIONS: readonly string[] = ["command", "query", "unknown"];
 /** A client asking for ids that do not exist is one entry whatever it asked for; any other repeat needs the same call. */
 const unknownId = (row: ActionCallRecord) => row.refused === true && row.code === "actions.missing";
 const sameCall = (a: ActionCallRecord, b: ActionCallRecord) => a.actor_id === b.actor_id && a.audience === b.audience && a.project_id === b.project_id
-  && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.path === b.path
+  && a.ok === b.ok && a.code === b.code && a.refused === b.refused && a.path === b.path && a.delegated_by === b.delegated_by
   && (unknownId(a) && unknownId(b) || a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id && a.operation === b.operation && a.message === b.message);
 const lastDistinct = (ids: readonly string[], id: string) => [...ids.filter(other => other !== id), id].slice(-FOLDED);
 /**
@@ -116,7 +118,7 @@ export class ActionCallLog {
       provider_title: action.provider_title, title: action.title, actor_id: caller.actor_id, audience: caller.audience ?? "user", project_id: caller.project_id ?? null,
       ok: outcome.ok, ...(outcome.ok ? {} : { ...(outcome.code ? { code: outcome.code } : {}), ...(outcome.refused ? { refused: true as const } : {}),
         ...(operation === "command" && !outcome.refused ? { message: reasonOf(outcome) } : {}) }),
-      ...(action.path ? { path: action.path } : {}) });
+      ...(action.path ? { path: action.path } : {}), ...(caller.delegated_by ? { delegated_by: caller.delegated_by } : {}) });
     // Only now that the row is in the file may the operation that is waiting for its answer show its number to a person.
     if (currentCallId() === caller.call_id) markCallRecorded();
   }

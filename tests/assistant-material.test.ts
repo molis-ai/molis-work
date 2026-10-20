@@ -30,7 +30,7 @@ test("new material that shares a Goal with a live work raises one merged notice;
   const person: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: [] };
   let clock = new Date("2026-09-29T09:00:00.000Z");
   const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
-  const service = new AssistantService(store, { host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }) }, "web-user", () => clock);
   const item = (id: string, title: string, at: string, goalIds: string[]): HomeEvent & { goal_ids: string[] } => ({ event_id: `feed:${id}`, subject: { kind: "feed_item", id }, occurred_at: at,
     placement: "occurred", category: "personal", title, summary: "", content: "", facts: [], needs_attention: false, open: null, goal_ids: goalIds });

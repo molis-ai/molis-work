@@ -80,9 +80,21 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/**
+ * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
+ * Both calls run as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
+ * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-43).
+ */
+export interface PluginActionDirectory {
+  discover(): Promise<readonly import("./actions.js").ActionView[]>;
+  invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+}
+
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+  /** Present only when the Manifest declares `actions:delegate`; every call also needs the installation's grant. */
+  readonly directory?: PluginActionDirectory;
 }
 
 export interface PluginHostServices {

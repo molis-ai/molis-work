@@ -291,8 +291,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     for (const node of preview.querySelectorAll("[data-shelf-read]")) {
       const item = itemById(node.dataset.shelfRead);
       if (!item || textCache.has(item.item_id)) continue;
-      readFullText(item).then(text => {
-        // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
+      readFullText(item).then(text => { // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
         if (node.isConnected && text !== item.preview_text) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
       }).catch(error => {
         if (error.name !== "AbortError" && node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }

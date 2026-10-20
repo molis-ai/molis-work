@@ -719,7 +719,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 VUX-09 the Coding MCP tools allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1146308, 1146456],
+    "/assets/molis-work-workbench.js": [1146308, 1146460],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

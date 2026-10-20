@@ -236,12 +236,13 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): 连接与工具 lists a Coding work's own MCP
-// tools (VUX-08/09): the ones chosen for its session, by server, and the ones its server cannot serve now with why. +148 B
-// of workbench.js: the English for the six reasons the Host gives and the Coding card's two lines (the old line went).
+// tools (VUX-08/09): the ones chosen for its session, by server, and the ones its server cannot serve now with why. +152 B
+// of workbench.js: the English for the six reasons the Host gives and the Coding card's two lines (the old line went); after
+// review the page translates a reason (+4 B), so the Host's few-second read holds no language.
 // Tried first: the Coding card reuses the provider list the Assistant already draws, no new card or style. Spent once
 // from exactly the 用量 slice's budget (#874).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1146308, 1146456],
+  "/assets/molis-work-workbench.js": [1146308, 1146460],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

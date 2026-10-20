@@ -249,11 +249,13 @@ const headErrors = (measured, budget, base) => {
 // - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
 //   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
 //   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
+// - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
+//   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1129525, 1132686],
-  "/assets/molis-work-workbench.css": [1603154, 1604893],
-  "/assets/molis-work-settings.css": [988933, 990668],
-  "/assets/molis-work-arrival.css": [698519, 700254],
+  "/assets/molis-work-workbench.css": [1603154, 1604785],
+  "/assets/molis-work-settings.css": [988933, 990560],
+  "/assets/molis-work-arrival.css": [698519, 700146],
   "/assets/molis-work-pages-editor.js": [706933, 707336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -2073,3 +2073,17 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 浏览器例外到此用完，其他浏览器验证照旧暂停。
   - 后续：`tests/assistant-dock-ime.e2e.test.ts` 也带 `nativeVirtualKeyCode 229/13`，macOS 上可能有同样的问题。① 请 ⑤ 记成 BL-39x。
 - **06:33 UTC ② 开了 L1a，是 #857**（head `7ca40f1c3`，从 main `d3318c37a` 开），已交 ⑤：插件可以在 Manifest 里声明 `databases.project`，SDK 检查声明的形状。对 merge-base 跑的健康门禁、boundary、secrets、文档门禁都过了，CI 还在跑。合同修复是 #855，⑤ 已审可合，进 batch-1020-3，排在 #848 之后。② 下一片是 L1b，和 ③ 的 S8 同批。
+
+- **07:23 UTC 合并加速**（用户问「有什么办法可以让 PR 合并再加速一下的吗？」）。
+  - 数据：
+    - batch-1020-2 从 04:08 起全量连红 9 次。每次只报一个文件，而且一次一个不同：e2e、context-pick-result、contextual-pages-goals、contextual-todo、assistant-undo-refresh、cognia-actions、agent-run-session，最新一次 39380838890 是 issue-reorganize 的 ISSUE-49，多半是 #819。原因是 fail-fast 加 `--bail`，修一个跑一次。
+    - 合并队列不是瓶颈：一次最多建 5 个、合 5 个，merge_group 的中位耗时 6 分钟。
+    - 仓库是公开的，Actions 不另花钱。
+  - ① 定、已交 ⑤ 和 ⑩ 照做，四条：
+    1. 按 PARALLEL-DEVELOPMENT §6 分流：只改文档、只改测试、只动一两个包又不碰共享核心的，Verify 加相关用例过了就用 merge-only 直接入队，不进批次。
+    2. 红了就把对应的 PR 摘出批次，其余的马上重跑。
+    3. 拆成两三个互不相干的小批并行跑。
+    4. ⑤ 守批次，⑩ 查根因。
+  - 用户批了两项 CI 改动：集成分支上关掉 fail-fast 和 `--bail`；集成分支的 max-parallel 从 6 提到 10。
+    - ① 在分支 `ci/integration-full-suite-all-failures` 上改好了：工作树 `.claude/worktrees/ci-full-suite`，提交是 `full-suite.yml`、PARALLEL-DEVELOPMENT §7、spec §1 决策表加的一行。
+    - 推送被 GitHub 拒了：gh 的令牌没有 `workflow` 权限。等用户跑 `gh auth refresh -h github.com -s workflow`，跑完再推、开 PR 交 ⑤。

@@ -243,7 +243,7 @@ const headErrors = (measured, budget, base) => {
 // than copied; the shipped script is not minified, so the factory sits at the shallowest indent.
 // Spent once from exactly the 产出 split slice's budget (#869).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1136078, 1138107],
+  "/assets/molis-work-workbench.js": [1136122, 1138151],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

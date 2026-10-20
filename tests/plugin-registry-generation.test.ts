@@ -12,7 +12,8 @@ import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 // W5-02 (specs/repository-anti-corruption/privileges.md PG-065): each built-in plugin writes its catalog entry in its own
 // src/registration.ts, and scripts/generate-plugin-registry.mjs writes apps/workbench/src/builtin-plugins.ts from them. These
 // tests drive the generator's pure functions on the repository's own tree with one file changed at a time, and the built
-// catalog's load-time check (apps/workbench/src/plugin-catalog.ts) on mutated copies of the built catalog.
+// catalog's validator on mutated copies. Isolated child processes also load the real public workbench entry with bad
+// catalogs supplied at the module loader boundary, proving that module initialization itself refuses them.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const tracked = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
@@ -144,6 +145,39 @@ test("W5-02-REG-02: the built catalog has no repeated key, Manifest id or positi
     ["dangling clientUses", without(coding.workbench.clientUses![0]!), new RegExp(`${coding.project_plugin_id} names ${coding.workbench.clientUses![0]} in workbench.clientUses, which is not in the catalog`)],
   ];
   for (const [label, catalog, expected] of cases) assert.match(catalogProblems(catalog).join("\n"), expected, label);
+});
+
+test("W5-02-REG-02: loading the workbench rejects an invalid catalog before the module becomes available", () => {
+  const runner = `
+    import { registerHooks } from "node:module";
+    const target = new URL("./builtin-plugins.js", import.meta.resolve("@molis-ai/molis-work-app-workbench")).href;
+    registerHooks({ load(url, context, nextLoad) {
+      const loaded = nextLoad(url, context);
+      if (url !== target || process.argv[1] === "valid") return loaded;
+      const source = typeof loaded.source === "string" ? loaded.source : new TextDecoder().decode(loaded.source);
+      const mutation = process.argv[1] === "duplicate"
+        ? "BUILTIN_PLUGIN_CATALOG.push({ ...BUILTIN_PLUGIN_CATALOG[0] });"
+        : 'BUILTIN_PLUGIN_CATALOG.splice(0, 1, { ...BUILTIN_PLUGIN_CATALOG[0], companions: ["missing-catalog-dependency"] });';
+      return { ...loaded, source: source + "\\n" + mutation };
+    } });
+    await import("@molis-ai/molis-work-app-workbench");
+    process.stdout.write("workbench loaded");
+  `;
+  const load = (mode: string) => spawnSync(process.execPath, ["--input-type=module", "--eval", runner, mode], {
+    cwd: root, encoding: "utf8", timeout: 30_000,
+  });
+  const valid = load("valid");
+  assert.equal(valid.status, 0, valid.stderr);
+  assert.equal(valid.stdout, "workbench loaded");
+  for (const [mode, expected] of [
+    ["duplicate", /Built-in plugin catalog: two plugins have the project key /],
+    ["dangling", /Built-in plugin catalog: .* names missing-catalog-dependency in companions, which is not in the catalog/],
+  ] as const) {
+    const invalid = load(mode);
+    assert.equal(invalid.status, 1, invalid.stderr);
+    assert.match(invalid.stderr, expected);
+    assert.equal(invalid.stdout, "", "the public module must not finish loading");
+  }
 });
 
 test("W5-02-REG-03: a new plugin is its own package; the generator lists it and nothing else changes by hand", () => {

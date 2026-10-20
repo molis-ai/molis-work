@@ -106,7 +106,11 @@ export interface PluginHostServices {
   readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. 2026-10-18 改: by Manifest declaration (PG-022). */
+  /**
+   * Plugin-owned SQLite, only for trusted Host entries declaring a database. A Home entry's library may be partitioned by project
+   * (`HomePluginDatabaseDeclaration.partition`): then each call reaches the library of the project it runs in. 2026-10-18 改: by
+   * Manifest declaration (PG-022).
+   */
   readonly database?: import("./plugin-database.js").PluginDatabase;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;

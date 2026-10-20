@@ -235,19 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): streamed text (VUX-14/15). +2386 B of
-// workbench.js: the design system's one `molisStreamText` (about 2.1 KB minified) that keeps a reply's unchanged nodes and
-// eases in only its newly written words, and the Assistant switching to it; +255 B of coding.js for Coding's turns doing the
-// same and enriching only new code blocks; +465 B of arrival.css and settings.css, +337 B of workbench.css for `.mw-fresh`,
-// its keyframes, reduced motion and the two reveal tokens. Tried first: the tokens are defined once in the palette, not again
-// in craft-finish; the stylesheet saves 128 B in workbench.css by dropping three plugins' stray blurs from `creative-arrive`;
-// the helper has no options beyond `reveal`. Spent once from exactly the tab drag slice's budget (#886).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the review fixes of slice 19
+// (VUX-26/27/19). +244 B of workbench.js: the overflow fade's sensor finds a strip a page draws after load (one document
+// observer) and the workspace's container tabs carry the marker; +27 B of coding.js for keeping the part being read in place
+// on a redraw while detached (the earlier-pages compensation it replaces is removed); +19 B of workflows.js for marking the
+// chain. Tried first: the chain's fixed mask and Pages' own copy timer are deleted (workbench.css −63 B, pages editor −30 B).
+// Spent once from exactly the streamed-text slice's budget (#888).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1154165, 1156551],
-  "/assets/molis-work-plugins/coding.js": [372984, 373239],
-  "/assets/molis-work-arrival.css": [701433, 701898],
-  "/assets/molis-work-settings.css": [991201, 991666],
-  "/assets/molis-work-workbench.css": [1607426, 1607763],
+  "/assets/molis-work-workbench.js": [1156551, 1156795],
+  "/assets/molis-work-plugins/coding.js": [373239, 373266],
+  "/assets/molis-work-plugins/workflows.js": [82533, 82552],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -716,18 +716,17 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-20): the remaining copy buttons and conversations take the shared mechanisms; each
-// asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
-// the new baseline still fails.
-test("VUX-32 the media zoom allowance is bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = {
-    "/assets/molis-work-workbench.js": [1146460, 1150236],
-    "/assets/molis-work-workbench.css": [1605610, 1606072],
-    "/assets/molis-work-settings.css": [991385, 991847],
-    "/assets/molis-work-arrival.css": [700971, 701433],
-    "/assets/molis-work-plugins/issues.js": [26331, 26861],
-  } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
+// specs/visual-ui-experience (2026-10-20): each slice's growth is admitted once, from exactly the merge-base budget to the
+// measured size. The allowance is read from the gate as it stands, so the test follows the slice that wrote it rather than
+// naming one slice's numbers. One byte more, another asset, or growth from the new baseline still fails.
+const currentCeilings = () => {
+  const block = /const APPROVED_CEILINGS = \{([\s\S]*?)\};/.exec(readFileSync(script, "utf8"))?.[1] ?? "";
+  return Object.fromEntries([...block.matchAll(/"([^"]+)":\s*\[(\d+),\s*(\d+)\]/g)].map(([, asset, start, ceiling]) => [asset, [Number(start), Number(ceiling)]])) as Record<string, [number, number]>;
+};
+test("VUX the current one-time allowance is bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = currentCeilings();
+  const assets = Object.keys(allowed);
+  assert.ok(assets.length > 0 || !/APPROVED_CEILINGS = \{\s*\S/.test(readFileSync(script, "utf8")), "every entry in the gate's allowance is read");
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "vux-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
@@ -741,7 +740,7 @@ test("VUX-32 the media zoom allowance is bounded and spent once; other assets an
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured media zoom size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured sizes"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

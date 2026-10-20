@@ -762,4 +762,4 @@ const runtimeFailureCodes = {
   "plugin.upgrade_rollback_failed": true
 } as const;
 
-export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate } from "./materials-service.js";
+export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";

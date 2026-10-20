@@ -9,6 +9,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/browser";
 import { CdpConnection, type CdpParams } from "./cdp.js";
 import { locateBrowser, type LocatedBrowser } from "./locate.js";
+import { trackHostChildEndpoint } from "../host-endpoints.js";
 
 /**
  * The side panel's browser (specs/archive/side-panel D03/D04): one Chrome-family process per Home, started on first use with
@@ -174,6 +175,7 @@ export class BrowserHost {
         ? browserErrors.profile_in_use("浏览器资料正被另一个进程使用。请关闭另一个 Molis Work 窗口后重试。")
         : browserErrors.start_failed(`${located.name} 启动后立刻退出了`)));
     });
+    trackHostChildEndpoint(endpoint, child);
     const cdp = await CdpConnection.open(endpoint);
     const running: Running = { child, cdp, engine: located.name, downloads: this.downloadDir };
     child.stderr!.removeAllListeners("data");

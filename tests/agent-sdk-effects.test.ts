@@ -5,13 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
-import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
@@ -256,13 +257,13 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     const home = await mkdtemp(join(tmpdir(), "switch-then-revoke-")); await writeFile(join(home, "note.txt"), "A real bounded read before finishing.");
     const network = Promise.withResolvers<void>(), response = Promise.withResolvers<void>();
     const requests: Array<{ endpoint: string; model: string }> = [];
-    let active = true, characterAvailable = true;
+    let characterAvailable = true;
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.switch-revoke-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"),
       modelConfiguration: async selection => selection?.model_id === "peer"
         ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.2/v1/messages", model: "B", credential_ref: "B" }
         : { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "START", credential_ref: "START" },
       resolveCredential: async () => "fixture-only" });
-    const owner = { project_id: "project", plugin_id: "io.molis.work.coding", install_id: "install", actor_id: "person" }, directory = { canonical_path: home, realpath_verified: true };
+    const directory = { canonical_path: home, realpath_verified: true };
     const character = { reference: { artifact_id: "character:project:verifier", version: 1 }, character_id: "verifier", title: "Verifier", instructions: "Verify before answering.",
       host_tools: null, source: { owner_actor_id: "person", draft_revision: 1 }, project_id: "project", content_digest: "verifier-digest",
       producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.0.0", binding_signature: "fixture" }, published_at: "2026-10-15T00:00:00Z" };
@@ -274,23 +275,27 @@ for (const invalidation of ["plugin-stopped", "character-disabled"] as const)
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } });
     registerAgentHostCapabilities<null>({ register: (definition, handler) => local.register(definition, handler) }, { agentHost: () => host, projectId: () => "project",
       authority: () => ({ manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [home], resolveCharacter }) });
-    const client = local.client({ project_id: "project", storage_key: join(home, "project.db") });
-    // The plugin instance that started the round; the real one throws this once the instance stops (plugin-host-services.ts).
-    const plugin_caller = { ...owner, declaration: { manifest: codingAgentManifest }, assertActive: () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); } };
+    const reference = { project_id: "project", storage_key: join(home, "project.db") }, client = local.client(reference);
+    // The plugin instance that starts the round, started by the Host for the person: its calls present the caller the Host issued
+    // its session (S-15), and that caller refuses once the instance stops (plugin-host-services.ts).
+    const store = new LocalProjectDatabase(join(home, "plugins.db")), probe = registerProbe(local.actionRegistry(reference), "project");
+    const starter = callerPlugin("switcher", "project"), started = await startPlugin(local, reference, store, starter, { actorId: "person" });
+    const plugin_caller = await issuedCaller(probe, starter, reference.project_id);
+    const owner = { project_id: "project", plugin_id: plugin_caller.plugin_id, install_id: plugin_caller.install_id, actor_id: "person" };
     t.mock.method(globalThis, "fetch", async (url: string | URL | Request, init: RequestInit) => {
       const payload = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
       requests.push({ endpoint: new Request(url).url, model: JSON.parse(payload).model });
       if (requests.length === 1) { network.resolve(); await response.promise; return switchReadResponse(); }
       return cogniaModelResponse("Finished with B, which must not happen.");
     });
-    t.after(async () => { response.resolve(); await local.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+    t.after(async () => { response.resolve(); await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
     const session = await client.invoke(agent.createSession, ["prologue", { ...owner, directory, title: "Switch then revoke" }], { plugin_caller });
     const handle = await client.invoke(agent.startRun, ["prologue", { ...owner, session, directory, role_id: "reader", task: "Read note.txt, then answer.",
       ...(invalidation === "character-disabled" ? { character: character.reference } : {}) }], { plugin_caller });
     await network.promise;
     await client.invoke(agent.controlRun, [session, handle.ref, { kind: "switch-model", provider_id: "fixture", model_id: "peer" }], { plugin_caller });
     assert.equal((await adapter.read(handle.ref)).model_switch?.requested, "B", "the SDK accepted the switch for the next model call");
-    if (invalidation === "plugin-stopped") active = false; else characterAvailable = false;
+    if (invalidation === "plugin-stopped") await started.runtime.stop(started.install_id); else characterAvailable = false;
     response.resolve();
     const deadline = Date.now() + 20_000;
     let view;

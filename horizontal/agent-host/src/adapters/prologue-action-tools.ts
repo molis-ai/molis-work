@@ -5,6 +5,7 @@ import { ActionError, actionEffect, type ActionView, type ExactActionReference }
 import type { AgentFrozenRole, AgentRunOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { capabilityInput, GATEWAY_TOOLS, offerWords } from "./prologue-action-gateway.js";
 import { actionDigest } from "../action-digest.js";
+import { afterWriteTool } from "./prologue-after-write.js";
 
 export const agentActionToolName = (ref: ExactActionReference, scope: string) => "molis-action-" + scope + "-" + createHash("sha256")
   .update(JSON.stringify([ref.capability_id, ref.version, ref.provider_id])).digest("hex").slice(0, 24);
@@ -67,11 +68,13 @@ export function prologueActionTools(actions: AgentFrozenRole["actions"], timeout
   });
   if (suggest && tools.length) contributions.push(suggestTool(actions!, new Map(contributions.map((row, index) => [row.registration.name, tools[index]!])), scope, executors, runSignal));
   const names = contributions.map(item => item.registration.name);
+  // Every round's pack also carries its after-write check, answered only where the round provides the executor; never offered to the model.
+  const check = afterWriteTool(scope);
   const pack: ScenarioPack = { id: "molis-actions-" + scope,
     version: "1.0.0", source: { kind: "app-embedded" }, needs: { hostCapabilities: [], executors: names },
-    permissions: { tools: names, network: [], paths: [] }, memory: { scope: "session", write: "deny" },
+    permissions: { tools: [...names, check.registration.name], network: [], paths: [] }, memory: { scope: "session", write: "deny" },
     roster: [{ role: "action-user", skills: [], writes: contributions.some(row => row.registration.effectKind !== "safe-read") }],
-    planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: contributions };
+    planning: { plannedBy: "action-user", planFirst: false }, config: {}, tools: [...contributions, check] };
   return { pack, executors, names, scope };
 }
 

@@ -16,6 +16,7 @@ import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCal
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /**
  * The ten writes that used to have a typed management door of their own. They are registered actions now, and a management caller
@@ -124,14 +125,19 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
   const home = await mkdtemp(join(tmpdir(), "goal-management-plugin-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Plugin", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const writer = callerPlugin("goalwriter", "project", { "goals:read": true, "goals:write": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition] } });
   const typed = host.client(ref), project_id = project.project_id, goal_id = "PLUGIN-GOAL";
   const management = managementGoals(host.actionClient(ref), project_id);
   const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
-  const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
-    plugin_caller: { plugin_id: "io.molis.work.test.goal-writer", install_id: "install-1", actor_id, project_id,
-      declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
   try {
+    await host.withProject(ref, () => undefined);
+    // The caller the Host issued the writer plugin's session; a plugin's call presents it, and only it.
+    const probe = registerProbe(host.actionRegistry(ref), "project");
+    await startProjectPlugins(host, ref);
+    const issued = await issuedCaller(probe, writer, project_id);
+    const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", before_effect: async () => {}, plugin_caller: issued };
+    const forged: HostPluginCaller = { ...issued, assertActive: () => {} };
     await management.invoke(goalsActions.create, { goal_id, title: "插件", outcome: "不能冒充本机这个人", idempotency_key: "create" });
     const before = await management.invoke(goalsActions.snapshot, {});
     const descriptors = RETIRED_GOALS_ENTRIES.map(([capability_id, operation]) => ({ capability_id, version: 1, operation }) as HostCapabilityDefinition<unknown, unknown>);
@@ -149,7 +155,7 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
       assert.equal(rows.length, 1, "the refused call has one findable diagnostic row");
       assert.deepEqual([rows[0]!.code, rows[0]!.refused, rows[0]!.path, rows[0]!.message], ["actions.dependency_missing", true, "typed", undefined]);
       await assert.rejects(sdk.invoke(descriptor, input), { code: "actions.dependency_missing" }, descriptor.capability_id);
-      await assert.rejects(typed.invoke(descriptor, input, asPlugin("plugin-person")), { code: "actions.dependency_missing" }, descriptor.capability_id);
+      await assert.rejects(typed.invoke(descriptor, input, asPlugin), { code: "actions.dependency_missing" }, descriptor.capability_id);
     }
     assert.deepEqual(await management.invoke(goalsActions.snapshot, {}), before, "retired entries write no Goal, active selection or proposal");
     assert.deepEqual(Object.values(goalsPlugin).filter(value => value && typeof value === "object" && "capability_id" in value
@@ -157,23 +163,26 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
     const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
     await assert.rejects(second(), { code: "goals.not_found" }, "the retired create entry left no record");
 
-    // Reversible create/note preserve the actual plugin actor; protected decisions keep their separate guards.
-    const pluginCaller = { actor_id: "plugin-person", audience: "plugin" as const, project_id, permissions: ["goals:read", "goals:write"] };
+    // Reversible create/note record the plugin's actual caller, the person its session runs for; an identity in the input is refused.
+    const pluginCaller = callAs(issued, ["goals:read", "goals:write"]);
     await host.actionClient(ref).invoke(pluginCaller, goalsActions.create,
       { goal_id: "PLUGIN-SECOND", title: "再一个", idempotency_key: "plugin-intent" });
     assert.equal((await second()).goal_id, "PLUGIN-SECOND");
     const pluginCreated = await management.invoke(goalsActions.events, { goal_id: "PLUGIN-SECOND" });
-    assert.equal(pluginCreated.events[0]!.actor_id, "plugin-person", "reversible create records the real caller");
+    assert.equal(pluginCreated.events[0]!.actor_id, issued.actor_id, "reversible create records the real caller");
     await assert.rejects(host.actionClient(ref).invoke(pluginCaller, goalsActions.note,
       { goal_id, body: "伪造写作者", idempotency_key: "forged-plugin-note", actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     const pluginNote = await host.actionClient(ref).invoke(pluginCaller, goalsActions.note, { goal_id, body: "插件写的便笺", idempotency_key: "plugin-note" });
-    assert.equal((await event(pluginNote.event_id)).actor_id, "plugin-person");
+    assert.equal((await event(pluginNote.event_id)).actor_id, issued.actor_id);
     const noted = await management.invoke(goalsActions.note, { goal_id, body: "本机这个人写的便笺", idempotency_key: "note" });
     assert.equal((await event(noted.event_id)).actor_id, LOCAL_PERSON_ACTOR_ID);
     const cursor = (await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor;
-    await assert.rejects(host.actionClient(ref).invoke({ ...pluginCaller, actor_kind: "user", plugin_install_id: "install-1", host_plugin: asPlugin("plugin-person").plugin_caller },
-      goalPluginActions.progress, { goal_id, based_on_cursor: cursor, summary: "伪造内置身份", idempotency_key: "plugin-progress" }), { code: "goals.builtin_plugin_required" });
+    await assert.rejects(host.actionClient(ref).invoke({ ...pluginCaller, host_plugin: forged },
+      goalPluginActions.progress, { goal_id, based_on_cursor: cursor, summary: "伪造的插件身份", idempotency_key: "plugin-progress" }), { code: "host.plugin_caller_invalid" });
     assert.equal((await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor, cursor);
+    // PG-006: the progress record is not kept for a list of builtin plugins; a plugin that holds goals:write records it as itself.
+    const recorded = await host.actionClient(ref).invoke(pluginCaller, goalPluginActions.progress, { goal_id, based_on_cursor: cursor, summary: "插件记下的进展", idempotency_key: "plugin-progress" });
+    assert.equal(recorded.progress_summary.actor_id, issued.actor_id);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
@@ -461,18 +470,23 @@ test("a structure proposal written through the management door records the perso
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("structure submit takes a plugin's own action identity and refuses a claimed local person", async () => {
+test("structure submit takes a plugin's own action identity and refuses an identity claimed in its input", async () => {
   const home = await mkdtemp(join(tmpdir(), "goal-management-entries-plugin-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const project_id = project.project_id, caller = { actor_id: "plugin-person", project_id, audience: "plugin" as const, permissions: ["goals:read", "goals:write"] };
-  const actions = host.actionClient(ref), proposal = proposalEntry("plugin-submit");
+  const writer = callerPlugin("goalproposer", "project", { "goals:read": true, "goals:write": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition] } });
+  const project_id = project.project_id, actions = host.actionClient(ref), proposal = proposalEntry("plugin-submit");
   try {
+    await host.withProject(ref, () => undefined);
+    const probe = registerProbe(host.actionRegistry(ref), "project");
+    await startProjectPlugins(host, ref);
+    const issued = await issuedCaller(probe, writer, project_id);
+    const caller = callAs(issued, ["goals:read", "goals:write"]);
     await assert.rejects(actions.invoke(caller, goalsActions.treeSubmit, { ...proposal, actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     assert.deepEqual((await actions.invoke(caller, goalsActions.treeRead, {})).proposals, []);
     const saved = await actions.invoke(caller, goalsActions.treeSubmit, proposal);
-    assert.equal(saved.proposal.submitted_by, "plugin-person");
+    assert.equal(saved.proposal.submitted_by, issued.actor_id);
     assert.equal(saved.proposal.submitted_session_id, null);
     assert.equal((await actions.invoke(caller, goalsActions.treeRead, { proposal_id: saved.proposal.proposal_id })).proposals[0]?.proposal_id, saved.proposal.proposal_id);
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }

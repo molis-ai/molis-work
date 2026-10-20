@@ -1,8 +1,8 @@
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 
-/** Plugin code can edit its view without changing the Runtime's original authority or cancellation signal. */
+/** Plugin code receives no Host-issued identity and can edit its view without changing the Runtime's original controls. */
 export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C {
-  return { ...caller, permissions: [...caller.permissions],
+  const view = { ...caller, permissions: [...caller.permissions],
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(reference => ({ ...reference })) } : {}),
     ...(caller.signal ? { signal: AbortSignal.any([caller.signal]) } : {}),
@@ -11,4 +11,6 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
     ...(caller.scene_binding ? { scene_binding: { ...caller.scene_binding } } : {}),
     ...(caller.assistant_reply ? { assistant_reply: structuredClone(caller.assistant_reply) } : {}),
   };
+  Reflect.deleteProperty(view, "host_plugin");
+  return view;
 }

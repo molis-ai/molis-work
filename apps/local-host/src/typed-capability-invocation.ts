@@ -1,3 +1,4 @@
+import { requireIssuedPluginCaller } from "./plugin-callers.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostCapabilityDescriptor, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindCall, type CapabilityRegistry } from "@molis-ai/molis-work-kernel";
@@ -44,8 +45,7 @@ export function typedCapabilityInvocation(caller: ActionCallContext, definition:
 /** Bind typed origin and narrowing before opening a project or dispatching; caller options never become business input. */
 export function typedCapabilityCaller(projectId: string, signalFor: () => { signal?: AbortSignal }, options?: HostCapabilityCallOptions) {
   const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal, plugin = options?.plugin_caller;
-  if (plugin && plugin.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "插件调用不属于当前项目");
-  plugin?.assertActive();
+  if (plugin) requireIssuedPluginCaller(plugin, projectId);
   return bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: projectId, audience: plugin ? "plugin" : "user", permissions: [],
     ...(options?.query_only ? { query_only: true as const } : {}), ...signalFor(),
     ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),

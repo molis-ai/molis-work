@@ -22,7 +22,9 @@ const FILE = "{file}";
  * They are copied here, so a checker that could never run is refused when it is saved, not after each review:
  * - `prepareCommand` (`workspace/core/mutate-command`): no whitespace or shell character in the executable;
  * - the Host's `runCommand` (`host/plugin/node-processes`): a bare name, never a path, and never one of its `NEVER_RUN`;
- * - `normalizeRelativePath` (`host/core/workspace-path`): the directory trimmed, inside the root, not in `PROTECTED_SEGMENTS`.
+ * - `normalizeRelativePath` (`host/core/workspace-path`): the directory trimmed, inside the root, not in `PROTECTED_SEGMENTS`,
+ *   and written the way it gives it back: no trailing `/`, and `./` is `.`. It is kept in that form, since the executor
+ *   compares it with the written path as it is kept, and a `src/` would never match a file.
  */
 const NOT_A_NAME = /[\s;&|><$`\\/]/;
 const NEVER_RUN = ["rm", "rmdir", "mkfs", "dd", "shutdown", "reboot", "sudo", "su", "chown", "chmod"];
@@ -42,8 +44,11 @@ function checkedChecker(checker: AgentWriteChecker): Required<AgentWriteChecker>
   // The SDK trims the directory, then refuses one that starts with a drive and a separator (`C:/`, `C:\`), exactly that:
   // kept with spaces around it, it would run somewhere other than it says; on a drive, not at all. Both are checked on the
   // normalized value, the one that is kept, since normalizing can bring either to an end (`./ /etc`, `./C:/x`).
-  const cwd = posix.normalize(checker.cwd ?? ".");
-  if (cwd !== cwd.trim() || /^[A-Za-z]:[\\/]/.test(cwd)) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
+  // The trailing separator is dropped as the SDK does (`src/` is `src`, `./` is `.`): after the drive is looked at, since `C:/`
+  // is one and `C:` is not, and before the rest, so `src /` is caught as spaces at an end and a bare `/` stays absolute.
+  const normalized = posix.normalize(checker.cwd ?? ".");
+  const cwd = normalized.length > 1 && normalized.endsWith("/") ? normalized.slice(0, -1) : normalized;
+  if (cwd !== cwd.trim() || /^[A-Za-z]:[\\/]/.test(normalized)) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
   if (posix.isAbsolute(cwd) || cwd === ".." || cwd.startsWith("../") || cwd.includes("\\")) throw invalid(checker, "的工作目录要写成工作区根下的相对路径");
   if (cwd.split("/").some(segment => PROTECTED.includes(segment))) throw invalid(checker, "的工作目录不能在 .git、node_modules 或 .prologue 里");
   return { ...checker, args: [...checker.args], applies_to: [...checker.applies_to], cwd, timeout_ms: checker.timeout_ms ?? 30_000 };

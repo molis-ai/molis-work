@@ -9,12 +9,12 @@ import test, { type TestContext } from "node:test";
 import {
   MolisWorkLocalHost, composeAgentHost, connectorSetupAction, connectorSetupExecuteAction, withConnectorConnections,
 } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { promptLayerOf } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import {
-  agentHostCapabilities, agentOfferActions, type AgentActionClient, type AgentRunHandle, type AgentRunOffer, type AgentRunRef, type AgentRunView, type AgentSessionRef,
-  type AgentSessionView, type AgentStartRequest,
+  agentHostCapabilities, agentOfferActions, type AgentActionClient, type AgentOfferRunRequest, type AgentRunHandle, type AgentRunOffer, type AgentRunRef, type AgentRunView,
+  type AgentSessionRef, type AgentSessionView, type AgentStartRequest,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { actionDigest, emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
@@ -22,7 +22,6 @@ import { revokeMcpAction } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
 
-const CODING = "io.molis.work.coding";
 const RUNTIME = "probe";
 /** The grant's client id: what the Host calls the Runtime. Constant across rounds and sessions; the session is a separate fact. */
 const CLIENT = `agent:${RUNTIME}`;
@@ -37,12 +36,31 @@ type Submitted = { proposal: { proposal_id: string; submitted_by: string; submit
 type Proposals = { proposals: Array<{ proposal_id: string }> };
 
 /**
- * A Host assembled the way the product assembles it, with one project and a Runtime of our own. The Runtime keeps what the Host handed
- * it (`rounds`) and answers `readSession` with whatever `answer` says, so a test can make its record disagree with the start request.
+ * The plugin whose sessions these are: one the Host starts like any other, with a writing role of its own. Its page starts the rounds
+ * and runs their suggestions through its own SDK, so each of its calls carries the caller the Host issued its session, the only one
+ * a plugin's call is accepted with (S-15).
+ */
+function sessionKeeper() {
+  const contexts: PluginStartContext[] = [];
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.round-sessions", version: "1.0.0",
+    name: "Round sessions", kind: "app", publisher: { publisher_id: "example", signature: "round-sessions" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
+    permissions: [], capabilities: { provides: [], consumes: [agentHostCapabilities.startRun.capability_id, agentHostCapabilities.listActions.capability_id, agentOfferActions.run.capability_id] },
+    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    agent: { roles: [{ role_id: "builder", version: 1, execution: "workspace-write", prompts: ["builder"], host_tools: [] }], prompts: [{ prompt_id: "builder", version: 1 }] } },
+    agent_prompts: [{ prompt_id: "builder", version: 1, body: "Work in the project's workspace.", layer: "role" }],
+    async start(context) { contexts.push(context); return { kind: "app" }; } };
+  return { definition, contexts };
+}
+
+/**
+ * A Host assembled the way the product assembles it, with one project, the plugin whose sessions these are, and a Runtime of our own.
+ * The Runtime keeps what the Host handed it (`rounds`) and answers `readSession` with whatever `answer` says, so a test can make its
+ * record disagree with the start request.
  */
 async function world(t: TestContext) {
   const home = await realpath(await mkdtemp(join(tmpdir(), "agent-run-session-")));
-  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const keeper = sessionKeeper();
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [keeper.definition] } });
   let served: TestHostServer | undefined;
   t.after(async () => {
     try { await served?.close(); }
@@ -61,7 +79,13 @@ async function world(t: TestContext) {
   const rounds: Array<{ session_id: string; tools: AgentActionClient }> = [];
   /** Each round the Runtime started, with the suggestions its model made: what `read` answers for `agent.offers.run`. */
   const held: Array<{ ref: AgentRunRef; frozen: AgentRunHandle["frozen"]; offers: AgentRunOffer[] }> = [];
-  const owner = { project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user" };
+  // The project's plugins start when its actions are first looked at, as the workbench does when the person opens the project.
+  await localHost.inspectActions({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] }, project.reference);
+  const plugin = keeper.contexts.at(-1);
+  assert.ok(plugin?.actor_id, "the plugin whose sessions these are has started");
+  const capabilities = plugin.services?.capabilities, actions = plugin.services?.actions;
+  assert.ok(capabilities && actions, "it reaches the Agent Host and the action directory through its own SDK");
+  const owner = { project_id: project.project_id, plugin_id: plugin.plugin_id, install_id: plugin.install_id, actor_id: plugin.actor_id };
   const answer: { read: (session: AgentSessionRef) => AgentSessionView } = {
     read: session => ({ session, owner, title: "Read", runs: [], latest_run: null }) };
   composition.agentHost.register({
@@ -98,32 +122,29 @@ async function world(t: TestContext) {
     assert.ok(row, `${capability_id} was granted to ${CLIENT}`);
     return { capability_id, version: row.version, provider_id: row.provider_id };
   };
-  const client = localHost.client(project.reference);
-  /** `agent.run.start` as a plugin's page or round sends it, in the given session of the given plugin; `extra` is whatever else a body could carry. */
-  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => client.invoke(agentHostCapabilities.startRun, [RUNTIME, {
-    project_id: project.project_id, plugin_id: CODING, install_id: "coding", actor_id: "user", session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
+  /** `agent.run.start` as the plugin's page sends it, in the given session of that plugin; `extra` is whatever else a body could carry. */
+  const start = (sessionId: string, tools: readonly string[], extra: Record<string, unknown> = {}) => capabilities.invoke(agentHostCapabilities.startRun, [RUNTIME, {
+    ...owner, session: { runtime_id: RUNTIME, session_id: sessionId }, task: "读取项目", role_id: "builder",
     directory: { canonical_path: home, realpath_verified: true }, action_tools: tools.map(reference), ...extra } as AgentStartRequest]);
   const tools = [note.capability_id, goalsActions.treeSubmit.capability_id, goalsActions.treeRead.capability_id];
   const submit = (round: AgentActionClient, key: string, item = key) => round.invoke(reference(goalsActions.treeSubmit.capability_id), proposal(key, item)) as Promise<Submitted>;
   const proposals = async (round: AgentActionClient) => ((await round.invoke(reference(goalsActions.treeRead.capability_id), {})) as Proposals).proposals;
-  // A person clicks a suggestion of a round, through the plugin that keeps its card (`agent.offers.run`, for plugins only).
-  const plugin: HostPluginCaller = { plugin_id: CODING, install_id: "coding", actor_id: "user", project_id: project.project_id,
-    declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} };
   /** The Runtime keeps the sessions it started, each with the rounds it ran, as its own record. */
   const holding = (session: AgentSessionRef): AgentSessionView => ({ session, owner, title: "Held", latest_run: null,
     runs: held.filter(entry => entry.ref.session_id === session.session_id).map(entry => entry.ref) });
   /** The latest round's model suggests an action, with its contract as the Host reads it now; the input is the person's at the click. */
   const suggest = async (offer_id: string, capability_id: string) => {
     const round = held[held.length - 1]!, ref = reference(capability_id);
-    const view = (await client.invoke(agentHostCapabilities.listActions, [RUNTIME, CODING])).find(row =>
+    const view = (await capabilities.invoke(agentHostCapabilities.listActions, [RUNTIME, owner.plugin_id])).find(row =>
       row.capability_id === ref.capability_id && row.version === ref.version && row.provider.provider_id === ref.provider_id);
     assert.ok(view, `${capability_id} is offered to the round`);
     round.offers.push({ offer_id, offered_at: "2026-10-20T08:00:00.000Z", title: view.action.title, summary: view.action.description, reference: ref, input: {}, action_digest: actionDigest(view) });
     return { run: round.ref, offer_id, reference: ref };
   };
+  // A person clicks a suggestion of a round, through the plugin that keeps its card (`agent.offers.run`, for plugins only).
   const click = (offered: { run: AgentRunRef; offer_id: string; reference: ExactActionReference }, input: unknown, extra: Record<string, unknown> = {}) =>
-    client.invoke(agentOfferActions.run, { runtime_id: RUNTIME, session_id: offered.run.session_id, run_id: offered.run.run_id, offer_id: offered.offer_id,
-      reference: offered.reference, input, ...extra }, { consumer: "plugin", plugin_caller: plugin, before_effect: async () => {} });
+    actions.invoke(agentOfferActions.run, { runtime_id: RUNTIME, session_id: offered.run.session_id, run_id: offered.run.run_id, offer_id: offered.offer_id,
+      reference: offered.reference, input, ...extra } as AgentOfferRunRequest);
   return { home, served, project, answer, owner, handled, rounds, reference, start, tools, submit, proposals, last: () => rounds[rounds.length - 1]!.tools, holding, suggest, click };
 }
 

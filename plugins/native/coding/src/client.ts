@@ -298,33 +298,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     returnToTask:returnFromChange,onRunOpen:()=>{changeItem='';reportItem='';renderArtifacts();},
     appendDraft:task=>draft.append(current,text=>{const next=text.endsWith(task)?text:(text?text+'\\n\\n':'')+task;if(next.length>100000)throw new Error('意见与现有草稿合计过长，请减少意见或先处理现有草稿；意见仍然保留。');return next;},'会话还在读取，请稍后再交回意见；意见仍然保留。'),
     focusDraft:()=>{returnFromChange();input.focus();status('行级意见已加入原任务草稿；请确认执行方式后发送。');}});
-  const materialKey = ref => ref.artifact_id+'@'+ref.version;
-  let materialRows=[], materialTicket=0;
+  // Materials are picked in the one picker of project knowledge (specs/project-knowledge PMAT-17); the page holds it, this
+  // surface asks for it and keeps the whole choice it hears back for the session that asked.
+  let materialTicket=0;
   const openMaterials = async () => {
     const id=current,ticket=++materialTicket;
-    q('[data-coding-material-error]').textContent='';
-    q('[data-coding-material-list]').textContent='正在读取固定材料…';
-    q('[data-coding-material-save]').disabled=true;
-    q('[data-coding-material-dialog]').showModal();
-    try {
-      await draft.flush();
-      const data=await api(sessionPath(id)+'/materials');
-      if(current!==id || ticket!==materialTicket) return;
-      materialRows=data.materials;
-      const selected=new Set((materialSelections.get(id) || []).map(materialKey));
-      const list=q('[data-coding-material-list]');list.replaceChildren();
-      for(const [index,item] of materialRows.entries()) {
-        const row=make('section'),label=make('label'),box=make('input'),name=make('span');
-        row.className='coding-material';label.className='mw-check-row';box.className='mw-check';box.type='checkbox';box.dataset.materialIndex=String(index);
-        box.checked=selected.has(materialKey(item.reference));box.disabled=Boolean(item.error && !box.checked);
-        name.textContent=item.title+' · v'+item.reference.version+' · '+item.source;label.append(box,name);row.append(label);
-        if(item.error){const error=make('p');error.textContent=item.error;row.append(error);}
-        else {const detail=make('details'),summary=make('summary'),body=make('pre');summary.textContent='查看固定正文 · '+item.text.length+' 字符';body.textContent=item.text;detail.append(summary,body);row.append(detail);}
-        list.append(row);
-      }
-      if(!materialRows.length)list.textContent='还没有固定材料。先在左侧「文件」保存快照或选区、打开 Git 差异，或在 Shelf 将文字保存到项目材料，再回来选择。';
-      q('[data-coding-material-save]').disabled=false;
-    } catch(error){if(!lifetime.alive)return;if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
+    if(document.documentElement.dataset.knowledgePicker!=='1'){status('这里打不开项目资料的选择，请在工作台里打开 Coding 再选。',true);return;}
+    try{await draft.flush();}catch(error){if(lifetime.alive)status(error.message,true);return;}
+    if(current!==id || ticket!==materialTicket)return;
+    document.dispatchEvent(new CustomEvent('molis-work:knowledge-pick',{detail:{request_id:'coding:'+id+':'+ticket,selected:structuredClone(materialSelections.get(id) || []),max:30}}));
   };
   const contextLabel=(selector,label,count=0)=>{const button=q(selector);button.querySelector('[data-slot=button-label]').textContent=label;button.title=label;button.dataset.count=count ? String(count) : '';button.setAttribute('aria-label',label);};
   const controls = () => {
@@ -344,7 +326,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     q('[data-coding-rename]').hidden = !current;
     q('[data-coding-archive]').hidden = !current;
     for(const name of choosers)q('[data-coding-'+name+'-open]').disabled=input.disabled;
-    const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','材料'+(materialCount?' · '+materialCount:''),materialCount);
+    const materialCount=(materialSelections.get(current) || []).length;contextLabel('[data-coding-material-open]','项目资料'+(materialCount?' · '+materialCount:''),materialCount);
     const character=characterSelections.get(current);
     contextLabel('[data-coding-character-open]',character?'角色 · v'+character.version:'角色',character?1:0);
     q('[data-coding-character-open]').title=character?'下一轮：'+(characterTitles.get(current) || character.artifact_id)+' · v'+character.version:'下一轮不使用 Character';
@@ -940,7 +922,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if((f.mcp_sources || []).length) values.push(['本轮 MCP 资料',f.mcp_sources.map(source=>(source.server_label || source.server)+' · 配置 '+source.configuration_version).join('、')]); else unused.push('MCP 资料来源');
       const character=f.character;
       if(character) values.push(['本轮 Character',character.title+' · v'+character.reference.version],['本轮内置工具',f.host_tools?.join('、') || '不使用内置工具']); else unused.push('Character');
-      if(f.text_materials.length) values.push(['本轮固定材料',f.text_materials.map(material=>(material.title || material.source_artifact_id)+' · v'+material.source_version).join('、')]); else unused.push('固定材料');
+      if(f.text_materials.length) values.push(['本轮项目资料',f.text_materials.map(material=>material.title || material.source_artifact_id).join('、')]); else unused.push('项目资料');
       if(f.compaction) values.push(['上下文整理','自动 · 估计超过 '+f.compaction.above_tokens+' tokens 时选择较早原文 · v'+f.compaction.version]);
       if(!lastRun.usage.compaction && lastRun.activity.some(item=>item.name==='上下文整理')) values.push(['用量范围','以上仅主执行；上下文整理的额外模型请求尚未计入此小计。']);
       const phaseLabel=phases[lastRun.phase]||lastRun.phase,tone=lastRun.phase==='completed'?'done':lastRun.phase==='failed'?'failed':terminal(lastRun.phase)?'idle':'live';
@@ -1148,7 +1130,8 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(changeReview.active())changeReview.close();q('[data-coding-outcome-list]').replaceChildren();q('[data-coding-outcomes]').hidden=true;
     // A choice open in a dialog belongs to the session it was opened on: switching closes it unsaved.
     materialTicket++;goalTicket++;goalReading++;methodDocumentTicket++;
-    for(const name of choosers)q('[data-coding-'+name+'-dialog]').close();
+    // Materials are picked in the page's one knowledge picker, not a dialog here: the ticket above drops its answer.
+    for(const name of choosers)if(name!=='material')q('[data-coding-'+name+'-dialog]').close();
     closeReport();
     if(current) { offsets.set(current,turns.scrollTop); void draft.flush().catch(error=>status(error.message,true)); }
     void showReviews(q('[data-coding-host-reviews]'), []);
@@ -1320,7 +1303,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         // Git would otherwise stay on another directory, where this message does not belong: say so rather than claim it is there.
         status(pointed?note:'Git 面板没能切到这一轮的工作目录'+(ownWorkspace?'「'+ownWorkspace.display_name+'」':'')+'，提交说明还没有放进去：请在项目设置的工作目录里选中它，再点一次「提交这些改动…」。',failed || !pointed);
       }
-      if(target.matches('[data-coding-material-close]')) {materialTicket++;q('[data-coding-material-dialog]').close();input.focus();}
       if(target.matches('[data-coding-method-open]')) openMethods();
       if(target.matches('[data-coding-method-close]')) {methodDocumentTicket++;q('[data-coding-method-dialog]').close();input.focus();}
       if(target.matches('[data-coding-search-toggle]')){const query=directory.querySelector('[data-coding-query]');query.hidden=!query.hidden;target.setAttribute('aria-expanded',String(!query.hidden));if(!query.hidden)directory.querySelector('[data-coding-search]').focus();}
@@ -1422,16 +1404,15 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     }catch(error){if(!lifetime.alive)return;if(progressView===view)q('[data-coding-progress-status]').textContent=error.message+'。内容已保留；可重新读取目标和原回执后确认。';}
     finally{progressSaving=false;if(progressView===view)renderProgress();}
   });
-  lifetime.listen(q('[data-coding-material-form]'),'submit',async event=>{
-    event.preventDefault();const id=current,ticket=materialTicket,button=q('[data-coding-material-save]');button.disabled=true;
-    const selection=[...q('[data-coding-material-list]').querySelectorAll('input:checked')].map(box=>materialRows[Number(box.dataset.materialIndex)].reference);
-    try {
+  lifetime.listen(document,'molis-work:knowledge-picked',async event=>{
+    const [owner,id,ticket]=String(event.detail?.request_id || '').split(':');
+    if(owner!=='coding' || id!==current || Number(ticket)!==materialTicket)return;
+    const selection=(event.detail.picks || []).map(pick=>({kind:pick.kind,id:pick.id,title:pick.title}));
+    try{
       await draft.save(id,input.value,{materials:selection});materialSelections.set(id,selection);
-      if(current===id && ticket===materialTicket){q('[data-coding-material-dialog]').close();controls();input.focus();status('固定材料已保存，仅用于下一轮；本轮执行与补充要求保持原材料。');}
-    } catch(error){if(!lifetime.alive)return;if(current===id && ticket===materialTicket)q('[data-coding-material-error]').textContent=error.message;}
-    finally{if(ticket===materialTicket)button.disabled=false;}
+      if(current===id){controls();input.focus();status(selection.length?'已选 '+selection.length+' 份项目资料，用于下一轮；正在进行的这一轮保持原材料。':'已清空下一轮的项目资料。');}
+    }catch(error){if(lifetime.alive)status(error.message,true);}
   });
-  lifetime.listen(q('[data-coding-material-dialog]'),'cancel',()=>{materialTicket++;});
   lifetime.listen(q('[data-coding-method-dialog]'),'cancel',()=>{methodDocumentTicket++;});
   lifetime.listen(q('[data-coding-mcp-form]'),'submit',async event=>{
     event.preventDefault();const button=event.currentTarget.querySelector('[type=submit]');if(button.disabled)return;button.disabled=true;
@@ -1467,7 +1448,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       {slash:'compact',label:'下一轮整理上下文',hint:'把前面的对话整理成摘要带入',keywords:['摘要','整理','context'],enabled:Boolean(!shut() && runtimeSessionId),
         run:async()=>{const id=current;await api(sessionPath(id)+'/compact','POST',{on:true});status('下一轮会把前面的对话整理成摘要带入。');if(id===current)await readCurrent();}},
       {slash:'usage',label:'上下文与用量',hint:'窗口占比、会话用量、预算',keywords:['cost','费用','预算','context'],enabled:!q('[data-coding-meter]').hidden,run:()=>q('[data-coding-meter-toggle]').click()},
-      {slash:'materials',label:'固定材料',hint:'引用文件、差异或其他会话的成果',keywords:['引用','材料','reference'],enabled:!shut(),run:()=>openMaterials()},
+      {slash:'materials',label:'项目资料',hint:'引用项目里的文档、文件、成果或其他会话',keywords:['引用','材料','资料','reference'],enabled:!shut(),run:()=>openMaterials()},
       {slash:'methods',label:'方法',hint:'选择这一轮使用的方法',keywords:['skill','技能'],enabled:!shut(),run:()=>openMethods()},
       {slash:'delegate',label:'委派给新会话',hint:'新会话接受并发送后才执行',keywords:['委派','delegate'],enabled:!shut(),run:()=>cooperationUi.openDialog()},
       {slash:'model',label:'选择模型',hint:'下一轮使用的模型',keywords:['model'],enabled:!shut(),run:()=>{const select=q('[data-coding-model]'),trigger=select.closest('.mw-select-picker')?.querySelector('.mw-select-picker__trigger');if(trigger){trigger.focus();trigger.click();}else select.focus();}},

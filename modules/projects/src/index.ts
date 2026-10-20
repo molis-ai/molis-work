@@ -169,3 +169,4 @@ export type {
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

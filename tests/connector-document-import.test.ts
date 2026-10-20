@@ -12,7 +12,7 @@ import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-do
 test("document import reads only the selected account, preserves provenance and blocks revoked reads", async t => {
   const home = mkdtempSync(join(tmpdir(), "molis-document-account-"));
   const db = new Database(":memory:");
-  db.exec("CREATE TABLE boards(project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES('board');");
+  db.exec("CREATE TABLE project_root(project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES('board');");
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
   const artifacts = new ArtifactsModule({ db: db as unknown as ArtifactsSqliteDatabase, appendEvent: () => 1, eventCursor: () => 1 });
   const ports = { projectId: "board", actorId: "fixture", ownerActorId: "fixture", routePrefix: "", artifacts };

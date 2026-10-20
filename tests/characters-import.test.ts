@@ -169,7 +169,7 @@ test("large imported resources publish through the real Artifact store and survi
   const { default: Database } = await import("better-sqlite3");
   const { ArtifactsModule, createArtifactsSchema } = await import("@molis-ai/molis-work-module-artifacts");
   const filename = join(home, "artifacts.sqlite"), db = new Database(filename);
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT);");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT);");
   createArtifactsSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-23T00:00:00Z", appendEvent: event => Number(db.prepare("INSERT INTO events (project_id) VALUES (?)").run(event.projectId).lastInsertRowid), eventCursor: eventCursorOf(db) });
   const characterDb = openCharacters(join(home, "personal"), "actor");

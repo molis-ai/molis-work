@@ -317,7 +317,7 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
 
 test("Attention records an Inbox entry for a failed 成果 output", () => {
   const db = new Database(":memory:");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards (project_id) VALUES ('board');");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root (project_id) VALUES ('board');");
   const attention = new AttentionModule(db, { exists: () => true });
   const created = attention.commands.create({
     project_id: "board",

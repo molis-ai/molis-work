@@ -9,7 +9,7 @@ import test from "node:test";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
+import { assertPluginActionCurrent, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
@@ -49,7 +49,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
           consumes: [{ artifact_type_id: "example.note", schema_version: options.schema ?? 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
         const hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID,
-          actor_id: options.actor ?? "author" });
+          actor_id: options.actor ?? "author", assertCallerCurrent: assertPluginActionCurrent });
         client = hosted.client; dispose = hosted.dispose;
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
@@ -157,7 +157,7 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
         artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: "example.note", schema_version: 1 }] },
         process_items: { produces: [{ artifact_type_id: "example.item", schema_version: 1 }], consumes: [{ artifact_type_id: "example.item", schema_version: 1 }] } };
       const definition: PluginDefinition = { manifest, async start(context) {
-        hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor });
+        hosted = createPluginArtifactClient({ assertInput: assertActionInput, api, process: processItems, context, manifest, actions: pluginActions(store, DEMO_PROJECT_ID), project_id: DEMO_PROJECT_ID, actor_id: actor, assertCallerCurrent: assertPluginActionCurrent });
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };

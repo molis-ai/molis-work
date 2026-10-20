@@ -1,4 +1,4 @@
-// S-41 (docs/system/SECURITY-INVARIANTS.md): the command an after-write check runs comes only from what the person saved,
+// S-42 (docs/system/SECURITY-INVARIANTS.md): the command an after-write check runs comes only from what the person saved,
 // the written path is one argument that is never an option, nothing runs without the person's approval, an approval
 // remembered for one command does not carry over to a changed checker (specs/prologue-adoption §6.0p.6, PA-39), and the
 // executor asks again, before it answers, whether the round's authorization and the workspace's still stand.
@@ -18,10 +18,10 @@ const NODE: AgentWriteChecker = { checker_id: "node-check", display_name: "Node 
 const MARK: AgentWriteChecker = { checker_id: "mark", display_name: "留痕", executable: "node", args: ["-e", "require('node:fs').writeFileSync('ran.txt', process.argv[1])", "{file}"], applies_to: [".js"] };
 const exists = (path: string) => access(path).then(() => true, () => false);
 
-test("S-41 only the person saves a checker: a model's tool, an MCP client, a workflow or a plugin is refused and the list stays", { timeout: 60_000 }, async () => {
+test("S-42 only the person saves a checker: a model's tool, an MCP client, a workflow or a plugin is refused and the list stays", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "s41-checkers-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
-  const project = await catalog.createProject({ display_name: "S-41", actor_id: "web-user" });
+  const project = await catalog.createProject({ display_name: "S-42", actor_id: "web-user" });
   catalog.close();
   const workspace = { workspace_id: "app", canonical_path: await realpath(home), realpath_verified: true, display_name: "app" };
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, workspaceFor: async () => workspace, workspacesFor: async () => [workspace] });
@@ -40,7 +40,7 @@ test("S-41 only the person saves a checker: a model's tool, an MCP client, a wor
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("S-41 a written path that starts with `-` reaches the checker as `./…`, one argument, never an option", { timeout: 60_000 }, async t => {
+test("S-42 a written path that starts with `-` reaches the checker as `./…`, one argument, never an option", { timeout: 60_000 }, async t => {
   const round = await afterWriteRound(t, { checkers: [NODE], turns: [write("-rf.js", "1;\n", "w1"), say("done")] });
   const handle = await round.start();
   await round.approve(await round.pending("text-edit"));
@@ -51,7 +51,7 @@ test("S-41 a written path that starts with `-` reaches the checker as `./…`, o
   assert.match(round.result("w1") ?? "", /command: node --check \.\/-rf\.js\nexit 0/);
 });
 
-test("S-41 a check the person refused starts no process", { timeout: 60_000 }, async t => {
+test("S-42 a check the person refused starts no process", { timeout: 60_000 }, async t => {
   const round = await afterWriteRound(t, { checkers: [MARK], turns: [write("src/a.js", "1;\n", "w1"), say("done")] });
   const handle = await round.start();
   await round.approve(await round.pending("text-edit"));
@@ -72,7 +72,7 @@ async function assertTurnedAway(round: Awaited<ReturnType<typeof afterWriteRound
 
 // The note of which checker answered is kept after both checks, on the same path (prologue-after-write.ts), so the exact reason
 // in the observation is also what shows that none was kept: the index it would go to is not on the package's surface to read back.
-test("S-41 a workspace taken back by the time the check is asked for is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
+test("S-42 a workspace taken back by the time the check is asked for is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
   const round = await afterWriteRound(t, { checkers: [MARK], turns: [write("src/a.js", "1;\n", "w1"), say("done")] });
   const handle = await round.start();
   const edit = await round.pending("text-edit");
@@ -82,7 +82,7 @@ test("S-41 a workspace taken back by the time the check is asked for is not chec
   await assertTurnedAway(round, "工作区授权已撤回");
 });
 
-test("S-41 a round whose authorization was taken back (its check before dispatch throws) is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
+test("S-42 a round whose authorization was taken back (its check before dispatch throws) is not checked: nothing is reviewed, run or kept", { timeout: 60_000 }, async t => {
   let armed = false, thrown = false, project = "";
   // Throws once, for the first ask after the write has landed: the executor's, before it reads the workspace or the settings.
   // The model's next request is not stopped, so the observation that says so is read back.
@@ -101,7 +101,7 @@ test("S-41 a round whose authorization was taken back (its check before dispatch
   await assertTurnedAway(round, "这一轮的授权已收回");
 });
 
-test("S-41 “本会话不再询问” for one command does not approve the changed checker's command for the same file", { timeout: 90_000 }, async t => {
+test("S-42 “本会话不再询问” for one command does not approve the changed checker's command for the same file", { timeout: 90_000 }, async t => {
   const read = { tool: "read", input: { path: "a.js" } };
   const round = await afterWriteRound(t, { checkers: [NODE], turns: [write("a.js", "1;\n", "w1"), read, write("a.js", "2;\n", "w2"), say("done"), read, write("a.js", "3;\n", "w3"), say("done")] });
   const seen = new Set<string>();

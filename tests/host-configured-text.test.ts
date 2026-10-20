@@ -14,6 +14,7 @@ import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
 import { JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
+import { asideReply } from "./fixtures/ending-review.js";
 
 const listen = async (server: Server) => {
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -36,9 +37,11 @@ async function fixture(run: (f: {
   let handler = async (_body: any): Promise<unknown> => ({ choices: [{ message: { content: "模型读取到了全局配置。" } }] });
   const server = createServer(async (request, response) => {
     let raw = ""; for await (const chunk of request) raw += chunk;
-    const body = JSON.parse(raw);
-    requests.push({ url: request.url!, headers: request.headers, body });
-    const value = await handler(body);
+    const body = JSON.parse(raw), aside = asideReply(raw);
+    // The Home's background knowledge cards for what a case writes into its project are answered aside: `requests` are the case's own.
+    if (aside === undefined) requests.push({ url: request.url!, headers: request.headers, body });
+    const value = aside === undefined ? await handler(body)
+      : request.url?.endsWith("/messages") ? { content: [{ type: "text", text: aside }] } : { choices: [{ message: { content: aside } }] };
     if (!response.destroyed) {
       const payload = value as any;
       if (!body.stream) { response.writeHead(200, { "content-type": "application/json" }); response.end(JSON.stringify(value)); }

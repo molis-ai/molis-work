@@ -42,6 +42,9 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
         artifacts: runtime.coordinator.artifacts, signal: caller.signal,
+        // Downloading the speech model is the person's own yes: an Agent, MCP client, workflow or plugin passing true downloads nothing (S-39, PMAT-48).
+        allowModelDownload: caller.audience === "user" && input.source === "file" && input.allow_model_download === true,
+        ...caller.on_progress ? { onProgress: caller.on_progress } : {},
         beforeDispatch: () => caller.beforeEffect(),
         beforeSave: () => caller.beforeEffect(),
       })),

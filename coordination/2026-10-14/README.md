@@ -2259,3 +2259,29 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **同时段的其他进展**：
     - ⑩ 按新 head 复看了视觉线 9 个 PR。8 个可合，#873 合前要改 1 条。资源数字首尾相接，单片都不到 10 KB。
     - ⑤ 在准备 batch-1020-11：预算实测过，workbench.js 比 main 轻 28 B。#883 的修复 `c79fcbd99` 还没推。
+- **10-21 Coding 迁移计划已批**（③ 写，① 批；共享笔记 `coding-migration-plan.md`，对 main `aa327f34d` 核过）。
+  - **九片**：
+    - C1 数据，走 L2；
+    - C2 输入端口：模型、角色、目标标题；
+    - C3 成果交界，删 `coding-shelf-material.ts`；
+    - C4 后台作业与首页聚合，删 `coding-background-tasks.ts`；
+    - C5 审查种类，PG-009；
+    - C6 Runtime 起停与分发，PG-037；
+    - C7 结果装饰，PG-062；
+    - C8 助理执行方，删 `assistant-coding.ts`；
+    - C9 界面挂载与收口：删 `coding-surface.ts`，HYBRID 名单去掉 coding。门禁用 `deepEqual` 比对，所以这两件必须在同一个 PR。
+  - **① 裁 T1**：`assistant-coding.ts` 不是离开 HYBRID 的硬条件，C9 不等 C8。
+    - 理由：HYBRID 管的是宿主手工装配；助理按插件名选执行方是 PG-036 / W5-10，main 上还没有设计。
+    - 如果 C9 收口时这个文件还在，就记在 PG-036 那一行和 Coding spec 的状态句里。
+  - **③ 自己裁的三项**：T4 新增查询动作，不升 preview 的版本；T6 Git 的观察者留给 Git 自己迁；T8 `CodingChangeSet` 归 PG-111。① 同意。
+  - **T2、T3、T5、T7 交给 ②**，分别是：模型的窄权限、公开包的位置、分发文件、`ready` 的去向。
+  - **开工顺序**：
+    - C3 在 #892 合入后开；
+    - C1 在 #867 和 L2 落地后排第一；
+    - C2 等 ② 答完 T2、T7；
+    - ② 的顺序：S0-2b-2 → L2+L3 → C6 平台 → C4 平台 → C7 公开包 → C8 设计 → C9 通道。
+  - **U1（PG-009）由 ① 问用户。**
+    - ③ 的草稿倾向「只放给内置」，这和 10-18 的「同样待遇」冲突；防腐 spec 也写明，10-18 之后新开的只给内置的服务要记进特权清单。
+    - ① 推荐：任何插件在 Manifest 声明，按安装授权放行，每次审查照旧由人批。
+  - U3、U4 真触发时再问。
+  - Shelf S1 开成了 #892（head `94129f0f1`，base main），已交 ⑤。

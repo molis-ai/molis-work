@@ -102,12 +102,12 @@ export function assertMatches(schema: SandboxSchema, value: unknown, path = '$',
   }
 }
 
-export const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources'] as const;
+export const effectKeys = ['storage', 'artifacts', 'capabilities', 'events', 'networkDomains', 'secretRefs', 'resources', 'projectDatabase'] as const;
 export function assertEffects(effects: unknown): asserts effects is SandboxEffects {
   if (!effects || typeof effects !== 'object' || Array.isArray(effects)) throw new SandboxError('sandbox.invalid_contract', 'Effects must be an object');
   for (const [key, values] of Object.entries(effects)) {
     if (!effectKeys.includes(key as typeof effectKeys[number]) || !Array.isArray(values) || values.some(v => typeof v !== 'string' || !v || v.length > 256) || new Set(values).size !== values.length) throw new SandboxError('sandbox.invalid_contract', `Invalid effect ${key}`);
-    if ((key === 'storage' || key === 'artifacts') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
+    if ((key === 'storage' || key === 'artifacts' || key === 'projectDatabase') && values.some(v => v !== 'read' && v !== 'write')) throw new SandboxError('sandbox.invalid_contract', `Invalid ${key} access`);
     if (key === 'networkDomains' && values.some(v => !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Network effects require exact lowercase DNS domains');
     if (key === 'resources' && values.some(v => !/^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,127}$/.test(v))) throw new SandboxError('sandbox.invalid_contract', 'Resources require logical names, not paths');
   }
@@ -124,7 +124,7 @@ export function assertContract(contract: unknown): asserts contract is SandboxPl
     if (!id(op.id)) throw new SandboxError('sandbox.invalid_contract', 'Invalid operation id');
     if (op.kind !== 'query' && op.kind !== 'command') throw new SandboxError('sandbox.invalid_contract', 'Operation kind must be query or command');
     assertSchema(op.input); assertSchema(op.output); assertEffects(op.effects);
-    if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.events?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes or publish events');
+    if (op.kind === 'query' && (op.effects.storage?.includes('write') || op.effects.artifacts?.includes('write') || op.effects.projectDatabase?.includes('write') || op.effects.events?.length)) throw new SandboxError('sandbox.invalid_contract', 'Queries cannot declare writes or publish events');
     if (!Array.isArray(op.errors) || op.errors.some(e => !id(e.code) || typeof e.description !== 'string') || !unique(op.errors.map(e => e.code)) || !Array.isArray(op.examples) || !op.examples.length) throw new SandboxError('sandbox.invalid_contract', 'Operations require errors and examples');
     for (const example of op.examples) {
       assertMatches(op.input, example.input);

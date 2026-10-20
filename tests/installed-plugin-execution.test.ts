@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import type { ActionDefinition, ActionCallContext } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
+import type { PluginDatabaseDeclaration, PluginDefinition } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
@@ -241,4 +242,68 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
     await pending;
     assert.deepEqual(await cursors(), recorded, 'PG006-05 neither project was written');
   } finally { for (const runner of runners) await runner.stop(); await host.close(); await rm(directory, { recursive: true, force: true }); }
+});
+
+for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an installed sandboxed plugin that declares databases.project reaches its tables through the broker; ${mode} while it waits, it writes none of them even when it ignores the refusal, and a fresh call does`, mac, async t => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-project-database-')), file = join(home, 'project.db');
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  const service = new ActionService(), actions = { registry: service, client: service, project_id: DEMO_PROJECT_ID };
+  const privateStorage = new SqlitePluginPrivateStorage(store.db);
+  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: 'owner', db: store.db, actions, ui: new UiHost(), home: null,
+    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
+    privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+  const entered = gate(), releaseGate = gate(), controller = new AbortController();
+  t.signal.addEventListener('abort', () => { controller.abort(); releaseGate.resolve(); }, { once: true });
+  let allowed = true;
+  const wait: ActionDefinition = { capability_id: 'fixture.wait', version: 1, operation: 'command', action: {
+    title: 'Wait', description: 'Holds the call open', kind: 'operation', scope: 'project', audiences: ['plugin'], permissions: [], subject_kinds: [],
+    input_schema: { type: 'string' }, output_schema: { type: 'string' },
+  } };
+  const withdrawDependency = service.registerProvider({ provider: { provider_id: 'fixture', title: 'Fixture', kind: 'system', project_id: DEMO_PROJECT_ID }, definitions: [wait],
+    handlers: [{ ...wait, handle: async (_context, input) => { entered.resolve(); await releaseGate.promise; return input; } }] });
+  const effects = { capabilities: ['fixture.wait'], projectDatabase: ['read', 'write'] as Array<'read' | 'write'> };
+  const contract: SandboxPluginContract = { version: 1, pluginId: 'io.molis.work.generated.tables', revision: 'one', entities: [], pages: [], acceptance: [], operations: [
+    { id: 'save', kind: 'command', input: { type: 'string' }, output: { type: 'string' }, effects, errors: [], examples: [{ input: 'text', output: 'text' }] },
+  ] };
+  const bundlePath = join(home, 'plugin.mjs');
+  // A plugin that ignores a refused wait and writes anyway: the write is refused on its own.
+  await writeFile(bundlePath, `export const operations={save:async(input,sdk)=>{await sdk.capability.call('fixture.wait',input).catch(()=>null);
+    await sdk.projectDatabase.transaction([{sql:'INSERT INTO sbxtables_notes (text) VALUES (?)',parameters:[input]}]);
+    return (await sdk.projectDatabase.get('SELECT text FROM sbxtables_notes WHERE text = ?',[input])).text}};`);
+  const release = { buildId: 'tables-fixture', pluginId: contract.pluginId, version: 1, bundlePath,
+    design: { title: 'Tables', contract, parts: [], acceptance: [] }, nodes: [] } as never;
+  const tables: PluginDatabaseDeclaration = { store_name: 'sbxtables', version: 1, read_permission: 'sbxtables:read', write_permission: 'sbxtables:write',
+    schema: 'CREATE TABLE sbxtables_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);' };
+  const catalog = () => capabilityCatalog(actions, 'owner');
+  const generated = sandboxedPluginDefinition(release, effects, [], { capability: catalogCapabilities({ actions, catalog, live: () => true,
+    declaration: () => ({ manifest: definition.manifest }), granted: () => effects.capabilities }), capabilities: catalog });
+  // The installed definition as the Host builds it, with the tables a release's Manifest will declare once the creator writes them.
+  const definition: PluginDefinition = { ...generated, manifest: { ...generated.manifest, databases: { project: tables },
+    permissions: [...generated.manifest.permissions, ...[tables.read_permission, tables.write_permission].map(permission => ({ permission, required: true, reason: '读写自己的表' }))] } };
+  const count = () => Number((store.db.prepare('SELECT count(*) AS n FROM sbxtables_notes').get() as { n: number }).n);
+  let withdraw = () => {};
+  try {
+    const report = await platform.start([{ definition, grants: ['storage:private', tables.read_permission, tables.write_permission] }]);
+    assert.ok(report.running.includes(contract.pluginId), JSON.stringify(report));
+    assert.equal(count(), 0, 'its tables are made when it starts');
+    withdraw = exposeInstalledPlugin(actions, release, async (pluginId, operation, input, context) => await platform.router().dispatch({ method: 'POST',
+      pathname: '/api/plugins/' + pluginId + '/call', actor_id: context.actor_id, execution: context, body: { operation, input } }) ?? { status: 409 }).dispose;
+    const caller: ActionCallContext = { actor_id: 'owner', project_id: DEMO_PROJECT_ID, audience: 'user', permissions: [], signal: controller.signal,
+      validate_authority: () => { if (!allowed) throw new Error('Authority revoked'); } };
+    const action = { capability_id: exposedActionId(release, 'save'), version: 1 };
+    const pending = service.invoke(caller, action, 'late');
+    const rejected = assert.rejects(pending);
+    await Promise.race([entered.promise, pending.then(() => assert.fail('call ended before the wait'), error => { throw error; })]);
+    if (mode === 'cancelled') controller.abort(); else allowed = false;
+    releaseGate.resolve(); await rejected;
+    assert.equal(count(), 0, `${mode}: none of its tables was written`);
+    allowed = true;
+    assert.equal(await service.invoke({ ...caller, signal: undefined }, action, 'fresh'), 'fresh');
+    assert.deepEqual(store.db.prepare('SELECT text FROM sbxtables_notes').all().map(row => ({ ...(row as object) })), [{ text: 'fresh' }]);
+  } finally {
+    releaseGate.resolve(); withdraw(); withdrawDependency();
+    for (const record of platform.runtime.list()) await platform.runtime.stop(record.install_id);
+    store.close(); await rm(home, { recursive: true, force: true });
+  }
 });

@@ -5,7 +5,7 @@
  */
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, sandboxDatabase, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation, PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperations, type Lane, type CapabilityExecution } from './capabilities.js';
@@ -75,7 +75,10 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       context.requireGrant('storage:private');
       const storage = context.services?.storage;
       if (!storage) throw new Error('插件存储尚未装配');
-      const services: SandboxServices = { storage: storageTransactions(storage), ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
+      // The project's library only when the Manifest declares the plugin's tables there (`databases.project`).
+      const database = context.services?.project_database;
+      const services: SandboxServices = { storage: storageTransactions(storage), ...(database ? { projectDatabase: sandboxDatabase(database) } : {}),
+        ...(host.capability ? { capability: host.capability } : {}), ...(host.network ? { network: host.network } : {}) };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,

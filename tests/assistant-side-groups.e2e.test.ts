@@ -64,3 +64,36 @@ test("VUX-08 VUX-22: 产出, 变更 and 后台任务 are one disclosure each; fo
   await waitFor(`Math.abs(${block("changes")}.getBoundingClientRect().height - ${open}) < 2`);
   assert.equal(await evaluate<boolean>(`[...${block("changes")}.querySelectorAll('.assistant-item button')].some((b) => b.checkVisibility({ visibilityProperty: true }))`), true);
 });
+
+// VUX-08 「长列表可显示更多」: a long group keeps its first five in sight and the rest behind one button that says how many;
+// a failure is never tucked away; revealing moves focus to the first revealed row and lasts when the view is drawn again.
+test("VUX-08: a long side group shows five, says how many more, never tucks a failure away, and stays revealed on update", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor, click } = browser;
+  const id = await seedWork(browser, "整理一长串改动");
+  const many: AssistantUndoable[] = Array.from({ length: 9 }, (_, index) => ({ undo_id: "u" + index, title: "Todo · 第 " + (index + 1) + " 项", state: index === 0 ? "failed" : "available", created_at: at, detail: index === 0 ? "被别人改过" : undefined }));
+  await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
+    const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
+    const view = await response.json();
+    Object.assign(view, { undoable: ${JSON.stringify(many)}.map((one) => window.__update && one.undo_id === "u8" ? { ...one, detail: "（更新）" } : one), unsettled: [], jobs: [] });
+    return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
+  }; })()`);
+  await openWork(browser, id);
+  const block = `document.querySelector('[data-assistant-block="changes"]')`;
+  await waitFor(`${block}?.checkVisibility() && ${block}.querySelector('.mw-show-more')`, 15_000);
+  // Newest first: 第 9 … 第 5 in sight, 第 4 … 第 2 tucked, and 第 1 项 (the failure, last) still in sight.
+  const seen = () => evaluate<string[]>(`[...${block}.querySelectorAll('.assistant-item')].filter((n) => n.checkVisibility()).map((n) => n.querySelector('.assistant-item-title').textContent)`);
+  assert.deepEqual(await seen(), ["Todo · 第 9 项", "Todo · 第 8 项", "Todo · 第 7 项", "Todo · 第 6 项", "Todo · 第 5 项", "Todo · 第 1 项"], "five in sight, and the failure is never tucked away");
+  assert.equal(await evaluate<string>(`${block}.querySelector('.mw-show-more').textContent`), "再显示 3 项");
+  assert.equal(await evaluate<string>(`${block}.querySelector('.mw-show-more').nextElementSibling?.querySelector('.assistant-item-title')?.textContent`), "Todo · 第 1 项", "the button stands where the tucked rows are, before the failure kept after them");
+  await click(`[data-assistant-block="changes"] .mw-show-more`);
+  assert.equal((await seen()).length, 9, "all of them once asked");
+  assert.equal(await evaluate<string>(`document.activeElement.closest('.assistant-item')?.querySelector('.assistant-item-title').textContent`), "Todo · 第 4 项", "focus goes to the first row it revealed");
+  assert.equal(await evaluate<boolean>(`!${block}.querySelector('.mw-show-more')`), true);
+  // The view is drawn again (a row changed): what the person revealed stays revealed.
+  await evaluate("window.__update = true");
+  await openWork(browser, id);
+  await waitFor(`${block}.textContent.includes('（更新）')`);
+  assert.equal((await seen()).length, 9);
+});

@@ -44,7 +44,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 319,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2254,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2248,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1993,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -146,7 +146,7 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2136,
+    "file packages/design-system/src/styles/craft-finish.ts": 2133,
     "file packages/design-system/src/styles/momentum.ts": 823,
     "file packages/design-system/src/styles/primitives.ts": 1268,
     "file packages/im-ui/src/browser/controller.ts": 966,
@@ -230,8 +230,8 @@
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 434,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
-    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 237,
-    "file plugins/native/workflows/src/client.ts": 1358,
+    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
+    "file plugins/native/workflows/src/client.ts": 1355,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
@@ -239,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 477,
+  "testInternalImports": 475,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -467,12 +467,10 @@
     "tests/work-session-actions.test.ts": 1,
     "tests/work-session-mcp.test.ts": 3,
     "tests/workbench-asset-cache.test.ts": 1,
-    "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-action-steps.e2e.test.ts": 1,
     "tests/workflows-action-steps.test.ts": 1,
     "tests/workflows-handoff-idempotency.test.ts": 1,
     "tests/workflows-judgment-link.test.ts": 2,
-    "tests/workflows-plugin.test.ts": 1,
     "tests/workspace-directory-picker.test.ts": 2,
     "tests/workspace-git-index.test.ts": 2,
     "tests/workspace-git-read.test.ts": 1,
@@ -750,7 +748,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 14,
+  "hostPluginFilesTotal": 12,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -763,9 +761,7 @@
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/work-actions.ts#actions": 1,
-    "apps/local-host/src/workflows-actions.ts#actions": 1,
-    "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
+    "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 20,
   "registerProviderSites": {
@@ -791,7 +787,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 370,
+  "pluginOutsideMentionsTotal": 369,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -818,7 +814,7 @@
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
     "work#outside-files": 23,
-    "workflows#outside-files": 9
+    "workflows#outside-files": 8
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
@@ -1177,7 +1173,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 486,
+  "explicitAnyTotal": 485,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1324,7 +1320,7 @@
     "tests/system-search-assistant.test.ts": 2,
     "tests/todo-organize.test.ts": 2,
     "tests/vendor-provenance.test.ts": 1,
-    "tests/workflow-content-actions.test.ts": 2,
+    "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-stop-and-token.test.ts": 1,
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1

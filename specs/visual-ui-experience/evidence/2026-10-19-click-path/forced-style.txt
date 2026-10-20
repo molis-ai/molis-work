@@ -1,0 +1,36 @@
+## branch (6 presses: pages,home,todo,home,issues,home; switcher opened before each hidden entry)
+style+layout events 502 total ms 233 forced by script ms 138
+ 266    82ms UpdateLayoutTree (not forced by script)
+  12    59ms UpdateLayoutTree setPicker:4
+  53    17ms UpdateLayoutTree visible:20
+   9    14ms Layout (anon):4
+  12    13ms UpdateLayoutTree renderStrip:4
+  31    13ms Layout (not forced by script)
+   6     6ms Layout setPicker:4
+  10     5ms UpdateLayoutTree (anon):4
+   6     4ms UpdateLayoutTree drawTabs:14
+  15     4ms UpdateLayoutTree visible:14
+   6     3ms UpdateLayoutTree (anon):3
+   6     2ms UpdateLayoutTree setDesktopWorkSurface:3
+  11     2ms UpdateLayoutTree syncSegment:20
+  12     2ms Layout renderStrip:4
+   2     1ms UpdateLayoutTree keepListScroll:1
+
+## base (6 presses: pages,home,todo,home,issues,home; switcher opened before each hidden entry)
+style+layout events 582 total ms 507 forced by script ms 419
+ 262    87ms UpdateLayoutTree (not forced by script)
+  15    74ms UpdateLayoutTree syncSegment:20
+  24    69ms UpdateLayoutTree syncPresence:4
+  38    62ms UpdateLayoutTree refresh:20
+  12    61ms UpdateLayoutTree setPicker:4
+  59    52ms UpdateLayoutTree visible:20
+  24    17ms Layout visible:20
+   6    16ms UpdateLayoutTree rememberScroll:4
+   6    11ms Layout rememberScroll:4
+   9    10ms Layout (anon):4
+  12     8ms UpdateLayoutTree renderStrip:4
+  12     7ms UpdateLayoutTree (anon):4
+   6     7ms UpdateLayoutTree drawTabs:14
+   6     6ms Layout setPicker:4
+   5     3ms UpdateLayoutTree visible:14
+

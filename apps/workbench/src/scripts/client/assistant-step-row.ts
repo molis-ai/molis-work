@@ -54,7 +54,7 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
-      if (!group) { group = el("div", "mw-ix-steps"); group.role = "group"; group.ariaLabel = L("下一步"); row.append(group); }
+      if (!group) { group = el("div", "mw-ix-steps"); group.dataset.overflowFade = ""; group.role = "group"; group.ariaLabel = L("下一步"); row.append(group); }
       if (offerNode?.parentNode !== group) group.append(offerNode ||= offerStep());
     }
     row.hidden = !row.querySelector(".mw-ix-step");

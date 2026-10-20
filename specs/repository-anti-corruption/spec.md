@@ -601,6 +601,33 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 - 证据（2026-10-18，本地；基于 `origin/main 7faaa027`）：整体 `pnpm build` 71 包通过；`tests/workflows-store.test.ts` 的 `W5-01-WORKFLOWS-STORE-01`/`02` 2/2，连同 workflows-plugin 7/7、handoff 3/3、stop-and-token 3/3、stop-effects 2/2、action-steps 1/1、content-actions 3/3、project-deletion-owners 12/12，共 8 文件 33/33；`verify-release-versions`、`boundary:check`、health（merge-base `7faaa027`）通过。日志：`logs/workflows-store-build.log`、`logs/workflows-store-tests.log`、`logs/workflows-store-health.log`。
 - 待办：Manifest/路由、动作切换、宿主接线删除与 Runtime 迁移另片；等 Codex 的实际基线与公共前置。
 
+W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtime`；动作目录的 `directory.invoke/discover/check` 与 S-43 来自 #848，不在本片重写）：
+- 范围：Workflows 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/workflows/workflows.db`（`WORKFLOWS_DATABASE`，version 1），项目分区与目录条目不变。不改成 Home 单实例，不动其他插件。
+- 包：新增 `plugin.ts`（`createWorkflowsPlugin`）与 Manifest 0.3.0 的 13 条路由（`/workflows…`），`max_body_bytes` 取原宿主路由的 400,000 B；导出 `createWorkflowsPlugin`，删旧 `routes.ts`/`route-handlers.ts`。站点内容、动作步骤与判断规则一律经 `services.actions.directory`（`discover`/`invoke`/`check`）到达；AI 交接的文字模型走 `services.model`。
+- 宿主：删 `workflows-actions.ts`、`workflows-native-plugin-http.ts`、`web-project-platform-routes.ts` 的 `workflowsRoute`、`project-host.ts` 的 provider 与 `index.ts` 的导出；`project-plugins.ts` 的 `homeLibraryPlugins()` 加 Workflows 条目（`bundled`、`database: WORKFLOWS_DATABASE`）；装配名单把 workflows 从构建期移到 Runtime，从旧路径名单里去掉；`apps/workbench/src/builtin-plugins.ts` 的目录条目保留。
+- 授权：Manifest 声明必需权限 `storage:private`、`workflows:read`、`workflows:write`、`actions:delegate`，可选 `model:invoke`。嵌套调用以原调用者身份、`audience: "workflow"` 进目录，`delegated_by` 是 Workflows 的插件 id；原调用者的 `allowed_actions` 与 `validate_authority` 原样带着，插件自己不持有任何站点或步骤的权限。
+- 不变：动作 id、版本、输入输出 schema、`scheduling: "concurrent"`、受众与 `provider_id`（`retainActionAuthority(…, provider_id: WORKFLOWS_PLUGIN_ID)` 不动，RUNTIME-MIGRATION 4.2；仓库里写死的 `provider_id` 只有这一处自钉，没有别的插件钉 Workflows）；库 schema；固定交接键与拒绝后的零写入；实例 `updated_at` 并发凭证；被取消、撤权、停用的调用不写业务记录；界面。
+- 验收：
+  - `W5-01-WORKFLOWS-01`：Manifest 要的权限，少一项就拒绝启动；项目起 Runtime 实例后，Workflows 的每个动作仍登记在自己的插件 id 名下（`tests/workflows-delegation.test.ts`）。
+  - `W5-01-WORKFLOWS-02`：真实路由的错误模型：边缘读到声明的 400,000 B，超出 413，坏请求体 400（`tests/document-plugins-error-model.test.ts`）。
+  - `W5-01-WORKFLOWS-03`：页面里站点与步骤以本人身份到达：本人有而插件没有的权限能用，本人没有的不会因插件而得到（`tests/workflows-delegation.test.ts`）。
+  - `W5-01-WORKFLOWS-04`：只被授权了「继续」与 Feed 站、没被授权这一步的 MCP 客户端被拒（`workflows.unavailable`），步骤不运行、不留尝试记录；授权后以 `workflow` 受众运行，`delegated_by` 是插件、原操作者不变。
+  - `W5-01-WORKFLOWS-05`：动作清单里没有这一步的 Agent 被拒，步骤不运行；列入后照常。
+  - `W5-01-WORKFLOWS-06`：目标动作对这份映射输入的拒绝在记 `attempted_at` 之前（`directory.check`），映射错了可直接改了再跑，不需要「重试」（`tests/workflows-action-steps.test.ts`）。
+  - `W5-01-WORKFLOWS-07`：停止或撤权后不留业务记录，嵌套调用经动作目录（`tests/workflows-stop-effects.test.ts`）。
+  - `W5-01-WORKFLOWS-08`：模型的回答只在原调用仍有效时记录：检查在提交里，被拒的回答不留交接（`tests/workflow-content-actions.test.ts`）。
+  - `W5-01-WORKFLOWS-09`：项目已删（RUNTIME-MIGRATION 第 6 节第 10 项）：Runtime 实例在跑时，一步失败后在同一次删除里重来并完成，只清本项目的流程与运行；没有 Runtime 时同一步照样清、不碰别的项目（`tests/workflows-project-deletion.test.ts`，两个用例）。
+- 行为变化（按预期变化处理）：
+  - 页面的写请求之后不再 `invalidateWebView`：插件路由没有这一步。
+  - 提供方缺失或有多个时由目录报 `actions.dependency_missing` 或 `actions.provider_ambiguous`；无效的流程或运行 id 现在进到动作，由动作的输入校验或 `workflows.not_found` 拒绝，不再在路由层给 404。
+  - `workflows:read`、`workflows:write`、`actions:delegate` 成为必需权限。当前随宿主发布的安装按共同 `bundledGrants` 规则取得 Manifest 的必需权限，用户关闭过的可选 `model:invoke` 保持关闭，不要求另到设置页重新授权；缺少必需权限的直接 Runtime 启动仍拒绝。动作版本不升（动作形状未变）。
+  - 每次 `invoke` 都重新在目录里找一次提供方，不再沿用宿主启动时绑定的那一份；提示词覆盖与「模型已不可用」的措辞改由 `services.model` 给出。
+  - 与旧路径相比 MCP 与 Agent 没有变宽：旧的提供方本来就用原调用者（`actions.invoke(caller, …)`）去调站点与步骤，现在改经目录，仍是原调用者，`allowed_actions` 与 `validate_authority` 一路带着，另外多一道安装的 `actions:delegate`。所以 MCP 没被授权、Agent 清单里没有的步骤被拒（`workflows.unavailable`），步骤不运行；调用途中被撤权仍是 `mcp.action_revoked`。页面上也没有变窄：旧路由按本地用户的全部权限，现在以本人身份，本人能到达的照旧能到达。
+  - 旧的 `/api/workflows…` 不留别名；客户端改用 `/api/plugins/io.molis.work.native.workflows/workflows…`。
+- 证据（2026-10-20，本地整合）：已合入实际 main `73ce89eb0`（含 #887 SDK、#870 材料服务、#805 设置）与 #848 `133a7c918`，候选 `74e6944b2` 的整体 `pnpm build`（含 Swift 辅助程序）通过。首轮 79 文件 809 项、另两文件 7 项通过；最新 main 组合复跑 62 文件 968 项，覆盖 Agent Host/Plugin Runtime README 必跑、模型图片与材料、原调用者授权、查询限制、Workflows 委派/删除/停止与模型提交；另外版本核对与 Pages 项目删除 2 文件 25 项通过。真实 Runtime HTTP 错误模型 20/20：六个文档插件的体积限制与坏 JSON 均走实际路由，Workflows 400,000 B 边界、404 和修订冲突断言保持。`pnpm boundary:check`、对 main merge-base 的 health 与 page-assets 通过；API 和动作快照重新生成没有新增变化。Workflows 自己的动作 id、版本、schema、提供方不变；Runtime 安装新增的 8 条 `sdk.artifacts.<Workflows 安装>.{head,list,own,process-head,process-own,publish,read,record}@1` 宿主快照保持。`workflows.js` 82,533 → 82,527 字节；`package-inventory --table` 的 Workflows 行已由构建期改为 Runtime。
+- CI 子集：`workflows-delegation.test.ts` 与 `workflows-project-deletion.test.ts` 已加入产品子集；最新必要复跑分别 11.4 s、5.1 s，Linux 静态分类无 `darwin`/`live`/`browser` 标记，清单检查通过。Linux 实跑与耗时由本次 CI 核验。
+- 真实浏览器（临时 Home、本机 Chrome）：四文件 21/21 通过——`workflows-action-steps.e2e` 2/2（真实创建 Feed → Shelf 流程、字段映射、材料写入与窄屏安全结果）、`workflows-open-object.e2e` 2/2（搜索与对象页签重新打开）、`workflows-save-ownership.e2e` 5/5（跨页面保存、CAS 冲突与显式重试）、`model-ready-surfaces.e2e` 12/12（包括 Workflows 首个文字模型就绪后的界面恢复）。整批全量、真实 Home 与用户本人验收尚未完成，由统筹保留独立状态。
+
 ### W5-03 第一片：Images 稳定翻译键与共同运行时（2026-10-17，本地验证通过，待按队列集成）
 
 收尾整合（2026-10-18，本地通过）：合入当前 Runtime、PPT/Dataset 与 Workflows Store 候选 `e55aa3545`，保留当前 Images 放入 Shelf 的 placement 路径和稳定翻译键。整体构建、API、boundary、merge-base health 与资源更新通过；5 个非浏览器文件 164 条及 2 个真实 Chrome 文件 6 条通过。资源为 25 项 7,478,980 B，较上游减少 537 B；当前中文内联 936→5,904 B（+4,968），英文 692,183→691,038 B（−1,145），仍在已批准的同一增量内。日志 `/tmp/molis-images-i18n-closeout-*.log`；最终共享全量和 PR/CI 合并仍待，不据此宣称整条 W5-03 完成。
@@ -1635,7 +1662,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
 | `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/work` | 内置插件 | 44 | 6,650 | `terminal/client.ts` 478 | 3 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/workflows` | 内置插件 | 20 | 3,924 | `client.ts` 1,358 | 1 | 4 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
 | `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 已审 |
@@ -3501,7 +3528,7 @@ Goals/Governance 共读写 `events`、`idempotency_records` 的现状已登记�
 | W1-18-MODEL-SCHEMA / P2 必修 | openConfiguredModels 只检查宽版范围，与正式 Catalog 严格现行 schema 不一致，旧 21 库仍可读取模型 | 复用唯一 assertCurrentCatalog，旧/新/坏版拒绝且不改库、不解密、不调模型。W1-18-MODEL-SCHEMA-01：真实临时 21/22 Catalog 经独立模型入口分别拒绝/成功，版本和原库不变。 |
 | W2-18-DIRECTORY-PICKER / P2 必修 | 默认 runner await 原始 execFile 返回 ChildProcess，立即把 stdout 流当空文本，提前 cancelled/释放 busy | 唯一 runner 真正等待进程结束并收字符串。W2-18-DIRECTORY-PICKER-01：默认实际子进程的成功/取消/错误/超时可核，未结束前第二选择仍 busy；真实系统窗口单列实操。 |
 | W2-18-ONBOARDING-GMAIL / P2 必修 | 首次使用来源读绕过共同 resolver，以旧专用 expiry/client 规则读当前 API OAuth，过期后直接401而不刷新 | 复用被选账号的共同 resolver/lifecycle，不跨账号回退。W2-18-ONBOARDING-GMAIL-01：隔离现行 API OAuth 数字过期连接，经实际首次使用读取只刷新一次并固定材料；专用 Gmail 正常，断开不开始新请求。远端用测试替身，不读真实账户。 |
-| W2-18-NATIVE-BODY / P2 必修 | 原生 HTTP JSON 按字符而非 UTF-8 字节限流，超限 reject 后仍积累/解析 | 同一 reader 按 wire 字节拒绝，settled 后不留正文/解析，保留413回应。W2-18-NATIVE-BODY-01：真实 HTTP 限内中文成功、字节超限413且 handle/DB/模型零效果；分块超限后停止累积，畸形JSON仍400。 |
+| W2-18-NATIVE-BODY / P2 必修 | 原生 HTTP JSON 按字符而非 UTF-8 字节限流，超限 reject 后仍积累/解析 | 同一 reader 按 wire 字节拒绝，settled 后不留正文/解析，保留413回应。W2-18-NATIVE-BODY-01：真实 HTTP 限内中文成功、字节超限413且 handle/DB/模型零效果；分块超限后停止累积，畸形JSON仍400。Pages、Workflows 迁到 Runtime 后，本回归经仍使用此 reader 的 Schedule 公开入口（256,000 字节）验证；两者的 Runtime 限额另由真实 HTTP 错误模型用例覆盖。 |
 | W1-18-SHELF-FORMAT / P2 必修 | Shelf 存储读取忽略 version，补旧单项 job/result 字段和 done 状态后可覆盖为现行格式 | 仅接受现行版本/形状，删除历史补齐，不增加迁移；保留现行单项 API 输入。W1-18-SHELF-FORMAT-01：真实 ShelfStore 读当前/错版/旧形状，前者可用、后两者拒绝且文件字节不变。 |
 | W1-18-CHARACTER-SCHEMA / P2 必修 | openCharacters 对已有 v0 库 CREATE IF NOT EXISTS 并盖 v1，违反现行库拒绝规则 | 区分首次空库与已有表无版本库，仅前者创建。W1-18-CHARACTER-SCHEMA-01：公开入口新建/重开成功；已有表/数据 v0、未来版明确拒绝，结构/数据/user_version不变。 |
 | W2-18-CONCERN-EVIDENCE / P2 必修 | Goal 解决/推翻 Concern 表单只给 event_ids，客户端仅 open 使用，未提交后端要求的 supporting_event_ids | UI 显示真实处理证据并沿现有 HTTP 传入，不放宽后端拒绝。W2-18-CONCERN-EVIDENCE-01：真实页面开问题→后续事件→解决/推翻，读回历史和完成阻塞正确；前序/外 Goal 证据拒绝且保留输入。 |
@@ -3592,7 +3619,7 @@ G4 已完整核 20 个相关测试文件与真实 crash fixture；G3 按风险�
 
 | 已审包 / 覆盖 | 职责、实际消费者、变化与放置裁决 | 验证及整改边界 |
 | --- | --- | --- |
-| `plugins/native/workflows` / 20 文件 | 拥有项目流程定义、编排、attempt/receipt 与交接计算；站点内容归插件，经 provider/version 固定动作消费，Host 管授权/模型 | CAS/幂等接收/unknown/重试现有断言有效；保存串写、搜索打开、按 §12.10 停止当前步骤待修，真实模型质量另验 |
+| `plugins/native/workflows` / 20 文件 | 拥有项目流程定义、编排、attempt/receipt 与交接计算；站点内容归插件，经 provider/version 固定动作消费，Host 管授权/模型；现由 Plugin Runtime 装配 | CAS/幂等接收/unknown/重试现有断言有效；保存串写、搜索打开、按 §12.10 停止当前步骤待修，真实模型质量另验 |
 | `plugins/native/alchemist` / 135 文件 | 单一 Studio 拥有 Direction/Idea 版本、研究证据/报告、Taste/Playbook 与 job/checkpoint；Host 仅装配 AI、搜索/关闭 | 后台 lease/事务/重开有有效证据；前台 effect、client lifecycle/搜索待修。固定成果 reuse 为已披露未接线，纠正入口不冒充全链已实现 |
 | `plugins/native/work` / 48 文件 | 组织 Session 发现/内容/交接、工作区/终端；私有加密事实归 private-work-context，原生传输归 runtime-host | read/resume 快照、unknown、回执事务有效；等待后控制缺失必修，真实送达回执例外按用户 §12.10。原生 transport fixture 不等用户实际 Codex 会话 |
 | `plugins/native/issues` / 16 文件 | Home 内 Issue 自有 schema/命令/原文/版本/capture 草稿，Runtime 管身份安装与授权；不是 Goal/项目或 Host 特例 | 真 Home/HTTP/stdio MCP、CAS/撤销有证据；手工页重复仍由原 writer 修；模型分类/IME/跨 App 实操未验，无重复新缺陷 |

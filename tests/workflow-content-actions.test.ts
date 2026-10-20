@@ -7,10 +7,10 @@ import { DatabaseSync } from "node:sqlite";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { PluginRuntime, MemoryPluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-plugin-sdk";
-import { ActionError, bindActionClient, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, type ActionCallContext, type ActionDefinition, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createWorkflowContentPorts, createWorkflowsRouteHandlers, WorkflowsPluginRouteTable, openWorkflowsStore, manualLink, WORKFLOWS_ACTION_PERMISSIONS,
+import { ActionError, bindActionClient, WORKFLOW_CONTENT_SCHEMAS, WORKFLOW_CONTENT_VERSIONS, type ActionCallContext, type ActionDefinition, type BoundActionClient, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createWorkflowContentPorts, createWorkflowsActionHandlers, openWorkflowsStore, manualLink, workflowsActions as w, workflowsManifest, WORKFLOWS_ACTION_PERMISSIONS,
   type Workflow, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
-import { workflowsActionProvider } from "../apps/local-host/src/workflows-actions.js";
+import { workflowsTestPorts, type WorkflowsPortOptions } from "./fixtures/workflows-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project-a", audience: "workflow", permissions: ["drafts:read", "drafts:write"] };
@@ -19,10 +19,10 @@ const declarations = defineWorkflowContentActions({ id: "unknown-drafts", title:
 
 async function fixture(run: (f: {
   home: string; db: DatabaseSync; service: ActionService; runtime: PluginRuntime; install: string;
-  ports: ReturnType<typeof createWorkflowContentPorts>; table: WorkflowsPluginRouteTable; store: ReturnType<typeof openWorkflowsStore>;
+  ports: ReturnType<typeof createWorkflowContentPorts>; actions: BoundActionClient; store: ReturnType<typeof openWorkflowsStore>;
   /** Every role at its current version; or, with a number, every role of the plugin at that one version (an upgrade or a withdrawal). */
   register(version?: number): Promise<string>;
-}) => Promise<void>) {
+}) => Promise<void>, portOptions: WorkflowsPortOptions = {}) {
   const home = mkdtempSync(join(tmpdir(), "workflow-action-contract-"));
   const db = new DatabaseSync(join(home, "unknown-plugin.sqlite"));
   db.exec("CREATE TABLE drafts (id INTEGER PRIMARY KEY, project TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL)");
@@ -62,33 +62,28 @@ async function fixture(run: (f: {
   try {
     const install = await register();
     const ports = createWorkflowContentPorts(bindActionClient(service, () => caller));
-    // The routes only forward to the Workflows actions, registered the way the Host registers them for a project.
-    service.registerProvider(workflowsActionProvider(home, caller.project_id!, service, null));
-    const table = new WorkflowsPluginRouteTable(createWorkflowsRouteHandlers(bindActionClient(service,
-      () => ({ ...caller, audience: "user", permissions: [...caller.permissions, ...WORKFLOWS_ACTION_PERMISSIONS] }))));
-    await run({ home, db, service, runtime, install, ports, table, store, register });
+    // The Workflows actions are registered over the same store and service, the way the Runtime plugin gives them their ports.
+    service.registerProvider({ provider: { provider_id: workflowsManifest.plugin_id, title: workflowsManifest.name, kind: "plugin", project_id: caller.project_id! },
+      definitions: workflowsManifest.actions!, handlers: createWorkflowsActionHandlers(caller.project_id!, workflowsTestPorts(store, service, portOptions)) });
+    const actions = bindActionClient(service, () => ({ ...caller, audience: "user", permissions: [...caller.permissions, ...WORKFLOWS_ACTION_PERMISSIONS] }));
+    await run({ home, db, service, runtime, install, ports, actions, store, register });
   } finally {
     for (const installed of runtime.list()) await runtime.stop(installed.install_id);
     store.close(); db.close(); rmSync(home, { recursive: true, force: true });
   }
 }
 
-async function request(table: WorkflowsPluginRouteTable, method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) {
-  const response = await table.handle({ method, pathname, body, query: new URLSearchParams() });
-  assert.equal(response?.status, 200);
-  return response!.body as Record<string, any>;
-}
 const chain = () => ({ stations: [{ plugin: "unknown-drafts" }, { plugin: "unknown-drafts" }],
   links: [{ ...manualLink(), kind: "function", body_template: "材料：{正文}", title_template: "交接：{标题}" }] });
 
 test("unknown Runtime plugin is discovered, saved, run and read through workflow and MCP with real plugin data", async () => {
-  await fixture(async ({ ports, table, db, store, home, service }) => {
+  await fixture(async ({ ports, actions, db, store, home, service }) => {
     assert.deepEqual((await ports.stations()).map(s => [s.plugin, s.supported, s.can_start_blank]), [["unknown-drafts", true, true]]);
-    const flow = (await request(table, "POST", "/api/workflows", { title: "未知能力链", chain: chain() })).workflow as Workflow;
+    const flow = (await actions.invoke(w.create, { title: "未知能力链", chain: chain() })).workflow as Workflow;
     assert.equal(flow.stations[0]!.content!.actions.receive!.capability_id, declarations.receive.capability_id);
-    const instance = (await request(table, "POST", `/api/workflows/${flow.workflow_id}/instances`, { title: "原始草稿" })).instance as WorkflowInstance;
+    const instance = (await actions.invoke(w.start, { id: flow.workflow_id, title: "原始草稿" })).instance as WorkflowInstance;
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("本地实际内容", instance.steps[0]!.item!.item_id);
-    const done = (await request(table, "POST", `/api/workflows/instances/${instance.instance_id}/continue`, { updated_at: instance.updated_at })).instance as WorkflowInstance;
+    const done = (await actions.invoke(w.continue, { id: instance.instance_id, updated_at: instance.updated_at })).instance as WorkflowInstance;
     assert.equal(done.status, "done");
     assert.deepEqual(await ports.read(done.steps[1]!.item!, done.chain.stations[1]!.content), { title: "交接：原始草稿", body: "材料：本地实际内容" });
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, 2);
@@ -109,26 +104,26 @@ test("unknown Runtime plugin is discovered, saved, run and read through workflow
 });
 
 test("saved versions survive withdrawal and upgrades; old unbound workflows pin refs when a run starts", async () => {
-  await fixture(async ({ table, store, runtime, install, register, ports, db }) => {
-    const flow = (await request(table, "POST", "/api/workflows", { title: "固定版本", chain: chain() })).workflow as Workflow;
+  await fixture(async ({ actions, store, runtime, install, register, ports, db }) => {
+    const flow = (await actions.invoke(w.create, { title: "固定版本", chain: chain() })).workflow as Workflow;
     // Existing data has only plugin ids, and is left intact while starting snapshots resolved capabilities.
     const old = store.create({ project_id: caller.project_id!, title: "旧流程", chain: { stations: flow.stations.map(({ content, ...station }) => station), links: flow.links } });
-    const run = (await request(table, "POST", `/api/workflows/${old.workflow_id}/instances`, { title: "旧记录" })).instance as WorkflowInstance;
+    const run = (await actions.invoke(w.start, { id: old.workflow_id, title: "旧记录" })).instance as WorkflowInstance;
     assert.equal(store.get(old.workflow_id, caller.project_id!).stations[0]!.content, undefined);
     assert.equal(run.chain.stations[0]!.content!.actions.read!.version, 1);
     const oldRunning = store.startInstance(old, run.steps[0]!.item!);
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("旧实例已编辑的内容", oldRunning.steps[0]!.item!.item_id);
-    const advanced = (await request(table, "POST", `/api/workflows/instances/${oldRunning.instance_id}/continue`, {})).instance as WorkflowInstance;
+    const advanced = (await actions.invoke(w.continue, { id: oldRunning.instance_id })).instance as WorkflowInstance;
     assert.equal(advanced.status, "done");
     assert.ok(store.instance(oldRunning.instance_id, caller.project_id!).chain.stations.every(station => station.content?.actions.read?.version === 1));
     await runtime.stop(install);
-    const unavailable = (await request(table, "GET", `/api/workflows/${flow.workflow_id}`)).workflow;
+    const unavailable = (await actions.invoke(w.get, { id: flow.workflow_id })).workflow;
     assert.equal(unavailable.stations[0].availability.available, false);
     assert.deepEqual(unavailable.stations[0].content, flow.stations[0]!.content);
-    await assert.rejects(request(table, "POST", `/api/workflows/${flow.workflow_id}/instances`, {}), /原引用已保留/);
+    await assert.rejects(actions.invoke(w.start, { id: flow.workflow_id }), /原引用已保留/);
     await register(2);
     assert.equal((await ports.stations())[0]!.supported, true);
-    await assert.rejects(request(table, "POST", `/api/workflows/instances/${run.instance_id}/continue`, {}), /v1 不可用/);
+    await assert.rejects(actions.invoke(w.continue, { id: run.instance_id }), /v1 不可用/);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, 2);
     assert.equal(store.instance(run.instance_id, caller.project_id!).status, "active");
     assert.deepEqual(store.get(flow.workflow_id, caller.project_id!).stations, flow.stations);
@@ -136,10 +131,10 @@ test("saved versions survive withdrawal and upgrades; old unbound workflows pin 
 });
 
 test("W4-6-04 a receive pinned at v1 stays pinned and reports itself unavailable; removing and re-adding the station pins v2", async () => {
-  await fixture(async ({ table, store, ports, db }) => {
-    const flow = (await request(table, "POST", "/api/workflows", { title: "接收 v2", chain: chain() })).workflow as Workflow;
+  await fixture(async ({ actions, store, ports, db }) => {
+    const flow = (await actions.invoke(w.create, { title: "接收 v2", chain: chain() })).workflow as Workflow;
     assert.equal(flow.stations[1]!.content!.actions.receive!.version, 2, "a new station pins the current receive");
-    const run = (await request(table, "POST", `/api/workflows/${flow.workflow_id}/instances`, { title: "原始草稿" })).instance as WorkflowInstance;
+    const run = (await actions.invoke(w.start, { id: flow.workflow_id, title: "原始草稿" })).instance as WorkflowInstance;
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("本地实际内容", run.steps[0]!.item!.item_id);
     // A flow saved before the bump: station 2 holds `receive@1`, the rest are what they were.
     const content = flow.stations[1]!.content!;
@@ -147,10 +142,10 @@ test("W4-6-04 a receive pinned at v1 stays pinned and reports itself unavailable
     const saved = store.create({ project_id: caller.project_id!, title: "接收 v1", chain: { stations: [flow.stations[0]!, { ...flow.stations[1]!, content: pinned }], links: flow.links } });
     const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
 
-    await assert.rejects(request(table, "POST", `/api/workflows/${saved.workflow_id}/instances`, {}), /已保存的接收能力 v1 不可用/);
+    await assert.rejects(actions.invoke(w.start, { id: saved.workflow_id }), /已保存的接收能力 v1 不可用/);
     // An instance already running against it reports the same, and nothing is written or swapped.
     const running = store.startInstance(saved, run.steps[0]!.item!);
-    await assert.rejects(request(table, "POST", `/api/workflows/instances/${running.instance_id}/continue`, {}), /已保存的接收能力 v1 不可用/);
+    await assert.rejects(actions.invoke(w.continue, { id: running.instance_id }), /已保存的接收能力 v1 不可用/);
     await assert.rejects(ports.receive("unknown-drafts", { title: "x", body: "y" }, "workflow:pinned:1", pinned), /已保存的接收能力 v1 不可用/);
     assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts);
     assert.equal(store.instance(running.instance_id, caller.project_id!).status, "active");
@@ -159,10 +154,10 @@ test("W4-6-04 a receive pinned at v1 stays pinned and reports itself unavailable
 
     // Removing the station and adding it back is how it is repaired: the new reference is the current receive.
     const repaired = store.create({ project_id: caller.project_id!, title: "接收 v1 修好", chain: { stations: saved.stations.map(({ content, ...station }) => station), links: saved.links } });
-    const again = (await request(table, "POST", `/api/workflows/${repaired.workflow_id}/instances`, { title: "重新开始" })).instance as WorkflowInstance;
+    const again = (await actions.invoke(w.start, { id: repaired.workflow_id, title: "重新开始" })).instance as WorkflowInstance;
     db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("修好之后的内容", again.steps[0]!.item!.item_id);
     assert.equal(again.chain.stations[1]!.content!.actions.receive!.version, WORKFLOW_CONTENT_VERSIONS.receive);
-    const done = (await request(table, "POST", `/api/workflows/instances/${again.instance_id}/continue`, { updated_at: again.updated_at })).instance as WorkflowInstance;
+    const done = (await actions.invoke(w.continue, { id: again.instance_id, updated_at: again.updated_at })).instance as WorkflowInstance;
     assert.equal(done.status, "done");
   });
 });
@@ -207,4 +202,30 @@ test("content protocol rejects lying schemas and preserves provider identity at 
     definitions: [declarations.receive], handlers: [{ ...declarations.receive, handle: () => { writes++; return { plugin: "unknown-drafts", item_id: "2", title: "x" }; } }] });
   await assert.rejects(service.invoke(caller, { ...declarations.receive, provider_id: "original" }, { title: "x", body: "x", request_id: "workflow:one:1" }), { code: "actions.provider_changed" });
   assert.equal(writes, 0);
+});
+
+test("W5-01-WORKFLOWS-08 a model answer is recorded only while its original call is current: the check runs inside the commit, and a refused answer leaves no handoff", async () => {
+  let answers = 0;
+  const current = { value: false };
+  const options: WorkflowsPortOptions = { textModel: { available: true }, complete: async () => {
+    answers++;
+    return { text: "模型整理的标题\n\n模型整理的正文", validateResult() { if (!current.value) throw new ActionError("actions.cancelled", "原调用已经结束"); } };
+  } };
+  await fixture(async ({ actions, store, db }) => {
+    const flow = (await actions.invoke(w.create, { title: "模型交接", chain: { stations: [{ plugin: "unknown-drafts" }, { plugin: "unknown-drafts" }],
+      links: [{ kind: "ai", title_template: "", body_template: "", instructions: "整理成一页" }] } })).workflow as Workflow;
+    const run = (await actions.invoke(w.start, { id: flow.workflow_id, title: "原始草稿" })).instance as WorkflowInstance;
+    db.prepare("UPDATE drafts SET body = ? WHERE id = ?").run("本地实际内容", run.steps[0]!.item!.item_id);
+    const drafts = db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n;
+    await assert.rejects(actions.invoke(w.continue, { id: run.instance_id }), { code: "actions.cancelled" });
+    assert.equal(answers, 1);
+    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.pending, undefined, "the refused answer was not kept");
+    assert.equal(store.instance(run.instance_id, caller.project_id!).steps[0]!.handoff ?? null, null);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM drafts").get()!.n, drafts, "and nothing was delivered");
+    current.value = true;
+    const done = (await actions.invoke(w.continue, { id: run.instance_id })).instance as WorkflowInstance;
+    assert.equal(done.status, "done");
+    assert.equal(done.steps[0]!.handoff?.actor, "ai");
+    assert.equal(done.steps[0]!.handoff?.output.title, "模型整理的标题");
+  }, options);
 });

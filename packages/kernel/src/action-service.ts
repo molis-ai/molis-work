@@ -1,5 +1,6 @@
 import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
+import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
 import {
   ActionError, requireSynchronous,
@@ -70,7 +71,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (!active) return unavailable("actions.stopped", "能力来源已停止");
       if (!context.actor_id) return unavailable("actions.unauthenticated", "缺少可信调用身份");
       if (provider.project_id && context.project_id !== provider.project_id) return unavailable("actions.scope_mismatch", "能力属于其他项目");
-      return registration.availability?.(context) ?? { available: true };
+      return rememberInDirectoryPass(context, registration, () => registration.availability?.(context) ?? { available: true });
     };
     const dispose = () => {
       if (!active) return;
@@ -188,10 +189,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Visibility is checked with the rest of the directory's checks, before any row is made.
+    // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
     const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
-    return registeredActionMetadata(this.registry, context, visible).map(metadata =>
-      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) }));
+    return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
+      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
   }
 
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */
@@ -235,13 +236,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async usages(context: ActionCallContext, judgment?: ActionReference): Promise<Array<ActionSceneBinding & { availability: ActionAvailability }>> {
-    const result: Array<ActionSceneBinding & { availability: ActionAvailability }> = [];
+    const result: Array<ActionSceneBinding & { availability: ActionAvailability }> = []; let known: ActionView[] | undefined;
     for (const scene of this.scenes.values()) {
       if (!sceneVisible(scene, context)) continue;
       for (const binding of await scene.handler.bindings(context)) {
         if (!bindingBelongsTo(binding, scene.definition, context)) continue;
         if (judgment && actionKey(binding.function) !== actionKey(judgment)) continue;
-        const directory = this.discover(context);
+        const directory = known ??= this.discover(context); // one directory per call, shared by every binding
         const fn = directory.find(d => actionKey(d) === actionKey(binding.function));
         const reason = !binding.function.provider_id ? "旧绑定缺少原提供方身份，请重新选择判断规则" : actionSceneCompatibilityReason(scene.definition, fn, binding.function, directory, scene.provider);
         const state = scene.availability(context);
@@ -254,7 +255,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   async targets(context: ActionCallContext, judgment?: ActionReference, selection?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<ActionSceneTarget[]> {
-    const result: ActionSceneTarget[] = [];
+    const result: ActionSceneTarget[] = []; let known: ActionView[] | undefined;
     for (const view of this.discoverScenes(context, judgment)) {
       if (selection && (view.definition.scene_id !== selection.scene_id || view.definition.version !== selection.scene_version || view.provider.provider_id !== selection.provider_id)) continue;
       const scene = this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id))!;
@@ -262,7 +263,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       const targets = await scene.handler.targets(context);
       const bindings = await scene.handler.bindings(context);
       if (this.scenes.get(scopedSceneKey(view.definition, view.provider.project_id)) !== scene) throw new ActionError("actions.provider_changed", "读取配置位置时场景已重新加载");
-      const fn = judgment ? this.discover(context).find(action => actionKey(action) === actionKey(judgment)) : undefined;
+      const fn = judgment ? (known ??= this.discover(context)).find(action => actionKey(action) === actionKey(judgment)) : undefined;
       const ids = new Set<string>();
       for (const target of targets) {
         if (!target.binding_id || !target.title || (target.revision !== null && (typeof target.revision !== "string" || !target.revision)) || ids.has(target.binding_id)) {

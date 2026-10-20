@@ -56,7 +56,7 @@ export function renderTodoWorkbench(model: TodoUiModel): string {
     body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree todo-list" data-todo="directory">
       <header class="todo-chrome">
-        <nav class="mw-toggle-group todo-views" data-slot="toggle-group" aria-label="${p.text("待办视图")}">
+        <nav class="mw-toggle-group todo-views" data-slot="toggle-group" data-overflow-fade aria-label="${p.text("待办视图")}">
           ${VIEWS.map((view, index) => toggle("data-todo-view", view, index === 0, ` data-todo-view-label="${p.escape(p.text(view[1]))}"`)).join("")}
           <button class="mw-toggle todo-review-toggle" type="button" data-todo-view="review" data-todo-view-label="${p.escape(p.text("待你确认"))}" aria-pressed="false" hidden>${p.text("待你确认")}</button>
         </nav>

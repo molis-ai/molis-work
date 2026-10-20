@@ -72,7 +72,7 @@ test("Ledger keeps a reference to an input an agent run holds as given, without 
 function feedHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('project-a'); INSERT INTO boards VALUES ('project-b');");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-a'); INSERT INTO project_root VALUES ('project-b');");
   const ledger = createContextLedger(db, { authorize: (request) => request.scope.kind === "personal" });
   let feed: FeedModule;
   let fail = false;

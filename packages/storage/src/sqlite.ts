@@ -128,7 +128,7 @@ export class LocalSqliteJournal {
 
 export const LOCAL_JOURNAL_SCHEMA_SQL = `
         CREATE TABLE idempotency_records (
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           operation TEXT NOT NULL,
           idempotency_key TEXT NOT NULL,
@@ -141,7 +141,7 @@ export const LOCAL_JOURNAL_SCHEMA_SQL = `
         CREATE TABLE events (
           seq INTEGER PRIMARY KEY AUTOINCREMENT,
           event_id TEXT NOT NULL UNIQUE,
-          project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+          project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
           type TEXT NOT NULL,
           object_type TEXT NOT NULL,

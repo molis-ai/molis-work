@@ -17,7 +17,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 export async function fixture(options: { ai?: AlchemistAiPort; description?: string } = {}) {
   const home = mkdtempSync(join(tmpdir(), "work-reuse-"));
   const db = new Database(join(home, "artifacts.sqlite"));
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('project-test')");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('project-test')");
   db.exec("CREATE TABLE events (seq INTEGER PRIMARY KEY, project_id TEXT NOT NULL)");
   createArtifactsSchema(db); createContextLedgerSchema(db);
   let event = 0, denied = false, badOutput = false, linkFailure = false, writeAllowed = true;

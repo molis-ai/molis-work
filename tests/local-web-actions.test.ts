@@ -17,7 +17,7 @@ import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
 import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_TALK_PERMISSIONS } from "../apps/local-host/dist/home-talk-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
@@ -270,6 +270,31 @@ test("S-15 with todo:write revoked from its installation, Todo's web route refus
     await person.validate_authority!({ ...hostRead, provider_id: "host-owned" });
     assert.equal(await host.actionClient(reference).invoke(person, hostRead, {}), "host");
   } finally { withdraw(); }
+});
+
+// VUX-35: a bound client shares one authority snapshot across its calls. It is meant for one request: a grant revoked meanwhile is still
+// refused by the same client, and a grant given afterwards is only seen by a client bound after it.
+test("VUX-35 a bound client refuses a write revoked after it was bound, and a grant given later reaches only a client bound after it", { timeout: 90_000 }, async t => {
+  const { host } = await serveHomeRuntime(t);
+  const create = todoManifest.actions!.find(definition => definition.capability_id === "todo.items.create")!;
+  const owner = ["todo:read", "todo:write"];
+  const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(TODO_PLUGIN_ID)!;
+  const regrant = async (grants: readonly string[]) => {
+    await platform.runtime.stop(install.install_id);
+    platform.runtime.grant(install.install_id, [...grants]);
+    assert.equal((await platform.supervisor.restart(TODO_PLUGIN_ID)).status, "running");
+  };
+  const granted = bindLocalWebActions(host, undefined, owner);
+  await granted.invoke(create, { title: "绑定之后记下的待办" });
+  const without = install.grants.filter(permission => permission !== "todo:write");
+  await regrant(without);
+  await assert.rejects(granted.invoke(create, { title: "撤权之后同一个客户端记不下" }), { code: "actions.forbidden" });
+
+  const boundWhileRevoked = bindLocalWebActions(host, undefined, owner);
+  await boundWhileRevoked.discover();
+  await regrant([...without, "todo:write"]);
+  await assert.rejects(boundWhileRevoked.invoke(create, { title: "授权之前绑定的客户端看不到新授权" }), { code: "actions.forbidden" });
+  await bindLocalWebActions(host, undefined, owner).invoke(create, { title: "授权之后新绑定的客户端记得下" });
 });
 
 // §4 o of privileges.md (PG-007): a Runtime route's own permission is the person's only as far as its installation holds it, whatever else

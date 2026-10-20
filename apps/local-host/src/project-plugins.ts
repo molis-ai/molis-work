@@ -15,6 +15,7 @@ import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
 import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
@@ -258,6 +259,10 @@ function homeLibraryPlugins(): PluginPlatformEntry[] {
     definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
       "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }, {
+    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
+      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
   }, {
     definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
     releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(

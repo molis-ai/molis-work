@@ -243,8 +243,8 @@ const headErrors = (measured, budget, base) => {
 // for every copy on the Shelf bar, comments out of the shipped strings (+316 → +201, +227 → +98, +115 → +36); the studio's
 // own bottom check went (−7 B). Spent once from exactly the Coding scroll-owner slice's budget (#864).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1134763, 1134964],
-  "/assets/molis-work-plugins/shelf.js": [75866, 75964],
+  "/assets/molis-work-workbench.js": [1134824, 1135025],
+  "/assets/molis-work-plugins/shelf.js": [75673, 75771],
   "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

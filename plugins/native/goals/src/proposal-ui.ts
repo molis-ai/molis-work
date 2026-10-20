@@ -1,9 +1,18 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
+import { goalTreeProposalNeedsDecision } from "./decision-groups.js";
 import { GOALS_RELATION_LABELS as RELATION_LABELS } from "./relation-presentation.js";
 import { createGoalsDecisionPresentation } from "./decision-common-ui.js";
 import { createGoalsProposalPresentation } from "./proposal-presentation.js";
 import { findGoalView, type GoalsProposalView, type GoalsProposalUiPrimitives } from "./proposal-ui-model.js";
+
+function renderProposalList(primitives: GoalsProposalUiPrimitives, proposals: readonly GoalTreeProposalRecord[], view: GoalsProposalView): string {
+  const { translate: L, escapeHtml } = primitives;
+  const { renderGoalTreeProposalDecision } = createProposalRenderer(primitives);
+  const pending = proposals.filter(goalTreeProposalNeedsDecision);
+  return pending.length ? `<section data-goal-proposals aria-label="${L("需要你决定")}"><h2>${L("需要你决定")}</h2>${pending.map(proposal =>
+    `<details class="decision-details" id="${escapeHtml(proposal.proposal_id)}" data-persist-open="${escapeHtml(proposal.proposal_id)}" data-goal-proposal-entry><summary>${escapeHtml(proposal.summary)}</summary>${renderGoalTreeProposalDecision(proposal, view)}</details>`).join("")}</section>` : "";
+}
 
 export const GOALS_PROPOSAL_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.proposal";
 function createProposalRenderer(primitives: GoalsProposalUiPrimitives) {
@@ -191,7 +200,7 @@ function renderGoalTreeProposalDecision(proposal: GoalTreeProposalRecord, view: 
     <footer class="decision-actions"><button type="submit" name="decision" value="reject">${problemCount ? L("退回修正") : L("退回修改")}</button><button class="mw-btn mw-btn--primary" type="submit" name="decision" value="confirm"${problemCount || !actionableItems.length ? ` disabled aria-disabled="true"` : ""}>${invalidItemCount ? L("先修正方案") : conflictCount ? L("先更新冲突项") : L("采用整份方案")}</button></footer>
   </form>`;
 }
-return { renderGoalTreeProposalDecision };
+return { renderGoalTreeProposalDecision, renderGoalTreeProposalList: (proposals: readonly GoalTreeProposalRecord[], view: GoalsProposalView) => renderProposalList(primitives, proposals, view) };
 }
 export type GoalsProposalRenderer = ReturnType<typeof createProposalRenderer>;
 export interface GoalsProposalUiModel {
@@ -199,11 +208,14 @@ export interface GoalsProposalUiModel {
   proposal: GoalTreeProposalRecord;
   view: GoalsProposalView;
 }
-export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel> = {
+type GoalsProposalListUiModel = Omit<GoalsProposalUiModel, "proposal"> & { proposals: readonly GoalTreeProposalRecord[] };
+export const goalsProposalUiContribution: UiContribution<GoalsProposalUiModel | GoalsProposalListUiModel> = {
   descriptor: { contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal tree proposal decision",
-    surfaces: [{ surface_id: "decision", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
+    surfaces: ["decision", "list"].map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [] },
   render({ surface, model }) {
-    if (surface !== "decision") throw new Error("Unknown Goals proposal surface");
-    return createProposalRenderer(model.primitives).renderGoalTreeProposalDecision(model.proposal, model.view);
+    const renderer = createProposalRenderer(model.primitives);
+    if (surface === "list" && "proposals" in model) return renderer.renderGoalTreeProposalList(model.proposals, model.view);
+    if (surface === "decision" && "proposal" in model) return renderer.renderGoalTreeProposalDecision(model.proposal, model.view);
+    throw new Error("Unknown Goals proposal surface");
   },
 };

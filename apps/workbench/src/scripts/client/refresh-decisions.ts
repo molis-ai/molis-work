@@ -283,7 +283,7 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
     };
 
     const { handleGoalProposalSubmit, requireDecisionText, humanDecisionError } = (${GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT})({
-      translate: L, route, controlHeaders: molisWorkControlHeaders, decisionReceiptContext, refreshBoardWithDecisionReceipt,
+      translate: L, route, decisionReceiptContext, refreshBoardWithDecisionReceipt,
     });
 
     bindTreeSearchEvents();

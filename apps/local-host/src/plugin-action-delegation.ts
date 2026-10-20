@@ -68,13 +68,16 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       await retained(); await check(); retained.assertCurrent(); source();
       return result as Output;
     },
-    // The target `invoke` would pin, reached the same way, and the input schema check its dispatch makes; nothing runs, nothing is
-    // logged and no guard is kept, so a plugin can refuse a bad input before it records an attempt.
+    // The target `invoke` would pin, reached the same way, the original caller's own checks of that target that dispatch asks (a client's
+    // withdrawn grant, an action switched off for an assistant), and the input schema check dispatch makes; nothing runs, nothing is logged
+    // and no guard is kept, so a plugin can refuse a bad input before it records an attempt.
     check: async (reference: ActionReference, input: unknown) => {
-      const ref = checkedReference(reference), { caller, source } = delegate(originOf());
+      const ref = checkedReference(reference), original = originOf(), { caller, source } = delegate(original);
       source();
-      const view = await pluginActionView(options.client, caller, ref);
+      const view = await pluginActionView(options.client, caller, ref), pinned = { ...ref, provider_id: view.provider.provider_id };
       source();
+      await original.validate_authority?.(pinned);
+      requireSynchronous(caller.assert_authority_current?.(pinned, view.action.permissions));
       assertActionInput(view.action.input_schema, input);
     },
   };

@@ -675,6 +675,9 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1128644],
   ["/assets/molis-work-workbench.js", 1129525],
   ["/assets/molis-work-workbench.js", 1129640],
+  // Proposal confirmation (#801) and the project-knowledge stylesheets (#839) spent these starts.
+  ["/assets/molis-work-workbench.js", 1129470],
+  ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -687,59 +690,30 @@ for (const [asset, old] of [
   });
 }
 
-// W4-2-13: exact-proposal navigation and unfinished approval reasons need one reviewed 410 B increase.
-// From exactly #822's baseline to the measured size. One byte more, another
+// PA-43: checker settings and reversible arguments need one reviewed 5,222 B increase.
+// From exactly main's baseline to the measured size. One byte more, another
 // asset, or growth from the new baseline still fails.
-test("W4-2-13 proposal confirmation has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1129470, 1129880] } as const;
+test("PA-43 after-write checker settings has one bounded allowance on the workbench script; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1129726, 1134948] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("proposal-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "proposal-change");
+  branch("write-checkers-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "write-checkers-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "proposal-base").code, 0);
-  assert.equal(gate("--base", "proposal-base").code, 0);
+  assert.equal(gate("--update", "--base", "write-checkers-base").code, 0);
+  assert.equal(gate("--base", "write-checkers-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "proposal-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "write-checkers-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "proposal-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "proposal-base").code, 0);
-  commit("freeze the measured W4-2-13 size"); git("branch", "-f", "proposal-frozen");
+  assert.equal(gate("--update", "--base", "write-checkers-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "write-checkers-base").code, 0);
+  commit("freeze the measured PA-43 size"); git("branch", "-f", "write-checkers-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "proposal-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "proposal-frozen").code, 1);
-    sizes[asset]--; putBudget(sizes);
-  }
-});
-
-// specs/project-knowledge (2026-10-19): the two stylesheet allowances remain; its workbench script allowance is spent.
-// from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
-// baseline still fails.
-test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.css": [1593165, 1603154],
-    "/assets/molis-work-settings.css": [982397, 988933] } as const;
-  const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "pmat-change");
-  for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  assert.equal(gate("--base", "pmat-base").code, 0);
-  for (const asset of assets) {
-    sizes[asset]++;
-    assert.equal(gate("--update", "--base", "pmat-base").code, 1, `${asset}: one byte over its allowance`);
-    sizes[asset]--;
-  }
-  sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "pmat-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  commit("freeze the measured project-knowledge sizes"); git("branch", "-f", "pmat-frozen");
-  for (const asset of assets) {
-    sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "pmat-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "pmat-frozen").code, 1);
+    assert.equal(gate("--base", "write-checkers-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "write-checkers-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

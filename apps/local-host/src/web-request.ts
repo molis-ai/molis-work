@@ -47,7 +47,7 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectWorkspacesRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
+  projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
 } from "./web-project-platform-routes.js";
 
 /**
@@ -282,6 +282,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */
 const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   projectWorkspacesRoute,
+  projectWriteCheckersRoute,
   pluginStudioRoute,
   runtimePluginsRoute,
   sessionsAddressRoute,

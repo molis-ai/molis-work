@@ -86,7 +86,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const authorized = { ...context, requireGrant: authorize };
       const model = pluginModelFor(home, definition, authorized, assertActive, this.options.modelConfiguration(definition));
       const imageGeneration = pluginImageGenerationFor(home, definition, authorized, this.options.imageGeneration(definition), assertActive);
-      const materials = pluginMaterialsFor(home, definition, authorized, assertActive);
+      const materials = pluginMaterialsFor(home, definition, authorized, assertActive, null);
       background = pluginBackgroundFor(definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;

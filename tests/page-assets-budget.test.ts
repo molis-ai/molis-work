@@ -691,6 +691,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1132686],
   ["/assets/molis-work-workbench.js", 1129640],
   ["/assets/molis-work-workbench.js", 1129470],
+  // Retire prior exact starts when the shared context fix moves this predecessor.
+  ["/assets/molis-work-workbench.js", 1138109],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -708,7 +710,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1138109, 1139931],
+    "/assets/molis-work-workbench.js": [1138212, 1140034],
     "/assets/molis-work-workbench.css": [1604761, 1605196],
     "/assets/molis-work-settings.css": [990556, 990991],
     "/assets/molis-work-arrival.css": [700146, 700581],

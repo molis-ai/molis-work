@@ -4,7 +4,7 @@
 
 审计基线是 `origin/main` `3ba9185d7`（2026-10-20 16:07 UTC）。本 spec 的编号前缀是 `PRR`，实现时把编号写进测试名或测试旁注释。
 
-实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03（平台目录服务，需用户定交互）未做；PRR-12 已做通用 declarative renderer 与按插件 id 查 registration 的前两片（删掉 Lingguang 专用渲染函数、slot 表和 renderer 包装），页面池里仍有一处按插件 id 的调用，整片迁移未完成；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 真实打开仍待补；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（基于 `3ba9185d7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
+实现进展（2026-10-20）：PRR-01、02、04–11、13–21 已实现并通过对应定向测试；PRR-03（平台目录服务，需用户定交互）未做；PRR-12 已做通用 declarative renderer 与按插件 id 查 registration 的前两片（删掉 Lingguang 专用渲染函数、slot 表和 renderer 包装），页面池里仍有一处按插件 id 的调用，整片迁移未完成；已实测直接删这处会让 Lingguang 工作面缺失（`data-lingguang="workbench"` 不出现，`tests/lingguang-plugin.test.ts` 失败），所以必须先接上 Runtime views，不能只删静态调用；PRR-07 的分栏撤销 e2e 已补（未跑浏览器）；PRR-21 的 QA-017 真实打开仍待补；PRR-10 已补进度计数用例并通过；PRR-02 增加 agent 受众拒绝用例并通过；PRR-22 已写进 PR 模板与并行开发文档，执行仍是人工。代码在分支 `fix/pr-review-remediation`（基于 `3ba9185d7`），`pnpm health:check --base origin/main`、`pnpm boundary:check`、页面资源与动作合同快照均通过；本机 `apps/local-host` 的 Swift 原生构建被沙箱拒绝，TypeScript 构建与相关测试通过。
 
 ## 1. 确认结果
 

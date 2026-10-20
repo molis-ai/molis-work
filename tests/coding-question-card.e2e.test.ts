@@ -265,16 +265,18 @@ test("AC-10-1, AC-10-2, AC-10-7: Coding's card fits 1440, 1024 and 390 px, reads
     await shot(`${pixels}`);
   }
   // AC-10-7: at 390 px the long prompt and description wrap inside the card, and the submit stays inside it, pressable.
-  const wrapped = await evaluate<{ option: boolean; lines: number; submitInside: boolean; submitHit: boolean }>(`(() => {
-    const node = document.querySelector(${JSON.stringify(card)}), box = node.getBoundingClientRect(), option = node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]');
+  // The card and the submit are both measured after the submit is scrolled to: boxes from before the scroll are elsewhere.
+  const wrapped = await evaluate<{ option: boolean; lines: number; submitInside: boolean; submitHit: boolean; card: number[]; submit: number[] }>(`(() => {
+    const node = document.querySelector(${JSON.stringify(card)}), option = node.querySelector('[data-ix-field="q0"] [data-ix-option="0"]');
     const description = option.querySelector('.mw-ix-option__desc'), submit = node.querySelector('[data-ix-action="answer"]');
-    submit.scrollIntoView({ block: 'center' }); const at = submit.getBoundingClientRect(), hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
+    submit.scrollIntoView({ block: 'center' }); const box = node.getBoundingClientRect(), at = submit.getBoundingClientRect(), hit = document.elementFromPoint(at.left + at.width / 2, at.top + at.height / 2);
     return { option: option.scrollWidth <= option.clientWidth + 1 && option.getBoundingClientRect().right <= box.right + 1,
       lines: Math.round(description.getBoundingClientRect().height / parseFloat(getComputedStyle(description).lineHeight)),
-      submitInside: at.left >= box.left - 1 && at.right <= box.right + 1 && at.bottom <= box.bottom + 1, submitHit: Boolean(hit && submit.contains(hit)) }; })()`);
+      submitInside: at.left >= box.left - 1 && at.right <= box.right + 1 && at.bottom <= box.bottom + 1, submitHit: Boolean(hit && submit.contains(hit)),
+      card: [box.left, box.right, box.bottom].map(Math.round), submit: [at.left, at.right, at.bottom].map(Math.round) }; })()`);
   assert.equal(wrapped.option, true, "the long option stays inside its button and the card");
   assert.ok(wrapped.lines >= 3, `the long description wraps (${wrapped.lines} lines)`);
-  assert.deepEqual({ submitInside: wrapped.submitInside, submitHit: wrapped.submitHit }, { submitInside: true, submitHit: true });
+  assert.deepEqual({ submitInside: wrapped.submitInside, submitHit: wrapped.submitHit }, { submitInside: true, submitHit: true }, `submit ${wrapped.submit} in card ${wrapped.card} (left, right, bottom)`);
 
   // AC-10-2: in Dark, text at 4.5:1 on what is behind it; a picked option's fill against the card and its mark against the fill at 3:1.
   await width(1440); await theme("dark");
@@ -285,7 +287,8 @@ test("AC-10-1, AC-10-2, AC-10-7: Coding's card fits 1440, 1024 and 390 px, reads
   await click(`${card} [data-ix-field="q1"] [data-ix-option="0"]`);
   await settle();
   const picked = await evaluate<Array<[string, number]>>(`(${text})(['[aria-checked="true"] .mw-ix-option__title', '[aria-checked="true"] .mw-ix-option__desc', '[aria-checked="true"] .mw-ix-tag', '.mw-ix-choices [aria-pressed="true"]'])`);
-  assert.equal(picked.length, 4);
+  assert.deepEqual(picked.map(([selector]) => selector), ['[aria-checked="true"] .mw-ix-option__title', '[aria-checked="true"] .mw-ix-option__desc', '[aria-checked="true"] .mw-ix-tag', '.mw-ix-choices [aria-pressed="true"]'],
+    "every kind of text a picked option or choice shows was measured");
   for (const [selector, ratio] of [...unpicked, ...picked]) assert.ok(ratio >= 4.5, `${selector} is ${ratio}:1 in Dark`);
   const marks = await evaluate<Array<[string, number]>>(`(() => { const node = document.querySelector(${JSON.stringify(card)}), option = node.querySelector('[data-ix-field="q0"] [aria-checked="true"]'), chip = node.querySelector('[data-ix-field="q1"] [aria-pressed="true"]');
     return [['picked option fill', window.__contrast(getComputedStyle(option).backgroundColor, option.parentElement)], ['picked option mark', window.__contrast(getComputedStyle(option.querySelector('.mw-ix-option__check')).color, option)],
@@ -318,7 +321,8 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
       return original(...args); }; })()`);
   await click(`${coding} [data-coding-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)})) && window.__motion.length === 1`, 30_000);
-  const focused = () => evaluate<[string | undefined, string | null, string | undefined]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
+  // Read back by value (CDP `returnByValue`): what the focused element lacks (a field, a role, an option) comes back null, not undefined.
+  const focused = () => evaluate<[string | null, string | null, string | null]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
   const states = () => evaluate<{ name: string; tag: string; radios: Array<string | null>; toggles: Array<string | null>; status: string | null }>(`(() => { const node = document.querySelector(${JSON.stringify(card)}), title = document.getElementById(node.getAttribute('aria-labelledby') || '');
     return { name: title?.textContent.trim() || '', tag: node.tagName, radios: [...node.querySelectorAll('[data-ix-field="q0"] [role=radiogroup] [role=radio]')].map(radio => radio.getAttribute('aria-checked')),
       toggles: [...node.querySelectorAll('[data-ix-field="q2"] [role=group] [data-ix-option]')].map(button => button.getAttribute('aria-pressed')), status: node.querySelector('[data-ix-note]')?.getAttribute('role') ?? null }; })()`);
@@ -336,17 +340,19 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await focused(), ["q0", "radio", "1"], "the arrow keys move between the options");
   await evaluate(`window.__moving('pick').then(seen => window.__motion.push(seen))`);
   await press(opened, "Tab");
-  assert.deepEqual(await focused(), ["t1", null, undefined], "Tab goes on to the next question");
+  assert.deepEqual(await focused(), ["t1", null, null], "Tab goes on to the next question");
 
   // AC-10-4: pinyin being composed is no draft, and the input method's Enter neither answers nor moves on; the chosen words are kept.
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(JSON.stringify(await evaluate("window.__drafts")).includes("ceshi"), false, "what is still being composed is not kept as a draft");
-  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
-  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
+  // The page reads the input method's Enter as keyCode 229. No native key code: 229 is Windows' own, and on macOS Chrome turns it
+  // into a key that hides the page, after which the receipt (rightly) takes no focus into a page that is not shown.
+  await command("Input.dispatchKeyEvent", { type: "rawKeyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
+  await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await evaluate<number>("window.__answers.length"), 0, "the input method's Enter does not answer");
-  assert.deepEqual(await focused(), ["t1", null, undefined], "nor move on to the next question");
+  assert.deepEqual(await focused(), ["t1", null, null], "nor move on to the next question");
   // Since Chrome 155 that synthetic Enter may itself commit the pinyin, so the candidate is chosen on a composition of its own.
   await evaluate(`(() => { const input = document.activeElement; input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
@@ -359,7 +365,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await states(), { name: "先确认要修哪一处。", tag: "ARTICLE", radios: ["false", "true"], toggles: ["true", "false"], status: "status" }, "each control says it is on");
   // AC-10-8: every line written to the card's status line, with what holds focus at that moment.
   await evaluate(`(() => { const note = document.querySelector(${JSON.stringify(card)}).querySelector('[data-ix-note]'), composer = document.querySelector(${JSON.stringify(composer)});
-    window.__note = []; new MutationObserver(() => { window.__note.push({ text: note.textContent, role: note.getAttribute('role'), connected: note.isConnected, composer: document.activeElement === composer, body: document.activeElement === document.body });
+    window.__note = []; new MutationObserver(() => { window.__note.push({ text: note.textContent, role: note.getAttribute('role'), connected: note.isConnected, composer: document.activeElement === composer, body: document.activeElement === document.body, shut: composer.disabled, hidden: document.hidden });
       if (window.__note.length === 1) window.__moving('submit').then(seen => window.__motion.push(seen)); }).observe(note, { childList: true, characterData: true, subtree: true }); })()`);
   await press(opened, "Enter", MOD);
   await waitFor(`window.__answers.length === 1`, 10_000);
@@ -368,10 +374,12 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   for (let i = 0; i < 600 && bodies.length < 2; i++) await new Promise(resolve => setTimeout(resolve, 50));
   assert.match(JSON.stringify(bodies[1]?.messages ?? ""), /导出/);
   await waitFor(`!document.querySelector('${coding} [data-coding-question]')`, 15_000);
-  const notes = await evaluate<Array<{ text: string; role: string | null; connected: boolean; composer: boolean; body: boolean }>>("window.__note");
+  const notes = await evaluate<Array<{ text: string; role: string | null; connected: boolean; composer: boolean; body: boolean; shut: boolean; hidden: boolean }>>("window.__note");
   assert.equal(notes[0]?.text, "正在提交原问题的回答…");
-  assert.deepEqual(notes.find(note => note.text === "回答已交给原执行者，继续这一轮任务。"), { text: "回答已交给原执行者，继续这一轮任务。", role: "status", connected: true, composer: true, body: false },
-    "AC-10-8, AC-10-3: the receipt is written into the status line already on the page, and focus is back in the composer");
+  const receipt = notes.find(note => note.text === "回答已交给原执行者，继续这一轮任务。");
+  assert.deepEqual(receipt && { text: receipt.text, role: receipt.role, connected: receipt.connected, composer: receipt.composer, body: receipt.body },
+    { text: "回答已交给原执行者，继续这一轮任务。", role: "status", connected: true, composer: true, body: false },
+    `AC-10-8, AC-10-3: the receipt is written into the status line already on the page, and focus is back in the composer (composer disabled: ${receipt?.shut}, page hidden: ${receipt?.hidden})`);
   assert.equal(await evaluate<boolean>(`document.activeElement === document.querySelector(${JSON.stringify(composer)})`), true, "after the card leaves, focus is still in the composer");
   // AC-10-5: with reduced motion nothing runs as the card arrives, as an option is picked, or as the answer is sent.
   assert.deepEqual(await evaluate("window.__motion"), [["appear", []], ["pick", []], ["submit", []]]);

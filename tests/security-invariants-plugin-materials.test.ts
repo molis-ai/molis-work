@@ -40,7 +40,7 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   const probes = [materialsProbe("onlyread", { permissions: ["materials:read"] }), materialsProbe("onlyfetch", { permissions: ["materials:fetch"] }), materialsProbe("nomaterials", { permissions: [] })];
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: probes.map(probe => probe.definition) } });
   for (const probe of probes) await grantMaterials(host, probe);
-  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments"]);
+  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments", "imageTextAvailable"]);
   assert.deepEqual(Object.keys(probes[1]!.contexts.at(-1)!.services!.materials!), ["readSource"]);
   assert.equal(probes[2]!.contexts.at(-1)!.services!.materials, undefined);
   const probe = probes[0]!, client = host.homeActionClient(), caller = person(probe.permissions);

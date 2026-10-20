@@ -414,6 +414,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly audience: ActionAudience;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
+    readonly original_file?: HostOfferedOriginalFile;
     readonly query_only?: true;
     readonly permissions: readonly string[];
     readonly allowed_capability_ids?: readonly string[];
@@ -2175,6 +2176,11 @@ export interface HomeStoreDeclaration {
     };
 }
 
+export interface HostOfferedOriginalFile {
+    readonly path: string;
+    readonly install_id: string;
+}
+
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
 
 export declare const ITEM_DECLARATION_LIMITS: {
@@ -2903,6 +2909,8 @@ export interface PluginLifecycleReceipt {
 
 export type PluginLifecycleState = "installed" | "running" | "disabled" | "crashed" | "quarantined" | "uninstalled";
 
+export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
+
 export interface PluginManifest {
     schema_version: 1 | 2;
     plugin_id: string;
@@ -2993,7 +3001,12 @@ export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signa
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
     readDocuments?(files: readonly MaterialUpload[], request?: PluginMaterialDocumentsRequest): Promise<MaterialDocumentBatch>;
+    imageTextAvailable?(): boolean;
     readSource?(url: string, request?: PluginMaterialSourceRequest): Promise<MaterialSourceContent>;
+    readLocalPage?(url: string, request?: PluginLocalPageRequest): Promise<MaterialExtraction>;
+    claimOriginal?(record_key: string): Promise<void>;
+    readOriginal?(record_key: string, request?: PluginOriginalRequest): Promise<PluginOriginalContent>;
+    releaseOriginal?(record_key: string): Promise<void>;
 }
 
 export type PluginModelAvailability = ActionAvailability & {
@@ -3100,6 +3113,15 @@ export interface PluginModelResult {
 export interface PluginModelSelection {
     readonly provider_id: string;
     readonly model_id: string;
+}
+
+export interface PluginOriginalContent {
+    readonly bytes: Uint8Array;
+}
+
+export interface PluginOriginalRequest {
+    readonly signal?: AbortSignal;
+    readonly maxBytes?: number;
 }
 
 export interface PluginOutputPublishInput {

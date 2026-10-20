@@ -197,6 +197,7 @@ export type { PluginDatabaseReader } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginLocalPageRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginMaterialRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginMaterialSourceRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -204,6 +205,8 @@ export type { PluginMaterialsClient } from "@molis-ai/molis-work-contracts/platf
 export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";

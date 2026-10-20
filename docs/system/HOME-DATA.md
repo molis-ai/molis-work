@@ -24,7 +24,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
-| `PRAGMA user_version`，经 `applySqliteBaseline` | 24 | 项目库（7）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
+| `PRAGMA user_version`，经 `applySqliteBaseline` | 25 | 项目库（7）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
 | 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7） |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
@@ -56,6 +56,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |
 | `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
+| `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge |
 | `functions/functions.db` | `modules/functions/src/store.ts:452`，基线 `:399` | SQLite 带版本 · 3 | 必备份 | purge |
 | `characters/characters.sqlite` | `modules/characters/src/open.ts`，由 `apps/local-host/src/characters-host.ts:19` 打开 | SQLite 带版本 · 1，`CHARACTERS_STORE_BASELINE` 经 `applySqliteBaseline` 套用（无版本的表、别的版本都拒绝，原库不动） | 必备份 | purge |
 
@@ -276,7 +277,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 ## 9. 卸载覆盖
 
-`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现在是 44 项：`projects/`、`logs/`、`backups/`、`sessions/`、`shelf/`；宿主的库 `plugin-runtime`、`assistant`、`placement`、`agent-definitions`、`connectors`、`context-onboarding` 与 `alchemist/` 目录；模块的 `functions`、`characters`；存储层的 `memory`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、带当前安装器标记的 `releases/*`（`installer/uninstall-files.ts:15-48`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
+`uninstall --purge-user-data` 删除的路径：`homeStores()` 登记的每一项（`installer/uninstall.ts` 的 `purgeDataPaths` 只读登记，不再手列；决定 #20「清除覆盖所有登记的库」）。现在是 45 项：`projects/`、`logs/`、`backups/`、`sessions/`、`shelf/`；宿主的库 `plugin-runtime`、`assistant`、`placement`、`agent-definitions`、`connectors`、`context-onboarding`、`plugin-originals` 与 `alchemist/` 目录；模块的 `functions`、`characters`；存储层的 `memory`、`search`、`feed/`；讨论库 `server/`；插件的 `issues`、`cognia`、`images`、`jelly`、`lingguang`、`todo`、`pages`、`form`、`dataset`、`ppt`、`workflows`；`agent-runtime/`、`runtime/`、`runtime-config-backups/`、`runtime-integrations/`、`runtime-integration-attempts/`、`browser/`、`plugin-builder/`、`cache/`、`git-operation-details.json`、`config/` 里属于人的 `onboarding.json`、`project-arrival.json`、`mcp-tools.json`、`external-mcp-tools.json`、`connector-mcp-tools.json`，以及 `directory-access/`。普通与 purge 都会删安装器自有的程序文件：当前 3 个启动脚本、`config/installation.json`、有效的 `config/web-control-token`、带当前安装器标记的 `releases/*`（`installer/uninstall-files.ts:15-48`）。清完后只有 `config/`、`bin/`、`releases/`、Home 本身是空目录时才会删（`installer/uninstall.ts`）。
 
 测试覆盖到哪里：
 

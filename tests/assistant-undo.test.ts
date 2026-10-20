@@ -82,7 +82,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     // The person's own actions, for taking a change back by their click.
@@ -124,7 +124,7 @@ test("a change that can be undone runs when asked without a confirmation, and th
 
 test("a round that makes exactly an offered undo's change spends that undo: the panel stops offering a take-back that can only fail", () => {
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
   const work = store.create({ actor_id: "web-user", title: "今日要闻", scope: { kind: "personal" }, origin: null });
   const view = (definition: ActionDefinition) => ({ ...definition, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } }) as never;
   service.recordResult(work, view(add), { text: "周三前交方案" }, { note: { id: "note-1" } });
@@ -167,7 +167,7 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     scopeActions: async () => ({ discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }),

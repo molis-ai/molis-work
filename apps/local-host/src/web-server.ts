@@ -27,7 +27,9 @@ import { createLocalWebComposition, type LocalWebPlatform } from "./web-composit
 import type { WebServerOptions } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
+import { installedPagesPort } from "./assistant/assistant-pages.js";
 import { attachWebAssistant } from "./web-assistant.js";
+import { trackHostListener } from "./host-endpoints.js";
 import { lazyBrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
@@ -143,7 +145,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
       || await withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId) !== null);
-    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+    const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
@@ -209,7 +211,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
-    })));
+    }))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     awaitWebServerShutdown(server, () => { void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
@@ -233,7 +235,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
-      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) }).service;
+      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
     attachWebAssistant(server, storageHome, assistant, agents, periodic);
     server.once("close", () => {
       void periodic.stop();

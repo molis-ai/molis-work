@@ -6,7 +6,7 @@ import { PrologueInferenceError, type PrologueInputImage } from "../inference.js
 export async function withInferenceImages<T>(runtime: Runtime, images: readonly PrologueInputImage[] | undefined,
   check: () => Promise<void>, operation: (attachments?: readonly ResourceBinding[]) => Promise<T>): Promise<T> {
   if (!images?.length) return operation();
-  if (images.length > 30) throw new PrologueInferenceError("agent.inference.image_limit", "一次最多读取 30 张原图，请减少材料后重试");
+  if (images.length > 50) throw new PrologueInferenceError("agent.inference.image_limit", "一次最多读取 50 张原图，请减少材料后重试");
   const groups = new Map<string, (PrologueInputImage & { index: number })[]>();
   for (const [index, image] of images.entries()) {
     if (!isAbsolute(image.root_path)) throw new PrologueInferenceError("agent.inference.image_path", "图片来源目录无效");

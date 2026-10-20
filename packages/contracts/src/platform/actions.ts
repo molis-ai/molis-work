@@ -54,6 +54,12 @@ export interface ActionCallOrigin {
   readonly call_id?: string;
 }
 
+/** A file the person gave the Host's entry, and the installation that entry served; see `ActionCallContext.original_file`. */
+export interface HostOfferedOriginalFile {
+  readonly path: string;
+  readonly install_id: string;
+}
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -63,6 +69,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
+  /**
+   * The plugin (its Manifest `plugin_id`) whose running action made this call through its action directory (`actions:delegate`), on its
+   * original caller's behalf. Set only by the Host while it builds that nested caller; the call log keeps it beside the actor. It grants
+   * nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_by?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**
@@ -89,6 +101,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly plugin_install_id?: string;
   /** Trusted typed-capability origin. Never accepted from business arguments or persisted. */
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
+  /**
+   * The one original file the person handed the Host in this request (an import through the Host's own entry), set only on the control
+   * the Host made for that request and only for the installation whose route received it. It names a path and grants nothing: what a
+   * plugin may do with it is the `materials:original` service's, which asks for the declaration and the grant. Never business input.
+   */
+  readonly original_file?: HostOfferedOriginalFile;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
   /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
@@ -130,8 +148,10 @@ export interface RetainedActionAuthority {
 
 export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
-  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect. */
-  readonly retainAuthority?: (references: readonly ActionReference[]) => RetainedActionAuthority;
+  /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
+   * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
+   * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
+  readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
    * absent a separate authority, the original cancellation boundary remains. */

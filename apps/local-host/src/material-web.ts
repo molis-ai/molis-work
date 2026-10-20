@@ -1,9 +1,21 @@
-import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
+import type { MaterialExtraction, MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { extractMaterial } from "./material-extraction.js";
 import { materialErrors } from "./material-text.js";
 
 const MAX_BYTES = 4 * 1024 * 1024, TIMEOUT_MS = 12_000, MAX_REDIRECTS = 5;
+/** The limits every page reader keeps, public or local. */
+export const MATERIAL_PAGE_LIMITS = Object.freeze({ maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, maxRedirects: MAX_REDIRECTS });
+/** What every reader of a fetched page accepts, and how its bytes become text: one place, so a local page reads like a public one. */
+export function assertReadablePageType(type: string): void {
+  if (type && !["text/html", "application/xhtml+xml", "application/xml", "text/xml", "text/plain"].includes(type)) throw materialErrors.unsupported("链接没有返回可读取的网页正文");
+}
+export async function extractMaterialPage(type: string, bytes: Buffer, signal: AbortSignal): Promise<MaterialExtraction> {
+  const result = await extractMaterial({ file_name: type === "text/plain" ? "page.txt" : "page.html", bytes },
+    { signal, textFormat: "markdown", limits: { maxBytes: MAX_BYTES, maxCharacters: 2_000_000, maxTextBytes: 4 * 1024 * 1024 } });
+  signal.throwIfAborted();
+  return result;
+}
 function address(value: string): URL {
   const url = new URL(value);
   if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw materialErrors.url("网页地址必须是没有内嵌凭据的 HTTP(S) 链接");
@@ -31,7 +43,7 @@ export const readMaterialWebsite: MaterialWebsiteReader = async (input, options 
     }
     if (!response.ok) throw materialErrors.http("网页暂时无法读取");
     const type = response.headers.get("content-type")?.split(";", 1)[0]!.trim().toLowerCase() ?? "";
-    if (type && !["text/html", "application/xhtml+xml", "application/xml", "text/xml", "text/plain"].includes(type)) throw materialErrors.unsupported("链接没有返回可读取的网页正文");
+    assertReadablePageType(type);
     const reader = response.body?.getReader();
     if (!reader) throw materialErrors.empty("网页没有正文");
     const chunks: Uint8Array[] = []; let bytes = 0;
@@ -45,10 +57,7 @@ export const readMaterialWebsite: MaterialWebsiteReader = async (input, options 
       }
     // The body is read (or refused) already; a stream that already ended has nothing left to cancel.
     } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
-    const result = await extractMaterial({ file_name: type === "text/plain" ? "page.txt" : "page.html", bytes: Buffer.concat(chunks, bytes) },
-      { signal, textFormat: "markdown", limits: { maxBytes: MAX_BYTES, maxCharacters: 2_000_000, maxTextBytes: 4 * 1024 * 1024 } });
-    signal.throwIfAborted();
-    return result;
+    return await extractMaterialPage(type, Buffer.concat(chunks, bytes), signal);
   } finally {
     lifetime.dispose();
     // The body is read (or refused) already; a stream that already ended has nothing left to cancel.

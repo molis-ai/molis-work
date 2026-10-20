@@ -8,7 +8,7 @@ export async function openWorkflowsBrowser(t: TestContext, { open = true } = {})
   assert.ok(locateTestChrome(), "Chrome is required for the Workflows ownership regression");
   const browser = await openGoalBrowser(t, "seeded", undefined, null);
   assert.ok(browser, "Chrome is required for the Workflows ownership regression");
-  const path = `/projects/${browser.projectId}/api/workflows`;
+  const path = `/projects/${browser.projectId}/api/plugins/io.molis.work.native.workflows/workflows`;
   const a = (await browser.web.post<{ workflow: Workflow }>(path, {
     title: "流程 A 的材料", chain: { stations: [{ plugin: "feed" }], links: [] },
   })).workflow;

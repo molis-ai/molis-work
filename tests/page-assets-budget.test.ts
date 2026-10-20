@@ -686,6 +686,21 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 700254],
   // The Coding scroll-owner allowance (#864, VUX-26) is spent.
   ["/assets/molis-work-workbench.js", 1134508],
+  // Previous admissions and earlier branch starts are spent after synchronizing the predecessor.
+  ["/assets/molis-work-workbench.css", 1604785],
+  ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-arrival.css", 700146],
+  ["/assets/molis-work-workbench.js", 1134948],
+  ["/assets/molis-work-workbench.css", 1603130],
+  ["/assets/molis-work-settings.css", 988929],
+  ["/assets/molis-work-workbench.js", 1129726],
+  ["/assets/molis-work-workbench.js", 1138109],
+  ["/assets/molis-work-workbench.css", 1604761],
+  ["/assets/molis-work-settings.css", 990556],
+  ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
+  ["/assets/molis-work-workbench.js", 1139931],
+  ["/assets/molis-work-workbench.js", 1134824],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -703,7 +718,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-19 VUX-26 the shared copy and scroll consumers' allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134824, 1135021],
+    "/assets/molis-work-workbench.js": [1140247, 1140444],
     "/assets/molis-work-plugins/shelf.js": [75673, 75771],
     "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
   } as const;

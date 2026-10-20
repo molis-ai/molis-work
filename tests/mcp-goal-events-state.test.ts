@@ -138,12 +138,12 @@ test("Runtime state tools record progress and close without applying user identi
     }), false), project_id).invoke(goalsActions.snapshot, {});
     assert.equal("claims" in persisted, false, "the retired claim protocol has no state");
 
-    const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v1", { goal_id, event_id: progress.event_id,
+    const progressEvent = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.read__v2", { goal_id, event_id: progress.event_id,
     }));
     assert.equal(progressEvent.payload.operation, "progress_summary");
     assert.equal(progressEvent.payload.summary, "开场可玩");
 
-    const beforeClose = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
+    const beforeClose = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 }));
     await assert.rejects(
       () => runtime!.callTool("molis_work_v1_action_goals.closure.submit__v1", { goal_id, idempotency_key: "close-invalid", kind: "not-a-valid-kind",
         reason: "非法枚举必须拒绝", expected_config_version: ready.config.version,
@@ -151,7 +151,7 @@ test("Runtime state tools record progress and close without applying user identi
       }),
       { code: "actions.input_invalid" },
     );
-    const afterInvalid = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v1", { goal_id, limit: 100 }));
+    const afterInvalid = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.events.list__v2", { goal_id, limit: 100 }));
     assert.equal(afterInvalid.events.length, beforeClose.events.length);
   } finally {
     await runtime?.close();

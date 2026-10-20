@@ -20,6 +20,9 @@ export { openPluginDatabase } from "./plugin-database.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
+export { readMaterialLocalPage } from "./material-local-page.js";
+export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
+export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
@@ -130,8 +133,6 @@ export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-doc
 export { handleScheduleNativePluginHttp, type ScheduleNativePluginHttpOptions } from "./schedule-native-plugin-http.js";
 export { handleShelfNativePluginHttp } from "./shelf-native-plugin-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
-export { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
-export { workflowsActionProvider } from "./workflows-actions.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
 

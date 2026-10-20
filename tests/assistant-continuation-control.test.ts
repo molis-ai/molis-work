@@ -11,7 +11,7 @@ test("ASC-18: rejecting controls on an idle work changes neither its stored choi
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   let cancellations = 0;
   const host = new AgentHost({ reviews: new AgentReviewQueue() });
-  const service = new AssistantService(store, { host: async () => host,
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async () => { throw new Error("No round should start"); }, cancelSetups: () => { cancellations++; } }, "user");
   const work = store.create({ actor_id: "user", title: "Untouched work", scope: { kind: "personal" }, origin: null });
   try {
@@ -26,7 +26,7 @@ test("ASC-18: rejecting controls on an idle work changes neither its stored choi
 test("ASC-34: a failed latest Send keeps a durable pause and draft, including when setup ownership cannot be held", async () => {
   for (const holdFails of [false, true]) {
     const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-    const ports = { host: async (): Promise<AgentHost> => { throw new Error("runtime unavailable"); },
+    const ports = { pages: async () => ["home"], host: async (): Promise<AgentHost> => { throw new Error("runtime unavailable"); },
       authority: async () => { throw new Error("must not dispatch"); },
       holdSetups: () => { if (holdFails) throw new Error("setup storage unavailable"); } };
     const service = new AssistantService(store, ports, "user");
@@ -50,7 +50,7 @@ test("ASC-34: an earlier Send failing after a newer accepted input cannot replac
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const host = new AgentHost({ reviews: new AgentReviewQueue() });
-  const service = new AssistantService(store, { host: async () => host,
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async () => { throw new Error("must not dispatch old input"); },
     characters: async () => { entered.resolve(); await release.promise; throw new Error("old character lookup failed"); } }, "user");
   const work = store.create({ actor_id: "user", title: "Waiting work", scope: { kind: "project", project_id: "project" },
@@ -78,7 +78,7 @@ test("ASC-36: explicit keep-connections stops and withdraws business before reta
   host.register(adapter);
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db), events: string[] = [];
   let workId = "";
-  const service = new AssistantService(store, { host: async () => host, authority: async () => { throw new Error("No business round may start"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => { throw new Error("No business round may start"); },
     cancelSetups: () => { events.push("cancel"); }, retainSetups: async () => {
       assert.equal(store.get("user", workId).continuation_hold, "stopped"); assert.ok(events.includes("withdraw")); events.push("retain");
     } }, "user");
@@ -108,7 +108,7 @@ test("ASC-18 ASC-25: closing the Assistant aborts its runtime wait and does not 
     modelConfiguration: async () => null, resolveCredential: () => null });
   host.register(adapter);
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  const service = new AssistantService(store, { host: async () => host, authority: async () => { throw new Error("No round should start"); } }, "user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => { throw new Error("No round should start"); } }, "user");
   const entered = Promise.withResolvers<AbortSignal>(), settled = Promise.withResolvers<void>();
   const actualWait = adapter.collaboration!.awaitReady.bind(adapter.collaboration);
   const waiting = t.mock.method(adapter.collaboration!, "awaitReady", async (project, timeout, exclude, signal) => {
@@ -138,7 +138,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     modelConfiguration: async () => null, resolveCredential: () => null });
   host.register(adapter);
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  const service = new AssistantService(store, { host: async () => host, authority: async () => { throw new Error("No round should start"); } }, "user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => { throw new Error("No round should start"); } }, "user");
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const observer = Promise.withResolvers<Parameters<typeof adapter.observe>[1]>();
   t.mock.method(adapter, "observe", (_run, callback) => { observer.resolve(callback); return () => {}; });

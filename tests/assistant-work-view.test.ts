@@ -7,7 +7,7 @@ const REQUIRED = ["archived", "created_at", "draft", "executor", "origin", "revi
 
 function fixture(t: test.TestContext) {
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  const service = new AssistantService(store, { host: async () => { throw new Error("no runtime in this test"); }, authority: async () => { throw new Error("no authority in this test"); } }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no runtime in this test"); }, authority: async () => { throw new Error("no authority in this test"); } }, "web-user");
   t.after(() => db.close());
   /** Writes a work's body as an older version, or a key no version reads, could have left it. */
   const storeBody = (workId: string, extra: Record<string, unknown>) => {

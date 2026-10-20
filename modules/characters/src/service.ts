@@ -1,4 +1,5 @@
 import { parseExactActionReferences } from "@molis-ai/molis-work-contracts/platform/actions";
+import { RUNTIME_DISPLAY_NAMES } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { CharacterImportSnapshot, CharacterImportSelection, CharacterContent, CharacterDraft, CharacterDraftPatch, CharacterState, CharactersCommand, CharactersQuery } from "@molis-ai/molis-work-contracts/modules/characters";
 import { parseCharacterContent, parseCharacterTools, selectCharacterImportSnapshot } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { CharactersRepository } from "./repository.js";
@@ -35,7 +36,9 @@ export class CharactersService implements CharactersQuery, CharactersCommand {
       }
       const previous = this.list().find(draft => draft.state !== "tombstoned" && sameSource(draft.import_snapshot));
       if (previous) return { draft: previous, replayed: true };
-      const at = this.now(), labels = { codex: "Codex", "claude-code": "Claude Code", cursor: "Cursor", opencode: "OpenCode", "grok-build": "Grok Build" };
+      // The four Runtimes the Home installs read the shared names (contracts platform/app-host); Cursor is imported from, never installed, so it stays here.
+      const at = this.now(), labels = { codex: RUNTIME_DISPLAY_NAMES.codex, "claude-code": RUNTIME_DISPLAY_NAMES["claude-code"], cursor: "Cursor",
+        opencode: RUNTIME_DISPLAY_NAMES.opencode, "grok-build": RUNTIME_DISPLAY_NAMES["grok-build"] };
       const draft: CharacterDraft = { character_id: crypto.randomUUID(), owner_actor_id: this.actorId, revision: 1, state: "active",
         title: `${labels[selected.runtime_id]} 角色`, instructions: "遵循已导入规则的适用范围，按选定技能的方法完成任务。可在这里补充个人要求。",
         host_tools: null, created_at: at, updated_at: at, import_snapshot: selected };

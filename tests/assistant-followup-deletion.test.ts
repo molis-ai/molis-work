@@ -46,7 +46,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
     let barrierUsed = false, key = "";
     const barrier = async () => { if (barrierUsed || !key || schedule.find(key)?.state !== "running") return;
       barrierUsed = true; entered.resolve(); await release.promise; };
-    const service = new AssistantService(store, { host: async () => host,
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
       authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...(stage === "runtime" ? { beforeStart: barrier } : {}) }),
       projectTitle: async () => { if (stage === "materials") await barrier(); return "Project"; }, timeZone: "UTC" }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
@@ -137,7 +137,7 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
         return {};
       } })) });
     const client = local.actionClient(project), store = new AssistantStore(db);
-    const service = new AssistantService(store, { host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
+    const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
       authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => ({
         discover: () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }),
         invoke: (reference, input, beforeDispatch) => client.invoke({ actor_id: "web-user", project_id: project.project_id,

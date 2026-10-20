@@ -689,6 +689,24 @@ for (const [asset, old] of [
   // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
   ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
   ["/assets/molis-work-plugins/lingguang.js", 25265],
+  // Previous admissions and earlier branch starts are spent after synchronizing the predecessor.
+  ["/assets/molis-work-workbench.css", 1604893],
+  ["/assets/molis-work-settings.css", 990668],
+  ["/assets/molis-work-arrival.css", 700254],
+  ["/assets/molis-work-workbench.js", 1134948],
+  ["/assets/molis-work-workbench.css", 1603130],
+  ["/assets/molis-work-settings.css", 988929],
+  ["/assets/molis-work-workbench.js", 1129726],
+  ["/assets/molis-work-workbench.js", 1138109],
+  ["/assets/molis-work-workbench.css", 1604761],
+  ["/assets/molis-work-settings.css", 990556],
+  ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
+  ["/assets/molis-work-workbench.js", 1139931],
+  ["/assets/molis-work-workbench.js", 1140247],
+  ["/assets/molis-work-settings.css", 990971],
+  ["/assets/molis-work-workbench.css", 1605196],
+  ["/assets/molis-work-workbench.js", 1135021],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -706,9 +724,9 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the shared show-more allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1135021, 1135978],
-    "/assets/molis-work-workbench.css": [1605196, 1605291],
-    "/assets/molis-work-settings.css": [990971, 991066],
+    "/assets/molis-work-workbench.js": [1140444, 1141401],
+    "/assets/molis-work-workbench.css": [1605172, 1605267],
+    "/assets/molis-work-settings.css": [990967, 991062],
     "/assets/molis-work-arrival.css": [700557, 700652],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

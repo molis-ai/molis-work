@@ -244,9 +244,9 @@ const headErrors = (measured, budget, base) => {
 // no per-group copy of the logic, the label from one translated string, the button's look from the existing ghost button.
 // Spent once from exactly the remaining-consumers slice's budget (#866).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1135021, 1135978],
-  "/assets/molis-work-workbench.css": [1605196, 1605291],
-  "/assets/molis-work-settings.css": [990971, 991066],
+  "/assets/molis-work-workbench.js": [1140444, 1141401],
+  "/assets/molis-work-workbench.css": [1605172, 1605267],
+  "/assets/molis-work-settings.css": [990967, 991062],
   "/assets/molis-work-arrival.css": [700557, 700652],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

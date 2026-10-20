@@ -391,7 +391,7 @@ test("availability is the model's: with no model set up it says so and complete 
         await assert.rejects(item.invoke(plugin.ask), { code: "actions.connection_required" });
         // A model, read when the call needs it, not when the plugin started.
         injection.current = model.complete;
-        assert.deepEqual(client.availability(), { available: true });
+        assert.deepEqual(client.availability(), { available: true, vision: true }, "a model the Host was given for a test takes images as they are");
         assert.deepEqual(await item.invoke(plugin.ask), { text: "摘要结果" });
         assert.equal(model.calls.length, 1, "only the call made once a model was there reached one");
         // The grant is part of availability, as it is for the action itself.

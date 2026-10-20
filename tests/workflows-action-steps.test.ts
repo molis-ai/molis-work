@@ -112,7 +112,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     await actions.invoke(w.continue, { id: failing.instance_id, retry_action: true });
     assert.equal(tickets.length, 3);
 
-    // The complete schema rejects an empty mapped title before dispatch; no attempt is recorded.
+    // W5-01-WORKFLOWS-06: the directory pre-check (`check`) rejects an empty mapped title before dispatch; no attempt is recorded.
     const { workflow: noUrl } = await actions.invoke(w.create, { title: "链接建单", chain: { stations: [{ plugin: "feed" }, station(ticketStep, { title: { from: "url" }, priority: { value: "low" } })], links: [pass] } });
     const refused = (await actions.invoke(w.start, { id: noUrl.workflow_id, item_id: item.item_id })).instance;
     await assert.rejects(actions.invoke(w.continue, { id: refused.instance_id }), { code: "actions.input_invalid" });

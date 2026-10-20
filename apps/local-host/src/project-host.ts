@@ -18,7 +18,7 @@ import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
-import { scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
+import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
 import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
@@ -57,6 +57,7 @@ import { homePluginActions, withPreparedActions } from "./plugin-actions-client.
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
+import { withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -184,7 +185,7 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), providers);
+            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => providerTablesOwner(entry.provider)));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {

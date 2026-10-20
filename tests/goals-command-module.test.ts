@@ -13,6 +13,7 @@ import {
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
   return {
@@ -133,6 +134,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
   try {
     const goals = new GoalsModule(store.db, {});
     const initialize = { project_id: "board-lifecycle", title: "Goals Lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
+    writeProjectRoot(store.db, "board-lifecycle", "2026-10-20T00:00:00.000Z");
     store.db.exec(`CREATE TRIGGER reject_board_event BEFORE INSERT ON events
       WHEN NEW.type = 'board.created' BEGIN SELECT RAISE(ABORT, 'board event unavailable'); END`);
     assert.throws(() => goals.commands.initializeBoard(initialize), /board event unavailable/u);

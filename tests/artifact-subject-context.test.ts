@@ -20,7 +20,7 @@ function fixture(t: test.TestContext) {
   const db = new Database(":memory:");
   t.after(() => db.close());
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE boards (project_id TEXT PRIMARY KEY); INSERT INTO boards VALUES ('canonical-project'), ('foreign-board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
+  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('canonical-project'), ('foreign-board'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL);");
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-09-26T00:00:00.000Z",

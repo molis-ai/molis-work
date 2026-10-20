@@ -20,14 +20,6 @@ export interface ReminderScheduler {
   cancel(jobId: string, pluginId?: string): { cancelled: boolean };
 }
 
-/** The plugin reminder table, as one current schema; the host composes it into the project database baseline. */
-export const SCHEDULE_REMINDERS_SCHEMA_SQL = `
-  CREATE TABLE IF NOT EXISTS schedule_plugin_reminders (
-    id TEXT PRIMARY KEY, project_id TEXT NOT NULL, plugin_id TEXT NOT NULL, installation_id TEXT,
-    record_json TEXT NOT NULL
-  );
-  CREATE INDEX IF NOT EXISTS schedule_plugin_reminders_owner ON schedule_plugin_reminders(project_id, plugin_id, installation_id);
-`;
 export function getScheduleReminder(db: ScheduleTaskDatabase, id: string): ScheduleReminder | null {
   const row = db.prepare("SELECT record_json FROM schedule_plugin_reminders WHERE id = ?").get(id) as { record_json: string } | undefined;
   return row ? JSON.parse(row.record_json) as ScheduleReminder : null;
@@ -44,7 +36,6 @@ export function createScheduleReminders(options: {
   now?(): number;
 }) {
   const { db, schedule } = options;
-  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   const authorize = (identity: ReminderIdentity) => {
     if (identity.projectId !== options.projectId || !identity.pluginId || !identity.installationId) throw new ActionError("actions.forbidden", "提醒缺少当前项目的插件安装身份");
     const descriptor = options.describe(identity);

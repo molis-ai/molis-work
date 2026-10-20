@@ -75,41 +75,8 @@ interface TurnRow {
   created_at: string;
 }
 
-/** The conversation task tables, as one current schema; the host composes them into the project database baseline. */
-export const SCHEDULE_TASKS_SCHEMA_SQL = `
-    CREATE TABLE IF NOT EXISTS schedule_conversation_tasks (
-      task_id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      instructions TEXT NOT NULL,
-      hour INTEGER NOT NULL,
-      minute INTEGER NOT NULL,
-      notify_important INTEGER NOT NULL CHECK (notify_important IN (0, 1)),
-      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
-      unread INTEGER NOT NULL CHECK (unread IN (0, 1)),
-      job_id TEXT,
-      last_run_at TEXT,
-      last_error TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS schedule_conversation_tasks_enabled_idx
-      ON schedule_conversation_tasks(enabled, updated_at);
-    CREATE TABLE IF NOT EXISTS schedule_conversation_turns (
-      turn_id TEXT PRIMARY KEY,
-      task_id TEXT NOT NULL,
-      kind TEXT NOT NULL CHECK (kind IN ('user', 'assistant', 'system')),
-      text TEXT NOT NULL,
-      important INTEGER NOT NULL CHECK (important IN (0, 1)),
-      created_at TEXT NOT NULL,
-      FOREIGN KEY (task_id) REFERENCES schedule_conversation_tasks(task_id)
-    );
-    CREATE INDEX IF NOT EXISTS schedule_conversation_turns_task_idx
-      ON schedule_conversation_turns(task_id, created_at);
-`;
 
 export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): string {
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const tasks = db.prepare(
     "SELECT COUNT(*) AS n, COALESCE(MAX(updated_at), '') AS updated FROM schedule_conversation_tasks",
   ).get() as { n: number; updated: string };
@@ -120,7 +87,6 @@ export function scheduleConversationFingerprint(db: ScheduleTaskDatabase): strin
 }
 
 export function listScheduleConversationTasks(db: ScheduleTaskDatabase): ScheduleConversationTaskRecord[] {
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const rows = db.prepare(
     "SELECT * FROM schedule_conversation_tasks WHERE archived = 0 ORDER BY enabled DESC, updated_at DESC",
   ).all() as TaskRow[];
@@ -131,7 +97,6 @@ export function getScheduleConversationTask(
   db: ScheduleTaskDatabase,
   taskId: string,
 ): ScheduleConversationTaskRecord | null {
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const row = db.prepare("SELECT * FROM schedule_conversation_tasks WHERE task_id = ?").get(taskId) as TaskRow | undefined;
   return row ? toRecord(db, row) : null;
 }
@@ -147,7 +112,6 @@ export function createScheduleConversationTask(
   },
   now = () => new Date(),
 ): ScheduleConversationTaskRecord {
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const title = normalizeTitle(input.title);
   const instructions = normalizeInstructions(input.instructions);
   assertClockTime(input.hour, input.minute);

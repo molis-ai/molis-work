@@ -1,4 +1,5 @@
 import type { BoardSnapshot } from "@molis-ai/molis-work-plugin-goals";
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { LocalProjectDatabase } from "./project-database.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { catalogErrors } from "./project-catalog-contract.js";
@@ -42,6 +43,11 @@ export function readManagedBoard(
       );
     }
     const projectId = projectIds[0];
+    // The library is the project's: exactly one root row, the same id as Goals' board (PLIB-09).
+    const roots = listProjectRoots(store.db);
+    if (roots.length !== 1 || roots[0]?.project_id !== projectId) {
+      throw catalogErrors.database_invalid(`项目数据库必须恰好有一行与 Board 同 id 的项目根记录: ${databasePath}`);
+    }
     if (!store.integrityCheck()) {
       throw catalogErrors.database_invalid(`SQLite 完整性校验失败: ${databasePath}`);
     }

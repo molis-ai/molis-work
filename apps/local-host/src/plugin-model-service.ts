@@ -14,19 +14,22 @@ import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
- * `services.model` for a plugin this Host runs itself: declared `model:invoke`, not sandboxed, on a platform that reaches a Home.
- * The Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
+ * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
+ * reaches a Home. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
  * `beforeEffect` agreeing before and after); the port below only makes it, through `hostTextGeneration`, which is agent-host's
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => item.permission === "model:invoke")) return undefined;
+  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
   const gate = { install_id: context.install_id, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });
 }
+
+/** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */
+const MODEL_PERMISSIONS: readonly string[] = ["model:read", "model:invoke"];
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
 

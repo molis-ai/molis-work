@@ -1,14 +1,5 @@
 -- The project database baseline, version 8 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
 -- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
-CREATE TABLE acceptance_criteria (
-    criterion_id TEXT PRIMARY KEY,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    statement TEXT NOT NULL,
-    decision_method TEXT NOT NULL,
-    pass_condition TEXT NOT NULL,
-    target_json TEXT,
-    required_evidence_json TEXT NOT NULL DEFAULT '[]'
-  );
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
@@ -18,13 +9,6 @@ CREATE TABLE attention_events (
       subject_id TEXT NOT NULL,
       at TEXT NOT NULL
     );
-CREATE TABLE boards (
-          project_id TEXT PRIMARY KEY,
-          title TEXT NOT NULL,
-          active_goal_id TEXT,
-          created_at TEXT NOT NULL,
-          updated_at TEXT NOT NULL
-        );
 CREATE TABLE context_edges (
     scope_kind TEXT NOT NULL CHECK (scope_kind IN ('personal', 'team_project')),
     scope_id TEXT NOT NULL,
@@ -154,334 +138,6 @@ CREATE TABLE feed_sources (
       updated_at TEXT NOT NULL,
       PRIMARY KEY (project_id, source_id)
 );
-CREATE TABLE goal_event_agreements (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    outcome TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    event_id TEXT,
-    PRIMARY KEY (project_id, goal_id, version)
-  );
-CREATE TABLE goal_event_applied_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    governance_decision_id TEXT NOT NULL,
-    request_id TEXT,
-    event_id TEXT NOT NULL,
-    selected_option_id TEXT,
-    conclusion TEXT NOT NULL,
-    accepts_requirements INTEGER NOT NULL CHECK (accepts_requirements IN (0, 1)),
-    effects_json TEXT NOT NULL DEFAULT '[]',
-    scope_json TEXT NOT NULL,
-    commitment_json TEXT NOT NULL DEFAULT '{"outcome":"","requirements":[]}',
-    authorized_change_json TEXT,
-    config_version INTEGER,
-    agreement_version INTEGER,
-    actor_id TEXT NOT NULL,
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('web', 'management')),
-    recorded_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_closures (
-    closure_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('complete', 'cancel')),
-    result TEXT,
-    reason TEXT NOT NULL,
-    completion_applied INTEGER NOT NULL CHECK (completion_applied IN (0, 1)),
-    expected_config_version INTEGER NOT NULL,
-    expected_agreement_version INTEGER NOT NULL DEFAULT 0,
-    config_version INTEGER,
-    agreement_version INTEGER,
-    unmet_reasons_json TEXT NOT NULL DEFAULT '[]',
-    superseded INTEGER NOT NULL CHECK (superseded IN (0, 1)),
-    superseded_reason TEXT,
-    recorded_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_concerns (
-    concern_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    title TEXT NOT NULL,
-    statement TEXT NOT NULL,
-    scope_json TEXT NOT NULL,
-    blocks_closure INTEGER NOT NULL CHECK (blocks_closure IN (0, 1)),
-    status TEXT NOT NULL CHECK (status IN ('open', 'resolved', 'accepted', 'overturned')),
-    resolution_reason TEXT,
-    resolution_event_id TEXT,
-    cited_decision_id TEXT,
-    previous_status TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_config_versions (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    version INTEGER NOT NULL,
-    actor_id TEXT NOT NULL,
-    adopted_planning_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL,
-    config_event_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, version)
-  );
-CREATE TABLE goal_event_configs (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    current_version INTEGER NOT NULL,
-    updated_at TEXT NOT NULL,
-    updated_by TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id)
-  );
-CREATE TABLE goal_event_decision_requests (
-    request_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    question TEXT NOT NULL,
-    options_json TEXT NOT NULL,
-    scope_json TEXT NOT NULL,
-    purpose TEXT NOT NULL DEFAULT 'suggestion' CHECK (purpose IN ('suggestion', 'requirement_acceptance', 'action', 'agreement_change')),
-    proposed_change_json TEXT,
-    commitment_json TEXT,
-    status TEXT NOT NULL CHECK (status IN ('pending', 'decided')),
-    created_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_progress_summaries (
-    summary_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    event_id TEXT NOT NULL,
-    summary_text TEXT NOT NULL,
-    based_on_cursor INTEGER NOT NULL,
-    next_step TEXT,
-    next_actor TEXT,
-    actor_id TEXT NOT NULL,
-    recorded_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_requirement_bindings (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    type_id TEXT NOT NULL,
-    requirement_id TEXT NOT NULL,
-    created_in_config_version INTEGER NOT NULL,
-    created_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, type_id, requirement_id)
-  );
-CREATE TABLE goal_event_requirement_conclusions (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    requirement_id TEXT NOT NULL,
-    decision_id TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('accepted', 'rejected')),
-    received_at TEXT NOT NULL,
-    journal_seq INTEGER NOT NULL,
-    PRIMARY KEY (project_id, goal_id, requirement_id, decision_id)
-  );
-CREATE TABLE goal_event_requirements (
-    requirement_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    statement TEXT NOT NULL,
-    bound_type_id TEXT,
-    created_at TEXT NOT NULL,
-    created_in_config_version INTEGER NOT NULL,
-    actor_id TEXT NOT NULL,
-    source_json TEXT,
-    human_decision_required INTEGER NOT NULL DEFAULT 0 CHECK (human_decision_required IN (0, 1)),
-    current_status TEXT NOT NULL DEFAULT 'active' CHECK (current_status IN ('active', 'retired')),
-    revision INTEGER NOT NULL DEFAULT 1,
-    support_valid_after_seq INTEGER NOT NULL DEFAULT 0
-  );
-CREATE TABLE goal_event_state_owners (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    owner TEXT NOT NULL CHECK (owner = 'event_work'),
-    source TEXT NOT NULL CHECK (source IN ('intent', 'configuration', 'continue')),
-    adopted_at TEXT NOT NULL,
-    adopted_by TEXT NOT NULL,
-    PRIMARY KEY (goal_id)
-  );
-CREATE TABLE goal_event_trusted_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    actor_id TEXT NOT NULL,
-    actor_kind TEXT NOT NULL CHECK (actor_kind = 'user'),
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('web', 'management')),
-    conversation_ref TEXT NOT NULL,
-    message_ref TEXT NOT NULL,
-    request_id TEXT,
-    selected_option_id TEXT,
-    conclusion TEXT NOT NULL,
-    accepts_requirements INTEGER NOT NULL CHECK (accepts_requirements IN (0, 1)),
-    scope_json TEXT NOT NULL,
-    change_json TEXT,
-    recorded_at TEXT NOT NULL
-  );
-CREATE TABLE goal_event_types (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    type_id TEXT NOT NULL,
-    type_version INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    purpose TEXT NOT NULL,
-    semantic_family TEXT,
-    source_json TEXT NOT NULL,
-    fields_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    created_in_config_version INTEGER NOT NULL,
-    actor_id TEXT NOT NULL,
-    PRIMARY KEY (project_id, goal_id, type_id, type_version)
-  );
-CREATE TABLE goal_event_work_status (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    work_status TEXT NOT NULL CHECK (work_status IN ('open', 'completed', 'cancelled')),
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (goal_id)
-  );
-CREATE TABLE goal_relations (
-    relation_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    from_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    to_goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    type TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'active', 'inactive')),
-    reason TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    deactivated_at TEXT
-  );
-CREATE TABLE goal_trash_records (
-    trash_record_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    trashed_at TEXT NOT NULL,
-    trashed_by TEXT NOT NULL,
-    trash_reason TEXT NOT NULL,
-    restored_at TEXT,
-    restored_by TEXT,
-    restore_reason TEXT
-  );
-CREATE TABLE goal_trash_relation_records (
-    trash_record_id TEXT NOT NULL REFERENCES goal_trash_records(trash_record_id) ON DELETE CASCADE,
-    relation_id TEXT NOT NULL REFERENCES goal_relations(relation_id) ON DELETE CASCADE,
-    prior_state TEXT NOT NULL CHECK (prior_state = 'active'),
-    deactivated_at TEXT NOT NULL,
-    restored_at TEXT,
-    PRIMARY KEY (trash_record_id, relation_id)
-  );
-CREATE TABLE goal_tree_proposal_decisions (
-    decision_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    item_id TEXT NOT NULL REFERENCES goal_tree_proposal_items(item_id) ON DELETE CASCADE,
-    decision TEXT NOT NULL CHECK (decision IN ('confirmed', 'rejected', 'revised', 'conflict')),
-    actor_id TEXT NOT NULL,
-    authority_source TEXT NOT NULL CHECK (authority_source IN ('runtime_dialogue', 'web', 'management')),
-    runtime_actor_id TEXT,
-    conversation_ref TEXT NOT NULL,
-    message_ref TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL
-  );
-CREATE TABLE goal_tree_proposal_items (
-    item_id TEXT PRIMARY KEY,
-    proposal_id TEXT NOT NULL REFERENCES goal_tree_proposals(proposal_id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    ordinal INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('goal', 'relation')),
-    operation TEXT NOT NULL CHECK (operation IN ('create', 'deactivate')),
-    payload_json TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    explanation_json TEXT,
-    confidence REAL NOT NULL,
-    affected_objects_json TEXT NOT NULL,
-    baseline_versions_json TEXT NOT NULL,
-    requires_user_confirmation INTEGER NOT NULL DEFAULT 1,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'conflict', 'superseded', 'approved', 'applied', 'rejected', 'dismissed')),
-    conflict_json TEXT,
-    materialized_objects_json TEXT NOT NULL DEFAULT '[]',
-    revision_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    supersedes_item_id TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(proposal_id, ordinal)
-  );
-CREATE TABLE goal_tree_proposals (
-    proposal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    root_goal_id TEXT REFERENCES goals(goal_id) ON DELETE SET NULL,
-    submitted_by TEXT NOT NULL,
-    submitted_session_id TEXT,
-    state TEXT NOT NULL CHECK (state IN ('pending', 'superseded', 'approved', 'partially_applied', 'rejected', 'dismissed', 'closed')),
-    version INTEGER NOT NULL,
-    supersedes_proposal_id TEXT REFERENCES goal_tree_proposals(proposal_id),
-    base_event_cursor INTEGER NOT NULL,
-    summary TEXT NOT NULL,
-    narrative_json TEXT,
-    decision_json TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    decided_at TEXT
-  );
-CREATE TABLE goal_work_event_judgments (
-    event_id TEXT NOT NULL REFERENCES goal_work_events(event_id) ON DELETE CASCADE,
-    requirement_id TEXT NOT NULL,
-    verdict TEXT NOT NULL CHECK (verdict IN ('supports', 'contradicts', 'unknown')),
-    PRIMARY KEY (event_id, requirement_id)
-  );
-CREATE TABLE goal_work_events (
-    event_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,
-    kind TEXT NOT NULL CHECK (kind IN ('configuration', 'report', 'system')),
-    type_id TEXT,
-    type_version INTEGER,
-    title TEXT NOT NULL,
-    payload_json TEXT NOT NULL,
-    actor_id TEXT NOT NULL,
-    actor_kind TEXT,
-    received_at TEXT NOT NULL,
-    journal_seq INTEGER NOT NULL,
-    config_version INTEGER
-  );
-CREATE TABLE goals (
-    goal_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    title TEXT NOT NULL,
-    outcome TEXT NOT NULL,
-    why TEXT NOT NULL,
-    business_logic TEXT NOT NULL,
-    in_scope_json TEXT NOT NULL DEFAULT '[]',
-    out_of_scope_json TEXT NOT NULL DEFAULT '[]',
-    constraints_json TEXT NOT NULL DEFAULT '[]',
-    required_inputs_json TEXT NOT NULL DEFAULT '[]',
-    promised_outputs_json TEXT NOT NULL DEFAULT '[]',
-    decomposition_review_json TEXT,
-    definition_state TEXT NOT NULL CHECK (definition_state IN ('draft', 'accepted')),
-    decomposition_state TEXT NOT NULL CHECK (decomposition_state IN ('abstract', 'frontier_open', 'closed_leaf', 'closed_compound')),
-    validity_state TEXT NOT NULL CHECK (validity_state IN ('valid', 'needs_revalidation', 'invalidated')),
-    fulfillment_state TEXT NOT NULL CHECK (fulfillment_state IN ('unmet', 'satisfied')),
-    trashed_at TEXT,
-    trashed_by TEXT,
-    archived_at TEXT,
-    archived_by TEXT,
-    priority INTEGER NOT NULL DEFAULT 0,
-    accepted_by TEXT,
-    accepted_at TEXT,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL
-  );
 CREATE TABLE idempotency_records (
           project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
           actor_id TEXT NOT NULL,
@@ -507,20 +163,6 @@ CREATE TABLE inbox_entries (
       PRIMARY KEY (project_id, entry_id),
       UNIQUE (project_id, subject_type, subject_id, reason)
 );
-CREATE TABLE input_bindings (
-    binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT NOT NULL REFERENCES goals(goal_id),
-    input_name TEXT NOT NULL,
-    source_type TEXT NOT NULL,
-    source_ref TEXT NOT NULL,
-    source_edge_key TEXT,
-    snapshot_digest TEXT,
-    state TEXT NOT NULL CHECK (state IN ('proposed', 'confirmed', 'inactive')),
-    reason TEXT NOT NULL,
-    created_by TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
 CREATE TABLE library_artifact_versions (
     artifact_id TEXT NOT NULL REFERENCES library_artifacts(artifact_id) ON DELETE CASCADE,
     version INTEGER NOT NULL CHECK (version > 0),
@@ -594,16 +236,6 @@ CREATE TABLE listener_instances (
       updated_at TEXT NOT NULL,
       PRIMARY KEY (project_id, source_id)
     );
-CREATE TABLE planning_method_packs (
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    method_id TEXT NOT NULL,
-    version INTEGER NOT NULL,
-    enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-    pack_json TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    PRIMARY KEY (project_id, method_id)
-  );
 CREATE TABLE plugin_event_cursors (
       project_id TEXT NOT NULL,
       subscriber_plugin_id TEXT NOT NULL,
@@ -697,17 +329,6 @@ CREATE TABLE plugin_runtime_release_artifacts (
       artifact_json TEXT NOT NULL,
       PRIMARY KEY (plugin_id, publisher_signature, version, manifest_digest)
     );
-CREATE TABLE policy_bindings (
-    policy_binding_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    goal_id TEXT REFERENCES goals(goal_id),
-    scope TEXT NOT NULL CHECK (scope IN ('project_default', 'ancestor_minimum', 'goal')),
-    policy_json TEXT NOT NULL,
-    state TEXT NOT NULL CHECK (state IN ('active', 'replaced', 'withdrawn')),
-    created_by TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL
-  );
 CREATE TABLE process_item_versions (
     artifact_id TEXT NOT NULL REFERENCES process_items(artifact_id) ON DELETE CASCADE,
     version INTEGER NOT NULL CHECK (version > 0),
@@ -748,42 +369,6 @@ CREATE TABLE process_items (
   );
 CREATE TABLE project_browsing_settings (
     project_id TEXT PRIMARY KEY, workspace_id TEXT
-  );
-CREATE TABLE project_guidance_entries (
-    guidance_id TEXT PRIMARY KEY,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    position INTEGER NOT NULL,
-    revision INTEGER NOT NULL DEFAULT 1,
-    active INTEGER NOT NULL DEFAULT 1 CHECK (active IN (0, 1)),
-    kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL DEFAULT '[]',
-    created_by TEXT NOT NULL,
-    confirmation_summary TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    updated_by TEXT NOT NULL,
-    updated_at TEXT NOT NULL,
-    UNIQUE(project_id, position),
-    UNIQUE(project_id, kind, content_hash)
-  );
-CREATE TABLE project_guidance_revisions (
-    revision_id TEXT PRIMARY KEY,
-    guidance_id TEXT NOT NULL REFERENCES project_guidance_entries(guidance_id) ON DELETE CASCADE,
-    project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
-    revision INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('context', 'requirement', 'constraint', 'convention', 'workflow', 'quality_bar')),
-    content TEXT NOT NULL,
-    content_hash TEXT NOT NULL,
-    source_refs_json TEXT NOT NULL DEFAULT '[]',
-    active INTEGER NOT NULL CHECK (active IN (0, 1)),
-    changed_by TEXT NOT NULL,
-    change_kind TEXT NOT NULL CHECK (change_kind IN ('created', 'edited', 'deactivated', 'restored')),
-    confirmation_summary TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    created_at TEXT NOT NULL,
-    UNIQUE(guidance_id, revision)
   );
 CREATE TABLE project_root (
       project_id TEXT PRIMARY KEY,
@@ -866,7 +451,6 @@ CREATE TABLE source_events (
       payload_json TEXT NOT NULL,
       at TEXT NOT NULL
     );
-CREATE INDEX acceptance_goal_idx ON acceptance_criteria(goal_id);
 CREATE INDEX attention_events_project_entry_idx
       ON attention_events(project_id, entry_id, at, event_id);
 CREATE INDEX context_edges_source_idx ON context_edges
@@ -887,51 +471,6 @@ CREATE INDEX feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_project_updated_idx
       ON feed_sources(project_id, updated_at DESC, source_id);
-CREATE INDEX goal_event_applied_decisions_goal_idx
-    ON goal_event_applied_decisions(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_closures_goal_idx
-    ON goal_event_closures(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_concerns_goal_idx
-    ON goal_event_concerns(project_id, goal_id, status);
-CREATE INDEX goal_event_decision_requests_goal_idx
-    ON goal_event_decision_requests(project_id, goal_id, status);
-CREATE INDEX goal_event_progress_summaries_goal_idx
-    ON goal_event_progress_summaries(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_requirement_conclusions_latest_idx
-    ON goal_event_requirement_conclusions(project_id, goal_id, requirement_id, journal_seq);
-CREATE INDEX goal_event_requirements_goal_idx
-    ON goal_event_requirements(project_id, goal_id, requirement_id);
-CREATE INDEX goal_event_state_owners_project_idx
-    ON goal_event_state_owners(project_id, goal_id);
-CREATE INDEX goal_event_trusted_decisions_goal_idx
-    ON goal_event_trusted_decisions(project_id, goal_id, recorded_at);
-CREATE INDEX goal_event_types_goal_idx
-    ON goal_event_types(project_id, goal_id, type_id, type_version);
-CREATE UNIQUE INDEX goal_trash_one_open_per_goal
-    ON goal_trash_records(project_id, goal_id)
-    WHERE restored_at IS NULL;
-CREATE INDEX goal_trash_records_goal_idx
-    ON goal_trash_records(project_id, goal_id, restored_at, trashed_at);
-CREATE INDEX goal_trash_relation_records_relation_idx
-    ON goal_trash_relation_records(relation_id, restored_at);
-CREATE INDEX goal_tree_proposal_decisions_item_idx
-    ON goal_tree_proposal_decisions(proposal_id, item_id, created_at, decision_id);
-CREATE INDEX goal_tree_proposal_items_project_idx
-    ON goal_tree_proposal_items(project_id, state, item_id);
-CREATE INDEX goal_tree_proposal_items_proposal_idx
-    ON goal_tree_proposal_items(proposal_id, ordinal, item_id);
-CREATE INDEX goal_tree_proposals_project_idx
-    ON goal_tree_proposals(project_id, root_goal_id, state, created_at DESC, proposal_id);
-CREATE INDEX goal_tree_proposals_supersedes_idx
-    ON goal_tree_proposals(supersedes_proposal_id);
-CREATE INDEX goal_work_event_judgments_requirement_idx
-    ON goal_work_event_judgments(requirement_id, event_id);
-CREATE INDEX goal_work_events_goal_seq_idx
-    ON goal_work_events(project_id, goal_id, journal_seq);
-CREATE INDEX goals_archive_idx ON goals(project_id, archived_at);
-CREATE INDEX goals_project_idx ON goals(project_id);
-CREATE INDEX goals_ready_idx ON goals(project_id, definition_state, decomposition_state, validity_state, fulfillment_state);
-CREATE INDEX goals_trash_idx ON goals(project_id, trashed_at);
 CREATE INDEX inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_project_subject_idx
@@ -945,17 +484,10 @@ CREATE INDEX listener_deliveries_recovery_idx
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
-CREATE INDEX policies_scope_idx ON policy_bindings(project_id, goal_id, state);
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_project_idx
     ON process_items(project_id, created_at DESC, artifact_id);
-CREATE INDEX project_guidance_project_idx
-    ON project_guidance_entries(project_id, position, guidance_id);
-CREATE INDEX project_guidance_revisions_project_idx
-    ON project_guidance_revisions(project_id, guidance_id, revision DESC);
-CREATE INDEX relations_from_idx ON goal_relations(project_id, from_goal_id, state);
-CREATE INDEX relations_to_idx ON goal_relations(project_id, to_goal_id, state);
 CREATE INDEX schedule_jobs_due_idx
       ON schedule_jobs(enabled, next_due_at);
 CREATE INDEX signal_events_project_source_idx

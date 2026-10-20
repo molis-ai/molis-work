@@ -87,7 +87,7 @@ test("each CLI command is one Goals action call as the person on this machine: o
       rows.push([operation, calls[0]!]);
       return output;
     };
-    await run("init", goalsActions.initialize.capability_id, { project_id: PROJECT, title: "命令行", idempotency_key: "init" });
+    await run("init", goalsActions.initialize.capability_id, { project_id: PROJECT, idempotency_key: "init" });
     await person.invoke(goalsActions.create, { goal_id: "root", title: "根目标", outcome: "可以由命令行继续", idempotency_key: "root" });
     await run("snapshot", goalsActions.snapshot.capability_id);
     await run("active-goal", goalsActions.active.capability_id, { project_id: PROJECT, goal_id: "root", reason: "当前工作", idempotency_key: "active" });
@@ -116,7 +116,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
     const pick = (caller: ActionCallContext) => JSON.parse(JSON.stringify({ actor_id: caller.actor_id, actor_kind: caller.actor_kind, audience: caller.audience,
       project_id: caller.project_id, user_action: caller.user_action }));
     host.callers.length = 0;
-    await cli("init", { project_id: PROJECT, title: "命令行", idempotency_key: "init" });
+    await cli("init", { project_id: PROJECT, idempotency_key: "init" });
     const managed = host.managed(goalsActions.initialize.capability_id);
     assert.equal(managed.length, 1, "init reaches the Host's action client once, as a management caller (not through a typed capability)");
     const initialize = managed[0]!;
@@ -153,14 +153,16 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
 test("the CLI keeps its wire: the payload's project must be the bound one, init picks its fields, and identity is refused with the same codes and words", async () => {
   const { cli, person, done } = await setup();
   try {
-    const first = await cli<{ project_id: string }>("init", { project_id: PROJECT, title: "命令行", idempotency_key: "init", actor_id: "someone-else", extra: "ignored" });
+    // PLIB-15 (S8): init picks project_id and idempotency_key; a title in the payload, which the board no longer has, is one more field it does not read.
+    const first = await cli<{ project_id: string }>("init", { project_id: PROJECT, idempotency_key: "init", title: "没有地方存的名字", actor_id: "someone-else", extra: "ignored" });
     assert.equal(first.project_id, PROJECT);
     await person.invoke(goalsActions.create, { goal_id: "root", title: "根目标", outcome: "可以由命令行继续", idempotency_key: "root" });
-    const before = await cli("snapshot");
+    const before = await cli<{ board: Record<string, unknown> }>("snapshot");
+    assert.equal("title" in before.board, false, "and the snapshot's board carries no name");
 
     // A payload that does not carry the project this command is bound to (here by --project-id) is refused, and nothing is written.
     const { project_id: _bound, ...proposed0 } = proposal("k");
-    for (const [operation, input] of [["init", { title: "x", idempotency_key: "k" }], ["snapshot", {}], ["active-goal", { goal_id: "root", reason: "r", idempotency_key: "k" }],
+    for (const [operation, input] of [["init", { idempotency_key: "k" }], ["snapshot", {}], ["active-goal", { goal_id: "root", reason: "r", idempotency_key: "k" }],
       ["goal-tree-propose", proposed0], ["goal-tree-read", {}], ["goal-tree-check", { proposal_id: "p", idempotency_key: "k" }],
       ["goal-tree-decide", { proposal_id: "p", idempotency_key: "k" }]] as const) {
       await assert.rejects(cli(operation, input, "--project-id", PROJECT), { code: "actions.scope_mismatch" }, `${operation} without the bound project`);

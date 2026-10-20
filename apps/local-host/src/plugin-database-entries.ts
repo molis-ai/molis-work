@@ -1,10 +1,10 @@
-import type { PluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /** A plugin the Host starts in a project's platform, with the library in the Home the Host gives it, if any. */
 export interface PluginDatabaseEntry {
   readonly definition: PluginDefinition;
-  readonly database?: PluginDatabaseDeclaration;
+  readonly database?: HomePluginDatabaseDeclaration;
 }
 
 /** A plugin library's name: one directory of the Home. */
@@ -20,8 +20,12 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
  * (`home-stores.ts`, W4-11) as this plugin's own, at the baseline the entry declares: so `uninstall --purge-user-data` reaches
  * it, and a library another owner registered (the Host's, a module's, another plugin's) or any other entry of the Home
  * (`feed`, `config`, `agent-runtime`, ...) is refused.
+ *
+ * A library partitioned by project (`partition: "project"`) is only for a Home-level plugin (`scope`): a project's plugin keeps its
+ * data in that project already. The entry and the registry have to agree on it, so the files uninstall and project deletion remove
+ * are the ones the plugin writes.
  */
-export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null): void {
+export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {
   const taken = new Set<string>();
   for (const { definition, database } of entries) {
     if (!database) continue;
@@ -37,6 +41,10 @@ export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], h
     if (store.library.baseline.version !== database.version || store.library.baseline.schema !== database.schema) {
       throw new Error(`插件 ${id} 声明的库 ${name} 与登记的基线不同`);
     }
+    if (database.partition !== undefined && (scope !== "home" || database.partition !== "project")) {
+      throw new Error(`插件 ${id} 的库只有 Home 级插件能按项目分开：项目里的插件本来就把数据放在项目里`);
+    }
+    if (store.library.partition !== database.partition) throw new Error(`插件 ${id} 声明的库 ${name} 与登记的分区方式不同`);
     if (taken.has(name)) throw new Error(`库 ${name} 被同一份启动名单里的两个插件声明，库归属重复`);
     taken.add(name);
     const declared = new Set(definition.manifest.permissions.map(item => item.permission));

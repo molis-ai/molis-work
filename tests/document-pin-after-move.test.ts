@@ -46,8 +46,8 @@ async function fixture(t: test.TestContext, permissions: readonly string[]) {
   const refB = molisWorkHostProjectReference({ databasePath: join(home, "b.sqlite"), projectId: "pb" });
   const callerA: ActionCallContext = { actor_id: "owner", project_id: "pa", audience: "user", permissions: [...permissions] };
   const callerB: ActionCallContext = { ...callerA, project_id: "pb" };
-  await host.withProject(refA, runtime => runtime.coordinator.initializeBoard({ project_id: "pa", title: "A", actor_id: "owner", idempotency_key: "a" }));
-  await host.withProject(refB, runtime => runtime.coordinator.initializeBoard({ project_id: "pb", title: "B", actor_id: "owner", idempotency_key: "b" }));
+  await host.withProject(refA, runtime => runtime.coordinator.initializeBoard({ project_id: "pa", actor_id: "owner", idempotency_key: "a" }));
+  await host.withProject(refB, runtime => runtime.coordinator.initializeBoard({ project_id: "pb", actor_id: "owner", idempotency_key: "b" }));
   const a = bindActionClient(host.actionClient(refA), () => callerA), b = bindActionClient(host.actionClient(refB), () => callerB);
   const versions = (ref: typeof refA, project: string, artifactId: string) => host.withProject(ref, runtime => runtime.coordinator.artifacts.query.listArtifactVersions(project, artifactId));
   // The same project as another actor of the Home: a workflow, an Agent or an MCP client.

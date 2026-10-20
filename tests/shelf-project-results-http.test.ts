@@ -5,8 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -33,12 +32,12 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
     producer:{plugin_id:'io.molis.work.coding',plugin_version:'1.20.0',binding_signature:'official-coding-binding'},
     content:{kind:'inline' as const,payload:{title:'已固定的原报告',run_id:'run-original',source:{session_id:'session-original'},body_markdown:'## 完整原文\r\n含 ``` 与 <script>，不重新请求模型。\n最后一行🌲'}}};
   const original=app.artifacts.commands.registerVersion(input).artifact;
-  const shelf=openShelfStore(home,{disabled:true}); const before=shelf.snapshot().materials.length;
+  const shelf=openHostShelfStore(home,{disabled:true}); const before=(await shelf.snapshot()).materials.length;
   const base='/api/plugins/io.molis.work.shelf',path=base+'/project-result';
   const read=()=>request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=1');
   const catalog=await request(base+'/project-results'); assert.equal(catalog.status,200,JSON.stringify(catalog.body)); assert.equal(catalog.body.results.length,1);
   const preview=await read(); assert.equal(preview.status,200); assert.ok(preview.body.text.endsWith(input.content.payload.body_markdown));
-  assert.equal(shelf.snapshot().materials.length,before,'reading candidates does not admit copies');
+  assert.equal((await shelf.snapshot()).materials.length,before,'reading candidates does not admit copies');
   const confirmation={reference,expected_fingerprint:preview.body.fingerprint,text:'forged body',source:{artifact_id:'forged'}};
   assert.equal((await request(path,confirmation,false)).status,403);
   // W3-02-F-INTEGRATION: the owner's stale fingerprint is conflict (409), while other invalid requests remain 400.
@@ -47,8 +46,8 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const received=await request(path,confirmation); assert.equal(received.status,200,JSON.stringify(received.body));
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);
-  assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal(shelf.snapshot().materials.length,before+1);
-  shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。');
+  assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal((await shelf.snapshot()).materials.length,before+1);
+  await shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。');
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
   const materialPath='/api/shelf/items/'+item.item_id+'/project-material';
@@ -58,8 +57,8 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200,JSON.stringify(published.body));
   const saved=app.artifacts.query.getArtifactVersion(projectId,published.body.reference)!;
   assert.equal(saved.artifact_type_id,'io.molis.work.document'); assert.ok(JSON.stringify(saved.payload).includes('只改 Shelf 副本，来源保持。'));
-  const restarted=openShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
-  shelf.hide(item.item_id); assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal(shelf.snapshot().materials.find(i=>i.item_id===item.item_id)?.hidden,false);
+  const restarted=openHostShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
+  await shelf.hide(item.item_id); assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal((await shelf.snapshot()).materials.find(i=>i.item_id===item.item_id)?.hidden,false);
   await new Promise<void>(resolve=>server.close(()=>resolve()));
   server=createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
@@ -72,7 +71,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   assert.equal((await request(base+'/project-results')).body.results.length,1);
   refused(await request(path+'?artifact_id='+encodeURIComponent(reference.artifact_id)+'&version=2'),'coding.shelf_material_invalid');
   refused(await request(path+'?artifact_id=unknown&version=1'),'shelf.unavailable');
-  app.initializeBoard({project_id:'foreign',title:'Other',actor_id:'web-user',idempotency_key:'other'});
+  app.initializeBoard({project_id:'foreign',actor_id:'web-user',idempotency_key:'other'});
   const foreign={...input,project_id:'foreign',artifact_id:'coding-report:foreign:run-original',content:{kind:'inline' as const,payload:{...input.content.payload,source:{session_id:'foreign'}}}};
   app.artifacts.commands.registerVersion(foreign);
   refused(await request(path+'?artifact_id='+encodeURIComponent(foreign.artifact_id)+'&version=1'),'shelf.unavailable');
@@ -84,7 +83,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const unavailableRefusal=await request(path,{reference:{artifact_id:unavailable.artifact_id,version:1},expected_fingerprint:priorUnavailable.body.fingerprint});
   refused(unavailableRefusal,'artifacts.plugin_incompatible');
   assert.match(String(unavailableRefusal.body.error),/已失效/,'the person is told in words, not the reason token');
-  assert.equal(shelf.snapshot().materials.length,before+1);
+  assert.equal((await shelf.snapshot()).materials.length,before+1);
   app.artifacts.commands.archiveVersion({project_id:projectId,actor_id:'web-user',...reference});
   refused(await read(),'artifacts.plugin_incompatible'); refused(await request(path,confirmation),'artifacts.plugin_incompatible');
   assert.equal((await request(base+'/project-results')).body.results.length,0);

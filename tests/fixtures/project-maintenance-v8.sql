@@ -2,12 +2,18 @@
 -- list of specs/repository-anti-corruption/spec.md §4.1; docs/releases/CHECKLIST.md §4.3 maintenance eight). Version 8 is
 -- version 7 with the project as its own root and the plugins' tables recorded as theirs:
 --   * project_root (modules/projects), one row: the project itself, copied from Goals' one board (project_id, created_at);
+--   * boards (Goals) is made anew without `title` (the Catalog owns the project's name) and with project_id pointing at
+--     project_root(project_id) ON DELETE CASCADE; its one row and its rowid are kept, and the thirty other Goals tables, whose
+--     foreign keys point at boards(project_id), are not touched;
 --   * the eleven tables whose foreign key pointed at boards(project_id) point it at project_root(project_id) instead
 --     (coding_sessions, events, feed_items, feed_materials, feed_out_rules, feed_source_runs, feed_sources, idempotency_records, inbox_entries, library_artifacts, process_items); nothing else about them changes, and every row keeps its rowid;
---   * plugin_project_databases (plugin-runtime), the ledger of the plugins' own tables, with one row each for Coding, Feed
---     and Schedule: the eight tables they declare in their Manifests (databases.project, version 1) are already in the
+--   * the receipts of the board's making (idempotency_records, operation initialize_board) get the request hash this build
+--     writes: version 7 hashed the board's name into it, and the request has none now, so a retry with a key used before replays;
+--   * plugin_project_databases (plugin-runtime), the ledger of the plugins' own tables, with one row each for Coding, Feed,
+--     Goals and Schedule: the tables they declare in their Manifests (databases.project, version 1) are already in the
 --     library, so the ledger records them as made by their publisher, and the Host opens them as it would after making them.
--- Goals' and governance's tables, boards among them, are not touched here; S8 adds its part to this file in the same batch.
+--     Goals' row names its sixty-one tables and indexes (the Goal tree, the board, input receipts, event work, and the
+--     proposals and decisions that governance keeps beside them), which are now the platform's to open and not the baseline's.
 --
 -- Run it with every Molis Work process of the Home stopped and after a full backup, on each project database file
 -- (projects/<id>/molis-work.db of every project in projects/catalog.db, the personal space included, and any project
@@ -34,6 +40,7 @@ CREATE TEMP TABLE maintenance_precondition (
   exact_tables INTEGER NOT NULL CONSTRAINT "the tables are exactly the version 7 set" CHECK (exact_tables = 1),
   exact_indexes INTEGER NOT NULL CONSTRAINT "the indexes are exactly the version 7 set" CHECK (exact_indexes = 1),
   moved_columns INTEGER NOT NULL CONSTRAINT "the eleven tables have the version 7 columns" CHECK (moved_columns = 1),
+  board_columns INTEGER NOT NULL CONSTRAINT "boards has the version 7 columns" CHECK (board_columns = 1),
   nothing_else INTEGER NOT NULL CONSTRAINT "there is no view and no trigger" CHECK (nothing_else = 1)
 );
 INSERT INTO maintenance_precondition SELECT
@@ -131,6 +138,12 @@ INSERT INTO maintenance_precondition SELECT
        'process_items.project_id', 'process_items.owner_actor_id', 'process_items.producer_plugin_id',
        'process_items.producer_binding_signature', 'process_items.created_at'
      )),
+  (SELECT COUNT(*) = 5 FROM sqlite_master AS master, pragma_table_xinfo(master.name) AS info
+     WHERE master.type = 'table' AND master.name = 'boards')
+    AND (SELECT COUNT(*) = 5 FROM sqlite_master AS master, pragma_table_xinfo(master.name) AS info
+     WHERE master.type = 'table' AND master.name || '.' || info.name IN (
+       'boards.project_id', 'boards.title', 'boards.active_goal_id', 'boards.created_at', 'boards.updated_at'
+     )),
   (SELECT COUNT(*) = 0 FROM sqlite_master WHERE type IN ('view', 'trigger'));
 -- The board is counted in a statement of its own, once the tables are known to be there: SQLite reads a whole statement
 -- before running it, so one that names a table the database lacks fails with "no such table" before any check says why.
@@ -138,10 +151,12 @@ CREATE TEMP TABLE maintenance_board (
   one_board INTEGER NOT NULL CONSTRAINT "there is exactly one board" CHECK (one_board = 1)
 );
 INSERT INTO maintenance_board SELECT (SELECT COUNT(*) = 1 FROM boards);
+DROP TABLE temp.maintenance_board;
 
 -- What the rebuild has to keep: each table's row count, and the AUTOINCREMENT counter (dropping a table drops its counter).
 CREATE TEMP TABLE maintenance_rows (name TEXT PRIMARY KEY, before INTEGER NOT NULL, after INTEGER);
 INSERT INTO maintenance_rows (name, before) VALUES
+  ('boards', (SELECT COUNT(*) FROM boards)),
   ('coding_sessions', (SELECT COUNT(*) FROM coding_sessions)),
   ('events', (SELECT COUNT(*) FROM events)),
   ('feed_items', (SELECT COUNT(*) FROM feed_items)),
@@ -161,6 +176,19 @@ CREATE TABLE project_root (
       created_at TEXT NOT NULL
     );
 INSERT INTO project_root (project_id, created_at) SELECT project_id, created_at FROM boards;
+
+-- boards (Goals): without `title`, and the foreign key points at project_root. The row keeps its rowid. The thirty other Goals
+-- tables name boards(project_id) in their own definitions; with foreign keys off they are left as they are and resolve to the new table.
+CREATE TABLE maintenance_new_boards (
+      project_id TEXT PRIMARY KEY REFERENCES project_root(project_id) ON DELETE CASCADE,
+      active_goal_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL
+    );
+INSERT INTO maintenance_new_boards (rowid, project_id, active_goal_id, created_at, updated_at)
+  SELECT rowid, project_id, active_goal_id, created_at, updated_at FROM boards;
+DROP TABLE boards;
+ALTER TABLE maintenance_new_boards RENAME TO boards;
 
 -- coding_sessions: the foreign key points at project_root.
 CREATE TABLE maintenance_new_coding_sessions (
@@ -370,6 +398,9 @@ INSERT INTO maintenance_new_idempotency_records (rowid, project_id, actor_id, op
   SELECT rowid, project_id, actor_id, operation, idempotency_key, request_hash, outcome_json, created_at FROM idempotency_records;
 DROP TABLE idempotency_records;
 ALTER TABLE maintenance_new_idempotency_records RENAME TO idempotency_records;
+-- The board's making is keyed by the project and its request carries nothing else now: its receipts hash the empty request
+-- (sha256 of "{}"), as this build writes them. The row count and every other column stay.
+UPDATE idempotency_records SET request_hash = '44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a' WHERE operation = 'initialize_board';
 
 -- inbox_entries: the foreign key points at project_root.
 CREATE TABLE maintenance_new_inbox_entries (
@@ -434,9 +465,9 @@ CREATE INDEX process_items_project_idx
 DELETE FROM sqlite_sequence WHERE name IN ('events');
 INSERT INTO sqlite_sequence (name, seq) SELECT name, seq FROM temp.maintenance_sequence;
 
--- The ledger of the plugins' own tables, and the three plugins whose tables the library already holds, as their Manifests
+-- The ledger of the plugins' own tables, and the four plugins whose tables the library already holds, as their Manifests
 -- declare them (plugins/native/<plugin>/src/database.ts, version 1): tables_json is the declaration's tables and indexes by
--- name, sorted, as openPluginProjectDatabase records them.
+-- name, sorted, as openPluginProjectDatabase records them. Goals' row is the declaration in plugins/native/goals/src/project-database.ts.
 CREATE TABLE plugin_project_databases (
       plugin_id TEXT PRIMARY KEY,
       publisher_signature TEXT NOT NULL,
@@ -452,12 +483,16 @@ INSERT INTO plugin_project_databases (plugin_id, publisher_signature, store_name
   ('io.molis.work.feed', 'official-feed-binding', 'feed', 1,
    '["feed_out_rules","feed_out_rules_project_enabled_idx"]',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
+  ('io.molis.work.goals', 'official-goals-binding', 'goals', 1,
+   '["acceptance_criteria","acceptance_goal_idx","boards","goal_event_agreements","goal_event_applied_decisions","goal_event_applied_decisions_goal_idx","goal_event_closures","goal_event_closures_goal_idx","goal_event_concerns","goal_event_concerns_goal_idx","goal_event_config_versions","goal_event_configs","goal_event_decision_requests","goal_event_decision_requests_goal_idx","goal_event_progress_summaries","goal_event_progress_summaries_goal_idx","goal_event_requirement_bindings","goal_event_requirement_conclusions","goal_event_requirement_conclusions_latest_idx","goal_event_requirements","goal_event_requirements_goal_idx","goal_event_state_owners","goal_event_state_owners_project_idx","goal_event_trusted_decisions","goal_event_trusted_decisions_goal_idx","goal_event_types","goal_event_types_goal_idx","goal_event_work_status","goal_relations","goal_trash_one_open_per_goal","goal_trash_records","goal_trash_records_goal_idx","goal_trash_relation_records","goal_trash_relation_records_relation_idx","goal_tree_proposal_decisions","goal_tree_proposal_decisions_item_idx","goal_tree_proposal_items","goal_tree_proposal_items_project_idx","goal_tree_proposal_items_proposal_idx","goal_tree_proposals","goal_tree_proposals_project_idx","goal_tree_proposals_supersedes_idx","goal_work_event_judgments","goal_work_event_judgments_requirement_idx","goal_work_events","goal_work_events_goal_seq_idx","goals","goals_archive_idx","goals_project_idx","goals_ready_idx","goals_trash_idx","input_bindings","planning_method_packs","policies_scope_idx","policy_bindings","project_guidance_entries","project_guidance_project_idx","project_guidance_revisions","project_guidance_revisions_project_idx","relations_from_idx","relations_to_idx"]',
+   strftime('%Y-%m-%dT%H:%M:%fZ', 'now')),
   ('io.molis.work.schedule', 'official-schedule-binding', 'schedule', 1,
    '["schedule_conversation_tasks","schedule_conversation_tasks_enabled_idx","schedule_conversation_turns","schedule_conversation_turns_task_idx","schedule_operation_occurrences","schedule_operations","schedule_plugin_reminders","schedule_plugin_reminders_owner"]',
    strftime('%Y-%m-%dT%H:%M:%fZ', 'now'));
 
--- Nothing was lost on the way: every foreign key holds, the root is the board, every table has its rows, the counter is back.
+-- Nothing was lost on the way: every foreign key holds, the root is the board, every table has its rows (the board among them), the counter is back.
 UPDATE maintenance_rows SET after = CASE name
+  WHEN 'boards' THEN (SELECT COUNT(*) FROM boards)
   WHEN 'coding_sessions' THEN (SELECT COUNT(*) FROM coding_sessions)
   WHEN 'events' THEN (SELECT COUNT(*) FROM events)
   WHEN 'feed_items' THEN (SELECT COUNT(*) FROM feed_items)
@@ -475,7 +510,7 @@ CREATE TEMP TABLE maintenance_postcondition (
   root_is_board INTEGER NOT NULL CONSTRAINT "project_root is exactly the board" CHECK (root_is_board = 1),
   rows_kept INTEGER NOT NULL CONSTRAINT "every rebuilt table has its rows" CHECK (rows_kept = 1),
   sequence_kept INTEGER NOT NULL CONSTRAINT "the AUTOINCREMENT counter is kept" CHECK (sequence_kept = 1),
-  ledger_made INTEGER NOT NULL CONSTRAINT "the ledger has the three plugins" CHECK (ledger_made = 1)
+  ledger_made INTEGER NOT NULL CONSTRAINT "the ledger has the four plugins" CHECK (ledger_made = 1)
 );
 INSERT INTO maintenance_postcondition SELECT
   (SELECT COUNT(*) = 0 FROM pragma_foreign_key_check),
@@ -483,9 +518,8 @@ INSERT INTO maintenance_postcondition SELECT
   (SELECT COUNT(*) = 0 FROM temp.maintenance_rows WHERE after IS NOT before),
   (SELECT COUNT(*) FROM temp.maintenance_sequence) = (SELECT COUNT(*) FROM sqlite_sequence WHERE name IN ('events'))
     AND NOT EXISTS (SELECT name, seq FROM temp.maintenance_sequence EXCEPT SELECT name, seq FROM sqlite_sequence),
-  (SELECT COUNT(*) = 3 FROM plugin_project_databases);
+  (SELECT COUNT(*) = 4 FROM plugin_project_databases);
 DROP TABLE temp.maintenance_precondition;
-DROP TABLE temp.maintenance_board;
 DROP TABLE temp.maintenance_rows;
 DROP TABLE temp.maintenance_sequence;
 DROP TABLE temp.maintenance_postcondition;

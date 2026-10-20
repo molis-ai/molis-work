@@ -83,8 +83,9 @@ test("Governance decision provenance and target-owner materialization share one 
       created_at: "2026-09-02T00:00:00.000Z",
       updated_at: "2026-09-02T00:00:00.000Z",
     });
-    const beforeTitle = (store.db.prepare("SELECT title FROM boards WHERE project_id = ?")
-      .get(DEMO_PROJECT_ID) as { title: string }).title;
+    // The board has no name any more; its update time stands in for "a write by another owner in the same transaction".
+    const beforeUpdatedAt = (store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?")
+      .get(DEMO_PROJECT_ID) as { updated_at: string }).updated_at;
     const decision = {
       decision_id: "goal-tree-decision-module-test",
       project_id: DEMO_PROJECT_ID,
@@ -111,14 +112,14 @@ test("Governance decision provenance and target-owner materialization share one 
         materialized_objects: decision.materialized_objects,
         updated_at: decision.created_at,
       });
-      store.db.prepare("UPDATE boards SET title = ? WHERE project_id = ?")
+      store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
         .run("must roll back", DEMO_PROJECT_ID);
       throw new Error("target owner failed");
     }), /target owner failed/);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.decisions.length, 0);
     assert.equal(governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId)?.items[0]?.state, "pending");
-    assert.equal((store.db.prepare("SELECT title FROM boards WHERE project_id = ?")
-      .get(DEMO_PROJECT_ID) as { title: string }).title, beforeTitle);
+    assert.equal((store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?")
+      .get(DEMO_PROJECT_ID) as { updated_at: string }).updated_at, beforeUpdatedAt);
 
     governance.decisions.materializeAtomically(() => {
       governance.records.insertGoalTreeDecision(decision);
@@ -129,7 +130,7 @@ test("Governance decision provenance and target-owner materialization share one 
         materialized_objects: decision.materialized_objects,
         updated_at: decision.created_at,
       });
-      store.db.prepare("UPDATE boards SET title = ? WHERE project_id = ?")
+      store.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?")
         .run("materialized", DEMO_PROJECT_ID);
     });
     const persisted = governance.query.getGoalTreeProposal(DEMO_PROJECT_ID, proposalId);

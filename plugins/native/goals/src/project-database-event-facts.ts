@@ -1,4 +1,8 @@
-export const GOAL_EVENT_FACTS_SCHEMA_SQL = `
+// Event work's recorded facts in a project's library, as GOALS_PROJECT_DATABASE (./project-database.ts) declares them. Moved here whole
+// from modules/goals (S8, PG-020); the text of each statement is as it was.
+
+/** Event configuration, types, requirements, work events and their judgments. */
+export const GOALS_EVENT_FACTS_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_configs (
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,

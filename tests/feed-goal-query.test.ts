@@ -15,7 +15,7 @@ test("Feed Goal subject checks use project-scoped facts without hiding archived/
   const store = new LocalProjectDatabase(path);
   try {
     const c = new GoalProjectApplication(store);
-    c.initializeBoard({ project_id: "other-project", title: "other", actor_id: "user", idempotency_key: "other" });
+    c.initializeBoard({ project_id: "other-project", actor_id: "user", idempotency_key: "other" });
     c.goals.lifecycle.setArchived(DEMO_PROJECT_ID, { goal_id: "CORE", archived: true, reason: "历史归档目标仍可关联" },
       { actor_id: "user", idempotency_key: "archive-core" });
     const feed = createLocalFeedApplication(store.db);

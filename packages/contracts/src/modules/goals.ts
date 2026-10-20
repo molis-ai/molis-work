@@ -364,7 +364,6 @@ export interface GoalPolicy {
 
 export interface GoalsBoardRecord {
   project_id: string;
-  title: string;
   active_goal_id: string | null;
   created_at: string;
   updated_at: string;
@@ -585,7 +584,7 @@ export interface GoalsCommandApi {
   }): { policy_binding_id: string; observed_event_cursor: number; replayed: boolean };
   validateGoalInput(input: CreateGoalInput): void;
   applyConfirmedRelations(input: ConfirmedRelationBatch): Array<{ relation_id: string }>;
-  initializeBoard(input: { project_id: string; title: string; actor_id: string; idempotency_key: string }): { project_id: string; replayed: boolean; observed_event_cursor: number };
+  initializeBoard(input: { project_id: string; actor_id: string; idempotency_key: string }): { project_id: string; replayed: boolean; observed_event_cursor: number };
   setActiveGoal(projectId: string, input: { goal_id: string; reason: string }, write: GoalsActorWrite): { active_goal_id: string; replayed: boolean; observed_event_cursor: number };
   createGoal(projectId: string, input: CreateGoalInput, write: GoalsActorWrite): {
     goal: GoalRecord;

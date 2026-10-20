@@ -7,14 +7,14 @@ export class MolisWorkCommands {
    constructor(private readonly context: GoalsCommandContext) {}
   initializeBoard(input: {
     project_id: string;
-    title: string;
     actor_id: string;
     idempotency_key: string;
   }): { project_id: string; replayed: boolean; observed_event_cursor: number } {
-    if (!input.project_id.trim() || !input.title.trim()) {
-      throw goalErrors["goals.request.invalid"]("Board ID 和名称不能为空");
+    if (!input.project_id.trim()) {
+      throw goalErrors["goals.request.invalid"]("Board ID 不能为空");
     }
-    const hash = requestHash({ project_id: input.project_id, title: input.title });
+    // The receipt is already keyed by the project and the request carries nothing else, so it hashes the empty request.
+    const hash = requestHash({});
     return this.context.repository.immediate(() => {
       const replay = this.context.replay<{ project_id: string; observed_event_cursor: number }>(
         input.project_id,
@@ -29,7 +29,7 @@ export class MolisWorkCommands {
       if (exists) throw goalErrors["goals.board.exists"](`Board 已存在: ${input.project_id}`);
 
       const at = this.context.now().toISOString();
-      this.context.repository.createBoard(input.project_id, input.title.trim(), at);
+      this.context.repository.createBoard(input.project_id, at);
       let cursor = this.context.repository.appendEvent({
         eventId: randomUUID(),
         projectId: input.project_id,
@@ -38,7 +38,7 @@ export class MolisWorkCommands {
         objectType: "board",
         objectId: input.project_id,
         reason: "创建 Molis Work 真相源",
-        payload: { title: input.title.trim() },
+        payload: {},
         at,
       });
       const outcome = { project_id: input.project_id, observed_event_cursor: cursor };

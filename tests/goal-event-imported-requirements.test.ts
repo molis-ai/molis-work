@@ -29,7 +29,7 @@ test("a fresh project's createIntent is immediately writable", () => {
     const trusted = store.db.prepare("PRAGMA table_info(goal_event_trusted_decisions)").all() as Array<{ name: string }>;
     assert.ok(trusted.some((column) => column.name === "change_json"));
     const app = new GoalProjectApplication(store);
-    app.initializeBoard({ project_id: "board-new", title: "新库", actor_id: "user-1", idempotency_key: "init" });
+    app.initializeBoard({ project_id: "board-new", actor_id: "user-1", idempotency_key: "init" });
     const created = app.goalEvents.createIntent({
       project_id: "board-new", title: "新意图", actor_id: "user-1", actor_kind: "user",
       idempotency_key: "intent-1", source_kind: "web",

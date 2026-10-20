@@ -20,6 +20,8 @@ export interface PluginDatabaseConnections<Connection extends PluginDatabaseConn
   readonly writer: Connection;
   /** Whether the writer is inside a transaction (`isTransaction` in node:sqlite, `inTransaction` in better-sqlite3). */
   inTransaction(): boolean;
+  /** Asked first on every read and write: a library partitioned by project says why that project's library is gone. */
+  refuse?(): void;
   /** What each statement passes after the keyword filters, on the connection that will run it; a library in the Home has nothing more. */
   check?(connection: Connection, sql: string, parameters: readonly PluginSqlValue[], mode: "read" | "write"): void;
 }
@@ -37,6 +39,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
   declaration: PluginDatabaseDeclaration, authorize: (permission: string) => void, installId: string, closed: () => boolean): PluginDatabase {
   const { reader, writer } = connections;
   const permit = (permission: string) => {
+    connections.refuse?.();
     if (closed()) throw new ActionError("actions.plugin_unavailable", "插件数据库已关闭");
     authorize("storage:private"); authorize(permission);
   };

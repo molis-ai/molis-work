@@ -91,11 +91,37 @@ test("VUX-26 scroll ownership: only the person detaches, pins wait out a gesture
   await page.evaluate(`getSelection().removeAllRanges(); window.follow.toLatest()`);
   await page.wait(`document.getElementById("thread").dataset.follow === "following"`);
 
-  // The page putting the reader away from the end (a restored place, a jump to a card) detaches; release() says it directly.
+  // A scroll the page made away from the end (a card re-rendering above, a panel keeping its anchor) is not the person
+  // leaving: it keeps following, and the next pin lands.
   await sleep(400);
-  await page.evaluate(`document.getElementById("thread").scrollTop = 100`);
-  await page.wait(`document.getElementById("thread").dataset.follow === "detached"`);
-  await page.evaluate(`window.follow.toLatest()`); await sleep(600);
+  await page.evaluate(`document.getElementById("thread").scrollTop = 100`); await sleep(100);
+  assert.equal(await state(), "following", "a page-made scroll never detaches");
+  await page.evaluate(`window.grow()`); await frames();
+  assert.ok(await distance() <= 1, "the next pin takes the reader to the end again");
+
+  // A downward gesture on the way back to latest does not detach; only moving away from the end does.
+  await wheel(-400); await page.wait(`document.getElementById("thread").dataset.follow === "detached"`); await sleep(200);
+  await page.evaluate(`window.changes.length = 0; window.follow.toLatest()`);
+  await wheel(120);
+  await page.wait(`(() => { const t = document.getElementById("thread"); return t.scrollHeight - t.scrollTop - t.clientHeight <= 1; })()`);
+  await sleep(150);
+  assert.deepEqual(await page.evaluate<string[]>(`window.changes`), ["following"], "scrolling down on the way back keeps following");
+
+  // The page's own words: restore(top) judges the restored place, resume() follows a fresh conversation, release() steps aside.
+  await page.evaluate(`window.follow.restore(100)`);
+  assert.equal(await state(), "detached", "a saved place away from the end is read as reading");
+  await page.evaluate(`window.follow.restore(document.getElementById("thread").scrollHeight)`);
+  assert.equal(await state(), "following", "a saved place at the end follows");
   await page.evaluate(`window.follow.release()`);
   assert.equal(await state(), "detached", "release() detaches before the page scrolls to a card");
+  await page.evaluate(`window.follow.resume(); window.grow()`); await frames();
+  assert.equal(await state(), "following"); assert.ok(await distance() <= 1, "resume() lets the next pin land");
+
+  // One owner per element; dispose() lets everything go.
+  assert.equal(await page.evaluate<boolean>(`window.molisFollow(document.getElementById("thread")) === window.follow`), true, "the same element gets the same owner");
+  await page.evaluate(`window.follow.dispose()`);
+  assert.equal(await page.evaluate<string | null>(`document.getElementById("thread").dataset.follow ?? null`), null);
+  await wheel(-120); await sleep(100);
+  assert.equal(await page.evaluate<string | null>(`document.getElementById("thread").dataset.follow ?? null`), null, "a disposed owner no longer listens");
+  assert.notEqual(await page.evaluate<boolean>(`window.molisFollow(document.getElementById("thread")) === window.follow`), true, "after dispose a new owner can be made");
 });

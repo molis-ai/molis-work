@@ -681,6 +681,9 @@ for (const [asset, old] of [
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
   ["/assets/molis-work-arrival.css", 698519],
+  // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
+  ["/assets/molis-work-workbench.js", 1132516], ["/assets/molis-work-workbench.css", 1604893], ["/assets/molis-work-settings.css", 990668],
+  ["/assets/molis-work-arrival.css", 700254],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -693,15 +696,12 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-20): the conversation's one scroll owner and the side groups' natural-height fold; each
-// asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
-// the new baseline still fails.
-test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
+// specs/visual-ui-experience (2026-10-20): Coding's conversation takes the one scroll owner; the workbench script may grow
+// once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
+// baseline still fails.
+test("VUX-26 the Coding scroll-owner allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1132516, 1134338],
-    "/assets/molis-work-workbench.css": [1604893, 1605339],
-    "/assets/molis-work-settings.css": [990668, 991114],
-    "/assets/molis-work-arrival.css": [700254, 700700],
+    "/assets/molis-work-workbench.js": [1134338, 1134593],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

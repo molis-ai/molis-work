@@ -235,17 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): one owner for a growing conversation's
-// scroll (VUX-26) and the Assistant's side groups folding to their natural height (VUX-08). +1,822 B of workbench.js (the
-// follow helper, bundled TypeScript, 1.3 KB; the Assistant's own near-bottom measuring and its opening timer went),
-// +446 B of each stylesheet (the anchoring rule and the 0fr→1fr fold, which replaces the instant hide and the rise).
-// Tried first: one rule turns anchoring off only while following, no token fallbacks, the fold reuses the existing body
-// padding. Spent once from exactly the copy-feedback slice's budget (#860).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): Coding's conversation takes the one
+// scroll owner (VUX-26). +255 B of workbench.js for what a second consumer needs of the helper (the same owner per element,
+// restore/resume for a saved place and a fresh conversation, dispose on unmount); Coding's own follow code went (−849 B of
+// coding.js), so the page is 594 B lighter. Tried first: the states as shared constants, one listener-options object, the
+// stage's fallback branch and the island's (+448 → +255). Spent once from exactly the scroll-owner slice's budget (#861).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1132516, 1134338],
-  "/assets/molis-work-workbench.css": [1604893, 1605339],
-  "/assets/molis-work-settings.css": [990668, 991114],
-  "/assets/molis-work-arrival.css": [700254, 700700],
+  "/assets/molis-work-workbench.js": [1134338, 1134593],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

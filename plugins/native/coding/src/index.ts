@@ -185,15 +185,6 @@ export { createCodingTimeline, type TimelineActivity, type TimelineRun } from ".
 export { codingTimelineWords } from "./timeline-words.js";
 export { createCodingTurnChanges } from "./turn-changes-client.js";
 export { codingQuestionAnswered } from "./question-answered-client.js";
-export {
-  STICK_THRESHOLD_PX,
-  atBottom,
-  onContentAppended,
-  onReaderScrolled,
-  READER_INTENT_MS,
-  type ScrollPosition,
-  type StickDecision,
-} from "./reading.js";
 
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";

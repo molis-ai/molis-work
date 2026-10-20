@@ -26,6 +26,7 @@ function codingHostFixture(root: string) {
   // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
   host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
+  host.registerCapability(agent.listActions, () => []);
   host.registerCapability(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerCapability(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));

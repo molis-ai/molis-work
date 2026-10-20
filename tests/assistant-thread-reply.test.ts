@@ -11,6 +11,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { endingReviewReply } from "./fixtures/ending-review.js";
+import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organize.js";
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
 
@@ -154,7 +155,9 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
   const home = await mkdtemp(join(tmpdir(), "assistant-thread-"));
   const requests: string[] = [];let hold = false;let pending: ServerResponse | null = null;
   const model = createServer(async (req, res) => {
-    let text = "";for await (const chunk of req) text += String(chunk);requests.push(text);
+    let text = "";for await (const chunk of req) text += String(chunk);
+    if (isKnowledgeOrganize(text)) { res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed(organizedCard));return; }
+    requests.push(text);
     if (hold) { pending = res;return; }
     res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed("只在原评论里的答复"));
   });

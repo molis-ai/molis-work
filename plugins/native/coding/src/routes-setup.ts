@@ -1,9 +1,8 @@
 import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
-import { materialChoices, savedMaterials } from "./materials.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
-import { type CodingActivation, selected, sessionTitle, sessionOutputs } from "./route-activation.js";
+import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
 import { text } from "./run-inputs.js";
@@ -18,13 +17,6 @@ import { isDeepStrictEqual } from "node:util";
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
 const ROUTES: RouteMaker[] = [
-  (a) => {
-    const { context, route } = a;
-    return route("coding.materials", async (request, _api, execution) => {
-      const record = selected(a, request, execution);
-      return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.(), sessionOutputs(execution), sessionTitle(a, execution), record.session_id) };
-    });
-  },
   (a) => {
     const { context, route } = a;
     return route("coding.actions", async (request, api, execution) => {

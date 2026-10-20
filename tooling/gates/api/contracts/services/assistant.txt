@@ -214,6 +214,11 @@ export interface AssistantMaterial {
     };
     reference?: {
         hit_id: string;
+    } | {
+        subject: {
+            kind: string;
+            id: string;
+        };
     };
     method?: {
         method_id: string;

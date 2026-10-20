@@ -11,12 +11,11 @@ import { parseImports } from "../scripts/test-imports/parse.mjs";
 
 import {
   handlePagesNativePluginHttp,
-  handleWorkflowsNativePluginHttp,
   MolisWorkLocalHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { datasetActions, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
@@ -24,7 +23,6 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { PPT_ACTION_PERMISSIONS, openPptStore, pptActions } from "@molis-ai/molis-work-plugin-ppt";
-import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.js";
@@ -82,7 +80,6 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
 async function failingEdge(owner: Owner) {
   const failure: { current: unknown } = { current: undefined };
   const raise = async (): Promise<never> => { throw failure.current; };
-  const failingActions: BoundActionClient = { discover: async () => [], invoke: raise };
   const server = await serveNativeHttp((request, response, url) => {
     switch (owner) {
       case "pages": return handlePagesNativePluginHttp(request, response, url, raise);
@@ -90,7 +87,7 @@ async function failingEdge(owner: Owner) {
       case "dataset": return false;
       case "form": return false;
       case "lingguang": return false;
-      case "workflows": return handleWorkflowsNativePluginHttp(request, response, url, { actions: failingActions });
+      case "workflows": return false;
     }
   });
   return {
@@ -98,7 +95,7 @@ async function failingEdge(owner: Owner) {
     failWith(error: unknown): void { failure.current = error; },
     /** Create (POST /api/<owner>) with a small valid body: the edge reads it, the route runs, and the route fails with `error`. */
     async fail(error: unknown): Promise<NativeHttpAnswer> {
-      if (owner === "dataset" || owner === "form" || owner === "lingguang" || owner === "ppt") { const answer = actionErrorResponse(error); return { status: answer.status, body: { ...answer.body } }; }
+      if (owner === "dataset" || owner === "form" || owner === "lingguang" || owner === "ppt" || owner === "workflows") { const answer = actionErrorResponse(error); return { status: answer.status, body: { ...answer.body } }; }
       failure.current = error; return await server.post(`/api/${owner}`, "{}");
     },
     post: server.post,
@@ -161,7 +158,7 @@ const BODY_LIMIT: Readonly<Record<Owner, number>> = { pages: 1_000_000, ppt: 1_0
 
 test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async () => {
   // Form's Runtime edge: "real routes: Form's Runtime edge reads ..." below.
-  for (const owner of OWNERS.filter(owner => owner !== "dataset" && owner !== "form" && owner !== "lingguang" && owner !== "ppt")) {
+  for (const owner of OWNERS.filter(owner => owner !== "dataset" && owner !== "form" && owner !== "lingguang" && owner !== "ppt" && owner !== "workflows")) {
     const edge = await failingEdge(owner);
     try {
       const large = await edge.post(`/api/${owner}`, JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
@@ -219,8 +216,7 @@ async function documentRoutes(t: test.TestContext) {
   const bound = (permissions: readonly string[]) => bindActionClient(client, () => ({ actor_id: "owner", project_id: "a", audience: "user", permissions }));
   const ports = (permissions: readonly string[]) => ({ projectId: "a", actions: bound(permissions) });
   const server = await serveNativeHttp(async (request, response, url) =>
-    await handlePagesNativePluginHttp(request, response, url, ports(PAGES_ACTION_PERMISSIONS))
-    || await handleWorkflowsNativePluginHttp(request, response, url, { actions: bound(WORKFLOWS_ACTION_PERMISSIONS) }));
+    await handlePagesNativePluginHttp(request, response, url, ports(PAGES_ACTION_PERMISSIONS)));
   t.after(() => server.close());
   return server;
 }
@@ -254,6 +250,19 @@ async function datasetRoutes(t: test.TestContext) {
   return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
 }
 
+/** Workflows on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.native.workflows/workflows`. */
+async function workflowsRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Workflows error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.native.workflows/workflows`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
 /** PPT on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.ppt/ppt`. */
 async function pptRoutes(t: test.TestContext) {
   const home = await openTestHome(t);
@@ -269,10 +278,12 @@ async function pptRoutes(t: test.TestContext) {
 
 test("real routes: a record that is not there is 404 <owner>.not_found at Pages, PPT, Dataset, Form and Workflows", async t => {
   const server = await documentRoutes(t);
-  for (const owner of ["pages", "workflows"] as const) {
+  for (const owner of ["pages"] as const) {
     const answer = await server.post(`/api/${owner}/${MISSING}/delete`, "{}");
     assert.deepEqual([owner, answer.status, answer.body.code], [owner, 404, `${owner}.not_found`], JSON.stringify(answer.body));
   }
+  const workflows = await (await workflowsRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([workflows.status, workflows.body.code], [404, "workflows.not_found"], JSON.stringify(workflows.body));
   const ppt = await (await pptRoutes(t)).post(`/${MISSING}/delete`, {});
   assert.deepEqual([ppt.status, ppt.body.code], [404, "ppt.not_found"], JSON.stringify(ppt.body));
   const table = await (await datasetRoutes(t)).post(`/${MISSING}/delete`, {});
@@ -311,10 +322,11 @@ test("real routes: a change made on a stale version is 409 <owner>.conflict at P
   const deck = (createdDeck.body as { presentation: { id: string; version: number } }).presentation;
   const staleDeck = await decks.post(`/${deck.id}`, { title: "改过", expected_version: deck.version + 40 });
   assert.deepEqual([staleDeck.status, staleDeck.body.code], [409, "ppt.conflict"], JSON.stringify(staleDeck.body));
-  const workflow = await server.post("/api/workflows", JSON.stringify({ title: "流程" }));
+  const flows = await workflowsRoutes(t);
+  const workflow = await flows.post("", { title: "流程" });
   assert.equal(workflow.status, 200, JSON.stringify(workflow.body));
   const saved = workflow.body.workflow as { workflow_id: string; revision: number };
-  const answer = await server.post(`/api/workflows/${saved.workflow_id}`, JSON.stringify({ title: "改过", revision: saved.revision + 40 }));
+  const answer = await flows.post(`/${saved.workflow_id}`, { title: "改过", revision: saved.revision + 40 });
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
@@ -363,6 +375,17 @@ test("W5-01-PPT-02: real routes: PPT's Runtime edge reads up to the 1 MB its rou
   const broken = await decks.raw("", "{not json");
   assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
   const created = await decks.post("", { title: "边界" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+});
+
+test("W5-01-WORKFLOWS-02: real routes: Workflows' Runtime edge reads up to the 400,000 bytes its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const flows = await workflowsRoutes(t);
+  const large = await flows.raw("", JSON.stringify({ title: "大", padding: " ".repeat(400_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await flows.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  // Between the Runtime's 256,000 default and the route's 400,000 a request still comes in, and the route passes on only the fields it names.
+  const created = await flows.post("", { title: "边界", padding: " ".repeat(300_000) });
   assert.equal(created.status, 200, JSON.stringify(created.body));
 });
 

@@ -66,7 +66,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   };
   const headers = () => typeof molisWorkControlHeaders === 'function' ? molisWorkControlHeaders() : { 'content-type': 'application/json' };
   async function api(path, body) {
-    const reply = await fetch(host.route('/api/workflows' + path), {
+    const reply = await fetch(host.route('/api/plugins/io.molis.work.native.workflows/workflows' + path), {
       method: body === undefined ? 'GET' : 'POST', cache: 'no-store', headers: headers(),
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });

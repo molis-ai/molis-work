@@ -22,7 +22,6 @@ import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
-import { handleWorkflowsNativePluginHttp } from "./workflows-native-plugin-http.js";
 import { homeBackgroundTasks } from "./web-catalog.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
@@ -206,13 +205,6 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
 
 const projectAssistant = ({ serverOptions, composition, localHost, agentHost, agentReady, hostReference, options }: ProjectRuntimeContext) => serverOptions.homeDirectory
   ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady, { reference: hostReference, title: options.project?.display_name }) : null;
-
-export const workflowsRoute: WebRoute<ProjectRuntimeContext> = { id: "workflows", handle: async ({ request, response, url, serverOptions, localHost, hostReference, webViewCache, options }) =>
-  Boolean(serverOptions.homeDirectory) && await handleWorkflowsNativePluginHttp(request, response, url, {
-    // A workflow may use every action the person may run here, and nothing more: native plugins from their manifests, Runtime plugins by their installed grants.
-    actions: bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS),
-    invalidateWebView: () => webViewCache.delete(options.databasePath),
-  }) };
 
 export const homeDockRoute: WebRoute<ProjectRuntimeContext> = { id: "home-dock", handle: ({ request, response, url, homeActions, webViewCache, options }) =>
   handleHomeDockJudgmentHttp(request, response, url, { actions: homeActions, invalidateWebView: () => webViewCache.delete(options.databasePath) }) };

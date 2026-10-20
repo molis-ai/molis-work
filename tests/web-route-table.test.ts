@@ -131,6 +131,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/assistant/works" },
   { method: "GET", path: "/api/attention" },
   { method: "GET", path: "/api/workflows" },
+  { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows" },
+  { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows/no-such" },
   { method: "GET", path: "/api/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },

@@ -49,7 +49,7 @@ import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
-  projectProbeRoutes, projectWorkspacesRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute, workflowsRoute,
+  projectProbeRoutes, projectWorkspacesRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
 } from "./web-project-platform-routes.js";
 
 /**
@@ -298,7 +298,6 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...directoryRoutes,
   ...nativePluginRoutes,
   ...projectAssistantRoutes,
-  workflowsRoute,
   ...pageOwnerRoutes,
   feedRoute,
   capsuleRoute,

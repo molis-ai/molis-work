@@ -686,6 +686,11 @@
     ]
   },
   "GET <project>/api/workflows": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.native.workflows/workflows": {
     "status": 200,
     "type": "application/json",
     "keys": [
@@ -693,6 +698,12 @@
       "stations",
       "workflows"
     ]
+  },
+  "GET <project>/api/plugins/io.molis.work.native.workflows/workflows/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "workflows.not_found",
+    "error": "找不到这条流程"
   },
   "GET <project>/api/inbox": {
     "status": 200,

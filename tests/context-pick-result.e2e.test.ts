@@ -168,9 +168,10 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   // (cancelling is how the panel answers that it took it), and an open side panel (360px at least) leaves a 1440 window under the
   // 1240 the Assistant needs for its side pane beside the conversation, so the pane folds into a closed drawer, card and all. The
   // probe takes the request in the window's capture phase, before it reaches the document, and stops it there.
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.picks = 0; window.opens = []; window.clicks = [];
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `window.picks = 0; window.opens = []; window.clicks = []; window.cardPointer = [];
     document.addEventListener('molis:surface-focus', (event) => { if (String(event.detail?.context_id ?? '').startsWith('pick:')) window.picks += 1; });
     window.addEventListener('molis:side-open', (event) => { window.opens.push(event.detail?.target ?? null); event.preventDefault(); event.stopImmediatePropagation(); }, true);
+    for (const type of ['mousedown', 'mouseup']) document.addEventListener(type, (event) => { window.cardPointer.push({ type, card: Boolean(event.target.closest?.(${JSON.stringify(CARD)})) }); }, true);
     document.addEventListener('click', (event) => { if (event.target.closest?.(${JSON.stringify(CARD)})) window.clicks.push({ title: Boolean(event.target.closest('.assistant-item-title')), prevented: event.defaultPrevented }); });` }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=pages&openItem=${left.id}` }, sessionId));
   await waitFor("document.querySelector('[data-pages-title]')?.value === '发布计划'");
@@ -211,6 +212,10 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   assert.equal(await evaluate<string>("document.querySelector('[data-pages-title]').value"), "发布计划", "the document on the left was not replaced by the title's request");
 
   // A real drag over the card's own line of text selects it; the click that ends the drag is reading, not picking.
+  // QA-017, VUX-08: reveal the whole card before measuring. At the pane's bottom edge native selection autoscroll moves
+  // it away from the original coordinates; releasing outside the card then clicks their common ancestor instead.
+  await evaluate(`new Promise((resolve) => { document.querySelector(${JSON.stringify(CARD)}).scrollIntoView({ block: 'center', inline: 'nearest', behavior: 'instant' });
+    window.cardPointer = []; requestAnimationFrame(resolve); })`);
   const line = await evaluate<{ x0: number; x1: number; y: number } | null>(`(() => { const sub = document.querySelector(${JSON.stringify(CARD + " .assistant-item-sub")}); if (!sub) return null;
     const range = document.createRange(); range.selectNodeContents(sub); const r = range.getBoundingClientRect(); return { x0: r.left + 1, x1: r.right - 1, y: r.top + r.height / 2 }; })()`);
   assert.ok(line && line.x1 - line.x0 > 8, "the card has a line of text to select");
@@ -219,6 +224,7 @@ test("W3-A3b PICK-02, QA-017: on the real result card the title asks to open the
   await mouse("mouseMoved", (line.x0 + line.x1) / 2, line.y, 1);
   await mouse("mouseMoved", line.x1, line.y, 1);
   await mouse("mouseReleased", line.x1, line.y, 0);
+  assert.deepEqual(await held("cardPointer"), [{ type: "mousedown", card: true }, { type: "mouseup", card: true }], "the real drag started and ended inside the result card");
   assert.equal(await evaluate<boolean>(`(() => { const selection = getSelection(); return !selection.isCollapsed && selection.toString().length >= 2 && document.querySelector(${JSON.stringify(CARD)}).contains(selection.anchorNode); })()`), true, "the drag selected text inside the card");
   await waitFor("window.clicks.length === 2", 5_000);
   assert.deepEqual((await evaluate<Array<{ title: boolean; prevented: boolean }>>("window.clicks")).at(-1), { title: false, prevented: false }, "the click that ended the drag was not cancelled");

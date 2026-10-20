@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, SHOW_MORE_CLIENT_SCRIPT, renderCollapsible, renderToggleGroup,
+  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, SHOW_MORE_CLIENT_SCRIPT, renderCollapsible, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
 import type { ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
@@ -26,7 +26,7 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
     style.textContent = ":root{--ease-quint:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--motion-fast:130ms;--motion-normal:250ms}" + ${JSON.stringify(MICRO_INTERACTION_STYLES)} + "body{font:14px system-ui}";
     document.head.append(style);
     document.body.innerHTML = ${JSON.stringify(body)};
-    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
+    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}, ${JSON.stringify(MEDIA_ZOOM_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
   })()`);
   return page;
 }
@@ -115,6 +115,84 @@ test("VUX-08 show more: one over the limit is shown, drawn again it keeps one bu
   assert.equal(await page.evaluate<string>("document.activeElement.textContent"), "第 6 行", "focus lands on the first revealed row's control");
   await draw("nine", 9);
   assert.equal(await seen("nine"), 9, "drawn again under the same key, it stays revealed");
+});
+
+test("VUX-32 media zoom: about the point looked at, held in bounds, by pinch, two fingers, double click and keys; only the image takes the gesture", { timeout: 60_000 }, async t => {
+  const page = await openPage(t, `<div id="v" style="position:absolute;left:40px;top:40px;width:400px;height:300px"><img id="i" alt="截图"></div>`);
+  if (!page) return;
+  type View = { state: string; scale: number; x: number; y: number; at: number[] };
+  // The image pixel under a viewport point, from the transform the helper set: the anchor that must not move.
+  const read = (px = 100, py = 75) => page.evaluate<View>(`(() => { const v = document.getElementById('v'), m = new DOMMatrix(getComputedStyle(document.getElementById('i')).transform);
+    return { state: v.dataset.zoom, scale: m.a, x: m.e, y: m.f, at: [(${px} - m.e) / m.a, (${py} - m.f) / m.a] }; })()`);
+  const picture = (w: number, h: number) => page.evaluate(`new Promise((resolve) => { const c = document.createElement('canvas'); c.width = ${w}; c.height = ${h};
+    c.getContext('2d').fillRect(0, 0, ${w}, ${h}); const i = document.getElementById('i'); i.addEventListener('load', () => requestAnimationFrame(() => resolve(true)), { once: true }); i.src = c.toDataURL(); })`);
+  const wheel = (x: number, y: number, deltaX: number, deltaY: number, modifiers = 0) => page.command("Input.dispatchMouseEvent", { type: "mouseWheel", x: 40 + x, y: 40 + y, deltaX, deltaY, modifiers });
+  const near = (actual: number, expected: number, what: string) => assert.ok(Math.abs(actual - expected) < 0.75, `${what}: ${actual} ≈ ${expected}`);
+  await page.evaluate(`(() => { window.changes = []; window.zoom = window.molisMediaZoom(document.getElementById('v'), document.getElementById('i'), { onChange: (state) => changes.push(state) });
+    window.prevented = []; window.addEventListener('wheel', (e) => prevented.push(e.defaultPrevented)); })()`);
+  await picture(1600, 1200);
+  let view = await read();
+  assert.deepEqual([view.state, view.scale, view.x, view.y], ["fit", 0.25, 0, 0], "fitted: the whole picture in the viewport");
+  // A trackpad pinch is a wheel with ctrl: the picture zooms about the pointer, and the pixel under it stays under it.
+  const before = view.at;
+  await wheel(100, 75, 0, -60, 2);
+  view = await read();
+  assert.equal(view.state, "zoomed");
+  assert.ok(view.scale > 0.25);
+  near(view.at[0]!, before[0]!, "the anchor's x"); near(view.at[1]!, before[1]!, "the anchor's y");
+  // A plain wheel pans a zoomed picture, and never past its edge.
+  await wheel(200, 150, 50_000, 50_000);
+  view = await read();
+  near(view.x, 400 - 1600 * view.scale, "held at the right edge"); near(view.y, 300 - 1200 * view.scale, "held at the bottom edge");
+  assert.deepEqual(await page.evaluate("prevented"), [true, true], "the viewport takes the gesture on its picture");
+  // A double click goes back to fit; another zooms in about its point.
+  await page.command("Input.dispatchMouseEvent", { type: "mousePressed", x: 140, y: 115, button: "left", clickCount: 2 });
+  await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", x: 140, y: 115, button: "left", clickCount: 2 });
+  await sleep(320);
+  view = await read();
+  assert.deepEqual([view.state, view.scale, view.x, view.y], ["fit", 0.25, 0, 0]);
+  const fitAt = (await read(100, 75)).at;
+  await page.command("Input.dispatchMouseEvent", { type: "mousePressed", x: 140, y: 115, button: "left", clickCount: 2 });
+  await page.command("Input.dispatchMouseEvent", { type: "mouseReleased", x: 140, y: 115, button: "left", clickCount: 2 });
+  await sleep(320);
+  view = await read();
+  assert.deepEqual([view.state, view.scale], ["zoomed", 1], "a double click shows the picture at its own pixels about the point");
+  near(view.at[0]!, fitAt[0]!, "the double click's point x"); near(view.at[1]!, fitAt[1]!, "the double click's point y");
+  // Keys: 0 back to fit, + zooms about the centre.
+  await page.evaluate("document.getElementById('v').focus()");
+  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "0", code: "Digit0", text: "0" });
+  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "0", code: "Digit0" });
+  await sleep(320);
+  assert.equal((await read()).state, "fit");
+  // Two fingers: the picture zooms about their centre.
+  const centre = (await read(200, 150)).at;
+  const touch = (type: string, spread: number) => page.command("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x: 240 - spread, y: 190, id: 1 }, { x: 240 + spread, y: 190, id: 2 }] });
+  await touch("touchStart", 40); await touch("touchMove", 60); await touch("touchMove", 80); await touch("touchEnd", 80);
+  view = await read(200, 150);
+  near(view.scale, 0.5, "the fingers moved twice as far apart");
+  near(view.at[0]!, centre[0]!, "the fingers' centre x"); near(view.at[1]!, centre[1]!, "the fingers' centre y");
+  assert.deepEqual(await page.evaluate("changes"), ["fit", "zoomed", "fit", "zoomed", "fit", "zoomed"], "the page's own control is told each change");
+  // A picture smaller than the viewport is centred and never larger than its own pixels; a plain wheel scrolls the page.
+  await page.evaluate("window.prevented = []");
+  await picture(200, 100);
+  view = await read();
+  assert.deepEqual([view.state, view.scale, view.x, view.y, await page.evaluate<boolean>("zoom.fitsAtActual()")], ["fit", 1, 100, 100, true]);
+  await wheel(200, 150, 0, 120);
+  assert.deepEqual(await page.evaluate("prevented"), [false], "nothing to pan: the page keeps its wheel");
+  // A wider viewport while fitting refits; reduced motion settles at once.
+  await picture(1600, 1200);
+  await page.evaluate("document.getElementById('v').style.width = '800px'");
+  await page.wait("new DOMMatrix(getComputedStyle(document.getElementById('i')).transform).e === 200", 5000);
+  view = await read();
+  assert.deepEqual([view.state, view.scale, view.x, view.y], ["fit", 0.25, 200, 0], "refitted and centred across the wider viewport");
+  await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] });
+  await page.evaluate("zoom.actual()");
+  assert.equal(await page.evaluate<string>("getComputedStyle(document.getElementById('i')).transitionDuration"), "0s");
+  // Disposed, it answers nothing.
+  await page.evaluate("zoom.dispose()");
+  const kept = await read();
+  await wheel(100, 75, 0, -60, 2);
+  assert.deepEqual(await read(), kept);
 });
 
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {

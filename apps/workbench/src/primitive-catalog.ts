@@ -123,6 +123,10 @@ const SPECIMEN_SCRIPT = `
   let line = 0;
   if (follow) setInterval(() => { const row = document.createElement("div"); row.textContent = "第 " + (++line) + " 行 · 运行中"; log.append(row); if (follow.state === "following") follow.pin(); else latest.hidden = false; }, 700);
   latest?.addEventListener("click", () => follow?.toLatest());
+  // The media zoom: the button says what it does next, as a preview's own control would.
+  const media = document.querySelector("[data-catalog-media]"), button = document.querySelector("[data-catalog-media-zoom]");
+  const zoom = media && window.molisMediaZoom?.(media, media.querySelector("img"), { onChange: (state) => { button.textContent = state === "fit" ? "原始尺寸" : "适应窗口"; } });
+  button?.addEventListener("click", () => { if (zoom) zoom.state() === "fit" ? zoom.actual() : zoom.fit(); });
 })();
 (() => {
   const arrival = window.molisArrival;

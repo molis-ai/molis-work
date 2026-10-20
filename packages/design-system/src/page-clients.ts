@@ -13,3 +13,5 @@ export const COPY_FEEDBACK_CLIENT_SCRIPT = readFileSync(new URL("../dist/copy-fe
 export const SCROLL_FOLLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/scroll-follow-client.js", import.meta.url), "utf8").trim();
 /** `window.molisShowMore`, one "show more" for a long list (`browser/show-more.ts`, VUX-08). */
 export const SHOW_MORE_CLIENT_SCRIPT = readFileSync(new URL("../dist/show-more-client.js", import.meta.url), "utf8").trim();
+/** `window.molisMediaZoom`, zoom about the point looked at and bounded panning for one image (`browser/media-zoom.ts`, VUX-32). */
+export const MEDIA_ZOOM_CLIENT_SCRIPT = readFileSync(new URL("../dist/media-zoom-client.js", import.meta.url), "utf8").trim();

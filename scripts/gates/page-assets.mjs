@@ -235,13 +235,20 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): 连接与工具 lists a Coding work's own MCP
-// tools (VUX-08/09): the ones chosen for its session, by server, and the ones its server cannot serve now with why. +148 B
-// of workbench.js: the English for the six reasons the Host gives and the Coding card's two lines (the old line went).
-// Tried first: the Coding card reuses the provider list the Assistant already draws, no new card or style. Spent once
-// from exactly the 用量 slice's budget (#874).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): media zoom (VUX-32), a new capability
+// the spec asks for: zoom about the point looked at (trackpad pinch, two fingers, double click, keys) and bounded panning,
+// in one design-system helper, `window.molisMediaZoom`. +3,776 B of workbench.js: the helper minified (3.6 KB, every
+// listener on one AbortController); +462 B in each of the three stylesheets with the shared tail (the clipping viewport, the
+// transform origin, the cursor, the one eased settle and its reduced-motion jump); +530 B of the Issues client: its preview
+// takes the helper, says what its button does next, hides 原始尺寸 when fitting already shows the picture's own pixels, and
+// keeps the old switch where the helper is absent. Tried first: one controller for every listener (−180 B), the pinch math
+// shared with the wheel's, comments out of the shipped CSS. Spent once from exactly the Coding MCP tools slice's budget (#876).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1145423, 1145571],
+  "/assets/molis-work-workbench.js": [1145571, 1149347],
+  "/assets/molis-work-workbench.css": [1605713, 1606175],
+  "/assets/molis-work-settings.css": [991488, 991950],
+  "/assets/molis-work-arrival.css": [701074, 701536],
+  "/assets/molis-work-plugins/issues.js": [26331, 26861],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -82,12 +82,14 @@ export interface PluginCapabilityClient {
 
 /**
  * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
- * Both calls run as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
+ * Every call runs as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
  * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-43).
  */
 export interface PluginActionDirectory {
   discover(): Promise<readonly import("./actions.js").ActionView[]>;
   invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+  /** Refuses as `invoke` would before the target runs (a target this caller cannot reach, an input its schema rejects); runs and logs nothing. */
+  check(reference: import("./actions.js").ActionReference, input: unknown): Promise<void>;
 }
 
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
@@ -104,7 +106,11 @@ export interface PluginHostServices {
   readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. 2026-10-18 改: by Manifest declaration (PG-022). */
+  /**
+   * Plugin-owned SQLite, only for trusted Host entries declaring a database. A Home entry's library may be partitioned by project
+   * (`HomePluginDatabaseDeclaration.partition`): then each call reaches the library of the project it runs in. 2026-10-18 改: by
+   * Manifest declaration (PG-022).
+   */
   readonly database?: import("./plugin-database.js").PluginDatabase;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;

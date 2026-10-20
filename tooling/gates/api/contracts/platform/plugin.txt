@@ -2173,6 +2173,10 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+    readonly partition?: "project";
+}
+
 export interface HomeStoreDeclaration {
     readonly path: string;
     readonly library?: {
@@ -2181,6 +2185,7 @@ export interface HomeStoreDeclaration {
             readonly schema: string;
         };
         readonly file?: string;
+        readonly partition?: "project";
     };
 }
 
@@ -2415,6 +2420,7 @@ export interface PluginActionClient extends BoundActionClient {
 export interface PluginActionDirectory {
     discover(): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]>;
     invoke<Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+    check(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: unknown): Promise<void>;
 }
 
 export interface PluginAppContribution {

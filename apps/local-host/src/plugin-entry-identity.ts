@@ -1,4 +1,4 @@
-import type { PluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginFilesDeclaration, PluginDefinition, PluginManifest, PluginModelConfigurationDeclaration, PluginImageGenerationDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 
@@ -6,7 +6,7 @@ import type { PluginOwnerFilesEntry, PluginOwnerFilesBinding } from "./plugin-ow
 export function pluginEntryIdentity() {
   const bundled = new WeakSet<PluginDefinition>();
   const bundledManifests = new WeakSet<PluginManifest>();
-  const databases = new WeakMap<PluginDefinition, PluginDatabaseDeclaration>();
+  const databases = new WeakMap<PluginDefinition, HomePluginDatabaseDeclaration>();
   const files = new WeakMap<PluginDefinition, PluginFilesDeclaration>();
   const ownerFiles = new WeakMap<PluginDefinition, PluginOwnerFilesBinding>();
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
@@ -22,7 +22,7 @@ export function pluginEntryIdentity() {
     projectDataFor: (definition: PluginDefinition) => projectData.get(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
-    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; database?: PluginDatabaseDeclaration; files?: PluginFilesDeclaration;
+    remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; database?: HomePluginDatabaseDeclaration; files?: PluginFilesDeclaration;
       model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }

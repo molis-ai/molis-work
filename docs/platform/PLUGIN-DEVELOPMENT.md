@@ -108,6 +108,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
+Home 插件的数据按项目放时，`runtime.database` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
 Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
@@ -173,7 +175,7 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 原 `/restart`、`/release-quarantine`、`/upgrade` 是 Host 生命周期入口，插件业务路径需避开它们。内置插件继续遵守项目启用与关联插件规则；其他插件遵守当前项目的 Runtime 注册、授权及生命周期。新路由返回值不会按 Coding 的 report、runs 等字段擅自补充页面 HTML。此机制负责已注册实例的分发，发行物安装与启动仍走 Runtime 的原接入合同。
 
-插件调别的动作只经 `context.services.actions.invoke`，被调的动作要列在清单的 `capabilities.consumes` 里，宿主的和别的插件的都可以（用户 2026-10-14 定；规则见 `skills/molis-plugin-dev/elements.md` 与 `docs/system/SECURITY-INVARIANTS.md` S-15）。另有一条路：声明 Manifest 权限 `actions:delegate` 的插件，在自己正在运行的动作里可用 `context.services.actions.directory`（`discover()`、`invoke(reference, input)`），以原调用者的身份、工作流受众，调目录里向工作流开放的任何动作，不用事先列进 `consumes`；它只受原调用者的权限约束，不收窄到插件自己的授权（用户 2026-10-20 定），调用记录里带 `delegated_by`；原调用者是 `plugin` 受众、动作之外、撤权和取消都拒绝，写法见 `skills/molis-plugin-dev/host.md` 的「动作目录委托」与 `docs/system/SECURITY-INVARIANTS.md` S-43。插件跨页读取项目设置使用具名能力，不读取设置页 DOM 或其他插件私有存储。Contract 中 `projectSettingsCapabilities.workspaces` 与 `browsingWorkspace` 分别声明到 Manifest `capabilities.consumes`，再以 `invoke(capability, [])` 读取。只返回当前项目；没有项目编号、通配授权或任意 key。关联目录与浏览选择在「项目设置 → 工作目录」维护，Files/Git 不再依赖 Workspace 输出；Coding 会话执行目录独立选择。
+插件调别的动作只经 `context.services.actions.invoke`，被调的动作要列在清单的 `capabilities.consumes` 里，宿主的和别的插件的都可以（用户 2026-10-14 定；规则见 `skills/molis-plugin-dev/elements.md` 与 `docs/system/SECURITY-INVARIANTS.md` S-15）。另有一条路：声明 Manifest 权限 `actions:delegate` 的插件，在自己正在运行的动作里可用 `context.services.actions.directory`（`discover()`、`invoke(reference, input)`，以及只核不调的 `check(reference, input)`），以原调用者的身份、工作流受众，调目录里向工作流开放的任何动作，不用事先列进 `consumes`；它只受原调用者的权限约束，不收窄到插件自己的授权（用户 2026-10-20 定），调用记录里带 `delegated_by`；原调用者是 `plugin` 受众、动作之外、撤权和取消都拒绝，写法见 `skills/molis-plugin-dev/host.md` 的「动作目录委托」与 `docs/system/SECURITY-INVARIANTS.md` S-43。插件跨页读取项目设置使用具名能力，不读取设置页 DOM 或其他插件私有存储。Contract 中 `projectSettingsCapabilities.workspaces` 与 `browsingWorkspace` 分别声明到 Manifest `capabilities.consumes`，再以 `invoke(capability, [])` 读取。只返回当前项目；没有项目编号、通配授权或任意 key。关联目录与浏览选择在「项目设置 → 工作目录」维护，Files/Git 不再依赖 Workspace 输出；Coding 会话执行目录独立选择。
 
 完整字段、迁移、示例与设置归属：[当前项目设置](PROJECT-SETTINGS.md)。`settings` 槽只负责呈现，`storage:private` 仍是插件私有状态；Goals 项目说明保持独立协议。
 

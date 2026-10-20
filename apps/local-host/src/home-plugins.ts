@@ -1,5 +1,5 @@
 import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
 import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -20,7 +20,7 @@ export interface HomePluginEntry {
   readonly scope: "home";
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
-  readonly database?: PluginDatabaseDeclaration;
+  readonly database?: HomePluginDatabaseDeclaration;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
   readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
   readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
@@ -120,7 +120,7 @@ export class HomePluginHost {
     }
     const home = pluginHomeFor(this.options.home);
     assertOwnerFilesEntries(entries, fixtureDeclarationsFor(this.options.home, "project"), home);
-    assertDatabaseEntries(entries, home);
+    assertDatabaseEntries(entries, home, "home");
     assertFilesEntries(entries, home);
     assertModelConfigurationEntries(entries, home);
     assertImageGenerationEntries(entries, home);
@@ -135,8 +135,8 @@ export class HomePluginHost {
     const runtime = new PluginRuntime(repository, executor, { actions: { registry: this.options.registry,
       providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
-      definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
-    })));
+      definition: entry.definition, project_data: identity.projectDataFor(entry.definition), database: identity.databaseFor(entry.definition),
+    })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     const epoch = randomUUID(), revisions = new Map<string, number>();
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),

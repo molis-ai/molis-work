@@ -210,10 +210,11 @@ export interface AssistantMaterial {
   /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
   capability?: { capability_id: string; version: number; provider_id: string; title: string };
   /**
-   * For an object the person picked with “@” from the system search: the hit it came from. The hit is only a pointer;
-   * the Host checks it again with its owner and reads the object's text itself before the round.
+   * For an object the person picked: with “@” from the system search, the hit it came from; from the project knowledge
+   * picker (specs/project-knowledge PMAT-17), the piece itself. Either is only a pointer: the Host checks it again with its
+   * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
-  reference?: { hit_id: string };
+  reference?: { hit_id: string } | { subject: { kind: string; id: string } };
   /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
   method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */

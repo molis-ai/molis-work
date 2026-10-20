@@ -180,7 +180,7 @@ export class MolisWorkLocalHost {
             add(scheduleActionProvider(runtime, { homeDirectory: options.homeDirectory, workspaceFor: options.workspaceFor }));
             add(scheduleReminderActionProvider(runtime, options.projectRoutePrefix?.(reference.project_id)));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
-            if (options.homeDirectory) add(shelfProjectActionProvider(runtime, options.homeDirectory));
+            if (options.homeDirectory) add(shelfProjectActionProvider(reference.project_id, options.homeDirectory, this.actionClient(reference)));
             if (options.homeDirectory) add(workflowsActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
               { actions: this.actionClient(reference), scenes, functions: options.functions }, (judgment, caller) => {

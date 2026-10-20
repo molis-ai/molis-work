@@ -50,12 +50,16 @@ async function fixture(t: TestContext, name: string, children: string[], options
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const services: AssistantService[] = [];
+  /** Runs before the parent's start is authorised (a sub-task's start is not held): a test holds a start here. */
+  const hooks: { beforeAuthority?: () => Promise<void> } = {};
   // The work's root on its graph: what it waits for and what goes on after (specs/prologue-adoption §6.0n).
   const nodes = () => adapter.collaboration!.works!.read(store.get("web-user", sent.work.work_id).graph_id!);
   const root = async () => (await nodes()).find(node => node.node_id === "work")!;
   const open = (): AssistantService => {
     const service: AssistantService = new AssistantService(store, { host: async () => host,
-      authority: async work => { const refused = options.refuse?.(); if (refused) throw new Error(refused); return assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)); },
+      authority: async work => {
+        if (!work.delegated_by) await hooks.beforeAuthority?.();
+        const refused = options.refuse?.(); if (refused) throw new Error(refused); return assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)); },
       projectTitle: async () => "项目" }, "web-user");
     services.push(service);
     return service;
@@ -64,7 +68,7 @@ async function fixture(t: TestContext, name: string, children: string[], options
   t.after(async () => { for (const opened of services) opened.continuations.close(); for (const release of releases.values()) release.resolve(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const sent = await service.send({ text: "把这两段分给子任务起草，做完汇总", request_id: `req-${name}` }, { project_ref: project });
   const started = await until(async () => { const view = await service.read(sent.work.work_id); return view.work.state === "completed" && view.delegated?.length === children.length && view.delegated.every(child => child.state === "running") ? view : undefined; }, "parent ended, sub-tasks running");
-  return { service, store, open, root, nodes, parentId: sent.work.work_id, children: started.delegated!, release: (title: string) => releases.get(title)!.resolve(), later, rounds: () => store.rounds(sent.work.work_id) };
+  return { service, store, adapter, hooks, open, root, nodes, parentId: sent.work.work_id, children: started.delegated!, release: (title: string) => releases.get(title)!.resolve(), later, rounds: () => store.rounds(sent.work.work_id) };
 }
 
 // specs/prologue-adoption §4.6 (item 14): a sub-task that finishes after its delegating work's round ended hands its
@@ -79,7 +83,8 @@ test("sub-tasks that finish after their delegating work's round ended hand back 
   await pause(400);
   assert.equal(rounds().length, 1, "one sub-task still running: the work waits for both");
   assert.equal((await root()).continuation?.state, "armed", "a wait on every part: one back is not enough");
-  // Both settle at once: still one round.
+  // The second settles 400 ms after the first: one round for both. (Both results and the person's own round arriving
+  // together is PA-08, the next test.)
   release("结尾");
   const done = await until(async () => { const view = await service.read(parentId); return view.rounds.length === 2 && view.work.state === "completed" ? view : undefined; }, "the hand-back round");
   const handBack = rounds()[1]!;
@@ -100,6 +105,45 @@ test("sub-tasks that finish after their delegating work's round ended hand back 
   await service.send({ work_id: parentId, text: "谢谢", request_id: "req-once-thanks" }, {});
   await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 3, "the person's round");
   // The role names the section too (what reaches a round is data); what counts is whether the data carries it.
+  assert.doesNotMatch(roundParts(later.at(-1)!).data, /子任务交回/, "what was handed back is not told again");
+});
+
+// PA-08 (specs/prologue-adoption §5.3): both sub-tasks' results and the person's own round arrive together. Both results
+// land in the same tick; the hand-back they set going is held at its start (the barrier) while the person's round goes in.
+// The parent Session gains one Run, the continuation is taken up once, and the Host coming back starts nothing.
+test("PA-08: two sub-task results and the person's own round arriving together start one parent Run; the continuation is taken up once and the Host coming back starts nothing", { timeout: 90_000 }, async t => {
+  const { service, open, hooks, adapter, store, parentId, release, later, rounds, root } = await fixture(t, "together", ["开头", "结尾"]);
+  const parentSession = { session_id: store.get("web-user", parentId).session_id! };
+  const runs = async () => (await adapter.readSession(parentSession)).runs.length;
+  assert.equal(await runs(), 1);
+  const entered = Promise.withResolvers<void>(), held = Promise.withResolvers<void>();
+  // The parent's next start (the hand-back, once both are back) waits here until the person's round has gone in.
+  hooks.beforeAuthority = async () => { hooks.beforeAuthority = undefined; entered.resolve(); await held.promise; };
+  release("开头"); release("结尾");
+  await entered.promise;
+  assert.equal(rounds().length, 1, "the hand-back is held before it starts");
+  await service.send({ work_id: parentId, text: "两段都交回了吧？我来接着核对", request_id: "req-together-person" }, {});
+  await until(async () => (await service.read(parentId)).work.state === "completed" && rounds().length === 2, "the person's round");
+  held.resolve();
+  await until(() => service.notices(null).find(item => item.work_id === parentId && /没有自动接着做/.test(item.text)), "the held hand-back refused");
+  assert.equal(await runs(), 2, "the parent Session gained one Run: the person's");
+  assert.equal(rounds().length, 2);
+  assert.equal(rounds()[1]!.written_by, undefined, "the person's round, not one the Host wrote");
+  assert.equal(later.length, 1, "one model request after the parent's own round");
+  assert.match(roundParts(later[0]!).data, /子任务交回/, "the person's round took up what came back");
+  assert.match(later[0]!, /「开头」的草稿：三句话/);
+  assert.match(later[0]!, /「结尾」的草稿：三句话/);
+  assert.equal((await root()).continuation?.state, "started", "taken up by the person's round");
+  // The Host comes back (a new service on the same store): nothing is started again.
+  const reopened = open();
+  await reopened.attachSchedule();
+  await pause(500);
+  assert.equal(await runs(), 2, "no Run after the Host comes back");
+  assert.equal(rounds().length, 2);
+  assert.equal(later.length, 1);
+  // Taken up once: the person's next round is not told again.
+  await reopened.send({ work_id: parentId, text: "谢谢", request_id: "req-together-thanks" }, {});
+  await until(async () => (await reopened.read(parentId)).work.state === "completed" && rounds().length === 3, "the person's next round");
   assert.doesNotMatch(roundParts(later.at(-1)!).data, /子任务交回/, "what was handed back is not told again");
 });
 

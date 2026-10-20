@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority } from "../apps/local-host/dist/mcp-action-grants.js";
+import { createMcpActionGrant, resolveMcpActionContext, assertMcpActionAuthority, openByDefault } from "../apps/local-host/dist/mcp-action-grants.js";
 import { parseMcpToolPreference, readMcpToolPreference, writeMcpActionGrant, mcpToolPreferencePath } from "../apps/local-host/dist/mcp-settings-store.js";
 
 const caller: ActionCallContext = { actor_id: "runtime:client-a", project_id: "a", audience: "mcp", permissions: [] };
@@ -136,4 +136,29 @@ test("permission-free system defaults can be revoked per client and restored, wi
   for (const enabled of [false, true]) assert.deepEqual(resolveMcpActionContext(context, [action], {
     ...preference, action_grants: [{ ...deny, enabled }, { ...deny, enabled }],
   }).allowed_actions, [], "even identical enabled duplicates cannot reopen a permission-free system default");
+});
+
+test("PMAT-24 the built-in Agent holds project knowledge without a grant record, only in its project, and a revoked record wins", () => {
+  const agent: ActionCallContext = { actor_id: "agent:prologue", project_id: "a", audience: "agent", permissions: [] };
+  const knowledge: ActionView = { ...view("project"), capability_id: "knowledge.read", operation: "query", provider: { provider_id: "system.knowledge", title: "项目资料", kind: "system" },
+    action: { ...view("project").action, kind: "query", audiences: ["agent", "mcp"], permissions: ["knowledge:read"] } };
+  const reader = (project: string | undefined, kind: "query" | "operation" = "query"): ActionView => ({ ...view("project"), capability_id: "pages.subject.read", operation: kind === "query" ? "query" : "command",
+    provider: { provider_id: "pages", title: "Pages", kind: "plugin", ...(project ? { project_id: project } : {}) },
+    action: { ...view("project").action, kind, audiences: ["agent", "mcp"], permissions: ["pages:read"], input_type: "molis.subject-reference.v1", output_type: "molis.subject-context.v1" } });
+  const writer: ActionView = { ...view("project"), provider: { provider_id: "pages", title: "Pages", kind: "plugin", project_id: "a" }, action: { ...view("project").action, audiences: ["agent", "mcp"] } };
+  const empty = { version: 2 as const, action_grants: [] };
+  assert.deepEqual([openByDefault(knowledge, agent), openByDefault(reader("a"), agent)], [true, true]);
+  assert.equal(openByDefault(writer, agent), false, "a write still needs its own grant");
+  const manage: ActionView = { ...knowledge, capability_id: "knowledge.card.edit", operation: "command", action: { ...knowledge.action, kind: "operation", effect: "write", permissions: ["knowledge:manage"] } };
+  assert.equal(openByDefault(manage, agent), false, "only knowledge reads are open; managing cards is not");
+  assert.equal(openByDefault(reader("b"), agent), false, "another project's reader is not open");
+  assert.equal(openByDefault(reader(undefined), agent), false, "a Home-wide reader is not project knowledge");
+  assert.equal(openByDefault(knowledge, { ...agent, project_id: null }), false, "no project, no project knowledge");
+  assert.deepEqual([openByDefault(knowledge, caller), openByDefault(reader("a"), caller)], [false, false], "an external MCP client is still granted one by one");
+  const context = resolveMcpActionContext(agent, [knowledge, reader("a"), writer], empty);
+  assert.deepEqual(context.allowed_actions?.map(item => item.capability_id), ["knowledge.read", "pages.subject.read"]);
+  assert.deepEqual([...context.permissions].sort(), ["knowledge:read", "pages:read"]);
+  const revoked = createMcpActionGrant(agent.actor_id, "a", reader("a"), false);
+  assert.deepEqual(resolveMcpActionContext(agent, [knowledge, reader("a")], { ...empty, action_grants: [revoked] }).allowed_actions?.map(item => item.capability_id), ["knowledge.read"],
+    "the person turned the reader off in 对外接入");
 });

@@ -11,11 +11,12 @@ import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
-test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and keeps provenance through project material publication", async t => {
+test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
   const catalogStore=await openMolisWorkProjectCatalog({homeDirectory:home});
   const project=await catalogStore.createProject({display_name:'成果回流验证',actor_id:'web-user'});
-  catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'web-user'});catalogStore.close();
+  catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'coding',actor_id:'web-user'});
+  catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'web-user'});catalogStore.close();
   const databasePath=project.database_path,projectId=project.project_id,prefix='/projects/'+project.project_id;
   const store = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(store);
   new CodingSessionStore(store.db).create({ project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
@@ -53,10 +54,10 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const materialPath='/api/shelf/items/'+item.item_id+'/project-material';
   const material=await request(materialPath); assert.equal(material.status,200);
   assert.deepEqual(material.body.payload.source.artifact.reference,reference);
-  const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200);
-  const saved=app.processItems.query.getArtifactVersion(projectId,published.body.reference)!; // project materials are process items (A2)
-  assert.equal((saved.payload as any).text,'只改 Shelf 副本，来源保持。'); assert.deepEqual((saved.payload as any).source.artifact.reference,reference);
-  const materials=await request('/api/plugins/io.molis.work.coding/sessions/app/materials'); assert.equal(materials.status,200,JSON.stringify(materials.body)); assert.equal(materials.body.materials[0].text,'只改 Shelf 副本，来源保持。');
+  // Saved into the project's knowledge as an imported document with the edited copy's text (specs/project-knowledge §9).
+  const published=await request(materialPath,{expected_fingerprint:material.body.fingerprint}); assert.equal(published.status,200,JSON.stringify(published.body));
+  const saved=app.artifacts.query.getArtifactVersion(projectId,published.body.reference)!;
+  assert.equal(saved.artifact_type_id,'io.molis.work.document'); assert.ok(JSON.stringify(saved.payload).includes('只改 Shelf 副本，来源保持。'));
   const restarted=openShelfStore(home,{disabled:true}); assert.deepEqual(restarted.readFile(item.item_id).item.artifact_source,item.artifact_source);
   shelf.hide(item.item_id); assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal(shelf.snapshot().materials.find(i=>i.item_id===item.item_id)?.hidden,false);
   await new Promise<void>(resolve=>server.close(()=>resolve()));

@@ -32,8 +32,7 @@
     "artifacts": {
       "paths": [
         "modules/artifacts/",
-        "apps/local-host/src/artifact-*",
-        "apps/local-host/src/creative-artifacts.ts"
+        "apps/local-host/src/artifact-*"
       ],
       "reason": "The artifact ledger, the Artifacts plugin and the Host files that pin, import and read versions; artifact.* and document.* become artifacts.* (spec W3-02 R4b)."
     },
@@ -190,6 +189,13 @@
         "packages/kernel/"
       ],
       "reason": "The action kernel: kernel.* for its own failures (the runtime-identity code mcp.runtime_identity_missing becomes kernel.runtime_identity_missing)."
+    },
+    "knowledge": {
+      "paths": [
+        "horizontal/knowledge/",
+        "apps/local-host/src/knowledge-*"
+      ],
+      "reason": "The project knowledge horizontal (specs/project-knowledge) and its Host wiring; its codes start with knowledge."
     },
     "listener": {
       "paths": [

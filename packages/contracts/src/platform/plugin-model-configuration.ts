@@ -38,7 +38,10 @@ export interface PluginModelConfigurationClient {
   save(input: PluginModelConfigurationInput): Promise<PluginModelConfigurationView>;
 }
 
-/** Trusted Host startup data, never taken from a plugin manifest or definition. */
+/**
+ * Trusted Host startup data, never taken from a plugin manifest or definition. 2026-10-18 改: declared in the Manifest and granted
+ * like any plugin's (PG-102 in specs/repository-anti-corruption/privileges.md); until then, as above.
+ */
 export interface PluginModelConfigurationDeclaration {
   readonly preference: { readonly store_name: string; readonly file_name: string };
   readonly custom_provider: { readonly provider_id: string; readonly display_name: string };

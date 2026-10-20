@@ -360,8 +360,7 @@ export class PlacementService {
       const station = request.to.station;
       const receive = views.find(view => view.action.workflow_content?.id === station && view.action.workflow_content.role === "receive" && view.availability.available);
       if (!receive) throw new ActionError("placement.target_unavailable", this.t("这个位置没有可以接收内容的插件"));
-      const item = await scope.client.invoke(scope.caller, ref(receive), { payload: { title, body, source: from },
-        context: { instance_id: `placement:${request.request_id}`, step: 0, title } }) as WorkflowItemRef;
+      const item = await scope.client.invoke(scope.caller, ref(receive), { title, body, source: from, request_id: `placement:${request.request_id}` }) as WorkflowItemRef;
       const readers = views.filter(view => isSubjectReader(view.action) && view.provider.provider_id === receive.provider.provider_id);
       // The station says what its content is when its provider reads several kinds (Jelly: calendar entries and notes).
       const declared = readers.find(view => receive.action.subject_kinds.includes(view.action.subject_kinds[0]!));

@@ -22,9 +22,11 @@ export interface RuntimePluginRouteHooks {
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
 
-/** Transport authority comes from the caller, never from body/query values. */
+/**
+ * Transport authority comes from the caller, never from body/query values. A route's own declared permission is not among them: it is
+ * checked against the installation behind the route (`dispatchRuntimePluginRoute`).
+ */
 export interface RuntimePluginRouteControls {
-  granted?: readonly string[];
   execution?: PluginExecutionControl;
   /** `maxBytes` is the route's declared `max_body_bytes`, when it declares one. */
   readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
@@ -88,8 +90,11 @@ export async function dispatchRuntimePluginRoute(
       return true;
     }
   }
+  // A route's own permission is the installation's, read now, whoever calls and whatever else they hold: built in or not, a grant
+  // revoked from this installation closes its routes. What the caller may do through the route is the action layer's to check.
+  const granted = active.install_id ? platform.runtime.get(active.install_id).grants : [];
   const input = { method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
-    query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution };
+    query: Object.fromEntries(url.searchParams), body, granted, execution: controls.execution };
   const stop = () => controls.stop?.();
   if (match.stream) return answerPluginRouteStream(response, async emit => {
     const result = await router.dispatch({ ...input, emit, stopped: stop });

@@ -5,6 +5,7 @@ import type {
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactsErrors } from "./errors.js";
+import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
 
 export interface ArtifactBrowserView {
   readonly versions: readonly ArtifactVersionRecord[];
@@ -55,19 +56,30 @@ export function requireArtifactAnalysisRecord(
   return record;
 }
 
+/**
+ * An imported document is read as its text (specs/project-knowledge PMAT-14): what was read out of the file, a PDF's or a Word
+ * document's included, never the original's bytes. One no text was read out of is empty, so it is listed by its name and sent
+ * to no model (PMAT-44). Other types are read as their whole record.
+ */
+function importedDocumentText(record: ArtifactVersionRecord): string | null {
+  if (record.artifact_type_id !== DOCUMENT_ARTIFACT_TYPE) return null;
+  const payload = record.payload as { content?: unknown } | null;
+  return typeof payload?.content === "string" ? payload.content.trim() ? payload.content : "" : "";
+}
+
 /** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
-export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = []): ActionSubjectContext {
+export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = [], request?: { offset?: number }): ActionSubjectContext {
   const relatedGoals = [...new Set(goalIds)].sort();
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
     revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: record.title,
-    content: JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
+    content: importedDocumentText(record) ?? JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
       artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,
         binding_signature: record.producer_binding_signature },
       created_at: record.created_at, payload: record.payload, metadata: record.metadata }),
     goal_ids: relatedGoals, session_id: null,
-  });
+  }, request);
 }
 
 export type ArtifactBrowserRoute =

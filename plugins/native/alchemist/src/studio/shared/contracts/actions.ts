@@ -96,6 +96,16 @@ const homeChoices = new Set(["pulse.github", "pulse.github.configure"]);
 
 /** The permission an action declares when it runs a model. The plugin gates exactly the actions that carry it, for every caller but the person's own page. */
 export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
+/**
+ * The platform's permission to use the Host's text model (`services.model` works only inside an action that declares it). It sits beside
+ * `alchemist:generate`, which stays: that one is Alchemist's own, what MCP clients, agents and workflows are granted for model work here
+ * and what the availability gate and the retained background authority name; this one is what the Host checks for any plugin's model call.
+ * Optional in the Manifest, like Form's and Dataset's: switched off, only the four actions that carry it are unavailable.
+ * The four actions gain one permission and keep their shape, so their version stays 1: a client or agent granted before sees "the capability's
+ * permissions changed" (`mcp-action-access.ts`, stale) and grants again once in settings.
+ */
+export const ALCHEMIST_MODEL_PERMISSION = "model:invoke";
+const MODEL_ACTION_PERMISSIONS = [ALCHEMIST_GENERATE_PERMISSION, ALCHEMIST_MODEL_PERMISSION] as const;
 
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
   extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
@@ -142,7 +152,7 @@ export const alchemistOperations = {
     output: object({ subject: object({ kind: z.literal("alchemist-playbook"), id }), revision: id, title: text, content: text, truncated: z.boolean(), goal_ids: strings, session_id: z.null() }),
   },
   reuseCandidates: operation("reuse.candidates", "寻找可沿用成果与方法", "读取当前授权范围内固定版本成果与适用方法；查询不运行模型，不代表已采用", "query", reuseCandidateInputSchema, reuseCandidatesSchema),
-  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent"),
+  reuseAssess: operation("reuse.assess", "检查复用适用性", "通过 Prologue 判断给定候选的适用、失效与重核条件，不自动采用", "command", reuseAssessInputSchema, reuseAssessmentSchema, MODEL_ACTION_PERMISSIONS, { cost: "metered" }, "concurrent"),
   reusePublish: operation("reuse.publish", "保存研究固定版本", "将研究与证据幂等登记为当前项目私有成果，不公开发布", "command", object({ reportId: id }), object({ reference: reuseReferenceSchema })),
   reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
@@ -151,7 +161,7 @@ export const alchemistOperations = {
   conversationList: operation("conversation.list", "读取炼金术士讨论", "读取当前项目的讨论消息、关联对象及实际回复状态", "query", empty, object({ messages: z.array(conversationMessage) })),
   conversationSend: operation("conversation.send", "与炼金术士讨论", "保存消息，使用所选对象、历史与启用的 Taste 生成回复；不可用或失败时保留消息并明确状态", "command",
     createConversationMessageSchema.extend({ context: conversationContext }), z.union([object({ message: conversationMessage, assistantMessage: conversationMessage }),
-      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent"),
+      object({ message: conversationMessage, assistant: object({ state: z.literal("runtime_unavailable"), message: text }) })]), MODEL_ACTION_PERMISSIONS, { cost: "metered" }, "concurrent"),
   decisionsList: operation("decisions.list", "读取决策列表", "读取待决策 Idea、历史决定和实际活动记录", "query", empty,
     object({ cases: z.array(decisionWorkspace.extend({ status: z.enum(["pending", "decided", "old_version"]), nextPanel: z.enum(["market", "cost", "decision"]), nextAction: text })),
       log: z.array(decision.extend({ title: text, destination: text })), activities: z.array(activity) })),
@@ -168,8 +178,8 @@ export const alchemistOperations = {
   proposalList: operation("proposals.pending", "继续待确认方法", "读取当前调用者尚未确认的持久化方法提案", "query", empty, object({ proposals: z.array(proposal) })),
   proposalReject: operation("proposals.reject", "不采用方法提案", "撤回尚未确认的方法提案，保留原批注", "command", identity, object({ proposal })),
   proposalApply: operation("memory.apply", "应用研究方法提案", "应用待处理提案并解决来源注释；同一提案不能重复应用", "command", identity, object({ proposal, rule: playbookRule })),
-  tasteCreate: operation("memory.taste.create", "添加个人偏好", "保存带适用范围与例外的 Taste，不将其当作市场证据", "command", createTasteRuleSchema, object({ rule: tasteRule })),
-  tasteDisable: operation("memory.taste.disable", "停用个人偏好", "保留偏好记录，后续构思与讨论不再使用", "command", identity, object({ rule: tasteRule })),
+  tasteCreate: operation("memory.taste.create", "添加研究偏好", "保存一条 Alchemist 构思与讨论机会时用的研究偏好（Founder Taste）：偏向或避开什么，带适用范围与例外；只在 Alchemist 里使用，不将其当作市场证据", "command", createTasteRuleSchema, object({ rule: tasteRule })),
+  tasteDisable: operation("memory.taste.disable", "停用研究偏好", "保留偏好记录，后续构思与讨论不再使用", "command", identity, object({ rule: tasteRule })),
   playbookDisable: operation("memory.playbook.disable", "停用研究方法", "保留历史方法和应用记录，后续计划不再选用", "command", identity, object({ rule: playbookRule })),
   pulseReports: operation("pulse.reports", "读取市场脉搏", "读取来源信号、报告、机会与最近运行状态，保留覆盖缺口", "query", empty,
     object({ latestRun: pulseRun.optional(), reports: z.array(object({ report: pulseReport, opportunities: z.array(opportunity), signals: z.array(supplySignal) })) })),
@@ -191,7 +201,7 @@ export const alchemistOperations = {
   directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
-    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent", followedJob("jobId")),
+    object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), MODEL_ACTION_PERMISSIONS, { cost: "metered" }, "concurrent", followedJob("jobId")),
   explorationGet: operation("explorations.get", "读取炼化", "读取真实运行状态、候选卡与来源方向", "query", identity, object({ direction: directionSchema, exploration: explorationSchema })),
   cardGet: operation("cards.get", "读取候选卡", "读取卡片正文；已保留的卡片返回对应 Idea 和版本", "query", identity,
     z.discriminatedUnion("kind", [object({ kind: z.literal("candidate"), model: candidateModel }), object({ kind: z.literal("idea_redirect"), ideaId: id, version })])),
@@ -205,16 +215,17 @@ export const alchemistOperations = {
   researchPlan: operation("research.plan", "创建研究计划", "设置研究模型和调用次数上限；仅创建计划，不执行研究", "command",
     researchPlanRequestSchema.safeExtend({ id, lens: z.enum(["market_space", "build_cost"]), reuse: reuseSelectionSchema.optional() }), object({ plan: researchPlanSchema })),
   researchStart: operation("research.start", "启动研究", "执行已确认的研究计划并返回后台任务引用", "command",
-    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, "concurrent", followedJob("run.jobId")),
-  runCancel: operation("research.cancel", "取消研究", "按研究 run.jobId 取消市场或成本研究；不接受 run.id，也不取消探索或脉搏任务", "command", identity, object({ run: lensRunSchema })),
+    object({ id, lens: z.enum(["market_space", "build_cost"]), planId: id }), object({ run: lensRunSchema }), MODEL_ACTION_PERMISSIONS, { cost: "metered" }, "concurrent", followedJob("run.jobId")),
+  runCancel: operation("research.cancel", "取消研究或市场脉搏", "按 run.jobId 停止一次市场或成本研究、或一次市场脉搏（不接受 run.id，也不取消探索）；停止后这次任务不再写入任何结果", "command", identity,
+    z.discriminatedUnion("kind", [object({ kind: z.literal("lens"), run: lensRunSchema }), object({ kind: z.literal("pulse"), run: pulseRun })])),
   runList: operation("runs.list", "读取待继续任务", "读取原任务及其对象位置和当前实例的受理状态，不启动工作", "query", empty,
     object({ jobs: z.array(object({ jobId: id, kind: text, status: text, accepted: z.boolean(), directionId: text.optional(), ideaId: text.optional(),
       errorCode: text.optional() })) })),
-  runResume: operation("runs.resume", "查看任务继续条件", "只读查看原任务、租约与本次模型及偏好；不会派出调用", "query", identity,
+  runContinuation: operation("runs.continuation", "查看任务继续条件", "只读查看原任务、租约与本次模型及偏好；不会派出调用", "query", identity,
     object({ jobId: id, kind: text, status: text, canContinue: z.boolean(), reason: text.optional(), leaseExpiresAt: text.optional(),
       modelId: text.optional(), tasteTitles: strings.optional(), confirmation: text.optional(),
       budget: object({ limit: z.number().int().positive(), reserved: z.number().int().nonnegative(), remaining: z.number().int().nonnegative() }).optional(),
-      unknownCall: object({ operation: z.enum(["collecting", "cross_checking", "cross_checking_format_correction", "synthesizing"]) }).optional() })),
+      unknownCall: object({ operation: z.enum(["generating", "collecting", "cross_checking", "cross_checking_format_correction", "synthesizing"]) }).optional() })),
   runContinue: operation("runs.continue", "继续原任务", "沿原输入与预算继续指定 job；确认当前模型与偏好，不重复已完成阶段", "command",
     object({ id, confirmation: z.string().max(16000).optional() }), object({ jobId: id, accepted: z.boolean() }),
     [], { cost: "metered" }, "concurrent", followedJob("jobId")),

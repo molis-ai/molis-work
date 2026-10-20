@@ -10,6 +10,7 @@ import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
+import { knowledgeClientTag } from "./settings-knowledge.js";
 type Translate = (text: string, values?: Record<string, string | number>) => string;
 function projectSideTabs(enabled: readonly string[], routePrefix: string) {
   const home = homePluginSideTabs();
@@ -181,7 +182,7 @@ function renderMolisWorkWeb(
     <section class="desktop-work-surface" data-work-surface="goal" data-work-surface-label="Goals">${renderedDocumentContent}</section>
   </section>`;
   const stageList = goalsTreeRenderer.renderGoalStageList(view, collection);
-  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-board-view="list">
+  const goalStage = showTui ? `<div class="goal-canvas-shell" data-goal-canvas-shell data-record-owner="goals" data-board-view="list">
     ${stageList}
     <section class="goal-work-planning-pane" data-goal-work-planning aria-label="${L("工作规划")}"></section>
     <section class="goal-work-rules-pane settings-stage" data-goal-work-rules aria-label="${L("工作规则")}"></section>
@@ -316,7 +317,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
   <div class="toast" data-toast data-settings-toast role="status" aria-live="polite"></div>${renderProjectReferenceDialog(L)}
   <script id="molis-work-data" type="application/json">${dataJson(view)}</script>
   <script>${clientI18nScript()}</script>
-  <script src="/assets/molis-work-workbench.js"></script>
+  <script src="/assets/molis-work-workbench.js"></script>${knowledgeClientTag()}
   ${showTui ? '<script src="/desktop/pty-client.js"></script>' : ""}`,
   });
   return prefixLocalLinks(html, view.route_prefix, desktopShell);

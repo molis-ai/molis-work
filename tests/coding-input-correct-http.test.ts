@@ -10,7 +10,7 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 type Controlled = { receipt: { input_id: string; delivered: "run" | "queued" }; withdrawn: { input_id: string; from: "run" | "queued" }; code?: string };
 
 // Stage 3b-2a of specs/ai-input-receipts (§4.6, D34): Coding's page takes back a supplement and sends a correction
-// through coding.runs.control v6, which calls agent.inputs.withdraw and agent.inputs.send on the installed runtime.
+// through coding.runs.control (v6 then, v7 since RCPT-368 added a supplement's source), which calls agent.inputs.withdraw and agent.inputs.send on the installed runtime.
 test("RCPT-322: through Coding's control, a supplement the round has not read is taken back, and a correction names the input it corrects", { timeout: 90_000 }, async t => {
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });

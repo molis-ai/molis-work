@@ -32,12 +32,12 @@ test("W5-01-ALC-RES02/04/06: continuation confirms current Taste, deduplicates c
   const started = await f.bound.invoke(a.explorationStart, { id: direction.id });
   f.runtime.worker.cancel(started.jobId); // Drop this process's in-memory acceptance; leave the persisted queued job untouched.
   await f.runtime.runPending(); assert.equal(f.requests.length, 0);
-  const oldView = await f.bound.invoke(a.runResume, { id: started.jobId });
+  const oldView = await f.bound.invoke(a.runContinuation, { id: started.jobId });
   await f.bound.invoke(a.tasteCreate, { title: "New preference", statement: "Prefer a single-user product", appliesTo: "Ideas", exceptions: [] });
-  await assert.rejects(f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: oldView.confirmation }));
+  await assert.rejects(f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: oldView.confirmation }), { code: "alchemist.resume_context_changed", kind: "conflict" });
   assert.equal(f.runtime.worker.isAccepted(started.jobId), false);
   assert.equal((await f.bound.invoke(a.runEvents, { id: started.jobId })).status, "queued");
-  const view = await f.bound.invoke(a.runResume, { id: started.jobId });
+  const view = await f.bound.invoke(a.runContinuation, { id: started.jobId });
   assert.deepEqual(view.tasteTitles, ["New preference"]);
   f.runtime.database.prepare("UPDATE jobs SET input_json = json_set(input_json, '$.actorId', ?) WHERE id = ?").run("forged-job-owner", started.jobId);
   const caller = { ...f.caller, actor_id: "continuing-owner", permissions: f.caller.permissions.filter(p => p !== "alchemist:collect") };
@@ -54,9 +54,9 @@ test("W5-01-ALC-RES04: model policy changes during confirmation are refused with
   const f = await fixture(t);
   const { direction } = await f.bound.invoke(a.directionCreate, { description: "Confirm the model before accepting continuation" });
   const started = await f.bound.invoke(a.explorationStart, { id: direction.id }); f.runtime.worker.cancel(started.jobId);
-  const view = await f.bound.invoke(a.runResume, { id: started.jobId });
+  const view = await f.bound.invoke(a.runContinuation, { id: started.jobId });
   await f.bound.invoke(a.settingsUpdate, { modelId: f.model.id, modelPolicy: "fixed", defaultBudgets: { marketSpace: { kind: "calls", limit: 6 }, buildCost: { kind: "calls", limit: 4 } } });
-  await assert.rejects(f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: view.confirmation }));
+  await assert.rejects(f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: view.confirmation }), { code: "alchemist.resume_context_changed", kind: "conflict" });
   await f.runtime.runPending(); assert.equal(f.requests.length, 0);
   assert.equal((f.runtime.database.prepare("SELECT attempt FROM jobs WHERE id = ?").get(started.jobId) as { attempt: number }).attempt, 0);
 });
@@ -69,7 +69,7 @@ test("W5-01-ALC-RES04: a ready checkpoint completes without model discovery or d
   const before = await f.bound.invoke(a.explorationGet, { id: started.runId });
   f.runtime.database.prepare("UPDATE jobs SET status = 'interrupted' WHERE id = ?").run(started.jobId);
   f.ai.listModels = async () => { throw new Error("A complete checkpoint must not discover a model"); };
-  const view = await f.bound.invoke(a.runResume, { id: started.jobId });
+  const view = await f.bound.invoke(a.runContinuation, { id: started.jobId });
   assert.equal(view.canContinue, true); assert.equal(view.modelId, undefined);
   await f.bound.invoke(a.runContinue, { id: started.jobId }); await f.runtime.runPending();
   assert.equal((await f.bound.invoke(a.runEvents, { id: started.jobId })).status, "completed");
@@ -82,10 +82,10 @@ test("W5-01-ALC-RES-AUTH-01: missing category permission refuses before initiali
   const f = await fixture(t);
   const { direction } = await f.bound.invoke(a.directionCreate, { description: "Category permission is a continuing authority requirement" });
   const started = await f.bound.invoke(a.explorationStart, { id: direction.id }); f.runtime.worker.cancel(started.jobId);
-  const view = await f.bound.invoke(a.runResume, { id: started.jobId });
+  const view = await f.bound.invoke(a.runContinuation, { id: started.jobId });
   const caller = { ...f.caller, actor_id: "unapproved-owner", permissions: ["alchemist:read", "alchemist:write"] };
   const before = f.runtime.database.prepare("SELECT * FROM jobs WHERE id = ?").get(started.jobId);
-  await assert.rejects(f.service.invoke(caller, a.runContinue, { id: started.jobId, confirmation: view.confirmation }));
+  await assert.rejects(f.service.invoke(caller, a.runContinue, { id: started.jobId, confirmation: view.confirmation }), { code: "actions.forbidden" });
   assert.equal(f.runtime.database.prepare("SELECT id FROM workspace_actors WHERE id = ?").get(caller.actor_id), undefined);
   await f.runtime.runPending(); assert.equal(f.requests.length, 0);
   assert.deepEqual(f.runtime.database.prepare("SELECT * FROM jobs WHERE id = ?").get(started.jobId), before);
@@ -128,7 +128,7 @@ for (const operation of ["collecting", "cross_checking", "cross_checking_format_
   for (const [index, name] of operations.entries()) db.prepare("INSERT INTO job_events (job_id, sequence, type, payload_json, created_at) SELECT ?, COALESCE(MAX(sequence),0)+1, 'call_started', ?, ? FROM job_events WHERE job_id = ?")
     .run(run.jobId, JSON.stringify({ operation: name, callsUsed: index + 1, limit: 8 }), new Date().toISOString(), run.jobId);
   let searches = 0; const search = f.ai.search; f.ai.search = async input => { searches++; return search(input); };
-  const beforeModels = f.requests.length, view = await f.bound.invoke(a.runResume, { id: run.jobId });
+  const beforeModels = f.requests.length, view = await f.bound.invoke(a.runContinuation, { id: run.jobId });
   assert.equal(view.canContinue, true);
   assert.deepEqual(view.budget, { limit: 8, reserved: operations.length, remaining: 8 - operations.length });
   assert.deepEqual(view.unknownCall, { operation }); assert.equal(view.modelId, plan.modelId);
@@ -155,18 +155,60 @@ test("W5-01-ALC-RES05 W5-01-ALC-RES08: exhausted unknown calls stay refused whil
   db.prepare("INSERT INTO job_events (job_id, sequence, type, payload_json, created_at) SELECT ?, COALESCE(MAX(sequence),0)+1, 'call_started', ?, ? FROM job_events WHERE job_id = ?")
     .run(run.jobId, JSON.stringify({ operation: "collecting", callsUsed: 1, limit: 1 }), new Date().toISOString(), run.jobId);
   const facts = () => ["jobs", "job_events", "lens_runs", "lens_reports"].map(table => db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all());
-  const before = facts(), view = await f.bound.invoke(a.runResume, { id: run.jobId });
+  const before = facts(), view = await f.bound.invoke(a.runContinuation, { id: run.jobId });
   assert.equal(view.canContinue, false); assert.equal(view.reason, "alchemist.research_budget_exhausted");
   assert.deepEqual(view.budget, { limit: 1, reserved: 1, remaining: 0 }); assert.deepEqual(view.unknownCall, { operation: "collecting" });
-  await assert.rejects(f.bound.invoke(a.runContinue, { id: run.jobId })); assert.deepEqual(facts(), before);
+  await assert.rejects(f.bound.invoke(a.runContinue, { id: run.jobId }), { code: "alchemist.research_budget_exhausted", kind: "conflict" }); assert.deepEqual(facts(), before);
   // A separately persisted successful response is safe to finish within the same exhausted budget.
   db.prepare("UPDATE jobs SET checkpoint_json = ? WHERE id = ?").run(JSON.stringify({ stage: "collecting_complete", evidence: [] }), run.jobId);
   f.ai.search = async () => { throw new Error("No new provider call is permitted"); };
   f.ai.generate = async () => { throw new Error("No new model call is permitted"); };
   f.ai.listModels = async () => { throw new Error("A safe checkpoint does not need model discovery"); };
-  const safe = await f.bound.invoke(a.runResume, { id: run.jobId });
+  const safe = await f.bound.invoke(a.runContinuation, { id: run.jobId });
   assert.equal(safe.canContinue, true); assert.deepEqual(safe.budget, view.budget); assert.equal(safe.unknownCall, undefined);
   await f.bound.invoke(a.runContinue, { id: run.jobId }); await f.runtime.runPending();
   assert.equal((await f.bound.invoke(a.runEvents, { id: run.jobId })).status, "completed");
   assert.equal((db.prepare("SELECT COUNT(*) AS count FROM job_events WHERE job_id = ? AND type = 'call_started'").get(run.jobId) as { count: number }).count, 1);
+});
+
+test("W5-01-ALC-RES09: an Exploration stopped after its model call left shows the unknown call, and a confirmation given before it is refused", async t => {
+  const f = await fixture(t), db = f.runtime.database;
+  const { direction } = await f.bound.invoke(a.directionCreate, { description: "A generation whose result never came back may have been charged" });
+  const started = await f.bound.invoke(a.explorationStart, { id: direction.id }); f.runtime.worker.cancel(started.jobId);
+  const before = await f.bound.invoke(a.runContinuation, { id: started.jobId });
+  assert.equal(before.unknownCall, undefined);
+  // The handler saves `generating` just before it calls the model; a run stopped there may have been charged.
+  db.prepare("UPDATE jobs SET status = 'interrupted', checkpoint_json = ? WHERE id = ?").run(JSON.stringify({ stage: "generating" }), started.jobId);
+  const view = await f.bound.invoke(a.runContinuation, { id: started.jobId });
+  assert.equal(view.canContinue, true); assert.deepEqual(view.unknownCall, { operation: "generating" });
+  assert.notEqual(view.confirmation, before.confirmation, "what the person confirms includes the unknown call");
+  await assert.rejects(f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: before.confirmation }), { code: "alchemist.resume_context_changed", kind: "conflict" });
+  await f.runtime.runPending(); assert.equal(f.requests.length, 0, "a confirmation given before the unknown call dispatches nothing");
+  assert.equal((await f.bound.invoke(a.runContinue, { id: started.jobId, confirmation: view.confirmation })).accepted, true);
+  await f.runtime.runPending();
+  assert.equal(f.requests.length, 1, "continuing calls the model again, as the person was told");
+  assert.equal((await f.bound.invoke(a.explorationGet, { id: started.runId })).exploration.status, "completed");
+});
+
+test("W5-01-ALC-RES10: a refused continuation names its declared code and kind, never actions.execution_failed", async t => {
+  const f = await fixture(t), db = f.runtime.database;
+  const { direction } = await f.bound.invoke(a.directionCreate, { description: "Each refusal to continue says why" });
+  const started = await f.bound.invoke(a.explorationStart, { id: direction.id }); f.runtime.worker.cancel(started.jobId);
+  const job = (status: string, extra = "") => db.prepare(`UPDATE jobs SET status = ?${extra} WHERE id = ?`).run(status, started.jobId);
+  const continuing = () => f.bound.invoke(a.runContinue, { id: started.jobId });
+  // An entry that cannot hold authority past the request has nothing to continue the job with.
+  const studio = await f.runtime.actionsFor(f.caller.actor_id);
+  await assert.rejects(studio.invoke(a.runContinue, { id: started.jobId }), { code: "alchemist.background_authority_required", kind: "unavailable" });
+  job("running", ", lease_owner = 'another-process', lease_expires_at = '2999-01-01T00:00:00.000Z'");
+  await assert.rejects(continuing(), { code: "alchemist.job_lease_active", kind: "conflict" });
+  assert.equal((await f.bound.invoke(a.runContinuation, { id: started.jobId })).reason, "alchemist.job_lease_active");
+  job("completed", ", lease_owner = NULL, lease_expires_at = NULL");
+  await assert.rejects(continuing(), { code: "alchemist.job_not_resumable", kind: "conflict" });
+  job("failed", ", error_code = 'alchemist.ai_output_invalid'");
+  await assert.rejects(continuing(), { code: "alchemist.job_not_resumable", kind: "conflict" });
+  db.prepare("UPDATE jobs SET status = 'interrupted', kind = 'alchemist.unknown_kind' WHERE id = ?").run(started.jobId);
+  await assert.rejects(continuing(), { code: "alchemist.job_kind_unsupported", kind: "invalid" });
+  await assert.rejects(f.bound.invoke(a.runContinue, { id: "job-that-never-was" }), { code: "alchemist.run_not_found" });
+  await assert.rejects(f.bound.invoke(a.runContinuation, { id: "job-that-never-was" }), { code: "alchemist.run_not_found" });
+  await f.runtime.runPending(); assert.equal(f.requests.length, 0, "no refusal dispatched a model call");
 });

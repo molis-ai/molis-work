@@ -10,7 +10,8 @@ const until = async <T>(read: () => T | Promise<T>): Promise<NonNullable<T>> => 
   throw new Error('Expected review/run state not reached');
 };
 
-test('packed SDK: rejected review feedback reaches the next model request before a revised proposal and survives restart', {timeout:30_000}, async t=>{
+// specs/ai-interaction-experience AC-11 (the approval semantics under the package in use): a rejected review's reason reaches the model, and survives a restart.
+test('AC-11: packed SDK: rejected review feedback reaches the next model request before a revised proposal and survives restart', {timeout:30_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-review-feedback-')), project=join(root,'project');await mkdir(project);await writeFile(join(project,'a.ts'),'original\n');
   const requests:any[]=[];
   t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{
@@ -60,7 +61,7 @@ test('packed SDK: rejected review feedback reaches the next model request before
   }finally{await adapter.close();await rm(root,{recursive:true,force:true});}
 });
 
-test('packed SDK: a refused command carries its reason, naming the command, into the next model request', {timeout:30_000}, async t=>{
+test('AC-11: packed SDK: a refused command carries its reason, naming the command, into the next model request', {timeout:30_000}, async t=>{
   const root=await mkdtemp(join(tmpdir(),'molis-review-command-')), project=join(root,'project');await mkdir(project);
   const requests:any[]=[];
   t.mock.method(globalThis,'fetch',async(_url:unknown,init:RequestInit)=>{

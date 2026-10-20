@@ -271,6 +271,27 @@ ALC-RES08 正式体积核对：整合后按正式 Host 服务口径实测为52,3
 
 ALC-RES 动作合同：新增 runs.list/resume/continue@1；explorations.start/research.start@1 改为 concurrent，受理中的授权等待不占串行队列。后两者的输入输出、provider、权限及任务引用不变，固定@1引用仍执行同一受理合同，因此只更新调度元数据与快照，不改工具名；旧串行例外移除。此改动不能证明生产WorkReuse外部接线已完成。
 
+ALC-RES 复查修正（2026-10-19，③，§10.29 #747 的 P2 与统筹裁定 9）：
+- 只读查询 `alchemist.runs.resume@1` 改名为 `alchemist.runs.continuation@1`（插件路由 `/runs/:id/continuation`）。这次输出 schema 也变了：`unknownCall.operation` 多了 `generating`。按 `docs/system/CONTRACT-CHANGES.md` 第 3 条，形状变了不能留在原来的 id 和版本下。改名同时解决复查的 P3「名字像命令」：固定了旧 id 的引用会失效报错，不会被静默当成新形状。
+- `runs.continue` 与这个查询的拒绝都用 `alchemistStateErrors` 声明，调用方拿到的是码和类别，不再是 `actions.execution_failed`：
+  - 冲突（`conflict`）：`job_lease_active`、`job_not_resumable`、`resume_context_changed`、`research_budget_exhausted`
+  - 无效（`invalid`）：`job_kind_unsupported`
+  - 不可用（`unavailable`）：`background_authority_required`
+  - 找不到（`not_found`）：`job_not_found`，对外仍换成 `alchemist.run_not_found`。插件路由回 404；经动作网关或 MCP 时这个错误不带类别，读成 `invalid`（原来就如此）
+- 预算耗尽原先由校验器抛普通 `Error`，现在校验器只报告，由继续服务按声明的码拒绝。
+- 探索停在 `generating` 检查点时，模型结果未知，可能已经收费。恢复视图对它也给 `unknownCall`。探索的确认串包含这一状态，所以在它之前给出的确认会被拒绝（`resume_context_changed`）。界面上「可能重复收费」对两类任务都显示，「计入原预算」只在有预算（Lens）时显示。
+- 验收 `W5-01-ALC-RES09`：探索在 `generating` 处恢复，视图给出未知调用，旧确认被拒且不派出调用，新确认继续时再调一次模型。
+- 待补浏览器验证（用户 10-19 暂停）：探索在 `generating` 处继续的对话框显示「可能重复收费」、不显示「计入原预算」，三种宽度加暗色，验收号 `W5-01-ALC-RES09`。
+- 验收 `W5-01-ALC-RES10`：每种拒绝的码与类别都核对过，包括没有后台授权的入口与找不到的任务。
+- 事件流路由删除（2026-10-20，③ 派的 Alchemist 清理片）：`GET /api/v1/runs/:id/events`（SSE）只有两个测试用，页面、Skill、手册、路由表快照都不碰它（页面读 `runs/:id/continuation`，其他入口读 `alchemist.runs.events` 动作，按游标轮询）。路由与处理器一起删，两个测试改读动作与续跑视图。删它是为了迁到 Plugin Runtime 时不用为一条流式响应另做转发。验收 `W5-01-ALC-LIFE-09`：该路径回 404 且不是事件流，事件仍可由动作按游标读完。
+- 四个模型动作声明 `model:invoke`（同日）：`alchemist.reuse.assess`、`conversation.send`、`explorations.start`、`research.start` 的权限由 `alchemist:generate` 加 `alchemist:read/write` 变为再加 `model:invoke`；`model:invoke` 是平台检查「这个动作可以用系统文字模型」的权限，迁到 Runtime 后 `services.model` 只在声明了它的并发动作里可用，现在先把声明补齐。
+  - 保留 `alchemist:generate`：它是 Alchemist 自己的词汇，MCP 客户端、Agent、流程已有的授权按它写，模型不可用的判断（`createAlchemistActionHandlers` 的可用性绑定）、后台继续时保留的权限（`job-resumption.ts`）和 `tests/model-unavailable-declarations.test.ts` 都认它；去掉它会同时改授权词汇和这几处，没有收益。与 Images、Shelf、Cognia 一样，领域权限和 `model:invoke` 成对出现。
+  - 版本保持 1（用户 2026-10-20 经统筹 ① 裁定，与 `research.cancel` 同一做法，见 §1 决策记录里 2026-10-20 的 `research.cancel` 一行）：这四个动作只多了一个权限，输入输出形状没变，`tooling/gates/README.md` 的动作合同快照表把只改权限归为「谁能调、怎么调变了」，不升版本。同一版本下已授权的客户端可以重新授权：MCP 授权记录的是「某个 `capability@version` 的确切权限集合」（`apps/local-host/src/mcp-action-grants.ts` 的 `matches()` 要求集合相等），集合不一致时授权页标 `stale`（`apps/local-host/src/mcp-action-access.ts`，「能力所需权限已变化，请查看新权限后重新授权。」，`can_enable: true`），在设置页重新授权一次即可，调用在此之前以 `mcp.action_revoked` 被拒并提示重新检查对外接入设置；MCP 工具名不变（`__v1`），固定 @1 的流程步骤照常解析。用户在 #835 选了不改名，`research.cancel` 也保持 @1。这四项一度升到 @2（先例是 Images `jobs.start@1→@2`，#743），被评审指出理由不成立后撤回。
+  - Manifest 里 `model:invoke` 为可选（`required: false`，同 Form、Dataset）：内置插件新装时所有声明的权限默认全开，包括可选的（#741）；已装的 Home 与项目跟随新构建时，`install-rules.ts` 的 `followBundledBuild` 保留已有取值、必需权限补上、新声明的可选权限默认开，人关掉过的仍保持关闭。关掉它只会让这四个动作不可用，其余动作不受影响。Alchemist 现在是构建期装配、没有安装记录，页面调用者的权限由 `ALCHEMIST_ACTION_PERMISSIONS`（从各动作的声明推出）给，随动作自动带上。
+  - 验收 `W5-01-ALC-RES-AUTH-04`：只有这四个动作声明 `model:invoke`、计费为 metered、调度为 concurrent、版本为 1，Pulse 不声明；Manifest 里它是可选权限、其余仍为必需；调用者没有它时这四个被拒（`actions.forbidden`）、不派出模型请求，读与写类动作不受影响；MCP 工具名不变（`__v1`）。
+  - 本片没改的：`runs.continue` 也会派出模型调用，但它声明 `[]` 并按任务类别取保留的后台授权；等它迁到 Runtime（PG-108）时再决定是否声明 `model:invoke`，否则 `services.model` 会拒。
+- 不在这里做的：裁定 10（把按任务类别另要的权限写进声明）和 `runs.list` 的分页，都是 P3，另开一片。
+
 ALC-RES 搜索最终边界补充（2026-10-18，root 已直接核对调用链并接受窄实现）：现 beforeDispatch 仅在入口，之后还等待 bootstrap、DNS 与 TLS；SEL 会写 opaque operation、secret 与正文。RES03 必须覆盖这些实际业务效果，不能以每秒撤权轮询代替。允许在 Alchemist search 资源现 owner 内用每次调用的 AsyncLocalStorage 传递本次 beforeDispatch/assertCurrent，Host search-evidence-runtime/search-intelligence-client/anysearch-transport 接同一可选检查；storage 的既有 search-storage blob/secret owner 在最终同步写入前检查，不越 owner 写 SQL、不改 vendor 或密文/schema/路径、不加授权持久化。查询控制不存在时，已配置此检查的 Alchemist 调用拒绝；未配置的 Feed 现行为保持。bootstrap 共享 promise 不能固化首次调用的权限，失败后沿现 ready reset 可再尝试；资源关闭仍等待真实 promise 退出。
 
 `W5-01-ALC-RES-SEARCH-01`：真实 AnySearch DNS 等待后撤权，最终建请求前拒绝；TLS 等待期间撤权，在 secureConnect 已核合法 peer 后、req.end(body) 紧前再次同步检查，零请求正文发送；extract 也逐次检查，不放宽原 SSRF/TLS/响应上限。`W5-01-ALC-RES-SEARCH-02`：真实 SEL bootstrap/provider 晚回执期间撤权后，search.sqlite opaque rows、secret/content 与 Studio job/checkpoint/events 均无迟到结果或失败记账，原合法预约保持；同步 blob 各写方法实际拒绝、原行不变。`W5-01-ALC-RES-SEARCH-03`：未配置 hooks 的 Feed/Search 现回归不变通过；无 scope 的业务写拒绝但关闭可完成，真实文件/SQLite owner 与模型入口不增加第二实现。新增 API、安全表与派生检查仍由 root 整合；本段是现 RES03 完整修复范围，不引入数据库分区或 Runtime 迁移。
@@ -285,7 +306,7 @@ HTTP 接入须沿现 plugin-route-control 捕获 entry-owned 权限与 Kernel �
 
 允许范围：Alchemist bootstrap/jobs/相关 services/shared contracts/manifest/既有 client 及测试；Host 现 Alchemist HTTP/retained-authority 必要接缝与 work-reuse 实际接收端。一个 Store、现物理路径、现 SQLite schema 保持；不增加恢复平台、锁系统、并发 worker、第二队列事实或 vendor。唯一 spec、README、安全表、API/action 快照由 root 串行维护，门禁不放宽。现模型/搜索/复用合同复用公开入口；项目分库与 Runtime 接线另片，不能冒领本片完成。具体字段与函数划分由实施者在现结构中选择，小函数遵守现门禁。
 
-验收：`W5-01-ALC-RES01` 真实进程重启后旧任务/lease/checkpoint保留，重复 query 零业务写、零自动 dispatch，空库三种视图可读。`W5-01-ALC-RES02` 同 job 双击只一份登记/lease/dispatch/产物，继续 A 不消费旧 B，A 忙时新授权 B 等待且不占 lease，等待撤权零写。`W5-01-ALC-RES03` 授权/模型/搜索/linkConsumption/提交各实际等待中撤权、禁用、关闭或删除，迟到成功与失败零业务写/续租/额外派出，真实工作未退出不关库。`W5-01-ALC-RES04` 原方向不变，本次所示 model/taste 固定且不可用明确拒绝，安全卡片 checkpoint 不重复模型或产物。`W5-01-ALC-RES05` Lens 四类未知调用恢复累计计数不归零，计数不完整拒绝，耗尽无 dispatch/扩额且可读，安全 checkpoint 可完成。`W5-01-ALC-RES06` 首次 command 外键顺序/一次默认值、query 零 seed/actor、真实继续操作者与历史作者分明，伪改 job.actorId 不增权。`W5-01-ALC-RES07` Pulse 已完成来源不重复，取消与权限拒绝不写失败。`W5-01-ALC-RES08` 真实 UI 重启视图确认并继续、双击忙态、耗尽提示与原任务链接；真实 HTTP 正常返回后后台继续/受理前断开拒绝/MCP 同动作结果均验证。
+验收：`W5-01-ALC-RES01` 真实进程重启后旧任务/lease/checkpoint保留，重复 query 零业务写、零自动 dispatch，空库三种视图可读。`W5-01-ALC-RES02` 同 job 双击只一份登记/lease/dispatch/产物，继续 A 不消费旧 B，A 忙时新授权 B 等待且不占 lease，等待撤权零写。`W5-01-ALC-RES03` 授权/模型/搜索/linkConsumption/提交各实际等待中撤权、禁用、关闭或删除，迟到成功与失败零业务写/续租/额外派出，真实工作未退出不关库。`W5-01-ALC-RES04` 原方向不变，本次所示 model/taste 固定且不可用明确拒绝，安全卡片 checkpoint 不重复模型或产物。`W5-01-ALC-RES05` Lens 四类未知调用恢复累计计数不归零，计数不完整拒绝，耗尽无 dispatch/扩额且可读，安全 checkpoint 可完成。`W5-01-ALC-RES06` 首次 command 外键顺序/一次默认值、query 零 seed/actor、真实继续操作者与历史作者分明，伪改 job.actorId 不增权。`W5-01-ALC-RES07` Pulse 已完成来源不重复，取消与权限拒绝不写失败。`W5-01-ALC-RES08` 真实 UI 重启视图确认并继续、双击忙态、耗尽提示与原任务链接；真实 HTTP 正常返回后后台继续/受理前断开拒绝/MCP 同动作结果均验证。`W5-01-ALC-RES09` Pulse 能从 HTTP、界面、MCP 同一个动作取消；在等待外部来源期间取消，业务记录零写；MCP 经工具 `alchemist.research.cancel__v1` 取消排队中的 Pulse，动作仍是 `@1`（本节决策表 2026-10-20 一行）。
 
 先整体构建，再按 README 运行 Alchemist runtime/worker/recovery/authority/Host 生命周期与包内测试，新增交错调用生产路径；根排真实 Chrome 和合并后的边界/API/action/health/资源验证。工程通过、真实本地替身路径通过与用户本人体验分开记录。本机全量及真实 Home 不运行；本节尚无实施或运行证据。
 
@@ -532,6 +553,12 @@ W5-01-PPT 纯 Store 准备（2026-10-18；Codex 允许先做包内 Store；工�
 - 未做/未验：Manifest 路由、Pages/模型调用、宿主接线、动作/API 快照、page-assets 都未动；没有 UI 变化，未跑浏览器与真实 Home。
 - 待办（另片）：公共动作委托、`validateResult` 集成、Manifest 路由、Pages/模型调用、宿主接线删除与调用方迁移；等 Codex 的实际基线与 spec 编号。
 
+W5-01-PPT 收尾（2026-10-19，§10.29 #748 复查的 P2，③；分支 `chore/closeout-ppt-ports`）：
+- 删 `apps/local-host/src/creative-artifacts.ts`：里面是 PPT 的三个旧端口（行头、写版本、读版本）和对 PPT 插件的 import，PPT 迁到 Runtime 后已经没有调用方（[privileges.md](privileges.md) PG-109）。`tests/document-plugins-error-model.test.ts` 去掉专扫这个文件的断言；`tooling/gates/error-owners.json` 的 `artifacts` 去掉这条路径，文件没了，路径按门禁规则必须离表。
+- 同片收掉 #733 复查的两条 P3：
+  - `builtin-instructions.ts` 的注释改成创作台的 Agent。
+  - Cognia 没有模型时的提示按预期变化处理。平台规则 D4-b 只给 Host 写的一句「请先在「模型设置」里连接文字模型」；Cognia 原句「……导入、搜索和阅读仍可使用。」不留，它在 `plugins/native/cognia/src/en.ts` 里已无人使用的翻译一并删掉。
+
 W5-01-DATASET（2026-10-18，本地候选已审（Codex 10-18 裁定代码候选无 Blocker/P1，文案收尾后等待整合），工作树 `feature/w5-01-dataset-runtime`，未推、未开 PR；等 #684 合入后的空位）：
 - 范围：Dataset 从构建期装配迁到 Plugin Runtime，每个项目一个实例；库仍是 `{home}/dataset/dataset.db`，项目分区、目录条目与 `project_data` 不变。不改成 Home 单实例，不动其他插件。
 - 包：`store.ts` 的 SQL 端口（`DatasetSql`/`DatasetStores`/`ownDatasetStores`）与 `DATASET_DATABASE`；`actions.ts` 读/写分开；`promote.ts` 三段写（intent → publish → complete）；新增 `plugin.ts` 与 13 条 Manifest 路由（`/datasets…`），`max_body_bytes` 保持 1,000,000 B，CSV 的 2,000,000 字符仍是动作层限制；导出 `createDatasetPlugin`/`DATASET_DATABASE`，删旧 `routes.ts`/`route-handlers.ts`。
@@ -557,12 +584,12 @@ W5-01-WORKFLOWS 纯 Store 准备（2026-10-18，Codex 分配；工作树 `featur
 
 实现边界：Images 在自己的 `src/messages.ts` 声明中英并排的稳定键，在现有 `BUILTIN_PLUGIN_CATALOG` 条目登记；Workbench 按页面语言派生词典，服务端与浏览器沿用同一调用接口。现有其他主人的中文键继续按现行入口查找，保留仍被使用的 Images 中文条目，删除无人使用的旧条目。稳定键不另建中心 import 清单、不加新的公开 SDK/Manifest 合同。英文以迁移前实际 `EN` 的结果为准，中文与交互保持不变。Images 的生成、连接、任务、持久化与授权，以及 W5-01 Runtime 迁移均不在本片改动范围内；#661 未改动这两份 UI/客户端源文件。
 
-验收与证据：
+#### 验收与证据（RAC-56～60）
 - **RAC-56**：插件的两条翻译路径使用主人稳定键，键在主人词典中只定义一次、中英完整；保留其他消费者实际需要的中文条目，迁移前后同语言可见文字相同。由 `tests/i18n.test.ts` 的实际服务词典/Images 渲染断言及现有翻译扫描证明。
 - **RAC-57**：服务端请求交错时语言隔离，浏览器收到当前语言的稳定键表，中文、英文和参数替换均正确，现有中文键调用正常；由 `tests/i18n.test.ts` 运行真实脚本与公开 Host 入口证明。
 - **RAC-58**：真实浏览器中的 Images 空态、服务管理、提交与生成结果在中英两种语言均不显示稳定键，受控 provider 的原有调用次数、图片字节及授权失败路径保持；由 `tests/images-actions.e2e.test.ts` 与 `tests/content-context-regressions.e2e.test.ts` 证明。
 - **RAC-59**：给现有翻译检查补上“稳定词典实际登记到目录”的拒绝条件，断开登记时明确失败，且不放宽已有规则。该门禁改动已于 2026-10-17 经用户弹窗批准，按可审补丁落实；`tests/translation-check.test.ts` 的变异场景证明。
-- **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。
+- **RAC-60**：整体构建、Workbench/Images README 要求的定向用例、health（对 main merge-base）、boundary 与 page-assets 通过。逐项测量静态资源和内联翻译脚本；若受预算约束的资源增长，记录实际增量、按已有约定弹窗确认后再改放行。共享运行时的完整回归交统筹在 CI 排，不在本机跑全量。分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 定向用例：两包 README 必跑列表在该提交上全部通过，其中证明本片行为的是 RAC-56～59 的用例（`tests/i18n.test.ts`、`tests/images-actions.e2e.test.ts`、`tests/content-context-regressions.e2e.test.ts`、`tests/translation-check.test.ts`）；② 静态资源逐项实测：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源（含 `images.js`）等于已提交的预算、没有未登记的新资源；③ [人工] 内联翻译脚本：资源门禁不量页内 `<script>`（`scripts/gates/page-assets.mjs` 开头写明），2026-10-17 的实测数字记在下面的本地证据里，那次增长经用户弹窗批准；④ [人工] 整体构建、对 merge-base 的 health 与资源只降、boundary：没有测试证明「在这个提交上通过」，看该提交 CI 作业记录；⑤ [人工] 共享运行时的完整回归交统筹 CI。
 
 验证命令：`pnpm build`、`pnpm workspace:build`（机器 build 槽位串行）；`node scripts/run-tests.mjs` 加上述测试与两包 README 的必跑列表（浏览器走 browser 槽位）；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`、`node scripts/gates/page-assets.mjs --base origin/main`。2026-10-17 本地证据：整体构建及 workspace 构建通过；翻译 2 文件 73 项、两包必跑 24 文件 185 项、真实浏览器 2 文件 6 项、门禁集成 2 文件 136 项全部通过（合计 30 文件 400 项）。85 条英文逐条与迁移前实际 EN 比较相同；中英桌面/窄屏生成返回的 provider 次数与图片字节通过。health 对 merge-base `4726820a8` 与 boundary 通过。Images 静态脚本 22,546→21,978 B（−568 B），预算随实测下调；内联翻译脚本中文 952→5,920 B（+4,968 B）、英文 683,136→681,991 B（−1,145 B）。RAC-56/57/58 已验证。2026-10-17 用户分别批准“允许新增检查”和“允许这项内联增长”：登记检查仅增加拒绝、不放宽已有规则；中文内联增长限于上述 +4,968 B，其他静态预算不增长。RAC-59 已按获准补丁落实并验证：未登记、只有 import、无关对象与错误字段四种场景均拒绝；两种 `--update` 写过基线后仍拒绝；导入别名通过；断开真实 Images 目录登记也被发现。登记识别按导出名字、不解析模块路径，边界与现有英文词典检查一致。RAC-60 的本地构建与门禁已通过，最终集成与 CI 仍待。未宣称整个 W5-03 完成。
 
@@ -674,6 +701,8 @@ W5-01 流式路由（a）（2026-10-17，Codex 接手继续，未验收）：保
 
 Manifest 声明现有各 HTTP 行为，客户端和仓库消费者一并改用完整插件 id 路径；删除旧原生路由、Host 动作/模型/目录适配和构建期舞台，保留目录元数据、样式与客户端。跨项目看到同一库，带项目的路由继续受 S-31 约束。工作台样式及交互结构保持；若资源实测增长，按具体差值再提批准，不预先提高预算。
 
+#### 验收（RAC-37～44）
+
 | 编号 | 验收 | 验证 |
 | --- | --- | --- |
 | RAC-37 | 显式体积上限按用户决定；缺省不变，超过声明一字节在执行动作前拒绝，原 32 MB 批次可上传 | SDK 声明用例、真实 Home/项目 HTTP 请求体拒绝；安全表 S-03 |
@@ -683,7 +712,7 @@ Manifest 声明现有各 HTTP 行为，客户端和仓库消费者一并改用�
 | RAC-41 | 固定来源版本、导入与采纳幂等、预览冲突/过期和源文件不改；目录权限失效后无预览 | Cognia store/ai、内容授权、真实目录与 Runtime 中断测试 |
 | RAC-42 | 生成预览草稿、明确采纳、有效引用、指令覆盖、180 秒模型选项保持；取消/失败/停用/撤权无晚到草稿，恢复及重开正常 | Cognia AI/Prologue 与延迟模型交错，重开库检查 |
 | RAC-43 | 桌面/窄屏真实导入、阅读、生成审阅采纳与模型停用/恢复可操作，现有显示名保持 | Cognia 浏览器、model-ready、content-context 用例 |
-| RAC-44 | 仅公共合同接入；库版本与形状未变、旧宿主接线删除；API/动作快照与资源/健康/包边界通过 | 整体 build、workspace build、api/actions 更新、boundary、merge-base health/page-assets、包 README 定向回归；全量由统筹排 CI |
+| RAC-44 | 仅公共合同接入；库版本与形状未变、旧宿主接线删除；API/动作快照与资源/健康/包边界通过 | 分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 只经公共合同接入、旧宿主接线删除：`tests/builtin-plugin-assembly-gate.test.ts` 的「RAC-44: the Host keeps no Cognia wiring of its own…」（目录条目是 Home Runtime 声明；宿主源码没有以 Cognia 命名的文件、不为它注册 provider、不 import 它的包）与紧接的「Home Runtime declarations resolve shipped factories and start once…」（真实 Home 监督器按出厂工厂只启动一次）；项目旧路径 404 见 RAC-40（`tests/cognia-http.test.ts`）；② 库版本与形状：`tests/home-store-baselines.test.ts` 的 cognia 行（版本 1，逐表等于真实 Home 取下的结构）与「RAC-44: the cognia library is the one Cognia's Home Runtime declares…」（被比对的正是 Cognia 的 Home Runtime 声明的那份库）；③ 动作快照：`tests/action-contract-snapshot.test.ts` 的「the committed snapshot is what the built-in Manifests and the Host's action directory generate」；④ 资源：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源（含 `cognia.js`）等于已提交的预算、没有未登记的新资源；⑤ [人工] 公开 API 快照、对 merge-base 的 health 与资源只降、包边界、整体与 workspace 构建：没有测试证明「在这个提交上通过」，看该提交 CI 的 Verify 与 page-assets 作业记录；全量由统筹排 CI |
 
 范围边界：平台片只改 contracts/plugin-sdk/plugin-runtime/local-host 的共同能力及对应测试/手册；插件片改 Cognia 包、目录/路由装配和已有消费者。安全上限已获用户批准，平台前置与插件片按依赖顺序实施。两片保持独立提交，在本线空出在途名额且前序合入后才推送/开 PR；不以本地工程通过代替最终产物与人工验收。
 
@@ -727,6 +756,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 修改边界：contracts、Kernel 的授权捕获、Runtime 的一次执行与两个 Host 执行器、HTTP/MCP 与绑定客户端的授权组合、既有 S-18 和开发手册。公共 API 快照随新可选字段更新；当前业务动作 schema、库版本、页面资源上限与安全上限不变。#661 仍仅作为后续连接合同依赖；本片不改其连接实现。共享安全文档与 #675/#681 逐块合并，保留 main S-32/S-33，材料服务用 S-34；本片自身不新占编号。
 
+#### 验收（RAC-50～55）
+
 | 编号 | 验收 | 验证 |
 | --- | --- | --- |
 | RAC-50 | 只有本安装正在执行且声明后台结果的并发 command 可受理；没有父授权不能变成插件自身权限 | 真实 Kernel/Runtime 拒绝用例，含启动/路由/过期/外来安装/嵌套调用 |
@@ -734,7 +765,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | RAC-52 | 原 MCP 授权撤销、安装撤权/停用/替换、Host 关闭、显式取消均停止等待；迟到成功与失败不写记录或文件 | 实际授权文件/Runtime 生命周期交错，未配合取消的提供方与同步尾检 |
 | RAC-53 | 后台模型调用保留原身份、项目、声明权限与注册；结束后的模型进度、控制与进一步后台启动拒绝 | 实际 Host 模型端口、原调用结束及后台结束边界 |
 | RAC-54 | 执行器撤销先于插件清理；重启不复活旧工作；无计时器/未处理拒绝残留 | 两执行器公开生命周期、关闭与新实例恢复；包要求与安全回归 |
-| RAC-55 | API、包边界、merge-base health/资源检查及适用回归通过；全量交统筹 CI | 整体 build、api:update、相关 Kernel/Runtime/Host 用例和现有合同回放 |
+| RAC-55 | API、包边界、merge-base health/资源检查及适用回归通过；全量交统筹 CI | 分五部分，全部成立才算通过（2026-10-19 拆，QA-021；门禁部分与平台线对过）：① 适用回归：RAC-50～54 的用例全部通过（主要是 `tests/action-background-authority.test.ts`，另有 `tests/security-invariants-plugin-background.test.ts`、`tests/plugin-model-service.test.ts`、`tests/runtime-plugin-http-discovery.test.ts`）；② 现有合同回放：`tests/action-contract-snapshot.test.ts` 的「the committed snapshot is what the built-in Manifests and the Host's action directory generate」；③ 资源：`tests/page-assets-budget.test.ts` 的「this repository's build is within the committed page asset budget…」，本树构建的每个资源等于已提交的预算、没有未登记的新资源（本片不改页面）；④ [人工] 公开 API 快照（contracts 新增的可选字段 `retain_background_authority`）、包边界、对 merge-base 的 health 与资源只降、整体构建：没有测试证明「在这个提交上通过」，看该提交 CI 的 Verify 与 page-assets 作业记录；⑤ [人工] 共享核心全量交统筹 CI |
 
 项目 HTTP 的正向用例暴露既有授权缺口：`coding-surface` 未传路由分发器要求的 `granted`，因此带 `permission` 的路由即使安装已授权也返回 403，尚未进入动作。本片让可信本地 HTTP 入口读取目标安装的现行 grants，保持分发器的权限断言；RAC-51/52 同时验证授权时能受理、撤销该权限后进入处理器之前拒绝，不从请求体补权限。
 
@@ -1004,6 +1035,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | 2026-10-18 | 合并与全量（弹窗；替代同日一次性的「只看 Verify」做法） | Verify 过即可合、每批一次集成全量（推荐）；只在 main 定期跑全量；每个 PR 都跑 | 每批一次集成全量 | 单个 PR 不跑全量；同时待合的 3～6 个 PR 先合成集成分支跑一次全量，过了按依赖逐个合（每个仍要 Verify）；红了只拆出引入失败的那个。共享核心的 PR 一定在批里 |
 | 2026-10-18 | 全量红了停在哪里（用户在统筹会话里提出，#716） | 用户直接给出 | 停在第一个两次都失败的文件，其余分片取消 | `run-tests.mjs --bail` 加 matrix `fail-fast: true`：重跑通过的仍算 flaky，不让分片变红；两次都失败的，分片不再开新文件，正在跑的也停掉，其余分片随之取消。代价：一次红的运行只报第一个失败，几个不相关的失败要一个个修、一次次跑；只红 main 上也红的用例时，这次运行证明不了其余文件是绿的，要在 main 修好后重跑全量（`docs/system/PARALLEL-DEVELOPMENT.md` 第 7 节） |
 | 2026-10-18 | Computer Use 的系统打开/保存面板（CU-G09，弹窗） | A 先拿真机事实、独立进程的面板继续拒（推荐）；B 加窄例外；C 绕开面板 | A | 只把同进程 sheet 的情况补成真机用例；独立进程的面板请用户自己完成。落点校验与 S-25 不变（`specs/computer-use/open-decisions.md` 第 1 节） |
+| 2026-10-19 | 工作流内容协议 `receive` 升到第 2 版（W4-6a，⑧ 在自己的会话里问用户） | 八个站的 MCP 工具名随版本改，`…content.receive__v1` 变 `__v2`，不留别名（推荐）；留旧名别名一段时间 | 改名，不留别名 | 八个工具：`dataset.content.receive__v1`、`feed.content.receive__v1`、`form.content.receive__v1`、`inbox.content.receive__v1`、`jelly.content.receive__v1`、`lingguang.content.receive__v1`、`pages.content.receive__v1`、`ppt.content.receive__v1`，各改为同名 `__v2`；其他工具名不变（`docs/system/CONTRACT-CHANGES.md` 第 3.5 条）。⑧ 用选择题问，用户原答「同意改名（推荐）」。同一次答复里定了真实 Home：受影响的已保存工作流由用户自己在编辑器里修（原答「我自己在编辑器里修（推荐）」；把站删掉再加回来，新引用固定 `receive@2`），产品里不写迁移代码，也不写开发 Home 的迁移脚本；已固定 `receive@1` 的流程和实例照 `specs/action-architecture` 第 3 节报「已保存的接收能力 v1 不可用」，不换版本、不写任何记录（`W4-6-04`）。Feed 里已存的、`externalId` 为 `<实例>:<步>` 的旧条目不改，新交付用 `workflow:<实例>:<步>`，这条边界也没有兼容代码。按准确版本固定 `receive@1` 的另外两类引用也一样对不上，也不迁移：MCP 客户端与内置 Agent 的动作授权（授权页把 v1 那条列为「找不到原能力、版本或提供方」，v2 未授权，要在授权页重新授权 v2，之前调不到）；Characters 角色动作范围里选过的 v1（保存或发布时报「原能力 … · v1 不可用或尚未授权给内置 Agent」，要移除 v1、改选 v2）。这两类用户 2026-10-19 另定（D25），原话：「不想手动改：在真实 Home 上做一次性维护，把授权和角色里的 receive v1 改成 v2。先在一次性 Home 上演练、先备份，时间由我定。」由一次性维护把八个站在这两类引用里的 v1 改成 v2：v2 的权限或受众比 v1 宽的那一条不带过去，列给用户在授权页重新授权；角色按人自己改角色时的版本规则处理，不就地改已发布的那一版；先在一次性 Home 上演练、整份备份，真实 Home 那一次由用户定时间、当次同意。维护脚本放会话临时目录、不进仓库，产品代码里也不加迁移，所以不登记到 `specs/repository-anti-corruption` 的保留机制（`docs/system/CONTRACT-CHANGES.md` §3 第 4 条）。**结项（用户 2026-10-20 定）：** 原来那台电脑上的 Home 不再用，现在的开发机上没有真实 Home，这次维护没有在任何真实 Home 上跑过；两次一次性 Home 演练都通过了，脚本留在会话临时目录、不进仓库。已存的工作流不在这次维护里，仍由用户在编辑器里修。见 `specs/quick-create/spec.md` §11.9 第 3 条。 |
+| 2026-10-20 | `alchemist.research.cancel` 的输出加了 `kind`（Pulse 取消入口，D27，#835）：版本升到 `@2`、MCP 工具名随之变成 `alchemist.research.cancel__v2`，还是仍是 `@1`（统筹 ① 向用户转达，改工具名按 `docs/system/CONTRACT-CHANGES.md` 第 3 节第 5 条是产品决定） | 保持 `@1`，不改名（推荐）；升到 `@2`，工具名改 `__v2` | 保持 `@1`，不改名；MCP 工具名仍是 `alchemist.research.cancel__v1` | 用户原话「保持 @1，不改名（推荐）」，经统筹 ① 转达。输出现在是 `{ kind: "lens", run }` 或 `{ kind: "pulse", run }`，输入哈希 `8081d3eb3674` 不变，输出哈希在 `tooling/gates/actions/actions.tsv` 里是新的（`909a3b21aa2f`）。理由四条：（1）以前能成功的输入只有 Lens 作业，现在得到 `{ kind: "lens", run }`，原来的 `run` 还在原处，只多一个字段；（2）Pulse 作业以前一律 404，没有谁能依赖那个结果；（3）仓库里没有固定 `@1` 的工作流步骤、绑定、Skill 或手册（`git grep` 查过：`tests/fixtures/studio-replay/recorded.json` 的三处只有 id、不带版本，`specs/archive` 下是历史记录）；（4）授权带版本：`apps/local-host/src/mcp-settings-store.ts` 的 `McpActionGrant`（第 7 至 12 行）有 `version`，授权的键也含版本（第 52 至 53 行）；内置 Agent 的授权是同一份 `config/mcp-tools.json` 里 `client_id` 为 `agent:prologue` 的行（`apps/local-host/src/mcp-action-access.ts` 第 52 行），授权页把版本对不上的行列为「找不到原能力、版本或提供方」（同文件第 36 行）；Characters 角色的动作范围按版本核对（`plugins/native/characters/src/plugin.ts` 第 62 行、`horizontal/agent-host/src/index.ts` 第 536 行）。升到 `@2` 会让真实 Home 里已经给出的 `cancel@1` 授权失效，要扩大 D25 的一次性维护（上一行），而保持 `@1` 它们原样有效，不需要维护，产品里也不写迁移。`tests/alchemist-mcp.test.ts` 真的经 MCP 工具 `alchemist.research.cancel__v1` 取消一个排队中的 Pulse（W5-01-ALC-RES09），工具名或版本读错时它失败。 |
 
 **待决（开工后攒批弹窗问）**：
 
@@ -1514,6 +1547,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 已审 |
 | `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `horizontal/knowledge` | 横向 | 3 | 213 | `index.ts` 131 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/placement` | 横向 | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 | 在用 | 中 | 已审 |
@@ -2283,7 +2317,7 @@ G3固定I5源码复核的必要接线同属以上合同：Memory Host的asAction
 | W3-02-G4-02 | Browser原Error的已知失败保留409/conflict，原64MB上限亦保留409与句子，不额外改成413；明确HTTP缺项目/下载404与参数400仍在。JSON读体改共同400/413及reader原消息，原“开关”catch不再掩盖解析错误，限额不变。下载仍binary stream/附件/no-store/nosniff，chooser与真实页面capture的边界保留；必要surface-driver消费者同步，不扩Chrome/CDP传输。 |
 | W3-02-G4-03 | Agent review/recovery已知状态与revision核对拒绝保留409，实际foreign/missing404、坏note400及receipt200/effect_settled语义保留；在真正prologue-git handler分类原裸状态拒绝，保留recovering finally、两次observe、先保存核对依据再reconcile，零重执行。按实际raiser区分输入与不存在，不仅凭review_unknown名字猜全局kind；共同出口覆盖读体并补literal状态/code/无effect。 |
 | W3-02-G4-04 | MCP授权设置经共同SDK保留code/message/details/availability.kind；with先核全套授权再一次提交，拒绝不写任何grant、不调用业务handler。真实owner409及平台404/403/503按已接受kind，无kind的fixture仍400；失效provider可撤销、GET missing业务200、method405及精确project/provider/version合同不变。 |
-| W3-02-G4-05 | Work各HTTP异常走共同SDK；scope/not_found/conflict由真实owner定型，public context中旧classifyError移除/改接同步唯一web-panel消费者。workspace.change_rolled_back/recovery_required owner为unavailable，Host project-workspace-actions不再重建丢kind，最终503及恢复事实不变；projects.workspace_not_found仍404/原消息。Session发送sent201、failed409、其它202（含uncertain）、handoff未送达502/原error_message、picker取消200/busy409/unavailable503都是现行业务结果，保留，不能改为throw。 |
+| W3-02-G4-05 | Work各HTTP异常走共同SDK；scope/not_found/conflict由真实owner定型，public context中旧classifyError移除/改接同步唯一web-panel消费者。workspace.change_rolled_back/recovery_required（现为`work.workspace.*`，R4a3）owner为invalid，最终400（WSERR-03；原写unavailable/503已作废，2026-10-19对齐，QA-020）；Host project-workspace-actions原样透传、不重建kind；目录关系自动恢复（恢复也失败才是recovery_required），原cause对象保留且不可枚举（WSERR-02）。证明：`tests/workspace-directory.test.ts`的repair/unlink两处change_rolled_back（400、目录恢复、cause同一对象且不可枚举）；recovery_required与它同一声明，无单独用例；host.workspace_not_found仍404/原消息。Session发送sent201、failed409、其它202（含uncertain）、handoff未送达502/原error_message、picker取消200/busy409/unavailable503都是现行业务结果，保留，不能改为throw。 |
 | W3-02-G4-06 | F1/Home的唯一shared operations及controls/hooks/readBody/取消/revision/卸载边界保留；仅真正抛出的失败经SDK，不改restart/upgrade409、not-running503等supervisor结果。Work未知异常按共同500/actions.execution_failed保留实际消息，原状态查询与草稿保留证明结果未知恢复，不加自动重发。实际HTTP、必要Browser/Work公开路径与安全拒绝证明完整后再协调整合，API/动作/资产均按实测记录。 |
 | W3-02-G4-ANSWER-01 | 真实助理页面经Host与SDK原问卷拒绝未知选项，共同HTTP信封的details.errors仍映射到q0行内错误、焦点及保留选择；拒绝不完成原等待、不发第二次模型请求。本人修正后重交同一pending/run，成功继续原工作且不重复新建轮次。既有assistant-page-written浏览器用例追加真实Runtime拒绝/恢复，不用假拒绝或仅检查源码字符串。 |
 

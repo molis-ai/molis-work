@@ -235,20 +235,28 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W5-01 Lingguang: the shared browser NDJSON reader adds 2,231 B to workbench.js, while Lingguang's own bundle loses
-// 725 B. The user approved this measured increase on 2026-10-17 in the anti-corruption chat. Actual main now includes
-// Todo, receipts 3e-1, W3-C2 and W4-1, starting at 1,113,068 B. Preserve only the unspent +2,231 B; every prior start remains refused.
-// This exact increase is spent once; later growth stays frozen.
+// specs/project-knowledge (2026-10-19, each under the 10 KB the user lets review admit, AGENTS.md): the 项目资料 settings page
+// styles (+6.6 KB, in both sheets, as the model and memory settings are, since the settings cover renders in the workbench), the
+// shared picker's (+1.9 KB) and the side panel's import dialog in the workbench sheet; +881 B of workbench.js for the side
+// panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed, and the dialog-aware Escape and searching state of the 10-19 review. Each is spent once from exactly
+// main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1113068, 1115299],
-  // User approved 2026-10-18: explicit Alchemist continuation, original budget and unknown-call fee warning.
-  "/assets/molis-work-plugins/alchemist.js": [50619, 52373],
+  "/assets/molis-work-workbench.js": [1128644, 1129525],
+  "/assets/molis-work-workbench.css": [1593165, 1603154],
+  "/assets/molis-work-settings.css": [982397, 988933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
+// An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
+// first freeze; from the next PR on it only falls like every other.
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+const APPROVED_NEW_ASSETS = {
+  "/assets/molis-work-knowledge.js": 26361,
+};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
+    if (base[asset] === undefined && allowed <= (APPROVED_NEW_ASSETS[asset] ?? -1)) continue;
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
@@ -262,7 +270,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  if (reference[asset] === undefined) return bytes <= (APPROVED_NEW_ASSETS[asset] ?? -1) ? [] : [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 

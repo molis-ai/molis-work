@@ -33,7 +33,8 @@ test('icon tabs pin, restore, expose keyboard and touch actions and keep fixed d
   await click('[data-tab-menu-action=open-feed]');
   assert.equal(await evaluate(`document.querySelector('${coreSelector}').getBoundingClientRect().width`),before);
   assert.equal(await evaluate("document.body.dataset.desktopSurface"), "feed");
-  assert.equal(await evaluate("document.querySelector('.tab-item[aria-current]')"), null);
+  // PTG-01 Feed's own page is its plugin tab.
+  assert.equal(await evaluate("[...document.querySelectorAll('.tab-item[aria-current]')].map((tab) => tab.dataset.tabKind + ':' + tab.dataset.plugin).join()"), "plugin:feed");
   // Real right click, then Escape returns keyboard focus without changing the Feed view.
   const point=await evaluate<{x:number,y:number}>(`(async()=>{const el=document.querySelector('${coreSelector}');el.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));const r=el.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
   for(const type of ['mousePressed','mouseReleased']) await command('Input.dispatchMouseEvent',{type,...point,button:'right',clickCount:1},sessionId);

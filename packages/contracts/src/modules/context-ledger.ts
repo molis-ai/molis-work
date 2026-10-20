@@ -18,8 +18,11 @@ export interface ObjectRef {
   /**
    * Whose object it is. `assistant` is an Assistant work; `plugins` is an object a Plugin owns, named by
    * `object_type` (the subject kind its context reader declares, e.g. `pages_document`) within `project_id`.
+   * `agent-host` is something an agent run holds, not Molis: `agent_input` (one input of a run session, id
+   * `<session>/<input_id>`) or `runtime_session`. Molis keeps only the reference and does not check that it exists
+   * (specs/ai-input-receipts S3).
    */
-  module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins";
+  module: "goals" | "artifacts" | "feed" | "private-work-context" | "projects" | "assistant" | "plugins" | "agent-host";
   id: string;
   /** null means an identity reference, not an invented historical version. Artifacts require a version. */
   version: number | null;

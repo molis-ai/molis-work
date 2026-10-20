@@ -30,7 +30,7 @@ const BASE_COUNT = 6;
 before(() => {
   repo = mkdtempSync(path.join(tmpdir(), "molis-health-impeccable-"));
   git("init", "-q", "-b", "main");
-  put("tooling/gates/limits.json", JSON.stringify({ file: 20, classLines: 10, classMethods: 3, functionLines: 8, vendoredPrologueSdk: 2 }, null, 2) + "\n");
+  put("tooling/gates/limits.json", JSON.stringify({ file: 20, classLines: 10, classMethods: 3, functionLines: 8, vendoredPrologueSdk: 2, docsJsonBytes: 65536 }, null, 2) + "\n");
   put(".gitignore", ".impeccable/qa/\n");
   put("packages/alpha/src/index.ts", "export const alpha = 1;\n");
   put(".impeccable/review/set-a/one.png", "one");

@@ -16,7 +16,11 @@ export interface PluginDatabase extends PluginDatabaseReader {
   transaction<T>(beforeEffect: () => Promise<void>, write: (transaction: PluginDatabaseTransaction) => T): Promise<T>;
 }
 
-/** Selected by the trusted Host entry, never by an action argument or an installed script. */
+/**
+ * Selected by the trusted Host entry, never by an action argument or an installed script. 2026-10-18 改: declared in the Manifest
+ * and given by the project database service like any plugin's (PG-020, PG-022 in specs/repository-anti-corruption/privileges.md);
+ * until then, as above.
+ */
 export interface PluginDatabaseDeclaration {
   readonly store_name: string;
   readonly version: number;
@@ -28,7 +32,8 @@ export interface PluginDatabaseDeclaration {
 /**
  * An entry of the Home that holds an owner's data (docs/system/HOME-DATA.md), declared beside the code that opens it and listed
  * by the Host in one registry, which `uninstall --purge-user-data` removes in full. Like the database declaration it is the
- * trusted Host entry's to carry, never a Manifest's or an action's.
+ * trusted Host entry's to carry, never a Manifest's or an action's. 2026-10-18 改: a plugin's store is declared in its Manifest
+ * like its database (PG-022 in specs/repository-anti-corruption/privileges.md); until then, as above.
  */
 export interface HomeStoreDeclaration {
   /** Relative to the Home, `/` between segments: `pages`, `git-operation-details.json`, `config/onboarding.json`. */

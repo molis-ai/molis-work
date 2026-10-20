@@ -12,9 +12,11 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,
+  lingguangActions,
   lingguangManifest,
   openLingguangStore,
 } from "@molis-ai/molis-work-plugin-lingguang";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
@@ -25,6 +27,17 @@ import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
 const PROJECT = "project-lingguang";
+
+test("PRR-10 material.read reports each extraction progress once", { timeout: 120_000 }, async t => {
+  const f = await serveLingguang(t);
+  const events: unknown[] = [];
+  const caller = { ...f.caller, on_progress: (event: unknown) => { events.push(event); } };
+  const bound = bindActionClient(f.client, () => caller);
+  await bound.invoke(lingguangActions.readFile, { file_name: "note.md", data_base64: Buffer.from("# Note\n\n正文").toString("base64") });
+  assert.ok(events.length > 0, "the extraction reports progress");
+  const keys = events.map(event => JSON.stringify(event));
+  assert.equal(new Set(keys).size, keys.length, `the same progress reached the caller twice: ${keys.join(" ")}`);
+});
 
 test("PRR-11 each Lingguang route has its own body limit", () => {
   const limits = Object.fromEntries((lingguangManifest.routes ?? []).map(route => [route.route_id, route.max_body_bytes]));

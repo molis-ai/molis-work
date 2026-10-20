@@ -302,4 +302,5 @@ export const ALCHEMIST_EN: Record<string, string> = {
   "沿用成果的理由与仍需重核的内容": "Why the results are reused, and what still needs rechecking",
   "例如：沿用访谈问题；价格和竞品变化重新核对。": "For example: reuse the interview questions; recheck pricing and competitor changes.",
   "检查所选内容的适用性": "Check whether the selected items apply",
+  "保存固定版本": "Save fixed version",
 };

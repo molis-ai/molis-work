@@ -8,6 +8,7 @@ import type {
   SearchIndexQuery,
   SearchIndexSourceRecord,
 } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_INDEX_CONTENT_CHARS } from "@molis-ai/molis-work-contracts/services/search";
 import { homeSqlitePath, openHomeSqliteDatabase } from "../home-sqlite.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 
@@ -85,6 +86,26 @@ export function searchQueryPlan(query: string): QueryPlan | null {
   return { expression: [...new Set(clauses)].join(" AND "), runs: [...new Set(checks)] };
 }
 
+/**
+ * Some of the terms, ranked: CJK adjacent pairs (a single character says too little) and words by prefix, joined with OR so
+ * bm25 ranks by how many and how rare. Pairs are tokens of adjacent characters already, so there is nothing to check again.
+ */
+export function relatedQueryPlan(query: string): string | null {
+  const terms = relatedTerms(query);
+  return terms.length ? terms.map(term => term.kind === "word" ? `"${term.text}"*` : `"${term.text}"`).join(" OR ") : null;
+}
+
+/** The terms of the loose ranking, as normalized text: CJK adjacent pairs, and words (matched by prefix). */
+function relatedTerms(query: string): Run[] {
+  const terms = new Map<string, Run>();
+  for (const run of runs(normalizeSearchText(query).text)) {
+    if (run.kind === "word") { terms.set(run.text, run); continue; }
+    const chars = [...run.text];
+    for (let index = 1; index < chars.length; index += 1) terms.set(`${chars[index - 1]}${chars[index]}`, { kind: "cjk", text: `${chars[index - 1]}${chars[index]}` });
+  }
+  return [...terms.values()];
+}
+
 type Row = Record<string, unknown>;
 const str = (value: unknown): string => value == null ? "" : String(value);
 const nullable = (value: unknown): string | null => value == null ? null : String(value);
@@ -122,7 +143,50 @@ function snippetOf(original: string, around: number | null, ranges: Array<[numbe
   return { snippet: prefix + body + suffix, highlights };
 }
 
+/** How many of the best related documents get a snippet: about as many as one search can show. */
+const RELATED_SNIPPETS = 30;
+const MAX_SNIPPET_MARKS = 400;
+
+/**
+ * Where in a text most of the question's terms meet: the text around the occurrence that has the most different terms within
+ * one snippet after it. Empty when none occurs in the text itself.
+ */
+function relatedSnippet(content: string, terms: readonly Run[]): string {
+  const field = normalizeSearchText(content);
+  const marks = occurrences(field, terms.map(term => term.text)).slice(0, MAX_SNIPPET_MARKS);
+  if (!marks.length) return "";
+  let best = marks[0]!, most = 0;
+  for (const mark of marks) {
+    const near = new Set(marks.filter(([start, end]) => start >= mark[0] && end <= mark[0] + SNIPPET_LENGTH - SNIPPET_BEFORE).map(([start, end]) => content.slice(start, end).toLowerCase()));
+    if (near.size > most) { most = near.size; best = mark; }
+  }
+  return snippetOf(content, best[0], marks).snippet;
+}
+
+/**
+ * One project's documents holding some of the question's terms, best first (`SearchIndexPort.related`). With `snippets`, the
+ * first ones carry the text around where most terms meet; a document whose owner shares only its summary carries none.
+ */
+function relatedDocuments(db: DatabaseSync, projectId: string, query: string, limit: number, snippets: boolean): Array<{ kind: string; object_id: string; snippet: string }> {
+  const plan = relatedQueryPlan(query);
+  if (!plan) return [];
+  const rows = db.prepare(`SELECT d.doc_id, d.kind, d.object_id FROM search_fts JOIN search_documents d ON d.doc_id = search_fts.rowid
+    WHERE search_fts MATCH ? AND d.project_id = ? ORDER BY bm25(search_fts, 8.0, 1.0) LIMIT ?`).all(plan, projectId, limit) as Row[];
+  const terms = relatedTerms(query), texts = new Map<string, string>();
+  const first = snippets ? rows.slice(0, RELATED_SNIPPETS).map(row => Number(row.doc_id)) : [];
+  if (first.length) for (const row of db.prepare(`SELECT doc_id, content FROM search_documents WHERE content_policy = 'context' AND doc_id IN (${first.map(() => "?").join(",")})`).all(...first) as Row[]) {
+    texts.set(str(row.doc_id), relatedSnippet(str(row.content), terms));
+  }
+  return rows.map(row => ({ kind: str(row.kind), object_id: str(row.object_id), snippet: texts.get(str(row.doc_id)) ?? "" }));
+}
+
 export interface TextSearchIndexOptions { homeDirectory: string }
+
+function inTransaction<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const value = run(); db.exec("COMMIT"); return value; }
+  catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
+}
 
 /** Open (or create) the Home's search index. A missing, corrupt or outdated index is rebuilt empty. */
 export function openTextSearchIndex(options: TextSearchIndexOptions): SearchIndexPort {
@@ -160,11 +224,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     db.prepare("INSERT OR REPLACE INTO search_meta (key, value) VALUES ('schema', ?)").run(SCHEMA_VERSION);
   }
 
-  const transaction = <T>(run: () => T): T => {
-    db.exec("BEGIN IMMEDIATE");
-    try { const value = run(); db.exec("COMMIT"); return value; }
-    catch (error) { try { db.exec("ROLLBACK"); } catch { /* already rolled back */ } throw error; }
-  };
+  const transaction = <T>(run: () => T): T => inTransaction(db, run);
   const fromSource = (row: Row): SearchIndexSourceRecord => ({ source_key: str(row.source_key), project_id: nullable(row.project_id), provider_id: str(row.provider_id),
     capability_id: str(row.capability_id), version: Number(row.version), plugin_id: str(row.plugin_id), title: str(row.title),
     collection_revision: nullable(row.collection_revision), state: str(row.state) as SearchIndexSourceRecord["state"], error: nullable(row.error),
@@ -204,7 +264,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     count: key => Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents WHERE source_key = ?").get(key) as Row).n),
     upsert: documents => transaction(() => {
       for (const document of documents) {
-        const title = document.title.slice(0, 1000), summary = document.summary.slice(0, 4000), content = document.content.slice(0, 32000);
+        const title = document.title.slice(0, 1000), summary = document.summary.slice(0, 4000), content = document.content.slice(0, SEARCH_INDEX_CONTENT_CHARS);
         const openJson = document.open ? JSON.stringify(document.open) : null;
         const existing = selectDocId.get(document.source_key, document.kind, document.object_id) as Row | undefined;
         let docId: number;
@@ -230,6 +290,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       const row = db.prepare("SELECT * FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?").get(key, kind, objectId) as Row | undefined;
       return row ? fromDocument(row) : null;
     },
+    documents: projectId => (db.prepare("SELECT * FROM search_documents WHERE project_id = ? ORDER BY doc_id").all(projectId) as Row[]).map(fromDocument),
     search: (input: SearchIndexQuery) => {
       const plan = searchQueryPlan(input.query);
       const allowed = input.sources.filter((source, index, all) => all.findIndex(other => other.source_key === source.source_key) === index);
@@ -270,6 +331,7 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
       matches.sort((a, b) => b.score - a.score || String(b.updated_at ?? "").localeCompare(String(a.updated_at ?? "")) || a.title.localeCompare(b.title));
       return { matches: matches.slice(input.offset, input.offset + input.limit), total: matches.length };
     },
+    related: (projectId, query, limit, snippets = false) => relatedDocuments(db, projectId, query, limit, snippets),
     clear: () => transaction(() => {
       const removed = Number((db.prepare("SELECT COUNT(*) AS n FROM search_documents").get() as Row).n);
       db.exec("INSERT INTO search_fts (search_fts) VALUES ('delete-all'); DELETE FROM search_documents; DELETE FROM search_sources;");

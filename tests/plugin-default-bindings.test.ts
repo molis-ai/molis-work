@@ -57,15 +57,14 @@ const port = (platform: ReturnType<typeof createPluginPlatform>, pluginId: strin
 const defaults = (platform: ReturnType<typeof createPluginPlatform>) => platform.wiring.view().plugins.flatMap(plugin => plugin.ports
   .filter(item => item.origin === "default" && item.source).map(item => `${plugin.plugin_id.slice("io.molis.work.".length)}.${item.port} ← ${item.source!.source_plugin_id.slice("io.molis.work.".length)}.${item.source!.source_port}`)).sort();
 
-test("W4-03-01 Coding's family is wired from its own Manifests as the 13-row table did, and Diff's snapshots group is its declared default", project(async platform => {
+test("W4-03-01 Coding's family is wired from its own Manifests, and Diff's snapshots group is its declared default", project(async platform => {
   // As the Host's start list gives them (`project-plugins.ts`): every one ships with the Host.
   await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
     { definition: createGitPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
   bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
-  // The rows of the table this replaces (apps/local-host/src/workspace-plugin-bindings.ts before W4-03), one for one.
+  // The rows of the table this replaced (apps/local-host/src/workspace-plugin-bindings.ts before W4-03), less Coding's six inputs:
+  // what the person brings into a round is now picked from project knowledge (specs/project-knowledge PMAT-18), not wired.
   assert.deepEqual(defaults(platform), [
-    "coding.after ← files.after", "coding.before ← files.before", "coding.git-changeset ← git.changeset", "coding.git-result ← git.result",
-    "coding.materials ← shelf.material", "coding.selection ← files.selection",
     "diff.after ← files.after", "diff.before ← files.before", "diff.changeset ← coding.changeset", "diff.git-changeset ← git.changeset",
     "shelf.coding-changeset ← coding.changeset", "shelf.coding-report ← coding.report", "text-stats.text ← files.before",
   ]);

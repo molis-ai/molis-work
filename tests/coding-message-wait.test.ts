@@ -61,6 +61,7 @@ test("a round that ends waiting on an answer or a background command waits as th
       if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (id === agent.readProjectWork.capability_id) return { items: [], overlaps: [] } as Output;
       if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (id === agent.listActions.capability_id) return [] as Output;
       if (id === agent.readSession.capability_id) return { runs: [] } as Output;
       if (id === agent.awaitContinuations.capability_id) {
         for (const deadline = Date.now() + Math.min(input[1], 300); Date.now() < deadline;) {

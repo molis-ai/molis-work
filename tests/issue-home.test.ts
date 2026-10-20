@@ -22,7 +22,7 @@ test("ISSUE-03 actions explicitly declare read, write and irreversible effects",
 });
 
 test("ISSUE-09 images persist with the issue, unrelated edits preserve them, and lists omit image bodies", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-images-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  const home = await mkdtemp(join(tmpdir(), "issue-images-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
   t.after(async () => { connection.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(connection.client, "owner"), saved = await store.create(original, caller);
   assert.deepEqual(saved.images, [picture]); assert.equal(saved.image_count, 1);
@@ -43,7 +43,7 @@ test("ISSUE-09 images persist with the issue, unrelated edits preserve them, and
 });
 
 test("ISSUE-09 image type, payload and count limits reject the whole write and preserve existing content", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-images-invalid-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  const home = await mkdtemp(join(tmpdir(), "issue-images-invalid-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
   t.after(async () => { connection.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(connection.client, "owner"), saved = await store.create(original, caller);
   const invalid = [
@@ -65,7 +65,7 @@ test("ISSUE-09 image type, payload and count limits reject the whole write and p
 
 test("ISSUE-03 ISSUE-04 store preserves original words, persists versions and rejects stale changes across connections", async t => {
   const home = await mkdtemp(join(tmpdir(), "issue-store-"));
-  const one = openPluginDatabase(home, ISSUES_DATABASE, () => {}), two = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  const one = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test"), two = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
   t.after(async () => { one.close(); two.close(); await rm(home, { recursive: true, force: true }); });
   const first = new IssueStore(one.client, "home-owner"), second = new IssueStore(two.client, "home-owner");
   const issue = await first.create(original, caller);
@@ -89,7 +89,7 @@ test("ISSUE-03 ISSUE-04 store preserves original words, persists versions and re
 });
 
 test("ISSUE-03 list pagination is bounded and stable when a newer record arrives", async t => {
-  const home = await mkdtemp(join(tmpdir(), "issue-pages-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  const home = await mkdtemp(join(tmpdir(), "issue-pages-")), connection = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
   t.after(async () => { connection.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(connection.client, "owner");
   for (let n = 0; n < 5; n++) await store.create({ ...original, title: String(n) }, caller);
@@ -106,7 +106,7 @@ test("ISSUE-03 list pagination is bounded and stable when a newer record arrives
 test("ISSUE-04 ISSUE-05 cancellation, revocation, async bodies and failures leave no business writes", async t => {
   const home = await mkdtemp(join(tmpdir(), "issue-transaction-"));
   let granted = true;
-  const connection = openPluginDatabase(home, ISSUES_DATABASE, () => { if (!granted) throw new Error("revoked"); });
+  const connection = openPluginDatabase(home, ISSUES_DATABASE, () => { if (!granted) throw new Error("revoked"); }, "issues-test");
   t.after(async () => { connection.close(); await rm(home, { recursive: true, force: true }); });
   const store = new IssueStore(connection.client, "owner");
   await assert.rejects(store.create(original, { ...caller, beforeEffect: async () => { throw new Error("cancelled"); } }), /cancelled/u);
@@ -134,16 +134,16 @@ test("ISSUE-04 ISSUE-05 cancellation, revocation, async bodies and failures leav
 test("ISSUE-01 ISSUE-05 persistence survives reopening, another Home is empty, wrong schema is preserved", async t => {
   const home = await mkdtemp(join(tmpdir(), "issue-reopen-")), other = await mkdtemp(join(tmpdir(), "issue-other-"));
   t.after(async () => { await rm(home, { recursive: true, force: true }); await rm(other, { recursive: true, force: true }); });
-  const initial = openPluginDatabase(home, ISSUES_DATABASE, () => {});
+  const initial = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test");
   const saved = await new IssueStore(initial.client, "owner").create(original, caller); initial.close();
-  const reopened = openPluginDatabase(home, ISSUES_DATABASE, () => {}), isolated = openPluginDatabase(other, ISSUES_DATABASE, () => {});
+  const reopened = openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test"), isolated = openPluginDatabase(other, ISSUES_DATABASE, () => {}, "issues-test");
   assert.equal(new IssueStore(reopened.client, "owner").read(saved.id).description, original.description);
   assert.deepEqual(new IssueStore(reopened.client, "owner").read(saved.id).images, original.images);
   assert.deepEqual(new IssueStore(isolated.client, "owner").list({}).items, []);
   reopened.close(); isolated.close();
   const path = join(home, "issues", "issues.db"), raw = new DatabaseSync(path);
   raw.exec("PRAGMA user_version = 9"); raw.close();
-  assert.throws(() => openPluginDatabase(home, ISSUES_DATABASE, () => {}), { code: "storage.schema_version_mismatch" });
+  assert.throws(() => openPluginDatabase(home, ISSUES_DATABASE, () => {}, "issues-test"), { code: "storage.schema_version_mismatch" });
   const check = new DatabaseSync(path, { readOnly: true });
   assert.equal(check.prepare("PRAGMA user_version").get()!.user_version, 9);
   assert.equal(check.prepare("SELECT description FROM issues WHERE id=?").get(saved.id)!.description, original.description);

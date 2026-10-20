@@ -458,6 +458,7 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/workspace-production-events.test.ts
 tests/security-invariants-plugin-files.test.ts
 tests/security-invariants-plugin-background.test.ts
 

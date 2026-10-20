@@ -236,17 +236,18 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): a long side group shows five and one
-// "show more" for the rest (VUX-08), through one shared `window.molisShowMore` that every long list can take. +970 B of
-// workbench.js (811 B the minified helper: tucking, a key that keeps the person's reveal over redraws, focus handed to the
-// first revealed row; the rest the Assistant's three groups calling it with a failure kept in sight) and +55 B in each of the
-// three stylesheets that carry the micro-interactions (the button sits at the start of a column, not stretched). Tried first:
+// "show more" for the rest (VUX-08), through one shared `window.molisShowMore` that every long list can take. +957 B of
+// workbench.js (about 800 B the minified helper: tucking, a key that keeps the person's reveal over redraws, focus handed to the
+// first revealed row; the rest the Assistant's three groups calling it with a failure kept in sight) and +95 B in each of the
+// three stylesheets that carry the micro-interactions (the button sits at the start of a column, not stretched; after
+// review a tucked row is hidden by its own mark, whatever display the row sets, +40 B). Tried first:
 // no per-group copy of the logic, the label from one translated string, the button's look from the existing ghost button.
 // Spent once from exactly the remaining-consumers slice's budget (#866).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1135021, 1135991],
-  "/assets/molis-work-workbench.css": [1605196, 1605251],
-  "/assets/molis-work-settings.css": [990971, 991026],
-  "/assets/molis-work-arrival.css": [700557, 700612],
+  "/assets/molis-work-workbench.js": [1135021, 1135978],
+  "/assets/molis-work-workbench.css": [1605196, 1605291],
+  "/assets/molis-work-settings.css": [990971, 991066],
+  "/assets/molis-work-arrival.css": [700557, 700652],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -706,10 +706,10 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the shared show-more allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1135021, 1135991],
-    "/assets/molis-work-workbench.css": [1605196, 1605251],
-    "/assets/molis-work-settings.css": [990971, 991026],
-    "/assets/molis-work-arrival.css": [700557, 700612],
+    "/assets/molis-work-workbench.js": [1135021, 1135978],
+    "/assets/molis-work-workbench.css": [1605196, 1605291],
+    "/assets/molis-work-settings.css": [990971, 991066],
+    "/assets/molis-work-arrival.css": [700557, 700652],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

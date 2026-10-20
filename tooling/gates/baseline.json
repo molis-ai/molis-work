@@ -1,5 +1,5 @@
 {
-  "giantUnits": 127,
+  "giantUnits": 126,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -30,10 +30,6 @@
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 278,
       "methods": 41
-    },
-    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
-      "lines": 301,
-      "methods": 22
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 281,
     "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 174,
@@ -189,7 +185,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1619,
+    "file plugins/native/coding/src/client.ts": 1618,
     "file plugins/native/coding/src/styles.ts": 812,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 214,
@@ -234,8 +230,8 @@
     "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 434,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
-    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 237,
-    "file plugins/native/workflows/src/client.ts": 1358,
+    "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
+    "file plugins/native/workflows/src/client.ts": 1355,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
@@ -243,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 485,
+  "testInternalImports": 483,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -475,12 +471,10 @@
     "tests/work-session-actions.test.ts": 1,
     "tests/work-session-mcp.test.ts": 3,
     "tests/workbench-asset-cache.test.ts": 1,
-    "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-action-steps.e2e.test.ts": 1,
     "tests/workflows-action-steps.test.ts": 1,
     "tests/workflows-handoff-idempotency.test.ts": 1,
     "tests/workflows-judgment-link.test.ts": 2,
-    "tests/workflows-plugin.test.ts": 1,
     "tests/workspace-directory-picker.test.ts": 2,
     "tests/workspace-git-index.test.ts": 2,
     "tests/workspace-git-read.test.ts": 1,
@@ -497,7 +491,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 132,
+  "emptyCatchesInScriptsTotal": 131,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -533,7 +527,7 @@
     "plugins/native/artifacts/src/import-client.ts": 1,
     "plugins/native/characters/src/client.ts": 1,
     "plugins/native/coding/src/changeset-client.ts": 1,
-    "plugins/native/coding/src/client.ts": 11,
+    "plugins/native/coding/src/client.ts": 10,
     "plugins/native/coding/src/plans-client.ts": 4,
     "plugins/native/coding/src/steps-client.ts": 3,
     "plugins/native/coding/src/subagents-client.ts": 3,
@@ -762,7 +756,7 @@
     "packages/kernel/src/index.ts#register-calls": 2,
     "packages/plugin-runtime/src/services.ts#type-refs": 2
   },
-  "hostPluginFilesTotal": 16,
+  "hostPluginFilesTotal": 14,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
@@ -777,9 +771,7 @@
     "apps/local-host/src/schedule-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/shelf-actions.ts#actions": 1,
     "apps/local-host/src/shelf-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/work-actions.ts#actions": 1,
-    "apps/local-host/src/workflows-actions.ts#actions": 1,
-    "apps/local-host/src/workflows-native-plugin-http.ts#native-plugin-http": 1
+    "apps/local-host/src/work-actions.ts#actions": 1
   },
   "registerProviderSitesTotal": 20,
   "registerProviderSites": {
@@ -805,7 +797,7 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 381,
+  "pluginOutsideMentionsTotal": 380,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -832,7 +824,7 @@
     "text-stats#outside-files": 7,
     "todo#outside-files": 7,
     "work#outside-files": 23,
-    "workflows#outside-files": 9
+    "workflows#outside-files": 8
   },
   "rootStrayTotal": 0,
   "rootStrays": {},
@@ -1192,7 +1184,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 508,
+  "explicitAnyTotal": 507,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1342,7 +1334,7 @@
     "tests/system-search-assistant.test.ts": 2,
     "tests/todo-organize.test.ts": 2,
     "tests/vendor-provenance.test.ts": 1,
-    "tests/workflow-content-actions.test.ts": 2,
+    "tests/workflow-content-actions.test.ts": 1,
     "tests/workflows-stop-and-token.test.ts": 1,
     "tests/workspace-plugin-graph.test.ts": 2,
     "tests/writer-integration-host.test.ts": 1

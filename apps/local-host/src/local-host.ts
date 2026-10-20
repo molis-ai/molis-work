@@ -187,9 +187,8 @@ export class LocalHost<Runtime> {
       if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
-      const expanded = withSceneConfigurationActions(registration, this.sceneClient(project));
       const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
-      const remove = this.actionService.registerProvider({ ...expanded,
+      const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
         provider: bound,
         availability: caller => this.state !== "running" || entry?.state === "closing"
           ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }

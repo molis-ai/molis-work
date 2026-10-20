@@ -5,9 +5,9 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { FILES_CLIENT_FACTORY_SCRIPT, renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
-import { GIT_CLIENT_FACTORY_SCRIPT, renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
-import { CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/coding-companions.js";
+import { renderFilesBrowserDirectory, renderFilesBrowserResult } from "@molis-ai/molis-work-plugin-files";
+import { renderGitBrowserDirectory, renderGitBrowserResult } from "@molis-ai/molis-work-plugin-git";
+import { pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/agent-review.js";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -62,6 +62,10 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
   const count = (key: string) => requests.filter(request => request === key).length;
   return { page, requests, aborted, blocked, pending, count };
 }
+/** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
+const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
+// A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
+const companionHost = "root:document.querySelector('[data-companion]'),mountPluginClient:mount,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{}";
 const fixedMarkup = '<button data-companion-refresh><span class="mw-spinner" hidden></span>刷新</button><p data-companion-status></p><div data-companion-content></div>';
 const state = (name: string) => name === "files" ? { workspace: { workspace_id: "ws" } }
   : name === "git" ? { workspace: { workspace_id: "ws" }, selected: null, view: { phase: "ready", head: "current", conflicts: [], staged: [], changes: [] } }
@@ -121,9 +125,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   };
   const previous = await fixedState(1);
   const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
-    const host={mountPluginClient:mount,openPlugin:()=>{},request:async(plugin,path,method='GET',body,signal)=>{
-      const response=await fetch('/'+plugin+path,{method,signal});if(!response.ok)throw new Error('read failed');return response.json();}};
-    window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
+    const host={${companionHost}};
+    window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
   if (!f) return;
   const { page, blocked, pending } = f;
@@ -148,9 +151,8 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
     const body = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult()
       : name === "git" ? renderGitBrowserDirectory() + renderGitBrowserResult() : fixedMarkup;
     const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
-      const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
-        request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});return response.json();}};
-      window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
+      const host={${companionHost}};
+      window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
     `, path => {
       if (path.endsWith("/view-revision")) return { revision: "initial" };
       if (path.endsWith("/directory")) return { result: { outcome: "directory", entries: [{ name: "note.txt", kind: "file", path: ["note.txt"] }] } };
@@ -250,9 +252,8 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult() : renderGitBrowserDirectory() + renderGitBrowserResult();
   const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
-    const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
-      request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw new Error('offline');return response.json();}};
-    window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
+    const host={${companionHost}};
+    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
   `, path => {
     if(path.endsWith('/view-revision'))return {revision:String(revision)};
     if(path.endsWith('/directory'))return {result:{outcome:'directory',entries:[{name:'version-'+revision,kind:'file',path:['version-'+revision]}]}};

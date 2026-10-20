@@ -1,9 +1,11 @@
 import { bindActionClient, ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionReference, type ActionInvokeTransport } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
+import { routedPluginCaller } from "./plugin-callers.js";
 
 /**
  * The controls this Host made for a route it dispatched inside a project, each with that project's action client and whether its request
@@ -56,7 +58,7 @@ function callScope(instanceProject: string | undefined, instanceClient: ActionCl
 
 /** One action binding for project and Home activations; identity and authority come from the Host. */
 export function pluginHostActions(context: PluginStartContext, manifest: PluginManifest, options: {
-  client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller?: HostPluginCaller;
+  client: ActionClient; actor_id: string; project_id?: string; providerId?: string; assertActive(): void; pluginCaller: HostPluginCaller;
 }): PluginActionClient | undefined {
   const consumed = new Set(manifest.capabilities.consumes);
   const required = (manifest.actions ?? []).flatMap(action => action.action.required_actions ?? [])
@@ -87,7 +89,8 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // An action the Manifest lists under `capabilities.consumes`, owned by the unique provider in the actual directory. The Plugin
   // reaches it as the plugin audience, with its own grants and the exact action named, so the kernel applies what it
   // applies to every plugin: the audience the action is offered to, the permissions it needs, its availability and
-  // its input schema. Its final check also asks the original caller of the
+  // its input schema. It carries this session’s Host-issued caller, routed to the current project for Home sessions.
+  // Its final check also asks the original caller of the
   // action the Plugin made this call in (`outer`, captured when the Plugin called): the consumed action's own write runs
   // in its own handler, under its own scope, so without this a cancelled or revoked outer call would still write (S-18).
   const dependencyCaller = (definition: ActionDefinition, projectId: string | null, outer: ReturnType<typeof currentPluginInvocation>, providerId?: string): ActionCallContext => {
@@ -100,7 +103,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     };
     return {
       actor_id: options.actor_id, actor_kind: "user", project_id: projectId, audience: "plugin", permissions: context.grants,
-      host_plugin: options.pluginCaller, plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
+      host_plugin: routedPluginCaller(options.pluginCaller, projectId), plugin_install_id: context.install_id, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
       allowed_actions: [{ capability_id: definition.capability_id, version: definition.version, ...(providerId ? { provider_id: providerId } : {}) }],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
@@ -131,6 +134,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     discover: async () => (await ownActions({ project_id: options.project_id ?? null, client: options.client }).discover())
       .filter(view => view.provider.plugin_install_id === context.install_id),
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
+    ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
       const outer = currentPluginInvocation();
       const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;

@@ -631,6 +631,7 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // W5-01 Lingguang then used 1113068→1115299, and plugin tab groups replaced that allowance.
 // Plugin tab groups (#765) then used 1115299→1129841 on the script and 1589812→1593165 on the sheet; receipts review fixes replaced that allowance.
 // Receipts review fixes (#778) then used 1129841→1130036, and the outcome slot with the delivery note replaced that allowance.
+// The outcome slot with the delivery note (#789) then used 1130033→1130475, and W5-02 P0 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -675,6 +676,9 @@ for (const [asset, old] of [
   // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
   ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
   ["/assets/molis-work-arrival.css", 698467],
+  // Main has also spent the W5-02 P0 and proposal starts.
+  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

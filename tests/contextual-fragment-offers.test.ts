@@ -9,7 +9,8 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext, type FragmentActionOffer, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { fragmentCandidates } from "@molis-ai/molis-work-kernel/contextual";
-import { planSteps } from "../plugins/native/goals/dist/fragment-offers.js";
+import { planSteps, prepareGoalsFragmentOffers } from "../plugins/native/goals/dist/fragment-offers.js";
+import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 /**
  * specs/archive/contextual-interaction §10 P2: the platform-wide fragment offers of Goals, through the real directory
@@ -25,6 +26,20 @@ test("a plan becomes steps by clause; several selected parts become one step eac
   assert.deepEqual(planSteps(fragment({ granularity: "blocks", targets: [{ kind: "text_range", text: "1. 访谈五位用户" }, { kind: "text_range", text: "2. 整理结论；" }] }, "r")),
     ["访谈五位用户", "整理结论"]);
   assert.deepEqual(planSteps(fragment({ targets: [{ kind: "text_range", text: "2026 年完成迁移" }] }, "r")), ["2026 年完成迁移"]);
+});
+
+test("W4-2-07: 拆成目标步骤 is declared by goals.tree.submit as a proposal; the fragment choices keep only progress, and the same query still prepares the proposal", () => {
+  const { intake, undo, result_view } = goalsActions.treeSubmit.action;
+  assert.deepEqual([intake?.intake_id, intake?.verb, intake?.effect, intake?.multiple, intake?.prepare, undo],
+    ["breakdown", "拆成目标步骤", "proposes", undefined, { capability_id: "goals.fragment.offers", version: 1 }, undefined], "a proposal has no undo: withdrawing it is the approval decision");
+  assert.deepEqual(result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals#{/proposal/proposal_id}" });
+  assert.match(result_view!.summary, /要在 Goals 里确认才生效/u);
+  assert.deepEqual(goalsActions.fragmentOffers.action.fragment_offer_choices?.map(choice => choice.offer_id), ["progress"]);
+  assert.deepEqual(inspectActionDeclarations([goalsActions.treeSubmit, goalsActions.fragmentOffers], undefined), []);
+  // The query that stays as the entry's `prepare` still computes the proposal, from the offer id the entry is declared under.
+  const offers = prepareGoalsFragmentOffers(fragment({}, "req-prepare"), { cursor: () => null });
+  assert.deepEqual(offers.map(offer => [offer.offer_id, offer.action.capability_id]), [["breakdown", "goals.tree.submit"]]);
+  assert.equal((offers[0]!.input as { idempotency_key: string }).idempotency_key, "req-prepare");
 });
 
 test("Goals fragment offers: prepared inputs run through the real actions and do what the card says", { timeout: 60_000 }, async () => {
@@ -46,14 +61,12 @@ test("Goals fragment offers: prepared inputs run through the real actions and do
       targets: [{ kind: "text_range", role: "paragraph", text: "下周三前完成新手引导改版，周五发给二十个老用户试用并收集反馈。" }] };
     const candidates = fragmentCandidates(directory, focus);
     const titles = candidates.filter(item => item.available).map(item => item.title);
-    assert.ok(titles.includes("拆成目标步骤"), titles.join(" / "));
-    // 记下灵光 and 记成待办 are creation entries now (W4-1): their offers queries only prepare, and tests/contextual-create.test.ts runs them.
-    assert.ok(!titles.includes("记下灵光") && !titles.includes("记成待办"), titles.join(" / "));
-    assert.ok(!titles.includes("记录进展"), "progress needs a ticked task");
-    assert.equal(candidates.find(item => item.offer_id === "breakdown")?.apply, "record", "it writes: confirmed first");
+    // 记下灵光, 记成待办 (W4-1) and 拆成目标步骤 (W4-2-07) are creation entries: their offers queries only prepare, and tests/contextual-create.test.ts runs them.
+    assert.ok(!titles.includes("拆成目标步骤") && !titles.includes("记录进展"), "the proposal is a creation entry, progress needs a ticked task: " + titles.join(" / "));
+    assert.deepEqual(directory.find(item => item.capability_id === "goals.tree.submit")?.action.intake?.prepare, { capability_id: "goals.fragment.offers", version: 1 });
 
     // 拆成目标步骤: a proposal under the document's Goal; nothing is created until the person approves it in Goals.
-    const breakdown = candidates.find(item => item.offer_id === "breakdown")!;
+    const breakdown = { source: { capability_id: "goals.fragment.offers", version: 1 } };
     const offered = await invoke<{ offers: FragmentActionOffer[] }>(breakdown.source, fragment({ goal: { id: parent, title: "提升新用户留存" } }, "req-breakdown"));
     const plan = offered.offers.find(offer => offer.offer_id === "breakdown")!;
     assert.match(plan.summary!, /新建 2 个步骤，放在「提升新用户留存」下/);

@@ -12,6 +12,7 @@ import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallCo
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const proposalInput = (prefix: string) => ({ summary: "Create a parent and child only after approval", idempotency_key: prefix,
@@ -28,7 +29,9 @@ test("tree actions preserve proposals, protected authority, atomic materializati
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Tree", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const denied = new Set<string>();
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, view) =>
+  // A plugin that holds every Goals permission, started by the Host (S-15).
+  const decider = callerPlugin("treedecider", "project", { "goals:read": true, "goals:write": true, "goals:decide": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] }, actionAvailability: (_caller, view) =>
     denied.has(view.capability_id) ? { available: false, code: "actions.plugin_disabled", reason: "Tree disabled" } : { available: true } });
   const caller: ActionCallContext = { actor_id: "runtime:tree", audit_actor_id: "runtime:tree:session", runtime_session_id: "session", actor_kind: "runtime",
     project_id: project.project_id, audience: "agent", permissions: ["goals:read", "goals:write"] };
@@ -96,9 +99,12 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     const decision = { proposal_id, confirm_all_pending: true, reason: "Approve this exact structure", idempotency_key: "approve" };
     const authority = { actor_id: trusted.actor_id, actor_kind: "user" as const, authority_source: "management" as const,
       conversation_ref: trusted.user_action!.conversation_ref, message_ref: trusted.user_action!.message_ref, whole_confirmation_prompted: true };
+    // The plugin's call carries the caller the Host issued its session, claiming the person's permissions and management entry.
+    const asPlugin = await projectPluginCaller(host, ref, decider, trusted.permissions, { user_action: trusted.user_action });
     for (const audience of ["agent", "workflow", "mcp", "plugin"] as const) {
-      assert.equal((await client.discover({ ...trusted, audience })).some(v => v.capability_id === goalsActions.treeDecide.capability_id), false);
-      await assert.rejects(client.invoke({ ...trusted, audience }, goalsActions.treeDecide, decision), { code: "actions.forbidden" });
+      const claimed = audience === "plugin" ? asPlugin : { ...trusted, audience };
+      assert.equal((await client.discover(claimed)).some(v => v.capability_id === goalsActions.treeDecide.capability_id), false);
+      await assert.rejects(client.invoke(claimed, goalsActions.treeDecide, decision), { code: "actions.forbidden" });
     }
     const view = (await host.inspectActions(trusted, ref)).find(v => v.capability_id === goalsActions.treeDecide.capability_id)!;
     // A model's client cannot hold a grant for the person's decision: the access settings never offer the action to the client, so the
@@ -151,7 +157,7 @@ test("tree actions preserve proposals, protected authority, atomic materializati
     await assert.rejects(client.invoke(trusted, goalsActions.treeDecide, decision), { code: "actions.plugin_disabled" });
     assert.deepEqual(await snapshot(), after);
     await host.close();
-    const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] } });
     try {
       assert.deepEqual(await restarted.withProject(ref, r => r.store.snapshot(project.project_id)), after);
       assert.deepEqual(await restarted.actionClient(ref).invoke(trusted, goalsActions.treeDecide, decision), { ...approved, replayed: true });

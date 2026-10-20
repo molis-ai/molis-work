@@ -39,7 +39,7 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
   try {
     const sent = await service.send({ text: "第一轮", request_id: "work-budget-1", scope: { kind: "personal" } }, {});
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed", "first round");

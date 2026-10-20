@@ -70,7 +70,7 @@ test("what the person asks to keep is remembered in Prologue Memory, recalled on
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙", timeZone: "Asia/Shanghai", memory: () => memory,
@@ -187,7 +187,7 @@ test("a work suggests keeping a lesson only where the person allows it; nothing 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
@@ -257,7 +257,7 @@ test("memory switches hold the same when a Character carries the round; turning 
     source: { owner_actor_id: "web-user", draft_revision: 2 }, reference: { artifact_id: "character:project-a:editor", version: 2 }, project_id: "project-a",
     content_digest: "digest-2", producer: { plugin_id: "io.molis.work.characters", plugin_version: "1.4.0", binding_signature: "sig" }, published_at: "2026-09-28T00:00:00.000Z" };
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task), resolveCharacter: () => structuredClone(editor) as never }),
     characters: async () => [{ reference: { ...editor.reference }, title: editor.title, available: true }],
@@ -352,7 +352,7 @@ test("a claim of keeping made before the call that then failed is held at the en
   // Memory is the platform memory service, as in the tests above: the remember tool goes through its write gate.
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
@@ -379,7 +379,7 @@ test("a round that could not start used no memory: its recall is settled as not 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
@@ -414,7 +414,7 @@ test("remember takes 'you said' only from the person's own messages in this work
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   try {
     const work = store.create({ actor_id: "web-user", title: "整理周报", scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -456,7 +456,7 @@ test("remember records 'you said' only for the whole of a message: a fragment, a
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   const start = (title: string, said: string) => {
     const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -492,7 +492,7 @@ test("remember checks all of the text against the person's message, however long
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   const start = (title: string, said: string) => {
     const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -543,7 +543,7 @@ test("remember judges the text against the messages the Host saved, not against 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   const start = (title: string, said: string) => {
     const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -593,7 +593,7 @@ test("remember cannot turn a memory the gate kept itself into the person's words
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   const start = (title: string, said: string) => {
     const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -649,7 +649,7 @@ test("a delegated sub-task is given neither remember nor forget: its words are t
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work), undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
@@ -680,7 +680,7 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
@@ -736,7 +736,7 @@ test("G13: a supplement the person types while a round runs is theirs: remember 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,
@@ -763,7 +763,7 @@ test("remember keeps what the person wrote and nothing the model changed: a supe
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async () => ({}) as never, projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
   const person = { actor_id: "web-user", project_id: "project-a", consumer: "ui" as const, person: true };
   const start = (title: string, said: string) => {
     const work = store.create({ actor_id: "web-user", title, scope: { kind: "project", project_id: "project-a" }, origin: null, project_ref: { project_id: "project-a", storage_key: "memory:a" } });
@@ -830,7 +830,7 @@ test("a full round: the model asks to remember a text with a superscript where t
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory }, "web-user");
@@ -874,7 +874,7 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
   host.register(adapter);
   const memory = platformMemory(host, home, t);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)),
       memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async () => "项目甲", timeZone: "Asia/Shanghai", memory: () => memory,

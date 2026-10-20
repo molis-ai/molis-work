@@ -11,7 +11,7 @@ export interface AgentWriteChecker {
   display_name: string;
   /** A bare executable name, found on the Host's PATH (S-38: the Host runs no paths); run without a shell. */
   executable: string;
-  /** Exactly one element is the whole string `{file}`: the written path, relative to the workspace root, as one argument. */
+  /** Exactly one element is the whole string `{file}`: the written path, relative to the checker's `cwd`, as one argument. */
   args: string[];
   /** The extensions it checks, with the dot (`[".js", ".mjs"]`). */
   applies_to: string[];
@@ -33,6 +33,18 @@ export interface AgentWriteCheckerSave {
   workspace_id: string;
   expected_version: number;
   checkers: AgentWriteChecker[];
+}
+
+/**
+ * Which checker and version of its workspace's list answered one after-write check, kept by the Agent Host under the SDK's
+ * key for that check: what the review card and the timeline name. The command itself is in the SDK's review and receipt.
+ */
+export interface AgentWriteCheckNote {
+  checker_id: string;
+  display_name: string;
+  version: number;
+  /** The write it checks, when that write has a call id (its receipt is the SDK's `<call id>:diagnostics`). */
+  write_call_id?: string;
 }
 
 /** Where the lists are kept: one per project and workspace. Only the Agent Host reads and writes it. */

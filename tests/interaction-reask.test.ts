@@ -56,7 +56,7 @@ async function assistant(t: import("node:test").TestContext, name: string) {
   };
   let current = await open();
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => current.host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => current.host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
   t.after(async () => { service.continuations.close(); await current.adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); });
   const asked = async () => {
     const sent = await service.send({ text: "帮我约一个复盘会", request_id: `req-${name}` }, { project_ref: project });

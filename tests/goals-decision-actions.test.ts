@@ -9,13 +9,16 @@ import { goalsActions, managementEventDecisionAuthority, hostEventDecisionAuthor
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
 
 test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Decisions", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   let blocked = false, release: (() => void) | undefined, entered: (() => void) | undefined, gate: Promise<void> | undefined;
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: async (_caller, action) => {
+  // A plugin that holds every Goals permission, started by the Host (S-15).
+  const decider = callerPlugin("goaldecider", "project", { "goals:read": true, "goals:write": true, "goals:decide": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] }, actionAvailability: async (_caller, action) => {
     if (action.capability_id === goalsActions.decide.capability_id) {
       if (gate) { entered!(); await gate; }
       if (blocked) return { available: false, code: "actions.plugin_disabled", reason: "决定操作停用" };
@@ -44,9 +47,11 @@ test("user decisions share the action path without granting user authority to mo
     await assert.rejects(served.grant("runtime:model", project.project_id, [decisionView]), { status: 404, code: "actions.missing" });
     assert.deepEqual((await readMcpActionAccess(served.web, { clientId: "runtime:model", projectId: project.project_id })).grants, [], "a refused grant leaves no record");
     await served.close();
+    // The plugin's call carries the caller the Host issued its session, claiming the person's permissions and provenance.
+    const asPlugin = await projectPluginCaller(host, ref, decider, trusted.permissions, { user_action: trusted.user_action });
     const before = await cursor();
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
-      const model = { ...trusted, audience };
+      const model = audience === "plugin" ? asPlugin : { ...trusted, audience };
       assert.equal((await client.discover(model)).some(v => v.capability_id === goalsActions.decide.capability_id), false);
       await assert.rejects(client.invoke(model, goalsActions.decide, payload), { code: "actions.forbidden" });
     }
@@ -113,7 +118,7 @@ test("user decisions share the action path without granting user authority to mo
     await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, idempotency_key: "disabled" }), { code: "actions.plugin_disabled" });
     assert.equal(await cursor(), beforeDenied);
     await host.close();
-    const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+    const restarted = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [decider.definition] } });
     try {
       assert.deepEqual(await restarted.actionClient(ref).invoke(trusted, goalsActions.decide, payload), expected);
     } finally { await restarted.close(); }

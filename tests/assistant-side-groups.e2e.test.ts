@@ -205,10 +205,13 @@ test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what 
       git: { repository: "molis-ai/molis-work", branch: "feature/env", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
     connections: [{ connection_id: "c1", title: "GitHub", account: "octo", state: "connected", tools: "callable" }, { connection_id: "c2", title: "Notion", account: null, state: "needs-authorization", tools: "none-discovered" }],
     tools: { executor: "coding", callable: [], unavailable: [] }, read_at: at };
-  await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
+  // The Host's answers in turn (the last one stays); "fail" is a read that fails.
+  await evaluate(`(() => { window.answers = [${JSON.stringify(answer)}]; window.asked = 0; const fetch0 = window.fetch; window.fetch = async (input, init) => {
     const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
-    if (/\\/api\\/assistant\\/works\\/${id}\\/surroundings$/.test(path)) return new Response(JSON.stringify(${JSON.stringify(answer)}), { status: 200, headers: { "Content-Type": "application/json" } });
-    return fetch0(input, init);
+    if (!/\\/api\\/assistant\\/works\\/${id}\\/surroundings$/.test(path)) return fetch0(input, init);
+    window.asked++; const next = window.answers.length > 1 ? window.answers.shift() : window.answers[0];
+    return next === "fail" ? new Response(JSON.stringify({ code: "x", message: "暂时读不到" }), { status: 500, headers: { "Content-Type": "application/json" } })
+      : new Response(JSON.stringify(next), { status: 200, headers: { "Content-Type": "application/json" } });
   }; })()`);
   await openWork(browser, id);
   const env = `document.querySelector('[data-assistant-block="environment"]')`, tools = `document.querySelector('[data-assistant-block="tools"]')`;
@@ -226,4 +229,17 @@ test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what 
   assert.deepEqual(read.toolsBadge, ["1 项要处理", true]);
   assert.match(read.tools, /Coding Agent.*用它自己的工具与 MCP/);
   assert.equal(await evaluate<boolean>(`(() => { const side = document.querySelector('[data-assistant-block="tools"]').parentElement; return side.scrollWidth <= side.clientWidth; })()`), true, "a long line in a card ellipsizes; it never widens the side column");
+
+  // The person signs in to Notion elsewhere and resolves the conflict; the work itself does not change. Coming back to the
+  // page after more than 15 s asks again (here the first try fails), and focus entering the side 3 s later tries again.
+  const after = { ...answer, environment: { ...answer.environment, coding: { ...answer.environment.coding, git: { ...answer.environment.coding.git, conflicted: 0 } } },
+    connections: answer.connections.map((one) => ({ ...one, state: "connected", tools: "callable" })) };
+  const before = await evaluate<number>(`window.asked`);
+  await evaluate(`(() => { window.answers = ["fail", ${JSON.stringify(after)}]; const now0 = Date.now; window.later = 20000; Date.now = () => now0() + window.later;
+    document.dispatchEvent(new Event("visibilitychange")); })()`);
+  await waitFor(`window.asked === ${before + 1}`, 10_000);
+  assert.match(await evaluate<string>(`${tools}.textContent`), /需要登录授权/, "a failed read keeps what was shown");
+  await evaluate(`(() => { window.later += 4000; document.querySelector('[data-assistant-block="tools"] .assistant-block-head').focus(); })()`);
+  await waitFor(`window.asked === ${before + 2} && !${tools}.textContent.includes('需要登录授权') && !${env}.textContent.includes('处冲突')`, 10_000);
+  assert.equal(await evaluate<string>(`${tools}.querySelector('.assistant-block-badge')?.classList.contains('is-attention') ? 'attention' : 'calm'`), "calm", "nothing left to handle no longer stands out");
 });

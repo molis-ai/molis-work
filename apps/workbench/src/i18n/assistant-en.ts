@@ -466,6 +466,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "用它自己的工具与 MCP，在 Coding 里设置": "Uses its own tools and MCP, set in Coding",
   "{n} 项可用": "{n} available",
   "工具暂时读不到": "Tools can't be read right now",
+  "你的连接": "Your connections",
   "可调用": "Can call",
   "现在不能用": "Not usable now",
   "{n} 项要处理": "{n} to handle",

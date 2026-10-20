@@ -236,14 +236,15 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 工作环境 and 连接与工具
-// groups (VUX-08/09), read from each owner by the Host when the work changes (the user's decision ②). +4,555 B of
+// groups (VUX-08/09), read from each owner by the Host when the work changes (the user's decision ②). +4,876 B of
 // workbench.js: the two groups' drawing (scope, directory, repository and branch, each connection by its status, what can and
-// cannot be called) with 27 English strings and four more glyphs; +39 B in each of the three stylesheets that carry the side
+// cannot be called) with 28 English strings and four more glyphs, and after review (+321 B) asking again when a read is older
+// than 15 s and the side is in sight or focused, and 3 s after a failed read; +39 B in each of the three stylesheets that carry the side
 // groups (their grid column is minmax(0, 1fr), so a long line in a card ellipsizes instead of widening the side column, a
 // fault of #861). Tried first: the island's own cards, stacks and blocks passed in, one counting helper for "{n}" strings
 // (−80 B), the island not growing (the 上下文 wrapper went). Spent once from exactly the 上下文 slice's budget (#871).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1138483, 1143038],
+  "/assets/molis-work-workbench.js": [1138483, 1143359],
   "/assets/molis-work-workbench.css": [1605291, 1605330],
   "/assets/molis-work-settings.css": [991066, 991105],
   "/assets/molis-work-arrival.css": [700652, 700691],

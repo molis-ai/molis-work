@@ -713,7 +713,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 VUX-09 the 工作环境 and 连接与工具 allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1138483, 1143038],
+    "/assets/molis-work-workbench.js": [1138483, 1143359],
     "/assets/molis-work-workbench.css": [1605291, 1605330],
     "/assets/molis-work-settings.css": [991066, 991105],
     "/assets/molis-work-arrival.css": [700652, 700691],

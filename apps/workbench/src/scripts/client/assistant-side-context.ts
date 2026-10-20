@@ -80,15 +80,18 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
 
 /**
  * The Assistant's 工作环境 and 连接与工具 groups (VUX-08/09; the user's 2026-10-20 decision ②): what the Host reads from each
- * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again only when the work,
- * its revision or its state changes, never on every redraw. A part its owner could not answer says so in its own row.
+ * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again when the work,
+ * its revision or its state changes, never on every redraw. A connection or a repository changes without the work changing,
+ * so a read older than 15 s is asked again whenever the side is in sight and redrawn (the page coming back to the front
+ * redraws) or focus enters it (opening it does); a failed read is tried again 3 s later. A part its owner could not answer
+ * says so in its own row.
  * - 工作环境: the scope (personal, or the project); for Coding, the session's directory and its repository, branch, distance to
  *   upstream and what is not committed. A conflict is the summary and stands out.
- * - 连接与工具: each connection by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
+ * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
  *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. Coding keeps its own tools.
  */
 export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
-  let asked = "", held = null;
+  let asked = "", held = null, at = 0, asking = false, last = null;
   const count = (text, value) => L(text).replace("{n}", String(value));
   const CONNECTION = { connected: "已连接", "needs-authorization": "需要登录授权", failed: "连接失败", disconnected: "未连接", unchecked: "还没检查", incomplete: "还没设置完", off: "已关闭" };
   const TOOLS = { callable: "工具可调用", partial: "部分工具可调用", blocked: "工具不可调用", "none-discovered": "还没发现工具" };
@@ -117,7 +120,7 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
         sub: [L(CONNECTION[one.state] || one.state), one.account || "", one.state === "connected" ? L(TOOLS[one.tools] || one.tools) : ""].filter(Boolean).join(" · "),
         subTone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : "" }));
       if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
-      if (linked.length) box.append(group(L("连接"), stack(linked, work.work_id + ":tools:connections")));
+      if (linked.length) box.append(group(L("你的连接"), stack(linked, work.work_id + ":tools:connections")));
       const callable = can.executor === "coding" ? [card({ icon: "terminal", title: "Coding Agent", sub: L("用它自己的工具与 MCP，在 Coding 里设置") })]
         : can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
@@ -128,13 +131,18 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
       paintBlock(tools, L("连接与工具"), "link", box.children.length ? box : null, needs ? count("{n} 项要处理", needs) : total ? count("{n} 项可用", total) : "", needs > 0);
     });
   };
-  return { paint(work) {
+  const side = () => environmentBlock()?.parentElement;
+  const surround = (work) => {
+    last = work;
     const key = work ? work.work_id + ":" + work.revision + ":" + work.state : "";
     if (!work) { asked = ""; held = null; paint(null, null); return; }
-    if (key !== asked) {
-      asked = key;
-      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } }).catch(() => {});
+    if (!asking && (key !== asked || (Date.now() - at > 15000 && side()?.checkVisibility()))) {
+      asked = key; asking = true; at = Date.now();
+      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } })
+        .catch(() => { at -= 12000; }).finally(() => { asking = false; });
     }
     paint(work, held && held.id === work.work_id ? held.read : null);
-  } };
+  };
+  document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+  return { paint: surround };
 }`;

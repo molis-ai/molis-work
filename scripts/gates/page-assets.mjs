@@ -235,15 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// W4-2-13 (#801, reviewed 2026-10-20): opening the exact proposal and preserving unfinished reasons across
-// list/detail refresh needs 410 B from #822's exact budget. Same-script simplification first saved 408 B;
-// the remaining growth restores the real approval flow. The spent #826 allowance is replaced, not accumulated.
-// The project-knowledge stylesheet allowances remain unchanged: settings styles in both sheets, plus the shared picker
-// and side-panel import dialog in the workbench sheet (specs/project-knowledge, approved 2026-10-19).
+// A2-3 (#805, independently reviewed 2026-10-20): settings CRUD, dialogs, focus and conflict recovery need
+// 5,222 B from main's exact budget, including 80 B to preserve quoted/backslash arguments on edit. Text and templates
+// stay in the host-rendered section, the client is minified, and global settings do not carry it. No new asset.
+// The spent proposal-confirmation and project-knowledge stylesheet allowances are removed, not accumulated.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129470, 1129880],
-  "/assets/molis-work-workbench.css": [1593165, 1603154],
-  "/assets/molis-work-settings.css": [982397, 988933],
+  "/assets/molis-work-workbench.js": [1129726, 1134948],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

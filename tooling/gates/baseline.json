@@ -1177,7 +1177,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 491,
+  "explicitAnyTotal": 486,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1301,7 +1301,7 @@
     "tests/prologue-compaction-continue.test.ts": 1,
     "tests/prologue-compaction.test.ts": 8,
     "tests/prologue-git.test.ts": 2,
-    "tests/prologue-inference-images.test.ts": 7,
+    "tests/prologue-inference-images.test.ts": 2,
     "tests/prologue-inference-native.test.ts": 1,
     "tests/prologue-materials.test.ts": 5,
     "tests/prologue-model-retry.test.ts": 1,

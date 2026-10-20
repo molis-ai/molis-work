@@ -44,18 +44,18 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
     assert.equal(winner.steps[0]!.handoff?.key, handoffKey(raced, 0));
     assert.equal(winner.steps[0]!.pending, undefined, "the delivered handoff no longer waits");
 
-    // A crash between delivery and recording: the fixed handoff was saved and the page already exists.
+    // A crash between delivery and recording: the fixed handoff was saved and the page already exists. W4-6-03: the delivery
+    // before the crash and the resumed one carry the same request id, `workflow:<instance>:<step>`, so they make one page.
     const crashed = await start(items[1]!.item_id);
     const { instance: previewed } = await actions.invoke(w.instance, { id: crashed.instance_id });
     const input = (await actions.invoke(w.preview, { id: crashed.instance_id })).input;
     const pending = { key: handoffKey(crashed, 0), kind: "ai" as const, actor: "ai" as const, at: new Date().toISOString(), input,
       output: { title: "崩溃前的整理稿", body: "已经送达，只是没来得及记录。", url: null, source: null, feed_item_id: null }, rule: "整理成一页" };
     const store = openWorkflowsStore(home);
-    let saved: WorkflowInstance;
-    try { const raw = store.instance(crashed.instance_id, PROJECT); saved = store.saveInstance(raw, { ...raw, chain: previewed.chain, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending } : step), updated_at: new Date().toISOString() }); }
+    try { const raw = store.instance(crashed.instance_id, PROJECT); store.saveInstance(raw, { ...raw, chain: previewed.chain, steps: raw.steps.map((step, index) => index === 0 ? { ...step, pending } : step), updated_at: new Date().toISOString() }); }
     finally { store.close(); }
     const delivered = await createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow" })))
-      .receive("pages", pending.output, { instance_id: crashed.instance_id, step: 1, title: saved.title });
+      .receive("pages", pending.output, `workflow:${crashed.instance_id}:1`);
     const modelCalls = prompts, pageCount = pages();
     const resumed = (await actions.invoke(w.continue, { id: crashed.instance_id })).instance;
     assert.equal(prompts, modelCalls, "the saved result is re-sent; the model is not asked again");
@@ -65,8 +65,8 @@ test("a handoff is delivered once: a lost race delivers nothing and a retry re-s
 
     // The next station receives idempotently too: a retried Lingguang delivery returns the same spark.
     const lingguang = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow" })));
-    const once = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, { instance_id: "retry-instance", step: 2 });
-    const twice = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, { instance_id: "retry-instance", step: 2 });
+    const once = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, "workflow:retry-instance:2");
+    const twice = await lingguang.receive("lingguang", { title: "灵光", body: "只记一次" }, "workflow:retry-instance:2");
     assert.equal(twice.item_id, once.item_id);
     const sparks = openLingguangStore(home);
     try { assert.equal(sparks.list(PROJECT).filter(spark => spark.body === "只记一次").length, 1); } finally { sparks.close(); }

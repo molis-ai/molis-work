@@ -1,13 +1,27 @@
-import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry, type BuiltinPluginWorkbench } from "./builtin-plugins.js";
-export type { PluginSearchRow } from "./builtin-plugins.js";
+import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
-export interface BuiltinPluginWorkbenchPack extends Omit<BuiltinPluginWorkbench, "order"> { readonly project_plugin_id: string }
+export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed"> { readonly project_plugin_id: string }
+
+/**
+ * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
+ * are notes and layout for the people who read its source; the page does not run them. A registration that sets `clientServed`
+ * is sent without them (the page asset budget only shrinks, and these are the bytes that are provably dead). A block comment
+ * is taken only when nothing else shares its lines; indentation inside a multi-line string or template would be content, so a
+ * script that has one cannot use this. tests/plugin-client-served.test.ts holds the result to the same program as the source.
+ */
+const served = (script: string): string => script
+  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
+  .replace(/^[ \t]+/gm, "");
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
-export function pluginWorkbenchPacks(catalog: readonly BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
-    .map(({ order: _order, ...pack }) => pack);
+    .map(({ order: _order, clientServed, ...pack }) => clientServed && pack.clientFactory !== undefined
+      ? { ...pack, clientFactory: served(pack.clientFactory) }
+      : pack);
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 

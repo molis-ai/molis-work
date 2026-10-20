@@ -6,7 +6,6 @@ import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
@@ -155,9 +154,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         models: () => ports.execution?.models() ?? Promise.resolve([]),
         sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-        materialReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
-          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
         reportReferences: () => artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
           .map(({ artifact_id, version }) => ({ artifact_id, version })),

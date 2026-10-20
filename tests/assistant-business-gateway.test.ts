@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
@@ -37,7 +37,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any, init: RequestInit) => Response | Promise<Response>>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -58,7 +58,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     if (review) return reply(undefined, review);
     requests.push(body);
     const next = script[turn++] ?? (() => reply());
-    return next(body);
+    return next(body, init);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -228,6 +228,29 @@ test("without a model the work and its text are kept, with a next step", { timeo
     assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
     await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
+  } finally { await f.close(); }
+});
+
+test("AC-10, QA-001: on an English page the reason a Send without a model fails is English, and the text and the way to model settings are kept", { timeout: 30_000 }, async t => {
+  const f = await fixture(t, [], { model: false });
+  try {
+    const text = "Plan a review next week.";
+    await assert.rejects(runWithLocale("en", () => f.service.send({ text, request_id: "req-00000011" }, {})), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "assistant.model_missing");
+      assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
+      // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
+      const shown = error.message + EN["。输入已保留"];
+      assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
+      assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
+      assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
+      assert.equal(EN[String(error.details?.action)], "Open model settings");
+      const kept = error.details?.work as { draft?: string } | undefined;
+      assert.equal(kept?.draft, text, "the text is kept word for word");
+      return true;
+    });
+    assert.equal((await f.service.list())[0]!.draft, text);
+    await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
 });
 
@@ -761,6 +784,81 @@ test("an ending the review finds true to the facts, and one it could not review,
   }
 });
 
+/** An ending review request (D1②), told apart by the review's own instructions. */
+const isReview = (body: unknown) => endingReviewAnswer(body as { system?: unknown; messages?: unknown }, () => []) !== undefined;
+/** A review request that never answers: it ends only when whoever sent it gives up, and says how it was given up. */
+function hangingReview(seen: { signal?: AbortSignal }) {
+  return (body: unknown, init: RequestInit) => {
+    if (!isReview(body)) return reply(undefined, "never asked");
+    seen.signal = init.signal ?? undefined;
+    return new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }));
+  };
+}
+/** What a round that wrote nothing and continued nothing looks like once it has ended. */
+function endedAsWritten(f: Awaited<ReturnType<typeof fixture>>, done: Awaited<ReturnType<AssistantService["read"]>>, ending: string) {
+  assert.equal(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)?.text, ending, "the ending reads as the round wrote it");
+  assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "the round's own model was not asked again: no automatic follow-up");
+  assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+  assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+  assert.deepEqual(f.seen, []);
+  assert.equal(done.cards.length, 0);
+  assert.equal(done.reviews.length, 0);
+}
+
+// ADH-16, QA-006: a review that goes wrong is no review. The ending stands, nothing continues the round, nothing is written.
+test("QA-006, ADH-16: an ending review whose model throws, answers 500 or is aborted lets the ending through as written; nothing continues and nothing is written", { timeout: 60_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？";
+  const failures: Array<[string, () => Response]> = [
+    ["throws", () => { throw new TypeError("fetch failed"); }],
+    ["HTTP 500", () => new Response('{"type":"error","error":{"type":"api_error","message":"fixture review failed"}}', { status: 500, headers: { "content-type": "application/json" } })],
+    ["aborted", () => { throw new DOMException("The operation was aborted.", "AbortError"); }],
+  ];
+  for (const [index, [how, fail]] of failures.entries()) {
+    // Every review attempt fails the same way, however often the runtime tries again; the round's own calls get words.
+    const failing = (body: unknown) => isReview(body) ? fail() : reply(undefined, "never asked");
+    const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 6 }, () => failing)], { review: true });
+    try {
+      const sent = await f.service.send({ text: "周会是什么时候？", request_id: `req-0000013${index}` }, { project_ref: f.project });
+      const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, `completion after a review that ${how}`);
+      assert.ok(f.requests.some(isReview), `the review was asked (${how})`);
+      endedAsWritten(f, done, ending);
+    } finally { await f.close(); }
+  }
+});
+
+// ADH-16, QA-006: the review's own limit (REVIEW_TIMEOUT_MS, 30 s) brought forward, so the test does not wait it out.
+test("QA-006, ADH-16: an ending review that does not answer within its limit is given up: its request is cancelled, the ending stands as written, nothing continues", { timeout: 20_000 }, async t => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, "timeout", (ms: number) => timeout(ms === 30_000 ? 300 : ms));
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000140" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion after the review's limit");
+    assert.ok(seen.signal, "the review was asked");
+    assert.equal(seen.signal.aborted, true, "the review's request was withdrawn when its limit passed, not left waiting");
+    endedAsWritten(f, done, ending);
+  } finally { await f.close(); }
+});
+
+// ADH-16, QA-006: the person stops the round while its ending is being reviewed (the guard's signal).
+test("QA-006, ADH-16: stopping a round while its ending review waits withdraws the review's request; nothing continues and nothing is written", { timeout: 20_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000141" }, { project_ref: f.project });
+    await until(() => seen.signal, "the review asked");
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed", "completed"].includes(v.work.state) ? v : undefined; }, "the round ended");
+    assert.equal(seen.signal!.aborted, true, "the review's request was withdrawn with the round");
+    assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "no automatic follow-up");
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+    assert.deepEqual(f.seen, []);
+    assert.equal(done.cards.length, 0);
+  } finally { await f.close(); }
+});
+
 test("each kind of slip is held once per round and reads as what it was: a tool name, then a bare announcement (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "我用 change-capability 再试一次，由你确认后落地。"),
@@ -875,6 +973,61 @@ test("a capability identity the round never found is answered as unknown, not as
   // Seen from MiniMax-M3: it guessed "lingguang_spark_read" instead of looking the reader up.
   await assert.rejects((executors["read-capability"] as any)({ args: { capability_id: "lingguang_spark_read", version: 1, provider_id: "io.molis.work.lingguang", input: {} } }),
     (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
+});
+
+// Project-knowledge recall evaluation (specs/project-knowledge §14): MiniMax-M3 sent a known capability under a provider id
+// that offers nothing by that name, was told the capability was taken away, and gave up.
+test("a known capability under a provider or version that offers nothing by that name is answered as a wrong identity, not as taken away", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  let views = [view];
+  const ran: unknown[] = [];
+  const client = { discover: async () => views, check: async () => {}, invoke: async (...call: unknown[]) => { ran.push(call); return {}; } };
+  const { executors, offered } = prologueActionGateway({ client, operate: true } as never);
+  await executors["find-capabilities"]!({ args: { query: "Notes" } } as never);
+  const call = (args: Record<string, unknown>) => executors["change-capability"]!({ args: { input: { text: "x" }, ...args } } as never);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes" }),
+    (error: Error) => /^actions\.missing: Provider "io\.molis\.work\.notes" offers no capability with that id; nothing ran\. It is offered here by provider "fixture\.notes"\..*find-capabilities/.test(error.message)
+      && !/any more|Do not use a different capability/.test(error.message));
+  // Through the review hook too, with the identities the round has seen.
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes", input: { text: "x" } },
+    new Set(), offered) ?? "", /^Provider "io\.molis\.work\.notes" offers no capability with that id/);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 3, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here at version 3; nothing ran\. Its provider now offers version 1/.test(error.message));
+  // An identity the round really saw offered and that is gone keeps "taken away": no stand-in from another provider.
+  views = [{ ...view, provider: { ...view.provider, provider_id: "fixture.notes.next" } } as ActionView];
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here any more \(switched off.*Do not use a different capability/.test(error.message));
+  assert.deepEqual(ran, [], "nothing ran");
+});
+
+// Project-knowledge recall evaluation (specs/project-knowledge §14): an input that matched the contract was refused by its
+// owner for a value in it, the round was shown the contract instead, and kept reshaping a valid input.
+test("an input the contract accepts and its owner refuses carries the owner's own reason; one the contract refuses still gets the contract", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  const refusal = "主题 document-1 不是这里的一项：从列表或搜索结果里原样复制 [id, version]";
+  const owner = async () => { throw new ActionError("actions.input_invalid", `${refusal}${"。".repeat(1000)}`); };
+  const fits = async (_ref: unknown, input: unknown) => { if (typeof (input as { text?: unknown })?.text !== "string") throw new ActionError("actions.input_invalid", "输入不符合能力合同：/text type"); };
+  const run = (client: object, tool: string, input: unknown) => prologueActionGateway({ client: { discover: async () => [view], ...client }, operate: true } as never).executors[tool]!({ args: { ...reference, input } } as never);
+  for (const tool of ["read-capability", "change-capability"]) {
+    const read = tool === "read-capability" ? { ...view, operation: "query", action: { ...view.action, kind: "query" } } as ActionView : view;
+    const client = { discover: async () => [read], check: fits, invoke: owner };
+    await assert.rejects(prologueActionGateway({ client, operate: true } as never).executors[tool]!({ args: { ...reference, input: { text: "x" } } } as never),
+      (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`)
+        && /The input matches this capability's contract; its owner refused it for this reason\.\)$/.test(error.message) && !/matching this schema/.test(error.message)
+        && error.message.length < 800, `${tool}: the owner's reason, bounded`);
+  }
+  // The contract refuses it (or cannot be asked): the contract, as before.
+  await assert.rejects(run({ check: fits, invoke: owner }, "change-capability", { text: 1 }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message) && !error.message.includes(refusal));
+  await assert.rejects(run({ invoke: owner }, "change-capability", { text: "x" }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message));
+  // A suggestion the contract accepts and its owner refuses records nothing and gets the owner's reason.
+  await assert.rejects(prologueActionGateway({ client: { discover: async () => [view], check: fits, invoke: owner, offer: owner }, operate: true } as never)
+    .executors["suggest-action"]!({ args: { title: "记下", summary: "记一条笔记", ...reference, input: { text: "x" } } } as never),
+    (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`));
 });
 
 // AI handbook §9.5 A2: a capability that is there but cannot run now is found with its owner's reason and nothing to call

@@ -118,6 +118,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
@@ -183,6 +184,7 @@ export {
 export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
 export { codingTimelineWords } from "./timeline-words.js";
 export { createCodingTurnChanges } from "./turn-changes-client.js";
+export { codingQuestionAnswered } from "./question-answered-client.js";
 export {
   STICK_THRESHOLD_PX,
   atBottom,

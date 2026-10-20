@@ -3,14 +3,15 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionAudience, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginErrors, type PluginArtifactClient, type PluginDatabase, type PluginModelClient, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { lingguangActions, lingguangContentActions, createLingguangActionHandlers, ownLingguangStores, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesActions, pagesContentActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { pptActions, PPT_ACTION_PERMISSIONS, PPT_DATABASE, PPT_PLUGIN_ID, createPptActionHandlers, createPptPlugin, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 import { createWorkflowContentPorts } from "@molis-ai/molis-work-plugin-workflows";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 
@@ -30,25 +31,25 @@ async function fixture(t: test.TestContext) {
 }
 const payload = (title: string, body: string) => ({ title, body, url: null, source: null, feed_item_id: null });
 
-test("a workflow hand-off past a receiver's limits is cut to fit instead of being refused on every retry", async t => {
+test("a workflow hand-off past a receiver's limits is cut to fit instead of being refused on every retry (W4-6-02, W4-6-03)", async t => {
   const f = await fixture(t);
   const ports = createWorkflowContentPorts(f.as("workflow")), receive = (...args: Parameters<typeof ports.receive>) => ports.receive(...args);
   // A long article headline: Pages takes titles up to 80 characters.
   const headline = "An unusually descriptive English article headline that easily runs past eighty characters in length";
   assert.ok(headline.length > 80);
-  const page = await receive("pages", payload(headline, "the body"), { instance_id: "run-1", step: 1 });
+  const page = await receive("pages", payload(headline, "the body"), "workflow:run-1:1");
   const stored = (await f.bound.invoke(pagesActions.get, { id: page.item_id })).document;
   assert.equal(stored.title, headline.slice(0, 80));
   assert.match(JSON.stringify(stored.body), /the body/);
   // Form: a title past 80 and a list past the 40 questions a form holds.
   const list = Array.from({ length: 45 }, (_, index) => `- 问题 ${index + 1}？`).join("\n");
-  const form = await receive("form", payload("T".repeat(81), list), { instance_id: "run-2", step: 1 });
+  const form = await receive("form", payload("T".repeat(81), list), "workflow:run-2:1");
   const made = (await f.bound.invoke(formActions.get, { id: form.item_id })).form;
   assert.equal(made.title, "T".repeat(80));
   assert.equal(made.questions.length, 40);
   assert.equal(made.questions[0]!.title, "问题 1？");
-  // The same delivery is still one form.
-  assert.equal((await receive("form", payload("T".repeat(81), list), { instance_id: "run-2", step: 1 })).item_id, form.item_id);
+  // The same request id is still one form (W4-6-02).
+  assert.equal((await receive("form", payload("T".repeat(81), list), "workflow:run-2:1")).item_id, form.item_id);
 });
 
 test("a form submission's source comes from the call, not from the input: only a user's fill page records fill", async t => {
@@ -124,6 +125,72 @@ test("AI actions of Form, Dataset, PPT and 灵光 recheck the grant right before
     assert.deepEqual(state.sawBeforeDispatch, ["function"], "the host is handed the authority recheck to run right before it sends");
     assert.equal(state.dispatched, 0, "nothing was sent to the model after the revoke");
     assert.equal(item.unchanged(), before, "nothing was written");
+  });
+});
+
+/**
+ * QA-019 W5-01-PPT-05: the model has answered, then the installation's `model:invoke` grant is withdrawn. The call's own grant still
+ * stands, so `beforeEffect` agrees; only the result guard (the Runtime's recheck of this model binding, `validateResult`) can refuse,
+ * and PPT runs it inside the Host's write transaction before the first statement. The run without the withdrawal is the control.
+ */
+test("QA-019 W5-01-PPT-05: a model grant withdrawn after the answer stops ppt.outline_ai at validateResult, before the write's first SQL", async t => {
+  for (const withdrawn of [true, false]) await t.test(withdrawn ? "withdrawn" : "control", async st => {
+    const home = await mkdtemp(join(tmpdir(), "ppt-result-guard-")), library = openPluginDatabase(home, PPT_DATABASE, () => {});
+    st.after(async () => { library.close(); await rm(home, { recursive: true, force: true }); });
+    const events: string[] = [], grants = new Set(["model:invoke"]);
+    let dispatched = 0;
+    const noted = <T>(run: () => T) => { events.push("sql"); return run(); };
+    // The Host's own write transaction; each statement inside it is noted, so its order against validateResult shows.
+    const database: PluginDatabase = { get: library.client.get, all: library.client.all,
+      transaction: (beforeEffect, write) => library.client.transaction(beforeEffect, transaction => {
+        events.push("transaction");
+        return write({ get: (sql, parameters) => noted(() => transaction.get(sql, parameters)),
+          all: (sql, parameters) => noted(() => transaction.all(sql, parameters)),
+          run: (sql, parameters) => noted(() => transaction.run(sql, parameters)) });
+      }) };
+    const model: PluginModelClient = { choices: () => [], availability: () => ({ available: true }),
+      async complete() {
+        dispatched++; events.push("answered");
+        if (withdrawn) grants.delete("model:invoke");
+        return { text: "## 新的一页\n- 新要点", validateResult() {
+          events.push("validateResult");
+          if (!grants.has("model:invoke")) throw pluginErrors.grant_denied("Plugin 没有 model:invoke grant");
+        } };
+      } };
+    const artifacts: PluginArtifactClient = { publish: () => { throw new Error("nothing is pinned here"); }, read: () => null, head: () => null, readOwn: () => null,
+      listConsumable: () => [] };
+    const context: PluginStartContext = { install_id: "ppt-test", plugin_id: PPT_PLUGIN_ID, version: "0.0.0", deployment: "local", grants: [...grants],
+      project_id: "p", services: { database, artifacts, model, ui: { register: () => {}, unregister: () => {} } }, requireGrant: () => {} };
+    const handlers = (await createPptPlugin().start(context)).actions!;
+    const caller: ActionExecutionContext = { actor_id: "owner", project_id: "p", audience: "user", permissions: PPT_ACTION_PERMISSIONS,
+      beforeEffect: async () => { events.push("beforeEffect"); }, assert_authority_current: () => {} };
+    const run = async <I, O>(definition: ActionDefinition<I, O>, input: I) => await handlers.find(handler => handler.capability_id === definition.capability_id)!.handle(caller, input) as O;
+    const { presentation: deck } = await run(pptActions.create, { title: "P" });
+    const { presentation: seeded } = await run(pptActions.outline, { id: deck.id, text: "## 原有一页\n- 原有要点" });
+    const rows = () => library.client.all("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name")
+      .map(({ name }) => [name, library.client.all(`SELECT * FROM "${String(name)}" ORDER BY rowid`)]);
+    const before = rows();
+    events.length = 0;
+    const outcome = run(pptActions.outlineAi, { id: deck.id, text: "整理" });
+    if (withdrawn) {
+      await assert.rejects(outcome, { code: "plugin.grant_denied" });
+      assert.equal(dispatched, 1, "the model did answer");
+      // Only the order the acceptance names is pinned: the answer came before the write, and inside the write validateResult
+      // refused before its first statement. How many times PPT waits on beforeEffect along the way is its own business.
+      const written = events.slice(events.indexOf("transaction"));
+      assert.ok(events.indexOf("answered") >= 0 && events.indexOf("answered") < events.indexOf("transaction"), "the model answered before the write");
+      assert.deepEqual(written, ["transaction", "validateResult"], "validateResult refused inside the transaction, before its first statement");
+      // PPT keeps no failure rows of its own: every row of its library, its version and slides among them, is as it was.
+      assert.deepEqual(rows(), before);
+      assert.deepEqual(await run(pptActions.get, { id: deck.id }), { presentation: seeded });
+    } else {
+      const { presentation } = await outcome;
+      const written = events.slice(events.indexOf("transaction"));
+      assert.deepEqual(written.slice(0, 2), ["transaction", "validateResult"], "the result guard runs first in the write");
+      assert.ok(written.length > 2 && written.slice(2).every(event => event === "sql"), "then the outline is written");
+      assert.equal(presentation.version, seeded.version + 1);
+      assert.match(JSON.stringify(presentation.slides), /新的一页/);
+    }
   });
 });
 

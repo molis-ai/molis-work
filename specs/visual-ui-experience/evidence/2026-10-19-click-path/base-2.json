@@ -1,0 +1,184 @@
+{
+  "at": "2026-10-20T05:28:27.262Z",
+  "commit": "a79bb26204bd8c27cc15296ea0d5ab1c9f30a1a1",
+  "dirty": 0,
+  "environment": {
+    "node": "v24.14.0",
+    "os": "25.3.0",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpus": 10,
+    "memoryBytes": 17179869184,
+    "loadStart": [
+      3.6435546875,
+      3.5078125,
+      3.7373046875
+    ],
+    "loadEnd": [
+      3.4931640625,
+      3.48828125,
+      3.72509765625
+    ]
+  },
+  "conditions": {
+    "viewport": "1440x900@1",
+    "motion": "enabled (navigator.webdriver hidden)",
+    "chrome": "headless, fresh profile, cache on"
+  },
+  "scope": "Browser timings of the production workbench with seeded data. No model, no native shell, no real display refresh.",
+  "scenarios": {},
+  "rows": [
+    {
+      "id": "pages",
+      "click": [
+        88,
+        59
+      ],
+      "layouts": 19,
+      "layoutMs": 3,
+      "styles": 73,
+      "styleMs": 86,
+      "scriptMs": 16
+    },
+    {
+      "id": "home",
+      "click": [
+        48,
+        38
+      ],
+      "layouts": 10,
+      "layoutMs": 1,
+      "styles": 48,
+      "styleMs": 43,
+      "scriptMs": 7
+    },
+    {
+      "id": "todo",
+      "click": [
+        72,
+        38
+      ],
+      "layouts": 17,
+      "layoutMs": 2,
+      "styles": 78,
+      "styleMs": 75,
+      "scriptMs": 14
+    },
+    {
+      "id": "home",
+      "click": [
+        64,
+        38
+      ],
+      "layouts": 10,
+      "layoutMs": 1,
+      "styles": 50,
+      "styleMs": 44,
+      "scriptMs": 7
+    },
+    {
+      "id": "feed",
+      "click": [
+        72,
+        42
+      ],
+      "layouts": 11,
+      "layoutMs": 2,
+      "styles": 54,
+      "styleMs": 65,
+      "scriptMs": 8
+    },
+    {
+      "id": "home",
+      "click": [
+        64,
+        37
+      ],
+      "layouts": 11,
+      "layoutMs": 1,
+      "styles": 50,
+      "styleMs": 43,
+      "scriptMs": 6
+    },
+    {
+      "id": "issues",
+      "click": [
+        64,
+        36
+      ],
+      "layouts": 13,
+      "layoutMs": 10,
+      "styles": 61,
+      "styleMs": 82,
+      "scriptMs": 12
+    },
+    {
+      "id": "home",
+      "click": [
+        88,
+        59
+      ],
+      "layouts": 10,
+      "layoutMs": 2,
+      "styles": 48,
+      "styleMs": 65,
+      "scriptMs": 14
+    },
+    {
+      "id": "pages",
+      "click": [
+        64,
+        37
+      ],
+      "layouts": 14,
+      "layoutMs": 2,
+      "styles": 58,
+      "styleMs": 88,
+      "scriptMs": 13
+    },
+    {
+      "id": "home",
+      "click": [
+        88,
+        59
+      ],
+      "layouts": 10,
+      "layoutMs": 2,
+      "styles": 49,
+      "styleMs": 64,
+      "scriptMs": 11
+    },
+    {
+      "id": "todo",
+      "click": [
+        64,
+        37
+      ],
+      "layouts": 10,
+      "layoutMs": 1,
+      "styles": 51,
+      "styleMs": 69,
+      "scriptMs": 8
+    },
+    {
+      "id": "home",
+      "click": [
+        64,
+        41
+      ],
+      "layouts": 10,
+      "layoutMs": 2,
+      "styles": 49,
+      "styleMs": 49,
+      "scriptMs": 9
+    }
+  ],
+  "median": {
+    "click": 64,
+    "layouts": 11,
+    "layoutMs": 2,
+    "styles": 51,
+    "styleMs": 65,
+    "scriptMs": 11
+  }
+}

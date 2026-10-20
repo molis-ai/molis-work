@@ -554,5 +554,7 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 - **Don't** turn a disabled composer, Session demo, reserved module or browser screenshot into a claim of an integrated feature.
 - **Don't** infer completion from child counts, activity or missing requirements, or treat UI selection as execution authority.
 - **Don't** make status colour the only explanation, allow long paths to widen the viewport, or hide the current tab when resizing.
+- **Don't** style from a `:has()` on the page root (other than its own children), the work area, the bar or the switcher, or from a `:has()` placed before a combinator on any large container: Chrome then restyles the whole subtree on every related change. Mark the state on the element with a class or attribute where it changes (`tests/style-has-scope.test.ts`).
+- **Don't** measure the page (rects, computed style, scroll offsets, `checkVisibility`) inside a mutation callback, a microtask or a loop over every descendant: queue it to the frame, read everything first and write after, and track what scrolled instead of reading every node.
 - **Don't** use prototype or review screenshots as product imagery, or claim browser review verifies the native package or every low-frequency form.
 

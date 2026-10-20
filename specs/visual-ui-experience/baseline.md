@@ -110,3 +110,38 @@ node scripts/run-tests.mjs tests/workbench-asset-cache.test.ts tests/catalog-rea
 - 反复切换 5 个插件 10 轮，GC 后堆 6.02 → 6.40 MB 单调上升（节点、监听器不变），需要确认是否为保留的状态或累积。
 
 局限：机器上同时有其他会话负载；浏览器为无头模式，不代表 macOS 壳或真实显示刷新；数据规模为种子数据（19 个 Goal、11 个插件），没有长助理会话。
+
+## 2026-10-19 插件切换的一次按下：强制样式计算（VUX-35、VUX-36）
+
+**定位**：上一节留下的“点插件条 72 ms”。在无头 Chrome 里对每次按下录 Chrome 性能追踪（带 `devtools.timeline.stack` 与 `invalidationTracking`），按触发样式计算的脚本位置与失效原因归类。一次按下的处理本身只占十几毫秒，其余是样式计算：多处脚本在同一次点击里读布局（`getClientRects`、`getComputedStyle`、`checkVisibility`、`scrollTop`），每读一次就把前面写下的改动结算一遍；几条 `:has()` 规则让 Chrome 每次相关改动都重查整个切换器（528 个元素）或整个工作区。
+
+**改动**（只改读写时机与样式条件的写法，外观与行为不变）：
+
+- 状态环只对在动的环做可见性判断，新挂上的环直接画成当前状态、不再演一次落定（`packages/design-system/src/state-ring-client.ts`）；分段滑块的测量改到下一帧、一帧只量一次（`styles/micro-interactions.ts`）；侧栏情境每帧读一次，不再每个微任务读（`apps/workbench/src/side-panel-context.ts`）。
+- 切走时只记录滚动过的元素，不逐个读整个表面的 `scrollTop`（`scripts/client/system-tabs.ts`）；Goal 详情是否叠放先看开关再量宽度（`immersive-navigation.ts`）；删掉对隐藏标签行的 `scrollIntoView`（`frame-container.ts`，那一行始终隐藏）。
+- 样式条件改为元素上的标记：拖动目录宽度时工作区带 `is-tree-resizing`，分屏用已有的 `[data-split]`，市场有可用更新时切换器与菜单带 `data-market-updates`；插件创作台预览页的 `html:has(…)` 只看 `body` 的直接子元素。守卫：`tests/style-has-scope.test.ts`（页面根上的 `:has()` 只许看子元素，工作区、底栏、切换器上不许用 `:has()`；把旧规则放回去会失败），规则写进 DESIGN.md「Don't」。
+
+**同条件对照**：同一台机器、同一时段，本分支与回退这些源码改动后的同一分支（只差上面这些文件，测量脚本相同）各 3 个独立进程；无头 Chrome、1440×900、动效开启、新配置目录、种子数据；顺序 pages、home、todo、home、feed、home、issues、home、pages、home、todo、home，每次按下前若入口不在底栏就先打开切换器、等它的打开动效结束再量入口位置。原始数据、脚本与汇总在 `evidence/2026-10-19-click-path/`（脚本 [click-path.mjs](evidence/2026-10-19-click-path/click-path.mjs)，汇总 `node summarize.cjs <该目录>`，追踪归类在 `forced-style.txt`）。
+
+| 每次按下（3 次运行共 36 次） | 回退 | 本分支 |
+| --- | ---: | ---: |
+| 点击到下一次绘制（Event Timing）中位数 / p90 / 最长 | 72 / 88 / 88 ms | 40 / 56 / 56 ms |
+| 事件处理本身中位数 | 40 ms | 18 ms |
+| 之后 700 ms 内样式计算耗时中位数（p90） | 66 ms（86） | 27 ms（31） |
+| 样式计算次数 / 布局次数中位数 | 50 / 11 | 42 / 8 |
+| 6 次按下（含打开切换器）脚本强制的样式与布局合计 | 419 ms | 138 ms |
+
+Event Timing 的时长以 8 ms 为粒度。三次运行各自的中位数：回退 72、64、72 ms，本分支 40、32、40 ms。
+
+**测量脚本的更正**：上一版浏览器基线在打开切换器后只等两帧就量入口位置，切换器还在打开动效里，有的按下落在入口旁边（追踪里点击目标是列表本身、处理 1 ms、下一次绘制要等到 1 s 后的下一次按下）。`browser-baseline.mjs` 与本节脚本都改为等有限时长的动效结束，并断言按下的位置确实落在入口上。上一节的“72 ms”来自每次都等表面就绪的进入场景，表面未就绪会超时失败，所以那组数字不受影响。
+
+**仍未处理**（下一片或交给对应片）：
+
+- 打开切换器时把列表里约 500 个元素从 `display: none` 显示出来，一次样式计算 11–28 ms；要省需要让列表更轻或改显示方式，未做。
+- 助理岛读当前页面情境（`assistant-island.ts` 的 `visible`）在每次切换里仍强制样式计算（6 次按下合计约 20 ms）；该文件是巨大单元、正由 PR #631 重写，留到助理那一片一起改。
+- 短窗口（高度 ≤ 560px）里“Goal 记录表单打开时底栏让位”仍用 `.immersive-workspace:has(.is-editing-goal)`：表单是 Goals 插件的节点、底栏是宿主的，换成标记要先定由谁发出，已在守卫里单列。
+- DOM 规模（22,620 个节点）与反复切换后的堆走势未动。
+
+页面资源：`molis-work-workbench.js` 增加 591 字节（先把说明移出发给页面的脚本、去掉分段滑块的先读后写拆分，从 +868 降到 +591），按决定 #17 在 `scripts/gates/page-assets.mjs` 的 `APPROVED_CEILINGS` 登记一次；三份样式表各小了 52–55 字节，预算已随之降低。
+
+局限同上一节：无头 Chrome，不代表 macOS 壳与真实刷新率；机器上有其他会话负载（3 次运行之间的波动见原始数据）。

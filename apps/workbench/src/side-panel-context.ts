@@ -1,4 +1,5 @@
-/** Presentation binding only. The owner still authorizes every object read and write. */
+/** Presentation binding only. The owner still authorizes every object read and write. The page is read once per frame, before
+ * it draws: a microtask ran between every change of one click and measured the page each time. */
 export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
   let entries=[...panel.querySelectorAll('[data-side-context-owner]')];
   let epoch=0,signature='',context=null,source=null,lastTool=null,queued=false,target=null;
@@ -55,7 +56,7 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     }
     send();
   };
-  function schedule(){if(!queued){queued=true;queueMicrotask(update);}}
+  function schedule(){if(!queued){queued=true;(document.hidden?setTimeout:requestAnimationFrame)(update);}}
   document.addEventListener('molis-work:plugins-changed',event=>{
     const next=event.detail?.next;if(!next)return;
     const all=[...next.querySelectorAll('[data-side-tab]')],theirs=all.filter(tab=>tab.hasAttribute('data-side-context-owner'));

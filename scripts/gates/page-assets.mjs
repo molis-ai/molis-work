@@ -242,7 +242,7 @@ const headErrors = (measured, budget, base) => {
 // Tried first: one rule turns anchoring off only while following, no token fallbacks, the fold reuses the existing body
 // padding. Spent once from exactly the copy-feedback slice's budget (#860).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1132516, 1134338],
+  "/assets/molis-work-workbench.js": [1132686, 1134508],
   "/assets/molis-work-workbench.css": [1604893, 1605339],
   "/assets/molis-work-settings.css": [990668, 991114],
   "/assets/molis-work-arrival.css": [700254, 700700],

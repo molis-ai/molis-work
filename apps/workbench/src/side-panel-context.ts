@@ -89,7 +89,10 @@ export const SIDE_CONTEXT_FACTORY = String.raw`({panel,select,current})=>{
     const entry=entries.find(entry=>panel.querySelector('[data-side-body="'+entry.dataset.sideTab+'"] iframe')?.contentWindow===event.source);
     if(!entry)return;
     if(event.data?.type==='molis:side-ready')send();
-    if(event.data?.type!=='molis:side-context-command'||entry.hidden||event.data.context_epoch!==epoch||!context)return;
+    if(event.data?.type!=='molis:side-context-command'||entry.hidden||!context)return;
+    // Asked under a context that has since moved on (the document was just saved, another one opened): nothing runs, and the
+    // view hears so, to ask again under the context it is about to receive, rather than wait for an answer that never comes.
+    if(event.data.context_epoch!==epoch){event.source.postMessage({type:'molis:side-context-result',request_id:event.data.command?.request_id,object_id:context.object_ref.id,stale:true},location.origin);return;}
     const message={type:'molis:side-context-command',context_epoch:epoch,context,command:event.data.command};
     if(source&&visible(source))source.contentWindow.postMessage(message,location.origin);
     else document.dispatchEvent(new CustomEvent('molis:side-context-command',{detail:message}));

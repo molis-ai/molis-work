@@ -130,7 +130,7 @@ interface SessionParts {
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: PluginDatabase | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
-  /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
+  /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;

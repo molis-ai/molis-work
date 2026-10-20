@@ -439,19 +439,23 @@ test("PG047-01 S-15 model:read reads and never sends: a plugin that holds only m
     } finally { item.store.close(); }
   }));
 
-test("PG047-02 S-15 neither held: a plugin that declares the model permissions and holds neither is refused the list, and availability says the grant is missing",
+test("PG047-02 S-15 neither held: a plugin that declares the model permissions and holds neither is refused the list, and availability says the grant is missing; one that declares both and holds only model:invoke still lists",
   { timeout: 60_000 },
   withDirectory(async directory => {
     const model = standIn(), item = platformIn(directory, { current: model.complete });
     const both = probe({ name: "neither", permissions: [{ permission: MODEL_READ, required: false }, { permission: MODEL_INVOKE, required: false }] });
     const invoker = probe({ name: "invoker" });
+    // model:read is declared and not given, model:invoke is held: the refused one does not end the search, the held one counts.
+    const fallback = probe({ name: "fallback", permissions: [{ permission: MODEL_READ, required: false }, { permission: MODEL_INVOKE, required: true }] });
     try {
-      await item.platform.start([{ definition: both.definition }, { definition: invoker.definition }]);
+      await item.platform.start([{ definition: both.definition }, { definition: invoker.definition }, { definition: fallback.definition }]);
       for (const plugin of [both, invoker]) {
         const client = plugin.model();
         assert.throws(() => client.choices(), { code: "plugin.grant_denied" });
         assert.deepEqual(client.availability(), { available: false, code: "actions.plugin_permission", reason: "插件缺少模型授权" });
       }
+      assert.ok(Array.isArray(fallback.model().choices()), "model:invoke alone lists the models");
+      assert.deepEqual(fallback.model().availability(), { available: true, vision: true });
       assert.equal(model.calls.length, 0);
     } finally { item.store.close(); }
   }));

@@ -17,7 +17,7 @@ import {
   partOfChildViews,
   sortGoalTreeItems,
 } from "@molis-ai/molis-work-plugin-goals";
-import { lingguangUiContribution } from "@molis-ai/molis-work-plugin-lingguang";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
@@ -104,8 +104,11 @@ function renderPptNativePluginSurface(surface: "directory" | "workbench"): strin
   });
 }
 
-function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderDeclarativeContribution(lingguangUiContribution, surface, { primitives: { escape: escapeHtml, text: L } });
+/** A built-in plugin's declarative page, found by the plugin id the page layout already carries. */
+function renderDeclarativePluginSurface(pluginId: string, surface: "directory" | "workbench" | "side"): string {
+  const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId);
+  const contribution = entry?.workbench.contributions.find(item => item.descriptor.surfaces?.some(one => one.surface_id === surface));
+  return contribution ? renderDeclarativeContribution(contribution, surface, { primitives: { escape: escapeHtml, text: L } }) : "";
 }
 
 function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -355,7 +358,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderDeclarativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

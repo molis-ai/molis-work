@@ -94,7 +94,7 @@ export interface WorkbenchGoalsPageOwners<TItem extends GoalCollectionItem, TVie
   renderFormNativePluginSurface(surface: "directory" | "workbench"): string;
   renderDatasetNativePluginSurface(surface: "directory" | "workbench"): string;
   renderPptNativePluginSurface(surface: "directory" | "workbench"): string;
-  renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string;
+  renderDeclarativePluginSurface(pluginId: string, surface: "directory" | "workbench" | "side"): string;
   renderAlchemistNativePluginSurface(surface: "directory" | "workbench"): string;
   renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string;
 }
@@ -117,7 +117,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations, renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderDeclarativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface } = owners;
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -295,7 +295,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${defer(renderFormNativePluginSurface("workbench"))}
             ${defer(renderDatasetNativePluginSurface("workbench"))}
             ${defer(renderPptNativePluginSurface("workbench"))}
-            ${defer(renderLingguangNativePluginSurface("workbench"))}
+            ${defer(renderDeclarativePluginSurface("io.molis.work.lingguang", "workbench"))}
             ${defer(renderAlchemistNativePluginSurface("workbench"))}
             ${defer(renderWorkflowsNativePluginSurface("workbench"))}
             ${renderFeedNativePluginSurface(view, "workbench", initialFeedPreset, [], false)}

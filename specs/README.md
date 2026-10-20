@@ -36,6 +36,7 @@
 - [project-knowledge](project-knowledge/spec.md)：项目资料——平台通用的资产管理、导入与召回；导入的文档、插件成果与对象、工作区文件统一成资料目录，整理出卡片与大纲做渐进式召回，embedding 可选；Coding「＋ 材料」并入后删旧路。2026-10-19 新立，需求已对齐，待审。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
 - [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
+- [dual-instance-plugins](dual-instance-plugins/spec.md)：同一个插件同时有 Home 实例和项目实例（Shelf 迁 Plugin Runtime 的前提）；用户已定授权与范围（U1、U2），S0-2a（本机页面调用按各库记录授权）进行中，S0-2b-1、S0-2b-2、S0-2c 随后；2026-10-20 新立。
 
 ## 现行规范
 

@@ -415,16 +415,16 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*flex: 0 1 auto;/);
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*font-size: 13px/);
   assert.match(SHELF_STYLES, /\.shelf-name \{[\s\S]*color: var\(--ink\)/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) \{ padding-right: 72px; \}/);
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-ops \{[\s\S]*display: flex;[\s\S]*opacity: 0/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
   assert.doesNotMatch(SHELF_STYLES, /\.shelf-ops \{[^}]*display: none/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /yieldName/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /includes\(":\/\/"\)/);
   assert.doesNotMatch(SHELF_STYLES, /shelf-cap/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /shelf-cap/);
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-when \{[\s\S]*color: var\(--da-faint\)/);
-  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
+  assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
   assert.match(SHELF_STYLES, /html\[data-resolved-theme="dark"\] \[data-shelf\] \.shelf-paper \{[\s\S]*background: var\(--da-panel\)/);
   assert.match(SHELF_STYLES, /\.shelf-paper:active \{ background: var\(--da-press\); \}/);
   // No work-area stage, so no rule reaches into the workbench's plugin sections or its immersive body.

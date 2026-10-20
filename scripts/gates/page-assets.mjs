@@ -235,16 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 24, cut text (VUX-05).
-// +1,203 B of workbench.js: the page's one tooltip, moved out of craft-finish into its own program, also shows a name, path
-// or summary cut by an ellipsis or a line clamp, on a pointer's rest, keyboard focus and a press and hold (4,214 B
-// minified). Tried first: the old tooltip code in craft-finish is deleted (about −3 KB), not kept beside it. +134 B in each
-// stylesheet: a cut text's tooltip may wrap, up to 420 px. Spent once from exactly the layers slice's budgets (#904).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 25, hover-only actions (VUX-06).
+// +789 B of workbench.css (+252 B settings, +146 B arrival): twelve actions a row showed only on hover now also show on a
+// device without hover (`@media (hover: none)`) and, where they did not, on keyboard focus (`:focus-within`): file rows,
+// directory-row and Shelf ops, Pages folder, row and code-copy actions and sizing handles, Jelly block tools, Coding's
+// chevron, the studio's inspect. +53 B of workbench.js: a tab declares Delete as its close key. Each is added on the line of
+// the rule it extends; nothing could be removed in its place. Spent once from exactly the tooltip slice's budgets (#906).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1161761, 1162964],
-  "/assets/molis-work-workbench.css": [1607833, 1607967],
-  "/assets/molis-work-settings.css": [991858, 991992],
-  "/assets/molis-work-arrival.css": [702153, 702287],
+  "/assets/molis-work-workbench.js": [1162964, 1163017],
+  "/assets/molis-work-workbench.css": [1607967, 1608756],
+  "/assets/molis-work-settings.css": [991992, 992244],
+  "/assets/molis-work-arrival.css": [702287, 702433],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

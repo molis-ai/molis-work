@@ -64,7 +64,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   .mw-file-group__text small { font-size: 12px; line-height: 16px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .mw-file-group__count { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
   .mw-file-group__x { opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint); }
-  .mw-file-group__head:hover .mw-file-group__x, .mw-file-group__x:focus-visible { opacity: 1; }
+  .mw-file-group__head:hover .mw-file-group__x, .mw-file-group__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-group__x { opacity: 1; } }
   .mw-file-group__note { margin: 0; padding: 4px 0 0 40px; color: var(--faint); font-size: 12px; }
   .mw-file-list { display: flex; flex-direction: column; gap: 1px; margin: 0; padding: 0 0 0 40px; list-style: none; }
   .mw-file-row { display: grid; grid-template-columns: minmax(6em, 1fr) auto auto; align-items: center; gap: 12px; min-height: 36px; padding: 2px 4px 2px 8px; margin-left: -8px; border-radius: var(--r-row, 10px); transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
@@ -78,7 +78,7 @@ export const ARRIVAL_COMPONENT_STYLES = `
   /* A size is short; a receipt's detail (why a file was not read) may be long. It gives way with an ellipsis, and its title carries the whole of it. */
   .mw-file-row__size { max-width: 16em; overflow: hidden; text-overflow: ellipsis; }
   .mw-file-row__x { opacity: 0; transition: opacity var(--dur-hover, 130ms) var(--ease-quint); }
-  .mw-file-row:hover .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; }
+  .mw-file-row:hover .mw-file-row__x, .mw-file-row__x:focus-visible { opacity: 1; } @media (hover: none) { .mw-file-row__x { opacity: 1; } }
   .mw-file-row.is-todo { grid-template-columns: minmax(0, 1fr) auto; }
   .mw-file-list.is-receipts { padding-left: 0; margin-top: 12px; }
   .mw-file-kind { display: inline-grid; place-items: center; flex: none; min-width: 34px; height: 18px; padding: 0 5px; border-radius: 5px; font-size: 11px; font-weight: var(--weight-title, 600); letter-spacing: .02em; background: color-mix(in srgb, var(--mark-text, var(--ink-soft)) 12%, transparent); color: var(--mark-text, var(--ink-soft)); }

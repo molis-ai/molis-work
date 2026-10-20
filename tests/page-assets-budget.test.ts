@@ -711,6 +711,9 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1158426],
   // The layers allowance (#904, VUX-29) is spent.
   ["/assets/molis-work-workbench.js", 1161486],
+  // The tooltip allowances (#906, VUX-05) are spent.
+  ["/assets/molis-work-workbench.js", 1161761], ["/assets/molis-work-workbench.css", 1607833], ["/assets/molis-work-settings.css", 991858],
+  ["/assets/molis-work-arrival.css", 702153],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

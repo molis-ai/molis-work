@@ -2187,3 +2187,4 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **① 审 molis-ai/prologue#56**（②，占位串加 `-END`，head `5169de82`）。在独立工作树 `prologue-wt/review-56` 复跑，经 heavy.sh：tsc 通过，5 个文件 46/46；变异 A 去掉 `-END`，9 红 2 绿；变异 B 把 Host 检查改成至少一处，重复那条变红。
   - 结论：代码可合。合前要改切片文档：「Agent 循环窗口图超过 10 张也不撞」这句后面写上「未单独实测」。另有两条建议：测试里两处手写的旧写法；两次随机段约 2^-32 撞上的概率，失败是安全的，以前就有。评论 6289864597。
   - 已提醒 ②：换 vendored 包会顺带拉进上游 #54、#55（调用归因，BL-162，加了可选字段），换包 PR 要写明，并核对 Molis 的事件校验。
+- **11:4x UTC prologue#56 合入 Prologue main `a321b849`**（squash，钉住 head `d3190cab`）。② 按评审改完：切片文档和 PR 正文写明「超过 10 张窗口图的 Agent 循环未单独实测」，两处夹具改成 `-END` 写法，只动了文档和测试字符串。② 接着从 `a321b849` 重建 vendored 包，并在同一个 Molis PR 里把上限提到 50、配 `maxItemsPerBatch: 50`，写明顺带的 #54、#55，不改版本号，交 ⑤。① 的复测工作树 `prologue-wt/review-56` 已删。

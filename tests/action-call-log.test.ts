@@ -385,7 +385,7 @@ test("a call through the Host's typed port is a row of its own kind, named for t
   assert.deepEqual([row!.call_id, row!.path, row!.provider_id, row!.provider_title, row!.operation], [call.call_id, "typed", "", "Molis Work", "command"]);
 }));
 
-test("W5-01-DELEGATE-07 S-41 a call made through a plugin's action directory records which plugin made it, and never folds into the same call made another way", () => logOf("delegated", (_home, log) => {
+test("W5-01-DELEGATE-07 S-42 a call made through a plugin's action directory records which plugin made it, and never folds into the same call made another way", () => logOf("delegated", (_home, log) => {
   const by = (delegated_by?: string) => callBy(null, { actor_id: "runtime:logged", audience: "workflow", ...(delegated_by ? { delegated_by } : {}) });
   const delegator = "io.molis.work.example.delegator", other = "io.molis.work.example.other";
   log.record(by(delegator), action("w.command"), { ok: true });

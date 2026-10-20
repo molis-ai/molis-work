@@ -136,7 +136,7 @@ export interface ActionExecutionContext extends ActionCallContext {
   readonly beforeEffect: () => Promise<void>;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
    * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
-   * the targets under that audience on this caller's behalf (the plugin action directory, S-41). Every other check is the same, and the guard still grants nothing. */
+   * the targets under that audience on this caller's behalf (the plugin action directory, S-42). Every other check is the same, and the guard still grants nothing. */
   readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;

@@ -399,7 +399,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* ─── Rendering, updated in place so reading and focus are never disturbed ─ */
-  const nearBottom = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+  let follow = null; const follower = () => follow ||= window.molisFollow?.(thread, { onChange: () => paintJump() }), nearBottom = () => follower()?.state !== "detached";
   const keyed = (parent, attribute, key, create) => {
     let node = [...parent.children].find((child) => child.getAttribute(attribute) === key);
     if (!node) { node = create(); node.setAttribute(attribute, key); parent.append(node); }
@@ -1134,7 +1134,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!node) return;
     if (!spacious() && drawerOpen) { drawerOpen = false; paintLayout(); }
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
+    follower()?.release(); thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
     // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
@@ -1315,7 +1315,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!jump) return;
     if (unseen && !nearBottom()) {
       jump.textContent = "↓ " + L("新消息");
-      jump.onclick = () => { unseen = false; thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" }); }; jump.hidden = false; return;
+      jump.onclick = () => { unseen = false; follower()?.toLatest(); paintJump(); }; jump.hidden = false; return;
     }
     unseen = false; jump.hidden = true;
   };
@@ -1355,8 +1355,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     emptyList.replaceChildren(...parts);
   }
   const render = () => {
-    const stick = nearBottom();
-    const before = thread.scrollHeight;
+    const stick = nearBottom(), before = thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
@@ -1441,7 +1440,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       thread.append(box);
     }
     paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
-    if (stick) thread.scrollTop = thread.scrollHeight; else if (thread.scrollHeight > before + 4) unseen = true;
+    if (stick) follower() ? follow.pin() : thread.scrollTop = thread.scrollHeight; else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
 

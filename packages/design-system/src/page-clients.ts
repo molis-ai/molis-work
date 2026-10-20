@@ -21,3 +21,5 @@ export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-te
 export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-client.js", import.meta.url), "utf8").trim();
 /** Roving focus in tabs, radios, toolbars, menus and listboxes (`browser/roving-focus.ts`, VUX-28). */
 export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-focus-client.js", import.meta.url), "utf8").trim();
+/** A floating `<details>` closes on Escape and on a press outside (`browser/floating-details.ts`, VUX-29). */
+export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();

@@ -235,13 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 22, roving focus (VUX-28).
-// +3,060 B of workbench.js: the one keyboard program for tabs, radios, toolbars, menus and listboxes (3,447 B minified: arrows by
-// orientation and writing direction, Home/End, one tab stop kept right as items come and go, scrolling only the item's own
-// strip). Tried first: the tab menu's own copy of the same arrows is deleted (−387 B); the other pages' handlers that also
-// choose on arrow or own more keys stay. Spent once from exactly the text-wrap slice's budget (#900).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 23, layers (VUX-29).
+// +275 B of workbench.js: a floating <details> closes on Escape (innermost, focus to its summary) and on a press outside, and
+// is marked as a layer while open (802 B minified). Tried first: the workbench's own Escape and outside-press closing for the
+// project, account, Feed source and plugin "more" menus is deleted (−527 B); only "close once something is chosen" stays.
+// Spent once from exactly the roving-focus slice's budget (#902).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1158426, 1161486],
+  "/assets/molis-work-workbench.js": [1161486, 1161761],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -707,6 +707,8 @@ for (const [asset, old] of [
   // The text-wrap allowances (#900, VUX-04) are spent.
   ["/assets/molis-work-workbench.js", 1158399], ["/assets/molis-work-workbench.css", 1607761], ["/assets/molis-work-settings.css", 991786],
   ["/assets/molis-work-arrival.css", 702081],
+  // The roving-focus allowance (#902, VUX-28) is spent.
+  ["/assets/molis-work-workbench.js", 1158426],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

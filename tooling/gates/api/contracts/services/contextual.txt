@@ -94,6 +94,8 @@ export interface ContextualCandidate {
     readonly scope?: "object";
     readonly origin?: "subject" | "intake" | "attach";
     readonly position?: SurfaceLandingPosition;
+    readonly always_card?: true;
+    readonly own?: true;
 }
 
 export interface ContextualDraft {

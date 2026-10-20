@@ -486,5 +486,6 @@ function inferenceClient(initialize: () => Promise<void>, current: () => Awaited
 function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<PrologueNodeAdapterOptions["checks"]> {
   const home = options.homeDirectory ?? resolveConfiguredHome();
   return { directoryAuthorized: async (project, directory) => (await workspaceGrants(options, project)).some(entry => entry.realpath_verified && entry.canonical_path === directory),
+    workspaceAt: async (project, directory) => (await workspaceGrants(options, project)).find(entry => entry.realpath_verified && entry.canonical_path === directory)?.workspace_id,
     owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
 }

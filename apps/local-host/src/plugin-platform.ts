@@ -34,6 +34,7 @@ import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 
 /**
@@ -49,6 +50,8 @@ import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEn
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
+  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  readonly name?: string;
 };
 
 /**
@@ -128,6 +131,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   const executor = new PluginHostExecutor({
     providerFor,
     databaseFor: identity.databaseFor,
+    projectLibrary: projectLibraryOf(options.db),
     filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
@@ -227,4 +231,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       return report;
     },
   };
+}
+
+/**
+ * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
+ */
+function projectLibraryOf(db: PluginPlatformDatabase): ProjectLibrary | null {
+  return typeof db.name === "string" && typeof db.inTransaction === "boolean" ? { db, path: db.name } : null;
 }

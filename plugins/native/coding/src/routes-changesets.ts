@@ -2,7 +2,7 @@ import { codingArtifacts, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE } from "./ar
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { runGoalContext } from "./goal-context.js";
-import { materialSelection } from "./materials.js";
+import { artifactReferenceOf } from "./materials.js";
 import { CODING_COMMIT_DRAFT } from "./prompts.js";
 import { codingReportSteps } from "./report-steps.js";
 import { codingReportPreview, codingReportPublication, codingReportReference, createCodingExecutionReport, readCodingExecutionReport } from "./report.js";
@@ -58,7 +58,7 @@ const reportOutput = (a: CodingActivation, write: boolean) => a.route(write ? "c
   const outputs = a.context.services!.outputs!;
   if (write) {
     const body = bodyOf(request);
-    const expected = body.expected_reference === null ? null : materialSelection([body.expected_reference])[0]!;
+    const expected = body.expected_reference === null ? null : artifactReferenceOf(body.expected_reference);
     outputs.select({ port: "report", reference: saved.reference, expected_reference: expected });
   }
   const current = outputs.reference("report");
@@ -98,7 +98,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.changeset-output", async (request, _api, execution) => {
       const record = selected(a, request, execution), saved = readCodingChangeSet(codingArtifacts(context), record.session_id, text(request.params.runId, "执行引用"));
       if (!saved) throw new Error("请先保存固定变更");
-      const body = bodyOf(request), expected = body.expected_reference === null ? null : materialSelection([body.expected_reference])[0]!;
+      const body = bodyOf(request), expected = body.expected_reference === null ? null : artifactReferenceOf(body.expected_reference);
       context.services!.outputs!.select({ port: "changeset", reference: saved.reference, expected_reference: expected });
       return { ...saved, output: context.services!.outputs!.reference("changeset") };
     });

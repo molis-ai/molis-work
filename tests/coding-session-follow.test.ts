@@ -34,6 +34,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input, options?: { signal?: AbortSignal }): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       if (definition.capability_id === agent.startRun.capability_id) {
         if (mode === "cancel-receipt") controller.abort(new ActionError("actions.cancelled", "original call cancelled after Run acceptance"));

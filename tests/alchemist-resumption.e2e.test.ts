@@ -58,8 +58,14 @@ test("W5-01-ALC-RES08: restarted UI confirms safe continuation once and explains
   await evaluate("document.querySelector('[data-alc-submit]').click();window.releaseResume();");
   await waitFor("!document.querySelector('[data-alc-dialog]').open");
   assert.equal(await evaluate("window.resumePosts"), 1);
-  const job = await (await fetch(`${origin}/projects/${projectId}/api/alchemist/studio/api/v1/runs/${ids.jobId}/events`)).text();
-  assert.match(job, /completed/);
+  // The continuation view carries the job's status (there is no event-stream route); a finished job reports it with `canContinue: false`.
+  const continuation = `${origin}/projects/${projectId}/api/alchemist/studio/api/v1/runs/${ids.jobId}/continuation`;
+  let status = "";
+  for (let attempt = 0; attempt < 100 && status !== "completed"; attempt++) {
+    status = ((await (await fetch(continuation)).json()) as { status: string }).status;
+    if (status !== "completed") await new Promise(resolve => setTimeout(resolve, 100));
+  }
+  assert.equal(status, "completed");
   await click('[data-alc-collection="ideas"]'); await click(`[data-alchemist-id="${ids.ideaId}"]`);
   await waitFor("!!document.querySelector('[data-alc-action=\"market\"]')");
   await click('[data-alc-action="market"]');

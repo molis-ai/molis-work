@@ -8,7 +8,7 @@
 
 ## 一次典型调用
 
-Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。快照带上本机 Agent 状态和整张 Recipe 表，动作栏按选中材料挑该用的动作。插件不写项目 Goal。在项目内可预览并确认「保存到项目材料」：Host 将当前完整文字发布为 `shelf.text-material.v1`，保留原 Shelf 来源和实际内容指纹。重复保存未变正文复用版本，编辑产生新版本；个人架子的编辑、隐藏或移除不改项目里的旧版本。PDF/图片先使用已有提取动作转成文字。
+Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` 匹配，Host 注入 admit / job / file。快照带上本机 Agent 状态和整张 Recipe 表，动作栏按选中材料挑该用的动作。插件不写项目 Goal。在项目内可预览并确认「存到项目资料」：Host 把当前完整文字存成项目成果库里的一份导入文档（`apps/local-host/src/shelf-actions.ts` 的 `saveShelfToProject`），项目里的 Agent 都能经项目资料（`knowledge.*`）找到，人也能在输入框的项目资料选择器里选它。重复保存未变正文复用版本，编辑产生新版本；个人架子的编辑、隐藏或移除不改项目里存下的那一份。PDF/图片先使用已有提取动作转成文字。
 
 ## 从哪里读代码
 
@@ -27,7 +27,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 
 ## 接入与边界
 
-不依赖 Goals / Artifacts 实现。交给项目的文字材料是 Shelf 的过程项（`shelf.text-material.v1`），由 Host 注入的公开端口写入；全局 Shelf 未绑定项目时不能发布；个人副本与 UI 仍按 native 方式装配；项目材料输出由 `createShelfPlugin` 在正式 Runtime 中启动，使用原 grants 与持久连线服务。Coding 声明消费该材料类型，经原授权读取精确版本。保存固定版本后可明确「设为材料输出」，默认连到 Coding 的 materials 输入。保存不自动切换输出，输出切换不改已有会话选择；旧确认不能覆盖后来选择，跨项目、归档或非自身材料不能设为输出。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
+不依赖 Goals / Artifacts 实现。存进项目的文字是项目里的导入文档，由 Host 以调用者身份写入；全局 Shelf 未绑定项目时不能保存；个人副本与 UI 仍按 native 方式装配；接收 Coding 成果由 `createShelfPlugin` 在正式 Runtime 中启动，使用原 grants 与持久连线服务。样式不吃 Coss `interaction-texture`，新确认入口使用共享控件。
 
 项目内通过「更多 → 接收项目成果」接收 Coding 固定报告或固定变更。`coding-report` / `coding-changeset` 可选输入只提供候选，用户查看完整正文并明确接收后才创建个人副本；项目其他已保存成果也可选择。Host 校验生产者与固定身份，提交时重读原对象并核对预览指纹，浏览器不能提交替代正文。副本保存原项目、精确版本与内容指纹，提供「查看原固定成果」；再次接收同一版本复用已有副本并保留编辑。归档或不可用来源拒绝新接收，已有副本独立保留。之后保存项目材料仍携带原来源，不自动执行或验收 Goal。
 
@@ -38,7 +38,7 @@ Host 把架子快照交给 UI contribution；HTTP 路由表拥有 `/api/shelf` �
 ```bash
 pnpm --filter @molis-ai/molis-work-plugin-shelf typecheck
 pnpm --filter @molis-ai/molis-work-plugin-shelf build
-pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-plugin.e2e.test.ts
+pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-plugin.e2e.test.ts
 ```
 
 ## 开发要求
@@ -55,7 +55,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-coding-materials-http.test.
   - 旧确认不能覆盖后来的选择；跨项目、已归档或非自身的材料不能设为输出。
   - URL 入库和剪贴板转材料必须将 Action signal / beforeEffect 传到 Module；抓取后复查再保存，源剪贴板已删除时不能生成迟到材料。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`，声明在 Shelf 模块 `modules/shelf/src/errors.ts`，因为模块、本插件和 Host 的 AI 文件都用它）；状态只由 kind 推出，本插件没有错误类和状态表。失败的任务随错误带回整份置物架快照（`snapshot` 在响应体顶层，紧挨 `error` 和 `code`），面板据此重画那一行失败记录。生成动作没有可用文字模型时，目录里写的是平台的 `actions.connection_required`（和 Jelly、Todo、Form、Dataset 一样），不再是 `shelf.no_model`；任务已经开始后才发现没有模型选择，仍抛 `shelf.no_model`（409）。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-coding-materials-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/plugin-host-services.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-project-knowledge-http.test.ts tests/shelf-project-results-http.test.ts tests/shelf-terminal-recovery.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/plugin-host-services.test.ts`
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/shelf-plugin.e2e.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../../docs/modules/shelf.md)、[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

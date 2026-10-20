@@ -3,8 +3,10 @@ import { readCodingChangeSet } from "./changeset.js";
 import { DELEGATION_ENDED, MAX_DELEGATION_HOPS } from "./cooperation.js";
 import { dispatchCodingDelegation } from "./delegation-dispatch.js";
 import { asAttachment, isDelegation } from "./delegation-view.js";
-import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
-import { type Capabilities, type CodingActivation, selected, sessionTitle, sessionOutputs, delegationView } from "./route-activation.js";
+import { CODING_MATERIALS_MAX, materialArtifact, materialSelection, resolveMaterials, savedMaterials, type CodingMaterial } from "./materials.js";
+import { codingActionControl } from "./route-entry.js";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { type Capabilities, type CodingActivation, selected, sessionOutputs, delegationView } from "./route-activation.js";
 import { bodyOf } from "./route-selections.js";
 import { roundReport } from "./routes-changesets.js";
 import type { CodingExecutionPorts } from "./routes.js";
@@ -74,7 +76,7 @@ const ROUTES: RouteMaker[] = [
       const outgoing = letters.filter(letter => isDelegation(letter) && letter.from_session === mine).reverse().map(letter => delegationView(a, execution, letter, letters));
       const received = letters.filter(letter => isDelegation(letter) && letter.to_session === mine).at(-1);
       const incoming = received ? delegationView(a, execution, received, letters) : null;
-      const referenced = [...new Set(savedMaterials(context, record.session_id).flatMap(ref => /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
+      const referenced = [...new Set(savedMaterials(context, record.session_id).map(materialArtifact).flatMap(ref => ref && /^coding-(report|changeset|plan):/.test(ref.artifact_id) ? [decodeURIComponent(ref.artifact_id.split(":")[1]!)] : []))]
         .filter(id => id !== record.session_id);
       const outputsBySession = new Map<string, Array<{ reference: { artifact_id: string; version: number }; kind: string }>>();
       for (const output of sessionOutputs(execution)) (outputsBySession.get(output.session_id) ?? outputsBySession.set(output.session_id, []).get(output.session_id)!).push({ reference: output.reference, kind: output.reference.artifact_id.split(":")[0]!.replace("coding-", "") });
@@ -93,10 +95,9 @@ const ROUTES: RouteMaker[] = [
     const { context, ports, route } = a;
     return route("coding.delegate", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (record.runtime_id !== "prologue") throw new Error("委派经 Prologue 的会话间通信送达，这个会话用的是别的运行时");
       const task = text(body.task, "委派的任务", 20_000), title = text(body.title ?? codingSessionTitleFrom(task), "委派标题", 80);
       const materials = materialSelection(body.materials ?? []);
-      resolveMaterials(context, materials, sessionTitle(a, execution));
+      await resolveMaterials(context, materials, codingActionControl(beforeWrite));
       const mine = await runtimeSessionOf(a, record, api!, execution, request.actor_id);
       // How far the work has been passed on: one more than the delegation this session was created for.
       const letters = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);
@@ -187,19 +188,21 @@ const ROUTES: RouteMaker[] = [
         await on(letter.message_id, "record", { event: "delivery-rejected", note: reason, attachments: handed });
       } else {
         if (!delivery.artifact) throw new Error("这次交付没有带上固定成果");
-        resolveMaterials(context, [delivery.artifact], sessionTitle(a, execution));
+        // The delivered fixed version, read the way every material is: through project knowledge.
+        const delivered: CodingMaterial = { kind: "artifact", id: artifactSubjectId(delivery.artifact), title: delivery.title || "交付的成果" };
+        await resolveMaterials(context, [delivered], codingActionControl(beforeWrite));
         await beforeWrite(); beforeWrite.assert_current();
         if (busy.has(record.session_id)) throw new Error("这个会话正在提交任务或收下交付");
         busy.add(record.session_id);
         try {
         const saved = savedMaterials(context, record.session_id);
-        const included = saved.some(ref => ref.artifact_id === delivery.artifact!.artifact_id && ref.version === delivery.artifact!.version);
-        if (!included && saved.length >= 30) throw new Error("下一轮材料已达到 30 项；请先移除一项，再收下这次交付");
+        const included = saved.some(material => material.kind === delivered.kind && material.id === delivered.id);
+        if (!included && saved.length >= CODING_MATERIALS_MAX) throw new Error(`下一轮材料已达到 ${CODING_MATERIALS_MAX} 项；请先移除一项，再收下这次交付`);
         await on(reply.message_id, "accept"); await on(reply.message_id, "complete");
         await on(letter.message_id, "complete", { event: "delivery-accepted", attachments: handed });
         await beforeWrite(); beforeWrite.assert_current();
         if (!included)
-          context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivery.artifact]));
+          context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify([...saved, delivered]));
         } finally { busy.delete(record.session_id); }
       }
       const now = await api!.invoke(agent.readMessages, [record.runtime_id, mine]);

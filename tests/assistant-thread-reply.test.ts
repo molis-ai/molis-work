@@ -10,7 +10,7 @@ import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnect
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { endingReviewReply } from "./fixtures/ending-review.js";
+import { asideReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organize.js";
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
@@ -24,7 +24,7 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
   const model = createServer(async (req, res) => {
     let raw = ""; for await (const chunk of req) raw += chunk;
     // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
-    const review = endingReviewReply(raw);
+    const review = asideReply(raw);
     if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed(review)); return; }
     if (race === "stop-post-start-reader" && armed) { pending.push(res); return; }
     res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed("回复仍只属于原评论"));

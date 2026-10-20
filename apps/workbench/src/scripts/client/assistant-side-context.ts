@@ -146,3 +146,66 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
   document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
   return { paint: surround };
 }`;
+
+/**
+ * The Assistant's 用量 (VUX-11): the context window, the latest round's tokens, cache, cost and the account's quota are told
+ * apart, each from the runtime's own report for that round (`round.usage`, `round.model`), never added up or guessed.
+ * - 上下文窗口: the latest call's prompt against the window the round was packed against, with the model and when; a share
+ *   is drawn only when both are known. An estimate says so; a field the runtime left unknown reads 暂不可用.
+ * - 本轮: input and output, then cache read and write and reasoning when reported. Cost only as the runtime reported it.
+ * - The account's quota and reset have no source here, so they read 暂不可用.
+ * - 这项工作: the work's own total and its cap, as before.
+ */
+export const ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT = String.raw`({ L, el, progress, api, toast, box, current, adopt }) => {
+  const number = (value) => Number(value).toLocaleString("en-US");
+  const MARK = { estimated: "估算", partial: "部分", "partial-estimated": "部分估算" };
+  const tag = (coverage) => MARK[coverage] ? "（" + L(MARK[coverage]) + "）" : "", marked = (value, coverage) => coverage === "unknown" ? L("暂不可用") : number(value) + tag(coverage);
+  const row = (label, value, muted) => { const line = el("p", "assistant-usage-row" + (muted ? " is-muted" : "")); line.append(el("span", "", label), el("span", "mw-num", value)); return line; };
+  const section = (title, ...rows) => { const part = el("div", "assistant-usage-part"); part.append(el("p", "assistant-block-sub", title), ...rows.filter(Boolean)); return part; };
+  return { paint(work) {
+    const node = box(), view = current();
+    if (!node) return;
+    const usage = work && view && view.usage ? view.usage : null, round = work && view ? [...view.rounds].reverse().find((one) => one.usage) || null : null;
+    const signature = JSON.stringify([work && work.work_id, usage, round && [round.run_id, round.usage, round.model, round.ended_at]]);
+    if (node.dataset.signature === signature) return;
+    const wasOpen = node.querySelector("details")?.open;
+    node.dataset.signature = signature;
+    const over = Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
+    node.hidden = !usage && !round;
+    if (node.hidden) { node.replaceChildren(); return; }
+    const details = el("details", "assistant-usage");
+    details.open = wasOpen === undefined ? over : wasOpen || over;
+    details.append(el("summary", "", L("用量") + (usage ? " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + number(usage.budget_tokens) : "") : "") + (over ? " · " + L("已到上限") : "")));
+    if (round) {
+      const tokens = round.usage.tokens, coverage = round.usage.coverage || {}, model = round.model, context = round.usage.context, windowSize = model && model.window_tokens;
+      const used = context && context.coverage !== "unknown" ? context.tokens : null;
+      const where = [model ? (model.now ? model.model_id + " → " + model.now : model.model_id) : "", round.ended_at ? L("更新于") + " " + new Date(round.ended_at).toLocaleTimeString() : L("进行中")].filter(Boolean).join(" · ");
+      details.append(section(L("上下文窗口"), used !== null && windowSize ? progress(Math.min(used, windowSize), windowSize, L("上下文窗口")) : null,
+        row(L("已用"), used === null ? L("暂不可用") : marked(used, context.coverage) + (windowSize ? " / " + number(windowSize) + " · " + Math.min(100, Math.round(used / windowSize * 100)) + "%" : " · " + L("窗口大小暂不可用"))),
+        where ? el("p", "assistant-material-origin", where) : null));
+      details.append(section(L("本轮"), row(L("输入"), marked(tokens.input, coverage.input)), row(L("输出"), marked(tokens.output, coverage.output)),
+        tokens.cached_input ? row(L("缓存读取"), marked(tokens.cached_input, coverage.cached_input)) : null, tokens.cache_creation ? row(L("缓存写入"), marked(tokens.cache_creation, coverage.cache_creation)) : null,
+        tokens.reasoning ? row(L("推理"), number(tokens.reasoning)) : null,
+        row(L("费用"), typeof round.usage.cost_usd === "number" && coverage.cost_usd !== "unknown" ? "$" + round.usage.cost_usd.toFixed(4) + tag(coverage.cost_usd) : L("暂不可用"), typeof round.usage.cost_usd !== "number"),
+        round.usage.unavailable_reason ? el("p", "assistant-material-origin", round.usage.unavailable_reason) : null));
+      details.append(section(L("账户额度"), row(L("额度与重置"), L("暂不可用"), true)));
+    }
+    if (usage && usage.budget_of) details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));
+    else if (usage) {
+      const form = el("form", "assistant-usage-form");
+      const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";
+      field.placeholder = L("不单独设限"); field.value = usage.budget_tokens !== null ? String(usage.budget_tokens) : "";
+      field.setAttribute("aria-label", L("这项工作的用量上限（tokens，含子任务）"));
+      const save = el("button", "assistant-side-action", L("保存上限")); save.type = "submit";
+      form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault(); save.disabled = true;
+        try { adopt(await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) })); }
+        catch (error) { toast(error); }
+        finally { save.disabled = false; }
+      });
+      details.append(section(L("这项工作") + " · " + number(usage.rounds) + " " + L("轮"), form));
+    }
+    node.replaceChildren(details);
+  } };
+}`;

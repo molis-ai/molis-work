@@ -10,6 +10,8 @@ import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/
 import { observeGitOperations } from "../apps/local-host/dist/git-operation-notifications.js";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 
 const FILES = "io.molis.work.files", GIT = "io.molis.work.git", EVENT = `${GIT}.operation-updated`;
 test("committed SDK receipts notify real project consumers once; history, other projects and stopped plugins do not", { timeout: 60_000 }, async () => {
@@ -81,5 +83,37 @@ test("committed SDK receipts notify real project consumers once; history, other 
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);await adapter.close();store.close();await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a settled operation reaches Git even when another installation's action settled it: the Host delivers it outside every action", { timeout: 60_000 }, async () => {
+  const root = await mkdtemp(join(tmpdir(), "workspace-notifications-scope-")), file = join(root, "board.db");
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  let settle: ((event: GitOperationUpdate) => void) | undefined, armed = false;
+  const failures: unknown[] = [], update: GitOperationUpdate = { workspace_id: "inside", operation_id: "inside-files", outcome: "succeeded" };
+  const browsing = (definition: { capability_id: string }) => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id;
+  const ports = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+    observeGitOperations: (listener: (event: GitOperationUpdate) => void) => { settle = listener; return () => { settle = undefined; }; },
+    capabilities: {
+      availability: (definition: { capability_id: string }) => browsing(definition) ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
+      async invoke<Input, Output>(definition: { capability_id: string }, _input: Input): Promise<Output> {
+        if (!browsing(definition)) throw new Error(`Unexpected capability ${definition.capability_id}`);
+        // Host work a Files action set off settles a Git operation while that action is still running.
+        if (armed) { armed = false; try { settle!(update); } catch (error) { failures.push(error); } }
+        return { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true } as Output;
+      } } };
+  try {
+    const platform = (await ensureProjectPlugins(ports)).platform!;
+    await platform.wiring.drain();
+    armed = true;
+    const read = await platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "web-user", query: {} });
+    assert.equal(read?.status, 200);
+    assert.equal(armed, false, "the Files action asked the Host for its workspace");
+    await platform.events.drain();
+    assert.deepEqual(failures, [], "Git's publication answers to Git's installation, not to the Files action it landed in");
+    assert.deepEqual(platform.events.log(DEMO_PROJECT_ID).filter(event => event.event_type_id === EVENT).map(event => event.payload), [update]);
+  } finally {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(root, { recursive: true, force: true });
   }
 });

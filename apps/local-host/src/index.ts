@@ -15,6 +15,7 @@ export type { MolisWorkRuntimeContextHost } from "./runtime-context.js";
 export { prepareLocalProjectStorage } from "./project-storage.js";
 export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
+export { localWebActionContext } from "./local-web-actions.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";

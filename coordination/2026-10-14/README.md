@@ -2124,3 +2124,7 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - batch-1020-2 只重跑失败的分片。
     - #847 交 ⑩ 查根因。⑤ 的判断：用例借宿主的 completeText 钩子造失败，Pages 迁进 Runtime 后改走 `complete`，钩子不生效了。只改测试的话 ⑩ 修，要动产品代码就交给 ③。
     - CI 改动 PR 合入前，⑤ 要看到用户本人的批准原话（在 PR 里或聊天里），① 转述的不算。
+
+- **08:05 UTC CI 改动开成 #862**：用户给 gh 加了 `workflow` 权限（第三次授权成功：第一次被重启打断，第二次 Enter 没传到终端，第三次换成不用按 Enter 的写法）。① 推了 `ci/integration-full-suite-all-failures`，开 #862，已交 ⑤。只改 CI，按 §6 只需要 Verify，可以 merge-only。改的是门禁，合入前要用户本人在 PR 或聊天里确认。
+  - ⑩ 报：#847 已修（`f102c8eff`，推到 `migrate/pages-runtime`），可以进下一批。
+  - ③ 报：S8 第一步和 BL-370 的子代理还在做，没提交；L1b 出来后，③ 先 merge 进 S8 再派第二步。推送一次只推一个分支。

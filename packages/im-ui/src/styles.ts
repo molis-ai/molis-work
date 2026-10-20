@@ -1,9 +1,9 @@
-import { COPY_FEEDBACK_STYLES, FOLLOW_STYLES, FONT_STACK, renderShellTokens } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_STYLES, FOLLOW_STYLES, FONT_STACK, SR_ONLY_STYLES, renderShellTokens } from "@molis-ai/molis-work-design-system";
 
 /** Conversation on the Soft Workbench tokens: neutral typography, compact topic tags, no dashboard chrome. */
 export const IM_STYLES = String.raw`
 ${FOLLOW_STYLES}
-.mw-sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+${SR_ONLY_STYLES}
 :root{color-scheme:light;${renderShellTokens("light")}--im-bg:var(--paper);--im-panel:var(--surface-soft);--im-ink:var(--ink);--im-muted:var(--muted);--im-line:var(--line);--im-hover:var(--nav-hover);--im-wash:var(--rail);--im-accent:var(--action);--im-on-accent:var(--action-ink);--im-error:var(--red);--im-font:${FONT_STACK}}
 [data-resolved-theme=dark]{color-scheme:dark;${renderShellTokens("dark")}}
 *{box-sizing:border-box}body{margin:0;background:var(--im-bg);color:var(--im-ink);font:14px/1.65 var(--im-font);-webkit-font-smoothing:antialiased}button,input,textarea{font:inherit;color:inherit}button{cursor:pointer;border:0;background:none;touch-action:manipulation}button:disabled{cursor:default;opacity:.45}button:hover:not(:disabled){background:var(--im-hover)}button:focus-visible,input:focus-visible,textarea:focus-visible,summary:focus-visible,[tabindex]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}input::placeholder,textarea::placeholder{color:var(--im-muted);opacity:1}textarea{resize:none;caret-color:var(--im-ink)}::selection{background:var(--accent-soft);color:var(--ink)}[hidden]{display:none!important}svg{width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}h1,h2,p{margin:0}h1{font-size:24px;font-weight:600;line-height:1.4;letter-spacing:-.025em}h2{font-size:17px;font-weight:600}small{font-size:12px}.im-muted{color:var(--im-muted)}

@@ -19,9 +19,7 @@ import {
   PAGES_PROJECT_PLUGIN_ID,
   PAGES_STYLES,
   PAGES_TEMPLATES,
-  PagesPluginRouteTable,
   convertedBlocks,
-  createPagesRouteHandlers,
   deleteBlock,
   deleteRow,
   deleteSpan,
@@ -76,6 +74,7 @@ import {
   moveSpan,
   nudgeSpan,
   openPagesStore,
+  pagesActions,
   addTableColumn,
   moveTableColumn,
   moveTableEdge,
@@ -200,14 +199,6 @@ import {
 
 const PROJECT = "project-pages";
 const OTHER = "project-other";
-
-function projectQuery(): URLSearchParams {
-  return new URLSearchParams({ project_id: PROJECT });
-}
-
-function projectBody(body: Record<string, unknown> = {}): Record<string, unknown> {
-  return { project_id: PROJECT, ...body };
-}
 
 function saveFunctionSource(script: string): string {
   const start = script.indexOf("const save = async");
@@ -738,9 +729,8 @@ test("工作台客户端保存不重挂内核", () => {
 test("Pages：新建、改标题和正文、重开还在", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/pages", query: projectQuery(), body: projectBody({ title: "周记" }) });
-    const document = (created?.body as { document: { id: string; project_id: string; title: string; body: { type: string } } }).document;
+    const { actions } = pagesTestPorts(store, PROJECT);
+    const { document } = await actions.invoke(pagesActions.create, { title: "周记" });
     assert.equal(document.project_id, PROJECT);
     assert.equal(document.title, "周记");
     assert.equal(document.body.type, "doc");
@@ -751,12 +741,7 @@ test("Pages：新建、改标题和正文、重开还在", async () => {
         content: [{ type: "text", marks: [{ type: "strong" }], text: "加粗一段" }],
       }],
     };
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ title: "周记 · 改过", body }),
-    });
+    await actions.invoke(pagesActions.update, { id: document.id, title: "周记 · 改过", body });
     store.close();
 
     const reopened = openPagesStore(home);
@@ -776,12 +761,10 @@ test("文档按项目隔离，缺项目拒绝，跨项目找不到", async () =>
     assert.deepEqual(store.list(PROJECT).map((item) => item.title), ["项目甲"]);
     assert.deepEqual(store.list(OTHER).map((item) => item.title), ["项目乙"]);
     assert.throws(() => store.get(pageA.id, OTHER));
-    await assert.rejects(() => new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT))).handle({
-      method: "GET",
-      pathname: "/api/pages",
-      query: new URLSearchParams({ project_id: OTHER }),
-      body: {},
-    }), { code: "actions.scope_mismatch" });
+    // The project a caller works in is the bound one: it reads its own page and gets the other project's page as missing.
+    const { actions } = pagesTestPorts(store, PROJECT);
+    assert.deepEqual((await actions.invoke(pagesActions.list, {})).documents.map((item) => item.title), ["项目甲"]);
+    await assert.rejects(() => actions.invoke(pagesActions.get, { id: store.list(OTHER)[0]!.id }), { code: "pages.not_found" });
     store.close();
   });
 });
@@ -5214,56 +5197,22 @@ test("WI3 块进 schema，十份模板都能被内核吃进去", () => {
   }
 });
 
-test("HTTP 能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
+test("动作能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    const templates = await routes.handle({ method: "GET", pathname: "/api/pages/templates", query: projectQuery(), body: {} });
-    assert.equal((templates?.body as { templates: Array<{ id: string }> }).templates.length, 10);
-    const created = await routes.handle({
-      method: "POST",
-      pathname: "/api/pages",
-      query: projectQuery(),
-      body: projectBody({ template_id: "weekly-report" }),
-    });
-    const document = (created?.body as { document: { id: string; title: string; starred: boolean } }).document;
+    const { actions } = pagesTestPorts(store, PROJECT);
+    assert.equal((await actions.invoke(pagesActions.templates, {})).templates.length, 10);
+    const { document } = await actions.invoke(pagesActions.create, { template_id: "weekly-report" });
     assert.equal(document.title, "周报");
-    const starred = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ starred: true }),
-    });
-    assert.equal((starred?.body as { document: { starred: boolean } }).document.starred, true);
-    const folder = await routes.handle({
-      method: "POST",
-      pathname: "/api/pages/folders",
-      query: projectQuery(),
-      body: projectBody({ title: "产品" }),
-    });
-    const folderId = (folder?.body as { folder: { id: string; title: string } }).folder.id;
-    assert.equal((folder?.body as { folder: { title: string } }).folder.title, "产品");
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/folders/${folderId}`,
-      query: projectQuery(),
-      body: projectBody({ title: "产品组" }),
-    });
-    const moved = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ folder_id: folderId }),
-    });
-    assert.equal((moved?.body as { document: { folder_id: string } }).document.folder_id, folderId);
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/folders/${folderId}/delete`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    const listed = await routes.handle({ method: "GET", pathname: "/api/pages", query: projectQuery(), body: {} });
-    const payload = listed?.body as { documents: Array<{ starred: boolean; folder_id: string }>; folders: unknown[] };
+    const { document: starred } = await actions.invoke(pagesActions.update, { id: document.id, starred: true });
+    assert.equal(starred.starred, true);
+    const { folder } = await actions.invoke(pagesActions.createFolder, { title: "产品" });
+    assert.equal(folder.title, "产品");
+    await actions.invoke(pagesActions.updateFolder, { id: folder.id, title: "产品组" });
+    const { document: moved } = await actions.invoke(pagesActions.update, { id: document.id, folder_id: folder.id });
+    assert.equal(moved.folder_id, folder.id);
+    await actions.invoke(pagesActions.deleteFolder, { id: folder.id });
+    const payload = await actions.invoke(pagesActions.list, {});
     assert.equal(payload.documents[0]?.starred, true);
     assert.equal(payload.documents[0]?.folder_id, "");
     assert.deepEqual(payload.folders, []);
@@ -5342,74 +5291,37 @@ test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发
       },
     });
     const published: Array<{ page_id: string; version: number; goal_id: string }> = [];
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT, {
+    const { actions } = pagesTestPorts(store, PROJECT, {
       completeText: async () => "先写目标，再写范围。",
       publishArtifact: (input) => {
         published.push({ page_id: input.page_id, version: input.version, goal_id: input.goal_id });
         return { artifact_id: "pages-" + input.page_id, version: input.version };
       },
-    })));
-    const linked = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-SHIP" }),
     });
-    assert.equal((linked?.body as { document: { goal_id: string } }).document.goal_id, "GOAL-SHIP");
-    const promoted = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/promote`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-SHIP" }),
-    });
-    const document = (promoted?.body as { document: { artifact_id: string; artifact_version: number } }).document;
+    const { document: linked } = await actions.invoke(pagesActions.update, { id: created.id, goal_id: "GOAL-SHIP" });
+    assert.equal(linked.goal_id, "GOAL-SHIP");
+    const { document } = await actions.invoke(pagesActions.promote, { id: created.id, goal_id: "GOAL-SHIP" });
     assert.equal(document.artifact_id, "pages-" + created.id);
     assert.equal(document.artifact_version, 1);
     assert.deepEqual(published[0], { page_id: created.id, version: 1, goal_id: "GOAL-SHIP" });
-    const again = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/promote`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    assert.equal((again?.body as { document: { artifact_version: number } }).document.artifact_version, 2);
-    const extracted = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/extract`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    const extractBody = extracted?.body as { cards: number; created: Array<{ title: string }> };
+    const { document: again } = await actions.invoke(pagesActions.promote, { id: created.id });
+    assert.equal(again.artifact_version, 2);
+    const extractBody = await actions.invoke(pagesActions.extract, { id: created.id });
     assert.equal(extractBody.cards, 1);
     assert.equal(extractBody.created.length, 1);
-    const extractedAgain = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/extract`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    assert.equal((extractedAgain?.body as { created: unknown[] }).created.length, 0);
+    const extractedAgain = await actions.invoke(pagesActions.extract, { id: created.id });
+    assert.equal(extractedAgain.created.length, 0);
     assert.equal(store.list(PROJECT).filter((item) => item.title.includes("完成")).length, 1);
-    const ai = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/ai`,
-      query: projectQuery(),
-      body: projectBody({ command: "outline", text: "先写目标再写范围" }),
-    });
-    assert.equal("stub" in (ai?.body as object), false);
-    assert.equal((ai?.body as { text: string }).text, "先写目标，再写范围。");
+    const ai = await actions.invoke(pagesActions.ai, { id: created.id, command: "outline", text: "先写目标再写范围" });
+    assert.equal("stub" in ai, false);
+    assert.equal(ai.text, "先写目标，再写范围。");
     store.close();
   });
   await withHome(async (home) => {
     const store = openPagesStore(home);
     const page = store.create({ project_id: PROJECT, title: "只挂" });
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    await assert.rejects(routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${page.id}/promote`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-ONLY" }),
-    }), { code: "pages.unavailable" });
+    const { actions } = pagesTestPorts(store, PROJECT);
+    await assert.rejects(actions.invoke(pagesActions.promote, { id: page.id, goal_id: "GOAL-ONLY" }), { code: "pages.unavailable" });
 
     assert.notEqual(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
     store.close();

@@ -243,10 +243,10 @@ const headErrors = (measured, budget, base) => {
 // fault of #861). Tried first: the island's own cards, stacks and blocks passed in, one counting helper for "{n}" strings
 // (−80 B), the island not growing (the 上下文 wrapper went). Spent once from exactly the 上下文 slice's budget (#871).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1138107, 1142662],
-  "/assets/molis-work-workbench.css": [1605394, 1605433],
-  "/assets/molis-work-settings.css": [991169, 991208],
-  "/assets/molis-work-arrival.css": [700755, 700794],
+  "/assets/molis-work-workbench.js": [1138483, 1143038],
+  "/assets/molis-work-workbench.css": [1605291, 1605330],
+  "/assets/molis-work-settings.css": [991066, 991105],
+  "/assets/molis-work-arrival.css": [700652, 700691],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

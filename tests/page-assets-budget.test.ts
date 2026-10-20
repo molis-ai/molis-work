@@ -680,22 +680,22 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
-  ["/assets/molis-work-arrival.css", 698519],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
   // The scroll-owner and side-group allowances (#861, VUX-26, VUX-08) are spent.
-  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604893], ["/assets/molis-work-settings.css", 990668],
-  ["/assets/molis-work-arrival.css", 700254],
+  ["/assets/molis-work-workbench.js", 1132686], ["/assets/molis-work-workbench.css", 1604785], ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-arrival.css", 700146],
   // The Coding scroll-owner allowance (#864, VUX-26) is spent.
   ["/assets/molis-work-workbench.js", 1134508],
   // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
-  ["/assets/molis-work-workbench.js", 1134763], ["/assets/molis-work-plugins/shelf.js", 75866],
+  ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
   ["/assets/molis-work-plugins/lingguang.js", 25265],
   // The show-more allowances (#868, VUX-08) are spent.
-  ["/assets/molis-work-workbench.js", 1134964], ["/assets/molis-work-workbench.css", 1605339], ["/assets/molis-work-settings.css", 991114],
-  ["/assets/molis-work-arrival.css", 700700],
+  ["/assets/molis-work-workbench.js", 1135021], ["/assets/molis-work-workbench.css", 1605196], ["/assets/molis-work-settings.css", 990971],
+  ["/assets/molis-work-arrival.css", 700557],
   // The 产出 split allowance (#869, VUX-08) is spent.
-  ["/assets/molis-work-workbench.js", 1135934],
+  ["/assets/molis-work-workbench.js", 1135978],
   // The 上下文 allowance (#871, VUX-08/09) is spent.
-  ["/assets/molis-work-workbench.js", 1136078],
+  ["/assets/molis-work-workbench.js", 1136122],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -713,10 +713,10 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 VUX-09 the 工作环境 and 连接与工具 allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1138107, 1142662],
-    "/assets/molis-work-workbench.css": [1605394, 1605433],
-    "/assets/molis-work-settings.css": [991169, 991208],
-    "/assets/molis-work-arrival.css": [700755, 700794],
+    "/assets/molis-work-workbench.js": [1138483, 1143038],
+    "/assets/molis-work-workbench.css": [1605291, 1605330],
+    "/assets/molis-work-settings.css": [991066, 991105],
+    "/assets/molis-work-arrival.css": [700652, 700691],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

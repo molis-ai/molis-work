@@ -120,7 +120,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
     }
     await server.web.post("/api/settings/connectors/methods/local/connect", { setup_id: authorization, environment: { SERVICE_KEY: "fixture-business-resource-key" } });
     let done = await reach(view => view.work.state === "completed" && view.rounds.length === (scenario === "read-only" ? 3 : 2), "actual business continuation");
-    const pages = () => server.web.get<{ documents: Array<{ id: string; title: string; body: unknown }> }>(prefix + "/api/pages");
+    const pages = () => server.web.get<{ documents: Array<{ id: string; title: string; body: unknown }> }>(prefix + "/api/plugins/io.molis.work.pages/pages");
     if (scenario === "recover") {
       assert.equal((await pages()).documents.length, 0, "the Pages owner refused the invalid body without a partial document");
       assert.ok(done.rounds.at(-1)?.activity.some(step => step.capability_id === "pages.create" && step.state === "failed"), "the failed save remains observable");
@@ -140,7 +140,7 @@ for (const scenario of ["save", "read-only", "recover"] as const) {
       assert.equal(saved.length, 1); assert.equal(saved[0]?.title, TITLE); assert.ok(JSON.stringify(saved[0]?.body).includes(SOURCE));
       const result = done.objects.find(object => object.relation === "result" && object.subject.kind === "pages_document");
       assert.equal(result?.subject.id, saved[0]?.id); assert.deepEqual(result?.open, { surface: "pages", id: saved[0]?.id });
-      const opened = await server.web.get<{ document: { body: unknown } }>(`${prefix}/api/pages/${result!.subject.id}`);
+      const opened = await server.web.get<{ document: { body: unknown } }>(`${prefix}/api/plugins/io.molis.work.pages/pages/${result!.subject.id}`);
       assert.ok(JSON.stringify(opened.document.body).includes(SOURCE), "the final result reference resolves to the actual owner's document");
     }
   });

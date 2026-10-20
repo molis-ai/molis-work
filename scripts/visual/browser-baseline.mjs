@@ -1,5 +1,5 @@
 // Measurement only: real production Host and workbench in headless Chrome, disposable seeded Home, no model or user data.
-// Run after pnpm build: node specs/visual-ui-experience/evidence/browser-baseline.mjs <result.json> [motion|automation]
+// Run after pnpm build: node scripts/visual/browser-baseline.mjs <result.json> [motion|automation]
 // `motion` hides navigator.webdriver so the product's motion runs as it does for a person; `automation` keeps the product's
 // automation rule (no motion). Each run is one process, one Home, one fresh Chrome profile.
 import assert from 'node:assert/strict';

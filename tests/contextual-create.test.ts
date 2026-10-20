@@ -55,12 +55,22 @@ test("W4-1 Q02/Q04/Q08: 记成待办 and 记下灵光 are creation entries, made
     await assert.rejects(undoCreated(OWNER, spark.undo_token!, actions), /别处修改/u);
     const edited = (await listed()).sparks.find(item => item.id === before.id);
     assert.equal(edited?.title, "改过的标题", "still there, as edited");
+    // W4-2-11: a replay returns the current record but its undo still names the first revision.
+    const replayed = await create("记下灵光", focus("c1"), "req-spark");
+    assert.equal(replayed.subject?.id, before.id); assert.ok(replayed.undo_token);
+    await assert.rejects(undoCreated(OWNER, replayed.undo_token, actions), (error: { code?: string }) => error.code === "lingguang.conflict");
+    assert.deepEqual((await listed()).sparks.find(item => item.id === before.id), edited, "the replayed undo preserves every field of the edited spark");
     await assert.rejects(undoCreated(OWNER, spark.undo_token!, actions), (error: Error & { code?: string }) => error.code === "contextual.stale", "spent once");
 
     // Unchanged: 撤销 takes it out of the list (the owner keeps the record).
     const second = await create("记下灵光", focus("c2", "也许可以让新人先看一遍历史讨论"), "req-spark-2");
     assert.deepEqual(await undoCreated(OWNER, second.undo_token!, actions), { undone: true });
     assert.equal((await listed()).sparks.some(item => item.id === second.subject!.id), false);
+    const unchanged = await create("记下灵光", focus("c2-replay", "先画出这条路"), "req-spark-replay");
+    const unchangedReplay = await create("记下灵光", focus("c2-replay", "先画出这条路"), "req-spark-replay");
+    assert.equal(unchangedReplay.subject?.id, unchanged.subject?.id);
+    assert.deepEqual(await undoCreated(OWNER, unchangedReplay.undo_token!, actions), { undone: true });
+    assert.equal((await listed()).sparks.some(item => item.id === unchanged.subject!.id), false, "an unedited replay still undoes its original creation");
 
     // 记成待办: the same, by Todo's own revert.
     const todo = await create("记成待办", focus("c3"), "req-todo");

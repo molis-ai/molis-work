@@ -1,13 +1,13 @@
 # 2026-10 独立 QA 与验收
 
-状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/004/005/006/007/008/019/020/022/023已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110在959上复验仍不通过，PG-006同片待修；产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
+状态：首轮独立验收报告已完成；七条线共942个编号均有判定、证据边界与SHA，新增QA-001～024，其中QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-021仍有启动次数证据说明余项。已知P1 #709原草稿路径已复验，已知P1 PG-110在959上复验仍不通过，PG-006同片待修；产品实走及三级用户验收仍有缺口，尚不满足最终完成标准，七条线均不能据此归档。
 
 验收编号：不适用（独立验收记录，判定的是各线 spec 的编号）。
 
 ## 1. 范围与基线
 
 - 初始被测 main：`b016513df6196ced8f12952d58268cc0dc278e07`。从 `origin/main` 新建 detached 工作树；每条线开始前重新 fetch 并固定该线 SHA，结论逐项标注。
-- 本次只测试、判定和写报告；仓库改动仅本文件及 `specs/README.md` 的索引。报告走文档草稿 PR；不修改实现、测试、其他 spec 或 BACKLOG，不合并、批准、关闭或入队任何 PR。
+- 本次只测试、判定和写报告；本QA提交仅改本文件及 `specs/README.md` 的索引。报告走文档草稿 PR；不修改实现、测试、其他 spec 或 BACKLOG，不合并、批准、关闭或入队任何 PR。
 - 机器：本次会话所在 macOS 26.6.2 / Darwin arm64，Node 25.9.0、pnpm 11.9.0（CI 使用 Node 24）；用户已确认它不是要求避开的开发 Mac，可以运行 QA。前六线测试并发1；防腐定向非浏览器文件并发最多2，浏览器并发1，构建与浏览器使用仓库机器槽位；本机不跑全量。
 - Home：每次动态验证显式设置 `MOLIS_WORK_HOME` 为新建临时目录；不读取或写入真实 Home，不连接 4207。清理前核对目录确为本次创建、不是软链，并确认服务进程已退出。只按 PID 停本次启动的进程；本轮运行用Home均已删除。
 - 模型：MiniMax-M3，Anthropic 兼容端点 `https://api.minimax.cn/anthropic`。经用户指示复用本机 appkey 的 minimax 项，在内存中复制到本次 QA 专用钥匙串项。运行时同一 Python 程序经 Security.framework 读取、仅以内存环境注入 `MINIMAX_API_KEY`；不输出明文密钥、不改钥匙串访问权限。用户后续允许一次性 Home 保存密文，见 §9。`security` 命令曾触发系统读取确认，已停止使用此方式；同一程序读取无需弹窗。
@@ -152,10 +152,10 @@ fetch固定main `3e50ed6ec2fc934aef1562a0e991fb3633dc39cf`，新建detached被�
 | 手册（23） | 12 | 10 | 0 | 1 | 0 | 不能：ADH-19～23开发者实作、Coding小跑与用户验收；QA-006/007已复验 |
 | Computer Use（15） | 1 | 10 | 0 | 4 | 0 | 不能：Helper三项权限及二十步真机、成本与实际裁剪/OCR；QA-008文档已复验 |
 | 回执（84） | 25 | 54 | 0 | 5 | 0 | 不能：QA-009～012、Coding模型/强杀/异常矩阵、R1与3e后续及阶段4～6 |
-| 情境（91） | 11 | 69 | 2 | 9 | 0 | 不能：QA-013～018、W1/W4后续、W5～W7及原生/完整状态矩阵；跨线多选另见QA-024 |
+| 情境（91） | 11 | 69 | 2 | 9 | 0 | 不能：QA-013～015/017/018、W1/W4后续、W5～W7及原生/完整状态矩阵；QA-016已复验，跨线多选另见QA-024 |
 | 防腐（636） | 400 | 218 | 5 | 13 | 0 | 不能：QA-021/024、已知P1 PG-110及同片PG-006、剩余迁移、同SHA全量及完整产品矩阵；QA-020已复验 |
 
-新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，在959生产网关复现仍不通过，修复#812仍未合入；PG-006名单是同片依赖，不能因安全集通过而关闭。QA-001/002/003/004/005/006/007/008/019/020/022/023已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
+新增问题共24项，均为P2/P3；没有新增P0/P1编号。本轮确认的网关安全缺口沿用已知PG-110。已知安全P1 PG-110沿用原编号，在959生产网关复现仍不通过，修复#812仍未合入；PG-006名单是同片依赖，不能因安全集通过而关闭。QA-001/002/003/004/005/006/007/008/016/019/020/022/023已复验，QA-020文档余项经E12复验，QA-021余项及其余修复状态见问题表；没有用户接受不修的记录。
 
 ## 4. 各线逐条验收
 
@@ -471,6 +471,20 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 
 同一临时Home先关闭再启动Host，Pages仍在。MiniMax-M3正式连接检查成功；“改得更简洁”未达到长度要求被拒，正文不变；“展开论述”产生可编辑候选，确认前原文不变，确认后插在第一段之后、原第二段保留，刷新仍在。第一段带到助理，真实回复“确认秋季发布计划”；选该回复，经Pages原选区预览，按Enter确认后仅替换第一段，再刷新保存。此路径贯通Pages、助理、情境及回执，未执行Coding/成果库全链。实际模型5/12次，0次额外Jev质量评测；不能称完整左右互动质量通过。服务按自建PID停；确认退出、核对目录非软链后删除Home及密文。Chrome临时视口已清除，localhost原125%缩放已恢复；截图标注按采集时实际CSS宽度，早期direct-first-Shelf图仅作首选格证据、不当1440布局证明。
 
+**E15：#831独立复验（2026-10-20 18:00 JST起）。** 执行SHA固定 `3e50ed6ec2fc934aef1562a0e991fb3633dc39cf`，新detached树、Node24.19.0。离线安装首次因缓存缺officeparser 8.1.1失败；用同一锁文件的frozen/prefer-offline复制安装补齐后完整构建通过，没有改源码、测试或锁文件。
+
+精确运行 `node scripts/run-tests.mjs tests/assistant-context-strip.e2e.test.ts tests/assistant-pick.test.ts tests/context-pick-result.e2e.test.ts tests/shelf-side-links.e2e.test.ts "--test-name-pattern=QA-016|QA-017|SHELF-LINK-03" --jobs 1 --browser-jobs 1 --verbose`，四文件各实际命中1项，4/4通过、0失败/跳过；日志 `.impeccable/qa/review/latest-e15-context.log`。完整命令、结果与边界见[本轮复验评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6287591650)。这是一级证据，未补二级computer use、1024/深色/英文完整矩阵，不据浏览器脚本成功上调三个可见行为标准的“部分通过”。
+
+- **QA-016原证据缺口已复验。** 1440/390均从普通输入框焦点经真实CDP Shift+Tab进入末尾chip，逐项到首枚再Tab回末枚；每站检查实际焦点次序、focus-visible、非零outline和按钮在行盒内，末枚另核整片完整可见、淡出方向与滚轮。仅起点focus，未直接focus终点。
+- **QA-017部分补齐，仍有余项。** 替身中可取消/冒泡点击确证标题、按钮、链接各执行一次且不被取消或拿起；真实结果卡确证一次请求含自己的Pages对象，真实拖选不拿起、卡身对照可拿起。但 `context-pick-result.e2e.test.ts:173` 的window捕获监听以preventDefault及stopImmediatePropagation接管side-open；实际侧栏/owner打开未执行。它证明“请求打开正确对象”，还不能证明原回归断言的“对象实际打开”。保留QA-017已修待复验，不认定产品打开失败。
+- **QA-018正常入口已复验，主区页签证据仍缺。** owner的AssistantStore写一条存值，经真实API查询、重载使铃铛自己出现、CDP点击打开指定Shelf条目、通知从API消失且铃铛收起；不再手派页面通知或强改hidden。另在全新Home对同一页面只读观察：测试 `shelf-side-links.e2e.test.ts:87` 的 `[data-tab-workspace] [role=tab]` 实际抓到29个Goal/Feed等内部控件（含隐藏面），可见标题栏则只有1个“项目首页”页签；真实页签位于 `[data-titlebar-tabs] [data-tab-id]`。因此:97的前后相等未证明真实页签集合/选中项不变。未复现页签被误改，沿原QA-018记录证据不足，不新增重复问题。
+- QA-018的“真实业务产生通知”未覆盖：现行SHELF-LINK-03写的是存值入口，生产due-reminder提供方只有Todo；本轮源码检索与开发方说明一致。开发方已在原报告分支登记BL-400（01bb9f1f7，尚未在main），作为未来业务闭环去处；它不覆盖上述现有主区页签断言缺口。BL-400文字仍描述修复前的手派/hidden步骤，本QA仅指出时效差异，不改他人BACKLOG。
+
+页签观察可复现：新临时Home用 `tests/fixtures/goal-browser.ts` 的openGoalBrowser打开示例项目，在 `/projects/<id>/` 对照上面两个选择器的元素文本、数量与位置；前者29、后者1且标题栏可见。通过fixture的after回调关闭Chrome/Host并删除该Home，没有改测试或页面状态。观察日志 `.impeccable/qa/review/latest-e15-tab-observation.log`；首次口头更新误数为28，以该日志核算29为准。核心缺口是观察对象不对，非数量阈值。
+
+本轮build、boundary、main merge-base health通过；lint退出1、705项，与E12在5160的722项按文件/规则（plugin另核消息）比较新增0、减少17，不称lint全绿。日志 `.impeccable/qa/review/latest-e15-{install,install-retry,build,boundary,health,lint,lint-comparison}.log`。测试与观察均使用新临时Home，结束后清理；真实模型上限0、实际0。没有重跑未受本批证据修复影响的全安全集或本机全量。三个复合可见行为标准仍部分，942项总计458/422/7/55不变。
+
+
 | 编号 | 判定 | 证据等级 | 证据与边界 | 问题编号／去处 | SHA |
 | --- | --- | --- | --- | --- | --- |
 | AC-P01 | 部分通过 | 一级 | K1候选与Dock同源；拖放生产链尚未交付 | W5 | fbc826b68 |
@@ -499,7 +513,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | Q09 | 未验证 | 一级（文审） | 批量提取卡尚未交付 | W4 F3 | fbc826b68 |
 | Q10 | 未验证 | 一级（文审） | 周报工作流接入及逐站幂等未交付 | W7 F13 | fbc826b68 |
 | AC-S01 | 不通过 | 一级、二级（KU） | 直接项目页首开Shelf；从首页进入项目却首开Issue | QA-013 | fbc826b68 |
-| AC-S02 | 部分通过 | 一级 | K3链接/搜索/侧栏模板、桌面bootstrap；未完整真实桌面入口 | QA-018；BL-014 | fbc826b68 |
+| AC-S02 | 部分通过 | 一级 | K3链接/搜索/侧栏模板、桌面bootstrap；E15补正常存值通知入口，主区页签保护证据与完整真实桌面入口仍缺 | QA-018；BL-014/400 | fbc826b68／3e50ed6ec |
 | AC-S03 | 部分通过 | 一级 | K3真实Shelf示例PDF和预览；未全走原生拖出/终端/Agent | 原生与完整状态未验 | fbc826b68 |
 | AC-S04 | 部分通过 | 一级 | K3 Shelf iframe左右选区及收起；S-30伪窗口拒绝 | 其他右栏格全矩阵缺 | fbc826b68 |
 | AC-S05 | 部分通过 | 一级、二级（KU局部） | K3文件预览→Pages光标/窗格真实写入与过期拒绝；KU助理回复→原选区 | 真实网页画布来源未实走 | fbc826b68 |
@@ -510,7 +524,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | AC-S10 | 通过 | 一级 | K1 SDK拒绝跨owner/非法位置声明；S-30窗格来源明确拒绝 | 具体生产晚到写入证据见QA-015 | fbc826b68 |
 | AC-S11 | 部分通过 | 一级 | 灵光创建/撤销具备；反向Shelf和拖放仍后续 | W5/W6 | fbc826b68 |
 | AC-S12 | 部分通过 | 一级、二级（KU局部） | 证据分级；KU实际模型改写与助理交接，不冒充Jev质量评测 | BL-038；三级及左右互动质量矩阵缺 | fbc826b68 |
-| AC-S13 | 部分通过 | 一级、二级（KU） | K3情境条加入/移除及owner重读；KU选段随工作、实际回复落点确认 | QA-016；完整同次准备及全部chip键盘缺 | fbc826b68 |
+| AC-S13 | 部分通过 | 一级、二级（KU） | K3情境条加入/移除及owner重读；KU选段随工作、实际回复落点确认；E15补1440/390全部chip键盘遍历 | QA-016已复验；完整同次准备及其余矩阵缺 | fbc826b68／3e50ed6ec |
 | AC-S14 | 部分通过 | 一级 | K1声明拒绝、K2未知插件open.place通用路由 | 外部插件完整安装实走缺 | fbc826b68 |
 | AC-S15 | 部分通过 | 一级、二级（KU） | K3结果/回复落点；KU真实回复→预览→确认替换→刷新保留 | QA-017；放上Shelf仍W6 | fbc826b68 |
 | SLOT-01 | 部分通过 | 一级 | K1 assistant-interaction-html两条：问答槽与位置合同 | 已知§21.9待补浏览器 | fbc826b68 |
@@ -545,14 +559,14 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | FLOW-05 | 部分通过 | 一级 | K4重复卡/follow-up输入核完整去重顺序；HTML排序折叠 | 二级缺 | fbc826b68 |
 | STRIP-01 | 部分通过 | 一级、二级（KU局部） | K3真Host检查加入前后provider内容和工作关系；KU实际模型 | provider工程为脚本，实走仅一选段 | fbc826b68 |
 | STRIP-02 | 部分通过 | 一级、二级（KU局部） | K3交接不代写输入、带材料及对象；KU同路径 | 完整入口矩阵缺 | fbc826b68 |
-| STRIP-03 | 部分通过 | 一级 | K3滚动淡出/滚轮；最后chip用focus直调 | QA-016 | fbc826b68 |
+| STRIP-03 | 部分通过 | 一级 | E15在1440/390真实Shift+Tab/Tab遍历全部chip，焦点环、末枚完整入视野、淡出/滚轮通过；未补完整二级矩阵 | QA-016已复验 | 3e50ed6ec |
 | STRIP-04 | 部分通过 | 一级 | K3加入决定落点、×只去落点留对象、下次请求无落点 | 二级完整删除组合缺 | fbc826b68 |
 | STRIP-05 | 部分通过 | 一级 | K3 owner删除后真实provider请求不带落点 | 二级缺 | fbc826b68 |
 | CTX-COVER-01 | 部分通过 | 一级 | K3 390/1440实际遮挡命中隐藏，关闭恢复 | 不证明关闭时长标题不重叠；QA-014 | fbc826b68 |
 | PANE-LAND-01 | 部分通过 | 一级 | K3真实窗格预览与Pages持久化；首次时序红，唯一重跑通过 | 已知PANE-LAND-02偶发；二级未验窗格 | fbc826b68 |
 | PANE-LAND-02 | 通过 | 一级 | K3重跑：真实顶层/非窗格iframe伪造落点拒绝 | 首次记录保留；不误判合法迟到事件为突破 | fbc826b68 |
 | PICK-01 | 部分通过 | 一级 | K4鼠标/Enter/Space VM；K3真实鼠标/Enter | Space二级缺 | fbc826b68 |
-| PICK-02 | 部分通过 | 一级 | K4只断言标题点击不拿起，未断言原按钮行为成功 | QA-017 | fbc826b68 |
+| PICK-02 | 部分通过 | 一级 | E15替身按钮/标题一次且不取消，真实卡正确owner请求、拖选/卡身对照通过；side-open被探针接管，未验证对象实际打开 | QA-017余项 | 3e50ed6ec |
 | PICK-03 | 部分通过 | 一级 | K4 Esc/外部按下/浮条内按下/唯一对象 | 替身DOM，二级缺 | fbc826b68 |
 | PICK-04 | 部分通过 | 一级 | K4 missing/unavailable/moved不可选无事件 | owner实际刷新状态链缺 | fbc826b68 |
 | PICK-05 | 部分通过 | 一级 | K4新context、K3判断后Esc再放行不重现 | 完整二级缺 | fbc826b68 |
@@ -564,7 +578,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 | MENU-FLASH-01 | 部分通过 | 一级 | K5真实菜单悬停闪；pointed/pinned另造组件实例 | 生产判断到达保位未完整扣住 | fbc826b68 |
 | SHELF-LINK-01 | 部分通过 | 一级 | K3真实声明模板链接打开Shelf项、无主舞台 | 真实历史Workflows到达记录未读 | fbc826b68 |
 | SHELF-LINK-02 | 部分通过 | 一级 | K3搜索示例文件点击真实结果打开指定项 | 二级缺 | fbc826b68 |
-| SHELF-LINK-03 | 部分通过 | 一级 | K3手派通知且hidden=false再点，不证明普通入口 | QA-018 | fbc826b68 |
+| SHELF-LINK-03 | 部分通过 | 一级 | E15存值→真实通知API→正常铃铛→Shelf指定项→通知消失通过；比较主区页签的选择器抓错内部控件，未来业务产生端未验 | QA-018余项；BL-400（报告分支待合） | 3e50ed6ec |
 | OPEN-PLACE-01 | 部分通过 | 一级 | K2真实通用函数、非Shelf manifest与内置目录 | 外部插件实际安装/打开缺 | fbc826b68 |
 | SIDE-FWD-01 | 通过 | 一级 | K3真iframe允许落点、拒绝名单外事件、真实toast | S-30另覆来源 | fbc826b68 |
 | DESK-SHELF-01 | 部分通过 | 一级 | K3真bootstrap直接调用molisWorkOpenShelf | 真实热键/菜单栏未走；BL-014 | fbc826b68 |
@@ -572,7 +586,7 @@ RU目视1440/1024/390浅色中文及深色英文，分别核对真实DOM视口�
 
 历史W0原型只核范围，不用其模拟替代当前生产：W0-01、W0-02、W0-03、W0-04、W0-05均为**未验证，一级（文审），SHA fbc826b68**；本轮没有重跑原型，依据§16.2“W0独有条件（不替代原验收）”排除生产统计；各自生产后继已在上述P/Q/S及W1表判断。LG-REVERT-01、DOCK-04和S-*是引用其他owner的验收，不重复当本线新增条件。SLOT-03在本基线仍为在途，不纳入已合入结论。
 
-**轻做／证据不足。** QA-015的撤权测试在入口第一次验证就拒绝，未造真正等待后撤权；QA-016用直接focus替代键盘遍历；QA-017标题称按钮仍工作却只证明不触发拿起；QA-018绕开不可见入口再点通知。相关受控测试仍有价值，不能扩大成它们未断言的产品事实。T05保位、外部插件完整接入、原生拖放/菜单、SLOT浏览器与W1后续均保留已有去处。
+**轻做／证据不足。** QA-015等待后撤权仍缺；QA-016的直接focus缺口经E15已复验。QA-017已补事件/次数，但真实打开被探针接管；QA-018已补正常通知入口，但主区页签断言观察对象不对，未来业务产生端归BL-400。相关用例通过不覆盖这些余项；T05保位、外部插件完整接入、原生拖放/菜单、SLOT浏览器与W1后续保留原去处。
 
 **代码质量与安全。** 生产候选/落点经共同目录，SDK对跨owner声明有真实拒绝；S-30伪窗格、S-40错人/项目/重放等均跑到拒绝。没有把QA-015认定为已发生安全突破；真实迟到写入还需接缝证明。宿主旧插件私路及W1-08覆盖门禁沿PG/W5/W6计划，不在本次修补。已定16/8候选上限、Q07现行合同无读取兼容、W2-04保等待结果等按后定决定验，不重开旧方案。
 
@@ -702,6 +716,10 @@ QA-022：`tests/attention-route.test.ts`整文件6/6通过。生产Host用正式
 | QA-021／RAC-44 | spec:715仍称“按出厂工厂只启动一次”；assembly:166～176未改，仍只断言工厂/Manifest、running和安装行数1，没有实际create/start次数 | 余项未修，保持已修待复验；未认定产品重复启动。RAC-44/55/60仍部分通过，E10在8b9的实际执行证据保留 |
 
 本轮没有启动产品服务、构建或重跑产品测试，未读取密钥，模型上限0、实际0。d331的[普通CI 39371800782](https://github.com/molis-ai/molis-work/actions/runs/39371800782)已成功；main最新夜间[Full suite 39326632036](https://github.com/molis-ai/molis-work/actions/runs/39326632036)仍为b4e85b5f1上的失败，不能视为d331全量结果。最新集成分支全量[39375703861](https://github.com/molis-ai/molis-work/actions/runs/39375703861)在b51df25ac失败，也不代替main验收；本轮未定位其原因，不据CI状态另立产品问题。未追加CI或本机全量。QA-004/005/020的5160复验结论不变；942项仍458/422/7/55，七条线不能归档。
+
+**E15：#812与QA-021重点核对（2026-10-20）。** 开始main为 `3e50ed6ec2fc934aef1562a0e991fb3633dc39cf`；情境复验后再fetch到 `231066d83f8408ff8b1c20b99a28969a7967195a`（新增#855、#865）。两个SHA的LocalHost入口、装配测试均未改；后两片的防腐spec差异只在ALC-RES09，RAC-44仍在715行，仍把安装行数1的测试描述成“只启动一次”。#812仍OPEN、mergedAt/mergeCommit为空、head仍56283cfad6a58a0f855be70db0f735175836dfd4。PG-110未关闭，QA-021已修待复验；分别保留959不通过和8b9实际执行证据，不伪称本轮重放。收尾新增片不倒算进3e50的定向执行。
+
+3e50的[普通CI 39397024910](https://github.com/molis-ai/molis-work/actions/runs/39397024910)被取消；main最近夜间[Full suite 39326632036](https://github.com/molis-ai/molis-work/actions/runs/39326632036)仍是旧b4e85b5f1的失败，不代表当前main全量。#859/#852/#858等夜间修复只确认合入，本轮不据其标题或普通CI关闭全量问题；没有额外派发CI。原报告分支由开发方合入main并加BL-400，本QA先快进保留，随后提交只改本报告；因此整PR现在有BACKLOG一行、README索引和本报告三份文档，不能继续声称整PR只有两份文件。
 
 **E6证据纠正与#820文审。** 原`anti-supp-workspace-directory.log`用`rollback`筛选没有命中实际名称，仅Node文件级成功，不能计为通过。本轮以`workspace repair and unlink`在053及旧7d分别重跑，实际各1项通过，包含repair/unlink两处400、目录恢复、cause同对象/不可枚举断言；日志`form810-workspace-repair.log`与`anti-corrected-workspace-repair.log`。F2总数仍131，因为用这1项实际执行替换原1项空跑，旧日志不再充当证据；FE-WSERR/FE-R4A3/FE-HOSTOWN的组合也按此修正。只读复核五棵QA树97份日志，没有新增同类单文件空跑候选；不把多文件摘要无名字当空跑。#820的`cdca7f748daa0a6430eaef6f6724ebb6e221ee25`仅改两行spec，工程代码/测试与053相同，文审和执行SHA分开记。G4-05主要400冲突已修，但旧owner码及源码503注释尚存，沿QA-020保留P3余项；没有把未独立测试的recovery_required补偿失败路径判通过。
 
@@ -1521,12 +1539,12 @@ L1：7d1的late-criteria.log，六个定向文件9项通过；按编号筛选实
 | QA-013 | 情境；P2；产品缺陷 | AC-S01；side-shelf §3.1/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；新浏览器origin走首页→个人空间→首次侧栏；另一新origin直接入个人空间作对照 | 预期首开Shelf；实际经首页首开Issue，直接项目页首开Shelf。未先点Issue | KU一级代码/二级截图评论6267398284；shelf-plugin测试直接入项目未覆首页 | apps/workbench/src/arrival/shell.ts:84；home-plugin-navigation.ts:7；scripts/client/side-panel.ts:145、226 | HANDOFF §3④界面组／情境线（原⑧） | 新origin经首页与直接项目两路首次侧栏均Shelf；随后用户选格、重开保留所选 | 已派（第三批分诊） |
 | QA-014 | 情境；P2；产品缺陷 | T06；context-toolbar §6/§8 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；Pages写入两段中文，选第一段；CSS宽390，浅/深色；浮条含长标题和owner徽标 | 预期文字清晰、各动作不交叠且44px目标；实际44px按钮内文字宽73/58px越界，与相邻文字覆盖，外框无横向溢出仍失败 | KU中文浅色/英文深色截图评论6267398284；读DOM按钮矩形，K3只量外框与触控高 | packages/design-system/src/context-toolbar.ts:26、31、50、131；plugins/native/pages/src/editor-tools.ts:43、58；tests/context-toolbar.e2e.test.ts:17 | HANDOFF §3④界面组／情境与设计系统 | 390真实Pages长中英标题/徽标均在自身控件内不交叠，规定入口可达且点击命中正确动作 | 已派（第三批分诊） |
 | QA-015 | 情境；P2；轻做或证据不足 | AC-P03/Q05；context-program §21.8 B1、AGENTS late effect | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑pages-landing-actions的cancelled用例，读validate_authority注入与调用次序；不改测试 | 预期已受理等待后撤权仍拒绝且所有业务事实不变；实际validate_authority第一次调用就抛错，未造等待期间撤权，完整document不变只证明入口拒绝 | K1通过；真实SDK前置拒绝有效，尚无此Pages落点晚到组合。不是已确认安全突破 | tests/pages-landing-actions.test.ts:68、82、84 | HANDOFF §3④情境／Pages，②动作授权配合 | 首次校验通过，写入前屏障暂停后取消/撤权再释放，断言准确拒绝码且文档、版本、change及失败业务记账均不变 | 已派（第三批分诊） |
-| QA-016 | 情境；P2；轻做或证据不足 | AC-S13/STRIP-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-context-strip.e2e的STRIP-03并读最后chip到达步骤 | 预期从普通焦点以键盘逐项到最后chip，焦点及可见区正确；实际直接DOM focus最后一枚，只证明被聚焦时滚动 | K3六项通过；滚轮/淡出是真实断言，键盘遍历未证明；§10防腐称键盘到最后 | tests/assistant-context-strip.e2e.test.ts:100；specs/context-program/spec.md:1285 | HANDOFF §3④界面组／情境 | 从正常输入焦点仅Tab/方向键到最后chip，每项焦点可见且最后一枚完整滚入；不得直接focus终点 | 已派（第三批分诊） |
-| QA-017 | 情境；P2；轻做或证据不足 | PICK-02；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-pick PICK-02，对照测试名、title点击及实际断言 | 预期标题打开对象、原按钮仍执行，并且不拿起；实际只断言reported为空，未断言打开/执行成功，错误preventDefault仍可能通过 | K4通过；标题与断言范围不符，未观察到产品按钮失效 | tests/assistant-pick.test.ts:97、100 | HANDOFF §3④界面组／情境，助理owner配合 | 真实结果卡标题打开正确owner对象、原按钮执行一次且不发拿起事件，文字选择也不拿起 | 已派（第三批分诊） |
-| QA-018 | 情境；P2；轻做或证据不足 | AC-S02/SHELF-LINK-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑shelf-side-links.e2e；读通知注入、入口显示及点击步骤 | 预期从用户可见通知入口打开指定Shelf项；实际手派通知，强行hidden=false后直点；不能证明真实通知生成与正常可见入口闭环 | K3真实Shelf目标打开有效；不是认定通知功能已坏。BL-009管铃铛重复，不覆盖此测试绕过 | tests/shelf-side-links.e2e.test.ts:55、60、63 | HANDOFF §3④情境／助理通知owner | 真实业务产生可查询通知，从产品正常可见入口打开它，Shelf对应项到位且主区不变，不强制修改hidden | 已派（第三批分诊） |
+| QA-016 | 情境；P2；轻做或证据不足 | AC-S13/STRIP-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-context-strip.e2e的STRIP-03并读最后chip到达步骤 | 预期从普通焦点以键盘逐项到最后chip，焦点及可见区正确；实际直接DOM focus最后一枚，只证明被聚焦时滚动 | K3六项通过；滚轮/淡出是真实断言，键盘遍历未证明；§10防腐称键盘到最后 ；E15四文件4/4中STRIP-03实际1项，1440/390全程Tab、焦点环/末枚完整可见通过 | tests/assistant-context-strip.e2e.test.ts:100；specs/context-program/spec.md:1285 | HANDOFF §3④界面组／情境 | 从正常输入焦点仅Tab/方向键到最后chip，每项焦点可见且最后一枚完整滚入；不得直接focus终点 | 已复验；#831／3e50ed6ec，E15（一级）；完整二级体验矩阵仍缺 |
+| QA-017 | 情境；P2；轻做或证据不足 | PICK-02；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑assistant-pick PICK-02，对照测试名、title点击及实际断言 ；E15再跑两个PICK-02，检查真实卡测试173行的side-open捕获监听 | 预期标题打开对象、原按钮仍执行，并且不拿起；实际只断言reported为空，未断言打开/执行成功，错误preventDefault仍可能通过 | K4通过；标题与断言范围不符，未观察到产品按钮失效 ；E15两项通过但探针接管side-open，仅请求目标/次数正确，未执行实际打开 | tests/assistant-pick.test.ts:121～172；tests/context-pick-result.e2e.test.ts:173、200～210 | HANDOFF §3④界面组／情境，助理owner配合 | 真实结果卡标题打开正确owner对象、原按钮执行一次且不发拿起事件，文字选择也不拿起 | 已修待复验；#831主要断言已补，3e50上实际owner打开仍未验证；保留原QA编号 |
+| QA-018 | 情境；P2；轻做或证据不足 | AC-S02/SHELF-LINK-03；context-program §21.6 | fbc826b6878c1ea7bb1b7b2057a180140f7d90d1 | 新临时Home；跑shelf-side-links.e2e；读通知注入、入口显示及点击步骤 ；E15新Home比较测试87行选择器与真实标题栏页签，观察前者29个内部控件、后者1个项目首页 | 预期从用户可见通知入口打开指定Shelf项；实际手派通知，强行hidden=false后直点；不能证明真实通知生成与正常可见入口闭环 ；E15已走真实正常入口，但主区页签比较仍未测到真实页签集合/选中项 | K3真实Shelf目标打开有效；不是认定通知功能已坏。BL-009管铃铛重复，不覆盖此测试绕过 ；E15存值入口1项通过，另只读探针确认比较对象错误；无实际页签损坏证据；业务来源缺口已知BL-400（仅报告分支） | tests/shelf-side-links.e2e.test.ts:58～100（87、97）；apps/workbench/src/scripts/client/tab-workspace.ts:385～392、644 | HANDOFF §3④情境／助理通知owner | 存值通知从正常铃铛打开正确Shelf项后，真实标题栏/分屏页签的id、顺序、选中项与活动对象不变；业务产生端未来按BL-400补 | 已修待复验；#831入口部分已复验，主区页签证据余项未补；未来业务闭环BL-400已有去处，非本次确认的产品缺陷 |
 | QA-019 | 防腐；P2；轻做或证据不足 | W5-01-PPT-05；repository-anti-corruption §4.4 PPT迁移 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行document-plugins-limits中AI actions of Form, Dataset, PPT用例；审读completeModel及outlineAi写事务 | 预期模型已成功返回后使结果guard失效，拒绝且版本/幻灯片/失败业务记录不变；实际validateResult为空，只在派出前撤权。生产确有guard，未确认越权写入 | F2 5项通过仅证明原断言；共享SHM不能替代PPT事务接缝；E9在1ae补验生产PPT/Host事务首SQL前guard拒绝、全表不变和合法对照；受控guard，不扩为Runtime撤权 | tests/document-plugins-limits.test.ts:92、98；plugins/native/ppt/src/actions.ts:187 | HANDOFF §3③PPT迁移；②平台结果复核 | 模型返回后撤权，调用validateResult在首条业务SQL前拒绝，版本/幻灯片/失败记录均不变 | 已复验；#823／1ae8ebe74，E9及[记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6271994790)（一级） |
 | QA-020 | 防腐；P3；文档不符 | W3-02-G4-05与WSERR-03；spec §10.9及错误模型整合 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行workspace-directory精确名workspace repair and unlink，再运行workspace-project-actions的folder membership and the browsing choice；比对G4-05、WSERR-03与HTTP注释 | 预期以已定现行invalid/400保持目录回滚和cause；首轮发现时代码/测试400而旧G4-05要求unavailable/503；8b9主标准已400，仅旧owner码及HTTP源码503注释仍未同步 | 原F2的rollback筛选为空跑，E6已以精确名称在053/7d补验真实目录恢复与cause。cdca主标准已改400；E11仍有旧projects码/503注释，E12在5160两处已改；原精确目录补偿及HTTP拒绝共2/2通过，现行owner码及400/404一致 | specs/repository-anti-corruption/spec.md:2306、4051、4136；plugins/native/work/src/http/workspaces.ts:12；tests/workspace-directory.test.ts:57、72 | HANDOFF §3①规范收束／防腐错误模型owner | 同一补偿错误的现行标准、HTTP映射、真实目录恢复和cause断言一致 | 已复验；#841／5160c3bbc，E12两处原文已对齐，原精确步骤2/2通过（一级）；recovery_required未独立执行的边界保留；[记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270323177) |
-| QA-021 | 防腐；P2；轻做或证据不足 | RAC-44/55/60；spec对应复合验收段，specs/README验收编号 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 在干净基线运行check-spec-coverage并检索全部tests对三个编号的引用；结合人工编号库存读各标准；8b9再核spec:708与assembly:166～176，查找create/start计数 | 预期现有行为/门禁测试能追到编号，不能自动证明的部分显式标人工；初验三个编号无引用/人工标记；8b9已补，但新验证栏称只启动一次，实际仅工厂/Manifest一致、running及安装行数1，没有create/start计数 | F0/F2门禁实际通过，不等于三个复合标准已被完整证明；初验coverage仅识别防腐24条；E10已识别三项及实际4/2/1文件引用，六个对应检查与翻译用例共7项通过，人工部分与组合判据明确；安装行数不能替代启动次数，未复现产品重复启动 | specs/repository-anti-corruption/spec.md:708；tests/builtin-plugin-assembly-gate.test.ts:166～176；specs/README.md:69 | HANDOFF §3①规范／②平台门禁 | 编号指向真正证明相应部分的测试并记录组合判据；不可只补无实质断言的注释；声称只启动一次须计数实际create/start，或证据说明准确限于已有断言 | 已修待复验；#825引用/人工标记已补，E14在d331确认RAC-44说明仍在715行、测试166～176未改，E10余项仍在；此前评论的完全关闭结论以本条更正 |
+| QA-021 | 防腐；P2；轻做或证据不足 | RAC-44/55/60；spec对应复合验收段，specs/README验收编号 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 在干净基线运行check-spec-coverage并检索全部tests对三个编号的引用；结合人工编号库存读各标准；8b9再核spec:708与assembly:166～176，查找create/start计数 | 预期现有行为/门禁测试能追到编号，不能自动证明的部分显式标人工；初验三个编号无引用/人工标记；8b9已补，但新验证栏称只启动一次，实际仅工厂/Manifest一致、running及安装行数1，没有create/start计数 | F0/F2门禁实际通过，不等于三个复合标准已被完整证明；初验coverage仅识别防腐24条；E10已识别三项及实际4/2/1文件引用，六个对应检查与翻译用例共7项通过，人工部分与组合判据明确；安装行数不能替代启动次数，未复现产品重复启动 | specs/repository-anti-corruption/spec.md:708；tests/builtin-plugin-assembly-gate.test.ts:166～176；specs/README.md:69 | HANDOFF §3①规范／②平台门禁 | 编号指向真正证明相应部分的测试并记录组合判据；不可只补无实质断言的注释；声称只启动一次须计数实际create/start，或证据说明准确限于已有断言 | 已修待复验；#825引用/人工标记已补，E15在3e50及收尾231确认RAC-44说明仍在715行、测试166～176未改，E10余项仍在；此前评论的完全关闭结论以本条更正 |
 | QA-022 | 防腐；P2；轻做或证据不足 | W4-10-01；repository-anti-corruption §4.4 attention聚合 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行attention-route两条用例，审读notices、pending及局部失败断言；结合workbench-stop-feedback | 预期真实非空提醒、待投递数准确，任一来源失败仅该段null；实际主要检查数组/number类型，未造独立来源失败。后台任务消失另有实测，不证明其余来源 | 原F4仅类型检查；E10在8b9整文件6/6，真实非空提醒/精确pending与四来源故障隔离均通过；受控故障源，不外推浏览器 | tests/attention-route.test.ts:13、25；specs/repository-anti-corruption/spec.md:461 | HANDOFF §3②平台／Workbench | 种入真实提醒和待投递事件核对精确结果；四个来源逐个抛错，只有失败段为null，其余三段仍准确 | 已复验；#827／8b9df4e7a，E10及[记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6273215699)（一级） |
 | QA-023 | 防腐；P2；轻做或证据不足 | W5-01-ALC-RES07；repository-anti-corruption Pulse恢复标准 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home；运行Alchemist包的pulse-recovery三条Vitest；检索Pulse取消入口、lease-ownership及alchemist-actions的cancel，核对实际处理器与事实快照 | 预期已开始Source等待后真实取消，晚成功和晚失败均不记失败、不继续下一Source；实际Pulse两条只调用authority.revoke，actions里的cancel属于Lens，通用lease测试没进入Pulse collectSafely。生产有isCancelled检查，未确认取消后写入 | 原Pulse 3/3仅证明恢复/撤权；E9在1ae包内5/5及Studio close两子场景通过，真实取消后晚成功/失败七表不变、下一Source0；未来UI及整Host关闭仍不外推 | plugins/native/alchemist/tests/jobs/pulse-recovery.test.ts:147；plugins/native/alchemist/src/studio/server/jobs/pulse-job-handler.ts:84、143 | HANDOFF §3③Alchemist；②生命周期协作 | 暂停真实Pulse Source，执行实际取消后分别释放成功/异常；以取消已落库时为基点，七表无新增失败或结果且下一Source调用数零 | 已复验；#823／1ae8ebe74，E9及[记录](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6271994790)（一级） |
 | QA-024 | 防腐、情境；P2；产品缺陷 | W2-18-PAGES-SOURCES-01、RAC-36、W5-10-PGC-03/PGV-02；防腐对应标准，context-toolbar§6 | 7d1cc4bfade6c93cb1006e691da3e73b83316de1 | 新临时Home，启用Pages/灵光，各建A/B；Pages打开A后⌘点击B，灵光返回列表⌘点击A/B；检查选中数和操作栏 | 预期保留已定PTG-06后台开页签且仍有可访问的多选入口；实际只新增后台页签，插件多选处理收不到事件，无法双来源准备或批量丢弃；也未发现替代键盘/控件入口 | FB两文件同位置失败，旧fbc同红；FU真实页面复现，[截图](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6268983128)；已知§10.28 #729待核项本次分类，跨Pages共同原因新增，非旧迁移问题重复 | apps/workbench/src/scripts/client/plugin-tab-groups.ts:126；plugins/native/pages/src/client.ts:980；plugins/native/lingguang/src/client.ts:595 | HANDOFF §3④Workbench/情境；③Pages/灵光配合 | 保留⌘/Ctrl后台开页签，另从正常可达入口选中A/B并实际执行双来源准备/批量操作；按纯键盘也可达，单选/正文无误改 | 已修待复验（#824第一片于收尾合入e7bb；本轮尚未按原动线复验，不据此关闭） |
@@ -1537,7 +1555,7 @@ QA-001 已核 BACKLOG、§10.27～10.29、PG 与 19 个在途 PR；BL-118/125/14
 
 | 编号 | 线／程度／类型 | 标准与本次SHA | 复现、预期与实际 | 证据／疑似位置 | 建议归属 | 回归断言 | 状态 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| 已知 PG-110 | 防腐；P1；安全 | S-15、RAC-17，D9；95946d38c652ac001c0ffc7c1fda7e4d774c8271 | 按E7脚本从新临时Home起，生产LocalHost注册需qa:write的虚构动作；项目/Home分别传无签发身份、伪造身份及无权限caller。预期均在handler前拒绝；实际四个身份缺陷场景均进入handler并越过beforeEffect，两个无权限对照正确拒绝。只证明进程内边界 | 两次运行结果相同；[通知评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270953798)；apps/local-host/src/local-host.ts:77、231、382、517；tests/goal-progress-plugin-identity.test.ts:58、66正向放行伪造query | HANDOFF §3③迁移；[交接每日记录D8/D9](https://github.com/molis-ai/molis-work/blob/76c39e0c821199b64953d1fce313a1f2bed00a00/coordination/2026-10-14/README.md#L1391-L1418)明确PG-006/110同片，②协作共享网关／授权 | 未由当前Host签发或失效的插件caller、伪造权限及无声明/无安装授权组合，在项目与Home网关均拒绝；handler与业务持久化增量为零 | 已派；E14在d331核#812仍OPEN未合（head 56283cfad），原入口未变；959执行仍不通过，未伪称d331已执行；没有接受不修记录 |
+| 已知 PG-110 | 防腐；P1；安全 | S-15、RAC-17，D9；95946d38c652ac001c0ffc7c1fda7e4d774c8271 | 按E7脚本从新临时Home起，生产LocalHost注册需qa:write的虚构动作；项目/Home分别传无签发身份、伪造身份及无权限caller。预期均在handler前拒绝；实际四个身份缺陷场景均进入handler并越过beforeEffect，两个无权限对照正确拒绝。只证明进程内边界 | 两次运行结果相同；[通知评论](https://github.com/molis-ai/molis-work/pull/784#issuecomment-6270953798)；apps/local-host/src/local-host.ts:77、231、382、517；tests/goal-progress-plugin-identity.test.ts:58、66正向放行伪造query | HANDOFF §3③迁移；[交接每日记录D8/D9](https://github.com/molis-ai/molis-work/blob/76c39e0c821199b64953d1fce313a1f2bed00a00/coordination/2026-10-14/README.md#L1391-L1418)明确PG-006/110同片，②协作共享网关／授权 | 未由当前Host签发或失效的插件caller、伪造权限及无声明/无安装授权组合，在项目与Home网关均拒绝；handler与业务持久化增量为零 | 已派；E15在3e50及收尾231核#812仍OPEN未合（head 56283cfad），原入口未变；959执行仍不通过，未伪称本轮已执行；没有接受不修记录 |
 
 PG-006原台账P2，指Goals内置名单特权；它是上述同片修复的依赖，当前仍在，不另记为第二个安全P1。原已知P1 #709的#759已合且原草稿步骤已复验，保留7d二级证据；本轮不把它列为未关闭。
 
@@ -1623,3 +1641,5 @@ PG-006原台账P2，指Goals内置名单特权；它是上述同片修复的依�
 - 2026-10-20 13:23 JST指定核对见E13：main为0744；#812分支head有更新但仍未合入，QA-021剩余说明/断言未修。只记录本轮文审SHA，未重跑旧路径；保留QA-004/005/020的5160复验、PG-110的959失败和RAC复合标准的8b9执行证据，模型0。
 
 - 2026-10-20 14:42 JST指定续核见E14：main新增#849/850至d331，#812仍未合、QA-021说明和断言未变；保留原执行SHA及所有判定，本轮模型0，没有重复动态测试。普通CI成功不能替代当前main全量或指定问题复验。
+
+- 2026-10-20 E15：#812与QA-021仍未修；执行3e50上的#831四项4/4，QA-016原证据缺口已复验，QA-017实际打开与QA-018真实页签保护仍有证据余项，未认定对应产品故障。BL-400是开发方在原报告分支所加去处，保留其提交；不把新增去处当作动态通过。收尾main231与执行SHA分开，模型0，942项计数不变。

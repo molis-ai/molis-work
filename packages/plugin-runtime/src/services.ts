@@ -83,7 +83,7 @@ export function createPluginInputsClient(input: PluginWiringServicesInput): Plug
   };
 }
 
-export function createPluginOutputsClient(input: PluginWiringServicesInput): PluginOutputsClient {
+export function createPluginOutputsClient(input: PluginWiringServicesInput, assertActive: () => void): PluginOutputsClient {
   const { manifest, graph, artifacts } = input;
   const pluginId = manifest.plugin_id;
   const outputs = manifest.ports?.outputs ?? [];
@@ -151,11 +151,13 @@ export function createPluginOutputsClient(input: PluginWiringServicesInput): Plu
         throw new PluginWiringError("plugin.port_unknown", `${pluginId} 没有输出端口 ${port}`);
       }
       assertPluginActionCurrent(input.install_id);
+      assertActive();
       graph.invalidate(pluginId, port, safeReason);
       graph.evaluateAll();
     },
     retain(reference: ArtifactReference) {
       assertPluginActionCurrent(input.install_id);
+      assertActive();
       graph.retain(pluginId, reference);
     },
     read(reference: ArtifactReference) {

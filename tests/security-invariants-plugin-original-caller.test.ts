@@ -180,7 +180,9 @@ async function platform(t: TestContext) {
     if (target === "retain") return running.wiring.retained(ID).some(reference => reference.artifact_id === name);
     return !!(target === "publish" ? artifacts : processItems).query.latestArtifactVersion(DEMO_PROJECT_ID, name);
   };
-  return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home };
+  return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home,
+    stop: () => running.runtime.stop(running.runtime.list().find(install => install.plugin_id === ID)!.install_id),
+    restart: () => running.runtime.start(running.runtime.list().find(install => install.plugin_id === ID)!.install_id) };
 }
 
 /** The original caller. `replace` is what a caller whose authority moved to another provider reports (an MCP tool that changed, for one). */
@@ -324,4 +326,23 @@ test("S-18 action callback mutations cannot erase original cancellation, grants 
   plugin.gate.release.resolve();
   await assert.rejects(plugin.gate.left!, { code: "actions.expired" });
   assert.equal(written("storage", "mutated-late"), false);
+});
+
+test("S-18 stopped output clients cannot invalidate or retain outside an action, including after restart", async t => {
+  const fixture = await platform(t), { client, plugin, written, wiring } = fixture;
+  await client.invoke(caller().context, plugin.output, { target: "storage", name: "before-stop" });
+  const reference = wiring.outputReference(ID, "item"); assert.ok(reference);
+  const old = plugin.services().outputs!;
+  await fixture.stop();
+  for (const phase of ["stopped", "restarted"] as const) {
+    if (phase === "restarted") await fixture.restart();
+    assert.throws(() => old.invalidate("item", phase), { code: "actions.forbidden" });
+    assert.throws(() => old.retain(reference), { code: "actions.forbidden" });
+    assert.equal(written("invalidate", phase), false);
+    assert.deepEqual(wiring.retained(ID), []);
+  }
+  plugin.services().outputs!.invalidate("item", "current-activation");
+  plugin.services().outputs!.retain(reference);
+  assert.equal(written("invalidate", "current-activation"), true);
+  assert.deepEqual(wiring.retained(ID), [reference]);
 });

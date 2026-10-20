@@ -170,7 +170,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
       ? { inputs: createPluginInputsClient(wiringInput) }
       : {}),
     ...(declaresOutputs && wiringInput !== undefined
-      ? { outputs: createPluginOutputsClient(wiringInput) }
+      ? { outputs: createPluginOutputsClient(wiringInput, pluginCaller.assertActive) }
       : {}),
     ...(declaresCapabilities && options.capabilities !== undefined
       ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, options.capabilities), isActive) }

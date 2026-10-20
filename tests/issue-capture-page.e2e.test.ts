@@ -7,7 +7,7 @@ import { issueView } from "./fixtures/issue-browser.js";
 const button = "document.querySelector('[data-side-plugin-open]')";
 
 test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘↵ record an Issue that Issue names in the background", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   let release!: () => void; const firstReply = new Promise<void>(resolve => { release = resolve; }); t.after(() => release());
   const { requests, namings } = await issueModel(t, b.homeDirectory, { firstReply });
   const v = issueView(b);
@@ -45,7 +45,7 @@ test("ISSUE-35 ISSUE-36 ISSUE-39 ISSUE-40 ISSUE-50 a chord, a sentence and ⌘�
 });
 
 test("ISSUE-38 undo takes a new record back and returns the words to an empty composer", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b);
   await v.viewport(1440); await v.go("/");
@@ -67,7 +67,7 @@ test("ISSUE-38 undo takes a new record back and returns the words to an empty co
 });
 
 test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens with nothing lost", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
   await issueModel(t, b.homeDirectory, behavior);
   const v = issueView(b);
@@ -107,7 +107,7 @@ test("ISSUE-37 ISSUE-50 a capture Issue cannot name stays at the top and opens w
 });
 
 test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory, { question: "free-text" });
   const v = issueView(b);
   await v.viewport(1440); await v.go("/");
@@ -122,7 +122,7 @@ test("ISSUE-37 abandoning an unfinished capture keeps nothing", { timeout: 90_00
 });
 
 test("ISSUE-37 an unfinished capture survives leaving the page and saves once from where it was left", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory, { unavailable: true });
   const v = issueView(b);
   await v.viewport(1440); await v.go("/");
@@ -147,7 +147,7 @@ test("ISSUE-37 an unfinished capture survives leaving the page and saves once fr
 
 
 test("ISSUE-36 while an input method is composing, ⌘↵ and the IME's own Enter send nothing; what is sent is exactly what the composer holds", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b);
   await v.viewport(1440); await v.go("/");

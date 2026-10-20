@@ -14,7 +14,7 @@ async function capture(b: Browser, description: string) {
 }
 
 test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and saves only after the new capture", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
   const { namings } = await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "111");
@@ -41,7 +41,7 @@ test("ISSUE-34 ISSUE-37 ISSUE-50 a question keeps the words and pictures and sav
 });
 
 test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, writes nothing and opens with the words kept", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unusable: true };
   await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "点保存没反应");
@@ -56,7 +56,7 @@ test("ISSUE-37 ISSUE-50 an answer Issue cannot use, or one that is not JSON, wri
 });
 
 test("ISSUE-34 ISSUE-37 an unavailable model and an organizing timeout keep the input, and a late answer cannot save beside a manual one", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const behavior: Parameters<typeof issueModel>[2] = { unavailable: true };
   await issueModel(t, b.homeDirectory, behavior);
   const v = await capture(b, "点保存没反应");

@@ -7,7 +7,7 @@ import { issueView } from "./fixtures/issue-browser.js";
 
 const editor = '[data-issue-editor]';
 async function setup(t: Parameters<typeof openGoalBrowser>[0], behavior: Parameters<typeof issueModel>[2]) {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   const model = await issueModel(t, b.homeDirectory, behavior), v = issueView(b, "issue-reorganize");
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   const issue = await v.api<Issue>("/api/plugins/io.molis.work.issues/create", { title: "旧标题", type: "feature", description: "原来的说明" });

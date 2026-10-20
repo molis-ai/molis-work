@@ -23,6 +23,7 @@ import {
   charactersWorkbenchPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
+import { ensureProjectPlugins } from "./project-plugins.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
@@ -137,6 +138,8 @@ export function createLocalGoalsReadHttp(ports: {
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
+          // Opening the project page starts the project's plugin platform; the stages below read what it runs.
+          await ensureProjectPlugins(surfacePorts);
           const characterStage = await charactersWorkbenchPanel(surfacePorts);
           view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.

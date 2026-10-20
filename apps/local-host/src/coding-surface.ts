@@ -1,8 +1,6 @@
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { projectRouteControl } from "./plugin-actions-client.js";
-import { pluginRouteControl } from "./plugin-route-control.js";
-import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
+import { ensureProjectPlugins, projectPluginProblem, type ProjectPluginState as Started } from "./project-plugins.js";
+import type { ProjectPluginHttpPorts, ProjectPluginRouteHooks } from "./project-plugin-http.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
 import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
@@ -62,14 +60,9 @@ import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@moli
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 
-import { sendLocalWebJson } from "./web-http.js";
-import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";
-import type { PluginPlatform } from "./plugin-platform.js";
 import type { PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage } from "node:http";
 import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
 
 /**
  * Coding's directory panel, rendered by the Plugin the Host is running.
@@ -81,13 +74,10 @@ import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-eve
  * because one Plugin did.
  */
 
-export interface CodingSurfacePorts extends ProjectPluginPorts {
-  routeCaller?(): Promise<ActionCallContext>;
+export interface CodingSurfacePorts extends ProjectPluginHttpPorts {
   escapeHtml(value: unknown): string;
   translate(value: string): string;
 }
-
-export { releaseProjectPlugins as releaseCodingSurface } from "./project-plugins.js";
 
 export async function codingDirectoryPanel(
   ports: CodingSurfacePorts,
@@ -100,9 +90,10 @@ export async function codingWorkbenchPanel(ports: CodingSurfacePorts) {
 }
 
 async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "workbench") {
-  const record = await ensureStarted(ports);
-  if (!record.running || !record.platform) {
-    const message = ports.escapeHtml(record.error ?? "Coding 插件未能启动");
+  const record = await ensureProjectPlugins(ports);
+  const problem = projectPluginProblem(record, ports.store, CODING_PLUGIN_ID);
+  if (problem || !record.platform) {
+    const message = ports.escapeHtml(problem?.reason ?? record.error ?? "Coding 插件未能启动");
     const panel = surface === "directory"
       ? `<section class="mw-empty" role="alert"><p>${message}</p></section>`
       : `<section class="desktop-work-surface" data-work-surface="coding" data-work-surface-label="Coding" hidden><div class="mw-empty" role="alert"><p>${message}</p><p>请检查插件状态后重新打开。</p></div></section>`;
@@ -148,7 +139,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
 
 /** Independent personal Character manager rendered by its running Plugin. */
 export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promise<{ panel: string; plugin_id: string }> {
-  const record = await ensureStarted(ports);
+  const record = await ensureProjectPlugins(ports);
   const active = record.platform?.supervisor.state(CHARACTER_PLUGIN_ID);
   const contribution = record.platform?.supervisor.contribution(CHARACTER_PLUGIN_ID);
   const views = (contribution as { views?: ReadonlyArray<{ descriptor: { contribution_id: string }; render(request: { surface: string; model: CharactersUiModel }): string }> } | null)?.views ?? [];
@@ -159,7 +150,6 @@ export async function charactersWorkbenchPanel(ports: CodingSurfacePorts): Promi
   } }) };
 }
 
-/** Host dispatches only declared plugin routes, after the normal control guard. */
 /** Files hands its snapshots on as process items (artifact-positioning A2); either declaration list can name them. */
 function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string): import("@molis-ai/molis-work-contracts/platform/plugin").PluginManifest | undefined } }, pluginId: string): boolean {
   const files = platform.supervisor.manifest(FILES_PLUGIN_ID), consumer = platform.supervisor.manifest(pluginId);
@@ -168,82 +158,23 @@ function readsFilesOutputs(platform: { supervisor: { manifest(pluginId: string):
     outputs.some(output => output.artifact_type_id === input.artifact_type_id && output.schema_version === input.schema_version));
 }
 
-/** How many plugin deliveries wait on the person in this project; the market resolves them (the page's attention read). */
-export async function pluginEventsPending(ports: CodingSurfacePorts): Promise<number> {
-  const record = await ensureStarted(ports);
-  if (!record.platform) throw new Error(record.error ?? "插件运行平台未能启动");
-  return record.platform.events.recoveries(ports.projectId).length;
-}
-
-export async function handleCodingPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: CodingSurfacePorts): Promise<boolean> {
-  const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
-  const runtimeEvents = isPluginEventManagementPath(url.pathname);
-  const pluginRoute = url.pathname.match(/^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/(.+)$/u);
-  if (!runtimeUpdates && !runtimeEvents && !pluginRoute) return false;
-  const record = await ensureStarted(ports);
-  if (!record.platform) { sendLocalWebJson(response, 503, { error: record.error ?? "插件运行平台未能启动" }); return true; }
-  if (runtimeEvents) {
-    await handlePluginEventHttp(request, response, url, { events: record.platform.events, projectId: ports.projectId, actorId: ports.actorId });
-    return true;
-  }
-  if (runtimeUpdates) {
-    const updates = record.platform.upgradeCandidates().map(candidate => ({
-      ...candidate,
-      project_plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === candidate.plugin_id)?.project_plugin_id ?? null,
-    }));
-    sendLocalWebJson(response, 200, { updates });
-    return true;
-  }
-  const pluginId = pluginRoute![1]!, platform = record.platform;
-  const abort = new AbortController();
-  const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
-  request.once("aborted", stop); response.once("close", stop);
-  let routed: ReturnType<typeof projectRouteControl> | undefined;
-  try {
-    const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
-    const plain = pluginRouteControl(abort.signal, current);
-    abort.signal.throwIfAborted();
-    const caller = await ports.routeCaller?.();
-    abort.signal.throwIfAborted();
-    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
-    return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
-      projectRouteHooks(record, platform, pluginId, request, url, ports), {
-        execution: routed?.control ?? plain, stop,
-      });
-  } finally {
-    stop(); routed?.end(); request.off("aborted", stop); response.off("close", stop);
-  }
-}
-
 /**
- * What stays this project's and Coding's around the shared route operations (plugin-route-operations.ts): the Coding surface mirrors
- * a restart, the input graph settles around a dispatch, and a few plugins' answers carry markup the Host renders for them.
+ * What the Coding family still adds around a project's plugin route (project-plugin-http.ts): a consumer of Files' outputs reads
+ * them fresh first, and a few plugins' answers carry markup the Host renders for them. The markup goes with the result decoration's
+ * move to its plugins (C7), the Files refresh once the workspace has a platform notice (N-14); then the hooks go too.
  */
-function projectRouteHooks(
-  record: Started, platform: PluginPlatform, pluginId: string, request: IncomingMessage, url: URL, ports: CodingSurfacePorts,
-): RuntimePluginRouteHooks {
-  return {
-    restarted() {
-      if (pluginId !== CODING_PLUGIN_ID) return;
-      const active = platform.supervisor.state(pluginId);
-      record.running = active?.status === "running";
-      record.error = active?.message ?? undefined;
-    },
-    async beforeDispatch(router) {
-      // Existing workspace outputs need a settings refresh before their consumers
-      // read them. Unrelated plugins must not cause Files reads or publications.
-      if (!readsFilesOutputs(platform, pluginId)) return;
-      await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
-      await platform.wiring.drain();
-    },
-    async afterDispatch(result) {
-      await platform.wiring.drain();
-      decorateRuntimeResult(result, pluginId, request, url, ports);
-    },
-  };
-}
+export const codingRouteHooks: ProjectPluginRouteHooks = ({ platform, pluginId, request, url, ports }) => ({
+  async beforeDispatch(router) {
+    // Existing workspace outputs need a settings refresh before their consumers
+    // read them. Unrelated plugins must not cause Files reads or publications.
+    if (!readsFilesOutputs(platform, pluginId)) return;
+    await router.dispatch({ method: "GET", pathname: `/api/plugins/${FILES_PLUGIN_ID}/state`, actor_id: ports.actorId, query: {} });
+    await platform.wiring.drain();
+  },
+  async afterDispatch(result) { decorateRuntimeResult(result, pluginId, request, url, ports); },
+});
 
-function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
+function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
   if (result.status === 200 && url.pathname.endsWith("/state")) {
     const content = result.body as { view?: unknown; html?: string };
     if (content?.view && pluginId === DIFF_PLUGIN_ID) content.html = renderDiff({
@@ -273,7 +204,7 @@ export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: reado
 /** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
 type CodingCard = Omit<StoredCard, "work_id">;
 
-function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: CodingSurfacePorts): void {
+function decorateCodingResult(result: PluginRouteResponse, request: IncomingMessage, url: URL, ports: ProjectPluginHttpPorts): void {
   // The existing sanitized rich-text renderer is supplied by the composition;
   // Coding neither imports another plugin nor trusts model-produced HTML.
   const body = result.body as { runs?: Array<CodingFollowUpRun & { turns: Array<{ text: string; kind: string }>; awaiting_input: AgentPendingQuestion[]; cards?: CodingCard[] }> } | undefined;
@@ -388,7 +319,7 @@ function workspaceRoot(ports: CodingSurfacePorts): string | null {
 export async function filesDirectoryPanel(
   ports: CodingSurfacePorts,
 ): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureStarted(ports);
+  const record = await ensureProjectPlugins(ports);
   const view = viewOf<FilesUiModel>(record, FILES_PLUGIN_ID, FILES_UI_CONTRIBUTION_ID);
   if (view === null) return null;
   const root = workspaceRoot(ports);
@@ -418,7 +349,7 @@ export async function filesDirectoryPanel(
 export async function gitDirectoryPanel(
   ports: CodingSurfacePorts,
 ): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureStarted(ports);
+  const record = await ensureProjectPlugins(ports);
   const view = viewOf<GitUiModel>(record, GIT_PLUGIN_ID, GIT_UI_CONTRIBUTION_ID);
   if (view === null) return null;
   const root = workspaceRoot(ports);
@@ -452,7 +383,7 @@ export async function gitDirectoryPanel(
 export async function diffStagePanel(
   ports: CodingSurfacePorts,
 ): Promise<{ panel: string; plugin_id: string } | null> {
-  const record = await ensureStarted(ports);
+  const record = await ensureProjectPlugins(ports);
   const view = viewOf<DiffUiModel>(record, DIFF_PLUGIN_ID, DIFF_UI_CONTRIBUTION_ID);
   if (view === null) return null;
   try {
@@ -480,7 +411,7 @@ function failedStage(plugin: string, message: string): string {
 
 /** Compose the running companions into the same main-stage contract as other apps. */
 export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<string[]> {
-  const record = await ensureStarted(ports);
+  const record = await ensureProjectPlugins(ports);
   return ["files", "git", "diff", "text-stats"].filter(id => enabled.includes(id)).map(id => {
     const active = record.platform?.supervisor.state("io.molis.work." + id);
     if (active?.status !== "running") return failedStage(id, active?.message ?? "插件未能启动，请重新打开页面");

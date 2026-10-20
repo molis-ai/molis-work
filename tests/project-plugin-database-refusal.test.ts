@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseCodingSurface, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, codingDirectoryPanel, molisWorkHostProjectReference, releaseProjectPlugins, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
@@ -70,7 +70,7 @@ async function codingPanel(databasePath: string, projectId: string): Promise<str
   try {
     const surface = await codingDirectoryPanel({ store, projectId, actions: pluginActions(store, projectId), actorId: "web-user", goalTitle: () => undefined,
       escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
-    await releaseCodingSurface(store, projectId);
+    await releaseProjectPlugins(store, projectId);
     return surface?.panel ?? "";
   } finally { store.close(); }
 }

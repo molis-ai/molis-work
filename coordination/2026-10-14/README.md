@@ -2305,3 +2305,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ① 不代批，已请用户去 ⑤ 会话确认。
 - ③ C3 已开工：分支 `migrate/coding-c3-results`，叠在 #892 上，子代理在跑。
 - ② 在做 L2+L3：#867 已合，C1 只剩等 L2。
+- **10-21 ② 开了项目库 L2+L3，是 #903**（head `3c2244384`）。
+  - 本机跑了 180 个相关文件，全过；boundary、secrets 和 `--base` 健康门禁都通过；两份 API 快照已刷新。
+  - ⑤ 的评审已贴出，唯一要改的一条它自己补了：BL-395，沙箱插件的 SQL 在宿主主线程上跑、没有上限，BL-358 排在它后面。
+  - ⑤ 接着进 batch-1021-2 跑全量。
+  - #903 合入后，③ 的 C1 就能开。
+- **② 下一项**：T2 `model:read`，C2 等着它。① 同意 T2 排在 C6 前面，之后是 T7 → C6 → C4 → C5 → C7 → C8 设计 → C9。
+- **③ 的 C3**：子代理交回，③ 审了一遍，大体通过。
+  - 宿主里不再有 Coding 的插件 id 字面量，新增的动作 `coding.results.document@1` 只对插件开放。
+  - 门禁数字下降：`coding#host-files` 3→2，`pluginOutsideMentions[coding]` 16→15。这是子代理报的，③ 还没复跑。
+  - 有一处发回子代理改，还没开 PR。
+- #891、#893 仍在等用户在 ⑤ 会话里批新门禁。

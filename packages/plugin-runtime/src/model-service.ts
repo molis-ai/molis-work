@@ -1,9 +1,12 @@
 import { ActionError, defineErrorCodes, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isInstructedPrompt, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { PLUGIN_MODEL_LIMITS, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_MODEL_LIMITS, pluginErrors, type PluginManifest, type PluginModelClient, type PluginModelAvailability, type PluginModelRequest, type PluginModelResult, type PluginModelSelection, type PluginModelImage, type PluginModelChoice, type PluginModelFailure } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { currentPluginAction } from "./action-scope.js";
 
+/** Sending a request to the model: the action declares it, the installation holds it. */
 const MODEL_INVOKE = "model:invoke";
+/** Reading the list of models and whether one can be reached, and nothing more: no request goes out under it. */
+const MODEL_READ = "model:read";
 
 /** The model service's own codes, every one `plugin.<reason>`: a refusal is the caller's mistake or the plugin's lifetime, never a retry. */
 export const pluginModelErrors = defineErrorCodes("plugin", {
@@ -60,11 +63,15 @@ export interface PluginModelGate {
 }
 
 /**
- * `services.model` for one installation. The executor builds it only for a Manifest that declares `model:invoke`, a definition
- * the Host runs itself, and a platform that reaches a Home; every call then passes these gates before the port is asked:
- * the code is inside an action of this installation, that action declares `model:invoke` and is concurrent, the instance is
- * running with the grant, the call's `beforeEffect()` agrees, the prompt is the plugin's own instruction, the limits hold.
- * After the model answered the same authority is asked again, and only then is the answer handed over.
+ * `services.model` for one installation. The executor builds it only for a Manifest that declares `model:read` or `model:invoke`,
+ * a definition the Host runs itself, and a platform that reaches a Home.
+ *
+ * `choices()` and `availability()` need either of the two, declared and held now: a plugin that only lists and picks models
+ * declares the read-only `model:read`, not the permission that sends requests. `complete()` needs `model:invoke` alone, and every
+ * call passes these gates before the port is asked: the code is inside an action of this installation, that action declares
+ * `model:invoke` and is concurrent, the instance is running with the grant, the call's `beforeEffect()` agrees, the prompt is
+ * the plugin's own instruction, the limits hold. After the model answered the same authority is asked again, and only then is
+ * the answer handed over.
  */
 export function createPluginModelClient(manifest: PluginManifest, port: PluginModelPort, gate: PluginModelGate): PluginModelClient {
   const authority = async (caller: { beforeEffect(): Promise<void> }) => {
@@ -72,9 +79,19 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
     await caller.beforeEffect();
     gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
   };
+  const declared = new Set(manifest.permissions.map(item => item.permission));
+  /** Either permission that lets the plugin read the list, if the Manifest declares it and the installation holds it now. */
+  const requireRead = () => {
+    let refusal: unknown;
+    for (const permission of [MODEL_READ, MODEL_INVOKE]) {
+      if (!declared.has(permission)) continue;
+      try { gate.requireGrant(permission); return; } catch (error) { refusal = error; }
+    }
+    throw refusal ?? pluginErrors.grant_denied(`Plugin 没有 ${MODEL_READ} 或 ${MODEL_INVOKE} grant`);
+  };
   return Object.freeze({
     choices(): readonly PluginModelChoice[] {
-      gate.assertActive(); gate.requireGrant(MODEL_INVOKE);
+      gate.assertActive(); requireRead();
       const scope = currentPluginAction();
       if (scope && scope.install_id !== gate.install_id) throw pluginModelErrors.model_action_required("不能读取另一插件的模型服务");
       scope?.caller.signal?.throwIfAborted();
@@ -82,7 +99,7 @@ export function createPluginModelClient(manifest: PluginManifest, port: PluginMo
     },
     availability(selection?: PluginModelSelection): PluginModelAvailability {
       try { gate.assertActive(); } catch { return { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" }; }
-      try { gate.requireGrant(MODEL_INVOKE); } catch { return { available: false, code: "actions.plugin_permission", reason: "插件缺少模型调用授权" }; }
+      try { requireRead(); } catch { return { available: false, code: "actions.plugin_permission", reason: "插件缺少模型授权" }; }
       return port.availability(selectedModel(selection));
     },
     async complete(prompt: InstructedPrompt, request: PluginModelRequest = {}): Promise<PluginModelResult> {

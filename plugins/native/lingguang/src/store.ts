@@ -1,8 +1,11 @@
-import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
+import {createAggregateReplica,initializeAggregateReplication,createAggregateCopy,AGGREGATE_REPLICA_SCHEMA_SQL,type AggregateReplicaContext,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {lingguangAggregates} from './replication.js';
+import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
 import { createHash } from "node:crypto";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
   LingguangConversation,
@@ -12,8 +15,6 @@ import type {
   LingguangStatus,
 } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { lingguangErrors } from "./error.js";
-import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { lingguangAggregates } from './replication.js';
 
 interface SparkRow {
   id: string;
@@ -49,24 +50,38 @@ export interface LingguangConversationState {
   readonly messages: LingguangMessage[];
 }
 
+/** The same SQL on the Runtime's read/transaction port, or a connection owned by a test or maintenance operation. */
+export interface LingguangSql {
+  get(sql: string, parameters?: readonly LingguangSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly LingguangSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly LingguangSqlValue[]): { changes: number | bigint };
+}
+export type LingguangSqlValue = string | number | null;
+
+export interface LingguangStores {
+  read<T>(run: (store: LingguangStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: LingguangStore) => T): Promise<T>;
+}
+
+export function ownLingguangStores(withStore: <T>(run: (store: LingguangStore) => T) => T): LingguangStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
 export class LingguangStore {
-  constructor(private readonly db: DatabaseSync) {}
-  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,lingguangAggregates(this.db),context);}
+  constructor(private readonly db: LingguangSql, private readonly transaction: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   list(projectId: string): LingguangSpark[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY created_at DESC, rowid DESC",
-    ).all(project_id) as unknown as SparkRow[];
+    const rows = this.db.all("SELECT * FROM sparks WHERE project_id = ? AND status = 'inbox' ORDER BY created_at DESC, rowid DESC", [project_id]) as unknown as SparkRow[];
     return rows.map(fromSparkRow);
   }
 
   get(id: string, projectId?: string): LingguangSpark {
-    const row = this.db.prepare("SELECT * FROM sparks WHERE id = ?").get(id) as unknown as SparkRow | undefined;
+    const row = this.db.get("SELECT * FROM sparks WHERE id = ?", [id]) as unknown as SparkRow | undefined;
     if (!row) throw lingguangErrors.not_found("找不到这条灵光");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw lingguangErrors.not_found("找不到这条灵光");
@@ -99,12 +114,7 @@ export class LingguangStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.prepare(
-      "INSERT INTO sparks (id, project_id, title, body, source_kind, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-      record.id, record.project_id, record.title, record.body, record.source_kind, record.status,
-      record.created_at, record.updated_at,
-    );
+    this.db.run("INSERT INTO sparks (id, project_id, title, body, source_kind, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", [record.id, record.project_id, record.title, record.body, record.source_kind, record.status, record.created_at, record.updated_at]);
     return record;
   }
 
@@ -115,15 +125,14 @@ export class LingguangStore {
    */
   private once(project_id: string, requestId: string, inputFingerprint: string, make: () => LingguangSpark): LingguangSpark {
     return this.transaction(() => {
-      const sameId = (this.db.prepare("SELECT request_id, spark_id FROM spark_requests WHERE project_id = ? AND request_id >= ? AND request_id < ?")
-        .all(project_id, requestId + "#", requestId + "$") as { request_id: string; spark_id: string }[])
+      const sameId = (this.db.all("SELECT request_id, spark_id FROM spark_requests WHERE project_id = ? AND request_id >= ? AND request_id < ?", [project_id, requestId + "#", requestId + "$"]) as { request_id: string; spark_id: string }[])
         .filter(row => row.request_id.length === requestId.length + 1 + FINGERPRINT_LENGTH);
       const key = requestId + "#" + inputFingerprint;
       const prior = sameId.find(row => row.request_id === key);
       if (prior) return this.get(prior.spark_id);
       if (sameId.length) throw lingguangErrors.request_conflict("这个请求 ID 已用于保存另一条灵光，请换一个新的请求 ID");
       const created = make();
-      this.db.prepare("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)").run(project_id, key, created.id);
+      this.db.run("INSERT INTO spark_requests (project_id, request_id, spark_id) VALUES (?, ?, ?)", [project_id, key, created.id]);
       return created;
     });
   }
@@ -143,9 +152,7 @@ export class LingguangStore {
         body,
         updated_at: new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString(),
       };
-      this.db.prepare(
-        "UPDATE sparks SET title = ?, body = ?, updated_at = ? WHERE id = ?",
-      ).run(next.title, next.body, next.updated_at, id);
+      this.db.run("UPDATE sparks SET title = ?, body = ?, updated_at = ? WHERE id = ?", [next.title, next.body, next.updated_at, id]);
       return next;
     });
   }
@@ -158,14 +165,14 @@ export class LingguangStore {
     const target = normalizeProjectId(to);
     return this.transaction(() => {
       const current = this.get(id, from);
-      const talks = (this.db.prepare("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?").all(normalizeProjectId(from)) as { id: string; spark_ids_json: string }[])
+      const talks = (this.db.all("SELECT id, spark_ids_json FROM conversations WHERE project_id = ?", [normalizeProjectId(from)]) as { id: string; spark_ids_json: string }[])
         .filter(row => (JSON.parse(row.spark_ids_json) as string[]).includes(id));
       if (talks.some(row => (JSON.parse(row.spark_ids_json) as string[]).length > 1)) {
         throw lingguangErrors.invalid("这条灵光和其他灵光在同一场头脑风暴里，移走会让那场对话缺了它；可以复制到别处");
       }
       // A move is not an edit: the spark keeps its time and revision, so work that recorded it still matches.
-      this.db.prepare("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?").run(target, id, current.updated_at);
-      for (const talk of talks) this.db.prepare("UPDATE conversations SET project_id = ? WHERE id = ?").run(target, talk.id);
+      this.db.run("UPDATE sparks SET project_id = ? WHERE id = ? AND updated_at = ?", [target, id, current.updated_at]);
+      for (const talk of talks) this.db.run("UPDATE conversations SET project_id = ? WHERE id = ?", [target, talk.id]);
       return this.get(id, target);
     });
   }
@@ -195,7 +202,7 @@ export class LingguangStore {
       for (const current of records) {
         if (current.status === "discarded") continue;
         const now = new Date(Math.max(Date.now(), Date.parse(current.updated_at) + 1)).toISOString();
-        this.db.prepare("UPDATE sparks SET status = ?, updated_at = ? WHERE id = ?").run("discarded", now, current.id);
+        this.db.run("UPDATE sparks SET status = ?, updated_at = ? WHERE id = ?", ["discarded", now, current.id]);
       }
     });
   }
@@ -214,9 +221,7 @@ export class LingguangStore {
       }
       const spark_ids = sparks.map((spark) => spark.id).sort();
       const spark_key = spark_ids.join(",");
-      const existing = this.db.prepare(
-        "SELECT * FROM conversations WHERE project_id = ? AND spark_key = ?",
-      ).get(project_id, spark_key) as unknown as ConversationRow | undefined;
+      const existing = this.db.get("SELECT * FROM conversations WHERE project_id = ? AND spark_key = ?", [project_id, spark_key]) as unknown as ConversationRow | undefined;
       const conversation = existing
         ? fromConversationRow(existing)
         : insertConversation(this.db, project_id, spark_key, spark_ids);
@@ -230,7 +235,7 @@ export class LingguangStore {
 
   conversation(conversationId: string, projectId: string): LingguangConversationState {
     const project_id = normalizeProjectId(projectId);
-    const row = this.db.prepare("SELECT * FROM conversations WHERE id = ? AND project_id = ?").get(conversationId, project_id) as unknown as ConversationRow | undefined;
+    const row = this.db.get("SELECT * FROM conversations WHERE id = ? AND project_id = ?", [conversationId, project_id]) as unknown as ConversationRow | undefined;
     if (!row) throw lingguangErrors.not_found("找不到这场对话");
     const conversation = fromConversationRow(row);
     return { conversation, sparks: conversation.spark_ids.map(id => this.get(id, project_id)), messages: this.listMessages(conversationId) };
@@ -249,21 +254,13 @@ export class LingguangStore {
       const now = new Date(Math.max(Date.now(), Date.parse(current.conversation.updated_at) + 1)).toISOString();
       insertMessage(this.db, conversationId, "user", text, now);
       insertMessage(this.db, conversationId, "assistant", reply.trim(), now);
-      this.db.prepare("UPDATE conversations SET updated_at = ? WHERE id = ?").run(now, conversationId);
+      this.db.run("UPDATE conversations SET updated_at = ? WHERE id = ?", [now, conversationId]);
       return this.conversation(conversationId, projectId);
     });
   }
 
-  private transaction<T>(run: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = run(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
-  }
-
   private listMessages(conversationId: string): LingguangMessage[] {
-    const rows = this.db.prepare(
-      "SELECT * FROM messages WHERE conversation_id = ? ORDER BY rowid ASC",
-    ).all(conversationId) as unknown as MessageRow[];
+    const rows = this.db.all("SELECT * FROM messages WHERE conversation_id = ? ORDER BY rowid ASC", [conversationId]) as unknown as MessageRow[];
     return rows.map((row) => ({
       id: row.id,
       conversation_id: row.conversation_id,
@@ -312,15 +309,24 @@ export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
     created_at TEXT NOT NULL
   );
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
+export const LINGGUANG_DATABASE: PluginDatabaseDeclaration = { ...LINGGUANG_STORE_BASELINE, store_name: "lingguang", read_permission: "lingguang:read", write_permission: "lingguang:write" };
 
-export function openLingguangStore(homeDirectory: string): LingguangStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
-  const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_STORE_BASELINE);
+export function openLingguangStore(homeDirectory: string) {
+  const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_DATABASE);
+  const sql: LingguangSql = { get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters), run: (text, parameters = []) => db.prepare(text).run(...parameters) };
   initializeAggregateReplication(db,lingguangAggregates(db));
-  return Object.assign(new LingguangStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,lingguangAggregates(db),context)});
+  return Object.assign(new LingguangStore(sql, run => immediate(db, run), () => db.close()), {replica:(context:AggregateReplicaContext)=>createAggregateReplica(db,lingguangAggregates(db),context),copy:(context:AggregateCopyContext)=>createAggregateCopy(db,lingguangAggregates(db),context)});
+}
+
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 function insertConversation(
-  db: DatabaseSync,
+  db: LingguangSql,
   project_id: string,
   spark_key: string,
   spark_ids: readonly string[],
@@ -333,22 +339,18 @@ function insertConversation(
     created_at: now,
     updated_at: now,
   };
-  db.prepare(
-    "INSERT INTO conversations (id, project_id, spark_key, spark_ids_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)",
-  ).run(record.id, record.project_id, spark_key, JSON.stringify(record.spark_ids), record.created_at, record.updated_at);
+  db.run("INSERT INTO conversations (id, project_id, spark_key, spark_ids_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)", [record.id, record.project_id, spark_key, JSON.stringify(record.spark_ids), record.created_at, record.updated_at]);
   return record;
 }
 
 function insertMessage(
-  db: DatabaseSync,
+  db: LingguangSql,
   conversation_id: string,
   role: LingguangMessageRole,
   body: string,
   created_at: string,
 ): void {
-  db.prepare(
-    "INSERT INTO messages (id, conversation_id, role, body, created_at) VALUES (?, ?, ?, ?, ?)",
-  ).run(crypto.randomUUID(), conversation_id, role, body, created_at);
+  db.run("INSERT INTO messages (id, conversation_id, role, body, created_at) VALUES (?, ?, ?, ?, ?)", [crypto.randomUUID(), conversation_id, role, body, created_at]);
 }
 
 function fromSparkRow(row: SparkRow): LingguangSpark {
@@ -412,4 +414,4 @@ function normalizeChat(value: string): string {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `lingguang/lingguang.db` at its one baseline. */
-export const LINGGUANG_HOME_STORE: HomeStoreDeclaration = { path: "lingguang", library: { baseline: LINGGUANG_STORE_BASELINE } };
+export const LINGGUANG_HOME_STORE: HomeStoreDeclaration = { path: LINGGUANG_DATABASE.store_name, library: { baseline: LINGGUANG_DATABASE } };

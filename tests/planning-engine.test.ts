@@ -1,5 +1,5 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -430,8 +430,10 @@ test("Goals public Planning API owns method versions, graph checks, and change i
       actor_id: "user",
       idempotency_key: "init-module-planning",
     });
+    // W5-08-MOD-02: planning crosses the same business interface as the Host.
+    const governance = new GovernanceCollaborationModule({ db: store.db });
     const goals = new GoalsModule(store.db, {
-      supersedePendingContractProposals: (...args) => new GovernanceRecordStore(store.db).supersedePendingContractProposals(...args),
+      supersedePendingContractProposals: (...args) => governance.records.supersedePendingContractProposals(...args),
       currentActionToken: () => "token:planning",
       authorizeRiskUpdate: () => undefined,
       authorizeRiskState: () => undefined,

@@ -188,6 +188,11 @@ export interface AgentSessionView {
   title: string;
   runs: AgentRunRef[];
   latest_run: AgentRunView | null;
+  /**
+   * Supplements waiting for the next round, read only while no round is live (ended, or stopped for checking) (specs/ai-input-receipts
+   * D31). Absent: not read this time, so nothing is known; `[]`: read, and none wait.
+   */
+  queued_inputs?: import("./agent-inputs.js").AgentQueuedInput[];
 }
 
 /** Where a session stands, without its rounds: enough for a directory of many sessions. */

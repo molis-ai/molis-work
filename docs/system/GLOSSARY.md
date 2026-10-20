@@ -33,10 +33,15 @@
 | Agent | 多轮、带工具、按角色运行并受审查的 AI 工作者；外部的叫外部 Agent，是在外部 Runtime 里运行的工作者 | 内置 Agent、外部 Agent（另有「原生 Agent」等写法，见 U6） | 把 Claude Code、Codex 这类产品叫 Agent（它们是 Runtime） |
 | Runtime（AI Runtime） | 能运行 Agent 或与用户对话的 AI 环境，含外部 AI 工具这个产品（Claude Code、Codex 等） | Runtime、执行工具（另有处写「本地 Agent」「Agent」指它，见 U6） | 把外部产品叫 Agent；与 Plugin Runtime、项目运行对象混写（见 2.3） |
 | Agent role | 插件或系统声明的 Agent 工作方式，起跑时被冻结 | 角色（「系统与插件带来的角色」） | 角色、role、Character（指它时） |
+| 写后检查器 | 人在平台的项目设置里、和工作区授权一起，给一个已授权工作区存的检查命令：Agent 写完一个它适用的文件后，经命令审查跑一次 | 无（设置页未做） | 检查器（裸写）、checker、诊断器 |
+| 等待检查器 | Agent 的一步在等一个条件时，由宿主按 SDK 的节奏去看那个条件的代码，只看不改 | 无 | 检查器（裸写）、condition checker |
 | Character | 个人拥有、可发布成固定版本的 AI 做事方式；是宿主设置里的一节，不是插件 | 角色（「我的角色」） | 角色（泛称）、Characters 插件 |
 | 项目（Project） | 唯一的工作边界与身份，`project_id` | 项目 | Board（指项目时） |
 | 目标资料库（Goals 根记录） | Goals 在每个项目库里的根记录，一个项目一条，不是项目本身 | 目标资料库（报错与动作「初始化目标资料库」） | Board（指它时） |
 | 讨论（项目讨论） | 右栏里一个项目的群聊与 Thread，在用并继续迭代的产品功能 | 讨论、项目讨论、群聊与 Thread | IM 实验、实验线（它不是实验） |
+| 当前约定（Goal 的） | 一条 Goal 现在要遵守的约定与要求，是 Goals 记下的、带版本的事实，每次修改是一条事件；Runtime 放宽或替换已有约定要引用本人授权；Goal 按它收尾 | 当前约定 | 把助理侧栏 AI 自称采纳的约束也叫它（那是「AI 记下的约定」） |
+| AI 记下的约定 | 助理侧栏列出的、AI 在处理说明里自称采纳为约束、目标或完成条件的补充；只是 AI 的自称，Molis 没有核对，不可编辑，要改就从那条补充发更正（`specs/ai-input-receipts/spec.md` §9.2、D41） | AI 记下的约定（英文 What the AI noted as agreed；2026-10-19 起，此前叫「当前约定」） | 当前约定（指它时）、已生效的约定 |
+| 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：改成按声明与授权，实现前代码仍如此）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
 
@@ -135,7 +140,7 @@
 **Character**
 
 - 定义：个人拥有的 AI 做事方式：标题、指令、可选的内置工具范围和动作范围（用来限制，不授予权限）、可附带导入的规则与 Skill 快照。草稿归 `modules/characters`，发布到项目后是成果的一个固定版本（类型 `character.definition.v1`）。起跑时按精确版本选用，且只对插件在 Manifest 的 `agent` 块里用 `characters.role_ids` 声明接受 Character 的 Agent role 开放（声明类型 `AgentManifest`，`packages/contracts/src/platform/plugin-agent.ts:189`；Coding 的声明在 `plugins/native/coding/src/roles.ts:38`；起跑时的核对在 `horizontal/agent-host/src/index.ts:466`）。
-- 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module，它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。
+- 归属（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「Characters 的代码身份」）：Characters 不是插件，是宿主设置里的一节，界面仍是「设置 › 角色」；代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），它的安装记录与 Runtime 条目一起删。文档按「设置的一节」写；只有讲落地前的代码时才写「Characters 插件」。
 - 现状代码（上面的决定还没落地）：`plugins/native/characters` 仍是经 Plugin Runtime 装配的插件（`kind: "app"`，`plugin_id` 为 `io.molis.work.characters`），在内置插件清单里带 `personal: true`（`apps/workbench/src/builtin-plugins.ts`），宿主侧另有 4 个文件：`apps/local-host/src/characters-host.ts`、`apps/local-host/src/character-import-discovery.ts`、`apps/local-host/src/character-import-plugins.ts`、`apps/local-host/src/character-native-execution.ts`。已发布的版本里存着生产者身份（`CHARACTER_PLUGIN_ID`、`CHARACTER_PUBLISHER_SIGNATURE`，`packages/contracts/src/modules/characters.ts:12-13`），`plugins/native/characters/src/plugin.ts:36` 读取时核对；并入宿主时这两个值保留还是迁移，由并入的切片定，不属于术语改名。
 - 代码：`CharacterDraft`、`CharacterContent`（`packages/contracts/src/modules/characters.ts`）。
 - 注意：设置的「角色」页同时列出 Character（「我的角色」）和 Agent role（「系统与插件带来的角色」）。界面把两者统称「角色」，文档分开写：个人的叫 Character，声明出来的叫 Agent role。裸写「角色」只用于引用这个界面标签。
@@ -154,6 +159,12 @@
 - 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `packages/contracts/src/modules/goals.ts:209`，解析与内置包在 `modules/goals/src/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `modules/goals/methods/` 下的 Markdown。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
+
+**写后检查器与等待检查器（必须写全名）**
+
+- 写后检查器：人在平台的项目设置里（和工作区授权在一起，不在 Coding 的设置页）给一个已授权工作区保存的一组命令（`agent.write_checkers.list.v1`、`agent.write_checkers.save.v1`；配置的主人是 `horizontal/agent-host`）。Agent 写完一个文件，宿主按配置顺序取第一个适用的，换进文件路径，交给 SDK 经命令审查去跑（`specs/prologue-adoption/spec.md` §6.0p）。代码与存储里叫 write-checker。
+- 等待检查器：Agent 的一步等一个外部条件时，宿主替 SDK 去看那个条件的代码（`molis.action-query`、`molis.file-present`，在 `horizontal/agent-host/src/adapters/prologue-checkers.ts`），只看不改。
+- 两者都不调模型，也都不是判断规则。裸写「检查器」分不出是哪一个，所以必须写全名。
 
 ### 2.4 项目与 Board
 
@@ -185,7 +196,6 @@
 - 定义：右栏的「讨论」页签（页签名「讨论」，页内标题「项目讨论」，内嵌页标题「群聊与 Thread」）：一个项目里的群聊和内联 Thread。它是在用、会继续迭代的产品功能，不是实验，也不是待删的东西（2026-10-08 用户决定，`specs/repository-anti-corruption/spec.md` §1「右栏『讨论』页签与 IM 代码」）。
 - 代码：页签与内嵌框在 `apps/workbench/src/side-panel.ts:38,42`；服务端包 `server/`（`@molis-ai/molis-work-server`，Home 下的库 `server/server.sqlite`，表名前缀 `mw_`，`server/src/database.ts`）里的群聊域；界面包 `packages/im-ui`（`@molis-ai/molis-work-im-ui`）；合同子路径 `@molis-ai/molis-work-contracts/services/im`；宿主挂载在 `apps/local-host/src/im-server.ts`。`apps/server` 是同一服务的独立启动器，没有产品入口，去留随功能迭代另定。
 - 写法：文档写「讨论」或「项目讨论」，代码缩写是 IM。不再写「IM 实验」「实验线」。它也不在内置插件清单里。
-- 重名：`im` 在工作台代码里同时是整个右栏的 dock 窗口 id（`apps/workbench/src/side-panel.ts:35` 的 `dock-window-im`、`apps/workbench/src/immersive-shell.ts` 的 `data-dock-toggle="im"`），不只指讨论页签，见 R-A10。
 - 同一决定里的三处账目修正不属于命名，列在这里避免误会：`server/server.sqlite` 已登记进 Home 数据与备份表（`docs/system/HOME-DATA.md` 3.4），`uninstall --purge-user-data` 也清除 `server/`（W2-12）；宿主不再直接读它的表（`apps/local-host/src/im-server.ts` 里读 `mw_projects`、`mw_members`，W2-06 未做）；`server` 的包类别已由基础包改成业务包（`scripts/workspace-packages.mjs:36` 标 `module`，按 Module 规则检查）；`packages/im-ui` 是界面包、不拥有事实，仍标 `foundation`（同文件第 37 行），是否改类另待决定。
 
 ### 2.7 术语与翻译键
@@ -395,7 +405,6 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A7 | 目录 `plugins/native/work`、包 `@molis-ai/molis-work-plugin-work` | 目录改叫 `sessions`，包改 `@molis-ai/molis-work-plugin-sessions` | 源码 21 个文件、测试 16 个文件导入（不含 `package.json`） | 同步 `scripts/workspace-packages.mjs`、SSOT、各 README |
 | R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | 6 个插件共 19 个 UI 描述的 `plugin_id: "io.molis.work.native.<x>"`（Goals 12、Feed、Inbox、Schedule、成果 2、会话 2，位置见 3.3 表后第 2 条） | 与各自 Manifest 的 `plugin_id` 相同：`io.molis.work.<x>`，会话是 `io.molis.work.sessions` | 源码 19 个文件；测试：`tests/builtin-plugin-composition.test.ts:47-48` 断言了 Goals 提案与会话终端的旧值 | 描述没找到持久化的位置（见 3.3）。改后可以让构建期装配也过 Plugin Runtime 同样的一致性检查。该测试的注释写着「旧公开身份保持稳定」，改前先确认它钉的是 `plugin_id` 还是只是 `contribution_id`，再按预期变化改断言 |
-| R-A10 | 工作台右栏的 dock 窗口 id `im`：`dock-window-im`、`data-dock-window="im"`、`data-dock-toggle="im"`、`navigation-presentation.ts:60` 里的 `id==='im'` | `side`（讨论页签的内嵌框 `data-dock-frame="im"` 可改 `discussion`） | 源码 3 个文件（`apps/workbench/src/side-panel.ts`、`apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/scripts/client/navigation-presentation.ts`），测试 2 个（`tests/desktop-tui.test.ts`、`tests/lingguang-plugin.test.ts`） | 这个 id 指整个右栏，不是讨论页签（2.6）。落地前先确认它没有写进本地存储的键 |
 | R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`；`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 参数；`packages/contracts/src/modules/goals.ts` 的注释；`plugins/native/characters/src/client.ts` 的注释把系统与插件的角色叫 Characters |
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）

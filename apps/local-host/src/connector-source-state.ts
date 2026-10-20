@@ -8,8 +8,8 @@ import { withConnectorConnections } from "./connector-connection-store.js";
 /** Keep Feed's saved source status in step with the selected Home connection. */
 export function refreshFeedConnectionState(homeDirectory: string, connectionId: string): void {
   const available = withConnectorConnections(homeDirectory, (store) => {
-    const connection = store.require(connectionId);
-    return store.state(connection) === "connected";
+    const connection = store.get(connectionId);
+    return connection !== null && store.state(connection) === "connected";
   });
   const catalogPath = join(homeDirectory, "projects", "catalog.db");
   if (!existsSync(catalogPath)) return;

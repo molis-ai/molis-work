@@ -33,6 +33,9 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["diff", "@molis-ai/molis-work-plugin-diff"],
   ["text-stats", "@molis-ai/molis-work-plugin-text-stats"],
   ["form", "@molis-ai/molis-work-plugin-form"],
+  ["dataset", "@molis-ai/molis-work-plugin-dataset"],
+  ["lingguang", "@molis-ai/molis-work-plugin-lingguang"],
+  ["ppt", "@molis-ai/molis-work-plugin-ppt"],
 ]);
 
 const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home");
@@ -40,16 +43,14 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", "cognia", "dataset", "feed", "goals", "images",
-  "inbox", "jelly", "lingguang", "pages", "plugin-builder", "ppt", "schedule", "sessions", "workflows",
-  // PR #98 (system assistant) adds Todo on the build-time path; listed so it can land, then migrate.
-  "todo",
+  "alchemist", "artifacts", "feed", "goals",
+  "inbox", "pages", "plugin-builder", "schedule", "sessions", "workflows",
 ]);
 
-/** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today, plus Todo from PR #98. */
+/** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact", "cognia", "dataset", "feed", "images", "inbox", "jelly",
-  "lingguang", "pages", "personal", "ppt", "schedule", "shelf", "todo", "workflows",
+  "alchemist", "artifact", "feed", "inbox",
+  "pages", "personal", "schedule", "shelf", "workflows",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {
@@ -140,6 +141,25 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
   }).sort();
   assert.deepEqual(hybrid, [...HYBRID_RUNTIME_PLUGINS].sort(),
     `Runtime plugins with hand-written Host code. A new one joins nothing: put the code in the plugin package. One that is clean leaves HYBRID_RUNTIME_PLUGINS.`);
+});
+
+// RAC-44 (Cognia moved to a Home Runtime, specs/repository-anti-corruption): Cognia reaches the product only through its
+// catalog entry's Home Runtime declaration and the public plugin contract; the old Host wiring is gone and none comes back.
+// The hybrid check above reads the project supervisor's list only, so the Host side is asserted here for Cognia: no Host
+// file named after it, no provider registered for it, no Host source that imports its package. That it really starts
+// from the declaration is the next test.
+test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its Home Runtime declaration", async () => {
+  const runtime = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia")?.runtime;
+  assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
+  assert.equal(runtime.scope, "home");
+  assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
+  assert.ok(!BUILD_TIME_ASSEMBLED.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
+  const sources = await hostSourceFiles();
+  assert.deepEqual(sources.filter(file => file.slice(file.lastIndexOf("/") + 1).startsWith("cognia")), [], "no Host file is named after Cognia");
+  const importing: string[] = [];
+  for (const file of sources) if ((await readFile(join(repoRoot, file), "utf8")).includes("@molis-ai/molis-work-plugin-cognia")) importing.push(file);
+  assert.deepEqual(importing, [], "no Host source imports the Cognia package; it is reached through the catalog and the Runtime");
+  assert.doesNotMatch(await readFile(join(repoRoot, "apps/local-host/src/project-host.ts"), "utf8"), /registerProvider\(\s*cognia/i);
 });
 
 // A catalog declaration only counts as Runtime assembly when the real Home supervisor activates its exact factory.

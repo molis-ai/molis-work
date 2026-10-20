@@ -1,6 +1,6 @@
 import {projectSyncCatalog} from './project-sync-catalog.js';
 import {
-  createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, createArtifactSyncContent, ArtifactsRepository,
+  createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, createArtifactSyncContent, ArtifactsModule,
 } from '@molis-ai/molis-work-module-artifacts';
 import { createSyncConflictState, createSyncJsonContent } from '@molis-ai/molis-work-plugin-sdk';
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -112,7 +112,7 @@ function createVersionRegistration(home: string, spaceId: string, userId: string
       if (!project || reference.owner === 'artifacts' && !project.enabled) return false;
       return withProject(projectId, store => reference.owner === 'goals'
         ? store.goalsQuery.listGoals(projectId).some(goal => goal.goal_id === reference.assetId)
-        : reference.version !== undefined && !!new ArtifactsRepository(store.db).getVersion(projectId, reference.assetId, reference.version), reference.owner === 'artifacts');
+        : reference.version !== undefined && !!new ArtifactsModule({db:store.db,appendEvent:event=>store.appendEvent(event),eventCursor:id=>store.eventCursor(id)}).query.getArtifactVersion(projectId,{artifact_id:reference.assetId,version:reference.version}), reference.owner === 'artifacts');
     },
   };
 }

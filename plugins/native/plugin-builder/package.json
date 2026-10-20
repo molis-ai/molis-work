@@ -4,7 +4,7 @@
   "private": true,
   "description": "Prologue-powered plugin design, live assembly and independent data applications.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

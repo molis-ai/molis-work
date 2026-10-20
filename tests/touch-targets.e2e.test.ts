@@ -32,8 +32,7 @@ const KINDS: Record<string, string> = {
   "[data-assistant-send]": "assistant send",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-resident": "resident",
-  ".bar-chat": "discussion",
+  ".bar-chat": "side panel",
   ".navigator-project-selector": "project",
   "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
@@ -43,7 +42,6 @@ const KINDS: Record<string, string> = {
   ".tab-add-button": "open plugin",
   ".tab-split-button": "layout",
   "[data-home-plugin-open]": "home tool",
-  ".tab-view-chip": "location chip",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
   ".assistant-target-clear": "work chip clear",
@@ -378,7 +376,7 @@ const PANEL_BODY = `(async () => {
 })()`;
 
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
-const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
+const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
@@ -646,7 +644,7 @@ for (const scheme of ["light", "dark"] as const) {
     const w = windowsOf(browser, scheme, true);
     await w.start();
 
-    // A phone. Three screens carry every control: the project's home, a plugin's page (its location chip), and the project's
+    // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
     // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
     // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
     // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
@@ -654,7 +652,7 @@ for (const scheme of ["light", "dark"] as const) {
     // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
     // 350 and 320px are the windows that cannot.
     const seen = new Set<string>();
-    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('.tab-view-chip')"] as const;
+    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
     const moreShown: Record<string, boolean> = {};
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
@@ -677,8 +675,10 @@ for (const scheme of ["light", "dark"] as const) {
         moreShown[`${width} ${name}`] = dock.more;
       }
     }
-    for (const width of [390, 375, 360]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
-    for (const width of [350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px cannot hold 项目首页 and the "+N" button beside the directory button: the "+N" gives way, 项目首页 does not`);
+    // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
+    // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
+    // the dropped buttons to the switcher's list.
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
     assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
@@ -721,7 +721,7 @@ for (const scheme of ["light", "dark"] as const) {
     // The strip's own menus (open a plugin, the layout, a tab, a tab group) are lists too: their rows, the group's name input and its colour
     // swatches are 44px targets on a phone and on a tablet, the swatches drawn small inside their target.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
-      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
       const menus = await w.stripMenus();
       for (const [menu, report] of Object.entries(menus)) {
         assert.equal(report.shown, true, `${name} · ${width}: ${menu} opens`);
@@ -793,16 +793,23 @@ for (const scheme of ["light", "dark"] as const) {
     // The steps, window by window: a line that fits folds nothing, and the narrower the window the more it folds, never a chip it
     // could keep. These are the stages the island reaches at 44px targets; a change here is a change in what a phone's line shows.
     // With the materials chip gone from the line (it is the strip above it now, §21.2 point 1), 390px folds nothing and 360px
-    // folds one step less than it did; 667px, where the trays leave the line least room, is as it was.
+    // folds one step less than it did. With one button at the bar's end instead of three (side-shelf §3.1), 667px, where the
+    // trays leave the line least room, folds nothing either.
     assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => /^(390|360|667) /.test(key))), {
       "390 a current work": "", "390 a current work with a notice": "", "390 a Coding work": "",
       "390 a work with a notice and a Character": "", "390 a Coding work with a notice": "",
       "360 a current work": "", "360 a current work with a notice": "", "360 a Coding work": "",
       "360 a work with a notice and a Character": "choosers", "360 a Coding work with a notice": "choosers",
-      "667 a current work": "", "667 a current work with a notice": "chips", "667 a Coding work": "choosers",
-      "667 a work with a notice and a Character": "chips", "667 a Coding work with a notice": "chips",
+      "667 a current work": "", "667 a current work with a notice": "", "667 a Coding work": "",
+      "667 a work with a notice and a Character": "", "667 a Coding work with a notice": "",
     }, "the steps the island takes at 390, 360 and 667px");
-    assert.equal(stages["640 a current work"], "mark", "a bare current work in a 640×360 window folds the mark and nothing else");
+    // A 640×360 window: with the bar's end down to one button, a bare current work folds nothing and the fullest line only the
+    // choosers (it folded the mark, and the chips, while the end held three). The mark still folds first at 320px.
+    assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => key.startsWith("640 "))), {
+      "640 a current work": "", "640 a current work with a notice": "", "640 a Coding work": "",
+      "640 a work with a notice and a Character": "choosers", "640 a Coding work with a notice": "choosers",
+    }, "the steps the island takes in a 640×360 window");
+    assert.equal(stages["320 a current work with a notice"], "mark", "at 320px a current work with a notice folds the mark and nothing else");
 
     // A tablet's line, with every chip a work can show.
     await w.open(1024, 768, "", "true");
@@ -863,7 +870,7 @@ for (const scheme of ["light", "dark"] as const) {
     }
 
     // The strip's own menus keep the rows they have on a desktop window (34px and up, short of 44px), the name input and the swatches included.
-    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
     for (const [menu, report] of Object.entries(await w.stripMenus())) {
       assert.equal(report.shown, true, `1280: ${menu} opens`);
       assert.deepEqual(report.rows.filter(row => row < 34 || row >= 44), [], `1280: the rows of ${menu} stay a desktop menu's rows, 34px at least and short of the 44px of touch (${report.rows})`);

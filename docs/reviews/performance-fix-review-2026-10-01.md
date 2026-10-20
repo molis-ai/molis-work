@@ -4,7 +4,7 @@
 
 当前状态：用户授权后，五项问题及首次目录初始化竞态已修正，PR 验证追加发现的热状态采样问题也已修正，Cognia 按需加载断言已同步；定向及相关模块回归通过。下面保留修正前的触发条件与旧版对照，修正结果见末节。全量非 E2E 未完成、整体原生桌面输入验收仍缺证据，不宣称原始卡死已取得现场根因。
 
-范围：复查 `62cbc14d..a6b1b29b` 的六项性能修复及相关调用链，在 `/private/tmp/molis-project-management-freeze` 执行隔离复现，并与干净的 `62cbc14d` 已构建产物对照。复查阶段未修改生产源码；PR 追加修正后来恢复到 `/Users/yijunwang/code/molis-work-performance-pr` 隔离工作树，未替换真实应用、服务或 Home。以下旧路径和位置记录复查当时的触发点；需求与验收以 [spec](../../specs/archive/performance-preserving-fixes/spec.md) 为准。
+范围：复查 `62cbc14d..a6b1b29b` 的六项性能修复及相关调用链，在 `/private/tmp/molis-project-management-freeze` 执行隔离复现，并与干净的 `62cbc14d` 已构建产物对照。复查阶段未修改生产源码；PR 追加修正后来恢复到 `~/code/molis-work-performance-pr` 隔离工作树，未替换真实应用、服务或 Home。以下旧路径和位置记录复查当时的触发点；需求与验收以 [spec](../../specs/archive/performance-preserving-fixes/spec.md) 为准。
 
 ## P1：并发恢复会删除已登记的新项目数据库（新增回归）
 

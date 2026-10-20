@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Page resource budget (specs/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
-// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and may only fall.
-// The real per-asset targets are set after the superseded skins are deleted; until then nothing may grow.
+// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and by default only fall.
+// The budget is a size control, not a hard ceiling (the user amended decision #17 on 2026-10-18): growth a feature needs and
+// that cannot be won back in the same asset is admitted once through APPROVED_CEILINGS below, after review, with the reason,
+// the bytes and what was tried written in the PR. More than 10 KB on one asset at once, or a new asset, is asked of the user
+// first (AGENTS.md).
 //
 // What is measured is what the host sends: every `/assets/...` path that apps/local-host/src/web-assets.ts serves
 // (`serveWorkbenchAsset`), requested from the built `createLocalWebAssets`, with the byte length of the body. The host
@@ -227,27 +230,33 @@ const headErrors = (measured, budget, base) => {
     if (allowed === undefined && base?.[asset] !== undefined) errors.push(`${asset} (${bytes} bytes) is still sent by the host but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base[asset]} bytes); deleting an entry does not exempt an asset the host sends, restore it`);
     else if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
     else if (bytes === undefined) errors.push(`${asset} has a budget but the host no longer serves it; remove the entry from ${BUDGET_FILE} (removing is always allowed)`);
-    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter, the budget cannot be raised`);
+    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter; growth a feature needs is admitted once through APPROVED_CEILINGS after review (AGENTS.md), never by raising the budget file`);
     else if (bytes < allowed) errors.push(`${asset} is ${allowed - bytes} bytes under its budget (${allowed} → built ${bytes}); lower the budget with \`node scripts/gates/page-assets.mjs --update --base origin/main\` so the slack cannot be used again`);
   }
   return errors;
 };
-// One-time allowance for receipts 3c (specs/ai-input-receipts D24–D28, RCPT-311–313: one shared supplement receipt for
-// Coding and the Assistant, with the model's claim apart from the run's fact, the in-place detail and the status-region
-// announcements). The user approved it on 2026-10-16 (D25, relayed by the coordinator): workbench.js +4,113, workbench.css and
-// arrival.css +2,062 each; coding.js falls. Each entry is for exactly one merge-base budget (main 769d1179), capped at the
-// measured size, and used once: the next baseline freezes again. W5-05 slice 1 (#611) deleted 1e's spent entries; this brings the
-// object back with 3c's three only. Delete it in the next change to this gate (as #541, #584 and #611 did).
+// specs/project-knowledge (2026-10-19, each under the 10 KB the user lets review admit, AGENTS.md): the 项目资料 settings page
+// styles (+6.6 KB, in both sheets, as the model and memory settings are, since the settings cover renders in the workbench), the
+// shared picker's (+1.9 KB) and the side panel's import dialog in the workbench sheet; +881 B of workbench.js for the side
+// panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed, and the dialog-aware Escape and searching state of the 10-19 review. Each is spent once from exactly
+// main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [810350, 812412],
-  "/assets/molis-work-workbench.css": [1688608, 1690670],
-  "/assets/molis-work-workbench.js": [1097095, 1101205],
+  "/assets/molis-work-workbench.js": [1128644, 1129525],
+  "/assets/molis-work-workbench.css": [1593165, 1603154],
+  "/assets/molis-work-settings.css": [982397, 988933],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
+// An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
+// first freeze; from the next PR on it only falls like every other.
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+const APPROVED_NEW_ASSETS = {
+  "/assets/molis-work-knowledge.js": 26361,
+};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
+    if (base[asset] === undefined && allowed <= (APPROVED_NEW_ASSETS[asset] ?? -1)) continue;
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
@@ -261,7 +270,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  if (reference[asset] === undefined) return bytes <= (APPROVED_NEW_ASSETS[asset] ?? -1) ? [] : [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 

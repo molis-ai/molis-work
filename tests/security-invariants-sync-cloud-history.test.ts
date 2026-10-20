@@ -32,14 +32,14 @@ async function fixture(t:TestContext){
  return {client,namespace,original,version,calls,encoded,space,counts:()=>({prepared,applied}),stop:()=>available=false,onVersion:(hook:typeof versionHook)=>versionHook=hook,setVersion:(value:unknown)=>versionValue=value,setKeys:(value:unknown)=>keysValue=value,setVersions:(value:unknown)=>versionsValue=value,setRaw:(value:string)=>rawResponse=value,corrupt:()=>corrupt=true};
 }
 
-test('S-32 PCSYNC-11/16 cloud inspection decodes full declared bytes without owner preparation, head writes or execution',async t=>{
+test('S-63 PCSYNC-11/16 cloud inspection decodes full declared bytes without owner preparation, head writes or execution',async t=>{
  const f=await fixture(t);assert.equal((await f.client.history.keys(f.namespace)).items[0]!.key,'asset');
  assert.equal((await f.client.history.versions(f.namespace,'asset')).items[0]!.revision,2);
  const view=await f.client.history.inspect(f.namespace,'asset',2);assert.deepEqual(view.value,f.original);assert.equal(view.currentRevision,1);
  assert.deepEqual(f.counts(),{prepared:0,applied:0});assert.ok(f.calls.includes('/v1/blobs/chunk'));assert.ok(!f.calls.includes('/v1/changes'));
 });
 
-test('S-32 PCSYNC-16 stale or repeated pagination cursors are refused instead of creating an unbounded history loop',async t=>{
+test('S-63 PCSYNC-16 stale or repeated pagination cursors are refused instead of creating an unbounded history loop',async t=>{
  const f=await fixture(t);
  f.setKeys({items:[{key:'asset',currentRevision:1,versions:1,retainedAt:1000}],more:true,next:'wrong'});await assert.rejects(()=>f.client.history.keys(f.namespace));
  f.setKeys({items:[{key:'asset',currentRevision:1,versions:1,retainedAt:1000}],more:false,next:null});await assert.rejects(()=>f.client.history.keys(f.namespace,'asset'));
@@ -47,20 +47,20 @@ test('S-32 PCSYNC-16 stale or repeated pagination cursors are refused instead of
  assert.deepEqual(f.counts(),{prepared:0,applied:0});
 });
 
-for(const mode of ['wrong-key','wrong-revision','undeclared','corrupt'] as const)test('S-32 PCSYNC-11/16 malformed history is refused without owner writes: '+mode,async t=>{
+for(const mode of ['wrong-key','wrong-revision','undeclared','corrupt'] as const)test('S-63 PCSYNC-11/16 malformed history is refused without owner writes: '+mode,async t=>{
  const f=await fixture(t),wire=structuredClone(f.version);
  if(mode==='wrong-key')wire.event.key='foreign';else if(mode==='wrong-revision')wire.event.revision=3;else if(mode==='undeclared')wire.event.attachments=[];else f.corrupt();f.setVersion(wire);
  await assert.rejects(()=>f.client.history.inspect(f.namespace,'asset',2));assert.deepEqual(f.counts(),{prepared:0,applied:0});
  if(mode!=='corrupt')assert.ok(!f.calls.includes('/v1/blobs/chunk'));
 });
 
-for(const mode of ['stop-owner','stop-device'] as const)test('S-32 PCSYNC-06/16 delayed history response cannot cross a stopped scope: '+mode,async t=>{
+for(const mode of ['stop-owner','stop-device'] as const)test('S-63 PCSYNC-06/16 delayed history response cannot cross a stopped scope: '+mode,async t=>{
  const f=await fixture(t);f.onVersion(async()=>{if(mode==='stop-owner')f.stop();else await f.client.setDevice(false);});
  await assert.rejects(()=>f.client.history.inspect(f.namespace,'asset',2));assert.deepEqual(f.counts(),{prepared:0,applied:0});assert.ok(!f.calls.includes('/v1/blobs/chunk'));
  if(mode==='stop-device'){f.onVersion(async()=>{});assert.deepEqual((await f.client.history.inspect(f.namespace,'asset',2)).value,f.original,'a later explicit manual inspection uses a new operation scope');}
 });
 
-test('S-32 PCSYNC-01/16 unselected namespaces, current-version restore and unconfirmed purge never send a request',async t=>{
+test('S-63 PCSYNC-01/16 unselected namespaces, current-version restore and unconfirmed purge never send a request',async t=>{
  const f=await fixture(t);
  await assert.rejects(()=>f.client.history.keys('foreign'));await assert.rejects(()=>f.client.history.restore(f.namespace,'asset',1,1,'operation'));
  await assert.rejects(()=>f.client.history.purge(f.namespace,'asset',2,1,false));assert.deepEqual(f.calls,[]);
@@ -68,7 +68,7 @@ test('S-32 PCSYNC-01/16 unselected namespaces, current-version restore and uncon
  await assert.rejects(()=>f.client.history.keys(f.namespace));assert.deepEqual(f.counts(),{prepared:0,applied:0});
 });
 
-for(const mode of ['response','decoded-content'] as const)test('S-39 S-32 PCSYNC-16/26 malformed history JSON never includes private content in its diagnostic: '+mode,async t=>{
+for(const mode of ['response','decoded-content'] as const)test('S-70 S-63 PCSYNC-16/26 malformed history JSON never includes private content in its diagnostic: '+mode,async t=>{
  const f=await fixture(t),privateText='private-history-body-never-diagnostic',broken=Buffer.from('{"text":"'+privateText+'" malformed');
  if(mode==='response')f.setRaw(broken.toString());else{
   const ref={digest:createHash('sha256').update(broken).digest('hex'),size:broken.length};f.encoded.blobs.splice(0,f.encoded.blobs.length,{...ref,bytes:broken});

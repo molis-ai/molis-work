@@ -6,7 +6,7 @@ import type { ActionView } from "../platform/actions.js";
 import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartRequest } from "./agent-host-start.js";
 import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
 export type {AgentSavedHistoryMessage,AgentSavedHistoryRun,AgentSavedHistoryView} from './agent-history.js';
-import type { AgentStepAmendment, AgentStepBoard, AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
+import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
 import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
 import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
 import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
@@ -138,6 +138,7 @@ export type {
 export type { AgentStartExecution } from "./agent-host-start.js";
 
 export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, type AgentRunOffer } from "./agent-host-offers.js";
+export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore } from "./agent-host-write-checkers.js";
 
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
 export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
@@ -249,10 +250,6 @@ export const agentHostCapabilities = {
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
-  /** A person adjusts the running plan's step graph; the version guards against a concurrent change. */
-  amendStepBoard: {
-    capability_id: "agent.run.step-board.amend.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,

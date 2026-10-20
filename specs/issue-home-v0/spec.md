@@ -2,6 +2,53 @@
 
 状态：V0 已合入 main（PR #396）。首期体验重构（ISSUE-35 至 ISSUE-41，2026-10-12）在分支 `feat/issue-capture-experience` 实现并通过本机工程验证：任何地方 ⌘⇧I 唤起、一句话加截图 ⌘↵ 即记录、助理后台起标题判类型并直接保存（可撤销），录入与列表同屏。方法 v9 已用用户日常的 MiniMax-M3 在产品里实测（见「日常模型的产品内评测」）。用户 2026-10-12 决定这一期不做本人验收，首期验收标准改为工程验证完成（已完成，见「首期体验重构验证」与「日常模型的产品内评测」）；桌面壳内的组合键与真人中文输入法的手感仍为 `UNVERIFIED`，留到团队日常使用中发现问题时用 Issue 记录。V0 各轮记录保留在下文。
 
+## 页面录入改由 Issue 自己起标题（BL-149，2026-10-19 起草）
+
+状态：起草，未实现。方向由方法与迁移线 ③ 对过（统筹 10-19 指定）；代码主人 @yijunw0212 经 CODEOWNERS 评审。由 AI 手册线写 spec 并改；下面列出的文件 ③ 那边不碰。先按「先量」量现状，再动手。
+
+**问题。** 页面录入现在交给个人助理。页面先 `issues.prepare` 存草稿，再经 `/api/assistant/send` 发「录入草稿 <ID>」，带上方法 `issues-capture`。助理起标题、判类型，用 `change-reversible` 调 `issues.capture` 存好（`capture-client.ts` 的 `sendWork`、`watch`）。
+
+一次调用就存好，靠的是方法正文里写死的宿主用法：
+- `methods.ts` 的【页面录入】写着不要 find-capabilities 和 read-capability、直接 change-reversible、被拒就改 suggest-action。
+- 【页面重新整理】写着只用 suggest-action、不调 capture 和 change-reversible。
+- 【普通对话】写着 change-reversible，被拒改 change-capability。
+
+怎样找能力、哪些动作不经确认、被拒之后怎么办，是网关和宿主的规则（手册 13.1）。宿主一改，方法就和宿主说的不一样。
+
+页面录入也用不着助理那一层：
+- 每次录入都在助理里留一条工作，页面要再把它停掉、归档（`quiet`）。
+- 页面要按工作状态、卡片和提问去猜结果（`watch`）。
+
+**决定（起草）。** 页面录入和重新整理不再经助理。Issue 在自己的动作里调一次有界模型，只要标题和类型；要写入时由插件自己写。
+- **ISSUE-50** 录入：新动作（暂名 `issues.name_draft@1`）。
+  - 声明：command，`scheduling: "concurrent"`，权限 `issues:write` 加 `model:invoke`，只给 `user` 调。
+  - 读草稿的原文和截图，经 `services.model.complete` 调一次模型，`output: "json"`。截图只在所选模型声明 `vision` 时作为 `images` 传。
+  - 插件检查返回的形状：标题长度、类型枚举。依据不足时返回一句追问、不写入。
+  - 写入：`beforeEffect()` 之后，按读到的草稿版本走 `issues.capture` 的写入路径，一次写好。写入人取调用上下文里的 actor，不从输入或模型输出读（③ 10-19 的要求）。
+  - 页面行为照 ISSUE-35～41 不变：输入框立刻清空、可以撤销；要补充、模型不可用、超时都留在列表顶部，点开是带原文原图的编辑器。
+- **ISSUE-51** 重新整理（ISSUE-48 改走这条路）：同样调一次有界模型，只返回标题和类型，填回编辑器，不写入；由人点保存，走 `issues.update`。ISSUE-49 的「迟到结果不能写回」不变。
+- **ISSUE-52** 规则只有一份：标题、类型、依据不足的规则文本放在一处。
+  - 作为 Issue 自己登记的指令（`defineInstructionPrompt`，在目录条目上声明），人在「Prompt 与 Character」里看得到、改得了。
+  - 方法 `issues-capture` 也从同一份文本拼出来。
+- **ISSUE-53** 方法 `issues-capture` 升 v11，只留业务规则：Issue 记什么、标题、类型、依据不足时追问、普通对话里记问题用 `issues.create`、修改和删除先读版本。去掉【页面录入】【页面重新整理】两段和所有工具用法（③：页面录入改完后，方法里只留标题和类型的规则）。
+- `issues.capture` 的调用方去掉 `agent`，只剩页面（手动保存 `keep` 仍用它）。这是动作合同变化：跑 `pnpm actions:update`，PR 里写影响，助理不再能调它。
+
+「每次确认」不需要另定。用户设了 AI 改动每次确认时，现在的页面录入会落成卡片（`watch` 的 card 分支）。那是因为它走了助理的网关，不是 Issue 的规则。改成插件自己的动作后，写入是人按下「记录」那一下发起的，模型只填标题和类型，保存仍可撤销，和首期决定「记录不再等确认」一致。插件在自己的动作里调模型、写入结果，是平台现成的做法（问卷起草、Feed 规则）。这里按推荐项定，理由记在此处。
+
+**先量（改之前）。**
+- 材料：「日常模型的产品内评测」那 10 条输入。
+- 现状：在隔离 Home 里用 MiniMax-M3 走现行页面录入（prepare → assistant/send → watch），每条跑 3 次。记一次调用就存好的比例、模型调用次数、时延，以及标题和类型是否合规则。
+- 改后：同一组材料再跑。存好的比例不低于改前、标题和类型合规则的比例不低于改前，才合入；差的那几次逐条分类。
+- 密钥只在那一条命令上从钥匙串读，不写进任何文件。
+
+**要改的文件。**
+- 插件：`plugins/native/issues/src/manifest.ts`（权限、新动作）、`actions.ts`（新动作，`capture` 去掉 `agent`）、`capture.ts`（命名并写入，写入人从调用上下文取）、`plugin.ts`（接 `services.model`、新路由）、`methods.ts`（v11）、新文件 `prompts.ts`（那一份规则与指令）、`capture-client.ts` 与 `review-client.ts`（去掉助理工作的读写、卡片和提问的分支）、`README.md`。
+- 目录条目：`apps/workbench/src/builtin-plugins.ts` 的 Issue 条目声明指令（枢纽文件，动之前先查在途 PR）。
+- 测试：`tests/issue-assistant.test.ts`、`tests/fixtures/issue-model.ts`、`tests/issue-capture.test.ts`、`tests/issue-capture-page.e2e.test.ts`、`tests/issue-reorganize.e2e.test.ts`、`tests/issue-assistant-repair-page.e2e.test.ts`、`tests/issue-clarification-page.e2e.test.ts` 按新路径改，新测试带 ISSUE-50～53。浏览器用例等机器恢复后再跑（用户 10-19 暂停）。
+- 快照：`tooling/gates/actions/`（`pnpm actions:update`）；`tooling/gates/page-assets.json`（Issue 脚本应变小，变小就降）。
+
+这一节取代 ISSUE-48 的「沿用现有助理建议卡…不新增后端、数据库或动作合同」和 ISSUE-36 的「标题和类型来自助理」；旧记录保留。
+
 ## 已保存 Issue 重新整理（2026-10-15）
 
 状态：修复与指定链路验证完成，准备通过 PR 合并；仅补齐已保存记录的重新整理入口，Issue 分析与 Coding 修复在另一个会话讨论。2026-10-15 用户已授权仅提交本次修复、推送合并及更新本机安装版，安装结果另记。

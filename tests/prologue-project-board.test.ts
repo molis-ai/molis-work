@@ -109,7 +109,7 @@ test("PA-03: two sessions on the project's board report at once and both land; a
     assert.ok(Math.max(used.ONE!, used.TWO!) < Math.min(used.ONE_AFTER!, used.TWO_AFTER!), JSON.stringify(used));
     // The person inserts a step before TWO's step-2: that step changed after the version TWO knows.
     const before = (await adapter.read(twoRound.ref)).step_board!;
-    await adapter.amendStepBoard!(twoRound.ref, { kind: "insert", after: "step-1", title: "先补类型", acceptance: "类型检查通过" }, before.version, "user");
+    await adapter.collaboration!.revise(twoRound.ref, { kind: "insert", after: "step-1", title: "先补类型", acceptance: "类型检查通过" }, before.version, "user");
     releaseAmended();
     const [oneDone, twoDone] = await Promise.all([ended(oneRound.ref), ended(twoRound.ref)]);
     assert.equal(oneDone.phase, "completed", oneDone.stop_reason ?? "");

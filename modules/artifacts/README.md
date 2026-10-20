@@ -57,6 +57,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - Repository 只由包内装配；成果与过程项的 Module、service/query/commands 不提供 `repository` 成员，调用方通过业务服务发布和读取固定版本。
   - 错误由本包声明并抛出共同 `ActionError`，Host 不注入错误工厂；现行码、消息、详情与响应分类随 owner 保持。
   - 同一 `artifact_id + version` 的相同重放幂等，不同内容不能覆盖；不维护 canonical head。
   - 没有兼容消费者时仍能保存、同步和重放。

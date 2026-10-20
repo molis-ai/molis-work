@@ -65,7 +65,6 @@ export interface GoalsModuleOptions extends GoalsCommandContextOptions {
 }
 
 export class GoalsModule {
-  readonly repository: GoalsRepository;
   readonly commands: GoalsCommandApi;
   readonly lifecycle: GoalsLifecycleApi;
   readonly planning: GoalsPlanningEngine;
@@ -77,9 +76,9 @@ export class GoalsModule {
     hooks: GoalsModuleHooks,
     options: GoalsModuleOptions = {},
   ) {
-    this.repository = new GoalsRepository(db);
-    const context = new GoalsCommandContext(this.repository, options);
-    const query = new GoalsQueryService(this.repository, options);
+    const repository = new GoalsRepository(db);
+    const context = new GoalsCommandContext(repository, options);
+    const query = new GoalsQueryService(repository, options);
     this.planning = new GoalsPlanningEngine(
       context,
       options.personalPlanningMethodPacks,
@@ -200,7 +199,7 @@ export type {
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-export { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
+export type { GoalsSqliteDatabase } from "./repository.js";
 export { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "./input-bindings.js";
 export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
 

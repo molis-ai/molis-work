@@ -1,6 +1,6 @@
 import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_IMPORT_CLIENT_SCRIPT, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
@@ -305,18 +305,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_IMPORT_CLIENT_SCRIPT}${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}${ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
-  // The 成果库's one import entry is a dialog in its directory (specs/artifact-positioning A3).
-  const openImport = (button) => {
-    const dialog = button.closest("header")?.querySelector("[data-artifact-import-dialog]");
-    if (!dialog) return;
-    globalThis.molisWorkBindArtifactImport(dialog.querySelector("[data-artifact-import-form]"));
-    let imported = false;
-    dialog.addEventListener("molis-work:artifact-imported", () => { imported = true; }, { once: true });
-    // A new version shows in the list once the dialog closes, unless "查看这个版本" is already opening it.
-    dialog.addEventListener("close", () => { if (imported && !artifactRequest) void loadArtifacts(artifactPath || route("/artifacts"), true); }, { once: true });
-    dialog.showModal();
-  };
+  ${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}${ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
   // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
   const continueFrom = async (button) => {
     if (button.disabled) return;
@@ -332,8 +321,6 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     finally { button.disabled = false; }
   };
   document.addEventListener("click", event => {
-    const importButton = event.target.closest("[data-artifact-import-open]");
-    if (importButton) { openImport(importButton); return; }
     const continueButton = event.target.closest("[data-artifact-continue]");
     if (continueButton) { void continueFrom(continueButton); return; }
     const retryButton = event.target.closest("[data-artifact-retry]");

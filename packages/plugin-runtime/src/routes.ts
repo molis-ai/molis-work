@@ -6,8 +6,9 @@ import type {
   PluginRouteResponse,
   PluginExecutionControl,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorResponse, createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 
+import { watchInstance, type InstanceWatchTimers } from "./instance-watch.js";
 import type { PluginHostLifecycle } from "./lifecycle.js";
 
 /** Every Plugin route lives under this prefix. A Plugin never owns a bare path. */
@@ -21,6 +22,8 @@ export interface PluginRouteMatch {
   permission: string | null;
   /** The body limit the route declares; null leaves it to the Host. */
   max_body_bytes: number | null;
+  /** The route answers with a stream of lines (`PluginRouteStreamLine`). */
+  stream: boolean;
 }
 
 interface CompiledRoute {
@@ -30,6 +33,7 @@ interface CompiledRoute {
   segments: string[];
   permission: string | null;
   max_body_bytes: number | null;
+  stream: boolean;
 }
 
 function compile(manifest: PluginManifest): CompiledRoute[] {
@@ -40,6 +44,7 @@ function compile(manifest: PluginManifest): CompiledRoute[] {
     segments: route.path.split("/").filter((segment) => segment !== ""),
     permission: route.permission ?? null,
     max_body_bytes: route.max_body_bytes ?? null,
+    stream: route.stream === "ndjson",
   }));
 }
 
@@ -51,16 +56,31 @@ function splitPath(pathname: string): string[] | null {
     .map((segment) => decodeURIComponent(segment));
 }
 
+/** Progress from an instance that is no longer active is refused there and then, not left to the watch that ends the stream. */
+function liveEmit(instance: { active(): boolean }, emit: NonNullable<PluginRouteRequest["emit"]>): NonNullable<PluginRouteRequest["emit"]> {
+  return (event) => {
+    if (!instance.active()) throw new ActionError("actions.cancelled", "插件已停止，这次调用已结束");
+    emit(event);
+  };
+}
+
 export interface PluginRouteDispatchInput {
   method: string;
   pathname: string;
   query?: Readonly<Record<string, string>>;
   body?: unknown;
   actor_id: string;
-  /** Permissions the caller's session holds. A declared route permission must be in here. */
+  /**
+   * The grants of the installation behind the route, which the Host reads as it dispatches; never the caller's own permissions.
+   * A declared route permission must be in here.
+   */
   granted?: readonly string[];
   /** Internal callers may preserve their invocation guard. HTTP adapters must not read this from request data. */
   execution?: PluginExecutionControl;
+  /** Where a streamed route's progress goes; handed to the handler only when the route declares `stream`. */
+  emit?: PluginRouteRequest["emit"];
+  /** Told once if the instance stops while a streamed route runs, so the caller can end the call and the stream at once. */
+  stopped?: () => void;
 }
 
 /**
@@ -73,10 +93,13 @@ export interface PluginRouteDispatchInput {
 export class PluginRouteRouter {
   readonly #routes: CompiledRoute[];
   readonly #lifecycle: PluginHostLifecycle;
+  readonly #timers: InstanceWatchTimers | undefined;
 
-  constructor(lifecycle: PluginHostLifecycle, manifests: readonly PluginManifest[]) {
+  /** `timers` is the clock a streamed route's instance watch runs on; omitted, the real one. */
+  constructor(lifecycle: PluginHostLifecycle, manifests: readonly PluginManifest[], options: { timers?: InstanceWatchTimers } = {}) {
     this.#lifecycle = lifecycle;
     this.#routes = manifests.flatMap(compile);
+    this.#timers = options.timers;
   }
 
   match(method: string, pathname: string): PluginRouteMatch | null {
@@ -108,6 +131,7 @@ export class PluginRouteRouter {
         params,
         permission: route.permission,
         max_body_bytes: route.max_body_bytes,
+        stream: route.stream,
       };
     }
     return null;
@@ -137,6 +161,7 @@ export class PluginRouteRouter {
       return actionErrorResponse(new ActionError("actions.execution_failed", "能力执行失败"));
     }
 
+    const lifetime = match.stream ? createExecutionLifetime({ signal: input.execution?.signal }) : undefined;
     const request: PluginRouteRequest = {
       method: match.method,
       pathname: input.pathname,
@@ -145,7 +170,16 @@ export class PluginRouteRouter {
       body: input.body ?? null,
       actor_id: input.actor_id,
       ...(input.execution ? { execution: input.execution } : {}),
+      ...(match.stream && input.emit ? { emit: liveEmit(instance, event => { lifetime?.assertActive(); input.emit!(event); }) } : {}),
     };
-    return await binding.handle(request);
+    const unwatch = match.stream && input.stopped ? watchInstance(instance, input.stopped, this.#timers) : undefined;
+    try {
+      lifetime?.assertActive();
+      const result = binding.handle(request);
+      return await (lifetime ? lifetime.wait(Promise.resolve(result)) : result);
+    } finally {
+      unwatch?.();
+      lifetime?.dispose();
+    }
   }
 }

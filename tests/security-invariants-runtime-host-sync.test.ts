@@ -20,7 +20,7 @@ async function hosts(t: import('node:test').TestContext) {
   return { space, homes, owners, samples, discover, revoke() { active = false; } };
 }
 
-test('S-41 PCSYNC-01/15/25 actual Host discovers independent SDK data and namespaces bytes without inventing business owners', async t => {
+test('S-72 PCSYNC-01/15/25 actual Host discovers independent SDK data and namespaces bytes without inventing business owners', async t => {
   const f = await hosts(t), a = await f.discover(0), b = await f.discover(1);
   assert.ok(a); assert.ok(b); const bytes = Buffer.from([0, 255, 128, 13, 10]);
   f.samples[0]!.edit('same-key', { text: 'portable original', attachment: bytes.toString('base64') });
@@ -40,7 +40,7 @@ test('S-41 PCSYNC-01/15/25 actual Host discovers independent SDK data and namesp
   assert.equal(f.samples[1]!.read().notes['same-key'], undefined);
 });
 
-test('S-41 PCSYNC-01/06/25 actual Host refuses malformed scope, inner tombstones, stopped installations and late account writes', async t => {
+test('S-72 PCSYNC-01/06/25 actual Host refuses malformed scope, inner tombstones, stopped installations and late account writes', async t => {
   const f = await hosts(t), a = await f.discover(0), b = await f.discover(1);
   f.samples[0]!.edit('note', { text: 'never overwrite me', attachment: null });
   const mutation = a.withReplica(replica => replica.next())!, event = { ...mutation, revision: 1 };
@@ -57,7 +57,7 @@ test('S-41 PCSYNC-01/06/25 actual Host refuses malformed scope, inner tombstones
   f.revoke(); assert.throws(() => a.withReplica(replica => replica.next()), /ACCOUNT_REVOKED/); await assert.rejects(() => f.discover(0), /ACCOUNT_REVOKED/);
 });
 
-test('S-41 S-32 PCSYNC-15 Host conflict and recovery values retain the same scope as normal SDK transport',async t=>{
+test('S-72 S-63 PCSYNC-15 Host conflict and recovery values retain the same scope as normal SDK transport',async t=>{
   const f=await hosts(t),a=await f.discover(0),b=await f.discover(1);
   f.samples[0]!.edit('note',{text:'base',attachment:null});const initial=a.withReplica(r=>r.next())!;
   a.withReplica(r=>r.acknowledge(initial.key,initial.operationId,1));b.withReplica(r=>r.receive({...initial,revision:1}));
@@ -73,7 +73,7 @@ test('S-41 S-32 PCSYNC-15 Host conflict and recovery values retain the same scop
   assert.deepEqual(f.samples[1]!.read().notes.note,{text:'remote',attachment:null});
 });
 
-test('S-41 PCSYNC-01/25 project instances keep identical local keys separate through the real Host composition', async t => {
+test('S-72 PCSYNC-01/25 project instances keep identical local keys separate through the real Host composition', async t => {
   const home = mkdtempSync(join(tmpdir(), 'runtime-sync-project-')), space = personalStorageSpace('https://auth.example.test', 'work', 'alice');
   ensureStorageSpace(home, space);
   const template = createPersonalNotesSample(), samples = new Map<string, ReturnType<typeof createPersonalNotesSample>>();

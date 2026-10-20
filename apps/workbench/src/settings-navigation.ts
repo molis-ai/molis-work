@@ -14,7 +14,7 @@ export interface WebProjectNavigation {
 
 export type WebSettingsSection = "appearance" | "models" | "runtimes" | "assistant" | "prompts" | "memory" | "mcp" | "connectors" | "projects" | "diagnostics" | "sync";
 type SettingsNavigationActive = string;
-type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "rules" | "planning";
+type ProjectSettingsNavigationActive = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
 
 
 export interface SettingsNavigationPrimitives {
@@ -114,6 +114,7 @@ function renderProjectSettingsNavigation(
       <a href="${href(`${routePrefix}/settings/workspaces`)}"${current("workspaces")}>${icon("folder")}${L("工作目录")}</a>
       <a href="${href(`${routePrefix}/settings/guidance`)}"${current("guidance")}>${icon("book")}${L("项目说明")}</a>
       <a href="${href(`${routePrefix}/settings/memory`)}"${current("memory")}>${icon("bookmark")}${L("项目记忆")}</a>
+      <a href="${href(`${routePrefix}/settings/knowledge`)}"${current("knowledge")}>${icon("file")}${L("项目资料")}</a>
     </div>
   </nav>`;
 }

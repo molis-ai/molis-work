@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { managementGoals } from "./goal-management-caller.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import assert from "node:assert/strict";
@@ -105,6 +105,51 @@ test("a held wait runs beside the project's queue: a later read or command is no
   await assert.rejects(client.invoke({ ...bump, operation: "wait" } as HostCapabilityDefinition<void, number>, undefined),
     (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing" && (error.cause instanceof ActionError && ["kernel.capability_invalid","kernel.capability_duplicate","kernel.capability_missing"].includes(error.cause.code))
       && error.message === error.cause.message);
+  await host.close();
+});
+
+test("closing a project ends its waits: close does not wait out a long poll, and a caller's own signal still ends one", async () => {
+  const wait = { capability_id: "test.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+  let closed = 0;
+  const host = new LocalHost<{ value: number }>({ instanceId: "wait-close-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => { closed += 1; } } });
+  const reasons: unknown[] = [];
+  host.register(wait, (_runtime, _input, invocation) => new Promise<string>(resolve => {
+    const timer = setTimeout(() => resolve("timed out"), 25_000);
+    invocation.signal?.addEventListener("abort", () => { reasons.push(invocation.signal!.reason); clearTimeout(timer); resolve("ended"); }, { once: true });
+  }));
+  const client = host.client({ project_id: "p", storage_key: "memory:p" });
+  const caller = new AbortController();
+  const own = client.invoke(wait, undefined, { signal: caller.signal });
+  await new Promise(resolve => setTimeout(resolve, 10));
+  caller.abort(new Error("caller gone"));
+  assert.equal(await own, "ended", "the caller's own signal still ends its wait");
+  assert.equal((reasons[0] as Error).message, "caller gone");
+  const following = client.invoke(wait, undefined);
+  await new Promise(resolve => setTimeout(resolve, 10));
+  const started = Date.now();
+  await host.close();
+  assert.ok(Date.now() - started < 1_000, "close ends the wait instead of waiting out its 25 s");
+  assert.equal(await following, "ended");
+  assert.ok(reasons[1] instanceof ActionError && reasons[1].code === "host.project_closing", "the wait hears that its project is closing");
+  assert.equal(closed, 1);
+});
+
+test("a transport never reaches a Host wait: its action clients run declared actions only, and no action can be declared as a wait", async () => {
+  // Why closing needs to end only the waits Host code calls through invoke(): a page, MCP, the assistant or a Home plugin route
+  // reaches a capability through actionClient or homeActionClient, and those refuse anything that is not a declared action.
+  const wait = { capability_id: "test.transport.follow", version: 1, operation: "wait" } as HostCapabilityDefinition<void, string>;
+  const host = new LocalHost<{ value: number }>({ instanceId: "transport-wait-host", runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
+  let entered = 0;
+  host.register(wait, () => { entered += 1; return "answered"; });
+  const declared: ActionDefinition<Record<string, never>, string> = { capability_id: "test.transport.declared", version: 1, operation: "wait",
+    action: { title: "跟随", description: "等下一轮", kind: "operation", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "string" } } };
+  assert.throws(() => host.register(declared, () => "never"), /operation 与 kind 不一致/, "an action is a query or a command, never a wait");
+  const caller = (project_id: string | null): ActionCallContext => ({ actor_id: "alice", project_id, audience: "mcp", permissions: [] });
+  await assert.rejects(host.actionClient({ project_id: "p", storage_key: "memory:p" }).invoke(caller("p"), wait, undefined), { code: "actions.missing" });
+  await assert.rejects(host.homeActionClient().invoke(caller(null), wait, undefined), { code: "actions.missing" }, "nor does the Home line ever hold one");
+  assert.equal(entered, 0, "a wait is reached only through invoke(), where closing its project ends it");
+  assert.equal(await host.client({ project_id: "p", storage_key: "memory:p" }).invoke(wait, undefined), "answered");
   await host.close();
 });
 
@@ -229,7 +274,8 @@ test("CLI snapshot, MCP intent, and Workbench-style client share one writer and 
 
 test("legacy entrypoints no longer construct independent business stores", async () => {
   const { readFile } = await import("node:fs/promises");
-  for (const relativePath of ["../apps/local-host/src/web-request.ts", "../apps/local-host/src/mcp-server.ts", "../apps/local-host/src/cli-project.ts"]) {
+  for (const relativePath of ["../apps/local-host/src/web-request.ts", "../apps/local-host/src/web-catalog-index-routes.ts", "../apps/local-host/src/web-project-context.ts",
+    "../apps/local-host/src/web-project-platform-routes.ts", "../apps/local-host/src/web-route-table.ts", "../apps/local-host/src/mcp-server.ts", "../apps/local-host/src/cli-project.ts"]) {
     const source = await readFile(new URL(relativePath, import.meta.url), "utf8");
     assert.doesNotMatch(source, /new\s+(?:SqliteMolisWorkStore|LocalProjectDatabase|MolisWorkCoordinator|GoalProjectApplication)\s*\(/u, relativePath);
     assert.match(source, /MolisWorkLocalHost|localHost/u, relativePath);

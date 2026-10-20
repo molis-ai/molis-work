@@ -1,13 +1,20 @@
+import {ActionService} from '@molis-ai/molis-work-kernel';
+import {bindActionClient,type ActionDefinition} from '@molis-ai/molis-work-contracts/platform/actions';
 import {join} from 'node:path';
 import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
-import {createAlchemistStudioRuntime,alchemistActions as a} from '@molis-ai/molis-work-plugin-alchemist';
+import {createAlchemistStudioRuntime,createAlchemistActionHandlers,alchemistManifest,ALCHEMIST_ACTION_PERMISSIONS,alchemistActions as a} from '@molis-ai/molis-work-plugin-alchemist';
 import {controlledAlchemistAi} from './alchemist-actions.js';
 
 export function personalStudio(home:string,projectId='project'){
  const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
  const controlled=controlledAlchemistAi(),path=join(home,'alchemist','projects',encodeURIComponent(projectId).replaceAll('.','%2E'),'studio.sqlite');
- const runtime=createAlchemistStudioRuntime({databasePath:path,storage:{space,projectId},ai:controlled.ai,pulseSourceMode:'fixture'});
- return {...controlled,runtime,space,path,call:runtime.actions.invoke.bind(runtime.actions)};
+ const service=new ActionService(),caller={actor_id:'alice',project_id:projectId,audience:'user' as const,permissions:ALCHEMIST_ACTION_PERMISSIONS};
+ const runtime=createAlchemistStudioRuntime({databasePath:path,storage:{space,projectId},ai:controlled.ai,pulseSourceMode:'fixture',actions:{
+  async invoke<I,O>(definition:ActionDefinition<I,O>,input:I,signal?:AbortSignal):Promise<O>{return await service.invoke({...caller,signal},definition,input) as O;}
+ }});
+ service.registerProvider({provider:{provider_id:alchemistManifest.plugin_id,title:alchemistManifest.name,kind:'plugin',plugin_id:alchemistManifest.plugin_id,project_id:projectId},definitions:Object.values(a),handlers:createAlchemistActionHandlers({resolve:caller=>runtime.actionsFor(caller.actor_id)})});
+ const bound=bindActionClient(service,()=>caller);
+ return {...controlled,runtime,space,path,call:bound.invoke.bind(bound)};
 }
 export async function savedStudio(f:ReturnType<typeof personalStudio>){
  const {direction}=await f.call(a.directionCreate,{title:'Portable direction',description:'独立创始人保存访谈证据与下一步判断'});

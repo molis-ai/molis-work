@@ -7,6 +7,7 @@
 //   node scripts/gates/native-checks.mjs rust     rustfmt --check on every tracked .rs file; cargo clippy --all-targets
 //                                                 -D warnings for apps/desktop/src-tauri (macOS) and apps/sync-worker
 //                                                 (--target wasm32-unknown-unknown); each crate uses its own edition
+//                                                 Desktop Rust tests also run after clippy.
 //   node scripts/gates/native-checks.mjs swift    swiftc -typecheck of the standalone Swift file, and of the computer
 //                                                 helper's sources together (one executable, same frameworks as its build.sh);
 //                                                 with --package also `swift build` of the SwiftPM package (needs the network on
@@ -92,8 +93,12 @@ export const checkRust = (root, files = trackedFiles(root)) => {
     const target = crate.target ? ["--target", crate.target] : [];
     const clippy = run("cargo", ["clippy", "--manifest-path", crate.manifest, ...target, "--all-targets", "--locked", "--", "-D", "warnings"], { cwd: root });
     if (clippy.status !== 0) problems.push(`cargo clippy -D warnings failed (${crate.manifest}):\n${tail(clippy.stderr + clippy.stdout)}`);
+    if (!crate.target) {
+      const tests = run("cargo", ["test", "--manifest-path", crate.manifest, "--locked"], {cwd:root});
+      if (tests.status !== 0) problems.push(`cargo test failed:\n${tail(tests.stdout + tests.stderr)}`);
+    }
   }
-  return { problems, summary: `${sources.length} Rust files formatted, clippy clean` };
+  return { problems, summary: `${sources.length} Rust files formatted, clippy clean, tests pass` };
 };
 
 export const checkSwift = (root, { withPackages = false } = {}, files = trackedFiles(root)) => {

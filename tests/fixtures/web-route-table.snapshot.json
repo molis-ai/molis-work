@@ -1,0 +1,892 @@
+{
+  "GET / (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "选择项目 · Molis Work"
+  },
+  "GET /onboarding (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "从已有工作开始 · Molis Work"
+  },
+  "GET /health": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "desktop_tui",
+      "process_id",
+      "project_count",
+      "service_process_id",
+      "status"
+    ]
+  },
+  "GET /api": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/no-such-route": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /no-such-page (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
+  },
+  "GET /plugins/todo (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "待办 · Molis Work"
+  },
+  "GET /plugins/no-such-plugin (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
+  },
+  "GET /api/plugins/todo/no-such-operation": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/plugins/no-such-plugin/x": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /functions (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
+  },
+  "GET /settings (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/settings/appearance"
+  },
+  "GET /settings/connectors (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/capabilities/connections"
+  },
+  "GET /settings/mcp (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/capabilities/access"
+  },
+  "GET /settings/functions (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/capabilities/connections?connector=typesafe"
+  },
+  "GET /__ui/catalog (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "组件板 · Molis Work"
+  },
+  "GET /api/agent-definitions/": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/agent-definitions/no-such-definition": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/agent-definitions/prompts": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "prompts"
+    ]
+  },
+  "GET /api/memory/": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/memory/overview": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "candidates",
+      "changes",
+      "counts",
+      "items",
+      "labels",
+      "last_upkeep",
+      "pairs",
+      "prefs",
+      "project_id",
+      "scope"
+    ]
+  },
+  "GET /api/memory/items": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/assistant/": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/assistant/works": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "works"
+    ]
+  },
+  "GET /api/attention": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "background_tasks",
+      "board_cursor",
+      "notices",
+      "plugin_events_pending"
+    ]
+  },
+  "GET /api/side/files/sources": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "GET /api/side/files/raw": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/agent/reviews": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "html",
+      "omitted",
+      "reviews",
+      "total"
+    ]
+  },
+  "POST /api/agent/reviews/decide": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请求缺少 review_id 或 decision"
+  },
+  "GET /api/projects": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/search/status": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "GET /api/settings/planning-methods": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "methods"
+    ]
+  },
+  "GET /api/board": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "GET /api/board (no token)": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请先选择一个 Molis Work 项目"
+  },
+  "POST /api/assistant/works (no token)": {
+    "status": 403,
+    "type": "application/json",
+    "code": "host.request_refused",
+    "error": "本地控制请求校验失败"
+  },
+  "GET /desktop/pty-client.js": {
+    "status": 200,
+    "type": "text/javascript"
+  },
+  "GET /projects/no-such-project/api/board": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
+  },
+  "GET /projects/no-such-project/ (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Molis Work 项目"
+  },
+  "GET <project>/ (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "Molis Work"
+  },
+  "GET <project>/?desktop=1 (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "Molis Work"
+  },
+  "GET <project>/settings (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "项目设置 · 路由表 · Molis Work"
+  },
+  "GET <project>/settings/connectors (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/?missing=%2Fsettings%2Fconnectors"
+  },
+  "GET <project>/plugins/todo (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "待办 · Molis Work"
+  },
+  "GET <project>/api/plugins/todo/no-such-operation": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/project-settings/workspaces": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "selected",
+      "workspaces"
+    ]
+  },
+  "POST <project>/api/project-settings/workspaces": {
+    "status": 403,
+    "type": "application/json",
+    "error": "请选择当前项目已关联且可用的工作目录"
+  },
+  "GET <project>/side/todo/no-such-view (page)": {
+    "status": 404,
+    "type": "text/html",
+    "title": ""
+  },
+  "GET <project>/side/no-such-plugin/x (page)": {
+    "status": 404,
+    "type": "text/html",
+    "title": ""
+  },
+  "GET <project>/api/side/files/sources": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "GET <project>/api/side/files/raw": {
+    "status": 404,
+    "type": "application/json",
+    "error": "这个文件来源已经不在了（插件可能已停用）"
+  },
+  "GET <project>/api/plugin-builder/studio": {
+    "status": 404,
+    "type": "application/json",
+    "error": "未声明的创作台操作"
+  },
+  "GET <project>/api/plugin-builder/studio/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "error": "未声明的创作台操作"
+  },
+  "GET <project>/plugin-builder/studio/preview/00000000-0000-4000-8000-000000000000 (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/?openPlugin=plugin-builder"
+  },
+  "GET <project>/api/plugins/runtime/updates": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "updates"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.coding/no-such": {
+    "status": 403,
+    "type": "application/json",
+    "code": "actions.plugin_disabled",
+    "error": "此项目未启用该插件"
+  },
+  "GET <project>/api/plugins/io.molis.work.no-such-plugin/x": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.todo/x": {
+    "status": 404,
+    "type": "application/json",
+    "error": "插件没有这个入口"
+  },
+  "GET <project>/sessions (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/#sessions"
+  },
+  "GET <project>/workspaces (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/#sessions"
+  },
+  "GET <project>/api/sessions": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sessions"
+    ]
+  },
+  "GET <project>/settings/general (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "项目设置 · 路由表 · Molis Work"
+  },
+  "GET <project>/settings/planning (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "项目设置 · 路由表 · Molis Work"
+  },
+  "GET <project>/api/settings/planning-methods": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "composition",
+      "methods"
+    ]
+  },
+  "GET <project>/health": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "desktop_tui",
+      "process_id",
+      "project_id",
+      "service_process_id",
+      "status"
+    ]
+  },
+  "GET <project>/api/runtime-availability": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "claude-code",
+      "codex",
+      "grok-build",
+      "opencode",
+      "pi-agent"
+    ]
+  },
+  "GET <project>/desktop/pty-client.js": {
+    "status": 200,
+    "type": "text/javascript"
+  },
+  "GET <project>/api/board/cursor": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "observed_event_cursor"
+    ]
+  },
+  "GET <project>/api/agent/reviews": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "html",
+      "omitted",
+      "reviews",
+      "total"
+    ]
+  },
+  "POST <project>/api/agent/reviews/decide": {
+    "status": 400,
+    "type": "application/json",
+    "error": "请求缺少 review_id 或 decision"
+  },
+  "GET <project>/api/board": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "active_goal_id",
+      "archived_goals",
+      "counts",
+      "demo",
+      "developer_mode",
+      "events",
+      "feed",
+      "feed_connector_auth",
+      "feed_source_catalog",
+      "goals",
+      "inbox_judgment",
+      "input_bindings",
+      "plugin_stages",
+      "policy_bindings",
+      "project",
+      "projects",
+      "route_prefix",
+      "schedule_jobs",
+      "schedule_operations",
+      "schedule_tasks",
+      "snapshot",
+      "trashed_goals"
+    ]
+  },
+  "GET <project>/api/search/status": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sources"
+    ]
+  },
+  "POST <project>/api/search/query": {
+    "status": 400,
+    "type": "application/json",
+    "code": "actions.input_invalid",
+    "error": "输入不符合能力合同：/ required"
+  },
+  "POST <project>/api/placement/describe": {
+    "status": 400,
+    "type": "application/json",
+    "code": "actions.input_invalid",
+    "error": "输入不符合能力合同：/ required"
+  },
+  "GET <project>/api/contextual/surfaces": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "surfaces"
+    ]
+  },
+  "GET <project>/api/functions": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "functions"
+    ]
+  },
+  "GET <project>/api/functions/settings": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "has_credential",
+      "source"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.lingguang/sparks": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "sparks"
+    ]
+  },
+  "GET <project>/api/pages": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "documents",
+      "folders"
+    ]
+  },
+  "POST <project>/api/pages/import/preview": {
+    "status": 400,
+    "type": "application/json",
+    "code": "actions.input_invalid",
+    "error": "输入不符合能力合同：/ required"
+  },
+  "GET <project>/api/dataset": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/dataset/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai_available",
+      "ai_unavailable_reason",
+      "datasets"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.dataset/datasets/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "dataset.not_found",
+    "error": "找不到这张表"
+  },
+  "GET <project>/api/images": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.images/jobs": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "jobs"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.images/connections": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "auth_connections",
+      "connections"
+    ]
+  },
+  "GET <project>/api/ppt": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.ppt/ppt": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai_available",
+      "ai_unavailable_reason",
+      "presentations"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.ppt/ppt/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "ppt.not_found",
+    "error": "找不到这份演示稿"
+  },
+  "GET <project>/api/jelly": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.jelly/": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "capabilities",
+      "state"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.todo/items": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "counts",
+      "everything",
+      "items",
+      "project_id",
+      "today"
+    ]
+  },
+  "GET <project>/api/plugins/io.molis.work.todo/items/no-such": {
+    "status": 404,
+    "type": "application/json",
+    "code": "todo.not_found",
+    "error": "找不到这件待办，可能已被删除"
+  },
+  "GET <project>/api/plugins/io.molis.work.cognia/library": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai_available",
+      "ai_runtime",
+      "ai_unavailable_reason",
+      "domains",
+      "drafts",
+      "limits",
+      "materials",
+      "sources"
+    ]
+  },
+  "GET <project>/api/alchemist": {
+    "status": 404,
+    "type": "application/json",
+    "error": "没有这个炼金术士页面。"
+  },
+  "GET <project>/api/shelf": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai",
+      "clipboard",
+      "current_clip_id",
+      "materials",
+      "recipes",
+      "results",
+      "root",
+      "running_jobs",
+      "runtime",
+      "settings"
+    ]
+  },
+  "GET <project>/api/memory/": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/memory/items": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/memory/overview": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "candidates",
+      "changes",
+      "counts",
+      "items",
+      "labels",
+      "last_upkeep",
+      "pairs",
+      "prefs",
+      "project_id",
+      "scope"
+    ]
+  },
+  "GET <project>/api/agent-definitions/prompts": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/assistant/": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/assistant/works": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "works"
+    ]
+  },
+  "GET <project>/api/attention": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "background_tasks",
+      "board_cursor",
+      "notices",
+      "plugin_events_pending"
+    ]
+  },
+  "GET <project>/api/workflows": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "ai_available",
+      "stations",
+      "workflows"
+    ]
+  },
+  "GET <project>/api/inbox": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "entries"
+    ]
+  },
+  "GET <project>/api/home/dock-judgment": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "binding",
+      "capabilities",
+      "function_key",
+      "functions"
+    ]
+  },
+  "GET <project>/api/home/actions/choices": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/schedule": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "jobs",
+      "operations",
+      "tasks"
+    ]
+  },
+  "GET <project>/api/feed": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "connector_auth",
+      "feed_items",
+      "inbox_entries",
+      "out_rules",
+      "runs",
+      "source_catalog",
+      "sources"
+    ]
+  },
+  "GET <project>/api/capsule": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "default_goal_id",
+      "default_tab",
+      "observed_event_cursor",
+      "project",
+      "state",
+      "tabs"
+    ]
+  },
+  "GET <project>/api/panels": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/panels/no-such-panel": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/home/events": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/project-references/no-such": {
+    "status": 409,
+    "type": "application/json",
+    "code": "artifacts.workspace_unconfirmed",
+    "error": "项目没有可确认的工作区"
+  },
+  "GET <project>/api/goals": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/goals": {
+    "status": 400,
+    "type": "application/json",
+    "code": "actions.input_invalid",
+    "error": "title 不能为空"
+  },
+  "GET <project>/api/artifacts/versions": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "versions"
+    ]
+  },
+  "GET <project>/artifacts (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/?openPlugin=artifacts"
+  },
+  "GET <project>/archive (page)": {
+    "status": 200,
+    "type": "text/html",
+    "title": "已归档 Goal · Molis Work"
+  },
+  "GET <project>/goals/no-such-goal (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "找不到这个 Goal: no-such-goal"
+  },
+  "GET <project>/api/no-such-route": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "POST <project>/api/no-such-route": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/no-such-page (page)": {
+    "status": 302,
+    "type": "",
+    "location": "/projects/<project>/?missing=%2Fno-such-page"
+  },
+  "GET <project>/no-such-page": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/assets/no-such.css (page)": {
+    "status": 404,
+    "type": "application/json",
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/board (no token)": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "active_goal_id",
+      "archived_goals",
+      "counts",
+      "demo",
+      "developer_mode",
+      "events",
+      "feed",
+      "feed_connector_auth",
+      "feed_source_catalog",
+      "goals",
+      "inbox_judgment",
+      "input_bindings",
+      "plugin_stages",
+      "policy_bindings",
+      "project",
+      "projects",
+      "route_prefix",
+      "schedule_jobs",
+      "schedule_operations",
+      "schedule_tasks",
+      "snapshot",
+      "trashed_goals"
+    ]
+  },
+  "GET <missing>/api/board": {
+    "status": 404,
+    "type": "application/json",
+    "error": "Molis Work 数据库不存在，请先初始化"
+  },
+  "GET <missing>/ (page)": {
+    "status": 404,
+    "type": "text/plain",
+    "text": "Molis Work 数据库不存在，请先运行 molis-work v1 init --db <home>/projec"
+  },
+  "GET /projects/personal/health": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "desktop_tui",
+      "process_id",
+      "project_id",
+      "service_process_id",
+      "status"
+    ]
+  },
+  "GET /projects/personal/api/plugins/io.molis.work.todo/items": {
+    "status": 200,
+    "type": "application/json",
+    "keys": [
+      "counts",
+      "everything",
+      "items",
+      "project_id",
+      "today"
+    ]
+  }
+}

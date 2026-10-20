@@ -1,11 +1,14 @@
+import { todoSync } from "./replication.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoMethods } from "./roles.js";
-import { todoSync } from "./replication.js";
 
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID };
+
+/** The most one request may carry, as on the Host's native path before W5-01. */
+const TODO_BODY_BYTES = 1_000_000;
 
 export const todoManifest: PluginManifest = {
   schema_version: 2,
@@ -22,8 +25,26 @@ export const todoManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
-  actions: [...TODO_ACTIONS],
-  sync: todoSync,
+  actions: [...TODO_ACTIONS], sync:todoSync,
+  // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
+  routes: [
+    { route_id: "todo.list", method: "GET", path: "/items" },
+    { route_id: "todo.create", method: "POST", path: "/items", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.batch", method: "POST", path: "/batch", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.revert", method: "POST", path: "/revert", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.reminders", method: "GET", path: "/reminders" },
+    { route_id: "todo.organize.list", method: "GET", path: "/organize" },
+    { route_id: "todo.organize.get", method: "GET", path: "/organize/:id" },
+    { route_id: "todo.organize.apply", method: "POST", path: "/organize/:id/apply", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.organize.close", method: "POST", path: "/organize/:id/close", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.get", method: "GET", path: "/items/:id" },
+    { route_id: "todo.update", method: "POST", path: "/items/:id", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.status", method: "POST", path: "/items/:id/status", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.archive", method: "POST", path: "/items/:id/archive", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.delete", method: "POST", path: "/items/:id/delete", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.link", method: "POST", path: "/items/:id/link", max_body_bytes: TODO_BODY_BYTES },
+    { route_id: "todo.acknowledge", method: "POST", path: "/items/:id/acknowledge", max_body_bytes: TODO_BODY_BYTES },
+  ],
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
   methods: todoMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),

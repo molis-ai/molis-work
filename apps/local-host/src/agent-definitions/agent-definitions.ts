@@ -267,16 +267,22 @@ export class AgentDefinitions {
   }
 }
 
+/** The prompts an Agent sends on the side of its rounds, never composed into a role: what the person reads them as. */
+const SIDE_PROMPTS = {
+  compaction: { title: "上下文整理", purpose: "长任务接近上下文上限时，整理较早的内容" },
+  ending_review: { title: "收尾核对", purpose: "可写的一轮什么也没改就要结束时，对照这一轮的事实核对它最后说的话" },
+} as const;
 const EXECUTION_WORDS: Record<AgentRoleExecution, string> = { "read-only": "只读", "text-edit": "可改文字", "workspace-write": "可改文件、运行命令", operate: "可调用业务能力" };
 
 /**
  * One Agent's declaration as registrations: its prompts named after the roles that use them, its roles with what
- * they may do (for the person to read; enforced elsewhere), its child roles, and its compaction prompt.
+ * they may do (for the person to read; enforced elsewhere), its child roles, and the prompts it sends on the side
+ * (compaction, the ending review).
  */
 export function agentRegistration(ownerId: string, source: AgentDefinitionSource, manifest: AgentManifest, texts: readonly AgentPromptText[],
   names: { prompts?: Record<string, { title: string; purpose?: string }> } = {}): AgentDefinitionRegistration {
   const roles: AgentRoleRegistration[] = manifest.roles.map(role => {
-    const prompt_ids = role.prompts ?? manifest.prompts.map(prompt => prompt.prompt_id).filter(id => id !== manifest.compaction?.prompt_id);
+    const prompt_ids = role.prompts ?? manifest.prompts.map(prompt => prompt.prompt_id).filter(id => id !== manifest.compaction?.prompt_id && id !== manifest.ending_review?.prompt_id);
     const execution = role.execution ?? "read-only";
     return { role_id: role.role_id, version: role.version, name: role.name, purpose: `${role.name}（${EXECUTION_WORDS[execution]}）`, execution,
       workspace: role.workspace ?? "required", prompt_ids };
@@ -289,13 +295,13 @@ export function agentRegistration(ownerId: string, source: AgentDefinitionSource
   const declared = new Map(manifest.prompts.map(prompt => [prompt.prompt_id, prompt]));
   const prompts: AgentPromptRegistration[] = texts.filter(text => declared.has(text.prompt_id) || roles.some(role => role.subagent && role.role_id === text.prompt_id)).map(text => {
     const users = roles.filter(role => role.prompt_ids.includes(text.prompt_id)).map(role => role.name);
-    const compaction = manifest.compaction?.prompt_id === text.prompt_id;
+    const side = manifest.compaction?.prompt_id === text.prompt_id ? SIDE_PROMPTS.compaction : manifest.ending_review?.prompt_id === text.prompt_id ? SIDE_PROMPTS.ending_review : undefined;
     const layer = promptLayerOf(declared.get(text.prompt_id) ?? text);
     const named = names.prompts?.[text.prompt_id];
-    const title = named?.title ?? (compaction ? "上下文整理" : layer === "base" ? "基础约束" : users.length === 1 ? users[0]! : text.prompt_id);
+    const title = named?.title ?? side?.title ?? (layer === "base" ? "基础约束" : users.length === 1 ? users[0]! : text.prompt_id);
     return { prompt_id: text.prompt_id, version: text.version, kind: "agent", layer, title,
-      purpose: named?.purpose ?? (compaction ? "长任务接近上下文上限时，整理较早的内容" : users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
-      used_by: compaction ? ["上下文整理"] : users, body: text.body };
+      purpose: named?.purpose ?? side?.purpose ?? (users.length ? `组成角色：${users.join("、")}` : "未被任何角色使用"),
+      used_by: side ? [side.title] : users, body: text.body };
   });
   return { owner_id: ownerId, source, prompts, roles };
 }

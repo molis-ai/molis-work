@@ -14,21 +14,17 @@ export { LINGGUANG_STYLES } from "./styles.js";
 export { LINGGUANG_EN } from "./en.js";
 export { LINGGUANG_INSTRUCTIONS } from "./prompts.js";
 export { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "./client.js";
-export { LINGGUANG_NATIVE_PLUGIN_ROUTES, LingguangPluginRouteTable } from "./routes.js";
-export type { LingguangPluginRouteHandler, LingguangPluginRouteRequest, LingguangPluginRouteResponse } from "./routes.js";
-export { createLingguangRouteHandlers } from "./route-handlers.js";
-export type { LingguangRoutePorts } from "./route-handlers.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID, lingguangManifest } from "./manifest.js";
-export { openLingguangStore, LingguangStore, LINGGUANG_STORE_BASELINE, LINGGUANG_HOME_STORE } from "./store.js";
+export { openLingguangStore, ownLingguangStores, LingguangStore, LINGGUANG_DATABASE, LINGGUANG_HOME_STORE } from "./store.js";
 export { purgeLingguangProject, lingguangProjectData } from "./project-data.js";
 export { lingguangErrors } from "./error.js";
 
 export { lingguangContentActions, createLingguangContentHandlers } from "./content-actions.js";
 
 export { lingguangActions, LINGGUANG_ACTIONS, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "./actions.js";
-export { lingguangStreams, lingguangStreamOpening, lingguangStreamLine } from "./reply-stream.js";
-export type { LingguangStreamEvent } from "./reply-stream.js";
 export type { LingguangActionPorts } from "./actions.js";
 export type { LingguangConversationState } from "./store.js";
 
-export {openLingguangCopyOwner} from './copy.js';
+export { createLingguangPlugin } from "./plugin.js";
+export { type LingguangStores } from "./store.js";
+export { openLingguangCopyOwner } from "./copy.js";

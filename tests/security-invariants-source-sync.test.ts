@@ -11,7 +11,7 @@ function fixture(){
  const port:ReplicaDatabase={exec:sql=>db.exec(sql),prepare:sql=>db.prepare<ReplicaInputValue[],Record<string,ReplicaOutputValue>>(sql)};
  return {db,owner,port,section:createProjectReplicaSection(port,sourceContentReplicationDefinition(),'project')};
 }
-test('S-36 PCSYNC-01/22 Sources portable description excludes connection state and preserves target-only setup',t=>{
+test('S-67 PCSYNC-01/22 Sources portable description excludes connection state and preserves target-only setup',t=>{
  const a=fixture(),b=fixture(),fresh=fixture();t.after(()=>[a,b,fresh].forEach(f=>f.db.close()));
  a.owner.commands.save(source('source-device'));b.owner.commands.save(source('target-device'));
  const wire=a.section.read();assert.doesNotMatch(JSON.stringify(wire),/source-device-connection|source-device-reference|next_pull_at|repository/);
@@ -21,7 +21,7 @@ test('S-36 PCSYNC-01/22 Sources portable description excludes connection state a
  const newRows=fresh.section.validate(wire);replicaTransaction(fresh.port,()=>{fresh.section.clear();fresh.section.write(newRows);});const newSource=fresh.owner.query.get('project','source');assert.equal(newSource.enabled,false);assert.equal(newSource.status,'paused');assert.equal(newSource.connection_ref,null);assert.deepEqual(newSource.config,{});assert.deepEqual(newSource.schedule,{mode:'manual'});
  for(const change of [(r:typeof wire)=>{r.feed_sources![0]!.project_id='other';},(r:typeof wire)=>{r.feed_sources![0]!.config_json='{"connection_id":"not-permitted"}';},(r:typeof wire)=>{r.feed_sources![0]!.credential_ref='not-permitted';}]){const bad=structuredClone(wire);change(bad);assert.throws(()=>b.section.validate(bad));assert.equal(b.owner.query.get('project','source').connection_ref,'target-device-reference');}
 });
-test('S-36 PCSYNC-14/17 Sources restores retirement without reviving pulls and rollback retains target setup',t=>{
+test('S-67 PCSYNC-14/17 Sources restores retirement without reviving pulls and rollback retains target setup',t=>{
  const a=fixture(),b=fixture();t.after(()=>[a,b].forEach(f=>f.db.close()));a.owner.commands.save(source('source-device'));b.owner.commands.save(source('target-device'));
  const original=b.owner.query.get('project','source'),wire=a.section.read(),valid=b.section.validate(wire);valid.feed_sources![0]!.name=null;
  assert.throws(()=>replicaTransaction(b.port,()=>{b.section.clear();b.section.write(valid);}));assert.deepEqual(b.owner.query.get('project','source'),original);

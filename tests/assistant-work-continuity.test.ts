@@ -83,8 +83,10 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const service: AssistantService = new AssistantService(store, { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
-    projectTitle: async () => "Fixture project" }, "web-user");
-  return { service, store, notes, requests, project, local, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+    projectTitle: async () => "Fixture project",
+    // H3's owner read, as the notes plugin would answer it: the note's label while it exists.
+    readReferences: async (_projectId, picked) => picked.map(item => item.kind === "note" && notes.has(item.id) ? { label: notes.get(item.id)!.text } : null) }, "web-user");
+  return { service, store, notes, requests, project, local, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 const ref = (capability_id: string) => ({ capability_id, version: 1, provider_id: "fixture.notes" });
@@ -275,4 +277,27 @@ test("a subject reader may live in the Home, and one declared with the schema be
   assert.deepEqual(inspectActionDeclarations([older], undefined), []);
   const wrong = { ...subject, action: { ...subject.action, output_schema: { type: "object" } } };
   assert.equal(inspectActionDeclarations([wrong], undefined).length, 1);
+});
+
+test("STRIP-05: the Host keeps a landing only in the object the Send carries and at a position it knows; then the round is told it as facts", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, []);
+  try {
+    f.notes.set("bg", { text: "background", version: 4 });
+    // Another note its owner can read: only the object match keeps a landing in it out of the round.
+    f.notes.set("other", { text: "other note", version: 1 });
+    const landing = (id: string, position: string) => ({ plugin_id: "fixture.notes", object: { kind: "note", id }, position, heading_path: ["步骤"], before: "第二步，" });
+    const asked = async (text: string, context: Record<string, unknown>) => {
+      await f.service.send({ text, request_id: `req-${text}`, context: { source: { surface: "notes", title: "Notes" }, captured_at: new Date().toISOString(), ...context } } as never, { project_ref: f.project });
+      return JSON.stringify(await until(() => f.requests.find(body => JSON.stringify(body).includes(text)), text));
+    };
+    const object = { object: { kind: "note", id: "bg", version: 4, title: "background" } };
+    const told = await asked("landing-kept", { ...object, landing: landing("bg", "cursor") });
+    for (const fact of ["左边可以放进去的位置", "对象：background", "「步骤」下，光标处", "第二步，"]) assert.ok(told.includes(fact), `the round is told ${fact}`);
+    assert.equal((await asked("landing-other-object", { ...object, landing: landing("other", "cursor") })).includes("左边可以放进去的位置"), false,
+      "a landing in another object than the one the Send carries is dropped");
+    assert.equal((await asked("landing-no-object", { landing: landing("bg", "cursor") })).includes("左边可以放进去的位置"), false,
+      "a landing without the object going with the Send is dropped (§21.5 L-1)");
+    const inherited = await asked("landing-prototype-key", { ...object, landing: landing("bg", "constructor") });
+    assert.equal(inherited.includes("左边可以放进去的位置") || inherited.includes("function Object"), false, "a position that is not one of the landing's own is dropped");
+  } finally { await f.close(); }
 });

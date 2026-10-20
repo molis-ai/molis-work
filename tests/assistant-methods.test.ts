@@ -16,6 +16,7 @@ import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 25)); }
@@ -65,11 +66,11 @@ test("a round lists the methods its scope can use; one the person chose goes wit
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (url: unknown, init: RequestInit) => {
     if (!String(url).startsWith("https://1.1.1.1/")) throw new Error("unexpected network request in fixture: " + String(url));
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     return reply();
-  });
+  }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
@@ -113,7 +114,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
     await assert.rejects(service.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
-    await adapter.close();
+    service.continuations.close(); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

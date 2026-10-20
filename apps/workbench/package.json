@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local product UI composition root for the Workbench.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/personal-account.ts --bundle --format=iife --platform=browser --target=es2022 --charset=utf8 --minify-whitespace --minify-identifiers --legal-comments=none --outfile=dist/scripts/personal-account-client.js && tsc -p tsconfig.json && node tooling/build-client.mjs",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/personal-account.ts --bundle --format=iife --platform=browser --target=es2022 --charset=utf8 --minify-whitespace --minify-identifiers --legal-comments=none --outfile=dist/scripts/personal-account-client.js && node tooling/build-client.mjs && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

@@ -13,15 +13,15 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
   const exclusive = "document.querySelector('[data-tab-workspace]').dataset.exclusive || ''";
-  const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] .tab-view-chip[aria-current][data-tab-view="${plugin}"]')`;
+  const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
-  // A resident pressed twice returns to where the pane was; so does a Dock entry.
+  // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
   await waitFor(shows("goals"));
-  await click('[data-bar-resident="shelf"]');
-  await waitFor(shows("shelf"));
-  assert.equal(await evaluate("document.querySelector('[data-bar-resident=shelf]').getAttribute('aria-current')"), "page");
-  await click('[data-bar-resident="shelf"]');
+  await click('[data-dock-pin="inbox"]');
+  await waitFor(shows("inbox"));
+  assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
+  await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));
   await click('[data-dock-pin="goals"]');
   await waitFor("document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
@@ -34,7 +34,7 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await waitFor(`${exclusive} === 'settings' && !!document.querySelector('[data-cover-close]')`);
   await waitFor("document.querySelector('[data-plugin-picker-current] .is-cover')?.textContent.includes('设置')");
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
-  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current], [data-bar-resident][aria-current]').length"), 0);
+  assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -78,15 +78,15 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   for (const width of [601, 825, 1041, 1100, 1440]) {
     await command("Emulation.setDeviceMetricsOverride", { width, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
     await waitFor("innerWidth === " + width);
-    const geometry = await evaluate<{ fold: number; start: number; centre: number; centreEnd: number; residents: number; end: number }>(`new Promise(resolve => setTimeout(() => {
+    const geometry = await evaluate<{ fold: number; start: number; centre: number; centreEnd: number; side: number; end: number }>(`new Promise(resolve => setTimeout(() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const shown = [...document.querySelectorAll('.bar-start :is([data-dock-pin]:not([hidden]), [data-dock-more])')].map(node => node.getBoundingClientRect().right);
       resolve({ fold: Math.max(...shown), start: box('.workbench-bar .bar-start').right, centre: box('.workbench-bar .bar-center').left,
-        centreEnd: box('.workbench-bar .bar-center').right, residents: box('.workbench-bar .bar-residents').left, end: box('.workbench-bar .bar-end').right });
+        centreEnd: box('.workbench-bar .bar-center').right, side: box('.workbench-bar .bar-side').left, end: box('.workbench-bar .bar-end').right });
     }, 250))`);
     assert.ok(geometry.fold <= geometry.start + 0.5, `${width}: the Dock's last shown entry stays inside its tray`);
     assert.ok(geometry.start <= geometry.centre, `${width}: the left tray ends before the composer`);
-    assert.ok(geometry.centreEnd <= geometry.residents, `${width}: the composer ends before the right tray`);
+    assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right tray`);
     assert.ok(geometry.end <= width, `${width}: the bar stays inside the window`);
   }
 });
@@ -99,7 +99,7 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home'");
-  await click('[data-bar-resident="lingguang"]');
+  await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
   await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
   await evaluate("[...document.querySelectorAll('[data-work-surface=lingguang] button')].find(button => button.getClientRects().length && button.textContent.includes('记下'))?.click()");
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true' && !!document.querySelector('[data-lingguang-id]')");
@@ -114,14 +114,14 @@ test("a plugin's page keeps what was open in it across switches and a reload", {
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'true'");
   await click('[data-dock-pin="goals"]');
   await waitFor("document.body.dataset.desktopSurface === 'goal'");
-  await click('[data-bar-resident="lingguang"]');
+  await click('[data-plugin-picker-popover] [data-plugin-id=lingguang]');
   await waitFor("!document.querySelector('[data-work-surface=lingguang]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-work-surface=lingguang]').dataset.expanded"), "true", "the open note is still open");
   await reloadPage();
   await waitFor("document.querySelector('[data-work-surface=lingguang]')?.dataset.expanded === 'true'");
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false, "history survives the reload");
-  // The location chip goes back to the list, and the list is what then stays.
-  await click('[data-titlebar-tabs] .tab-view-chip[data-tab-view="lingguang"]');
+  // The plugin's tab goes back to the list, and the list is what then stays.
+  await click('[data-titlebar-tabs] [data-tab-kind="plugin"][data-plugin="lingguang"] .tab-item-trigger');
   await waitFor("document.querySelector('[data-work-surface=lingguang]').dataset.expanded === 'false'");
 
   // A record opened on the page is a step of history: Back from a second note is the first, then the list.

@@ -92,9 +92,11 @@ export async function createRelease(
         private: true,
         type: "module",
         version,
+        license: source.license,
         dependencies: Object.fromEntries(
           source.runtimeDependencies.map((dependency) => [dependency.name, dependency.version]),
         ),
+        ...(source.removedDependencies.length ? { "molis-work": { removed_dependencies: source.removedDependencies } } : {}),
       },
       null,
       2,

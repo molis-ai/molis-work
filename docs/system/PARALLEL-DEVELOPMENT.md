@@ -37,7 +37,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 | 类 | 文件 |
 | --- | --- |
 | 工作台聚合（`apps/workbench/src/` 下） | `i18n/en.ts`（总词典）、`index.ts`、`builtin-plugins.ts`、`plugin-catalog.ts`、`ui-composition.ts`、`renderer.ts`、`goals-page-renderer.ts`、`page-assets.ts`、`immersive-shell.ts`、`scripts/client/initialization.ts`、`scripts/client/plugin-workbench.ts`；另有 `packages/design-system/src/styles/craft-finish.ts`（总样式） |
-| 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
+| 宿主聚合（`apps/local-host/src/` 下） | `web-request.ts`（路由分发，连同它的路由表 `web-project-platform-routes.ts`、`web-catalog-index-routes.ts`）、`web-catalog.ts`、`project-host.ts`、`index.ts`（出口） |
 | 公共合同（`packages/contracts/src/` 下） | `platform/plugin.ts`、`platform/actions.ts`、`services/agent-host.ts`、`services/assistant.ts` |
 | 登记与门禁 | `scripts/workspace-packages.mjs`、`scripts/check-package-boundaries.mjs`、根 `package.json` 与 `pnpm-lock.yaml`、`tooling/gates/baseline.json`、`.github/workflows/ci.yml`、`tests/ci-product-subset.txt`（CI 产品子集的清单，见下） |
 | 文档 | `AGENTS.md`、`DESIGN.md`、`docs/SSOT-MATRIX.md`、`docs/platform/PLUGIN-DEVELOPMENT.md`、`skills/molis-plugin-dev/SKILL.md`、`specs/README.md`、`specs/BACKLOG.md`、`specs/repository-anti-corruption/spec.md` |
@@ -170,6 +170,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 局限，知道它会漏、会多的地方：
 
 - 它读文本，不读运行。字符串拼出来的路径、动态 import、环境变量传的路径看不到；用例对包名的 import 只看到包名，看不到包里哪个文件被用到，大包只能靠上面的收窄规则。
+- 按选择器断言样式表的用例看不到：`web.test.ts`、`chrome-inner-scroll.test.ts`、`visual-foundation.test.ts` 这类用例读拼好的整份样式表（`renderMolisWorkWorkbenchStylesheet()`、`WORKBENCH_STYLES`），用正则断言某个选择器的规则，既不 import 也不点名那份样式文件或它的导出名，所以删改一层样式时选不到它们（W5-05 第 4 片删 `personal-workbench-v3` 时漏了前两个，全量才抓到）。删改样式时另按删改的选择器 `git grep` 一遍 `tests/`；脚本的补法见 `specs/BACKLOG.md` BL-153。
 - 不追反向依赖：改了 A 包，只依赖 A 的 B 包的用例不会被选。波及面大的改动走全量条件，不靠它挑。
 - 阈值（40、25、3 个包、3 个文件、300 行、往上找 120 行）是首批取值，不是量出来的最优。用一两周后按漏选、多选的实例调；调的地方只有 `rules.mjs` 的 `LIMITS` 和 `FULL_REGRESSION`。
 - 路由按缩进认包着改动的那一层：路由条件拆成几行、路由字面量那行和函数体缩进一样时认不到（只剩改动行里直接写着的路由）；顶层的辅助函数不算在任何路由里；删除整段处理函数时，只有被删的行里写着路由才认得到。
@@ -179,7 +180,7 @@ node scripts/affected-tests.mjs --list [--unit-only|--browser-only]   # 只列�
 
 ## 7. 集成分支上跑全量
 
-**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 16 个分片，每个分片 2 个文件同时跑、其中浏览器文件 1 个；一次运行最多同时占 6 台 runner（仓库一共 20 台，给 `Verify` 和合并队列留出余量），约 30–35 分钟；失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加上 `full-suite` 标签时跑一次（之后推送不再自动跑；要再跑就去掉标签再加上，或 `gh workflow run full-suite.yml --ref <分支>`）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
+**全量在 CI 上跑**（spec §1，2026-10-15）：`.github/workflows/full-suite.yml` 把 `node scripts/run-tests.mjs` 不带参数时的全部文件（含浏览器文件）分给 16 个分片，每个分片 2 个文件同时跑、其中浏览器文件 1 个；一次运行最多同时占 6 台 runner（仓库一共 20 台，给 `Verify` 和合并队列留出余量），约 30–35 分钟；失败的文件自动重跑一次（`--retries 1`），重跑通过的在摘要里单列为「flaky」、不让分片变红，所以 `Full suite` 红只说明有文件两次都失败（2026-10-15：3 个同时跑时，每轮都有一批不同的浏览器文件因 CDP、DOM 等待超时失败，#519 前后五轮）；一个文件两次都失败，这个分片就停下（`--bail`：不再开新文件，正在跑的也停掉），其余分片随之取消（`fail-fast`），所以红的一次只报出第一个失败的文件，要看其余文件要修好后再跑（用户 2026-10-18）；本机一次全量约 60 分钟，并且整台机器一次只能跑一个。触发：PR 加上 `full-suite` 标签时跑一次（之后推送不再自动跑；要再跑就去掉标签再加上，或 `gh workflow run full-suite.yml --ref <分支>`）；推到 `integration/**` 分支；每晚的 main；Actions 页面手动跑任意分支。每个分片的摘要列出失败文件和只重跑它们的命令，汇总检查叫 `Full suite`。它不挡合并。Linux 探针标为 macOS 专有的文件（`--skip-macos-only`：Seatbelt、Keychain、launchctl、Swift 辅助程序）不在里面，改到这些的仍在本机跑。所以下面第 2 步的「最后跑一次全量」，先推集成分支让 CI 跑；本机全量只用来补 macOS 专有的文件，或复现 CI 上的失败。
 
 几个 PR 同时动共享核心，各跑一次全量太贵，也看不到它们合在一起的结果。做法（第二步各批的做法，记录在 spec §9.5）：
 

@@ -4,6 +4,7 @@ import { defineErrorCodes, type ActionDefinition, type ActionMetadata } from "..
 // Keep the Catalog's current transport classification; project absence is a 404.
 const projectErrors = defineErrorCodes("catalog", {
   invalid_name: "invalid",
+  plugin_always_on: "invalid",
   plugin_not_found: "invalid",
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
@@ -45,25 +46,12 @@ export interface ProjectSelection {
   display_name: string;
 }
 
-/** Bundled project navigation entries; activation does not grant API permissions. */
-export const BUILTIN_PROJECT_PLUGIN_IDS = ["goals", "sessions", "inbox", "feed", "artifacts"] as const;
-export type BuiltinProjectPluginId = typeof BUILTIN_PROJECT_PLUGIN_IDS[number];
 /**
  * A project plugin id is an open string validated at runtime against the
  * installed registry, not a closed literal set. Adding a Plugin is an install,
  * not a schema migration.
  */
 export type ProjectPluginId = string;
-/** Enabling Feed always enables Inbox so the attention entry cannot disappear. */
-export const PROJECT_PLUGIN_COMPANIONS: {
-  readonly [K in BuiltinProjectPluginId]: readonly BuiltinProjectPluginId[];
-} = {
-  goals: [],
-  sessions: [],
-  inbox: [],
-  feed: ["inbox"],
-  artifacts: [],
-};
 
 /**
  * What the Host knows is installable right now. Projects validates against this
@@ -75,17 +63,9 @@ export interface ProjectPluginRegistry {
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Always-on plugins a project may hide. Absent means none are personal. */
   isPersonal?(pluginId: ProjectPluginId): boolean;
+  /** 常开插件 (the Manifest's `always_on`): on in every project, and no project may hide or remove one. Absent means none are. */
+  isAlwaysOn?(pluginId: ProjectPluginId): boolean;
 }
-
-/** The bundled registry: the ids this build ships with, and their companions. */
-export const BUILTIN_PROJECT_PLUGIN_REGISTRY: ProjectPluginRegistry = {
-  has(pluginId) {
-    return (BUILTIN_PROJECT_PLUGIN_IDS as readonly string[]).includes(pluginId);
-  },
-  companions(pluginId) {
-    return PROJECT_PLUGIN_COMPANIONS[pluginId as BuiltinProjectPluginId] ?? [];
-  },
-};
 
 export interface AddProjectPluginInput {
   project_id: string;

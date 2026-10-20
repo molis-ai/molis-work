@@ -96,6 +96,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     Element: (globalThis as Record<string, unknown>).Element, innerWidth: (globalThis as Record<string, unknown>).innerWidth,
     innerHeight: (globalThis as Record<string, unknown>).innerHeight, matchMedia: (globalThis as Record<string, unknown>).matchMedia,
     getSelection: (globalThis as Record<string, unknown>).getSelection, addEventListener: (globalThis as Record<string, unknown>).addEventListener,
+    MutationObserver: (globalThis as Record<string, unknown>).MutationObserver,
     location: (globalThis as Record<string, unknown>).location, molisWorkRequest: (globalThis as Record<string, unknown>).molisWorkRequest,
     molisWorkControlHeaders: (globalThis as Record<string, unknown>).molisWorkControlHeaders };
   t.after(() => Object.assign(globalThis, saved));
@@ -122,9 +123,11 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     Element: FakeElement,
     // What the toolbar program reads from the page it is drawn in.
     innerWidth: 1440, innerHeight: 900, matchMedia: () => ({ matches: false }), getSelection: () => null, addEventListener() {},
+    // It watches the panels that can cover a passage (none on this page).
+    MutationObserver: class { observe() {} },
     window: windowStub,
     document: {
-      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
+      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, matches: () => false, append() {} },
       documentElement: { dataset: {} as Record<string, string> },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,

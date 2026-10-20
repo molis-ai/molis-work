@@ -119,7 +119,8 @@ function roleOfNode(node: Node): PagesFocusRole {
   return "paragraph";
 }
 
-function headingPath(doc: Node, pos: number): string[] {
+/** The headings above a position, outermost first, as the reader sees them (the focus and the landing both name a place by them). */
+export function headingPath(doc: Node, pos: number): string[] {
   const stack: { level: number; text: string }[] = [];
   doc.forEach((node, offset) => {
     if (offset >= pos || node.type.name !== "heading") return;

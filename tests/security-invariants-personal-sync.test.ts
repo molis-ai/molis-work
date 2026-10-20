@@ -28,7 +28,7 @@ test('PCSYNC-27 aggregate progress counts each unavailable selected identity rat
   await client.run();assert.deepEqual(client.status().progress,{selected:3,pending:0,conflicts:0,waiting:0,failures:0,unavailable:3,complete:false});assert.equal(client.status().lastSuccess,null);
 });
 
-test('S-30 PCSYNC-01/26 malformed round hints never become an empty success or authorize a policy cache write',async t=>{
+test('S-61 PCSYNC-01/26 malformed round hints never become an empty success or authorize a policy cache write',async t=>{
   const space=personalStorageSpace('https://auth.example.test','work','alice');
   const selection={plugin_id:'io.example.records',publisher_id:'example',publisher_signature:'fixed',collection_id:'notes',schema_version:1};
   const wire=await syncRoundResponse({spaceId:space.spaceId,revision:1,selections:[selection]},1).json();
@@ -89,7 +89,7 @@ for(const code of ['SYNC_READ_ONLY','SYNC_INVALID_WRITE_MODE'])test('PCSYNC-26/2
   assert.equal(uploads,1);assert.equal(status.lastSuccess,null);assert.equal(status.progress.complete,false);assert.equal(status.progress.pending,1);assert.deepEqual(status.collections[0].failures,[]);assert.equal(status.device.automatic,null);
 });
 
-test('S-30 PCSYNC-01 trusted cloud origin is explicit, HTTPS and canonical; local opt-in cannot leak into cloud config',()=>{
+test('S-61 PCSYNC-01 trusted cloud origin is explicit, HTTPS and canonical; local opt-in cannot leak into cloud config',()=>{
   assert.equal(resolveSyncEndpoint({local:false}),null);
   assert.equal(resolveSyncEndpoint({local:true}),'http://127.0.0.1:8788');
   assert.equal(resolveSyncEndpoint({local:false,origin:'https://sync.example.test'}),'https://sync.example.test');
@@ -99,7 +99,7 @@ test('S-30 PCSYNC-01 trusted cloud origin is explicit, HTTPS and canonical; loca
   assert.throws(()=>resolveSyncEndpoint({local:true,origin:'https://sync.example.test'}));
 });
 
-test('S-30 PCSYNC-01 coordinator sends only to its configured origin and forbids redirect following',async t=>{
+test('S-61 PCSYNC-01 coordinator sends only to its configured origin and forbids redirect following',async t=>{
   const home=mkdtempSync(join(tmpdir(),'sync-cloud-endpoint-'));t.after(()=>rmSync(home,{recursive:true,force:true}));
   const space=personalStorageSpace('https://auth.example.test','work','alice');ensureStorageSpace(home,space);
   const destinations:string[]=[];

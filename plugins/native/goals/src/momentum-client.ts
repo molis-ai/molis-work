@@ -5,8 +5,6 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
     const { workspace, documentCollection, route, getSelected, translate: L, queueSave, setWorkspaceMode, selectGoal } = host;
     const shell = workspace.querySelector("[data-goal-canvas-shell]");
     const frame = workspace.querySelector("[data-goal-node-workspace]");
-    const workbench = workspace.querySelector("[data-goal-node-workbench]");
-    const divider = workspace.querySelector("[data-goal-workspace-divider]");
     const graphElement = () => workspace.querySelector("[data-goal-momentum]");
     const kanbanElement = () => workspace.querySelector("[data-goal-kanban]");
     const reopenKanbanGroups = () => {
@@ -79,26 +77,6 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (host.openFrame) host.openFrame(id);
       else void selectGoal(id);
     };
-    const splitScope = host.projectId || route("/");
-    const splitKey = "molis-work-goal-workspace-split:" + splitScope;
-    let shares = {};
-    try { shares = JSON.parse(localStorage.getItem(splitKey) || "{}"); } catch {}
-    const setShare = (value, persist = false) => {
-      if (!workbench || !divider) return;
-      const width = workbench.clientWidth;
-      const min = width >= 600 ? Math.max(.35, 280 / width) : .35;
-      const max = width >= 600 ? Math.min(.8, 1 - 190 / width) : .8;
-      const share = Math.max(min, Math.min(max, Number(value) || .7));
-      workbench.style.setProperty("--goal-work-share", String(share));
-      divider.setAttribute("aria-valuenow", String(Math.round(share * 100)));
-      divider.setAttribute("aria-valuemin", String(Math.ceil(min * 100)));
-      divider.setAttribute("aria-valuemax", String(Math.floor(max * 100)));
-      divider.setAttribute("aria-valuetext", L("工作区 {left}%，时间线 {right}%", { left: Math.round(share * 100), right: 100 - Math.round(share * 100) }));
-      if (persist) {
-        shares[getSelected()] = share;
-        try { localStorage.setItem(splitKey, JSON.stringify(shares)); } catch {}
-      }
-    };
     let boardGestureTimer = null;
     const openBoardWorkspace = (id) => { if (id) void selectGoal(id); };
     const openBoardGoal = (id, detail) => {
@@ -128,7 +106,6 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       shell.dataset.expanded = String(expanded);
       applyBoardVisibility();
       syncKanbanSelection();
-      setShare(shares[getSelected()] ?? .7);
       if (graph?.dataset.loaded !== "true") void loadGoalGraph();
       else view.layout();
     };
@@ -143,10 +120,9 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (retry) retry.hidden = true;
       goalGraphRequest = (async () => {
         try {
-          const response = await fetch(route("/api/board/momentum?view=" + documentCollection + "&goal_id=" + encodeURIComponent(getSelected() || "")), { cache: "no-store" });
-          if (!response.ok) throw new Error(L("无法读取目标关系，请重试。"));
+          const html = await molisWorkRequest(route("/api/board/momentum?view=" + documentCollection + "&goal_id=" + encodeURIComponent(getSelected() || "")), { as: "text", fallback: L("无法读取目标关系，请重试。") });
           const template = document.createElement("template");
-          template.innerHTML = await response.text();
+          template.innerHTML = html;
           const next = template.content.querySelector("[data-goal-momentum]");
           if (!next?.querySelector("[data-graph-stage]")) throw new Error(L("目标关系响应不完整，请重试。"));
           // Keep the root stable: the expanded workspace and TUI never join this replacement.
@@ -198,7 +174,7 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
           return true;
         } catch (error) {
           const message = graph.querySelector("[data-goal-momentum-status]");
-          if (message) { message.hidden = false; message.textContent = error.message || L("无法读取目标关系，请重试。"); }
+          if (message) { message.hidden = false; message.textContent = (error.status ? "" : error.message) || L("无法读取目标关系，请重试。"); }
           graph.querySelector("[data-retry-goal-momentum]")?.removeAttribute("hidden");
           return false;
         } finally { graph.removeAttribute("aria-busy"); goalGraphRequest = null; }
@@ -220,25 +196,6 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       }));
     };
     frame?.querySelector("[data-goal-collapse]")?.addEventListener("click", collapse);
-    divider?.addEventListener("pointerdown", (event) => {
-      if (event.button !== 0 || !expanded) return;
-      divider.setPointerCapture(event.pointerId);
-      event.preventDefault();
-    });
-    divider?.addEventListener("pointermove", (event) => {
-      if (!divider.hasPointerCapture(event.pointerId)) return;
-      const rect = workbench.getBoundingClientRect();
-      setShare((event.clientX - rect.left) / rect.width, true);
-    });
-    const finishSplit = (event) => { if (divider.hasPointerCapture(event.pointerId)) divider.releasePointerCapture(event.pointerId); };
-    divider?.addEventListener("pointerup", finishSplit);
-    divider?.addEventListener("pointercancel", finishSplit);
-    divider?.addEventListener("keydown", (event) => {
-      if (!["ArrowLeft", "ArrowRight", "Home"].includes(event.key)) return;
-      event.preventDefault();
-      const current = Number(workbench.style.getPropertyValue("--goal-work-share")) || .7;
-      setShare(event.key === "Home" ? .7 : current + (event.key === "ArrowRight" ? .02 : -.02), true);
-    });
     shell?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" && event.key !== " ") return;
       const card = event.target.closest("[data-kanban-card]");
@@ -246,13 +203,13 @@ export const GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT = `(host) => {
       event.preventDefault();
       openBoardWorkspace(card.dataset.goalId);
     });
-    if (shell) new ResizeObserver(() => { setShare(shares[getSelected()] ?? .7); if (shell.dataset.goalActive === "true") view.layout(); }).observe(shell);
+    if (shell) new ResizeObserver(() => { if (shell.dataset.goalActive === "true") view.layout(); }).observe(shell);
     return {
       graphElement, loadGoalGraph, syncGoalWorkspace,
       updateGraphVisibility: () => { view.drawGoalGraph(); syncKanbanSelection(); },
       readMomentumState: () => ({ canvasView: graphLoadedOnce ? { ...view.readView(), selectedGoal: graphSelected } : pendingView }),
       restoreMomentumState: (ui) => { if (ui?.canvasView) { pendingView = ui.canvasView; graphSelected = pendingView.selectedGoal || graphSelected; view.restoreView(pendingView); needsInitialCenter = false; } },
-      rememberMomentumGoal: () => { if (expanded) { view.focusGoal(); setShare(shares[getSelected()] ?? .7); } },
+      rememberMomentumGoal: () => { if (expanded) view.focusGoal(); },
       scheduleGoalGraphLayout: () => requestAnimationFrame(() => view.layout()),
       restoreGoalGraphViewport: () => view.layout(),
       locateGraphNode: (id) => {

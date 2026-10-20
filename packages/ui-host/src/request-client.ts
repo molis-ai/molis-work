@@ -4,6 +4,7 @@ import type {
   UiRequestCall,
   UiRequestFailure,
   UiRequestInit,
+  UiStreamRequestInit,
   UiToastOptions,
   UiToastTarget,
 } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -71,6 +72,10 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
   const failure = (message: string, code: string, status: number, callId: string | null, body: unknown): UiRequestFailure =>
     Object.assign(new Error(message), { code, status, callId, body });
   const text = (value: unknown): string | null => (typeof value === "string" && value !== "" ? value : null);
+  const refused = (body: unknown, status: number, fallback: string): UiRequestFailure => {
+    const fields = body !== null && typeof body === "object" ? body as Record<string, unknown> : {};
+    return failure(text(fields.error) ?? fallback, text(fields.code) ?? "ui_host.uncoded", status, text(fields.call_id), body);
+  };
   const writeHeaders = (key?: string): Record<string, string> => ({
     "content-type": "application/json",
     "x-molis-work-control-token": ports.token(),
@@ -115,11 +120,67 @@ export function createUiRequest(ports: UiRequestPorts): UiRequestCall {
     if (answer !== "") {
       try { body = JSON.parse(answer); } catch { body = answer; }
     }
-    const fields: Record<string, unknown> = body !== null && typeof body === "object" ? (body as Record<string, unknown>) : {};
-    throw failure(text(fields.error) ?? fallback(), text(fields.code) ?? "ui_host.uncoded", response.status, text(fields.call_id), body);
+    throw refused(body, response.status, fallback());
   }
 
-  return Object.assign(call, { headers: writeHeaders, token: () => ports.token() }) as UiRequestCall;
+  async function stream(url: string, init: UiStreamRequestInit = {}): Promise<unknown> {
+    const response = await call(url, { ...init, method: "POST", as: "response" }) as Response;
+    const fallback = init.fallback ?? ports.translate("暂时处理不了，请稍后重试");
+    const invalid = () => failure(fallback, "ui_host.invalid_response", response.status, null, null);
+    const interrupted = () => failure(ports.translate("不知道这次操作有没有完成，请刷新后核对"), "ui_host.outcome_unknown", response.status, null, null);
+    const current = () => { init.signal?.throwIfAborted(); init.scope?.assertCurrent(init.signal); };
+    current();
+    if (!response.ok) {
+      let raw: string;
+      try { raw = await response.text(); } catch (error) {
+        current(); if ((error as { name?: string } | null)?.name === "AbortError") throw error; throw interrupted();
+      }
+      current();
+      let body: unknown = null;
+      if (raw) { try { body = JSON.parse(raw); } catch { body = raw; } }
+      throw refused(body, response.status, fallback);
+    }
+    if (!response.body) throw interrupted();
+    const reader = response.body.getReader(), decoder = new TextDecoder();
+    let buffer = "", terminal: Record<string, unknown> | null = null;
+    const consume = (line: string) => {
+      if (!line.trim()) return;
+      current();
+      if (terminal) throw invalid();
+      let value: unknown;
+      try { value = JSON.parse(line); } catch { throw invalid(); }
+      if (!value || typeof value !== "object") throw invalid();
+      const event = value as Record<string, unknown>;
+      if (event.type === "progress" && typeof event.stage === "string" && typeof event.progress === "number"
+        && (event.text_delta === undefined || typeof event.text_delta === "string")) {
+        init.onProgress?.({ stage: event.stage, progress: event.progress, ...(event.text_delta === undefined ? {} : { text_delta: event.text_delta }) });
+      } else if (event.type === "result" && Object.hasOwn(event, "result")) terminal = event;
+      else if (event.type === "error" && typeof event.status === "number" && typeof event.code === "string" && typeof event.error === "string") terminal = event;
+      else throw invalid();
+    };
+    try {
+      for (;;) {
+        let chunk: Awaited<ReturnType<typeof reader.read>>;
+        try { chunk = await reader.read(); }
+        catch (error) { current(); if ((error as { name?: string } | null)?.name === "AbortError") throw error; throw interrupted(); }
+        current();
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const lines = buffer.split("\n"); buffer = lines.pop()!;
+        for (const line of lines) consume(line);
+      }
+      buffer += decoder.decode(); consume(buffer); current();
+      const last = terminal as Record<string, unknown> | null;
+      if (!last) throw interrupted();
+      if (last.type === "error") throw refused(last, last.status as number, fallback);
+      return last.result;
+    } finally {
+      await reader.cancel().catch(() => undefined);
+      reader.releaseLock();
+    }
+  }
+
+  return Object.assign(call, { stream, headers: writeHeaders, token: () => ports.token() }) as UiRequestCall;
 }
 
 /**

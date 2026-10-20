@@ -68,7 +68,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       (scope || document).querySelectorAll("[data-project-delete-dialog]").forEach((dialog) => {
         if (dialog.dataset.bound === "1") return;
         dialog.dataset.bound = "1";
-        const root = dialog.closest("[data-project-pane], .project-settings-hub, .project-settings-page") || scope || document;
+        const root = dialog.closest("[data-project-pane], .project-settings-page") || scope || document;
         const form = dialog.querySelector("form");
         const confirmation = form.elements.delete_confirmed;
         const submit = form.querySelector("button[type=submit]");

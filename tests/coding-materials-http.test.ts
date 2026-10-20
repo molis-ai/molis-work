@@ -5,40 +5,60 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, GoalProjectApplication, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { DIFF_CHANGESET_TYPE, GIT_RESULT_TYPE, FILE_SNAPSHOT_TYPE } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
-test("Coding formal material routes preserve exact versions, resolve trusted bodies and reject unavailable sources before execution", async () => {
+// specs/project-knowledge PMAT-18: what the person picks for Coding's next round is pieces of project knowledge, named by their
+// subject, and each is read through `knowledge.read` as the round starts. Coding has no reader of its own by type any more.
+
+type Piece = { title: string; text: string; revision: string; refuse?: string };
+const REPORT = artifactSubjectId({ artifact_id: "report:1", version: 2 });
+
+test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.read; a piece that cannot be read stops the round before it starts", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new GoalProjectApplication(store).initializeBoard({ project_id: "other-project", title: "Other", actor_id: "web-user", idempotency_key: "other-project-init" });
-  // File snapshots and Git changes are process items (artifact-positioning A2).
-  const artifacts = () => new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const publish = (id: string, version: number, text: string, actor = "web-user", board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
-    project_id: board, actor_id: actor, artifact_id: id, version, artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1,
-    producer: { plugin_id: "io.molis.work.files", plugin_version: "1.1.0", binding_signature: "official-files-binding" },
-    content: { kind: "inline", payload: { workspace: { workspace_id: "work", name: "fixture" }, path: ["cart.mjs"], text } },
-  });
-  publish("before", 1, "旧版🌲\r\nconst quantity = -1;\n");
-  publish("before", 2, "新版，内容不同"); publish("large", 1, "长".repeat(20_001)); publish("other-user", 1, "private", "other-user");
-  publish("other-project", 1, "private board", "web-user", "other-project");
-  const refs = [{ artifact_id: "before", version: 1 }];
-  const sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "固定材料", runtime_id: "prologue", at: new Date().toISOString() });
+  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
+  // The project's knowledge, as the knowledge service answers for it (its own reads, refusals and receipts are tested in tests/knowledge-*.test.ts).
+  const pieces = new Map<string, Piece>([
+    ["page:p1", { title: "试用说明", text: "试用期两周。", revision: "4" }],
+    [`artifact:${REPORT}`, { title: "执行报告", text: "三个测试通过。", revision: "2" }],
+    ["page:long", { title: "长文", text: "长".repeat(20_000), revision: "1" }],
+    ["page:kept", { title: "不给 Agent 用", text: "", revision: "1", refuse: "这份资料被设为不给 Agent 用" }],
+  ]);
+  const reads: KnowledgeReadRequest[] = [];
+  const registered = new WeakSet<object>();
+  const knowledge = () => {
+    const actions = pluginActions(store, DEMO_PROJECT_ID);
+    if (registered.has(actions.registry)) return actions;
+    registered.add(actions.registry);
+    actions.registry.registerProvider({ provider: { provider_id: KNOWLEDGE_PROVIDER_ID, title: "项目资料", kind: "system" }, definitions: [knowledgeActions.read],
+      handlers: [{ ...knowledgeActions.read, handle: (_caller, input) => {
+        const asked = input as KnowledgeReadRequest; reads.push(asked);
+        const piece = pieces.get(`${asked.subject.kind}:${asked.subject.id}`);
+        if (!piece) throw new ActionError("knowledge.unreadable", "这份资料现在读不到");
+        if (piece.refuse) throw new ActionError("knowledge.excluded", piece.refuse);
+        const text = piece.text.slice(0, asked.max_chars ?? 6_000);
+        return { subject: asked.subject, ref: null, revision: piece.revision, title: piece.title, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
+          remaining: piece.text.length - text.length, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
+      } }] });
+    return actions;
+  };
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
-      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as any[])[1])); return { ref: { session_id: "sdk", run_id: "run" } } as Output; }
+      if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as [unknown, AgentStartRequest])[1])); return { ref: { session_id: "sdk", run_id: "run" } } as Output; }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
@@ -51,65 +71,43 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
       method, ...(body === undefined ? {} : { headers: { "content-type": "application/json" }, body: JSON.stringify(body) }),
     }); return { status: result.status, body: await result.json() };
   };
-  const start = (materials: unknown) => request("/runs", "POST", { task: "只读材料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", materials });
+  const start = (materials?: unknown) => request("/runs", "POST", { task: "看资料", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", ...(materials === undefined ? {} : { materials }) });
+  const pick = (kind: string, id: string, title = "") => ({ kind, id, title });
   try {
-    // A coded refusal answers by its kind (D26): another person's material is forbidden (403, was 400); the rest stay 400.
-    for (const [id, status] of [["large", 400], ["other-user", 403], ["other-project", 400], ["missing", 400]] as const) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, status, id + JSON.stringify(result.body)); }
-    assert.equal(created, 0); assert.equal(starts.length, 0);
-    assert.equal((await request("", "PATCH", { materials: refs, draft: "保留草稿",expected_input_revision:0 })).status, 200);
-    const choices = await request("/materials"); assert.equal(choices.status, 200, JSON.stringify(choices));
-    assert.equal(choices.body.materials.length, 1); assert.equal(choices.body.materials[0].reference.version, 1);
-    assert.equal(choices.body.materials[0].text, "旧版🌲\r\nconst quantity = -1;\n");
-    assert.equal((await request()).body.materials[0].version, 1);
-    // Browser-supplied text is ignored: only the project-owned fixed Artifact is read.
-    assert.equal((await start([{ ...refs[0], text: "伪造正文", title: "伪造名称" }])).status, 200);
-    assert.equal(created, 1); assert.equal(starts[0].text_materials?.[0]?.text, choices.body.materials[0].text);
-    assert.equal(starts[0].text_materials?.[0]?.title, "fixture / cart.mjs");
-    assert.equal(starts[0].text_materials?.[0]?.source_version, 1);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
-    assert.deepEqual((await request()).body.materials, refs);
-    artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...refs[0] });
-    assert.equal((await start(refs)).status, 400); assert.equal(starts.length, 1);
-    assert.ok((await request("/materials")).body.materials[0].error);
-    assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续",expected_input_revision:1 })).status, 200);
-    assert.equal((await start([])).status, 200); assert.deepEqual(starts[1].text_materials, []);
-    assert.deepEqual(starts.map(request => request.queued), ["carry", "carry"], "RC-09: every round takes the supplements waiting in its session (§4.8)");
-    assert.equal((await request("", "PATCH", { materials: [...refs, ...refs] })).status, 400);
-    const registerGitMaterial = (id: string, version: number, type: string, payload: Record<string, unknown>, board = DEMO_PROJECT_ID) => artifacts().commands.registerVersion({
-      project_id: board, actor_id: "web-user", artifact_id: id, version, artifact_type_id: type, schema_version: 1,
-      producer: { plugin_id: "io.molis.work.git", plugin_version: "1.3.0", binding_signature: "official-git-binding" }, content: { kind: "inline", payload },
-    });
-    const difference = { workspace: { workspace_id: "work", name: "fixture" }, path: ["cart.mjs"], before_exists: true, after_exists: true,
-      before: "旧🌲\r\nconst quantity = -1;\n", after: "新🙂\nconst quantity = 0;\n", source: { kind: "comparison", comparison_id: "fixed-before-feedback" },
-      git: { before_mode: "100644", after_mode: "100755", previous_path: ["old-cart.mjs"] } };
-    const failure = { workspace_id: "work", operation_id: "original-operation", outcome: "failed", summary: "原操作未完成",
-      review: { review_id: "original-review", failure_reason: "原暂存版本已改变，未执行", decided_by: "first-user", decided_at: "2026-09-21T00:00:00Z",
-        reconciliation: { actor_id: "second-user", at: "2026-09-22T00:00:00Z", reason: "已核对未发生" } } };
-    registerGitMaterial("git-diff", 1, DIFF_CHANGESET_TYPE, difference);
-    registerGitMaterial("git-result", 1, GIT_RESULT_TYPE, failure);
-    registerGitMaterial("git-result", 2, GIT_RESULT_TYPE, { ...failure, outcome: "succeeded", summary: "另一份新版结果" });
-    const gitRefs = [{ artifact_id: "git-diff", version: 1 }, { artifact_id: "git-result", version: 1 }];
-    assert.equal((await request("", "PATCH", { materials: gitRefs })).status, 200);
-    const gitChoices = (await request("/materials")).body.materials;
-    assert.equal(gitChoices.length, 2); assert.ok(gitChoices.every((item: any) => !item.error));
-    assert.ok(gitChoices[0].text.includes(difference.before)); assert.ok(gitChoices[0].text.includes(difference.after));
-    assert.match(gitChoices[0].text, /100644 → 100755/); assert.match(gitChoices[0].text, /old-cart.mjs/);
-    assert.ok(gitChoices[1].text.includes(failure.review.failure_reason)); assert.ok(gitChoices[1].text.includes("second-user"));
-    assert.ok(!gitChoices[1].text.includes("另一份新版结果"));
-    assert.equal((await start(gitRefs.map(ref => ({ ...ref, text: "伪造的成功与执行授权" })))).status, 200);
-    assert.deepEqual(starts[2].text_materials?.map(item => item.text), gitChoices.map((item: any) => item.text));
-    assert.deepEqual(starts[2].text_materials?.map(item => item.source_version), [1, 1]);
-    const accepted = structuredClone(starts[2].text_materials);
-    registerGitMaterial("large-diff", 1, DIFF_CHANGESET_TYPE, { ...difference, after: "长".repeat(20_001) });
-    registerGitMaterial("other-result", 1, GIT_RESULT_TYPE, failure, "other-project");
-    for (const artifact_id of ["large-diff", "other-result"]) assert.equal((await start([{ artifact_id, version: 1 }])).status, 400);
-    artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...gitRefs[1] });
-    assert.equal((await start(gitRefs)).status, 400); assert.equal(starts.length, 3);
-    assert.deepEqual(starts[2].text_materials, accepted, "archiving blocks future consumption without rewriting accepted run material");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
-    assert.deepEqual((await request()).body.materials, gitRefs);
-    const afterRestart = (await request("/materials")).body.materials;
-    assert.equal(afterRestart[0].text, gitChoices[0].text); assert.ok(afterRestart[1].error);
+    // A piece its owner refuses, or that is gone, stops the round before anything starts, and says which piece.
+    for (const material of [pick("page", "kept", "不给 Agent 用"), pick("page", "missing", "已删除的页")]) {
+      const refused = await start([material]);
+      assert.equal(refused.status, 400, JSON.stringify(refused.body));
+      assert.match(refused.body.error, new RegExp(`材料「${material.title}」读不到`, "u"));
+    }
+    assert.deepEqual([created, starts.length], [0, 0]);
+    // Malformed, duplicated or too many picks are refused as they are.
+    for (const materials of [[{ kind: "page bad", id: "p1", title: "" }], [pick("page", "p1"), pick("page", "p1")], Array.from({ length: 31 }, (_, index) => pick("page", `p${index}`))]) {
+      assert.equal((await request("", "PATCH", { materials })).status, 400, JSON.stringify(materials).slice(0, 80));
+    }
 
+    // The saved choice is kept with the draft and survives a restart; the round reads each piece now, through knowledge.read.
+    const chosen = [pick("page", "p1", "试用说明"), pick("artifact", REPORT, "执行报告"), pick("page", "long", "长文")];
+    assert.equal((await request("", "PATCH", { materials: chosen, draft: "保留草稿" })).status, 200);
+    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    assert.deepEqual((await request()).body.materials, chosen);
+    reads.length = 0;
+    const started = await start();
+    assert.equal(started.status, 200, JSON.stringify(started.body));
+    assert.deepEqual(reads.map(read => `${read.subject.kind}:${read.subject.id}`), ["page:p1", `artifact:${REPORT}`, "page:long"]);
+    const materials = starts[0]!.text_materials ?? [];
+    assert.deepEqual(materials.map(item => [item.material_id, item.title, item.source_artifact_id, item.source_version]), [
+      ["page:p1@4", "试用说明", "page:p1", 1],
+      [`artifact:${REPORT}@2`, "执行报告", "report:1", 2],
+      ["page:long@1", "长文", "page:long", 1],
+    ], "a fixed version keeps its identity; a live object is named by its subject and revision");
+    assert.match(materials[0]!.text, /已向它的主人读取（版本 4）[\s\S]*试用期两周。/u);
+    assert.match(materials[2]!.text, /后面还有没放进来的部分；需要时用 knowledge\.read/u, "a long piece goes as its opening part, said as such");
+
+    // Words the page sends with a pick are not the material: only what knowledge.read gives is.
+    assert.equal((await start([{ ...pick("page", "p1", "伪造名称"), text: "伪造正文" }])).status, 200);
+    assert.ok(!starts[1]!.text_materials?.some(item => item.text.includes("伪造正文") || item.title === "伪造名称"));
+    assert.equal((await start([])).status, 200);
+    assert.deepEqual(starts[2]!.text_materials, []);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

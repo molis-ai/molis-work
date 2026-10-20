@@ -1,7 +1,10 @@
-import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import {createAggregateReplica,initializeAggregateReplication,createAggregateCopy,AGGREGATE_REPLICA_SCHEMA_SQL,type AggregateReplicaContext,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {datasetAggregates} from './replication.js';
+import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type {
   DatasetColumn,
   DatasetColumnInput,
@@ -12,8 +15,6 @@ import type {
   DatasetVersionRecord,
 } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { datasetErrors } from "./error.js";
-import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { datasetAggregates } from './replication.js';
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 
 interface DatasetRowDb {
@@ -34,24 +35,39 @@ interface DatasetRowDb {
 
 const COLUMN_TYPES: readonly DatasetColumnType[] = ["text", "number", "date"];
 
+/** The SQL the store runs: its own connection, or the library the Runtime gives the plugin, read or inside one write transaction. */
+export type DatasetSqlValue = string | number | null;
+export interface DatasetSql {
+  get(sql: string, parameters?: readonly DatasetSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly DatasetSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly DatasetSqlValue[]): { changes: number | bigint };
+}
+
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority and is one transaction. */
+export interface DatasetStores {
+  read<T>(run: (store: DatasetStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: DatasetStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run, for tests and maintenance. */
+export function ownDatasetStores(withStore: <T>(run: (store: DatasetStore) => T) => T): DatasetStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
 export class DatasetStore {
-  constructor(private readonly db: DatabaseSync) {}
-  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,datasetAggregates,context);}
+  constructor(private readonly db: DatasetSql, private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   list(projectId: string): DatasetRecord[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM datasets WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE",
-    ).all(project_id) as unknown as DatasetRowDb[];
-    return rows.map(fromRow);
+    return this.rows("SELECT * FROM datasets WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromRow);
   }
 
   get(id: string, projectId?: string): DatasetRecord {
-    const row = this.db.prepare("SELECT * FROM datasets WHERE id = ?").get(id) as DatasetRowDb | undefined;
+    const row = this.rows("SELECT * FROM datasets WHERE id = ?", [id])[0];
     if (!row) throw datasetErrors.not_found("找不到这张表");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw datasetErrors.not_found("找不到这张表");
@@ -107,12 +123,11 @@ export class DatasetStore {
   /** Move to another partition; the id and saved versions go with it. Fixed versions already published stay with the old place. */
   relocate(id: string, from: string, to: string): DatasetRecord {
     const target = normalizeProjectId(to);
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw datasetErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.prepare("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
-        .run(target, id, current.version);
+      const result = this.db.run("UPDATE datasets SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
       if (result.changes !== 1) throw datasetErrors.conflict("数据表刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });
@@ -138,21 +153,21 @@ export class DatasetStore {
   }
 
   private once(projectId: string, requestId: string, make: () => DatasetRecord): DatasetRecord {
-    return this.transaction(() => {
-      const prior = this.db.prepare("SELECT dataset_id FROM dataset_receipts WHERE project_id = ? AND request_id = ?").get(projectId, requestId) as { dataset_id: string } | undefined;
-      if (prior) return this.get(prior.dataset_id, projectId);
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT dataset_id FROM dataset_receipts WHERE project_id = ? AND request_id = ?", [projectId, requestId]);
+      if (prior) return this.get(String(prior.dataset_id), projectId);
       const made = make();
-      this.db.prepare("INSERT INTO dataset_receipts (project_id, request_id, dataset_id, created_at) VALUES (?, ?, ?, ?)").run(projectId, requestId, made.id, new Date().toISOString());
+      this.db.run("INSERT INTO dataset_receipts (project_id, request_id, dataset_id, created_at) VALUES (?, ?, ?, ?)", [projectId, requestId, made.id, new Date().toISOString()]);
       return made;
     });
   }
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
-    this.transaction(() => {
+    this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       if (current.publication_pending) throw datasetErrors.publication_pending("请先恢复上次发布，再删除数据表");
-      this.db.prepare("DELETE FROM dataset_versions WHERE dataset_id = ?").run(id);
-      this.db.prepare("DELETE FROM datasets WHERE id = ?").run(id);
+      this.db.run("DELETE FROM dataset_versions WHERE dataset_id = ?", [id]);
+      this.db.run("DELETE FROM datasets WHERE id = ?", [id]);
     });
   }
 
@@ -176,7 +191,7 @@ export class DatasetStore {
   }
 
   saveVersion(id: string, note?: string, projectId?: string, expectedVersion?: number): DatasetVersionRecord {
-    return this.transaction(() => {
+    return this.atomically(() => {
     const snapshot = this.get(id, projectId);
     this.assertVersion(snapshot, expectedVersion);
     const record: DatasetVersionRecord = {
@@ -186,24 +201,21 @@ export class DatasetStore {
       snapshot,
       created_at: new Date().toISOString(),
     };
-    this.db.prepare(
-      "INSERT INTO dataset_versions (id, dataset_id, note, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?)",
-    ).run(record.id, record.dataset_id, record.note, JSON.stringify(record.snapshot), record.created_at);
+    this.db.run("INSERT INTO dataset_versions (id, dataset_id, note, snapshot_json, created_at) VALUES (?, ?, ?, ?, ?)",
+      [record.id, record.dataset_id, record.note, JSON.stringify(record.snapshot), record.created_at]);
     return record;
     });
   }
 
   listVersions(id: string, projectId?: string): DatasetVersionRecord[] {
     this.get(id, projectId);
-    const rows = this.db.prepare(
-      "SELECT id, dataset_id, note, snapshot_json, created_at FROM dataset_versions WHERE dataset_id = ? ORDER BY datetime(created_at) DESC",
-    ).all(id) as Array<{ id: string; dataset_id: string; note: string; snapshot_json: string; created_at: string }>;
+    const rows = this.db.all("SELECT id, dataset_id, note, snapshot_json, created_at FROM dataset_versions WHERE dataset_id = ? ORDER BY datetime(created_at) DESC", [id]);
     return rows.map((row) => ({
-      id: row.id,
-      dataset_id: row.dataset_id,
-      note: row.note,
-      snapshot: JSON.parse(row.snapshot_json) as DatasetRecord,
-      created_at: row.created_at,
+      id: String(row.id),
+      dataset_id: String(row.dataset_id),
+      note: String(row.note),
+      snapshot: JSON.parse(String(row.snapshot_json)) as DatasetRecord,
+      created_at: String(row.created_at),
     }));
   }
 
@@ -221,7 +233,7 @@ export class DatasetStore {
   }
 
   beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: DatasetPublicationSnapshot, version?: number): DatasetPublicationIntent {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
       if (pending) {
@@ -230,53 +242,45 @@ export class DatasetStore {
       }
       const intent: DatasetPublicationIntent = { content: existing ?? { title: current.title, description: current.description, columns: current.columns, rows: current.rows },
         version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.prepare("UPDATE datasets SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      this.db.run("UPDATE datasets SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
       return intent;
     });
   }
 
   completePublication(id: string, projectId: string, intent: DatasetPublicationIntent, artifact: { artifact_id: string; version: number }): DatasetRecord {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
       if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
       if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw datasetErrors.publication_conflict("发布记录已改变，请重新读取数据表");
-      this.db.prepare("UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
-        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      this.db.run("UPDATE datasets SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?",
+        [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
       return this.get(id, projectId);
     });
   }
 
   private publicationIntent(id: string): DatasetPublicationIntent | null {
-    const row = this.db.prepare("SELECT publication_pending_json FROM datasets WHERE id = ?").get(id) as { publication_pending_json: string | null };
-    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as DatasetPublicationIntent : null;
+    const row = this.db.get("SELECT publication_pending_json FROM datasets WHERE id = ?", [id]);
+    const pending = row?.publication_pending_json;
+    return typeof pending === "string" && pending ? JSON.parse(pending) as DatasetPublicationIntent : null;
   }
   private assertVersion(current: DatasetRecord, expectedVersion?: number): void {
     if (expectedVersion !== undefined && expectedVersion !== current.version) throw datasetErrors.conflict("数据表已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
   }
-  private transaction<T>(run: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = run(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  /** The one cast from the SQL rows to this store's row shape: the columns are the schema's. */
+  private rows(sql: string, parameters?: readonly DatasetSqlValue[]): DatasetRowDb[] {
+    return this.db.all(sql, parameters) as unknown as DatasetRowDb[];
   }
 
   private write(record: DatasetRecord, insert: boolean): void {
     if (insert) {
-      this.db.prepare(
-      "INSERT INTO datasets (id, project_id, title, description, status, columns_json, rows_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-        record.id, record.project_id, record.title, record.description, record.status,
-        JSON.stringify(record.columns), JSON.stringify(record.rows),
-        record.created_at, record.updated_at, record.version,
-      );
+      this.db.run("INSERT INTO datasets (id, project_id, title, description, status, columns_json, rows_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, record.project_id, record.title, record.description, record.status,
+          JSON.stringify(record.columns), JSON.stringify(record.rows), record.created_at, record.updated_at, record.version]);
       return;
     }
-    const result = this.db.prepare(
-      "UPDATE datasets SET title = ?, description = ?, status = ?, columns_json = ?, rows_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
-    ).run(
-      record.title, record.description, record.status,
-      JSON.stringify(record.columns), JSON.stringify(record.rows),
-      record.updated_at, record.version, record.id, record.version - 1,
-    );
+    const result = this.db.run("UPDATE datasets SET title = ?, description = ?, status = ?, columns_json = ?, rows_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
+      [record.title, record.description, record.status, JSON.stringify(record.columns), JSON.stringify(record.rows),
+        record.updated_at, record.version, record.id, record.version - 1]);
     if (result.changes !== 1) throw datasetErrors.conflict("数据表已改变，请重新读取后保存");
   }
 }
@@ -285,6 +289,7 @@ export class DatasetStore {
  * The dataset store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version. Columns keep the order existing stores have them in.
  */
+/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
 export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE datasets (
     id TEXT PRIMARY KEY,
@@ -310,11 +315,23 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   );
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
+export const DATASET_DATABASE: PluginDatabaseDeclaration = { ...DATASET_STORE_BASELINE, store_name: "dataset", read_permission: "dataset:read", write_permission: "dataset:write" };
 
-export function openDatasetStore(homeDirectory: string): DatasetStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
-  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_STORE_BASELINE);
+export function openDatasetStore(homeDirectory: string) {
+  const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_DATABASE);
+  const sql: DatasetSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
   initializeAggregateReplication(db,datasetAggregates);
-  return Object.assign(new DatasetStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,datasetAggregates,context)});
+  return Object.assign(new DatasetStore(sql, run => immediate(db, run), () => db.close()), {replica:(context:AggregateReplicaContext)=>createAggregateReplica(db,datasetAggregates,context),copy:(context:AggregateCopyContext)=>createAggregateCopy(db,datasetAggregates,context)});
+}
+
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {
@@ -453,4 +470,4 @@ function normalizeRows(rows: readonly DatasetRowInput[], columns: readonly Datas
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `dataset/dataset.db` at its one baseline. */
-export const DATASET_HOME_STORE: HomeStoreDeclaration = { path: "dataset", library: { baseline: DATASET_STORE_BASELINE } };
+export const DATASET_HOME_STORE: HomeStoreDeclaration = { path: "dataset", library: { baseline: DATASET_DATABASE } };

@@ -18,6 +18,7 @@ export interface RuntimeInput {
   signal?: AbortSignal;
   beforeCorrection?: () => Promise<void>;
   beforeModelDispatch?: () => Promise<void>;
+  assertCurrent?: () => void;
 }
 
 export interface ResearchExecutionRuntimePort {

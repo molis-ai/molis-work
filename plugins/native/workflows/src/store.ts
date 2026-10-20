@@ -1,6 +1,9 @@
-import { replicaSchemaSql } from "@molis-ai/molis-work-storage";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import {initializeWorkflowsReplication,createWorkflowsReplica} from './replication.js';
+import type {AggregateReplicaContext} from '@molis-ai/molis-work-storage';
+import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import {
   type Workflow,
   type WorkflowChain,
@@ -15,8 +18,6 @@ import {
   stoppedOf,
 } from "./model.js";
 import { workflowsErrors } from "./error.js";
-import type { AggregateReplicaContext } from "@molis-ai/molis-work-storage";
-import { createWorkflowsReplica, initializeWorkflowsReplication, isImportedWorkflowInstance } from "./replication.js";
 
 interface WorkflowRow {
   workflow_id: string;
@@ -47,36 +48,52 @@ export interface WorkflowSummary extends Workflow {
   readonly last_activity_at: string | null;
 }
 
-export class WorkflowsStore {
-  constructor(private readonly db: DatabaseSync) {}
+/** The SQL the store runs: its own connection, or the library the Runtime gives the plugin. */
+export type WorkflowsSqlValue = string | number | null;
+export interface WorkflowsSql {
+  get(sql: string, parameters?: readonly WorkflowsSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly WorkflowsSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly WorkflowsSqlValue[]): { changes: number | bigint };
+}
 
-  replica(context: AggregateReplicaContext) { return createWorkflowsReplica(this.db, context); }
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority. */
+export interface WorkflowsStores {
+  read<T>(run: (store: WorkflowsStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: WorkflowsStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run, for tests and maintenance; the caller's beforeEffect is awaited. */
+export function ownWorkflowsStores(withStore: <T>(run: (store: WorkflowsStore) => T) => T): WorkflowsStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
+export class WorkflowsStore {
+  constructor(private readonly db: WorkflowsSql, private readonly release: () => void = () => {}) {}
 
   assertExecutableInstance(instanceId: string): void {
-    if (isImportedWorkflowInstance(this.db, instanceId)) {
+    if (this.db.get("SELECT 1 FROM workflow_imported_instances WHERE instance_id=?", [instanceId]))
       throw workflowsErrors.invalid("这次运行由另一台设备创建，在本机仅可查看历史；请在原设备继续");
-    }
   }
 
   close(): void {
-    this.db.close();
+    this.release();
+  }
+
+  /** The one cast from the SQL rows to this store's row shape: the columns are the schema's. */
+  private rows<T>(sql: string, parameters?: readonly WorkflowsSqlValue[]): T[] {
+    return this.db.all(sql, parameters) as unknown as T[];
   }
 
   list(projectId: string): WorkflowSummary[] {
-    const rows = this.db.prepare(
-      "SELECT * FROM workflows WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, rowid DESC",
-    ).all(projectId) as unknown as WorkflowRow[];
-    const counts = this.db.prepare(
-      "SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active, MAX(updated_at) AS last FROM instances WHERE workflow_id = ?",
-    );
-    return rows.map((row) => {
-      const count = counts.get(row.workflow_id) as { total: number; active: number | null; last: string | null };
-      return { ...fromWorkflowRow(row), instance_count: count.total, active_count: count.active ?? 0, last_activity_at: count.last };
+    return this.rows<WorkflowRow>("SELECT * FROM workflows WHERE project_id = ? AND deleted = 0 ORDER BY updated_at DESC, rowid DESC", [projectId]).map((row) => {
+      const count = this.db.get("SELECT COUNT(*) AS total, SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active, MAX(updated_at) AS last FROM instances WHERE workflow_id = ?", [row.workflow_id]);
+      return { ...fromWorkflowRow(row), instance_count: Number(count?.total ?? 0), active_count: Number(count?.active ?? 0),
+        last_activity_at: typeof count?.last === "string" ? count.last : null };
     });
   }
 
   get(workflowId: string, projectId: string): Workflow {
-    const row = this.db.prepare("SELECT * FROM workflows WHERE workflow_id = ? AND deleted = 0").get(workflowId) as unknown as WorkflowRow | undefined;
+    const row = this.rows<WorkflowRow>("SELECT * FROM workflows WHERE workflow_id = ? AND deleted = 0", [workflowId])[0];
     if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这条流程");
     return fromWorkflowRow(row);
   }
@@ -93,9 +110,8 @@ export class WorkflowsStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.prepare(
-      "INSERT INTO workflows (workflow_id, project_id, title, chain_json, revision, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
-    ).run(workflow.workflow_id, workflow.project_id, workflow.title, chainJson(workflow), workflow.revision, now, now);
+    this.db.run("INSERT INTO workflows (workflow_id, project_id, title, chain_json, revision, created_at, updated_at, deleted) VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
+      [workflow.workflow_id, workflow.project_id, workflow.title, chainJson(workflow), workflow.revision, now, now]);
     return workflow;
   }
 
@@ -111,27 +127,24 @@ export class WorkflowsStore {
       revision: current.revision + 1,
       updated_at: new Date().toISOString(),
     };
-    this.db.prepare("UPDATE workflows SET title = ?, chain_json = ?, revision = ?, updated_at = ? WHERE workflow_id = ?")
-      .run(next.title, chainJson(next), next.revision, next.updated_at, workflowId);
+    this.db.run("UPDATE workflows SET title = ?, chain_json = ?, revision = ?, updated_at = ? WHERE workflow_id = ?",
+      [next.title, chainJson(next), next.revision, next.updated_at, workflowId]);
     return next;
   }
 
   /** Hidden from the list; its instances keep their history. */
   delete(workflowId: string, projectId: string): void {
     this.get(workflowId, projectId);
-    this.db.prepare("UPDATE workflows SET deleted = 1, updated_at = ? WHERE workflow_id = ?").run(new Date().toISOString(), workflowId);
+    this.db.run("UPDATE workflows SET deleted = 1, updated_at = ? WHERE workflow_id = ?", [new Date().toISOString(), workflowId]);
   }
 
   instances(workflowId: string, projectId: string): WorkflowInstance[] {
     this.get(workflowId, projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM instances WHERE workflow_id = ? ORDER BY created_at DESC, rowid DESC",
-    ).all(workflowId) as unknown as InstanceRow[];
-    return rows.map(fromInstanceRow);
+    return this.rows<InstanceRow>("SELECT * FROM instances WHERE workflow_id = ? ORDER BY created_at DESC, rowid DESC", [workflowId]).map(fromInstanceRow);
   }
 
   instance(instanceId: string, projectId: string): WorkflowInstance {
-    const row = this.db.prepare("SELECT * FROM instances WHERE instance_id = ?").get(instanceId) as unknown as InstanceRow | undefined;
+    const row = this.rows<InstanceRow>("SELECT * FROM instances WHERE instance_id = ?", [instanceId])[0];
     if (!row || row.project_id !== projectId) throw workflowsErrors.not_found("找不到这一次");
     return fromInstanceRow(row);
   }
@@ -151,10 +164,9 @@ export class WorkflowsStore {
       created_at: now,
       updated_at: now,
     };
-    this.db.prepare(
-      "INSERT INTO instances (instance_id, workflow_id, project_id, title, status, current, chain_json, steps_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(instance.instance_id, instance.workflow_id, instance.project_id, instance.title, instance.status, instance.current,
-      JSON.stringify(chain), JSON.stringify(instance.steps), now, now);
+    this.db.run("INSERT INTO instances (instance_id, workflow_id, project_id, title, status, current, chain_json, steps_json, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [instance.instance_id, instance.workflow_id, instance.project_id, instance.title, instance.status, instance.current,
+        JSON.stringify(chain), JSON.stringify(instance.steps), now, now]);
     return instance;
   }
 
@@ -166,9 +178,8 @@ export class WorkflowsStore {
   saveInstance(previous: WorkflowInstance, next: WorkflowInstance): WorkflowInstance {
     this.assertExecutableInstance(previous.instance_id);
     const updatedAt = nextUpdatedAt(previous.updated_at, next.updated_at);
-    const result = this.db.prepare(
-      "UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
-    ).run(next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at);
+    const result = this.db.run("UPDATE instances SET title = ?, status = ?, current = ?, chain_json = ?, steps_json = ?, updated_at = ? WHERE instance_id = ? AND updated_at = ?",
+      [next.title, next.status, next.current, JSON.stringify(next.chain), JSON.stringify(next.steps), updatedAt, next.instance_id, previous.updated_at]);
     if (Number(result.changes) !== 1) throw workflowsErrors.conflict("这一次刚被推进过，请刷新后再看");
     const { stopped: _derived, ...saved } = next;
     const stopped = stoppedOf(next.status, next.steps);
@@ -207,6 +218,7 @@ export function recordStoppedDelivery(store: WorkflowsStore, expected: WorkflowI
  * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
  * ones must already be at its version.
  */
+/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
 export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE workflows (
     workflow_id TEXT PRIMARY KEY,
@@ -234,13 +246,19 @@ export const WORKFLOWS_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
 
 `)+replicaSchemaSql()+"CREATE TABLE workflow_editor_versions(workflow_id TEXT PRIMARY KEY, revision INTEGER NOT NULL);CREATE TABLE workflow_imported_instances(instance_id TEXT PRIMARY KEY);" };
+export const WORKFLOWS_DATABASE: PluginDatabaseDeclaration = { ...WORKFLOWS_STORE_BASELINE, store_name: "workflows", read_permission: "workflows:read", write_permission: "workflows:write" };
 
-export function openWorkflowsStore(homeDirectory: string): WorkflowsStore {
+export function openWorkflowsStore(homeDirectory: string) {
   const db = openHomeSqliteDatabase(homeDirectory, WORKFLOWS_HOME_STORE.path);
   db.exec("PRAGMA journal_mode = WAL;");
-  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_STORE_BASELINE);
+  applySqliteBaseline(db, homeSqlitePath(homeDirectory, WORKFLOWS_HOME_STORE.path), WORKFLOWS_DATABASE);
+  const sql: WorkflowsSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
   initializeWorkflowsReplication(db);
-  return new WorkflowsStore(db);
+  return Object.assign(new WorkflowsStore(sql, () => db.close()),{replica:(context:AggregateReplicaContext)=>createWorkflowsReplica(db,context)});
 }
 
 function chainJson(chain: WorkflowChain): string {
@@ -286,4 +304,4 @@ function fromInstanceRow(row: InstanceRow): WorkflowInstance {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `workflows/workflows.db` at its one baseline. */
-export const WORKFLOWS_HOME_STORE: HomeStoreDeclaration = { path: "workflows", library: { baseline: WORKFLOWS_STORE_BASELINE } };
+export const WORKFLOWS_HOME_STORE: HomeStoreDeclaration = { path: "workflows", library: { baseline: WORKFLOWS_DATABASE } };

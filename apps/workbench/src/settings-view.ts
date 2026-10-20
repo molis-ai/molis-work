@@ -1,5 +1,8 @@
 import type { ModelSettingsModel } from "./settings-models.js";
 import type { ConnectorAuthKind, ConnectorConnectionView, ConnectorDirectoryAvailability, ConnectorDirectoryGroupId, ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
+import type { ConnectorConnectionStatus } from "@molis-ai/molis-work-contracts/services/connector-host";
+
+export type ConnectorSettingsConnection = ConnectorConnectionView & { status?: ConnectorConnectionStatus; project_id?: string; revision?: string };
 import type { RuntimeIntegrationDetection, MolisWorkWebServiceDetection } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { WebProjectNavigation, WebSettingsSection } from "./settings-navigation.js";
 import type { CallRowView } from "./call-row.js";
@@ -48,7 +51,8 @@ export interface MolisWorkSettingsView {
   runtimes: RuntimeIntegrationDetection[];
   mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
-  connector_connections?: readonly ConnectorConnectionView[];
+  connector_connections?: readonly ConnectorSettingsConnection[];
+  connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;

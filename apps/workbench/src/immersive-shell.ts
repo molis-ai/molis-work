@@ -95,15 +95,13 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 const RAIL_TOOL_GROUPS: ReadonlyArray<readonly [label: string, ids: readonly string[]]> = [
   ["推进", ["schedule", "workflows"]],
   ["写与做", ["pages", "form", "dataset", "ppt", "images", "artifacts"]],
-  ["个人", ["todo", "jelly", "cognia", "shelf"]],
+  ["个人", ["todo", "jelly", "cognia"]],
   ["研究", ["alchemist"]],
   ["编码", ["coding"]],
 ];
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
 const RAIL_GROUPED_TOOL_IDS = new Set(RAIL_TOOL_GROUPS.flatMap(([, ids]) => ids));
 const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
-/** Shelf and 灵光 are the person's own, so they stay at the right of the bar, beside the project, rather than among the chosen plugins. */
-const BAR_RESIDENT_IDS = ["shelf", "lingguang"];
 
 /** A plugin installed into this project at run time: its stage and the name it was published under. */
 export interface InstalledRailEntry { surface: string; label: string }
@@ -151,14 +149,11 @@ export function renderPluginRail(
     return [...going];
   };
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
-  // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project. Shelf and 灵光 stay
-  // beside the Assistant whatever is chosen, so theirs is always on and cannot be turned off.
+  // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
   const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
-    const resident = BAR_RESIDENT_IDS.includes(plugin.id);
-    const kept = owned && (resident || DOCK_DEFAULT_PINS.includes(plugin.id));
-    return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned || resident,
-      label: resident ? say(L, "{name}：固定在底栏右侧", { name: plugin.label }) : say(L, "常驻 Dock：{name}", { name: plugin.label }),
-      attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: resident ? L("固定在底栏右侧") : L("常驻 Dock"), ...(resident ? { "data-resident": "true" } : {}) } });
+    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
+    return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
+      label: say(L, "常驻 Dock：{name}", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: L("常驻 Dock") } });
   };
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
   // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is created
@@ -177,7 +172,7 @@ export function renderPluginRail(
   const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
   const tile = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, zone: string) => {
     const owned = have.has(plugin.id);
-    const kept = owned && (BAR_RESIDENT_IDS.includes(plugin.id) || DOCK_DEFAULT_PINS.includes(plugin.id));
+    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
     const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${L(hints[plugin.id])}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
@@ -242,8 +237,8 @@ export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled
  * The bottom bar replaces the rail. Left, where you go: the switcher — it names where you are (one chip per pane
  * when split) and opens, under search and the two buttons that get more plugins (the market, the plugin studio), every
  * plugin, each with the button that keeps it in the Dock — then the plugins chosen to stay; the two sit in one tray.
- * Centre: the resident Assistant, only an input. Right: Shelf and 灵光 with the side panel's button (the project's
- * discussion, the browser and files beside the work, specs/archive/side-panel) in one tray, then the project as a round button
+ * Centre: the resident Assistant, only an input. Right: the side panel's button (Shelf, 灵光, files, the browser, the
+ * computer and the project's discussion beside the work, specs/side-shelf §3.1) in its tray, then the project as a round button
  * whose menu holds the project and the person — switching, search, settings, capabilities.
  */
 export function renderWorkbenchBar(
@@ -251,9 +246,6 @@ export function renderWorkbenchBar(
   parts: { rail: string; projectChrome: string; enabled: readonly string[]; sideTabs?: readonly SidePanelPluginTab[] },
 ): string {
   const { L, icon } = primitives;
-  const known = [...directoryPlugins(parts.enabled, english(primitives)), ...islandPlugins(parts.enabled, english(primitives))];
-  const residents = BAR_RESIDENT_IDS.map(id => known.find(plugin => plugin.id === id)).filter(plugin => plugin !== undefined)
-    .map(plugin => `<button class="bar-resident" type="button" data-bar-resident="${plugin.id}" data-craft-tip="${plugin.label}" aria-label="${say(L, "切换到插件：{name}", { name: plugin.label })}">${icon(plugin.glyph)}</button>`).join("");
   return `<div class="workbench-bar" data-dock aria-label="${L("底栏")}">
     <div class="bar-start">
       <div class="plugin-picker" data-plugin-picker>
@@ -270,7 +262,7 @@ export function renderWorkbenchBar(
     </div>
     ${renderAssistantDock(primitives)}
     <div class="bar-end">
-      <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" data-side-toggle aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("侧栏：讨论、浏览器与文件")}" aria-label="${L("侧栏：讨论、浏览器与文件")}">${icon("sidebar")}</button></div>
+      <div class="bar-side"><button class="bar-chat" type="button" data-side-toggle aria-expanded="false" aria-controls="side-panel" data-craft-tip="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}" aria-label="${L("侧栏：Shelf、灵光、资料、浏览器、电脑与讨论")}">${icon("sidebar")}</button></div>
       ${renderSidePanel(primitives, parts.sideTabs ?? [])}
       ${renderSyncIndicator(primitives)}${parts.projectChrome}
     </div>

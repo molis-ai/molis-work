@@ -61,6 +61,7 @@ function cancelled(ports: JellyAiPorts): void { if (ports.signal?.aborted) throw
 async function complete(ports: JellyAiPorts, prompt: InstructedPrompt): Promise<unknown> {
   cancelled(ports);
   if (!ports.completeJson) throw jellyErrors.ai_unavailable("尚未配置文字模型。原始素材已保留，可以先转为笔记。");
+  ports.onProgress?.({ stage: "planning", progress: 0 });
   try { return await ports.completeJson(prompt, { signal: ports.signal }); }
   finally { cancelled(ports); }
 }

@@ -1,10 +1,12 @@
-import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT } from "./assistant-stage.js";
+import { ASSISTANT_STAGE_FACTORY, ASSISTANT_ELEMENT_SCRIPT, ASSISTANT_PLACER_SCRIPT } from "./assistant-stage.js";
 import { codeLanguage, codeTokens } from "@molis-ai/molis-work-plugin-coding";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
+import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
 
 // The existing Coding tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
@@ -42,8 +44,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const side = island.querySelector("[data-assistant-side]");
   const sideToggle = island.querySelector("[data-assistant-side-toggle]");
   const sideDot = island.querySelector("[data-assistant-side-dot]");
-  const blocks = { attention: island.querySelector('[data-assistant-block="attention"]'), path: island.querySelector('[data-assistant-block="path"]'), materials: island.querySelector('[data-assistant-block="materials"]'),
-    results: island.querySelector('[data-assistant-block="results"]') };
+  const blocks = Object.fromEntries([...island.querySelectorAll("[data-assistant-block]")].map((node) => [node.dataset.assistantBlock, node]));
   const target = island.querySelector("[data-assistant-target]");
   const targetWrap = island.querySelector("[data-assistant-target-wrap]");
   const targetLabel = island.querySelector("[data-assistant-target-label]");
@@ -196,7 +197,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   let activeSend = null;
 
   const api=(path,method,body,route=host.route("/api/assistant"+path))=>molisWorkRequest(route,{method:method||"GET",body,fallback:L("助理暂时无法完成")});
-  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]") });
+  const el = ${ASSISTANT_ELEMENT_SCRIPT}, receipts = (${ASSISTANT_RECEIPTS_FACTORY_SCRIPT})({ L, shared: host.receipts, chip: island.querySelector("[data-assistant-answer]"), api, work: () => curId, reload: () => reload(),
+    pact: (content, badge) => paintBlock(blocks.agreements, L("AI 记下的约定"), "list", content, badge) });
   const stateLabel = (state) => L(STATE_LABELS[state] || state || ""); const ringState = state => ({ "waiting-input": "answer", "waiting-review": "approval", "needs-check": "verify", completed: "round-ended" })[state] || state;
   const scopeLabel = (scope, title) => !scope ? "" : scope.kind === "personal" ? L("个人")
     : title || (project && scope.project_id === project.id ? (project.title || L("本项目")) : L("另一个项目"));
@@ -426,11 +428,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
     return verb + what + " — " + L("结果未确认");
   };
-  /** Every card in the conversation has one shape: what kind of moment it is (and what kind of act), what it is about,
-      then what to do and a line on what happens when you do. */
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
-  const ixClient = host.interaction;
+  const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
   const drawn = (node, html, handlers, key = html) => {
     if (node.ixKey === key) return node.ix;
     node.ix?.destroy(); node.innerHTML = html || ""; node.ixKey = key;
@@ -438,9 +438,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node.ix;
   };
   const renderQuestion = (card, work, round, question) => {
-    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() });
-    let saving = 0;
+    const path = "/works/" + encodeURIComponent(work.work_id), held = () => ({ pending_id: question.pending_id, values: client.read() }); let saving = 0;
     const client = drawn(card, question.html, {
+      onAction: () => reaskQuestion(work, round, question),
       // A half-written answer is kept with the work, so a reload or another tab finds it.
       onChange: () => { clearTimeout(saving); saving = setTimeout(() => api(path + "/question-draft", "POST", held()).catch(() => undefined), 600); },
       onSubmit: async () => {
@@ -451,6 +451,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         catch (error) { if (error.body?.details?.errors) client.showErrors(error.body.details.errors, { focus: true }); else showError(error); if (button) button.disabled = false; }
       },
     }, question.pending_id + question.pending_revision + question.answerable);
+    fills.set(question.pending_id, (field, text) => { const now = client.read()[field]; client.write({ [field]: now ? now + " " + text : text }); clearTimeout(saving); return api(path + "/question-draft", "POST", held()); });
   };
   const renderReview = (card, work, review) => {
     card.innerHTML = review.html;
@@ -484,17 +485,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       } catch (error) { showError(error); lock(false); if (hadFocus) button.focus(); }
     } });
   };
-  /* Puts children in order without moving any that already stand in place: moving a node drops the focus inside it
-     (an answer being typed, a button reached by keyboard), and a running work repaints every few seconds. */
-  const placer = (parent) => {
-    let last = null;
-    return (child) => {
-      const want = last ? last.nextElementSibling : parent.firstElementChild;
-      if (want !== child) parent.insertBefore(child, want);
-      last = child;
-      return child;
-    };
-  };
+  const placer = ${ASSISTANT_PLACER_SCRIPT};
   /** A card no round proposed: a page put it in (it names the page in from), or its round is not one of this work's. */
   const pageCard = (card) => Boolean(card.from) || !card.run_id || !(view && view.rounds.some((round) => round.run_id === card.run_id));
   // Both round cards and page cards use the same Host-drawn view without deleting chronological siblings.
@@ -620,11 +611,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's; a supplement is the person's, whoever wrote the round.
         const kind = turn.kind === "user" ? (round.written_by === "host" && !turn.steer ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
         const bubble = keyed(node, "data-entry", entry.key, () => el("div", "assistant-msg assistant-msg--" + kind));
+        // A reply is the Assistant's own object: what the person selects in it is in hand, named by the work it belongs to.
+        const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
+        if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
         if (bubble.dataset.text !== turn.text) {
           bubble.dataset.text = turn.text;
           if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
-        put(bubble); receipts.line(node, put, turn, round);
+        put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";
@@ -836,8 +830,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       suggestions.forEach((candidate) => {
         const settle = (path) => async () => { await api("/memory-candidates/" + encodeURIComponent(candidate.candidate_id) + path, "POST", {}); await reload(); };
-        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L("要记住吗") + "：" + candidate.text,
-          sub: candidate.why + " · " + L(candidate.scope === "personal" ? "个人" : candidate.scope === "character" ? "角色" : "本项目"),
+        cards.push(card({ icon: "sparkles", tone: "suggest", ask: true, title: L(candidate.held ? "你刚才让我记住" : "要记住吗") + "：" + candidate.text, detail: candidate.held,
+          sub: (candidate.held ? "" : candidate.why + " · ") + L(candidate.scope === "personal" ? "个人" : candidate.scope === "character" ? "角色" : "本项目"),
           actions: [sideAct(L("记住"), candidate.text, settle("/accept"), false, "primary"), sideAct(L("不用"), candidate.text, settle("/discard"), false, "secondary")] }));
       });
       paintBlock(node, L("还等你处理"), "bell", cards.length ? stack(cards) : null, String(cards.length), true, true);
@@ -1008,12 +1002,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const unsettled = work && view.unsettled ? view.unsettled : [];
     const kept = work && view.memory_changes ? view.memory_changes : [];
     const signature = JSON.stringify([work && work.work_id, results.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), undoable.map((u) => [u.undo_id, u.state, u.detail]),
-      jobs.map((j) => [j.job_id, j.state, j.last_state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
+      jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
     keepFocus(node, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
-      const made = results.map((o) => objectCard(o, "done"));
+      const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
         title: change.title, sub: L(UNDO[change.state] || change.state) + (change.detail ? "：" + change.detail : ""), subTone: change.state === "failed" ? "blocked" : "", done: change.state === "undone",
         actions: change.state !== "undone" ? [sideAct(L("撤销"), change.title, async () => {
@@ -1025,7 +1019,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         }, false, "secondary", "undo")] : [] }));
       const JOB = { running: "进行中", completed: "已完成", failed: "没有完成", unknown: "不再跟进，请到原处查看" };
       const background = jobs.map((job) => card({ icon: spinner(job.state === "running" ? "running" : job.state === "completed" ? "round-ended" : job.state === "failed" ? "failed" : "verify"),
-        tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) + (job.last_state ? " · " + job.last_state : "") }));
+        tone: job.state === "completed" ? "done" : job.state === "failed" ? "blocked" : "", title: job.title, sub: L(JOB[job.state] || job.state) }));
       /* A change still with its owner when the round stopped: what it finally did, never re-sent. */
       const SETTLED = { pending: "还在等它的结果，不会重新提交", completed: "停止后已完成", failed: "停止后失败", "not-run": "停止时还没开始，没有执行" };
       const stopped = unsettled.map((change) => card({ icon: spinner(({pending:"waiting",completed:"done",failed:"failed","not-run":"stopped"})[change.state] || "verify"), title: change.title, sub: L(SETTLED[change.state] || change.state) + (change.detail ? "：" + change.detail : "") }));
@@ -1188,7 +1182,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     controls("resume").forEach((btnEl) => { btnEl.hidden = state !== "paused"; });
     /* Stop also reaches the sub-tasks it handed out, so it stays offered while any of them still runs. */
     const liveChildren = work && view && view.delegated ? view.delegated.filter((child) => isLive(child.state)).length : 0;
-    controls("stop").forEach((btnEl) => { btnEl.hidden = !isLive(state) && !liveChildren; });
+    controls("stop").forEach((btnEl) => { btnEl.hidden = btnEl.hasAttribute("data-keep-connections") ? state !== "waiting-input" || work.executor.kind !== "assistant" : !isLive(state) && !liveChildren; });
     paintStrip();
     if (!metaEl) return;
     const characters = allowsCharacter() ? characterChoices() : null;
@@ -1391,6 +1385,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     };
     rounds.forEach((round) => { putPageCards(round.started_at); put(renderRound(work, round)); });
     putPageCards(null);
+    receipts.after(thread, put, work && view);
     const reviews = work ? view.reviews : [];
     [...thread.children].forEach((card) => { if (card.dataset.review && !reviews.some((r) => r.review_id === card.dataset.review)) card.remove(); });
     reviews.forEach((review) => {
@@ -1689,7 +1684,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   // The last background a plugin page sent (purpose "background"), used while that plugin is the one on show.
   let background = null;
   const pageCtx = () => {
-    const surf = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find(visible);
+    const surf = visible(lastSurface) ? lastSurface : [...document.querySelectorAll("[data-assistant-context]")].find((node) => visible(node) && !island.contains(node));
     if (surf) {
       try { return JSON.parse(surf.getAttribute("data-assistant-context") || "null"); } catch { return null; }
     }
@@ -1708,25 +1703,15 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the current work (opened from it, produced by it) or the person adds it with +; then the model sees it and the work
      is linked under it, otherwise neither (spec §21.5). What a page hands over brings its object along. */
   const joined = new Set();
-  const objectKey = (object) => object.kind + ":" + object.id;
-  const belongsToWork = (object) => Boolean(view && view.work.work_id === curId && (view.objects || []).some((item) => item.subject.kind === object.kind && item.subject.id === object.id));
+  const { objectKey, belongsToWork, holds, relatedWorks, pickable, forgetRelated } = (${ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT})({ api, joined, open: () => Boolean(panel && !panel.hidden),
+    current: () => (view && view.work.work_id === curId ? view : null), repaint: () => paintMats(), L });
   /** The Coding session open on the page, which a new Coding work continues instead of starting another. */
   const codingSession = () => { const ctx = pageCtx(); return ctx && ctx.object && ctx.object.kind === "coding_session" ? ctx.object.id : null; };
-  const relatedCache = new Map();
-  const relatedWorks = (object) => {
-    const key = objectKey(object), held = relatedCache.get(key);
-    if (held && Date.now() - held.at < 10000) return held.works;
-    relatedCache.set(key, { at: Date.now(), works: held ? held.works : [] });
-    api("/related?kind=" + encodeURIComponent(object.kind) + "&id=" + encodeURIComponent(object.id))
-      .then((res) => { relatedCache.set(key, { at: Date.now(), works: res.works || [] }); paintMats(); }).catch(() => {});
-    return held ? held.works : [];
-  };
   const pageObject = () => {
     const ctx = pageCtx();
     if (!ctx || !ctx.object || removed.has("object")) return null;
     const object = ctx.object;
-    const related = Boolean(curId) && belongsToWork(object);
-    return { object, context:ctx, related, included: related || joined.has(objectKey(object)) };
+    return { object, context:ctx, related: belongsToWork(object), included: holds(object) };
   };
   const clip = (text, size) => text.length > size ? text.slice(0, size - 1) + "…" : text;
   /** The materials this Send would carry, each named and removable; page items are marked as coming from the page. */
@@ -1737,7 +1722,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     // The page's object is named once; the sentence around it is the translation's own, so it keeps its own colon.
     // Not added, it is offered — unless something handed over from it already brings it along.
     const name = page && (page.object.title || page.object.id), label = page && L("正在看：{title}", { title: name });
-    if (page && page.included) items.push({ key: "object", label, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
+    if (page && page.included) items.push({ key: "object", label, object: page.object, auto: !joined.has(objectKey(page.object)), note: page.related ? L("这项工作的对象") : "" });
     else if (page && !files.some((file) => file.object && objectKey(file.object) === objectKey(page.object))) items.push({ key: "object", label, optional: true });
     if (page && page.included && ctx.unsaved && ctx.draft_text && !removed.has("draft")) items.push({ key: "draft", label: L("未保存的修改"), auto: true });
     if (page) relatedWorks(page.object).filter((row) => row.work_id !== curId).slice(0, 2)
@@ -1854,32 +1839,23 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       });
       startPop.append(btnEl);
     });
-    // A method is how to do it: chosen here, its steps go with this round only.
-    methods.forEach((row) => {
-      const btnEl = el("button", "assistant-starter", L("方法") + "：" + row.name + " · " + row.plugin_title); btnEl.type = "button";
-      btnEl.title = row.summary || row.name;
+    // A method (how to do it) or a capability (what to use), chosen here, goes with this round only, once.
+    const pick = (label, hint, prefix, same, material) => {
+      const btnEl = el("button", "assistant-starter", label); btnEl.type = "button";
+      btnEl.title = hint;
       btnEl.addEventListener("mousedown", (event) => event.preventDefault());
       btnEl.addEventListener("click", () => {
-        if (!files.some((file) => file.kind === "method" && file.method.method_id === row.method_id)) {
-          files.push({ material_id: "method-" + crypto.randomUUID(), kind: "method", title: L("方法") + "：" + row.name, explicit: true, method: { method_id: row.method_id } });
-        }
+        if (!files.some((file) => file.kind === material.kind && same(file))) files.push({ material_id: prefix + crypto.randomUUID(), explicit: true, ...material });
         input.value = slashDraft || ""; slashDraft = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMats(); input.focus();
       });
       startPop.append(btnEl);
-    });
+    };
+    methods.forEach((row) => pick(L("方法") + "：" + row.name + " · " + row.plugin_title, row.summary || row.name, "method-",
+      (file) => file.method.method_id === row.method_id, { kind: "method", title: L("方法") + "：" + row.name, method: { method_id: row.method_id } }));
     rows.forEach((row) => {
       const title = row.provider + " · " + row.title;
-      const btnEl = el("button", "assistant-starter", L("用") + "：" + title); btnEl.type = "button";
-      btnEl.title = row.description || title;
-      btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-      btnEl.addEventListener("click", () => {
-        if (!files.some((file) => file.kind === "capability" && file.capability.capability_id === row.capability_id)) {
-          files.push({ material_id: "cap-" + crypto.randomUUID(), kind: "capability", title: L("用") + "：" + title, explicit: true,
-            capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
-        }
-        input.value = slashDraft || ""; slashDraft = null; typed = true; syncSend(); saveDraft(false); closeSlash(); paintMats(); input.focus();
-      });
-      startPop.append(btnEl);
+      pick(L("用") + "：" + title, row.description || title, "cap-", (file) => file.capability.capability_id === row.capability_id,
+        { kind: "capability", title: L("用") + "：" + title, capability: { capability_id: row.capability_id, version: row.version, provider_id: row.provider_id, title } });
     });
     if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }
@@ -2005,7 +1981,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const paintMore = () => {
     if (!morePop) return;
     const rows = [...(compose.dataset.crowded === "chips" ? [noticeBtn] : []).filter((btnEl) => btnEl && !btnEl.hidden).map((btnEl) => moreItem(btnEl.title, btnEl.textContent.trim(), () => { setMore(false); btnEl.click(); })),
-      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }),
+      moreItem(L("添加文件或图片…"), L("也可以拖入、粘贴"), () => { setMore(false); fileInput?.click(); }), ...(project && document.documentElement.dataset.knowledgePicker === "1" ? [moreItem(L("选择项目资料…"), L("可多选，读原文给助理"), () => { setMore(false); document.dispatchEvent(new CustomEvent("molis-work:knowledge-pick", { detail: { request_id: "assistant:" + crypto.randomUUID(), max: 10 } })); })] : []),
       moreItem(L("引用项目里的内容"), "@", () => { setMore(false); insertTrigger("@"); }),
       moreItem(L("用一个能力或方法"), "/", () => { setMore(false); insertTrigger("/"); })];
     morePop.replaceChildren(...rows);
@@ -2055,7 +2031,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (page && page.included) res.object = page.object;
     if (ctx && ctx.unsaved && page && page.included) res.unsaved = true;
     if (sel && !removed.has("selection")) res.selection = { text: sel.text, truncated: sel.truncated };
-    return res;
+    return Object.assign(res, contextStrip ? contextStrip.carried() : {});
   };
   const sendMaterials = () => {
     const ctx = pageCtx();
@@ -2114,15 +2090,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     const detail = event.detail && typeof event.detail === "object" ? event.detail : {};
     const named = typeof detail.work_id === "string" && detail.work_id ? detail.work_id : "";
     if (named && !works.some((work) => work.work_id === named)) await loadWorks();
-    if (named && works.some((work) => work.work_id === named)) await switchTo(named);
+    // The work on show reads itself again, so a card just placed in it shows now.
+    if (named && works.some((work) => work.work_id === named)) await (named === curId ? reload().then(poll) : switchTo(named));
     else if (detail.new === true || named) await switchTo(null);
     const source = detail.source && typeof detail.source.surface === "string" && detail.source.surface
       ? { surface: detail.source.surface.slice(0, 80), title: typeof detail.source.title === "string" && detail.source.title ? detail.source.title.slice(0, 80) : detail.source.surface.slice(0, 80) } : null;
     // What was in hand goes in the strip with the object it came from, so the work is linked under it; no words are
     // written for the person (spec §21.2 point 4). It stands for the page's selection, which is not carried twice.
     const object = tidyMessage({ message_id: "open", purpose: "delegate", source: { surface: "page" }, object: detail.object })?.object;
-    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text).slice(0, 4) : [];
-    brought.forEach((item, index) => files.push(Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
+    const brought = Array.isArray(detail.materials) ? detail.materials.filter((item) => item && typeof item.title === "string" && (typeof item.text === "string" && item.text || item.subject && !files.some((file) => file.reference?.subject?.kind === item.subject.kind && file.reference.subject.id === item.subject.id))).slice(0, 10) : [];
+    brought.forEach((item, index) => files.push(item.subject ? { material_id: "kn-" + crypto.randomUUID(), kind: "object", title: item.title.slice(0, 200), explicit: true, reference: { subject: { kind: item.subject.kind, id: item.subject.id } }, object: { kind: item.subject.kind, id: item.subject.id, title: item.title.slice(0, 200) }, ...(source ? { source } : {}) } : Object.assign({ material_id: "open-" + Date.now().toString(36) + "-" + index, kind: "text", title: item.title.slice(0, 200),
       text: item.text.slice(0, 20000), explicit: true }, source ? { source } : {}, object ? { object } : {})));
     if (brought.length) sel = null;
     syncSend(); paintMats(); setPanel(true); input.focus();
@@ -2136,7 +2113,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     }
     if (message.purpose === "change") {
       if (!message.object) return;
-      relatedCache.delete(objectKey(message.object));
+      forgetRelated(message.object);
       if (view && belongsToWork(message.object)) void reload().then(poll).catch(() => {});
       return;
     }
@@ -2178,7 +2155,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   });
   ${ASSISTANT_SEND_CLIENT_SCRIPT}
   const nextRow = island.querySelector("[data-assistant-next-row]");
-  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, view: () => (view && view.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
+  stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
     take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {
@@ -2194,7 +2171,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   island.querySelectorAll("[data-assistant-control]").forEach((btnEl) => btnEl.addEventListener("click", async () => {
     if (!curId) return;
     btnEl.disabled = true;
-    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind: btnEl.dataset.assistantControl }); render(); }
+    try { view = await api("/works/" + encodeURIComponent(curId) + "/control", "POST", { kind: btnEl.dataset.assistantControl, ...(btnEl.hasAttribute("data-keep-connections") ? { keep_connections: true } : {}) }); render(); }
     catch (error) { showError(error); }
     finally { btnEl.disabled = false; poll(); }
   }));

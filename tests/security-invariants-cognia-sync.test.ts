@@ -8,7 +8,7 @@ import {builtinSyncBindings} from '@molis-ai/molis-work-app-workbench';
 import {createSyncJsonContent} from '@molis-ai/molis-work-plugin-sdk';
 import { ensureStorageSpace, personalStorageSpace, openBaselineHomeSqlite } from '@molis-ai/molis-work-storage';
 
-test('S-34 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt original bytes and missing fixed citation',t=>{
+test('S-65 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt original bytes and missing fixed citation',t=>{
  const root=mkdtempSync(join(tmpdir(),'cognia-sync-boundary-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const space=personalStorageSpace('https://auth.example.test','work','alice');
  const homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>ensureStorageSpace(h,space));
  const owner=openCogniaStore(homes[0]),target=openCogniaStore(homes[1]);t.after(()=>{owner.close();target.close();});
@@ -20,11 +20,11 @@ test('S-34 PCSYNC-01/11/22 knowledge refuses a local scanner path, corrupt origi
  let revision=0;for(const make of bads){b.receive({...next,operationId:'bad:'+revision,revision:++revision,value:make()});assert.equal(b.conflicts().length,1);assert.throws(()=>b.resolve(next.key,'remote',revision));assert.deepEqual(target.materials(),[]);assert.equal(owner.read(m.id).body,'Unique original');}
  b.receive({...next,operationId:'good',revision:++revision});b.resolve(next.key,'remote',revision);assert.equal(target.read(m.id).body,'Unique original');assert.equal(b.next(),null,'applying content has no new work or replication echo');
 });
-test('S-34 PCSYNC-12 Cognia v1 is rejected intact instead of silently adding synchronization tables',t=>{
+test('S-65 PCSYNC-12 Cognia v1 is rejected intact instead of silently adding synchronization tables',t=>{
  const home=mkdtempSync(join(tmpdir(),'cognia-old-schema-'));t.after(()=>rmSync(home,{recursive:true,force:true}));ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
  const db=openBaselineHomeSqlite(home,'cognia',{version:1,schema:readFileSync(new URL('./fixtures/home-store-schemas/cognia.sql',import.meta.url),'utf8')});db.close();const file=join(home,'cognia','cognia.db'),before=readFileSync(file);assert.throws(()=>openCogniaSyncStore(home),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),before);
 });
-test('S-34 PCSYNC-14 malformed knowledge projections are permanent owner refusals before any byte read',async()=>{
+test('S-65 PCSYNC-14 malformed knowledge projections are permanent owner refusals before any byte read',async()=>{
  const spaceId='test-personal',key=JSON.stringify(['cognia','knowledge']);
  const binding=builtinSyncBindings().find(row=>row.collection.id==='knowledge')!.binding,codec=binding.content!({spaceId,authorize(){}});
  for(const value of [null,[],{graph:null}])assert.throws(()=>codec.encode(key,value),{code:'cognia.invalid',kind:'invalid'});

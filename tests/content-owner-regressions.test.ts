@@ -6,11 +6,11 @@ import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, datasetContentActions, datasetManifest, DATASET_ACTION_PERMISSIONS, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
 import { createFormActionHandlers, formActions, formManifest, FORM_ACTION_PERMISSIONS, formResultsCsv, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { createPagesActionHandlers, createPagesContentHandlers, pagesActions, pagesContentActions, pagesManifest, PAGES_ACTION_PERMISSIONS, openPagesStore, type PagesActionPorts } from "@molis-ai/molis-work-plugin-pages";
-import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { createCogniaActionHandlers, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { createPptActionHandlers, pptActions, pptManifest, PPT_ACTION_PERMISSIONS, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
+import { createCogniaActionHandlers, ownCogniaStores, cogniaActions, cogniaManifest, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
 
 const paragraph = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 const deferred = () => { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; };
@@ -28,8 +28,9 @@ async function owners(t: TestContext, completion?: PagesActionPorts["completeTex
   ] });
   service.registerProvider({ provider: provider(formManifest), definitions: Object.values(formActions),
     handlers: createFormActionHandlers({ ...ownFormStores(run => run(forms)), modelAvailability }) });
+  const datasetStores = ownDatasetStores(run => run(datasets));
   service.registerProvider({ provider: provider(datasetManifest), definitions: datasetManifest.actions!, handlers: [
-    ...createDatasetActionHandlers({ withStore: run => run(datasets), modelAvailability }), ...createDatasetContentHandlers(run => run(datasets)),
+    ...createDatasetActionHandlers({ ...datasetStores, modelAvailability }), ...createDatasetContentHandlers(datasetStores),
   ] });
   const caller: ActionCallContext = { actor_id: "person", actor_kind: "user", audience: "user", project_id: project,
     permissions: [...new Set([...PAGES_ACTION_PERMISSIONS, ...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS])] };
@@ -59,13 +60,13 @@ test("W2-18-DATASET-SCHEMA-02: legal large/long-title Forms refuse conversion at
     const answers = f.forms.listSubmissions(form.id, f.project), csv = formResultsCsv(form, answers);
     const file = join(f.home, `answers-${questions.length}.csv`); await writeFile(file, csv);
     const before = f.datasets.list(f.project);
-    const input = { payload: { title: "Responses", body: csv, source: "Form", feed_item_id: null }, context: { instance_id: "instance-" + questions.length, step: 0 } };
+    const input = { title: "Responses", body: csv, source: "Form", feed_item_id: null, request_id: `workflow:instance-${questions.length}:0` };
     await assert.rejects(f.bound.invoke(datasetContentActions.receive, input), { code: "dataset.invalid" });
     assert.deepEqual(f.datasets.list(f.project), before);
     assert.deepEqual(f.forms.listSubmissions(form.id, f.project), answers);
     assert.equal(await readFile(file, "utf8"), csv);
-    // The same delivery key remains usable: a refusal left neither a table nor a receipt behind.
-    const received = await f.bound.invoke(datasetContentActions.receive, { ...input, payload: { ...input.payload, body: "Name,Answer\nAlice,usable" } });
+    // The same request id remains usable (W4-6-02): a refusal left neither a table nor a receipt behind.
+    const received = await f.bound.invoke(datasetContentActions.receive, { ...input, body: "Name,Answer\nAlice,usable" });
     const table = f.datasets.get(received.item_id, f.project);
     assert.deepEqual(table.columns.map(column => column.name), ["Name", "Answer"]);
     assert.deepEqual(Object.values(table.rows[0]!.cells), ["Alice", "usable"]);
@@ -135,7 +136,7 @@ test("W2-18-COGNIA-EFFECT-01: only the originating grant is revoked during real 
     validate_authority: check, assert_authority_current: check };
   await writeFile(join(home, "vault.md"), "# Fixed evidence\nActual bytes read before the barrier.");
   service.registerProvider({ provider: { provider_id: cogniaManifest.plugin_id, title: "Cognia", kind: "plugin" }, definitions: cogniaManifest.actions!, handlers: createCogniaActionHandlers({
-    withStore: run => run(store), model: () => ({}), ai: () => ({}), actions: context => bindActionClient(service, () => context),
+    ...ownCogniaStores(run => run(store)), model: () => ({}), ai: () => ({}), actions: bindActionClient(service, () => caller),
     scan: async path => { const data = await readFile(join(path, "vault.md")); entered.resolve(); await release.promise; return { locator: path, name: "Vault", files: [{ path: "vault.md", data: data.toString("base64") }] }; },
   }) });
   const counts = () => ["cognia_previews", "cognia_materials", "cognia_sources"].map(table => Number(db.prepare(`SELECT count(*) AS total FROM ${table}`).get()!.total));
@@ -155,7 +156,7 @@ for (const refusal of ["revoke", "cancel", "disable", "edit"] as const) test(`W2
   const check = (reference?: { capability_id: string }) => { if (revoked && reference?.capability_id === pptActions.outline.capability_id) throw new ActionError("mcp.permission_revoked", "Origin revoked"); };
   const context: ActionCallContext = { ...f.caller, signal: controller.signal, validate_authority: check, assert_authority_current: check };
   const stop = f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({
-    withStore: run => run(f.ppt), readPage: async (id, caller) => {
+    ...ownPptStores(run => run(f.ppt)), readPage: async (id, caller) => {
       const page = await bindActionClient(f.service, () => caller).invoke(pagesContentActions.read, { item_id: id });
       entered.resolve(); await release.promise; return { title: page.title, body: page.body };
     },
@@ -175,7 +176,7 @@ for (const refusal of ["revoke", "cancel", "disable", "edit"] as const) test(`W2
 
 test("W2-18-PPT-03: title-only slides survive append; a genuinely empty starter and explicit replace still work", async t => {
   const f = await owners(t);
-  f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({ withStore: run => run(f.ppt) }) });
+  f.service.registerProvider({ provider: f.provider(pptManifest), definitions: Object.values(pptActions), handlers: createPptActionHandlers({ ...ownPptStores(run => run(f.ppt)) }) });
   const created = f.ppt.create({ title: "Deck", project_id: f.project });
   const titled = f.ppt.update(created.id, { slides: [{ id: created.slides[0]!.id, title: "Original heading", bullets: [], notes: "" }] }, f.project);
   const appended = await f.bound.invoke(pptActions.outline, { id: titled.id, text: "## Added\n- bullet", replace: false });

@@ -4,7 +4,8 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import type { AddressInfo } from "node:net";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
+import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 import * as host from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -90,7 +91,9 @@ const PLATFORM: ReadonlyArray<readonly [string, number]> = [
 // ---- a loopback server around one Host edge, failing with whatever the test sets ---------------------------------------------------------------------------
 interface Answer { readonly status: number; readonly body: Record<string, unknown>; readonly text: string }
 
-async function failingEdge(owner: Owner) {
+async function failingEdge(owner: Owner, t: TestContext) {
+  if (owner === "cognia") return failingCogniaRuntime(t);
+  if (owner === "jelly" || owner === "images") return failingMigratedRuntime(owner, t);
   const failure: { current: unknown } = { current: undefined };
   // The shelf route that catches a failed job asks for the shelf again to send it back with the error: that call must work.
   const snapshotId = shelfPlugin.shelfActions.snapshot.capability_id;
@@ -105,11 +108,11 @@ async function failingEdge(owner: Owner) {
     const handler = (host as Record<string, unknown>)[`handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`] as
       ((request: IncomingMessage, response: ServerResponse, url: URL, ports: unknown) => Promise<boolean>) | undefined;
     assert.equal(typeof handler, "function", `the Host exports handle${owner[0]!.toUpperCase()}${owner.slice(1)}NativePluginHttp`);
-    return handler!(request, response, url, owner === "shelf" ? { actions } : owner === "images" ? () => ({ projectId: "p", actions }) : () => actions);
+    return handler!(request, response, url, { actions });
   };
   // A route of the plugin whose handler calls one action first, so the failure comes out of the action and goes through the edge.
-  const route = { shelf: ["POST", "/api/shelf/sample"], jelly: ["POST", "/api/jelly/preview"], cognia: ["POST", "/api/cognia/domains"], images: ["POST", "/api/images/jobs"] }[owner] as [string, string];
-  const body = { shelf: {}, jelly: { kind: "import", source: "x" }, cognia: { name: "领域" }, images: { prompt: "画" } }[owner];
+  const route = ["POST", "/api/shelf/sample"] as const;
+  const body = {};
   const server = createServer((request, response) => {
     handle(request, response, new URL(request.url ?? "/", "http://127.0.0.1")).then(handled => {
       if (!handled) { response.statusCode = 404; response.end("{}"); }
@@ -139,6 +142,49 @@ async function failingEdge(owner: Owner) {
   };
 }
 
+/** W5-01-JMC-03 / W5-01-IMGPORT-03: migrated errors cross their actual Runtime action and route. */
+async function failingMigratedRuntime(owner: "jelly" | "images", t: TestContext) {
+  let failure: unknown;
+  const method = owner === "jelly"
+    ? t.mock.method(jellyPlugin.JellyStore.prototype, "previewImport", () => { throw failure; })
+    : t.mock.method(imagesPlugin.ImagesService.prototype, "start", async () => { throw failure; });
+  const f = await serveHomeRuntime(t, { completeText: async () => { throw failure; } });
+  const root = owner === "jelly" ? "/api/plugins/io.molis.work.jelly/preview"
+    : `/projects/${(await f.project("图片错误回归")).project_id}/api/plugins/io.molis.work.images/jobs`;
+  const input = owner === "jelly" ? { kind: "import", source: "x" }
+    : { request_id: "error-parity", connection_id: "chosen", prompt: "画" };
+  const send = async (verb: string, path: string, payload?: string): Promise<Answer> => {
+    const response = await f.request(path, { method: verb, raw: payload });
+    const text = await response.text();
+    let body: Record<string, unknown> = {};
+    try { body = JSON.parse(text) as Record<string, unknown>; } catch { /* NDJSON is asserted through text. */ }
+    return { status: response.status, text, body };
+  };
+  return {
+    fail: (error: unknown) => { failure = error; return send("POST", root, JSON.stringify(input)); },
+    rawBody: (payload: string) => send("POST", root, payload), send,
+    setFailure(error: unknown) { failure = error; },
+    close: async () => { method.mock.restore(); },
+  };
+}
+
+/** RAC-40: error parity now traverses Cognia's actual Home Runtime and SDK route binding. */
+async function failingCogniaRuntime(t: TestContext) {
+  const f = await serveHomeRuntime(t), root = "/api/plugins/io.molis.work.cognia/library/domains";
+  let failure: unknown;
+  const method = t.mock.method(cogniaPlugin.CogniaStore.prototype, "createDomain", () => { throw failure; });
+  const send = async (method: string, path: string, payload?: string): Promise<Answer> => {
+    const response = await f.request(path, { method, raw: payload });
+    const text = await response.text(); return { status: response.status, text, body: JSON.parse(text) as Record<string, unknown> };
+  };
+  return {
+    fail: (error: unknown) => { failure = error; return send("POST", root, JSON.stringify({ name: "领域" })); },
+    rawBody: (payload: string) => send("POST", root, payload), send,
+    setFailure(error: unknown) { failure = error; },
+    close: async () => { method.mock.restore(); },
+  };
+}
+
 const OWNERS: readonly Owner[] = ["shelf", "jelly", "cognia", "images"];
 
 // ---- 1. declarations and parity -----------------------------------------------------------------------------------------------------------------------------
@@ -161,11 +207,11 @@ test("each owner declares its codes, every one <owner>.<reason> with the kind th
 });
 
 // ---- 2. every owner code through the real edge ----------------------------------------------------------------------------------------------------------------
-test("every owner code answers, through the Host's real edge, its status with the one body { error, code, details }", async () => {
+test("every owner code answers, through the Host's real edge, its status with the one body { error, code, details }", async t => {
   for (const owner of OWNERS) {
     const declared = declarationsOf(owner);
     assert.ok(declared, `${owner}Errors is exported`);
-    const edge = await failingEdge(owner);
+    const edge = await failingEdge(owner, t);
     try {
       for (const [reason, status] of Object.entries(SPECS[owner].status)) {
         const answer = await edge.fail(declared[reason]!(`${owner} ${reason}`, { n: 1 }));
@@ -179,10 +225,10 @@ test("every owner code answers, through the Host's real edge, its status with th
 });
 
 // ---- 3. a platform code answers the same everywhere -------------------------------------------------------------------------------------------------------------
-test("a platform code answers the status of its kind at all four edges", async () => {
+test("a platform code answers the status of its kind at all four edges", async t => {
   const disagreements: string[] = [];
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
+    const edge = await failingEdge(owner, t);
     try {
       for (const [code, status] of PLATFORM) {
         const answer = await edge.fail(new ActionError(code, `平台 ${code}`));
@@ -194,9 +240,9 @@ test("a platform code answers the status of its kind at all four edges", async (
 });
 
 // ---- 4. the body, and a failure that is not ours -----------------------------------------------------------------------------------------------------------------
-test("a body that is not JSON answers 400 with a code, at all four edges", async () => {
+test("a body that is not JSON answers 400 with a code, at all four edges", async t => {
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
+    const edge = await failingEdge(owner, t);
     try {
       const answer = await edge.rawBody("{");
       assert.deepEqual([answer.status, answer.body.code], [400, "actions.input_invalid"], owner);
@@ -205,8 +251,8 @@ test("a body that is not JSON answers 400 with a code, at all four edges", async
   }
 });
 
-test("Images reads its body with the shared reader: too large is 413 actions.input_too_large, a JSON that is not an object is images.invalid", async () => {
-  const edge = await failingEdge("images");
+test("Images reads its body with the shared reader: too large is 413 actions.input_too_large, a JSON that is not an object is images.invalid", async t => {
+  const edge = await failingEdge("images", t);
   try {
     const large = await edge.rawBody(JSON.stringify({ prompt: "a".repeat(170_000) }));
     assert.deepEqual([large.status, large.body.code, large.body.error], [413, "actions.input_too_large", "请求内容过大"]);
@@ -217,9 +263,9 @@ test("Images reads its body with the shared reader: too large is 413 actions.inp
   } finally { await edge.close(); }
 });
 
-test("a failure with no code of ours is a 500 actions.execution_failed, and Images keeps its own generic sentence for the unexpected", async () => {
+test("a failure with no code of ours is a 500 actions.execution_failed, and Images keeps its own generic sentence for the unexpected", async t => {
   for (const owner of ["shelf", "jelly", "cognia"] as const) {
-    const edge = await failingEdge(owner);
+    const edge = await failingEdge(owner, t);
     try {
       for (const error of [new Error("没有码的失败"), Object.assign(new Error("系统错误"), { code: "ENOENT" })]) {
         const answer = await edge.fail(error);
@@ -227,7 +273,7 @@ test("a failure with no code of ours is a 500 actions.execution_failed, and Imag
       }
     } finally { await edge.close(); }
   }
-  const images = await failingEdge("images");
+  const images = await failingEdge("images", t);
   try {
     const answer = await images.fail(new Error("SQLITE_CORRUPT: /secret/path"));
     assert.deepEqual([answer.status, answer.body.code, answer.body.error], [500, "images.internal", "图片操作失败，请稍后重试"], "the unexpected failure of Images does not show its message");
@@ -235,10 +281,10 @@ test("a failure with no code of ours is a 500 actions.execution_failed, and Imag
 });
 
 // ---- 5. the two answers that carry more than the error ------------------------------------------------------------------------------------------------------------
-test("a failed Shelf job comes back with the shelf beside the error, and the status of the failure's kind", async () => {
+test("a failed Shelf job comes back with the shelf beside the error, and the status of the failure's kind", async t => {
   const shelfErrors = declarationsOf("shelf");
   assert.ok(shelfErrors, "shelfErrors is exported");
-  const edge = await failingEdge("shelf");
+  const edge = await failingEdge("shelf", t);
   try {
     const cases: Array<[unknown, number, string]> = [
       [shelfErrors.no_model("请先配置模型"), 409, "shelf.no_model"], [shelfErrors.no_text("没有正文"), 400, "shelf.no_text"],
@@ -273,17 +319,20 @@ test("the Shelf subject and file readers answer a code that ends in .not_found f
   }
 });
 
-test("Jelly's streamed error event keeps the code and the details, and carries the status of the kind", async () => {
-  const edge = await failingEdge("jelly");
+test("Jelly's streamed error event keeps the code and the details, and carries the status of the kind", async t => {
+  const edge = await failingEdge("jelly", t);
   try {
-    const download = new ActionError("jelly.material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
-    for (const [error, status, code, details] of [
-      [download, 409, "jelly.material.model_required", { approximate_bytes: 626_000_000, variant: "base" }],
-      [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined],
-      [new Error("没有码"), 500, "actions.execution_failed", undefined],
+    const download = new ActionError("material.model_required", "需要下载语音模型", { kind: "conflict", details: { approximate_bytes: 626_000_000, variant: "base" } });
+    for (const [error, status, code, details, atStore] of [
+      [download, 409, "material.model_required", { approximate_bytes: 626_000_000, variant: "base" }, false],
+      [new ActionError("actions.plugin_disabled", "此项目未启用该插件"), 403, "actions.plugin_disabled", undefined, false],
+      [new Error("没有码"), 500, "actions.execution_failed", undefined, true],
+      [new Error("模型失败"), 502, "plugin.model_failed", undefined, false],
     ] as const) {
       edge.setFailure(error);
-      const answer = await edge.send("POST", "/api/jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" }));
+      // W5-01-SHM-01 / W5-01-JMC-03: generic domain failures remain 500; a raw model failure crosses the model service and becomes upstream 502.
+      const read = atStore ? t.mock.method(jellyPlugin.JellyStore.prototype, "read", () => { throw error; }) : undefined;
+      const answer = await edge.send("POST", "/api/plugins/io.molis.work.jelly/ai?stream=1", JSON.stringify({ kind: "decompose", source_type: "text", text: "写周报" })).finally(() => read?.mock.restore());
       assert.equal(answer.status, 200, "a stream starts as 200 and says what went wrong in its last line");
       const events = answer.text.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
       const event = events.at(-1)!;
@@ -322,7 +371,7 @@ test("no error class, no route-error mapper, no mapError and no readBody is left
     const text = read(path);
     for (const name of removed) assert.ok(!new RegExp(`\\b${name}\\b`, "u").test(text), `${path} still mentions ${name}`);
   }
-  for (const path of ["shelf", "jelly", "cognia", "images"].map(owner => `apps/local-host/src/${owner}-native-plugin-http.ts`)) {
+  for (const path of ["apps/local-host/src/shelf-native-plugin-http.ts", "plugins/native/jelly/src/plugin-routes.ts", "plugins/native/images/src/routes.ts"]) {
     const text = read(path);
     assert.ok(!/\bmapError\b/u.test(text), `${path} passes no mapError: the dispatcher answers through the SDK`);
     assert.ok(!/\breadBody\b/u.test(text), `${path} reads its body with the shared reader`);
@@ -343,7 +392,7 @@ test("a caller's mistake in the owners' server sources has a code: the bare new 
   const kept = [
     "plugins/native/shelf/src/plugin.ts", "plugins/native/shelf/src/routes.ts", "plugins/native/shelf/src/settings-ui.ts", "plugins/native/shelf/src/ui.ts", "plugins/native/shelf/src/prompts.ts",
     "modules/shelf/src/recipes.ts", "plugins/native/jelly/src/ui.ts", "plugins/native/images/src/ui.ts", "plugins/native/images/src/store.ts",
-    "apps/local-host/src/jelly-source-reader.ts",
+    "apps/local-host/src/material-source-reader.ts",
   ];
   for (const path of ownerSources()) {
     const matches = [...read(path).matchAll(/new (?:Error|TypeError|RangeError)\(/gu)];

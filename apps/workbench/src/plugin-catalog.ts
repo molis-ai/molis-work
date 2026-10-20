@@ -1,11 +1,12 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
-import { PROJECT_PLUGIN_COMPANIONS } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
-export { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry } from "./builtin-plugins.js";
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+export type {BuiltinPluginEntry} from "./builtin-plugins.js";
+export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 export interface PluginMarketCard {
   readonly id: ProjectPluginId;
@@ -26,7 +27,7 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
   const excluded = new Set(hidden);
   const next = [...enabled];
   for (const personal of PERSONAL_PLUGIN_IDS) {
-    if (excluded.has(personal) || next.includes(personal)) continue;
+    if ((excluded.has(personal) && !ALWAYS_ON_PLUGIN_IDS.includes(personal)) || next.includes(personal)) continue;
     const artifactsAt = next.indexOf("artifacts");
     if (artifactsAt >= 0) next.splice(artifactsAt, 0, personal);
     else next.push(personal);
@@ -36,7 +37,7 @@ export function shownProjectPlugins(enabled: readonly string[], hidden: readonly
 
 /** Enabled surfaces and their declared embedded dependencies; no installation or grant mutation. */
 export function availableProjectPluginIds(
-  enabled: readonly string[], catalog: readonly BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG,
+  enabled: readonly string[], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG,
 ): ReadonlySet<string> {
   const byProjectId = new Map(catalog.map(entry => [entry.project_plugin_id, entry]));
   const byManifestId = new Map(catalog.map(entry => [entry.manifest.plugin_id, entry]));
@@ -63,6 +64,14 @@ export const PROJECT_SCOPED_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLU
 /** Personal Plugins are enabled for every project without being stored per project. */
 export const PERSONAL_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CATALOG
   .filter((entry) => entry.personal === true)
+  .map((entry) => entry.project_plugin_id);
+
+/**
+ * 常开插件 (the Manifest's `always_on`, specs/side-shelf §3.2): personal, shown in every project whatever it hid, and never
+ * offered where plugins are chosen, added or removed. Only the built-in catalog has them (the Runtime refuses the mark elsewhere).
+ */
+export const ALWAYS_ON_PLUGIN_IDS: readonly ProjectPluginId[] = BUILTIN_PLUGIN_CATALOG
+  .filter((entry) => entry.personal === true && entry.manifest.always_on === true)
   .map((entry) => entry.project_plugin_id);
 
 /** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
@@ -120,10 +129,11 @@ function requiredCompanions(projectPluginId: ProjectPluginId): ProjectPluginId[]
 export const BUILTIN_PLUGIN_REGISTRY: ProjectPluginRegistry = {
   has: (pluginId) => PROJECT_SCOPED_PLUGIN_IDS.includes(pluginId),
   companions: (pluginId) => [
-    ...(PROJECT_PLUGIN_COMPANIONS[pluginId as keyof typeof PROJECT_PLUGIN_COMPANIONS] ?? []),
+    ...(entryFor(pluginId)?.companions ?? []),
     ...requiredCompanions(pluginId),
   ],
   isPersonal: (pluginId) => PERSONAL_PLUGIN_IDS.includes(pluginId),
+  isAlwaysOn: (pluginId) => ALWAYS_ON_PLUGIN_IDS.includes(pluginId),
 };
 
 export interface RailEntry {
@@ -133,7 +143,7 @@ export interface RailEntry {
   glyph: string;
 }
 
-function entryFor(projectPluginId: ProjectPluginId): BuiltinPluginEntry | undefined {
+function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {
   return BUILTIN_PLUGIN_CATALOG.find((entry) => entry.project_plugin_id === projectPluginId);
 }
 
@@ -189,6 +199,28 @@ function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | 
   });
 }
 
+/**
+ * Where opening a plugin lands (specs/context-program §21.6, W2'-2): `?openPlugin=`, a search hit's `open.surface` and an
+ * opener's plugin name say which plugin, never where. A plugin whose UI has a work-area surface (main or directory) opens
+ * there, as it always has, even when it also has a side view; one whose only place is a side view opens that tab of the
+ * side panel. The answer is the side tab (`plugin:<plugin>/<view>`) of each plugin that opens in the panel.
+ */
+export interface PlacedPluginDeclarations {
+  readonly project_plugin_id: string;
+  readonly manifest: { readonly ui: { readonly views?: readonly { readonly view_id: string; readonly slot: string }[] } };
+  readonly workbench?: { readonly contributions: readonly { readonly descriptor: { readonly surfaces?: readonly { readonly target_slot_id: string }[] } }[] };
+}
+export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] = BUILTIN_PLUGIN_CATALOG): Record<string, string> {
+  const placed: Record<string, string> = {};
+  for (const entry of entries) {
+    const surfaces = (entry.workbench?.contributions ?? []).flatMap((contribution) => contribution.descriptor.surfaces ?? []);
+    if (surfaces.some((surface) => surface.target_slot_id === "workbench.main" || surface.target_slot_id === "workbench.directory")) continue;
+    const side = entry.manifest.ui.views?.find((view) => view.slot === "side");
+    if (side) placed[entry.project_plugin_id] = `plugin:${entry.project_plugin_id}/${side.view_id}`;
+  }
+  return placed;
+}
+
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
 export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
   const registry = new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
@@ -217,7 +249,7 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 /** What a person can pick from. Plugins marked `developer` (Text Stats) appear only when the Host is in developer mode. */
 export function pluginMarketCards(options: { readonly developerMode?: boolean } = {}): readonly PluginMarketCard[] {
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    if (!entry.summary || (entry.developer && !options.developerMode)) return [];
+    if (!entry.summary || entry.manifest.always_on === true || (entry.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];
@@ -245,10 +277,11 @@ export function pluginTabGlyphs(): Record<string, string> {
   ]);
 }
 
-/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface. */
+/** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
 export function pluginStageSummaries(): Record<string, string> {
+  const side = sideOpenedPlugins();
   return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => Boolean(entry.summary))
+    .filter((entry) => Boolean(entry.summary) && !Object.hasOwn(side, entry.project_plugin_id))
     .map((entry) => [entry.project_plugin_id, entry.summary as string]));
 }
 

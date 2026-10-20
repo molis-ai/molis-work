@@ -2,8 +2,10 @@ import { agentErrors } from "./errors.js";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withAgentEffect } from "./invocation-effects.js";
 import { registerSessionActions } from "./session-actions.js";
+import { registerWriteCheckerActions } from "./write-checker-actions.js";
 import type { HostCapabilityDefinition, HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSessionRef, type AgentRunRef, type AgentRunView, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { type AgentHost, type AgentStartAuthority } from "./index.js";
 
@@ -43,6 +45,8 @@ export interface AgentCapabilityPorts<Context> {
    * (the Host's action directory follows it). A failure here never undoes the change itself.
    */
   mcpChanged?(context: Context, runtimeId: string, pluginId: string, library: AgentMcpLibrary, owner: AgentSkillOwner): void | Promise<void>;
+  /** The project's workspaces as the catalog reads them now, and where the runtime keeps their after-write checkers. */
+  writeCheckers?(context: Context): Promise<{ workspaces: readonly ProjectWorkspaceRef[]; store: AgentWriteCheckerStore }>;
 }
 
 /**
@@ -124,8 +128,7 @@ export function registerAgentHostCapabilities<Context>(
       if (!authority.actions) return [];
       return (await authority.actions(runtimeId)).discover();
     }),
-    register(agentHostCapabilities.listRuntimes, (context) =>
-      ports.agentHost(context).descriptors()),
+    register(agentHostCapabilities.listRuntimes, (context) => ports.agentHost(context).descriptors()),
 
     register(agentHostCapabilities.availableRoles, async (context, [runtimeId, pluginId]) =>
       // Role availability is read from that Plugin's own declarations, which are
@@ -223,22 +226,22 @@ export function registerAgentHostCapabilities<Context>(
       return ports.agentHost(context).adapter(session.runtime_id).read(run);
     }),
 
-    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest.
+    // Following a live round: wake on the first change, gather the deltas that arrive within 40 ms, answer with the latest. A cancelled wait (its caller gone, its project closing) lets go of the round at once and answers nothing.
     register(agentHostCapabilities.waitRun, async (context, [session, run, since, timeoutMs]) => {
       await requireRun(context, session, run);
       const adapter = ports.agentHost(context).adapter(session.runtime_id);
-      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000);
+      const limit = Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), signal = context.invocation.signal;
       return new Promise<{ version: string; view: AgentRunView }>((resolve, reject) => {
         let latest: AgentRunView | undefined, gather: ReturnType<typeof setTimeout> | undefined, stop: (() => void) | undefined, finished = false;
         // The published view only names pending questions; a full read resolves them into something a person can answer.
-        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.();
+        const finish = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); signal?.removeEventListener("abort", cancel);
           const version = runViewVersion(latest!);
           if (!latest!.awaiting_input.length) { resolve({ version, view: latest! }); return; }
           adapter.read(run).then(view => resolve({ version, view }), () => resolve({ version, view: latest! })); };
-        const timer = setTimeout(finish, limit);
+        const timer = setTimeout(finish, limit), cancel = () => { if (finished) return; finished = true; clearTimeout(timer); clearTimeout(gather); stop?.(); reject(signal!.reason); };
         try {
           stop = adapter.observe(run, view => { latest = view; if (runViewVersion(view) !== since && !gather) gather = setTimeout(finish, 40); });
-          if (finished) stop();
+          if (finished) stop(); else if (signal?.aborted) cancel(); else signal?.addEventListener("abort", cancel, { once: true });
         } catch (error) { clearTimeout(timer); reject(error); }
       });
     }),
@@ -298,13 +301,14 @@ export function registerAgentHostCapabilities<Context>(
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await adapter.messages.cancel(ports.projectId(context), messageId);
     }),
-    // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions).
+    // What this project's sessions wait for and how they go on, and what a plugin tells one of their rounds (session-actions), and the person's after-write checkers (write-checker-actions).
     ...registerSessionActions(register, { pluginFor, adapter: (call, runtimeId) => ports.agentHost(call).adapter(runtimeId), projectId: ports.projectId, requireRun, actions: async (call, pluginId, runtimeId) => { const authority = await ports.authority(call, pluginId); return authority.actions ? authority.actions(runtimeId) : undefined; } }),
+    ...registerWriteCheckerActions(register, { pluginFor, projectId: ports.projectId, writeCheckers: call => owners.writeCheckers?.(call.source) ?? Promise.reject(agentErrors.capability_unavailable("宿主没有接通写后检查器")) }),
     register(agentHostCapabilities.awaitContinuations, async (context, [runtimeId, timeoutMs, exclude]) => {
       pluginFor(context);
       const adapter = ports.agentHost(context).adapter(runtimeId);
       if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时没有等待与接续");
-      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : []);
+      return adapter.collaboration.awaitReady(ports.projectId(context), Math.min(Math.max(Number(timeoutMs) || 0, 0), 25_000), Array.isArray(exclude) ? exclude.map(String).slice(0, 200) : [], context.invocation.signal);
     }),
     register(agentHostCapabilities.readBackground, async (context, [runtimeId, sessionId]) => {
       pluginFor(context);
@@ -332,15 +336,6 @@ export function registerAgentHostCapabilities<Context>(
       if (!adapter.projectWork) throw agentErrors.capability_unavailable("当前运行时不能安排等待");
       await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
       await adapter.projectWork.release(ports.projectId(context), workId, caller?.actor_id ?? "user", note);
-    }),
-    register(agentHostCapabilities.amendStepBoard, async (context, [session, run, amendment, expectedVersion]) => {
-      const view = await requireRun(context, session, run);
-      const adapter = ports.agentHost(context).adapter(session.runtime_id);
-      if (!adapter.amendStepBoard) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
-      await context.invocation.beforeEffect(); context.invocation.assertAuthorityCurrent();
-      // The person deciding: the calling plugin's actor, else the session's owner.
-      const actor = pluginFor(context)?.actor_id ?? view.owner.actor_id;
-      return adapter.amendStepBoard(run, amendment, expectedVersion, actor);
     }),
     register(agentHostCapabilities.controlRun, async (context, [session, run, control]) => {
       await requireRun(context, session, run);

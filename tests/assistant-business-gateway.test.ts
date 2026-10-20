@@ -8,7 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionView, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { createMolisWorkLocalHost, EN, molisWorkHostProjectReference, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { managementGoals } from "./goal-management-caller.js";
@@ -18,6 +18,7 @@ import { AssistantService, presentActivity } from "../apps/local-host/dist/assis
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "../apps/local-host/dist/assistant/assistant-authority.js";
 import { HOST_GOVERNED_TOOLS, capabilityInput, gatewayProblem, prologueActionGateway, readableInput } from "../horizontal/agent-host/dist/adapters/prologue-action-gateway.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { endingReviewAnswer, reviewAnswer } from "./fixtures/ending-review.js";
 import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
@@ -36,7 +37,7 @@ const count: ActionDefinition = { capability_id: "fixture.notes.count", version:
   title: "Count notes", description: "How many notes there are", kind: "query", scope: "project", audiences: ["agent"],
   permissions: ["notes:read"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
 
-async function fixture(t: import("node:test").TestContext, script: Array<(body: any) => Response>, options: { model?: boolean; now?: () => Date } = {}) {
+async function fixture(t: import("node:test").TestContext, script: Array<(body: any, init: RequestInit) => Response | Promise<Response>>, options: { model?: boolean; now?: () => Date; review?: true; database?: DatabaseSync } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-"));
   const notes = new DatabaseSync(":memory:");
   notes.exec("CREATE TABLE notes (body TEXT NOT NULL, project TEXT NOT NULL, actor TEXT NOT NULL, audit TEXT)");
@@ -52,22 +53,27 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   let turn = 0;
   t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
+    // The Assistant's ending review (D1②) runs whenever a writable round changed nothing; a test that scripts it says so.
+    const review = options.review ? undefined : endingReviewAnswer(body, () => []);
+    if (review) return reply(undefined, review);
     requests.push(body);
     const next = script[turn++] ?? (() => reply());
-    return next(body);
+    return next(body, init);
   });
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => options.model === false ? null : ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
-    resolveCredential: () => "fixture-only" });
+    // The background jobs the works follow are looked at with the work's authority, as the Host wires it (agent-work-authority.ts).
+    resolveCredential: () => "fixture-only", checks: { workAuthority: at => service.jobs.authority(at) } });
   host.register(adapter);
-  const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const store = new AssistantStore(options.database ?? new DatabaseSync(":memory:"));
+  const ports: ConstructorParameters<typeof AssistantService>[1] = { host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
       (view, input, output) => service.recordResult(work, view, input, output), undefined,
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
-    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user", options.now);
-  return { service, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+    projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" };
+  const service: AssistantService = new AssistantService(store, ports, "web-user", options.now);
+  return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a project work finds, reads and — after the person approves the exact input — changes through the gateway, with no directory", { timeout: 60_000 }, async t => {
@@ -84,7 +90,7 @@ test("a project work finds, reads and — after the person approves the exact in
     await until(() => f.requests[0], "first model request");
     // The model saw only the gateway and root-free tools: no file, command or per-action tools.
     const offered = f.requests[0].tools.map((tool: any) => tool.name).sort();
-    assert.deepEqual(offered, ["ask-user", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
+    assert.deepEqual(offered, ["acknowledge-inputs", "ask-user", "board-wait", "change-capability", "change-reversible", "context-remaining", "find-capabilities", "read-capability", "suggest-action", "update-todo"]);
     assert.ok(JSON.stringify(f.requests[0]).includes("可用能力目录"), "the round carries the capability directory");
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     assert.equal(view.work.state, "waiting-review");
@@ -176,6 +182,32 @@ test("a repeated Send starts nothing twice; a new Send while running reaches the
   } finally { release(); await f.close(); }
 });
 
+// specs/ai-input-receipts 3e-0: a business role may say how it handles a supplement. The runtime shows the model each
+// supplement's id only when the round lists acknowledge-inputs, and keeps what it says as the AI's claim.
+test("RCPT-362, 3e-0: the Assistant's work round is offered acknowledge-inputs, sees the supplement's id, and what it says lands on the receipt as its claim", { timeout: 60_000 }, async t => {
+  let release!: () => void, seen = "";
+  const hold = new Promise<void>(resolve => { release = resolve; });
+  const tools = (body: { tools?: Array<{ name: string }> }) => (body.tools ?? []).map(tool => tool.name);
+  const f = await fixture(t, [async () => { await hold; return reply({ name: "context-remaining", input: {} }); },
+    (body: unknown) => { seen = JSON.stringify(body).match(/steer-[0-9a-z]+-[0-9a-z]+/)?.[0] ?? "";
+      return reply({ name: "acknowledge-inputs", input: { items: [{ input: seen, treatment: "apply-now", kind: "constraint", impacts: ["constraint"], note: "不直接发邮件" }] } }); },
+    () => reply(undefined, "好的。")] as never);
+  try {
+    const first = await f.service.send({ text: "帮我约周四的客户会", request_id: "req-00000362" }, {});
+    await until(() => f.requests.length >= 1, "the first model request");
+    const more = await f.service.send({ work_id: first.work.work_id, text: "别直接发邮件给客户，我自己发", request_id: "req-00000363" }, {});
+    assert.equal(more.outcome, "steered");
+    release();
+    const done = await until(async () => { const v = await f.service.read(first.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.ok(tools(f.requests[0]).includes("acknowledge-inputs"), `RCPT-362 the business round lists it: ${tools(f.requests[0])}`);
+    const steer = done.rounds[0]!.turns.find(turn => turn.steer)?.steer;
+    assert.ok(steer, "the supplement has its receipt");
+    assert.equal(seen, steer.id, "RCPT-362 the model saw the supplement's id, as the runtime gave it");
+    assert.deepEqual([steer.model_claim?.treatment, steer.model_claim?.kind, steer.model_claim?.impacts], ["apply-now", "constraint", ["constraint"]], "RCPT-362 kept as the AI's own claim");
+    assert.equal(steer.state, "read", "the ledger's fact stays the ledger's");
+  } finally { release(); await f.close(); }
+});
+
 test("without a model the work and its text are kept, with a next step", { timeout: 30_000 }, async t => {
   const f = await fixture(t, [], { model: false });
   try {
@@ -196,6 +228,29 @@ test("without a model the work and its text are kept, with a next step", { timeo
     assert.equal(work!.work_id, retainedId);
     // The failed Send released its id: trying again is a new attempt, not a replay of the failure.
     await assert.rejects(f.service.send({ work_id: work!.work_id, text: "Plan my week", request_id: "req-00000005" }, {}), /模型/);
+  } finally { await f.close(); }
+});
+
+test("AC-10, QA-001: on an English page the reason a Send without a model fails is English, and the text and the way to model settings are kept", { timeout: 30_000 }, async t => {
+  const f = await fixture(t, [], { model: false });
+  try {
+    const text = "Plan a review next week.";
+    await assert.rejects(runWithLocale("en", () => f.service.send({ text, request_id: "req-00000011" }, {})), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "assistant.model_missing");
+      assert.equal(error.message, "No usable model is configured yet, so the assistant can't start");
+      // What the page shows: the reason, then its kept-text note from the English catalog, and the action's label.
+      const shown = error.message + EN["。输入已保留"];
+      assert.equal(shown, "No usable model is configured yet, so the assistant can't start. Your text is kept");
+      assert.doesNotMatch(shown, /[\u3000-\u303f\u4e00-\u9fff\uff00-\uffef]/, "no Chinese word or punctuation left");
+      assert.equal(error.details?.action, "打开模型设置", "the action stays the key the page picks the model-settings link by");
+      assert.equal(EN[String(error.details?.action)], "Open model settings");
+      const kept = error.details?.work as { draft?: string } | undefined;
+      assert.equal(kept?.draft, text, "the text is kept word for word");
+      return true;
+    });
+    assert.equal((await f.service.list())[0]!.draft, text);
+    await assert.rejects(f.service.send({ text, request_id: "req-00000012" }, {}), /还没有配置可用的模型/, "a Chinese page still reads it in Chinese");
   } finally { await f.close(); }
 });
 
@@ -399,14 +454,14 @@ test("a change stopped while its owner is still running: shown as not known, the
 
 test("a round that reaches its step limit stops there, keeps what it did, says so in words, and the next round goes on", { timeout: 60_000 }, async t => {
   const script: Array<(body: any) => Response> = [() => reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "kept" } } })];
-  for (let i = 0; i < 40; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));
+  for (let i = 0; i < 70; i++) script.push(() => reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } }));
   const f = await fixture(t, script);
   try {
     const sent = await f.service.send({ text: "save kept, then keep counting", request_id: "req-00000026" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed", "stopped"].includes(v.work.state) ? v : undefined; }, "limit");
-    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（24 步）.*已完成的修改都保留/);
+    assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（60 步）.*已完成的修改都保留/);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "what it did before the limit stays");
     assert.ok(done.objects.length === 0 || done.objects.every(object => object.relation !== "result" || object.state !== "missing"));
     const again = await f.service.send({ work_id: sent.work.work_id, text: "继续", request_id: "req-00000027" }, {});
@@ -463,8 +518,8 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
   } finally { await f.close(); }
 });
 
-test("background work a round or a card starts is followed through the plugin's status query to its end; the person is told and the next round hears it once", { timeout: 60_000 }, async t => {
-  let state = "running";
+/** The fixture's job actions: a command that starts a research run in the background, and the status query it declares. */
+function jobActions(state: { value: string }) {
   const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
     audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
     output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
@@ -472,6 +527,19 @@ test("background work a round or a card starts is followed through the plugin's 
   const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
     audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
     output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+  let next = 0, looked = 0;
+  return { started: () => next, looks: () => looked, provider: { provider: { provider_id: "fixture.jobs", kind: "plugin" as const, title: "Research" }, definitions: [start, status],
+    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => { looked++; return { status: state.value }; } }] } };
+}
+
+/** The work's graph looks at its jobs every second here (the Assistant asks after 15 s, at most every 5 minutes). */
+function lookOften(f: Awaited<ReturnType<typeof fixture>>) {
+  const works = f.host.adapter("prologue").collaboration!.works!, follow = works.follow.bind(works);
+  works.follow = input => follow({ ...input, every: { first_ms: 1000, max_ms: 1000 } });
+}
+
+test("W2-18-JOB-01: background work a round or a card starts is followed on the work's graph to its end; the person is told once, the card says how it ended, and the next round hears it exactly once", { timeout: 90_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "change-capability", input: { capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "市场" } } }),
     () => reply(undefined, "已开始研究，后台进行中。"),
@@ -479,75 +547,96 @@ test("background work a round or a card starts is followed through the plugin's 
     body => { assert.doesNotMatch(JSON.stringify(body.messages), /Research · Start research」（任务 job-1）/, "told once"); return reply({ name: "suggest-action", input: { title: "再研究一次", summary: "再开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }); },
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "开始一轮市场研究", request_id: "req-00000034" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    // The work was new when the job started: its graph, opened for its first round, follows it all the same.
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
-    const [job] = f.store.jobs("web-user", sent.work.work_id);
-    // The work was new when the job started: its first look is on the queue all the same.
-    assert.ok(f.host.adapter("prologue").schedule?.find(`${job!.key}-0`), "the first look at the job is queued");
-    assert.equal((await f.service.checkJob(job!.key))!.state, "running", "still running: looked again later");
-    state = "completed";
-    assert.equal((await f.service.checkJob(job!.key))!.state, "completed");
-    view = await f.service.read(sent.work.work_id);
-    assert.deepEqual([view.jobs![0]!.state, view.jobs![0]!.last_state], ["completed", "completed"]);
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.deepEqual(graph.filter(node => node.job).map(node => [node.parent, node.session_id, node.state]), [["work", undefined, "running"]], "one step under the root that no session holds");
+    await until(() => jobs.looks() > 0, "the owner is asked");
+    state.value = "completed";
+    view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
+    assert.equal(typeof view.jobs![0]!.ended_at, "string");
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
     assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
 
     // A card that starts a job stays running until the job ends, then says how it ended.
-    state = "running";
+    state.value = "running";
     await f.service.send({ work_id: sent.work.work_id, text: "给我一个再研究一次的按钮", request_id: "req-00000036" }, {});
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 3 && v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
     assert.deepEqual([ran.status, ran.outcome], ["running", "已开始，后台进行中"]);
-    const cardJob = f.store.jobs("web-user", sent.work.work_id).find(item => item.card_id === ran.card_id)!;
-    state = "failed";
-    await f.service.checkJob(cardJob.key);
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
-    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成（failed）"]);
+    assert.equal((await f.service.read(sent.work.work_id)).jobs!.find(job => job.job_id === "job-2")?.card_id, ran.card_id);
+    state.value = "failed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
+    assert.equal(f.service.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
 
-test("running a card whose action starts a background job follows that job once, as the card's own: one entry, one notice", { timeout: 60_000 }, async t => {
-  let state = "running";
-  const start: ActionDefinition = { capability_id: "fixture.jobs.start", version: 1, operation: "command", action: { title: "Start research", description: "Start a research run in the background", kind: "operation", scope: "project",
-    audiences: ["agent"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { topic: { type: "string", title: "主题" } }, required: ["topic"], additionalProperties: false },
-    output_schema: { type: "object", properties: { run: { type: "object", properties: { jobId: { type: "string" } } } } },
-    background_job: { status: { capability_id: "fixture.jobs.status", version: 1 }, id: "run.jobId", input: "id", state: "status", done: ["completed"], failed: ["failed"] } } };
-  const status: ActionDefinition = { capability_id: "fixture.jobs.status", version: 1, operation: "query", action: { title: "Job status", description: "Read a research run's status", kind: "query", scope: "project",
-    audiences: ["agent", "user"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: { id: { type: "string" } }, required: ["id"], additionalProperties: false },
-    output_schema: { type: "object", properties: { status: { type: "string" } } } } };
+test("W2-18-JOB-02: running a card whose action starts a background job follows that job once, as the card's own: one step, one notice", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
   const f = await fixture(t, [
     () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
     () => reply(undefined, "给了一个按钮。"),
   ]);
-  let next = 0;
-  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.jobs", kind: "plugin", title: "Research" }, definitions: [start, status],
-    handlers: [{ ...start, handle: () => ({ run: { jobId: `job-${++next}` } }) }, { ...status, handle: () => ({ status: state }) }] });
-  (f.service as any).ports.scopeActions = async () => ({ discover: () => f.local.actionClient(f.project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }),
-    invoke: (action: any, input: unknown) => f.local.actionClient(f.project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: [] }, action, input) });
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
   try {
+    assert.equal(await f.service.attachSchedule(), true);
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
-    assert.deepEqual([ran.status, ran.outcome, next], ["running", "已开始，后台进行中", 1]);
-    // One start, one followed job: it belongs to the card, and the work lists it once.
-    const jobs = f.store.jobs("web-user", sent.work.work_id);
-    assert.deepEqual(jobs.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
-    assert.equal((await f.service.read(sent.work.work_id)).jobs!.length, 1);
-    state = "completed";
-    for (const job of f.store.jobs("web-user", sent.work.work_id)) await f.service.checkJob(job.key);
-    assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
-    const after = (await f.service.read(sent.work.work_id)).cards.find(card => card.card_id === ran.card_id)!;
-    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成（completed）"]);
+    assert.deepEqual([ran.status, ran.outcome, jobs.started()], ["running", "已开始，后台进行中", 1]);
+    // One start, one followed job: the change's own report and the card name it at once, and it is the card's.
+    const graph = await f.host.adapter("prologue").collaboration!.works!.read(f.store.get("web-user", sent.work.work_id).graph_id!);
+    assert.equal(graph.filter(node => node.job).length, 1);
+    assert.deepEqual((await f.service.read(sent.work.work_id)).jobs!.map(job => [job.job_id, job.card_id ?? null]), [["job-1", ran.card_id]]);
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
+    await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
+    // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
+    const again = new AssistantService(f.store, f.ports, "web-user");
+    try {
+      assert.equal(await again.attachSchedule(), true);
+      await new Promise(resolve => setTimeout(resolve, 300));
+      assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+    } finally { again.continuations.close(); }
+  } finally { await f.close(); }
+});
+test("W2-18-JOB-04: a work that 500 newer works have passed still answers for the job it follows: the job is looked at to its end and the person told", { timeout: 60_000 }, async t => {
+  const state = { value: "running" };
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "研究一次", summary: "开一轮研究", capability_id: "fixture.jobs.start", version: 1, provider_id: "fixture.jobs", input: { topic: "成本" } } }),
+    () => reply(undefined, "给了一个按钮。"),
+  ]);
+  const jobs = jobActions(state);
+  f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+  lookOften(f);
+  try {
+    assert.equal(await f.service.attachSchedule(), true);
+    const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000038" }, { project_ref: f.project });
+    const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
+    const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
+    assert.equal(ran.status, "running");
+    await until(() => jobs.looks() > 0, "the owner is asked");
+    for (let i = 0; i < 500; i++) f.store.create({ actor_id: "web-user", title: `后来的工作 ${i}`, scope: { kind: "personal" }, origin: null });
+    assert.equal(f.store.list("web-user", { archived: "any", limit: 500 }).some(work => work.work_id === sent.work.work_id), false, "the work is not among the latest 500");
+    state.value = "completed";
+    const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
+    assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
+    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
   } finally { await f.close(); }
 });
 
@@ -657,19 +746,116 @@ test("a suggestion whose moment has passed, or that counted days from another da
   } finally { await f.close(); }
 });
 
-test("a round that only announces its next step is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
-  const f = await fixture(t, [() => reply(undefined, "现在去保存这条笔记。"), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")]);
+// ADH-16 ASC-28 ASC-34: a completed prerequisite must not hide an unperformed next step.
+test("a round that changed nothing has its ending reviewed against its facts; one that only announced is continued once, and the person sees that it was", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [() => reply(undefined, "接入已完成。现在去保存这条笔记。"), () => reply(undefined, reviewAnswer(["will_do"])), () => reply(undefined, "现在就去保存。"), () => reply(undefined, "never asked")], { review: true });
   try {
     const sent = await f.service.send({ text: "Save a note saying hi", request_id: "req-00000031" }, {});
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    // Held once: the second request carries the first ending and the Host's reason; the second ending is not held again.
-    assert.equal(f.requests.length, 2);
-    const second = JSON.stringify(f.requests[1]);
-    assert.match(second, /现在去保存这条笔记/);
-    assert.match(second, /called no tool, so nothing has happened yet/);
+    // The review reads the ending and the Host's facts, as fenced data, with no tools; nothing is decided by the ending's wording.
+    const review = f.requests[1];
+    assert.equal(review.tools, undefined, "the review has no tools");
+    assert.match(JSON.stringify(review.system), /AI 助理在这一轮结束时/);
+    const data = JSON.stringify(review.messages);
+    assert.match(data, /不可信数据/);
+    assert.match(data, /接入已完成。现在去保存这条笔记/);
+    assert.match(data, /\\"tools\\":\[\]/, "the facts say no tool was called");
+    // Held once: the next request carries the first ending and the Host's reason; nothing new was called, so it is not reviewed again.
+    assert.equal(f.requests.length, 3);
+    const third = JSON.stringify(f.requests[2]);
+    assert.match(third, /现在去保存这条笔记/);
+    assert.match(third, /called no tool, so nothing has happened yet/);
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.state), ["completed"]);
-    // Still only announcing after that: the round says plainly that nothing was done, instead of leaving the promise standing.
-    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").map(item => [item.state, item.target]), [["failed", "最后只说了要做什么，没有执行"]]);
+    // Nothing called after the continuation: the round says plainly that nothing was done, instead of leaving the promise standing.
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "ended-on-promise").map(item => [item.state, item.target]), [["failed", "续做后仍没有执行"]]);
+  } finally { await f.close(); }
+});
+
+// ADH-16
+test("an ending the review finds true to the facts, and one it could not review, end as they are", { timeout: 60_000 }, async t => {
+  for (const [answer, request] of [[reviewAnswer([]), "req-00000032"], ["这一段不是要的 JSON", "req-00000033"]] as const) {
+    const f = await fixture(t, [() => reply(undefined, "周会定在周三下午两点，要我把它记到哪里吗？"), () => reply(undefined, answer), () => reply(undefined, "never asked")], { review: true });
+    try {
+      const sent = await f.service.send({ text: "周会是什么时候？", request_id: request }, { project_ref: f.project });
+      const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+      assert.equal(f.requests.length, 2, "reviewed once, not held");
+      assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue"), []);
+    } finally { await f.close(); }
+  }
+});
+
+/** An ending review request (D1②), told apart by the review's own instructions. */
+const isReview = (body: unknown) => endingReviewAnswer(body as { system?: unknown; messages?: unknown }, () => []) !== undefined;
+/** A review request that never answers: it ends only when whoever sent it gives up, and says how it was given up. */
+function hangingReview(seen: { signal?: AbortSignal }) {
+  return (body: unknown, init: RequestInit) => {
+    if (!isReview(body)) return reply(undefined, "never asked");
+    seen.signal = init.signal ?? undefined;
+    return new Promise<Response>((_, reject) => init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true }));
+  };
+}
+/** What a round that wrote nothing and continued nothing looks like once it has ended. */
+function endedAsWritten(f: Awaited<ReturnType<typeof fixture>>, done: Awaited<ReturnType<AssistantService["read"]>>, ending: string) {
+  assert.equal(done.rounds[0]!.turns.filter(turn => turn.kind === "assistant").at(-1)?.text, ending, "the ending reads as the round wrote it");
+  assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "the round's own model was not asked again: no automatic follow-up");
+  assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+  assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+  assert.deepEqual(f.seen, []);
+  assert.equal(done.cards.length, 0);
+  assert.equal(done.reviews.length, 0);
+}
+
+// ADH-16, QA-006: a review that goes wrong is no review. The ending stands, nothing continues the round, nothing is written.
+test("QA-006, ADH-16: an ending review whose model throws, answers 500 or is aborted lets the ending through as written; nothing continues and nothing is written", { timeout: 60_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？";
+  const failures: Array<[string, () => Response]> = [
+    ["throws", () => { throw new TypeError("fetch failed"); }],
+    ["HTTP 500", () => new Response('{"type":"error","error":{"type":"api_error","message":"fixture review failed"}}', { status: 500, headers: { "content-type": "application/json" } })],
+    ["aborted", () => { throw new DOMException("The operation was aborted.", "AbortError"); }],
+  ];
+  for (const [index, [how, fail]] of failures.entries()) {
+    // Every review attempt fails the same way, however often the runtime tries again; the round's own calls get words.
+    const failing = (body: unknown) => isReview(body) ? fail() : reply(undefined, "never asked");
+    const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 6 }, () => failing)], { review: true });
+    try {
+      const sent = await f.service.send({ text: "周会是什么时候？", request_id: `req-0000013${index}` }, { project_ref: f.project });
+      const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, `completion after a review that ${how}`);
+      assert.ok(f.requests.some(isReview), `the review was asked (${how})`);
+      endedAsWritten(f, done, ending);
+    } finally { await f.close(); }
+  }
+});
+
+// ADH-16, QA-006: the review's own limit (REVIEW_TIMEOUT_MS, 30 s) brought forward, so the test does not wait it out.
+test("QA-006, ADH-16: an ending review that does not answer within its limit is given up: its request is cancelled, the ending stands as written, nothing continues", { timeout: 20_000 }, async t => {
+  const timeout = AbortSignal.timeout.bind(AbortSignal);
+  t.mock.method(AbortSignal, "timeout", (ms: number) => timeout(ms === 30_000 ? 300 : ms));
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000140" }, { project_ref: f.project });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion after the review's limit");
+    assert.ok(seen.signal, "the review was asked");
+    assert.equal(seen.signal.aborted, true, "the review's request was withdrawn when its limit passed, not left waiting");
+    endedAsWritten(f, done, ending);
+  } finally { await f.close(); }
+});
+
+// ADH-16, QA-006: the person stops the round while its ending is being reviewed (the guard's signal).
+test("QA-006, ADH-16: stopping a round while its ending review waits withdraws the review's request; nothing continues and nothing is written", { timeout: 20_000 }, async t => {
+  const ending = "周会定在周三下午两点，要我把它记到哪里吗？", seen: { signal?: AbortSignal } = {};
+  const f = await fixture(t, [() => reply(undefined, ending), ...Array.from({ length: 4 }, () => hangingReview(seen))], { review: true });
+  try {
+    const sent = await f.service.send({ text: "周会是什么时候？", request_id: "req-00000141" }, { project_ref: f.project });
+    await until(() => seen.signal, "the review asked");
+    await f.service.control(sent.work.work_id, { kind: "stop" });
+    const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["stopped", "failed", "completed"].includes(v.work.state) ? v : undefined; }, "the round ended");
+    assert.equal(seen.signal!.aborted, true, "the review's request was withdrawn with the round");
+    assert.equal(f.requests.filter(body => !isReview(body)).length, 1, "no automatic follow-up");
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue" || item.verb === "ended-on-promise"), []);
+    assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "no business write");
+    assert.deepEqual(f.seen, []);
+    assert.equal(done.cards.length, 0);
   } finally { await f.close(); }
 });
 
@@ -677,13 +863,14 @@ test("each kind of slip is held once per round and reads as what it was: a tool 
   const f = await fixture(t, [
     () => reply(undefined, "我用 change-capability 再试一次，由你确认后落地。"),
     body => { assert.match(JSON.stringify(body), /internal identifiers \(change-capability\)/); return reply(undefined, "我再试一次，由你确认后落地。"); },
+    body => { assert.match(JSON.stringify(body.messages), /我再试一次，由你确认后落地/); return reply(undefined, reviewAnswer(["will_do"])); },
     body => { assert.match(JSON.stringify(body), /called no tool, so nothing has happened yet/); return reply(undefined, "我再试一次。"); },
     () => reply(undefined, "never asked"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "把那条待办改到下周二", request_id: "req-00000093" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    assert.equal(f.requests.length, 3, "held for the tool name, then for the announcement, and not again");
+    assert.equal(f.requests.length, 4, "held for the tool name, reviewed, held for the announcement, and not again");
     const activity = done.rounds[0]!.activity;
     assert.deepEqual(activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段写出了内部标识，已让它改用名称重写", "上一段只说了要做什么，没有实际执行"]);
     assert.equal(activity.filter(item => item.verb === "ended-on-promise").length, 1, JSON.stringify(activity));
@@ -693,31 +880,33 @@ test("each kind of slip is held once per round and reads as what it was: a tool 
 test("a reply that says a button is ready when none was made is held once; the button then exists (seen with MiniMax-M3)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "按钮准备好了，等你点：\n\n- 内容：喝水"),
+    () => reply(undefined, reviewAnswer(["button"])),
     body => { assert.match(JSON.stringify(body), /no suggest-action call succeeded/); return reply({ name: "suggest-action", input: { title: "记下喝水", summary: "存一条笔记：喝水", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "喝水" } } }); },
     () => reply(undefined, "按钮在上面。"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "给我一个按钮：记下喝水", request_id: "req-00000071" }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(done.cards.length, 1, "the button exists");
-    assert.equal(f.requests.length, 3, "held once, not again after the card was made");
+    assert.equal(f.requests.length, 4, "reviewed and held once; not reviewed again after the card was made");
   } finally { await f.close(); }
 });
 
 test("a reply that says something was saved when no change went through is held once; the change then happens (seen with MiniMax M3.1)", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [
     () => reply(undefined, "记下了：已经存到笔记里。"),
+    () => reply(undefined, reviewAnswer(["changed"])),
     body => { assert.match(JSON.stringify(body), /no change succeeded in this round/); return reply({ name: "change-capability", input: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "saved for real" } } }); },
     () => reply(undefined, "已经存到笔记里。"),
     () => reply(undefined, "never asked"),
-  ]);
+  ], { review: true });
   try {
     const sent = await f.service.send({ text: "记一下：saved for real", request_id: "req-00000094" }, { project_ref: f.project });
     const asked = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     await f.service.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "the note exists");
-    assert.equal(f.requests.length, 3, "held once; the same words after the change went through are not held");
+    assert.equal(f.requests.length, 4, "reviewed and held once; after the change went through the same words are not reviewed");
     assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "auto-continue").map(item => item.target), ["上一段说已经保存或建好，但这一轮没有成功的改动"]);
   } finally { await f.close(); }
 });
@@ -784,6 +973,61 @@ test("a capability identity the round never found is answered as unknown, not as
   // Seen from MiniMax-M3: it guessed "lingguang_spark_read" instead of looking the reader up.
   await assert.rejects((executors["read-capability"] as any)({ args: { capability_id: "lingguang_spark_read", version: 1, provider_id: "io.molis.work.lingguang", input: {} } }),
     (error: any) => /No capability with that exact identity/.test(error.message) && /find-capabilities/.test(error.message));
+});
+
+// Project-knowledge recall evaluation (specs/project-knowledge §14): MiniMax-M3 sent a known capability under a provider id
+// that offers nothing by that name, was told the capability was taken away, and gave up.
+test("a known capability under a provider or version that offers nothing by that name is answered as a wrong identity, not as taken away", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  let views = [view];
+  const ran: unknown[] = [];
+  const client = { discover: async () => views, check: async () => {}, invoke: async (...call: unknown[]) => { ran.push(call); return {}; } };
+  const { executors, offered } = prologueActionGateway({ client, operate: true } as never);
+  await executors["find-capabilities"]!({ args: { query: "Notes" } } as never);
+  const call = (args: Record<string, unknown>) => executors["change-capability"]!({ args: { input: { text: "x" }, ...args } } as never);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes" }),
+    (error: Error) => /^actions\.missing: Provider "io\.molis\.work\.notes" offers no capability with that id; nothing ran\. It is offered here by provider "fixture\.notes"\..*find-capabilities/.test(error.message)
+      && !/any more|Do not use a different capability/.test(error.message));
+  // Through the review hook too, with the identities the round has seen.
+  assert.match(await gatewayProblem({ client, operate: true } as never, "change-capability", { capability_id: "fixture.notes.write", version: 1, provider_id: "io.molis.work.notes", input: { text: "x" } },
+    new Set(), offered) ?? "", /^Provider "io\.molis\.work\.notes" offers no capability with that id/);
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 3, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here at version 3; nothing ran\. Its provider now offers version 1/.test(error.message));
+  // An identity the round really saw offered and that is gone keeps "taken away": no stand-in from another provider.
+  views = [{ ...view, provider: { ...view.provider, provider_id: "fixture.notes.next" } } as ActionView];
+  await assert.rejects(call({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }),
+    (error: Error) => /not offered here any more \(switched off.*Do not use a different capability/.test(error.message));
+  assert.deepEqual(ran, [], "nothing ran");
+});
+
+// Project-knowledge recall evaluation (specs/project-knowledge §14): an input that matched the contract was refused by its
+// owner for a value in it, the round was shown the contract instead, and kept reshaping a valid input.
+test("an input the contract accepts and its owner refuses carries the owner's own reason; one the contract refuses still gets the contract", async () => {
+  const view = { capability_id: "fixture.notes.write", version: 1, operation: "command", provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" },
+    action: write.action, availability: { available: true } } as ActionView;
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  const refusal = "主题 document-1 不是这里的一项：从列表或搜索结果里原样复制 [id, version]";
+  const owner = async () => { throw new ActionError("actions.input_invalid", `${refusal}${"。".repeat(1000)}`); };
+  const fits = async (_ref: unknown, input: unknown) => { if (typeof (input as { text?: unknown })?.text !== "string") throw new ActionError("actions.input_invalid", "输入不符合能力合同：/text type"); };
+  const run = (client: object, tool: string, input: unknown) => prologueActionGateway({ client: { discover: async () => [view], ...client }, operate: true } as never).executors[tool]!({ args: { ...reference, input } } as never);
+  for (const tool of ["read-capability", "change-capability"]) {
+    const read = tool === "read-capability" ? { ...view, operation: "query", action: { ...view.action, kind: "query" } } as ActionView : view;
+    const client = { discover: async () => [read], check: fits, invoke: owner };
+    await assert.rejects(prologueActionGateway({ client, operate: true } as never).executors[tool]!({ args: { ...reference, input: { text: "x" } } } as never),
+      (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`)
+        && /The input matches this capability's contract; its owner refused it for this reason\.\)$/.test(error.message) && !/matching this schema/.test(error.message)
+        && error.message.length < 800, `${tool}: the owner's reason, bounded`);
+  }
+  // The contract refuses it (or cannot be asked): the contract, as before.
+  await assert.rejects(run({ check: fits, invoke: owner }, "change-capability", { text: 1 }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message) && !error.message.includes(refusal));
+  await assert.rejects(run({ invoke: owner }, "change-capability", { text: "x" }),
+    (error: { code?: string; message: string }) => error.code === "TOOL_ARGUMENTS_INVALID" && /matching this schema/.test(error.message));
+  // A suggestion the contract accepts and its owner refuses records nothing and gets the owner's reason.
+  await assert.rejects(prologueActionGateway({ client: { discover: async () => [view], check: fits, invoke: owner, offer: owner }, operate: true } as never)
+    .executors["suggest-action"]!({ args: { title: "记下", summary: "记一条笔记", ...reference, input: { text: "x" } } } as never),
+    (error: { code?: string; message: string }) => error.code === "HOST_RESPONSE_INVALID" && error.message.startsWith(`actions.input_invalid: ${refusal}`));
 });
 
 // AI handbook §9.5 A2: a capability that is there but cannot run now is found with its owner's reason and nothing to call
@@ -898,6 +1142,35 @@ test("a card a page prepared from the person's selection is checked like the Ass
   } finally { await f.close(); }
 });
 
+// W3-A3a (specs/context-program §21.2 item 5): a page names the work it is on as a pointer only. The card goes into it
+// only when the work is the person's own, not archived, the Assistant's (not Coding) and in this project; otherwise
+// nothing is placed and the same message can still be placed later.
+test("W3-A3a: a page's card goes into the named work only when it is the person's own, open, the Assistant's and in this project", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, []);
+  const card = { title: "记到笔记", summary: "把选中的一句存进项目笔记", reference: { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" },
+    input: { text: "会后 24 小时内发纪要" }, source_object: { kind: "pages_document", id: "doc-7", version: 3, title: "周会纪要" } };
+  const source = { surface: "pages", title: "Pages" };
+  const scope = { kind: "project" as const, project_id: f.project.project_id };
+  const work = (actor_id: string, extra: Record<string, unknown> = {}) => f.store.create({ actor_id, title: "进行中的工作", scope, origin: null, project_ref: f.project, ...extra });
+  try {
+    const mine = work("web-user");
+    const refused: Array<[string, string, string]> = [
+      ["someone else's", work("someone-else").work_id, "assistant.not_found"],
+      ["archived", f.store.update("web-user", work("web-user").work_id, null, { archived: true }).work_id, "assistant.state"],
+      ["Coding's", work("web-user", { executor: { kind: "coding", title: "Coding", session_id: null } }).work_id, "assistant.unsupported"],
+      ["another project's", work("web-user", { scope: { kind: "project", project_id: "elsewhere" }, project_ref: { project_id: "elsewhere", storage_key: "memory:elsewhere" } }).work_id, "assistant.scope"],
+    ];
+    for (const [label, workId, code] of refused) {
+      await assert.rejects(f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: workId }, { project_ref: f.project }),
+        (error: unknown) => (error as { code?: string }).code === code, `${label} work is refused`);
+    }
+    // Nothing was placed by the refusals: the same message now goes into the person's own open work.
+    const placed = await f.service.offers.offerFromPage({ message_id: "page-pointer-0001", source, card, work_id: mine.work_id }, { project_ref: f.project });
+    assert.equal(placed.work_id, mine.work_id);
+    assert.deepEqual((await f.service.read(mine.work_id)).objects.map(object => [object.relation, object.subject.id]), [["material", "doc-7"]]);
+  } finally { await f.close(); }
+});
+
 test("a material a round brought can be read back with its text for a preview, and a page from the browser says where it was", { timeout: 60_000 }, async t => {
   const f = await fixture(t, [() => reply(undefined, "看过了。")]);
   try {
@@ -952,6 +1225,19 @@ test("the developer diagnostics trace a round by its exact identities and frozen
     assert.ok(round!.failures.some(failure => failure.tool === "read-capability" && failure.state === "failed"), JSON.stringify(round!.failures));
     assert.ok(round!.usage && round!.usage.input > 0);
   } finally { await f.close(); }
+});
+
+test("ASC-28: malformed capability identity names the field and type before discovery or dispatch", async () => {
+  let discovered = 0, invoked = 0;
+  const client = { discover: async () => { discovered++; return []; }, invoke: async () => { invoked++; } };
+  const gateway = { client, operate: true };
+  const reference = { capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" };
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, version: "1" }) ?? "", /version must be a JSON integer.*not the string "1"/);
+  assert.match(await gatewayProblem(gateway, "read-capability", { ...reference, capability_id: 1 }) ?? "", /capability_id must be a non-empty string/);
+  assert.match(await gatewayProblem(gateway, "change-capability", { ...reference, provider_id: null }) ?? "", /provider_id must be a non-empty string/);
+  assert.equal(discovered, 0); assert.equal(invoked, 0);
+  assert.match(await gatewayProblem(gateway, "change-capability", reference) ?? "", /No capability with that exact identity/);
+  assert.equal(discovered, 1, "a correctly typed identity reaches the existing catalog lookup");
 });
 
 test("a revision or other number written as text is passed on as written, and the refusal names the place and what was there (adoption §6.0g)", async () => {
@@ -1102,12 +1388,44 @@ test("a round declares at most 12 found capabilities per tool and 24 KiB in all,
   assert.ok(bytes <= 24 * 1024, `${bytes} bytes`);
   assert.equal(declared().at(-1), "fixture.notes.wide-11@1", "the newest stays");
   assert.ok(declared().length < 12 && declared().every(title => title.includes("wide")), "the oldest found go first");
+  // ASC-30: a re-read capability is current context even after later searches evicted its native schema.
+  await find(small[0]!.capability_id);
+  assert.equal(declared().at(-1), `${small[0]!.capability_id}@1`);
   await find("fixture.notes.huge");
   assert.ok(!declared().includes("fixture.notes.huge@1"), "a schema over 8 KiB is not declared");
   await round.executors["read-capability"]!({ args: { capability_id: "fixture.notes.huge", version: 1, provider_id: "fixture.notes", input: {} } } as never);
   assert.deepEqual(ran, ["fixture.notes.huge"], "and still runs");
   const next = prologueActionGateway({ client, operate: true } as never);
   assert.equal(next.parameterBranches("read-capability"), undefined, "a new round (or the Host after a restart) starts with none");
+});
+
+test("ASC-30: a refused call restores its exact input schema in the next real SDK request without accepting the bad value", { timeout: 60_000 }, async t => {
+  type Request = { tools: Array<{ name: string; input_schema?: { properties?: { input?: { anyOf?: Array<{ title?: string }> } } } }> };
+  const titles = (body: Request) => body.tools.find(tool => tool.name === "read-capability")?.input_schema?.properties?.input?.anyOf?.map(branch => branch.title);
+  const f = await fixture(t, [
+    () => reply({ name: "find-capabilities", input: { query: "fixture.notes.count" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide alpha" } }),
+    () => reply({ name: "find-capabilities", input: { query: "Wide bravo" } }),
+    body => {
+      assert.ok(!titles(body)?.includes("fixture.notes.count@1"), "later large lookups evicted the old native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: "" } });
+    },
+    body => {
+      assert.ok(titles(body)?.includes("fixture.notes.count@1"), "the refusal restores the current capability's native schema");
+      return reply({ name: "read-capability", input: { capability_id: "fixture.notes.count", version: 1, provider_id: "fixture.notes", input: {} } });
+    },
+    () => reply(undefined, "There are no notes yet."),
+  ]);
+  const wide = ["alpha", "bravo"].flatMap(group => Array.from({ length: 8 }, (_, index): ActionDefinition => ({ ...count, capability_id: `wide.${group}.${index}`,
+    action: { ...count.action, title: `Wide ${group} ${index}`, description: `Wide ${group}`, input_schema: { type: "object", properties: { text: { type: "string", description: "x".repeat(3000) } } } } })));
+  f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "wide", kind: "plugin", title: "Wide" }, definitions: wide,
+    handlers: wide.map(definition => ({ ...definition, handle: () => { throw new Error("discovery must not call these capabilities"); } })) });
+  try {
+    const sent = await f.service.send({ text: "How many notes are there?", request_id: "req-schema-current" }, { project_ref: f.project });
+    const done = await until(async () => { const value = await f.service.read(sent.work.work_id); return value.work.state === "completed" ? value : undefined; });
+    assert.deepEqual(done.rounds[0]!.activity.filter(item => item.verb === "read").map(item => item.state), ["failed", "completed"]);
+    assert.equal(f.calls.length, 1, "the invalid value never reaches the owner");
+  } finally { await f.close(); }
 });
 
 test("a change's receipt survives micro-compaction in the next request; an older read's result is compacted (§6.0b item 5)", { timeout: 60_000 }, async t => {
@@ -1141,4 +1459,48 @@ test("a change's receipt survives micro-compaction in the next request; an older
     assert.ok(!last.includes(`PAGE-1-${"p".repeat(800)}`), "and its text is gone from the request");
     assert.ok(last.includes(receipt), "the change's receipt is still there in full: it cannot be fetched again, calling again would do it again");
   } finally { await f.close(); }
+});
+
+
+test("RAC-61/62: an unreadable work keeps its job waiting, storage recovery finishes the same step, and only a missing work has no authority", { timeout: 30_000 }, async t => {
+  const directory = await mkdtemp(join(tmpdir(), "molis-job-authority-read-"));
+  const database = new DatabaseSync(join(directory, "assistant.db"));
+  database.exec("PRAGMA busy_timeout=0");
+  const f = await fixture(t, [], { model: false, database });
+  const locker = new DatabaseSync(join(directory, "assistant.db"));
+  let locked = false;
+  try {
+    const jobs = jobActions({ value: "completed" });
+    f.local.actionRegistry(f.project).registerProvider(jobs.provider);
+    const session = await f.adapter.createSession({ project_id: f.project.project_id, plugin_id: "io.molis.work.coding", install_id: "installed", actor_id: "web-user", title: "Work" });
+    const work = f.store.create({ actor_id: "web-user", title: "Work", scope: { kind: "project", project_id: f.project.project_id }, project_ref: f.project, origin: null });
+    const works = f.adapter.collaboration!.works!;
+    const { graph_id } = await works.open({ key: "storage-recovery", session_id: session.session_id, title: "Work" });
+    f.store.update("web-user", work.work_id, null, { graph_id, session_id: session.session_id });
+    const key = `${work.work_id}.0123456789abcdef`, node_id = `job.${key}`;
+    let attempts = 0;
+    const authority = f.service.jobs.authority.bind(f.service.jobs);
+    t.mock.method(f.service.jobs, "authority", async (at: Parameters<typeof authority>[0]) => { attempts++; return authority(at); });
+    locker.exec("BEGIN EXCLUSIVE"); locked = true;
+    assert.throws(() => f.store.get("web-user", work.work_id), /database is locked/);
+    await works.follow({ graph_id, key, job_id: "job-1", title: "Research", deadline_ms: 3_600_000, every: { first_ms: 1000, max_ms: 1000 },
+      query: { action: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: { id: "job-1" }, path: ["status"], done: ["completed"], failed: ["failed"] } });
+    await until(() => attempts > 0, "first authority read");
+    // Drain the check after its read: a refused read would end the step immediately, before the next scheduled look.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    assert.equal((await works.read(graph_id)).find(node => node.node_id === node_id)?.state, "running");
+    assert.equal(jobs.looks(), 0, "storage failure cannot call the job owner's query");
+    locker.exec("ROLLBACK"); locked = false;
+    assert.equal(f.store.get("web-user", work.work_id).work_id, work.work_id);
+    await until(async () => (await works.read(graph_id)).find(node => node.node_id === node_id)?.state === "succeeded", "same job completes after recovery");
+    const steps = (await works.read(graph_id)).filter(node => node.job);
+    assert.deepEqual(steps.map(node => [node.node_id, node.job?.ended]), [[node_id, "done"]]);
+    assert.equal(jobs.looks(), 1, "one successful status query, with no re-execution of the job");
+    assert.equal(f.requests.length, 0, "the retry never calls a model");
+    assert.equal(await f.service.jobs.authority({ graph_id, node_id: "job.missing.0123456789abcdef" }), undefined);
+    assert.equal(await f.service.jobs.authority({ graph_id: "other-graph", node_id }), undefined);
+  } finally {
+    if (locked) locker.exec("ROLLBACK");
+    locker.close(); await f.close(); database.close(); await rm(directory, { recursive: true, force: true });
+  }
 });

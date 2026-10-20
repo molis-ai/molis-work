@@ -5,7 +5,6 @@ import { OWN_DIRECTORY_SURFACES } from "../../plugin-catalog.js";
 export const CLIENT_NAVIGATION_FEED_SCRIPT = `
 ${FEED_RULE_AUTHORING_SCRIPT}
     const OWN_DIRECTORY_SURFACES = ${JSON.stringify([...OWN_DIRECTORY_SURFACES])};
-    const PLUGIN_TAB_TITLES = { goal: "Goals", sources: "Feed", ...globalThis.MOLIS_WORK_PLUGIN_TITLES };
     const directoryPanelFor = (directory) => directory;
 
     const restoreLastGoal = (openGoalsDirectory = false) => {
@@ -28,16 +27,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       location.assign(globalThis.molisWorkNavigationUrl(goalId ? route("/goals/" + encodeURIComponent(goalId)) : route("/")));
     };
 
-    const syncMobilePluginLabels = (surface, directory) => {
-      const plugin = OWN_DIRECTORY_SURFACES.includes(directory) ? directory : surface;
-      if (mobileTreeTab) mobileTreeTab.textContent = directory === "sources"
-        ? L("来源")
-        : PLUGIN_TAB_TITLES[plugin] || defaultMobileTreeLabel;
-      if (mobileDocumentTab) mobileDocumentTab.textContent = OWN_DIRECTORY_SURFACES.includes(plugin)
-        ? L("详情")
-        : defaultMobileDocumentLabel;
-    };
-
     const setDesktopWorkSurface = (surface, persist = true, restoreScroll = true) => {
       if (!desktopWorkSurfaces.length) return false;
       if (surface === "sources") {
@@ -57,7 +46,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       }
       activeDesktopSurface = surface;
       document.body.dataset.desktopSurface = surface;
-      syncMobilePluginLabels(surface, treePane?.dataset.desktopDirectory);
       if (!tabWorkspace) {
         desktopWorkSurfaces.forEach((candidate) => {
           if (candidate.closest("[data-goal-canvas-shell]")) return;
@@ -115,31 +103,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       return openWorkbenchSurface(surface, itemId, title, directoryTabMode());
     };
 
-    const currentModuleDirectory = () => OWN_DIRECTORY_SURFACES.includes(activeDesktopSurface)
-      ? activeDesktopSurface
-      : "goals";
-
-    const syncMobileNavigationChrome = () => {
-      const view = workspace?.dataset.mobileView || "tree";
-      const graphVisible = workspace?.dataset.workspaceMode === "graph" && view === "document";
-      const directoryRootActive = view === "tree" && treePane?.dataset.desktopDirectory === "root" && !graphVisible;
-      const treeTab = document.querySelector('[data-mobile-target="tree"]');
-      treeTab?.setAttribute("aria-controls", graphVisible ? "goal-momentum-pane" : "goal-tree-pane");
-      document.querySelectorAll(".mobile-switch [role='tab']").forEach((button) => {
-        const target = button.dataset.mobileTarget;
-        const active = button.hasAttribute("data-mobile-directory-root")
-          ? directoryRootActive
-          : target === "tree"
-            ? graphVisible || (view === "tree" && !directoryRootActive)
-            : target === "document"
-              ? view === "document" && !graphVisible
-              : target === view && !directoryRootActive;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        button.tabIndex = active ? 0 : -1;
-      });
-    };
-
     const LIST_PLUGIN_SECTIONS = ["goals", ...OWN_DIRECTORY_SURFACES.filter((id) => id !== "sources")];
 
     const syncPluginDirectory = (directory) => {
@@ -156,11 +119,11 @@ ${FEED_RULE_AUTHORING_SCRIPT}
       });
     };
 
-    const setPluginSectionExpanded = (id, expanded, persist = true) => {
+    const setPluginSectionExpanded = (id) => {
       const sectionId = id === "sources" ? "feed" : id;
-      if (!LIST_PLUGIN_SECTIONS.includes(sectionId) || !expanded) return;
+      if (!LIST_PLUGIN_SECTIONS.includes(sectionId)) return;
       setDirectoryCollapsed?.(false, false);
-      setDesktopDirectory(id === "sources" ? "sources" : sectionId, persist, false);
+      setDesktopDirectory(sectionId, true, false);
     };
 
     const setDesktopDirectory = (directory, persist = true, focusTarget = true, origin = null) => {
@@ -183,8 +146,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         const storedWidth = parseFloat(workspace.style.getPropertyValue("--tree-width")) || 0;
         if (storedWidth > 0 && storedWidth < 200) workspace.style.setProperty("--tree-width", "240px");
       }
-      syncMobilePluginLabels(activeDesktopSurface, next);
-      syncMobileNavigationChrome();
       immersiveNavigation?.sync();
       if (focusTarget) {
         requestAnimationFrame(() => {
@@ -237,7 +198,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
 
     const filterSources = (preserveSelection = true) => {
       if (!sourceList) return;
-      const query = String(sourceSearch?.value || "").trim().toLocaleLowerCase();
       const rows = [...sourceList.querySelectorAll("[data-source-entry-id]")];
       const visible = rows.filter((row) => {
         const kind = row.dataset.sourceKind;
@@ -246,8 +206,7 @@ ${FEED_RULE_AUTHORING_SCRIPT}
           (activeSourceFilter === "account" && (kind === "github" || kind === "gmail" || kind === "connector")) ||
           (activeSourceFilter === "public" && kind === "rss") ||
           (activeSourceFilter === "attention" && status === "attention");
-        const matchesQuery = !query || String(row.dataset.sourceSearchValue || "").includes(query);
-        row.hidden = !(matchesKind && matchesQuery);
+        row.hidden = !matchesKind;
         return !row.hidden;
       });
       if (sourceResultCount) sourceResultCount.textContent = L("{count} 个来源", { count: visible.length });
@@ -807,7 +766,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         .map((control) => control?.selectedOptions?.[0]?.textContent?.trim())
         .filter(Boolean);
       const summary = labels.join(" · ");
-      if (feedFilterSummary) feedFilterSummary.textContent = summary;
       const activeCount = Number(values.source !== "all") + Number(values.type !== "all") + Number(values.time !== "all") + Number(values.status !== "active") + Number(values.sort !== "newest");
       if (feedFilterBadge) {
         feedFilterBadge.textContent = String(activeCount);
@@ -952,11 +910,6 @@ ${FEED_RULE_AUTHORING_SCRIPT}
         feedWorkbench.dataset.feedPreset = activeFeedPreset;
         feedWorkbench.dataset.workSurfaceLabel = "Feed";
       }
-      const heading = feedDirectory?.querySelector("[data-feed-directory-title]");
-      if (heading) heading.textContent = "Feed";
-      if (activeDesktopSurface === "feed" && mobileTreeTab) mobileTreeTab.textContent = "Feed";
-      const feedDirectoryCopy = feedDirectory?.querySelector("[data-feed-directory-copy]");
-      if (feedDirectoryCopy) feedDirectoryCopy.textContent = L("所有来源消息，完整保留");
       setFeedStatusOptionLabel("active", L("未忽略"));
       setFeedStatusOptionLabel("inbox", L("待处理"));
       setFeedStatusOptionLabel("saved", L("已保存"));

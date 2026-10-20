@@ -47,14 +47,13 @@ export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
 }
 
 export class ArtifactsModule implements ArtifactsApplicationApi {
-  readonly repository: ArtifactsRepository;
   readonly service: ArtifactsService;
   readonly query: ArtifactsQueryApi;
   readonly commands: ArtifactsCommandApi;
 
   constructor(options: ArtifactsModuleOptions) {
-    this.repository = new ArtifactsRepository(options.db, undefined, options.homeOwner);
-    this.service = new ArtifactsService(this.repository, options);
+    const repository = new ArtifactsRepository(options.db, undefined, options.homeOwner);
+    this.service = new ArtifactsService(repository, options);
     this.query = this.service;
     this.commands = this.service;
   }
@@ -66,14 +65,13 @@ export class ArtifactsModule implements ArtifactsApplicationApi {
  * Each item belongs to the plugin that produced it (specs/artifact-positioning A2).
  */
 export class ProcessItemsModule implements ProcessItemsApplicationApi {
-  readonly repository: ArtifactsRepository<ProcessItemRecord>;
   readonly service: ArtifactsService<ProcessItemRecord, RecordProcessItemInput>;
   readonly query: ProcessItemsApplicationApi["query"];
   readonly commands: ProcessItemsApplicationApi["commands"];
 
   constructor(options: Omit<ArtifactsModuleOptions, "kind" | "homeOwner">) {
-    this.repository = new ArtifactsRepository<ProcessItemRecord>(options.db, PROCESS_ITEM_TABLES);
-    this.service = new ArtifactsService<ProcessItemRecord, RecordProcessItemInput>(this.repository, { ...options, kind: "process_item" });
+    const repository = new ArtifactsRepository<ProcessItemRecord>(options.db, PROCESS_ITEM_TABLES);
+    this.service = new ArtifactsService<ProcessItemRecord, RecordProcessItemInput>(repository, { ...options, kind: "process_item" });
     this.query = this.service;
     this.commands = this.service;
   }
@@ -89,7 +87,6 @@ export {
 export {
   ARTIFACT_TABLES,
   ARTIFACTS_SCHEMA_SQL,
-  ArtifactsRepository,
   createArtifactsSchema,
   createProcessItemsSchema,
   PROCESS_ITEM_TABLES,

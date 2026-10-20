@@ -30,6 +30,7 @@ import { createLocalWebComposition, type LocalWebPlatform } from "./web-composit
 import type { WebServerOptions } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
+import { attachWebAssistant } from "./web-assistant.js";
 import { lazyBrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
@@ -79,7 +80,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
       : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
     const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
-    const composition = createLocalWebComposition({ ...platform, withCatalog });
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
     const { serveWorkbenchAsset } = composition;
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
@@ -243,23 +244,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
       projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) }).service;
-    // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
-    // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
-    // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
-    // process releasing it): keep trying for a while.
-    void runWithMolisWorkHome(storageHome, async () => {
-      if (!assistant().hasTimedWork()) await agents.started;
-      for (let attempt = 0; attempt < 40 && !lifecycle.closing; attempt++) {
-        try { await agents.ready; if (lifecycle.closing || await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) hostLog.warn("assistant", "schedule_not_attached", error); }
-        await new Promise(resolve => setTimeout(resolve, 15_000).unref());
-      }
-    });
-    // New material that shares a Goal with a live work: looked for every five minutes.
-    periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
-    // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
+    attachWebAssistant(server, storageHome, assistant, agents, periodic);
     server.spaceDisposed = spaceDisposal(server, [], [
       () => periodic.stop(), () => projectSchedulers.stop(),
       () => im.close(), unregisterSurfaces, () => feedSchedulers.clear(),

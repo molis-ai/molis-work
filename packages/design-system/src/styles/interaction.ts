@@ -34,6 +34,7 @@ export const INTERACTION_QUESTION_STYLES = `
 @container mw-ix (min-width: 520px) { .mw-ix-row { grid-template-columns: 84px minmax(0, 1fr); gap: 14px; } .mw-ix-label { padding-top: 6px; } }
 .mw-ix-label { display: grid; align-content: start; gap: 2px; color: var(--ink); font-weight: var(--weight-control, 500); }
 .mw-ix-optional { color: var(--muted); font-size: 11px; font-weight: var(--weight-body, 400); }
+.mw-ix-row:not(:has([aria-checked="true"])) [data-ix-clear] { display: none; }
 .mw-ix-control { display: grid; gap: 6px; min-width: 0; justify-items: start; }
 .mw-ix-control > .mw-ix-text { width: 100%; max-width: none; }
 .mw-ix-control > textarea.mw-ix-text { min-height: 60px; resize: vertical; }
@@ -41,14 +42,15 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-error { color: var(--red); font-size: 12px; }
 [data-ix-focus], .mw-ix-preview, .mw-ix-result, .mw-ix-operation { scroll-margin-block: 24px; }
 :is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs)[aria-invalid="true"] { border-radius: var(--r-control, 8px); box-shadow: 0 0 0 1px var(--red); }
-:is(.mw-ix-options, .mw-ix-choices, .mw-ix-refs):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
+:is(.mw-ix-options, .mw-ix-choices):focus-visible { outline: var(--focus-stroke); outline-offset: 3px; }
 /* Options with a reason: the product's choice, the difference under the name, a copper tag for the recommendation. */
 .mw-ix-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 8px; width: 100%; }
 .mw-ix-option { display: grid; gap: 3px; min-height: 52px; padding: 8px 12px; border: 0; border-radius: var(--r-control, 8px); background: var(--paper); color: var(--ink); font: inherit; text-align: left; cursor: pointer; box-shadow: var(--lift-1), 0 0 0 1px var(--line);
   transition: background-color var(--dur-move) var(--ease-quint), color var(--dur-move) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
 .mw-ix-option:hover:not([aria-pressed="true"], [aria-checked="true"]):not(:disabled) { background: color-mix(in srgb, var(--ink) 3%, var(--paper)); }
 .mw-ix-option:active:not(:disabled) { transform: scale(.97); }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
+/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]), .mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
 .mw-ix-option:focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
 .mw-ix-option__top { display: flex; align-items: center; gap: 6px; }
 .mw-ix-option__title { font-weight: var(--weight-control, 500); }
@@ -56,13 +58,10 @@ export const INTERACTION_QUESTION_STYLES = `
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__desc { color: color-mix(in srgb, var(--action-ink) 74%, transparent); }
 .mw-ix-option__check { margin-left: auto; display: inline-grid; opacity: 0; transform: scale(.6); transition: opacity var(--dur-move) var(--ease-quint), transform var(--dur-move) var(--ease-spring); }
 .mw-ix-option__check svg { width: 12px; height: 12px; }
-.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check { opacity: 1; transform: none; }
+.mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-option__check, .mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 .mw-ix-tag { display: inline-flex; align-items: center; padding: 0 6px; border-radius: var(--r-tag, 6px); background: var(--accent-soft); color: var(--ink); font-size: 11px; font-weight: var(--weight-control, 500); line-height: 18px; }
 .mw-ix-option:is([aria-pressed="true"], [aria-checked="true"]) .mw-ix-tag { background: color-mix(in srgb, var(--action-ink) 18%, transparent); color: var(--action-ink); }
 .mw-ix-choices .mw-choice { min-width: 0; min-height: 34px; }
-/* A single pick is a radio (aria-checked); the product's choice styles its selected state from aria-pressed, so mirror them. */
-.mw-ix-choices .mw-choice[aria-checked="true"] { background: var(--action); color: var(--action-ink); box-shadow: var(--lift-1); }
-.mw-ix-choices .mw-choice[aria-checked="true"] .mw-choice__check { opacity: 1; transform: none; }
 .mw-ix-banner { display: grid; gap: 8px; padding: 10px 12px; border-radius: var(--r-control, 8px); background: var(--rail); color: var(--ink); }
 .mw-ix-banner[data-tone="waiting"] { background: color-mix(in srgb, var(--amber) 12%, var(--paper)); }
 .mw-ix-banner[data-tone="failed"] { background: color-mix(in srgb, var(--red) 10%, var(--paper)); }
@@ -132,29 +131,22 @@ export const INTERACTION_CALENDAR_STYLES = `
 }
 `;
 
-/** Objects and materials picked as rows. */
+/** Objects and materials: the picked ones as chips, then a search whose results (a menu-styled listbox) are real objects the person may use. */
 export const INTERACTION_REFERENCE_STYLES = `
-/* Objects and materials: real candidates the person may use, picked as rows. */
-.mw-ix-refs { display: grid; gap: 4px; width: 100%; }
-.mw-ix-ref { display: grid; grid-template-columns: 20px minmax(0, 1fr) 16px; align-items: center; gap: 10px; min-height: 40px; padding: 6px 10px; border: 0; border-radius: var(--r-row, 10px); background: transparent; color: var(--ink-soft); font: inherit; text-align: left; cursor: pointer;
-  transition: background-color var(--dur-hover) var(--ease-quint); }
-.mw-ix-ref:hover:not(:disabled) { background: var(--nav-hover); }
-.mw-ix-ref[aria-pressed="true"] { background: var(--nav-active); color: var(--ink); }
-.mw-ix-ref:focus-visible { outline: var(--focus-stroke); outline-offset: -1px; }
-.mw-ix-ref__glyph svg { width: 16px; height: 16px; }
-.mw-ix-ref__text { display: grid; min-width: 0; }
-.mw-ix-ref__title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-control, 500); }
-.mw-ix-ref__meta { color: var(--faint); font-size: 12px; }
-.mw-ix-ref__check { color: var(--accent); opacity: 0; transition: opacity var(--dur-move) var(--ease-quint); }
-.mw-ix-ref__check svg { width: 16px; height: 16px; }
-.mw-ix-ref[aria-pressed="true"] .mw-ix-ref__check { opacity: 1; }
-.mw-ix-ref:disabled { cursor: default; opacity: .6; }
-@media (max-width: 760px), (pointer: coarse) {
-  .mw-ix-ref { min-height: 44px; }
-}
-@media (prefers-reduced-motion: reduce) {
-  :is(.mw-ix-ref, .mw-ix-ref__check) { animation: none; transition: none; }
-}
+.mw-ix-refs { display: grid; gap: 6px; }
+.mw-ix-picked { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; }
+:is(.mw-ix-picked, .mw-ix-ref-results) { margin: 0; list-style: none; }
+:is(.mw-ix-picked, .mw-ix-ref-status, .mw-ix-ref__meta):empty { display: none; }
+.mw-ix-chip { display: inline-flex; align-items: center; max-width: 100%; padding: 3px 3px 3px 10px; border-radius: 99px; background: var(--nav-active); font-size: 13px; }
+:is(.mw-ix-chip, .mw-ix-ref) span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mw-ix-chip button { display: grid; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 99px; background: none; color: var(--muted); cursor: pointer; }
+.mw-ix-chip button:hover, .mw-ix-ref[aria-selected=true] { background: var(--nav-hover); }
+.mw-ix-chip button:focus-visible { outline: var(--focus-stroke); }
+.mw-ix-chip svg { width: 14px; height: 14px; }
+.mw-ix-ref-search:has([aria-invalid="true"]) { border-color: var(--red); }
+.mw-ix-ref-results:not([hidden]) { display: grid; max-height: 240px; overflow: auto; }
+:is(.mw-ix-ref__meta, .mw-ix-ref-status) { flex: none; margin: 0 0 0 auto; color: var(--faint); font-size: 12px; }
+@media (max-width: 760px), (pointer: coarse) { .mw-ix-chip button { width: 32px; height: 32px; } }
 `;
 
 /** The operation card: what it acts on, exactly what would run, how it stands. Needs the question segment. */

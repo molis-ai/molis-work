@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import { MESSAGES_ROOT, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 // specs/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
 // dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
@@ -87,6 +87,9 @@ const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string
 const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
 const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
+const registerMessages = (owner: string, alias = `${owner.toUpperCase()}_MESSAGES`) => put(MESSAGES_ROOT,
+  `import { ${owner.toUpperCase()}_MESSAGES as ${alias} } from "@scratch/${owner}";\nexport const BUILTIN_PLUGIN_CATALOG = [{ messages: ${alias} }];\n`);
+
 
 // A browser program in three files of the beta plugin: program.ts defines tx and button, and joins the scripts of the files it
 // imports (program-views.ts, and program-flows.ts when it has lines). Each file's lines are the body of its template.
@@ -354,6 +357,7 @@ for (const scenario of stable) {
 
 test("a file moves to stable keys while the rest stays on Chinese keys", () => {
   branch("moved", () => {
+    registerMessages("alpha");
     // Alpha's UI moves: its keys, their English and the owner's dictionary entry go together, nothing else changes.
     put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },\n  "alpha.ui.description": { zh: "说明", en: "Description" },'));
     put("plugins/native/alpha/src/ui.ts", "export const ui = (p: { text(value: string): string }) => p.text(\"alpha.ui.open\") + p.text(\"alpha.ui.description\");\n");
@@ -406,6 +410,7 @@ test("dead keys, comments, tests and build output are reported or ignored, never
 
 test("a key built from a stable prefix keeps the keys of that family from being dead", () => {
   branch("family", () => {
+    registerMessages("alpha");
     put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.status.running": { zh: "进行中", en: "Running" },\n  "alpha.status.stopped": { zh: "已停止", en: "Stopped" },\n  "alpha.other.unused": { zh: "没人用", en: "Unused" },'));
     put("plugins/native/alpha/src/ui.ts", `${read("plugins/native/alpha/src/ui.ts")}export const status = (L: (key: string) => string, state: string) => L(\`alpha.status.\${state}\`);\n`);
   });
@@ -538,4 +543,51 @@ test("the command line lists missing keys, conflicts, dead keys and owners; a ba
   assert.match(all.stdout, /^owner\s+files\s+calls/m);
   assert.match(all.stdout, /^dead: /m);
   assert.equal(run("--bogus").status, 2);
+});
+
+
+for (const mode of ["missing catalog", "import only", "unrelated object", "wrong field"] as const) {
+  test(`RAC-59: a stable dictionary with ${mode} fails, and updating the baseline cannot hide it`, () => {
+    branch("unserved-stable", () => {
+      put("plugins/native/alpha/src/messages.ts", stableAlpha);
+      if (mode !== "missing catalog") put(MESSAGES_ROOT, 'import { ALPHA_MESSAGES } from "@scratch/alpha";\n' +
+        (mode === "import only" ? 'export const BUILTIN_PLUGIN_CATALOG = [];\n' :
+          mode === "unrelated object" ? 'const unused = { messages: ALPHA_MESSAGES }; export const BUILTIN_PLUGIN_CATALOG = [];\n' :
+          'export const BUILTIN_PLUGIN_CATALOG = [{ unused: ALPHA_MESSAGES }];\n'));
+    });
+    for (const flags of [[], ["--base", "main"]]) {
+      const run = gate(...flags);
+      assert.equal(run.code, 1, run.out);
+      assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
+    }
+    // --update records counts; absolute errors are checked by the gate, never accepted through that file.
+    for (const update of [["--update"], ["--update", "--base", "main"]]) {
+      const written = gate(...update);
+      assert.equal(written.code, 0, written.out);
+      for (const flags of [[], ["--base", "main"]]) {
+        const run = gate(...flags);
+        assert.equal(run.code, 1, run.out);
+        assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
+      }
+    }
+  });
+}
+
+test("RAC-59: the catalog may use an import alias for the owner's stable dictionary", () => {
+  branch("stable-alias", () => {
+    put("plugins/native/alpha/src/messages.ts", stableAlpha);
+    registerMessages("alpha", "WORDS");
+  });
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+});
+
+test("RAC-59: removing Images' real catalog registration is detected even while its import remains", () => {
+  assert.deepEqual(real.scan.stableErrors, []);
+  const original = readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8");
+  assert.match(original, /messages: IMAGES_MESSAGES/);
+  const disconnected = scanFile(MESSAGES_ROOT, original.replace("messages: IMAGES_MESSAGES,", ""));
+  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === MESSAGES_ROOT ? disconnected : file));
+  assert.equal(changed.stableErrors.length, 1);
+  assert.match(changed.stableErrors[0], /stable dictionary IMAGES_MESSAGES .*not registered/);
 });

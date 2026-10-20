@@ -2,8 +2,9 @@ import { lstat, realpath } from "node:fs/promises";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import type { CheckRequest, CheckerResult, ConditionCheckers, HeldWait, Runtime } from "@prologue/sdk";
 import { actionEffect, platformErrorKind, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentActionClient, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
+import { ownedConditionChecks, type OwnedConditionChecker } from "./prologue-owned-checkers.js";
 
 /**
  * The checkers a step may wait on (specs/prologue-adoption §4.6.8): something outside the runtime, looked at by the Host
@@ -30,14 +31,43 @@ export interface RoundCheckAuthority {
   readonly root_path?: string;
 }
 
+/** What a work's authority gives the looks at the jobs it follows: its own check and its action client, as it is now. */
+export type WorkCheckAuthority = Pick<RoundCheckAuthority, "beforeDispatch"> & Required<Pick<RoundCheckAuthority, "actions">>;
+
 /** What the Host answers for the checks. */
 export interface PrologueCheckPorts {
   /** Whether this directory is still authorized for the project now. */
   directoryAuthorized?(projectId: string, path: string): Promise<boolean>;
+  /** Narrow, read-only owner checks whose current grants can be proven from durable domain facts. */
+  owned?: readonly OwnedConditionChecker[];
+  /**
+   * The authority of the work that follows the job a Host wait hangs on (§6.0o; the step on that work's graph names
+   * it): asked on every look, since no round registered that wait. None when the work is gone. Given when the Host is
+   * assembled, so it is there for the first look after a restart.
+   */
+  workAuthority?(at: { graph_id: string; node_id: string }): Promise<WorkCheckAuthority | undefined>;
 }
 
+/**
+ * The name a Host wait gives the status query of a job it follows: the exact reference itself. A round's tool names come
+ * from its own table and never take this form, so a model cannot name an action through it.
+ */
+const JOB_QUERY = "molis-job-query:";
+export const jobQueryTool = (ref: ExactActionReference) => `${JOB_QUERY}${JSON.stringify([ref.provider_id, ref.capability_id, ref.version])}`;
+const jobQueryRef = (tool: unknown): ExactActionReference | undefined => {
+  if (typeof tool !== "string" || !tool.startsWith(JOB_QUERY)) return undefined;
+  try {
+    const [provider_id, capability_id, version] = JSON.parse(tool.slice(JOB_QUERY.length)) as unknown[];
+    return typeof provider_id === "string" && typeof capability_id === "string" && Number.isSafeInteger(version) ? { provider_id, capability_id, version: version as number } : undefined;
+  } catch { return undefined; }
+};
+
 type Look = (round: Remembered, params: unknown, signal: AbortSignal) => Promise<CheckerResult>;
-interface Remembered extends RoundCheckAuthority { readonly started_at_ms: number }
+interface Remembered extends RoundCheckAuthority {
+  readonly started_at_ms: number;
+  /** A job the work follows: its owner declares only what done and failed are, so any other state is not yet. */
+  readonly anyOtherPending?: true;
+}
 
 const refused = (code: string, note: string): CheckerResult => ({ status: "unknown", refused: { code }, note });
 /** The error's own code when it is one; else the given one. */
@@ -160,7 +190,8 @@ const lookAtAction: Look = async (round, params, signal) => {
   const said = answerAt(output, query.status.path), source = { ref: `${found.ref.capability_id}@${found.ref.version}` };
   if (typeof said !== "string" && typeof said !== "number" && typeof said !== "boolean") return { status: "unknown", source, note: "动作的回答里没有这个状态" };
   const state = String(said);
-  const status = query.status.satisfied.includes(state) ? "satisfied" : query.status.failed?.includes(state) ? "failed" : query.status.pending?.includes(state) ? "pending" : undefined;
+  const status = query.status.satisfied.includes(state) ? "satisfied" : query.status.failed?.includes(state) ? "failed"
+    : query.status.pending?.includes(state) || round.anyOtherPending ? "pending" : undefined;
   return status ? { status, source, note: `「${found.view.action.title}」回答 ${state}` } : { status: "unknown", source, note: `「${found.view.action.title}」回答 ${state}，不在给定的状态里` };
 };
 
@@ -208,11 +239,13 @@ const REGISTER_HOOK = "molis-external-check-register";
  * The Host's checkers, and the rounds they answer for. A round is remembered when it starts and let go once it is over
  * and no wait it registered is still waiting.
  */
-export function createPrologueConditionCheckers(deps: { readonly runtime: () => Runtime; readonly ports?: PrologueCheckPorts; readonly project: (sessionId: string) => Promise<string | undefined> }) {
+export function createPrologueConditionCheckers(deps: { readonly runtime: () => Runtime; readonly ports?: PrologueCheckPorts; readonly project: (sessionId: string) => Promise<string | undefined>; readonly owner: (sessionId: string) => Promise<AgentSessionView["owner"] | undefined> }) {
   const rounds = new Map<string, Remembered>(), ended = new Set<string>(), offs: Array<() => void> = [];
   const ports = deps.ports ?? {};
+  const owned = ownedConditionChecks(ports.owned ?? [], deps.owner);
   const looks = new Map<string, Look>([[ACTION_QUERY_CHECKER.id, lookAtAction], [FILE_PRESENT_CHECKER.id, filePresentLook(ports, deps.project)]]);
   const problems = new Map<string, (params: unknown) => string | undefined>([[ACTION_QUERY_CHECKER.id, actionQueryProblem], [FILE_PRESENT_CHECKER.id, filePresentProblem]]);
+  for (const checker of owned.entries.values()) problems.set(checker.id, params => checker.checkParams(params));
   const prune = () => {
     for (const runId of [...ended]) if (!deps.runtime().waits.list().some(wait => wait.state === "waiting" && wait.run?.id === runId)) { rounds.delete(runId); ended.delete(runId); }
   };
@@ -226,6 +259,7 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
   const couldLook = async (round: Remembered | undefined, sessionId: string, checker: string, params: unknown): Promise<string | undefined> => {
     const stop = await roundRefusal(round, sessionId);
     if (stop) return stop.note;
+    if (owned.entries.has(checker)) return owned.authorize(checker, sessionId, params);
     if (checker === ACTION_QUERY_CHECKER.id) {
       const found = await readableAction(round!, (params as { tool: string }).tool).catch(() => undefined);
       return found && "refused" in found ? found.refused.note : undefined;
@@ -234,20 +268,44 @@ export function createPrologueConditionCheckers(deps: { readonly runtime: () => 
     if (!round!.root_path || !projectId || !ports.directoryAuthorized || !await ports.directoryAuthorized(projectId, round!.root_path)) return "这一轮没有授权目录";
     return undefined;
   };
+  /**
+   * A Host wait on a job a work follows (§6.0o): no round registered it, so every look is checked against the work's
+   * authority now, and its query is the one the wait names exactly. A work that is gone is refused; one that cannot be
+   * read just now is not known yet (the SDK looks again).
+   */
+  const workRound = async (wait: HeldWait): Promise<Remembered | CheckerResult> => {
+    let authority: WorkCheckAuthority | undefined;
+    try { authority = await ports.workAuthority?.({ graph_id: wait.scope.board, node_id: wait.scope.node }); } catch (error) { return { status: "unknown", note: `还读不到这项工作：${error instanceof Error ? error.message : String(error)}`.slice(0, 300) }; }
+    if (!authority) return refused(REFUSED, "跟进这个后台任务的工作已经不在");
+    const tools = new Map<string, ExactActionReference>();
+    for (const one of wait.on) {
+      const tool = one.kind === "external" && object(one.check.params) ? one.check.params.tool : undefined, ref = jobQueryRef(tool);
+      if (ref) tools.set(tool as string, ref);
+    }
+    return { session_id: wait.session.id, ...authority, tools: Promise.resolve(tools), started_at_ms: wait.createdAtMs, anyOtherPending: true };
+  };
   const checkers: ConditionCheckers = {
-    list: () => [ACTION_QUERY_CHECKER, FILE_PRESENT_CHECKER],
+    list: () => [ACTION_QUERY_CHECKER, FILE_PRESENT_CHECKER, ...[...owned.entries.values()].map(({ id, version }) => ({ id, version }))],
     describe(id, version) {
       const problem = version === "1" ? problems.get(id) : undefined;
-      return problem && { readOnly: true, params: PARAMS.get(id), checkParams: params => problem(params as unknown) };
+      return problem && { readOnly: true, params: owned.entries.get(id)?.params ?? PARAMS.get(id), checkParams: params => problem(params as unknown) };
     },
     async check(request, signal) {
       const wait = deps.runtime().waits.get(request.wait.ref.id);
       if (!wait || wait.state !== "waiting" || !sameScope(wait, request.scope)) return refused(REFUSED, "这个等待已不在原来的那一步上");
       const round = wait.run ? rounds.get(wait.run.id) : undefined;
-      const stop = await roundRefusal(round, wait.session.id);
+      // Only a registered owner checker may restore its narrowly proven read grant; general round grants still expire.
+      if (owned.entries.has(request.check.checker.id)) {
+        const stop = round ? await roundRefusal(round, wait.session.id) : undefined;
+        return stop ?? owned.check(request.check.checker.id, wait.session.id, request.check.params, signal);
+      }
+      // A wait no round registered is the Host's, on a job a work follows: one that ends its step, nothing else.
+      const found = wait.run ? round : wait.by === "app" && wait.afterwards === "end-step" ? await workRound(wait) : undefined;
+      if (found && "status" in found) return found;
+      const stop = await roundRefusal(found, wait.session.id);
       if (stop) return stop;
       signal.throwIfAborted();
-      return looks.get(request.check.checker.id)!(round!, request.check.params, signal);
+      return looks.get(request.check.checker.id)!(found!, request.check.params, signal);
     },
   };
   /** A wait the round could never have looked at is not registered: the round hears why at once, not after its run is over. */

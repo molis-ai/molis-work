@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Files tree and reader: captures bounded text snapshots and selections.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

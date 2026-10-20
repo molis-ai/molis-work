@@ -565,9 +565,13 @@ fn capsule_open_main(
 }
 
 #[tauri::command]
-fn shelf_surface_changed(active: bool, language: Option<String>, theme: Option<String>) {
+fn shelf_surface_changed(
+    panel: Option<drop_wheel::PanelBox>,
+    language: Option<String>,
+    theme: Option<String>,
+) {
     #[cfg(target_os = "macos")]
-    drop_wheel_macos::set_shelf_surface(active, language.as_deref(), theme.as_deref());
+    drop_wheel_macos::set_shelf_surface(panel, language.as_deref(), theme.as_deref());
 }
 
 #[derive(serde::Serialize)]

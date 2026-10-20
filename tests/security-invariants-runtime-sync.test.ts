@@ -34,7 +34,7 @@ async function fixture(t: import('node:test').TestContext,maintain?:()=>void) {
   return { sample, manifest, runtime, supervisor, bind, starts: () => starts, revoke: () => { account = false; } };
 }
 
-test('S-41 PCSYNC-25 independent SDK owner binds current identity, sends exact attachment bytes and never echoes remote content', async t => {
+test('S-72 PCSYNC-25 independent SDK owner binds current identity, sends exact attachment bytes and never echoes remote content', async t => {
   const a = await fixture(t), b = await fixture(t), binding = (await a.bind())!, target = (await b.bind())!;
   assert.equal(binding.publisher_signature, a.manifest.publisher.signature); assert.equal(binding.collection.id, 'notes');
   assert.equal(binding.available(), true);
@@ -53,7 +53,7 @@ test('S-41 PCSYNC-25 independent SDK owner binds current identity, sends exact a
   await a.supervisor.enable(a.manifest.plugin_id); assert.ok(await a.bind()); assert.throws(() => binding.replica.counts(), { code: 'actions.forbidden' }, 'restart does not revive an old handle');
 });
 
-test('S-41 PCSYNC-25 the independent owner can delete an own key that also names an Object prototype property',async t=>{
+test('S-72 PCSYNC-25 the independent owner can delete an own key that also names an Object prototype property',async t=>{
  const f=await fixture(t),binding=(await f.bind())!;
  assert.throws(()=>f.sample.edit('__proto__',{text:'invalid dictionary key',attachment:null}),{code:'sample_notes.invalid'});assert.deepEqual(f.sample.read(),{notes:{}});
  f.sample.edit('constructor',{text:'own note',attachment:null});const first=binding.replica.next()!;assert.equal(first.key,'constructor');
@@ -62,7 +62,7 @@ test('S-41 PCSYNC-25 the independent owner can delete an own key that also names
  binding.replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(binding.replica.counts().pending,0);
 });
 
-test('S-41 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previous activation binding', async t => {
+test('S-72 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previous activation binding', async t => {
   const f = await fixture(t), old = (await f.bind())!, install = f.runtime.list()[0]!;
   f.sample.edit('keep', { text: 'saved before upgrade', attachment: null });
   const next = createPersonalNotesSample('2.0.0'), definition = { ...next.definition, manifest: { ...next.definition.manifest,
@@ -80,7 +80,7 @@ test('S-41 PCSYNC-25 upgrade and retained-data reinstall cannot revive a previou
   assert.equal(next.read().notes.keep!.text, 'saved before upgrade');
 });
 
-test('S-41 PCSYNC-06/25 late attachment reads refuse after account cancellation and cannot create target business facts', async t => {
+test('S-72 PCSYNC-06/25 late attachment reads refuse after account cancellation and cannot create target business facts', async t => {
   const f = await fixture(t), binding = (await f.bind())!;
   f.sample.edit('note', { text: 'only source', attachment: Buffer.from('raw content').toString('base64') });
   const operation = binding.replica.next()!, encoded = binding.content!.encode(operation.key, operation.value);
@@ -90,7 +90,7 @@ test('S-41 PCSYNC-06/25 late attachment reads refuse after account cancellation 
   assert.throws(() => binding.replica.receive({ ...operation, revision: 1 }), /ACCOUNT_REVOKED/);
 });
 
-test('S-41 PCSYNC-25 undeclared, duplicate and malformed sync implementations fail activation validation', async t => {
+test('S-72 PCSYNC-25 undeclared, duplicate and malformed sync implementations fail activation validation', async t => {
   const f = await fixture(t), binding = (await f.bind())!, actions=f.manifest.actions!.map(definition=>({...definition,handle(){throw new Error('UNUSED_ACTION');}})), delivered = { collection_id: 'notes', replica: binding.replica };
   for (const sync of [[{ ...delivered, collection_id: 'foreign' }], [delivered, delivered], [{ collection_id: 'notes', replica: {} }]]) {
     assert.throws(() => assertContributionMatchesManifest(f.manifest, { kind: 'app', actions, sync } as PluginAppContribution), { code: 'plugin.contribution_unredeemed' });
@@ -99,7 +99,7 @@ test('S-41 PCSYNC-25 undeclared, duplicate and malformed sync implementations fa
   assert.equal(await bindRuntimeSyncCollection(f.supervisor, f.manifest.plugin_id, 'undeclared', { authorize() {}, record: id => f.runtime.get(id) }), null);
 });
 
-test('S-41 PCSYNC-01/25 real Host injects only immutable personal Home ownership, and revokes old sync context on stop', async t => {
+test('S-72 PCSYNC-01/25 real Host injects only immutable personal Home ownership, and revokes old sync context on stop', async t => {
   for (const kind of ['local', 'personal'] as const) {
     const home = mkdtempSync(join(tmpdir(), 'runtime-sync-scope-')), probe = homeProbe('sync-' + kind);
     const space = kind === 'personal' ? personalStorageSpace('https://auth.example.test', 'work', 'alice') : undefined;

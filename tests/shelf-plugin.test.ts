@@ -24,7 +24,9 @@ import {
   SHELF_CLIENT_FACTORY_SCRIPT,
   SHELF_UI_CONTRIBUTION_ID,
   ShelfPluginRouteTable,
+  renderShelfWorkbench,
   shelfUiContribution,
+  type ShelfListModel,
   type ShelfPluginRouteHandler,
   type ShelfUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
@@ -41,12 +43,11 @@ const primitives: ShelfUiModel["primitives"] = {
   text: (value) => value,
 };
 
-function model(overrides: Partial<ShelfUiModel> = {}): ShelfUiModel {
+function model(overrides: Partial<ShelfListModel> = {}): ShelfListModel {
   return {
     materials: [],
     results: [],
     clipboard: [],
-    recipes: [],
     selected_id: null,
     primitives,
     ...overrides,
@@ -260,15 +261,16 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   const host = new UiHost();
   host.register(shelfUiContribution);
   assert.equal(host.list()[0]?.contribution_id, SHELF_UI_CONTRIBUTION_ID);
-  assert.equal(host.render({
-    contribution_id: SHELF_UI_CONTRIBUTION_ID,
-    surface: "directory",
-    model: model(),
-  }), "");
-  const workbench = host.render({
-    contribution_id: SHELF_UI_CONTRIBUTION_ID,
-    surface: "workbench",
-    model: model({
+  // Shelf has one surface, its tab in the side panel; the work area has no Shelf stage or directory to render.
+  for (const surface of ["directory", "workbench"]) {
+    assert.throws(() => host.render({ contribution_id: SHELF_UI_CONTRIBUTION_ID, surface, model: { primitives } }), /不存在/);
+  }
+  const side = host.render({ contribution_id: SHELF_UI_CONTRIBUTION_ID, surface: "side", model: { primitives } satisfies ShelfUiModel });
+  assert.match(side, /data-shelf-stage-shell/);
+  assert.match(side, /data-shelf="directory"[\s\S]*shelf-side-head[\s\S]*shelf-side-scroll[\s\S]*shelf-side-foot/);
+  assert.doesNotMatch(side, /desktop-work-surface|plugin-stage-shell"/, "the side tab is not a work-area stage");
+  // The rows arrive from the client; the same markup with rows in it:
+  const workbench = renderShelfWorkbench(model({
       materials: [{
         item_id: "item_pdf",
         group: "material",
@@ -285,8 +287,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
         preview_text: SAMPLE_PDF_TEXT,
       }],
       selected_id: "item_pdf",
-    }),
-  });
+  }));
   assert.doesNotMatch(workbench, /data-directory-panel="shelf"/);
   assert.match(workbench, /data-shelf-stage-shell/);
   assert.match(workbench, /data-shelf="directory"/);
@@ -329,7 +330,9 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.equal(SHELF_EN["副本工作区"], "Working copies");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /结束多选/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /min-width: 761px/);
-  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\]\[data-expanded="true"\] \{ --tree-width: 213px/);
+  // Wide enough (the panel widened), the list stays beside an open item; narrower, the item covers the list (a back button).
+  assert.match(SHELF_STYLES, /@container shelf \(min-width: 640px\) \{[\s\S]*?\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
+  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] \{[^}]*container: shelf \/ inline-size/);
   assert.match(SHELF_STYLES, /shelf-side-foot \{[\s\S]*margin-top: auto/);
   assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-stage-chrome \{[\s\S]*height: 30px;/);
   assert.match(SHELF_STYLES, /\[data-shelf\] \.shelf-search \{[\s\S]*height: 30px;[\s\S]*margin: 0;/);
@@ -339,10 +342,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   // The group mark is a neutral label beside a coloured type glyph, never a green tick.
   assert.match(workbench, /goal-collection-mark shelf-group-mark tone-ochre/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /is-ready|icon-check/);
-  const withClip = host.render({
-    contribution_id: SHELF_UI_CONTRIBUTION_ID,
-    surface: "workbench",
-    model: model({
+  const withClip = renderShelfWorkbench(model({
       clipboard: [{
         clip_id: "clip_now",
         kind: "text",
@@ -360,8 +360,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
       }],
       current_clip_id: "clip_now",
       selected_id: "clip_now",
-    }),
-  });
+  }));
   assert.match(withClip, /data-shelf-current/);
   assert.match(withClip, /删除记录/);
   assert.match(withClip, /本周待办/);
@@ -388,9 +387,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /others\.forEach/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-act=summarize/);
   assert.match(SHELF_STYLES, /--da-side: var\(--content-side\)/);
-  assert.match(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--paper\)/);
-  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] \.plugin-stage-list \{[^}]*background: var\(--paper\)/);
-  assert.doesNotMatch(SHELF_STYLES, /\.plugin-stage-list\[data-shelf="directory"\] \{[^}]*background: var\(--da-side\)/);
+  assert.match(SHELF_STYLES, /\[data-shelf-stage-shell\] > \[data-shelf="directory"\] \{[^}]*background: var\(--paper\)/);
+  assert.doesNotMatch(SHELF_STYLES, /\[data-shelf="directory"\] \{[^}]*background: var\(--da-side\)/);
   assert.doesNotMatch(SHELF_STYLES, /shelf-settings-nav|shelf-settings-tab/);
   assert.match(SHELF_STYLES, /shelf-runtime-pick:has\(input:checked\)/);
   assert.match(SHELF_STYLES, /max-width: 640px/);
@@ -429,7 +427,8 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, \.is-on\):not\(\.is-child\) :is\(\.shelf-when, \.shelf-status, \.shelf-now\)/);
   assert.match(SHELF_STYLES, /html\[data-resolved-theme="dark"\] \[data-shelf\] \.shelf-paper \{[\s\S]*background: var\(--da-panel\)/);
   assert.match(SHELF_STYLES, /\.shelf-paper:active \{ background: var\(--da-press\); \}/);
-  assert.match(SHELF_STYLES, /plugin-section\[data-plugin-section="shelf"\] > \.immersive-plugin-link \{[\s\S]*display: none !important;/);
+  // No work-area stage, so no rule reaches into the workbench's plugin sections or its immersive body.
+  assert.doesNotMatch(SHELF_STYLES, /data-plugin-section="shelf"|body\.immersive-workbench/);
   assert.doesNotMatch(SHELF_STYLES, /#5e6ad2|--focus:|filter: brightness/);
   const sheet = renderMolisWorkWorkbenchStylesheet();
   // Soft Workbench (DESIGN.md → Plugin identity): Shelf keeps DropAgent structure on the shared tokens —

@@ -1,4 +1,4 @@
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormQuestionInput, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { formErrors } from "./error.js";
 import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStores } from "./store.js";
@@ -33,9 +33,9 @@ export function createFormContentHandlers({ read, write }: FormStores): ActionHa
   return bindWorkflowContentHandlers(formContentActions, {
     list: caller => read(store => store.list(project(caller)).map(form => ({ item_id: form.id, title: form.title, caption: form.questions.length + " 题", at: form.updated_at }))),
     read: ({ item_id }, caller) => read(store => { const form = store.get(item_id, project(caller)); return { title: form.title, body: formMarkdown(form), source: "问卷" }; }),
-    receive: ({ payload, context }, caller) => write(caller, store => {
+    receive: ({ title, body, request_id }, caller) => write(caller, store => {
       // A hand-over is shaped to what a form holds (a long headline, a long list): refused, it could never be delivered.
-      const form = store.receive(project(caller), workflowDeliveryKey(context), payload.title.trim().slice(0, FORM_TITLE_LIMIT), questionsFromText(payload.body));
+      const form = store.receive(project(caller), request_id, title.trim().slice(0, FORM_TITLE_LIMIT), questionsFromText(body));
       return { plugin: "form", item_id: form.id, title: form.title };
     }),
     create: ({ title }, caller) => write(caller, store => { const form = store.create({ title, project_id: project(caller) }); return { plugin: "form", item_id: form.id, title: form.title }; }),

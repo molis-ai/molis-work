@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-ProjectsModule 用注入数据库建立 repository 与 service，公开 query、commands 和供 Host 装配的 lifecycle。Host 负责文件准备和跨资源操作，Desktop 负责项目目录呈现。
+ProjectsModule 用注入数据库在包内建立 repository 与 service，公开 query、commands 和供 Host 装配的 lifecycle；不公开 Repository 类或实例。Host 负责文件准备和跨资源操作，Desktop 负责项目目录呈现。
 
 ## 从哪里读代码
 

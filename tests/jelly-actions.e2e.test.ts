@@ -4,6 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+// W5-01-JELLYHTTP-02: the real client reads the declared Runtime root before editing and after reload.
 for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual plan, copy event and reload through actions`, { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, reloadPage, origin, projectId, homeDirectory } = browser;

@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Coding App: sessions, runs, and the change sets, reports and diagrams they produce.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -21,8 +21,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../../node_modules/.bin/esbuild src/browser/draft-factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(ports, draft) => {' '--footer:js=return draft}' --outfile=dist/draft-bundle.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",

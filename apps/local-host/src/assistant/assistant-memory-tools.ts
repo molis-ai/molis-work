@@ -44,7 +44,9 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
       const result = await memory.write(caller, { scope: request.scope, text: request.text, said: request.said, ...(request.kind ? { kind: request.kind } : {}), ...(request.replaces ? { replaces: request.replaces } : {}) }, { originals: await input.spoken() });
       // Only what really went into memory counts as kept; the reply must say what happened instead.
       if (result.outcome === "refused") throw assistantErrors.invalid(`没有记住：${result.reason}`);
-      if (result.outcome === "candidate") throw assistantErrors.invalid(`没有直接记住：${result.reason}。已作为建议放在工作面板，等用户认可`);
+      // Only the outcome: why the gate held it is the person's to read on the card, not a rule for the model to repeat (specs/ai-input-receipts D32).
+      // A suggestion means 允许记住 is on for this scope (the memory service refuses outright when it is off), so the model is told that too, rather than guessing a reason (D32-b).
+      if (result.outcome === "candidate") throw assistantErrors.invalid("没有直接记住，已作为建议放在工作面板，等用户认可；这个范围的“允许记住”是开着的，没直接记住的原因写在卡片的详情里");
       return { memory_id: result.memory!.memory_id, scope: request.scope, applies: result.applies_text, ...(result.outcome === "duplicate" ? { note: result.reason } : {}) };
     } }),
     list: async () => (await memory.list(caller, { scope: "all" })).items.map(item => ({ memory_id: item.memory_id, scope: item.scope,
@@ -61,5 +63,6 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
 export function assistantCandidate(candidate: MemoryCandidate): AssistantMemoryCandidate {
   return { candidate_id: candidate.candidate_id, work_id: candidate.work?.work_id ?? "", work_title: candidate.work?.title ?? "", scope: candidate.scope,
     ...(candidate.project_id ? { project_id: candidate.project_id } : {}), text: candidate.text, why: candidate.why, applies: candidate.applies.task ?? "",
-    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}) };
+    state: candidate.state, created_at: candidate.created_at, ...(candidate.memory_id ? { memory_id: candidate.memory_id } : {}),
+    ...(candidate.from === "gate" && candidate.hold_reason ? { held: candidate.hold_reason } : {}) };
 }

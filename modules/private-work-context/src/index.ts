@@ -2,7 +2,6 @@ export * from "@molis-ai/molis-work-contracts/modules/private-work-context";
 export { findSessionForHostSignals } from "./session-host-signals.js";
 export { createSessionContentStore, type SessionContentStore } from "./content-store.js";
 export {
-  RuntimeContextBindingRepository,
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
   createRuntimeContextSuggestionRejectionTable,
@@ -45,7 +44,8 @@ export { createRuntimeProjectBindingValidation, type RuntimeProjectBindingValida
 export { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "./project-binding-commands.js";
 
 export { createRuntimeProjectSetup, type RuntimeProjectSetupPorts } from "./project-setup.js";
-export type {SessionReplicationSupport,SessionReplicaJournal,SessionReplicaOwner} from './session-replication-journal.js';
-export {sessionSyncReferenceDeclaration} from './session-reference-scope.js';
-export {hasSessionSyncProtectedData} from './session-database.js';
-export {withWorkSessionReplica,type WorkSessionReplicationOptions} from './session-sync.js';
+export { createRuntimeContextModule, type RuntimeContextModuleOptions } from "./runtime-context-module.js";
+export { type SessionReplicationSupport, type SessionReplicaJournal, type SessionReplicaOwner } from "./session-replication-journal.js";
+export { sessionSyncReferenceDeclaration } from "./session-reference-scope.js";
+export { hasSessionSyncProtectedData } from "./session-database.js";
+export { withWorkSessionReplica, type WorkSessionReplicationOptions } from "./session-sync.js";

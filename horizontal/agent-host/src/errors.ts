@@ -9,7 +9,11 @@ export const agentErrors = defineErrorCodes("agent", {
   collaboration_check_refused: "forbidden",
   collaboration_conflict: "conflict",
   collaboration_unknown: "invalid",
+  control_failed: "internal",
   directory_unauthorized: "invalid",
+  input_applied: "conflict",
+  input_not_queued: "conflict",
+  input_not_origin: "invalid",
   model_not_configured: "invalid",
   offer_mismatch: "forbidden",
   offer_unknown: "not_found",
@@ -27,4 +31,5 @@ export const agentErrors = defineErrorCodes("agent", {
   runtime_unknown: "invalid",
   session_busy: "invalid",
   session_unknown: "invalid",
+  write_checker_invalid: "invalid",
 });

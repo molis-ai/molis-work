@@ -5,6 +5,7 @@ import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { endingReviewReply } from "./fixtures/ending-review.js";
 
 /** One streamed provider turn through the production model adapter. */
 function turn(text = "好的。", tool?: { name: string; input: object }): string {
@@ -141,6 +142,9 @@ test("W3-02-G4-ANSWER-01: a real Runtime refusal shows the field error and a cor
   const requests: unknown[] = [];
   const model = createServer(async (req, res) => {
     let body = ""; for await (const chunk of req) body += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = endingReviewReply(body);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(turn(review)); return; }
     requests.push(JSON.parse(body));
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end(requests.length === 1 ? turn("", { name: "ask-user", input: { why: "确认报告格式", questions: [{ prompt: "以哪种格式整理？", type: "choice", options: [{ label: "周报" }, { label: "纪要" }] }] } }) : turn("按周报整理好了。"));

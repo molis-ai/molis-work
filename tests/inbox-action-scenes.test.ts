@@ -190,9 +190,19 @@ test("admission actions wait for the Inbox next-step judgment beside the project
 
     // inbox.content.receive: a workflow handoff into the Inbox waits for the same judgment.
     gate = Promise.withResolvers<void>(); asked = Promise.withResolvers<void>();
-    const handoff = actions.invoke(caller, inboxContentActions.receive, { payload: { title: "工作流交来的内容", body: "正文" }, context: { instance_id: "queue-test", step: 1 } });
+    const handoff = actions.invoke(caller, inboxContentActions.receive, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" });
     await asked.promise;
     assert.equal(await unrelatedRead(second.item_id), "answered");
-    gate.resolve(); await handoff;
+    gate.resolve(); const handed = await handoff;
+
+    // W4-6-05: who handed it in comes from the call's audience (this caller is a person), never from the input. The entry says so, and
+    // the nested Feed call kept the audience: the material is filed under the hand-in source, not under 「工作流程」.
+    await host.withProject(reference, runtime => {
+      const feed = createLocalFeedApplication(runtime.store.db);
+      const entry = feed.getInboxEntry(reference.project_id, handed.item_id);
+      assert.equal(entry.detail?.added_by, "web_user");
+      const item = feed.getFeedItem(reference.project_id, entry.subject_id);
+      assert.equal(item.source_label, "放进来的内容");
+    });
   } finally { gate.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });

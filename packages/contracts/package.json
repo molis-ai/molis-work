@@ -4,7 +4,7 @@
   "private": true,
   "description": "Publishable Module, service, and platform Contract subpaths.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -134,6 +134,10 @@
       "types": "./dist/platform/plugin-sandbox.d.ts",
       "import": "./dist/platform/plugin-sandbox.js"
     },
+    "./platform/plugin-registration": {
+      "types": "./dist/platform/plugin-registration.d.ts",
+      "import": "./dist/platform/plugin-registration.js"
+    },
     "./platform/plugin-agent": {
       "types": "./dist/platform/plugin-agent.d.ts",
       "import": "./dist/platform/plugin-agent.js"
@@ -225,6 +229,10 @@
     "./services/scheduler": {
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
+    },
+    "./services/knowledge": {
+      "types": "./dist/services/knowledge.d.ts",
+      "import": "./dist/services/knowledge.js"
     },
     "./services/search": {
       "types": "./dist/services/search.d.ts",

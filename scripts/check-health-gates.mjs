@@ -36,6 +36,7 @@ import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { browserWantsText } from "./gates/browser-graph.mjs";
 import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
+import { DOCS_JSON_LIMIT_KEY } from "./gates/doc-raw-data.mjs";
 import { domEventProblems } from "./gates/dom-events.mjs";
 import { kernelContextualProblems } from "./gates/kernel-contextual.mjs";
 import { createTranslationMetric } from "./gates/translations.mjs";
@@ -46,6 +47,7 @@ import { splitsWantText, testImportSplits } from "./gates/test-import-splits.mjs
 import { inventoryProblems, loadRegistry } from "./gates/package-inventory.mjs";
 import { structureMetrics, structureWantsText } from "./gates/structure.mjs";
 import { tableOwnerProblems } from "./gates/table-owners.mjs";
+import { storeVersionProblems } from "./gates/store-versions.mjs";
 import { specCoverageLine } from "./gates/spec-coverage.mjs";
 import { createLintMetrics, isOwnRepository, lintWantsText } from "./gates/lint.mjs";
 import { createErrorMetrics } from "./gates/error-metrics.mjs";
@@ -86,10 +88,14 @@ const gitMaybe = (gitArgs) => { try { return run(gitArgs).trim(); } catch { retu
 
 // ---- the thresholds (§4.5): they may be tightened, never loosened; --base compares them with the merge-base's --------
 const LIMIT_KEYS = ["file", "classLines", "classMethods", "functionLines", "vendoredPrologueSdk"];
+// Read by a rule of its own (scripts/gates/doc-raw-data.mjs says when it must be there); compared like the others once the
+// merge-base has it, and dropping it is loosening it.
+const RULE_LIMIT_KEYS = [DOCS_JSON_LIMIT_KEY];
 const parseLimits = (text, where) => {
   let parsed;
   try { parsed = JSON.parse(text); } catch { fail(`${where} is not valid JSON`); }
   for (const key of LIMIT_KEYS) if (!(parsed[key] > 0)) fail(`${where} needs a positive number for "${key}"`);
+  for (const key of RULE_LIMIT_KEYS) if (key in parsed && !(parsed[key] > 0)) fail(`${where} needs a positive number for "${key}"`);
   return parsed;
 };
 if (!existsSync(limitsPath)) fail(`${limitsPath} is missing`);
@@ -484,7 +490,9 @@ const limitErrors = () => {
     return [];
   }
   const before = parseLimits(git(["cat-file", "blob", `${mergeBase}:${limitsFile}`]), `${mergeBase.slice(0, 8)}:${limitsFile}`);
-  return LIMIT_KEYS.filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`);
+  const removed = RULE_LIMIT_KEYS.filter((key) => key in before && !(key in limits));
+  return [...LIMIT_KEYS, ...RULE_LIMIT_KEYS].filter((key) => limits[key] > before[key]).map((key) => `limit "${key}" loosened ${before[key]} → ${limits[key]} in tooling/gates/limits.json; limits only get tighter`)
+    .concat(removed.map((key) => `limit "${key}" removed from tooling/gates/limits.json (it was ${before[key]}); limits only get tighter`));
 };
 // Every registered exception has to describe a giant unit that exists now, with a kind and a reason. A split or a rename that
 // leaves the entry behind fails here, so the registry shrinks with the list. (Whether a unit may exist at all is decided in
@@ -496,6 +504,17 @@ const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[me
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });
+// A library whose version changed against the merge-base needs a row in the spec's maintenance list (scripts/gates/store-versions.mjs).
+// It fails closed: a table it cannot read ends the run with exit 2.
+const storeVersions = () => {
+  const show = (file) => gitMaybe(["cat-file", "blob", `${mergeBase}:${file}`]) || null;
+  try {
+    return storeVersionProblems({ read: workingTree().read, readBase: mergeBase ? show : undefined });
+  } catch (error) {
+    if (error?.storeVersionsUnreadable) fail(`Health gates could not read the library versions: ${error.message}`);
+    throw error;
+  }
+};
 const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base})` : "tooling/gates/baseline.json";
 
 // ---- --report --------------------------------------------------------------------------------------------------------
@@ -539,7 +558,7 @@ if (update) {
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
 const api = apiSnapshots();
-const errors = [...growth(), ...limitErrors(), ...absolute(), ...api.errors];
+const errors = [...growth(), ...limitErrors(), ...absolute(), ...storeVersions(), ...api.errors];
 if (errors.length) {
   console.error(`Health gates failed against ${against}:\n- ` + errors.join("\n- "));
   process.exit(1);

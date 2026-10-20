@@ -85,7 +85,7 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
   assert.match(html, /data-side-tab="plugin:example\/notes"/u);
   assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
-  assert.match(html, /data-side-tab="discussion"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="files"/u);
+  assert.match(html, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"/u, "the panel's own tabs in side-shelf §3.2's order");
   assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");
 });
 

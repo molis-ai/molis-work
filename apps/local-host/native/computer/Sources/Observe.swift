@@ -1,6 +1,7 @@
 import Cocoa
 import ApplicationServices
 import ScreenCaptureKit
+import Vision
 
 /// Accessibility reads. Every call is bounded by a messaging timeout so a hung app cannot hang the helper.
 enum AX {
@@ -315,6 +316,44 @@ enum Observe {
         }
         return ["png": png.base64EncodedString(), "rect": rectArray(captured), "width": width, "height": height,
                 "included_pids": [Int(pid)], "password_fields": masks.count, "masked": masks.count, "display": rectArray(display.frame)]
+    }
+
+    /// Text on the target app's window, with window-relative points (specs/computer-use §9, CU-G10). The screenshot
+    /// follows the same rule as any other: a password field in the crop refuses before any text leaves this process.
+    static func ocr(pid: pid_t, rect: CGRect, scale: Double) throws -> [String: Any] {
+        let shot = try screenshot(pid: pid, rect: rect, scale: scale)
+        guard let encoded = shot["png"] as? String, let data = Data(base64Encoded: encoded),
+              let image = NSImage(data: data), let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            throw HelperError("helper.failed", "cannot read the window picture for OCR")
+        }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = true
+        request.recognitionLanguages = ["zh-Hans", "en-US"]
+        try VNImageRequestHandler(cgImage: cgImage, options: [:]).perform([request])
+        let box = (shot["rect"] as? [Double]) ?? []
+        let width = box.count >= 4 ? box[2] : Double(cgImage.width)
+        let height = box.count >= 4 ? box[3] : Double(cgImage.height)
+        // The capture may be clipped by the display; the model's coordinates are relative to the window, not the crop.
+        let offsetX = (box.count >= 4 ? box[0] : Double(rect.minX)) - Double(rect.minX)
+        let offsetY = (box.count >= 4 ? box[1] : Double(rect.minY)) - Double(rect.minY)
+        let found = (request.results ?? []).compactMap { observation -> [String: Any]? in
+            guard let candidate = observation.topCandidates(1).first else { return nil }
+            let text = candidate.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            let bounding = observation.boundingBox
+            let x = Double(bounding.minX) * width + offsetX
+            let y = (1 - Double(bounding.maxY)) * height + offsetY
+            let boxWidth = Double(bounding.width) * width
+            let boxHeight = Double(bounding.height) * height
+            return ["text": String(text.prefix(500)), "x": x, "y": y, "width": boxWidth, "height": boxHeight,
+                    "confidence": Double(candidate.confidence)]
+        }.sorted { left, right in
+            let leftY = left["y"] as? Double ?? 0, rightY = right["y"] as? Double ?? 0
+            if abs(leftY - rightY) > 4 { return leftY < rightY }
+            return (left["x"] as? Double ?? 0) < (right["x"] as? Double ?? 0)
+        }.prefix(120)
+        return ["lines": Array(found), "rect": shot["rect"] ?? [Double](), "width": width, "height": height]
     }
 
     /// What sits at a global point right now: the topmost window there, and the accessibility element there.

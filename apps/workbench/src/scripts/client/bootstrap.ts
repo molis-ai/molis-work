@@ -1,9 +1,13 @@
+import { PANE_MESSAGES_SCRIPT } from "./pane-messages.js";
+
 /**
  * AP3 Workbench client segment: bootstrap.
  *
  * Notes on the script below. They are kept here rather than inside it because the script is served as it stands: a
  * comment inside it is bytes the browser downloads and never runs.
  *
+ * - `paneMessages`: the one split-pane message check (S-30, `pane-messages.ts`), handed to the factories that listen for
+ *   pane messages (the tab workspace, the context actions) so the page carries it once.
  * - `feedDirectory … feedSourceProgress`: Feed's pages and its source directory are wired from these variables. The
  *   pages are in the page whether or not the project has Feed (they fill when it does) and the source directory only
  *   while it does, so they are found again when Feed comes or goes (adoptFeed); what was bound to a container stays
@@ -19,15 +23,14 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     const tuiPane = document.querySelector("[data-tui-pane]");
     const treeScroll = document.querySelector("[data-tree-scroll]");
     const globalSearch = document.querySelector("[data-global-search]");
-    const treeSearch = document.querySelector("[data-tree-search]");
     const treeFilter = document.querySelector("[data-tree-filter]");
     const treeFilterTrigger = document.querySelector("[data-tree-filter-trigger]");
     const desktopDirectoryPanels = [...document.querySelectorAll("[data-directory-panel]")];
     const desktopWorkSurfaces = [...document.querySelectorAll("[data-work-surface]")];
     const projectMenus = [...document.querySelectorAll("[data-project-menu]")];
-    let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterSummary, feedFilterReset,
+    let feedDirectory, feedWorkbench, feedList, feedSearch, feedFilterTrigger, feedFilterPanel, feedFilterBadge, feedFilterReset,
       feedSourceFilter, feedTypeFilter, feedTimeFilter, feedStatusFilter, feedSort, feedResultCount, feedEmpty, feedDetailEmpty,
-      sourceDirectory, sourceWorkbench, sourceList, sourceSearch, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
+      sourceDirectory, sourceWorkbench, sourceList, sourceResultCount, sourceEmpty, feedSourcesDialog, feedSourceError, feedSourceProgress;
     const findFeedNodes = () => {
       feedDirectory = document.querySelector("[data-feed-directory]");
       feedWorkbench = document.querySelector("[data-feed-workbench]");
@@ -36,7 +39,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feedFilterTrigger = document.querySelector("[data-feed-filter-trigger]");
       feedFilterPanel = document.querySelector("[data-feed-filter-panel]");
       feedFilterBadge = document.querySelector("[data-feed-filter-badge]");
-      feedFilterSummary = document.querySelector("[data-feed-filter-summary]");
       feedFilterReset = document.querySelector("[data-feed-filter-reset]");
       feedSourceFilter = document.querySelector("[data-feed-source-filter]");
       feedTypeFilter = document.querySelector("[data-feed-type-filter]");
@@ -49,7 +51,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       sourceDirectory = document.querySelector("[data-source-directory]");
       sourceWorkbench = document.querySelector("[data-source-workbench]");
       sourceList = document.querySelector("[data-source-list]");
-      sourceSearch = document.querySelector("[data-source-search]");
       sourceResultCount = document.querySelector("[data-source-result-count]");
       sourceEmpty = document.querySelector("[data-source-empty]");
       feedSourcesDialog = document.querySelector("[data-feed-sources-dialog]");
@@ -57,10 +58,6 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
       feedSourceProgress = feedSourcesDialog?.querySelector("[data-feed-source-progress]");
     };
     findFeedNodes();
-    const mobileTreeTab = document.querySelector('[data-mobile-target="tree"]');
-    const mobileDocumentTab = document.querySelector('[data-mobile-target="document"]');
-    const defaultMobileTreeLabel = mobileTreeTab?.textContent || L("目标");
-    const defaultMobileDocumentLabel = mobileDocumentTab?.textContent || L("聚焦");
     const dialog = document.querySelector("[data-create-dialog]");
     const form = document.querySelector("[data-create-form]");
     const toast = document.querySelector("[data-toast]");
@@ -137,6 +134,7 @@ export const CLIENT_BOOTSTRAP_SCRIPT = `  (() => {
     let immersiveNavigation = null;
     let frameContainer = null;
     let tabWorkspace = null;
+    const paneMessages = ${PANE_MESSAGES_SCRIPT};
     let projectHome = null;
     let pluginWorkbench = null;
     let globalSearchPalette = null;

@@ -24,7 +24,7 @@ async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller
   finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }
 
-test("all Lingguang business actions register before UI, enforce identity and share content writes", async () => {
+test("RAC-32 all Lingguang business actions register before UI, enforce identity and share content writes", async () => {
   await fixture(async ({ home, client, caller, bound, host, ref }) => {
     const discovered = await client.discover(caller);
     for (const action of Object.values(actions)) assert.ok(discovered.some(row => row.capability_id === action.capability_id));
@@ -34,10 +34,12 @@ test("all Lingguang business actions register before UI, enforce identity and sh
     await assert.rejects(client.invoke({ ...caller, project_id: "b" }, actions.list, {}), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["lingguang:read"] }, actions.create, { title: "Forbidden" }), { code: "actions.forbidden" });
     await assert.rejects(bound.invoke(actions.create, { project_id: "b" } as never), { code: "actions.input_invalid" });
-    const received = await bound.invoke(content.receive, { payload: { title: "Workflow", body: "Written via business action" }, context: { instance_id: "workflow-1", step: 1 } });
+    const delivery = { title: "Workflow", body: "Written via business action", request_id: "workflow:workflow-1:1" };
+    const received = await bound.invoke(content.receive, delivery);
+    assert.equal((await bound.invoke(content.receive, delivery)).item_id, received.item_id, "W4-6-02 the same request id returns the spark it made");
     assert.equal((await bound.invoke(actions.get, { id: received.item_id })).spark.body, "Written via business action");
     await assert.rejects(client.invoke({ ...caller, allowed_capability_ids: [content.receive.capability_id] }, content.receive,
-      { payload: { title: "Bypass", body: "Must not write" }, context: { instance_id: "workflow-1", step: 2 } }), { code: "actions.forbidden" });
+      { title: "Bypass", body: "Must not write", request_id: "workflow:workflow-1:2" }), { code: "actions.forbidden" });
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 2);
     const edited = (await bound.invoke(actions.update, { id: spark.id, body: "Edited", expected_updated_at: spark.updated_at })).spark;
     await assert.rejects(bound.invoke(actions.update, { id: spark.id, body: "Lost update", expected_updated_at: spark.updated_at }), { code: "lingguang.conflict" });
@@ -115,7 +117,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "discard", 
       const controller = new AbortController();
       const pending = client.invoke({ ...caller, signal: controller.signal }, actions.message, { id: conversation.id, body: "Question" });
       const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" }
-        : mode === "failure" ? /Fixture model failure/ : mode === "empty" ? { code: "lingguang.empty_reply" }
+        : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? { code: "lingguang.empty_reply" }
         : mode === "cancel" ? { name: "AbortError" } : { code: "lingguang.conflict" });
       if (!["missing", "failure", "empty"].includes(mode)) {
         await entered;
@@ -138,7 +140,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "discard", 
   });
 }
 
-test("real HTTP canonical and legacy URLs share Host actions and reject project tampering", async () => {
+test("RAC-31 real Runtime HTTP shares Host actions, rejects project tampering and retires old URLs", async () => {
   const home = await mkdtemp(join(tmpdir(), "lingguang-http-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "Lingguang", actor_id: "test" });
@@ -155,7 +157,7 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
         headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
       const result = await response.json() as any; assert.equal(response.status, status, JSON.stringify(result)); return result;
     };
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await http(path, { title: "Canonical", body: "Same data" });
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
@@ -163,10 +165,14 @@ test("real HTTP canonical and legacy URLs share Host actions and reject project 
     await http(`${path}?project_id=other`, { title: "Denied" }, 403);
     await http(path, { project_id: "other", title: "Denied" }, 403);
     // Only the project's own URL reaches 灵光; there is no unscoped one that picks a project from the request.
-    assert.notEqual((await fetch(origin + `/api/plugins/lingguang?project_id=${project.project_id}`)).status, 200);
+    assert.notEqual((await fetch(origin + `/api/plugins/io.molis.work.lingguang/sparks?project_id=${project.project_id}`)).status, 200);
     const state = await http(`${path}/conversations`, { spark_ids: [spark.id] });
     // W3-02-D: no model is `actions.connection_required`, whose kind (unavailable) is 503 at every plugin; 灵光 answered 400 through its own mapper.
-    await http(`${path}/conversations/${state.conversation.id}/messages`, { body: "No model" }, 503);
+    const stream = await fetch(origin + `${path}/conversations/${state.conversation.id}/messages`, { method: "POST", body: JSON.stringify({ body: "No model" }),
+      headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": crypto.randomUUID() } });
+    const refusedReply = (await stream.text()).trim().split("\n").map(line => JSON.parse(line)).at(-1);
+    assert.deepEqual([refusedReply.type, refusedReply.status, refusedReply.code], ["error", 503, "actions.connection_required"]);
+    for (const old of ["/api/lingguang", "/api/plugins/lingguang"]) assert.equal((await fetch(origin + `/projects/${project.project_id}` + old)).status, 404);
     assert.equal((await bound.invoke(actions.getConversation, { id: state.conversation.id })).messages.length, 0);
     assert.equal((await bound.invoke(actions.list, {})).sparks.length, 1);
     // The page's own discard: the copy it read is named, and a spark written to since is refused (409) and stays.
@@ -245,14 +251,14 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     const headers = { origin, "content-type": "application/json", "x-molis-work-control-token": token };
     const post = (path: string, body: unknown, signal?: AbortSignal) => fetch(origin + path, { method: "POST", body: JSON.stringify(body), signal,
       headers: { ...headers, "x-molis-work-idempotency-key": crypto.randomUUID() } });
-    const path = `/projects/${project.project_id}/api/plugins/lingguang`;
+    const path = `/projects/${project.project_id}/api/plugins/io.molis.work.lingguang/sparks`;
     const { spark } = await (await post(path, { title: "Stream", body: "A thought" })).json() as { spark: { id: string } };
     const { conversation } = await (await post(`${path}/conversations`, { spark_ids: [spark.id] })).json() as { conversation: { id: string } };
     const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const bound = bindActionClient(host.actionClient(ref), () => ({ actor_id: "owner", project_id: project.project_id, audience: "user", permissions: LINGGUANG_ACTION_PERMISSIONS }));
     // Stopped: the page reads the first words, then closes the request.
     const controller = new AbortController();
-    const first = await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" }, controller.signal);
+    const first = await post(`${path}/conversations/${conversation.id}/messages`, { body: "继续" }, controller.signal);
     assert.match(first.headers.get("content-type") ?? "", /ndjson/);
     const reader = first.body!.getReader(), decoder = new TextDecoder();
     let seen = "";
@@ -266,13 +272,13 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     assert.equal((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.length, 0, "a stopped reply saves nothing");
     // Finished: the preview lines, then the saved state.
     finish.resolve();
-    const lines = (await (await post(`${path}/conversations/${conversation.id}/messages?stream=1`, { body: "继续" })).text()).trim().split("\n").map(line => JSON.parse(line));
+    const lines = (await (await post(`${path}/conversations/${conversation.id}/messages`, { body: "继续" })).text()).trim().split("\n").map(line => JSON.parse(line));
     assert.deepEqual(lines.filter(line => line.type === "progress" && line.text_delta).map(line => line.text_delta), ["第一句，", "第二句。"]);
     const result = lines.find(line => line.type === "result");
     assert.equal(result.result.messages.at(-1).body, "第一句，第二句。");
     assert.deepEqual((await bound.invoke(actions.getConversation, { id: conversation.id })).messages.map((message: { body: string }) => message.body), ["继续", "第一句，第二句。"]);
-    const hostSource = readFileSync(new URL("../apps/local-host/src/lingguang-native-plugin-http.ts", import.meta.url), "utf8");
-    for (const word of ["waiting", "extracting", "writing", "text_delta"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
+    const hostSource = readFileSync(new URL("../apps/local-host/src/plugin-route-stream.ts", import.meta.url), "utf8");
+    for (const word of ["waiting", "extracting", "writing"]) assert.equal(hostSource.includes(word), false, `the host still names ${word}`);
     const client = readFileSync(new URL("../plugins/native/lingguang/src/client.ts", import.meta.url), "utf8");
     const submit = client.slice(client.indexOf('chatForm.addEventListener("submit"'), client.indexOf('chatForm.addEventListener("keydown"'));
     const caught = submit.slice(submit.indexOf("} catch"), submit.indexOf("} finally"));
@@ -283,4 +289,22 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });
     catalog.close(); await host.close(); await rm(home, { recursive: true, force: true });
   }
+});
+
+// W4-1 LG-REVERT-01 (specs/context-program §21.5): 记下灵光 is taken back by `lingguang.revert`, which goes through the same store
+// function and version check as `lingguang.discard` and needs the same permission. Changed since it was noted, it is refused and
+// nothing changes; unchanged, it leaves the list and the record is kept.
+test("LG-REVERT-01 lingguang.revert refuses a spark changed since it was noted and changes nothing; an unchanged one leaves the list", async () => {
+  await fixture(async ({ bound, client, caller }) => {
+    const { spark } = await bound.invoke(actions.create, { title: "Noted", body: "As noted" });
+    const edited = (await bound.invoke(actions.update, { id: spark.id, title: "Edited elsewhere", expected_updated_at: spark.updated_at })).spark;
+    await assert.rejects(bound.invoke(actions.revert, { id: spark.id, expected_updated_at: spark.updated_at }), { code: "lingguang.conflict" });
+    assert.deepEqual((await bound.invoke(actions.get, { id: spark.id })).spark, edited, "neither discarded nor changed");
+    await assert.rejects(client.invoke({ ...caller, permissions: ["lingguang:read"] }, actions.revert, { id: spark.id, expected_updated_at: edited.updated_at }),
+      { code: "actions.forbidden" }, "the same permission as discard");
+    assert.deepEqual(actions.revert.action.permissions, actions.discard.action.permissions);
+    await bound.invoke(actions.revert, { id: spark.id, expected_updated_at: edited.updated_at });
+    assert.deepEqual((await bound.invoke(actions.list, {})).sparks.map(row => row.id), [], "out of the list");
+    assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "discarded", "the record is kept");
+  });
 });

@@ -34,7 +34,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
                 <span class="assistant-summary-controls">
                   <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                   <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
-                  <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+                  <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${L("停止任务，接入继续")}</button>
                 </span>
               </div>
               <p class="assistant-summary-title" data-assistant-work-title>${L("新工作")}</p>
@@ -43,6 +43,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             </section>
             <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
             <section class="assistant-block" data-assistant-block="path" aria-label="${L("路径")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="agreements" aria-label="${L("AI 记下的约定")}" hidden></section>
             <section class="assistant-block" data-assistant-block="materials" aria-label="${L("材料")}" hidden></section>
             <section class="assistant-block" data-assistant-block="results" aria-label="${L("产出")}" hidden></section>
             <section class="assistant-block assistant-block--usage" data-assistant-usage hidden></section>
@@ -54,7 +55,7 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
               <span class="assistant-strip-actions">
                 <button class="assistant-control" type="button" data-assistant-control="pause" hidden>${L("暂停")}</button>
                 <button class="assistant-control" type="button" data-assistant-control="resume" hidden>${L("继续")}</button>
-                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button>
+                <button class="assistant-control assistant-control--stop" type="button" data-assistant-control="stop" hidden>${L("停止")}</button><button class="assistant-control" type="button" data-assistant-control="stop" data-keep-connections hidden>${L("停止任务，接入继续")}</button>
               </span>
             </div>
             <div class="assistant-thread" data-assistant-thread role="log" aria-live="polite" aria-relevant="additions">

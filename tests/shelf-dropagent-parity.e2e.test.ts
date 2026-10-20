@@ -58,10 +58,9 @@ fi
   assert.equal(shelf.runtime().executable, join(bin, "claude"));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: "light" }] }, sessionId);
-  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
-  await waitFor("document.querySelector('[data-plugin-strip] [data-plugin-id=shelf]')");
-  await click('[data-plugin-strip] [data-plugin-id="shelf"]');
-  await waitFor("document.body.dataset.desktopSurface === 'shelf' && document.querySelector('[data-shelf-item]')", 8_000);
+  // Shelf's side panel tab, in the document the panel's frame loads (specs/side-shelf §3.2).
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/side/shelf/side` }, sessionId));
+  await waitFor("document.querySelector('[data-shelf-item]')", 8_000);
 
   const row = (id: string) => `[data-shelf-list=materials] [data-shelf-item="${id}"]`;
   const select = async (id: string) => {
@@ -179,7 +178,7 @@ fi
     await click(`[data-shelf-source="${first.item_id}"]`);
     const evidence = specEvidenceDirectory("specs/archive/shelf-dropagent-parity/evidence");
     await mkdir(evidence, { recursive: true });
-    // No side rail: the stage is wider at the same window, so the narrow capture uses 820px to stay under 640px of stage.
+    // At 820px the 213px list stays beside the open file, which leaves the stage under 640px: its narrow layout.
     for (const [name, theme, width] of [["browser-compare-light", "light", 1440], ["browser-compare-dark", "dark", 1440], ["browser-compare-narrow", "light", 820]] as const) {
       await command("Emulation.setDeviceMetricsOverride", { width, height: 960, deviceScaleFactor: 1, mobile: false }, sessionId);
       await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);

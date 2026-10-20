@@ -20,7 +20,7 @@ const reasonText: Record<string, string> = {
   "too-large": "大于允许的最大值。", "bad-date": "请输入真实日期。", "too-early": "早于允许的日期。", "too-late": "晚于允许的日期。",
   "kind-not-allowed": "这类对象不能选。", "too-many": "选多了。", duplicate: "选重复了。", "unknown-option": "这个选项已不存在。",
 };
-function toField(q: SdkQuestion, problems: SdkProblem[], drafts: Record<number, unknown>, candidates: Array<{ kind: string; id: string; label: string }>): InteractionField {
+function toField(q: SdkQuestion, problems: SdkProblem[], drafts: Record<number, unknown>): InteractionField {
   const own = problems.find(problem => problem.question === q.index);
   const id = q.id ?? `q${q.index}`;
   const base = { id, label: q.prompt, optional: q.required === false, hint: q.help, error: own ? reasonText[own.reason] ?? own.message : undefined };
@@ -34,7 +34,8 @@ function toField(q: SdkQuestion, problems: SdkProblem[], drafts: Record<number, 
     case "number": return { ...base, control: { kind: "number", value: String(draft ?? q.default ?? ""), min: q.min as number | undefined, max: q.max as number | undefined, integer: q.integer } };
     case "date": return { ...base, control: { kind: "date", value: String(draft ?? q.default ?? "") } };
     case "datetime": return { ...base, control: { kind: "datetime", date: "", time: "", zone: "" } };
-    case "reference": return { ...base, control: { kind: "reference", candidates: candidates.filter(c => q.refKinds?.includes(c.kind)).map(c => ({ id: c.id, label: c.label, meta: c.kind })) } };
+    // The question names only kinds; candidates come from the consumer's own search as the person types (T2).
+    case "reference": return { ...base, control: { kind: "reference", source: (q.refKinds ?? []).join(","), multiple: q.multiple, max: q.maxCount, picked: [] } };
   }
 }
 const questions: SdkQuestion[] = [
@@ -44,10 +45,9 @@ const questions: SdkQuestion[] = [
   { index: 3, id: "deadline", prompt: "截止", options: [], type: "date" },
   { index: 4, id: "goal", prompt: "关联 Goal", options: [], type: "reference", refKinds: ["goal"], maxCount: 1 },
 ];
-const catalog = [{ kind: "goal", id: "g1", label: "内部试用" }, { kind: "document", id: "d1", label: "不该出现的文档" }];
 
 test("AC-17 / AC-04: a typed SDK question set converts to field views with help, required marks, recommendations and an other slot", () => {
-  const fields = questions.map(q => toField(q, [], {}, catalog));
+  const fields = questions.map(q => toField(q, [], {}));
   const html = renderInteractionQuestion({ id: "sdk", kicker: "需要你补充", title: "安排", fields, footer: { note: "", actions: [] } });
   assert.match(html, /data-ix-option="0" role="radio" aria-checked="true"/, "a default only pre-selects; the answer is whatever the person submits");
   assert.match(html, /<span class="mw-ix-tag">推荐<\/span>/);
@@ -55,12 +55,11 @@ test("AC-17 / AC-04: a typed SDK question set converts to field views with help,
   assert.match(html, /<span class="mw-ix-optional">选填<\/span>/);
   assert.match(html, /说清想解决什么。/);
   assert.match(html, /data-ix-min="15" data-ix-max="120"/);
-  assert.doesNotMatch(html, /不该出现的文档/, "candidates outside the question's refKinds never reach the card");
-  assert.match(html, /data-ix-reference="g1"/);
+  assert.match(html, /data-ix-references data-ix-ref-source="goal"/, "a reference names the question's kinds for the search, and lists nothing itself");
 });
 test("AC-04 / AC-17: every closed-set problem reason lands on its own field and leaves the others untouched", () => {
   const problems: SdkProblem[] = [{ question: 2, id: "minutes", reason: "too-large", message: "x" }, { question: 3, id: "deadline", reason: "bad-date", message: "y" }, { question: 4, reason: "required", message: "z" }];
-  const fields = questions.map(q => toField(q, problems, { 2: "999" }, catalog));
+  const fields = questions.map(q => toField(q, problems, { 2: "999" }));
   const html = renderInteractionQuestion({ id: "sdk", kicker: "需要你补充", title: "安排", fields, footer: { note: "还有 3 项要修正", error: true, actions: [] } });
   assert.match(html, /id="sdk-minutes-error" data-ix-error>大于允许的最大值。/);
   assert.match(html, /id="sdk-deadline-error" data-ix-error>请输入真实日期。/);

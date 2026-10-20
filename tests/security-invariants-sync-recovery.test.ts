@@ -5,7 +5,7 @@ import {createSqliteReplica,initializeReplica,replicaSchemaSql,replicaMarkSql} f
 import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 function replica(db:Parameters<typeof createSqliteReplica>[0],owner:Parameters<typeof createSqliteReplica>[1]){return createSqliteReplica(db,{...owner,conflictState:createSyncConflictState});}
 
-test('S-32 PCSYNC-15 missing comparison port refuses user confirmation and preserves all original content',t=>{
+test('S-63 PCSYNC-15 missing comparison port refuses user confirmation and preserves all original content',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);let applied=0;
  queueLocal();function queueLocal(){db.prepare('INSERT INTO replica_changes(key) VALUES (?)').run('asset');}
  const r=createSqliteReplica(db,{authorize(){},read:()=>({body:'unique local'}),apply(){applied++;}});
@@ -15,7 +15,7 @@ test('S-32 PCSYNC-15 missing comparison port refuses user confirmation and prese
  assert.equal(applied,0);assert.equal(r.counts().pending,1);assert.equal(r.conflicts().length,1);assert.deepEqual(r.recoveries!(),[]);
 });
 
-test('S-32 PCSYNC-16 conflict decisions bind the inspected revision; unchosen content stays recoverable',t=>{
+test('S-63 PCSYNC-16 conflict decisions bind the inspected revision; unchosen content stays recoverable',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);
  db.exec('CREATE TABLE content(key TEXT PRIMARY KEY,value TEXT);CREATE TRIGGER dirty AFTER INSERT ON content BEGIN '+replicaMarkSql('NEW.key')+' END;');
  const owner={authorize(){},read:(key:string)=>db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null,apply(key:string,value:unknown){db.prepare('INSERT OR REPLACE INTO content VALUES (?,?)').run(key,value as string);}};
@@ -30,7 +30,7 @@ test('S-32 PCSYNC-16 conflict decisions bind the inspected revision; unchosen co
  const mutation=r.next()!;assert.equal(mutation.value,'unique local');assert.equal(mutation.base,2);r.receive({...mutation,revision:3});
  assert.throws(()=>r.restoreRecovery!(retained.id,'local',2),/已有新修改/);assert.equal(owner.read('asset'),'unique local');assert.equal(r.counts().pending,0);
 });
-test('S-32 PCSYNC-06/16 a revoked restore rolls back content, applying flag, history and upload queue',t=>{
+test('S-63 PCSYNC-06/16 a revoked restore rolls back content, applying flag, history and upload queue',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);db.exec('CREATE TABLE content(key TEXT PRIMARY KEY,value TEXT);CREATE TRIGGER dirty AFTER INSERT ON content BEGIN '+replicaMarkSql('NEW.key')+' END;');
  let active=true,revoke=false;
  const r=replica(db,{authorize(){if(!active)throw new Error('REVOKED');},read:key=>db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null,apply(key,value){db.prepare('INSERT OR REPLACE INTO content VALUES (?,?)').run(key,value as string);if(revoke)active=false;}});
@@ -39,7 +39,7 @@ test('S-32 PCSYNC-06/16 a revoked restore rolls back content, applying flag, his
  assert.throws(()=>r.restoreRecovery!(saved.id,'local',1),/REVOKED/);assert.equal(db.prepare('SELECT value FROM content').get()!.value,'remote');assert.equal(db.prepare('SELECT COUNT(*) AS n FROM replica_resolutions').get()!.n,count);assert.equal(db.prepare('SELECT applying FROM replica_state').get()!.applying,0);assert.equal(db.prepare('SELECT COUNT(*) AS n FROM replica_changes').get()!.n,0);
 });
 
-test('S-32 PCSYNC-19/26 receipt acknowledgement never drops a later local edit or skips a remote download',t=>{
+test('S-63 PCSYNC-19/26 receipt acknowledgement never drops a later local edit or skips a remote download',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);db.exec('CREATE TABLE content(key TEXT PRIMARY KEY,value TEXT);CREATE TRIGGER dirty AFTER INSERT ON content BEGIN '+replicaMarkSql('NEW.key')+' END;');
  let active=true,applies=0;const owner={authorize(){if(!active)throw new Error('REVOKED');},read:(key:string)=>db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null,apply(key:string,value:unknown){applies++;db.prepare('INSERT OR REPLACE INTO content VALUES (?,?)').run(key,value as string);}};
  const r=replica(db,owner);db.prepare('INSERT INTO content VALUES (?,?)').run('asset','first');const frozen=r.next()!;
@@ -52,7 +52,7 @@ test('S-32 PCSYNC-19/26 receipt acknowledgement never drops a later local edit o
  r.receive({key:'other',operationId:'remote-other',base:0,revision:8,value:'downloaded'});assert.equal(owner.read('other'),'downloaded','per-key head does not skip other assets');assert.equal(r.cursor(),8);
 });
 
-test('S-32 PCSYNC-15/16 a comparison confirmed after a later local edit is refused atomically',t=>{
+test('S-63 PCSYNC-15/16 a comparison confirmed after a later local edit is refused atomically',t=>{
  const db=new DatabaseSync(':memory:');t.after(()=>db.close());db.exec(replicaSchemaSql());initializeReplica(db);
  db.exec('CREATE TABLE content(key TEXT PRIMARY KEY,value TEXT);CREATE TRIGGER dirty AFTER INSERT ON content BEGIN '+replicaMarkSql('NEW.key')+' END;');
  const owner={authorize(){},read:(key:string)=>db.prepare('SELECT value FROM content WHERE key=?').get(key)?.value??null,apply(key:string,value:unknown){db.prepare('INSERT OR REPLACE INTO content VALUES (?,?)').run(key,value as string);}};

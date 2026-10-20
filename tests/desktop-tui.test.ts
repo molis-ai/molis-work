@@ -76,7 +76,9 @@ test("native Desktop identity self-heals before layout and survives full-page na
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /--desktop-window-safe-inline-start","88px"/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /next\.searchParams\.set\("desktop","1"\)/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /location\.replace\(normalized\)/);
-  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkOpenShelf/);
+  // W2'-3: Shelf's hotkey and menu name the plugin; the page decides where it opens (desktop-shelf-side.e2e).
+  assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkOpenShelf=\(\)=>globalThis\.molisWorkOpenPlugin\?\.\("shelf"\)/);
+  assert.doesNotMatch(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /data-plugin-strip|desktopSurface/);
   assert.match(NATIVE_DESKTOP_BOOTSTRAP_SCRIPT, /molisWorkShelfNotice/);
   assert.match(WEB_RENDER_SOURCE, /const THEME_BOOTSTRAP_SCRIPT = `\$\{BASE_THEME_BOOTSTRAP_SCRIPT\}\$\{NATIVE_DESKTOP_BOOTSTRAP_SCRIPT\}`/);
   assert.doesNotMatch(
@@ -601,14 +603,16 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     const pluginStrip = browser.match(/<nav class="[^"]*plugin-rail immersive-plugin-strip"[^>]*>[\s\S]*?<\/nav>/)?.[0];
     assert.ok(pluginStrip);
     assert.match(pluginStrip, /data-plugin-id="home"[^>]*data-work-surface-open="home"/);
-    for (const plugin of ["goals", "sessions", "inbox", "feed", "shelf", "artifacts"]) {
+    for (const plugin of ["goals", "sessions", "inbox", "feed", "artifacts"]) {
       assert.match(pluginStrip, new RegExp(`data-plugin-id="${plugin}"`));
     }
+    assert.doesNotMatch(pluginStrip, /data-plugin-id="shelf"/, "Shelf is a 常开插件, a tab of the side panel, not an entry of the switcher");
     assert.match(pluginStrip, /data-plugin-id="goals"[\s\S]*data-plugin-id="sessions"/);
     // No rail: one bar at the foot. At its left the switcher, which holds, under search and the two buttons that get more
     // plugins (the market, the studio), every plugin (each with its own Dock button), then the Dock; the Assistant is only an
-    // input; Shelf and 灵光; then the project, whose menu opens group chat and holds the person.
-    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">[\s\S]*data-bar-resident="shelf"[\s\S]*data-bar-resident="lingguang"[\s\S]*class="bar-chat"[^>]*data-dock-toggle="im"[\s\S]*data-dock-window="im"[\s\S]*data-project-menu/);
+    // input; the side panel's one button (Shelf and 灵光 are its tabs); then the project, whose menu holds the person.
+    assert.match(browser, /class="workbench-bar" data-dock[^>]*>\s*<div class="bar-start">[\s\S]*data-plugin-picker-toggle[\s\S]*data-global-menu[\s\S]*class="plugin-rail-items"[\s\S]*data-dock-pins[\s\S]*<div class="bar-center" data-assistant-island data-system-view-owner="assistant">[\s\S]*data-assistant-input[\s\S]*<div class="bar-end">\s*<div class="bar-side"><button class="bar-chat"[^>]*data-side-toggle[^>]*aria-controls="side-panel"[^>]*><svg[\s\S]*?<\/button><\/div>[\s\S]*id="side-panel"[\s\S]*data-project-menu/);
+    assert.doesNotMatch(browser, /data-bar-resident|data-dock-toggle|data-dock-window|dock-window-im/, "the side panel has one button and no group-chat names (side-shelf §7)");
     assert.doesNotMatch(browser, /class="plugin-stack"|class="workbench-dock"|data-navigation-labels-toggle/);
     assert.doesNotMatch(pluginStrip, /返回项目目录/);
     assert.doesNotMatch(pluginStrip, /data-plugin-section=|data-plugin-expand=/);
@@ -623,7 +627,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(extend, /data-plugin-id="(characters|settings)"|personal-account|capabilities/, "the person, settings and capabilities live under the project button");
     const projectMenu = browser.slice(browser.indexOf('<div class="bar-end">')).match(/<details[^>]*data-project-menu>[\s\S]*?<\/details>/)?.[0] ?? "";
     // The menu is the project and the person; the discussion has its own button in the bar.
-    assert.doesNotMatch(projectMenu, /data-dock-toggle/);
+    assert.doesNotMatch(projectMenu, /data-side-toggle/);
     assert.match(projectMenu, /navigator-project-manage[\s\S]*data-personal-menu[\s\S]*class="personal-account"[\s\S]*href="\/capabilities\/library[^"]*"[^>]*data-capabilities-open[\s\S]*data-plugin-id="settings"/);
     const railItems = pluginStrip?.slice(pluginStrip.indexOf('<div class="plugin-rail-items"'), pluginStrip.indexOf("data-rail-tools-toggle") + "data-rail-tools-toggle".length) ?? "";
     assert.match(railItems, /^<div class="plugin-rail-items"[^>]*><button[^>]*data-plugin-id="home"/);
@@ -687,10 +691,10 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-workspace-mode="graph"/);
     assert.doesNotMatch(desktop, /data-workbench-view="graph"/);
     assert.match(desktop, /data-navigator-view="graph"/);
-    // Identifier/whitespace checks belong to the public source, not its equivalent compressed asset.
-    assert.match(CLIENT_SCRIPT, /if \(mobileView === "document"\) setWorkspaceMode\("focus", false\)/);
-    assert.match(CLIENT_SCRIPT, /if \(mobileView === "tui"\) setWorkspaceMode\("runtime", false\)/);
-    assert.match(CLIENT_SCRIPT, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    // The phone's tab switch has had no markup since bc79f8a49; its click handler is gone too (W3-A3a), and narrow layouts
+    // move between panes from the places that open them.
+    assert.doesNotMatch(desktop, /data-mobile-target/);
+    assert.match(desktop, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
     assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
     assert.match(desktop, /data-tauri-drag-region/);
     assert.match(desktop, /\.tui-terminal \{ grid-area: terminal;/);
@@ -725,7 +729,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="sessions"/);
     assert.match(desktopMarkup, /data-session-stage-shell/);
     assert.doesNotMatch(desktopMarkup, /data-plugin-section="shelf"/);
-    assert.match(desktopMarkup, /data-shelf-stage-shell/);
+    assert.doesNotMatch(desktopMarkup, /data-shelf-stage-shell/, "Shelf has no stage in the work area; it opens in its side tab");
     assert.match(desktop, /data-plugin-section="feed"/);
     assert.match(desktop, /data-directory-panel="sources"[^>]*data-source-directory hidden/);
     assert.doesNotMatch(desktop, /data-directory-open="inbox"/);

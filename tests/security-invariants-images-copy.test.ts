@@ -1,20 +1,23 @@
+import {imageRuntimeFixture,imageTerminal} from './fixtures/images-runtime.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {mkdtempSync,rmSync,readFileSync,readdirSync,writeFileSync} from 'node:fs';
 import {join} from 'node:path';
 import {tmpdir} from 'node:os';
-import {setImmediate} from 'node:timers/promises';
-import {ImagesService,openImagesCopyOwner,openImagesSyncStore} from '@molis-ai/molis-work-plugin-images';
+import {imagesActions,openImagesCopyOwner,openImagesSyncStore} from '@molis-ai/molis-work-plugin-images';
 import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import {projectCopyIdentities,previewProjectCopy} from '@molis-ai/molis-work-service-placement';
 
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLbtAAAAABJRU5ErkJggg==','base64');
 async function fixture(t:import('node:test').TestContext){
- const root=mkdtempSync(join(tmpdir(),'images-copy-'));t.after(()=>rmSync(root,{recursive:true,force:true}));const source=join(root,'local'),target=join(root,'personal'),local=ensureStorageSpace(source),personal=ensureStorageSpace(target,personalStorageSpace('https://auth.example.test','work','alice'));
+ const root=mkdtempSync(join(tmpdir(),'images-copy-'));const source=join(root,'local'),target=join(root,'personal'),local=ensureStorageSpace(source),personal=ensureStorageSpace(target,personalStorageSpace('https://auth.example.test','work','alice'));
  let calls=0,active=true;const authorize=()=>{if(!active)throw new Error('ACCOUNT_CHANGED');};
- const service=new ImagesService({homeDirectory:source,resolveConnectionKey:()=> 'only-in-source-secret-store',selectConnection(){},selectedConnectionId:()=> 'source-auth',clearConnection(){},generate:async()=>{calls++;return [{bytes:png,mime:'image/png'}];}});
- const connection=service.saveConnection({name:'Saved source label',api_format:'openai-images',base_url:'https://provider.example/v1',model:'source-model',auth_connection_id:'source-auth'}),job=service.start('original',{request_id:'original-request',connection_id:connection.id,prompt:'Keep literal original source ID'});
- let saved=service.getJob('original',job.id);for(let index=0;index<100&&saved.status==='running';index++){await setImmediate();saved=service.getJob('original',job.id);}assert.equal(saved.status,'succeeded');await service.close();
+ const runtime=await imageRuntimeFixture(t,{home:source,respond:(_input,response)=>{calls++;response.writeHead(200,{'content-type':'application/json'});response.end(JSON.stringify({data:[{b64_json:png.toString('base64')}]}));}});
+ t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const {connection}=await runtime.client(null).invoke(imagesActions.saveConnection,{...runtime.input,name:'Saved source label'});
+ const {job}=await runtime.client('original').invoke(imagesActions.start,{request_id:'original-request',connection_id:connection.id,prompt:'Keep literal original source ID'});
+ const saved=await imageTerminal(runtime.client('original'),job.id);assert.equal(saved.status,'succeeded');await runtime.supervisor.close();
+
  const maps=projectCopyIdentities({operationId:'same-copy-request',sourceSpaceId:local.spaceId,targetSpaceId:personal.spaceId,projects:[{id:'original',title:'Independent copy'}]}),identity=maps.forProject('original');
  const context=(direction:'source'|'target',check=authorize):AggregateCopyContext=>({direction,spaceId:direction==='source'?local.spaceId:personal.spaceId,authorize:check,project(id){assert.equal(id,direction==='source'?'original':maps.project('original'));return {title:direction==='source'?'Source':'Independent copy'};},hasArtifact:()=>false,canUploadProject:()=>false});
  return {source,target,local,personal,saved,identity,context,maps,calls:()=>calls,revoke(){active=false;}};

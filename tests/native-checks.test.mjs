@@ -50,7 +50,7 @@ const rust = { skip: haveRust ? false : "cargo, clippy and rustfmt are not insta
 test("rust: a formatted, warning-free crate passes", rust, () => {
   const run = gate(crate(CLEAN_MAIN), ["rust"]);
   assert.equal(run.code, 0, run.out);
-  assert.match(run.out, /rust checks passed: 1 Rust files formatted, clippy clean/);
+  assert.match(run.out, /rust checks passed: 1 Rust files formatted, clippy clean, tests pass/);
 });
 test("rust: unformatted code fails rustfmt --check", rust, () => {
   const run = gate(crate(`fn main(){println!("hi");}\n`), ["rust"]);
@@ -72,10 +72,17 @@ test("rust: code in a test module that does not compile in tests fails (--all-ta
   const run = gate(crate(`fn main() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn broken() {\n        let unused = 1;\n    }\n}\n`), ["rust"]);
   assert.equal(run.code, 1, run.out);
 });
+test("rust: a test that fails fails the check (cargo test runs the crate's tests, not only compiles them)", rust, () => {
+  // Its own target directory: every scratch crate here has the same name, and cargo would run another one's test binary.
+  const run = gate(crate(`fn main() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn refuses() {\n        assert_eq!(1 + 1, 3, "the refusal does not hold");\n    }\n}\n`), ["rust"], { CARGO_TARGET_DIR: path.join(scratchRoot, "cargo-target-failing-test") });
+  assert.equal(run.code, 1, run.out);
+  assert.match(run.out, /cargo test failed/);
+  assert.match(run.out, /the refusal does not hold/);
+});
 test("rust: a Rust file outside registered crates is refused, however clean", () => {
   const run = gate(crate(CLEAN_MAIN, { "tooling/other/lib.rs": "pub fn f() {}\n" }), ["rust"]);
   assert.equal(run.code, 1, run.out);
-  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside apps\/desktop\//);
+  assert.match(run.out, /tooling\/other\/lib\.rs is Rust code outside registered crates/);
 });
 const WORKER_ROOT = "apps/sync-worker";
 const WORKER_MANIFEST = `[package]\nname = "scratch-worker"\nversion = "0.0.0"\nedition = "2024"\n\n[lib]\ncrate-type = ["cdylib", "rlib"]\n`;

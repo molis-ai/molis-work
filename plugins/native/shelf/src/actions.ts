@@ -1,9 +1,10 @@
 import { ActionError, type ActionResultView, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
-  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus,
+  ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus, ShelfAdmitActionInput,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { hashBytes, parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS, hashBytes } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
 
@@ -39,10 +40,7 @@ function jobDefinition(name: string, title: string, description: string, recipes
 }
 const AI_RECIPES = [...SHELF_RECIPES, SHELF_SHORTCUT_RECIPE].filter(recipe => recipe.requires_agent).map(recipe => recipe.recipe);
 
-export interface ShelfAdmitActionInput {
-  text?: string; title?: string; capture_pages?: boolean;
-  filename?: string; bytes_base64?: string; mime?: string; origin_realpath?: string;
-}
+export type { ShelfAdmitActionInput };
 export interface ShelfTextView { item_id: string; title: string; text: string; content_hash: string; fingerprint: string }
 export const shelfActions = {
   snapshot: define<Record<string, never>, ShelfSnapshot>("snapshot", "读取置物架面板",
@@ -56,13 +54,8 @@ export const shelfActions = {
   file: define<{ item_id: string; child?: string }, { name: string; mime: string; bytes_base64: string }>("items.file", "读取 Shelf 原文件",
     "读取置物架副本或文件夹内文件的原始字节", "query", object({ item_id: id, child: { type: "string", maxLength: 1000 } }, ["item_id"]),
     object({ name: text, mime: text, bytes_base64: text }), read, LOCAL),
-  admit: define<ShelfAdmitActionInput, { item: ShelfItemRecord }>("items.admit", "放进 Shelf",
-    "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", "command",
-    object({ text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" }, capture_pages: { type: "boolean", title: "抓取其中的网页" },
-      filename: { type: "string", maxLength: 500, title: "文件名" }, bytes_base64: { type: "string", maxLength: 128 * 1024 * 1024, title: "文件内容（Base64）" }, mime: { type: "string", maxLength: 200, title: "文件类型" },
-      origin_realpath: { type: "string", maxLength: 4096, title: "原文件位置", description: "仅本机界面拖入文件时提供，用于任务前核对原件未变" } }, []),
-    object({ item }), write, SHARED, { summary: "已接收材料", title_pointer: "/item/name",
-      link: { label: "打开材料", href_template: "/projects/{project_id}/?openPlugin=shelf&openItem={/item/item_id}&openTitle={/item/name}" } }),
+  // Defined in the Shelf contract, so another plugin invokes this very definition.
+  admit: SHELF_ADMIT_ACTION,
   admitFolder: define<{ name: string; entries: { relative: string; bytes_base64: string; mime?: string }[]; origin_realpath?: string }, { item: ShelfItemRecord }>("items.admit-folder", "放进文件夹",
     "把本机界面选中的整个文件夹复制进置物架", "command",
     object({ name: { type: "string", minLength: 1, maxLength: 500 }, entries: { type: "array", minItems: 1, items: object({ relative: { type: "string", minLength: 1, maxLength: 1000 },
@@ -190,24 +183,25 @@ function defineProject<I, O>(name: string, title: string, description: string, o
 }
 const material = object({ title: text, text, content_hash: text, source: { type: "object", required: ["item_id"] } });
 export const shelfProjectActions = {
-  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", "预览项目材料",
-    "预览将从 Shelf 保存到当前项目的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read),
-  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "保存为项目材料",
-    "按已预览的指纹把 Shelf 文字保存为当前项目的固定版本材料；内容变化时拒绝", "command",
+  previewMaterial: defineProject<{ item_id: string }, ShelfMaterialPreview>("material.preview", "预览要存到项目资料的文字",
+    "预览将从 Shelf 存到当前项目资料的完整文字与指纹", "query", itemId, object({ payload: material, fingerprint: text }), read),
+  saveMaterial: defineProject<{ item_id: string; expected_fingerprint: string }, { reference: { artifact_id: string; version: number }; title: string }>("material.save", "存到项目资料",
+    "按已预览的指纹把 Shelf 文字存进当前项目的资料（成果库里的一份导入文档，项目里的 Agent 都能找到）；内容变化时拒绝", "command",
     object({ item_id: id, expected_fingerprint: { type: "string", minLength: 1 } }),
-    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifact:write"]),
+    object({ reference: object({ artifact_id: id, version: { type: "integer", minimum: 1 } }), title: text }), [...read, "artifacts:read", "artifacts:write"]),
 };
 export const SHELF_PROJECT_ACTIONS: readonly ActionDefinition[] = Object.values(shelfProjectActions);
 export const SHELF_PROJECT_ACTION_PERMISSIONS = [...new Set(SHELF_PROJECT_ACTIONS.flatMap(definition => definition.action.permissions))];
 
 export interface ShelfProjectActionPorts {
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
-  publish(payload: ShelfMaterialPreview["payload"], actorId: string): { artifact_id: string; version: number };
+  /** Saves the text into the project's knowledge as the caller; the same text saved again keeps its version. */
+  publish(payload: ShelfMaterialPreview["payload"], caller: ActionExecutionContext): Promise<{ artifact_id: string; version: number }>;
 }
 
 export function createShelfProjectActionHandlers(projectId: string, ports: ShelfProjectActionPorts): ActionHandlerBinding[] {
   const current = (caller: ActionCallContext, itemId: string) => {
-    if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请在项目中打开 Shelf，再保存项目材料");
+    if (caller.project_id !== projectId) throw new ActionError("actions.scope_mismatch", "请在项目中打开 Shelf，再存到项目资料");
     return shelfTextMaterial(ports.readFile(itemId));
   };
   return [
@@ -217,7 +211,7 @@ export function createShelfProjectActionHandlers(projectId: string, ports: Shelf
       const value = current(caller, item_id);
       if (value.fingerprint !== expected_fingerprint) throw shelfErrors.conflict("材料已变化，请重新预览后保存");
       await caller.beforeEffect();
-      return { reference: ports.publish(value.payload, caller.actor_id), title: value.payload.title };
+      return { reference: await ports.publish(value.payload, caller), title: value.payload.title };
     } },
   ];
 }

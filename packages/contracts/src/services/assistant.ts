@@ -1,6 +1,9 @@
+import type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
+export type { AssistantCard, AssistantPreparedCard } from "./assistant-cards.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { AgentRunPhase, AgentRunUsage, AgentRuntimeDiagnostics, AgentTurnView } from "./agent-host.js";
-import type { AgentPendingQuestion } from "./agent-interaction.js";
+import type { AgentPendingQuestion, AgentQuestionReask } from "./agent-interaction.js";
+import type { AgentInputSend, AgentQueuedInput } from "./agent-inputs.js";
 import type { MemoryChange, MemoryScope } from "./memory.js";
 
 /**
@@ -131,20 +134,6 @@ export interface AssistantMaterialText {
   draft?: boolean;
 }
 
-/** An action a page prepared from what the person selected, for a card (see `AssistantPluginMessage.card`). */
-export interface AssistantPreparedCard {
-  title: string;
-  summary: string;
-  reference: { capability_id: string; version: number; provider_id: string };
-  input: unknown;
-  editable?: string[];
-  missing?: Array<{ field: string; question: string }>;
-  /** Where the selection came from (e.g. the Pages document and its version): the work's origin, apart from the object the action targets. */
-  source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
-  /** The selected text, kept as the work's material for later rounds (at most 4, each at most 20000 characters). */
-  materials?: Array<{ title: string; text: string }>;
-}
-
 /** POST /api/assistant/cards: the card a page prepared, placed in a work (the given one, or a new one in this scope). */
 export interface AssistantPageCardInput {
   /** The page message's id: the same message places its card once. */
@@ -191,7 +180,26 @@ export interface AssistantContextSnapshot {
   selection?: { text: string; truncated?: boolean };
   /** The object has edits not yet saved: a selection or excerpt from it is a draft, not the saved version. */
   unsaved?: boolean;
+  /**
+   * Where something would be put in the object open on the left, as its owner page reported it (`SurfaceLanding` in
+   * services/contextual), bounded. Sent only while that object goes with the Send and the person kept it on the strip. A
+   * claim like the rest: the Host reads the object again from its owner first and drops the landing when it cannot.
+   */
+  landing?: AssistantLanding;
   captured_at: string;
+}
+
+/** The part of a landing a round is told: which object, where in it, and the text around that place. */
+export interface AssistantLanding {
+  plugin_id: string;
+  object: { kind: string; id: string; title?: string };
+  position: "cursor" | "selection" | "end" | "object";
+  /** The headings above the place, outermost first. */
+  heading_path?: string[];
+  /** Bounded text just before and after the place; for `selection`, the text that is selected. */
+  before?: string;
+  after?: string;
+  selected?: string;
 }
 
 /** A material the person put into this message, or one the page offered and they kept. */
@@ -202,10 +210,11 @@ export interface AssistantMaterial {
   /** For `capability`: the one the person picked with “/” to be used this round (its exact identity). */
   capability?: { capability_id: string; version: number; provider_id: string; title: string };
   /**
-   * For an object the person picked with “@” from the system search: the hit it came from. The hit is only a pointer;
-   * the Host checks it again with its owner and reads the object's text itself before the round.
+   * For an object the person picked: with “@” from the system search, the hit it came from; from the project knowledge
+   * picker (specs/project-knowledge PMAT-17), the piece itself. Either is only a pointer: the Host checks it again with its
+   * owner and reads the text itself before the round (a piece through `knowledge.read`, as the person).
    */
-  reference?: { hit_id: string };
+  reference?: { hit_id: string } | { subject: { kind: string; id: string } };
   /** For `method`: the method the person chose with “/” for this round; the Host gives its registered body. */
   method?: { method_id: string; version?: number; name?: string; plugin_title?: string };
   /** For `image`: the picture the person added, taken in by the runtime (only a reference; the bytes stay there). */
@@ -325,37 +334,6 @@ export interface AssistantRound {
 
 export interface AssistantRoundMemory { memory_id: string; scope: MemoryScope; text: string; origin: string }
 
-/**
- * A suggestion the person can run with one click. It carries the exact capability and prepared input; the click is
- * their choice of exactly what the card shows, and it runs at most once.
- */
-export interface AssistantCard {
-  card_id: string;
-  revision: number;
-  /** Which round proposed it. */
-  run_id: string | null;
-  title: string;
-  summary: string;
-  provider: string;
-  capability_title: string;
-  /** So the surface that owns the data can refresh once it has run. */
-  capability_id: string;
-  effect: "read" | "write" | "irreversible";
-  /** The prepared input, field by field as the person reads it; `editable` ones can be changed before running. */
-  /** `options`: the choices of a field that has them (the value sent is `raw`; `value` is its label). */
-  /** `input`: a day or a moment, picked rather than typed (`raw` is the stored value; a moment is sent as an exact instant). */
-  fields: Array<{ key: string; label: string; value: string; editable: boolean; raw?: string; options?: Array<{ value: string; label: string }>; input?: "date" | "datetime" }>;
-  missing: Array<{ field: string; question: string }>;
-  status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
-  /** What happened, or why not, in the owner's words. */
-  outcome?: string;
-  /** A card a page prepared (not the Assistant's own suggestion): which page, and what the selection came from. */
-  from?: { surface: string; title?: string };
-  source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
-  created_at: string;
-  updated_at: string;
-}
-
 /** An effect held for the person's decision in this work, exactly as the Runtime will execute it. */
 export interface AssistantPendingReview {
   review_id: string;
@@ -449,21 +427,16 @@ export interface AssistantWorkView {
   usage?: { tokens: number; rounds: number; budget_tokens: number | null; budget_of?: { work_id: string; title: string } };
   /** Why the work cannot run now, when it cannot (no model, a busy session…), with one next step. */
   problem?: { message: string; action?: string };
+  /**
+   * What waits in the work's own session for its next round (specs/ai-input-receipts §4.4, D31), read only while none of its
+   * rounds is live. Absent: not read this time (a round is live, or Coding runs the work); `[]`: read, and nothing waits.
+   */
+  queued_inputs?: AgentQueuedInput[];
 }
 
-/** An interrupted round, as the runtime's own receipts show it: what happened, what did not, what is unknown. */
-export interface AssistantRecovery {
-  blockers: string[];
-  rounds: Array<{
-    run_id: string;
-    version: number;
-    can_close: boolean;
-    blockers: string[];
-    operations: Array<{ summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
-  }>;
-}
+export type { AssistantRecovery } from "./assistant-recovery.js";
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
   /** Omitted starts a new work. */
   work_id?: string;
   /** For a new work: who carries it. An existing work keeps its executor. */
@@ -490,6 +463,7 @@ export interface AssistantSendInput {
    * one free-text question, `steer` adds the words to the round. Absent is `steer`: the Host never decides it is an answer.
    */
   target?: "answer" | "steer";
+  reask?: AgentQuestionReask;
   /** One per press of Send. A repeat returns the first outcome and starts nothing. */
   request_id: string;
 }
@@ -511,10 +485,12 @@ export interface AssistantHandover {
   mode?: string;
 }
 
+/** What the page asks of a work's latest round: pause, resume or stop it, or take back a supplement no model has seen (§4.3). */
 export type AssistantControl =
   | { kind: "pause" }
   | { kind: "resume" }
-  | { kind: "stop" };
+  | { kind: "stop"; keep_connections?: boolean }
+  | { kind: "withdraw"; run_id: string; input_id: string };
 
 /** What one provider contributes for the Assistant (read from the action directory), and the gaps that limit it. */
 export interface AssistantContribution {
@@ -546,8 +522,6 @@ export interface AssistantBackgroundJob {
   /** The capability that started it, as the person reads it. */
   title: string;
   state: "running" | "completed" | "failed" | "unknown";
-  /** The plugin's own word for the latest state. */
-  last_state?: string;
   started_at: string;
   ended_at?: string;
   /** Set when a suggestion card started it. */
@@ -618,6 +592,7 @@ export interface AssistantMemoryCandidate {
   state: "pending" | "accepted" | "discarded" | "expired";
   created_at: string;
   memory_id?: string;
+  /** Why the write gate held back what the person asked to keep, in the memory service's words; absent for the work's own suggestions. */ held?: string;
 }
 
 /**

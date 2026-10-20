@@ -1,4 +1,4 @@
-import { validateQuestionnaireAnswer, type AgentControl, type ModelEvent, type PendingQuestion, type QuestionnaireAnswer } from "@prologue/sdk";
+import { validateQuestionnaireAnswer, type ModelEvent, type PendingQuestion, type QuestionnaireAnswer } from "@prologue/sdk";
 import type { AgentQuestion, AgentQuestionProblem } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 
 /** Historical questions remain readable, but only their live owner can accept answers. */
@@ -9,15 +9,16 @@ export function questionUnavailable(pending: { state: string; expiresAtMs: numbe
 }
 
 /** A malformed question or confirmation may be corrected once. Stop at the second failed receipt,
- * before the next model call; a prompt alone cannot enforce this limit. */
-export function withInteractionRepairLimit(control: Pick<AgentControl, "stop">, listener: (event: ModelEvent) => void) {
+ * before the next model call; a prompt alone cannot enforce this limit. The stop says which of the two was refused twice, in the
+ * person's words like the runtime's own circuit breaker, without the refusal's internal text. */
+export function withInteractionRepairLimit(stop: (reason: string) => void, listener: (event: ModelEvent) => void) {
   const failures = new Map<string, Set<string>>();
   return (event: ModelEvent) => {
     listener(event);
     if (event.type !== "tool-result" || !["ask-user", "suggest-action"].includes(event.name) || event.errorCode !== "TOOL_ARGUMENTS_INVALID") return;
     const calls = failures.get(event.name) ?? new Set<string>();
     calls.add(event.callId); failures.set(event.name, calls);
-    if (calls.size >= 2) control.stop("stopped");
+    if (calls.size >= 2) stop(`${event.name === "ask-user" ? "要向你提的问题" : "要给你的操作建议"}连续两次格式不合格，没能交给你，这一轮先停在这里；已完成的保留，可以说明怎么调整后继续`);
   };
 }
 
@@ -43,22 +44,27 @@ export function answerProblems(questions: readonly PendingQuestion[], answers: Q
     question: problem.question, ...(problem.id === undefined ? {} : { id: problem.id }), reason: problem.reason }));
 }
 
-/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): true while it is still theirs to use. */
-export type ReferenceConfirmer = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly boolean[]>;
+/** Reads each picked object again from its owner, as the session's owner (the Host's; S-26): its label now, or null once it is not theirs to use. */
+export type ReferenceReader = (owner: { project_id: string; actor_id: string }, picked: readonly { kind: string; id: string }[], kinds: readonly string[]) => Promise<readonly ({ label: string } | null)[]>;
 
 /**
- * The questions whose picked objects the Host will not let through (specs/ai-interaction-experience H3): each reference is
- * read again from its owner right before the answer goes on. Without a Host to ask, or without the run's owner, none passes.
+ * The answers as the run may take them, and the questions whose picked objects the Host will not let through
+ * (specs/ai-interaction-experience H3, T2): each reference is read again from its owner right before the answer goes on,
+ * and goes with the label its owner gives it now; a label the page sent is never used. Without a Host to ask, or without
+ * the run's owner, none passes.
  */
-export async function refusedReferences(confirm: ReferenceConfirmer | undefined, owner: { project_id: string; actor_id: string } | undefined,
-  questions: readonly PendingQuestion[], answers: QuestionnaireAnswer["answers"]): Promise<AgentQuestionProblem[]> {
+export async function ownedReferences(read: ReferenceReader | undefined, owner: { project_id: string; actor_id: string } | undefined,
+  questions: readonly PendingQuestion[], answers: QuestionnaireAnswer["answers"]): Promise<{ answers: QuestionnaireAnswer["answers"]; refused: AgentQuestionProblem[] }> {
   const refused: AgentQuestionProblem[] = [];
-  for (const answer of answers) {
+  const owned = await Promise.all(answers.map(async answer => {
     const question = questions.find(each => each.index === answer.question);
-    const picked = question?.type === "reference" && Array.isArray(answer.value) ? answer.value.map(({ kind, id }) => ({ kind, id })) : [];
-    if (!question || !picked.length) continue;
-    const kept = confirm && owner ? await confirm(owner, picked, question.refKinds ?? []) : [];
-    if (picked.some((_, index) => kept[index] !== true)) refused.push({ question: question.index, ...(question.id === undefined ? {} : { id: question.id }), reason: "reference-unavailable" });
-  }
-  return refused;
+    const list: readonly unknown[] = question?.type === "reference" && Array.isArray(answer.value) ? answer.value : [];
+    // A reference not written as one is the Runtime's to refuse (`wrong-shape`), as sent.
+    if (!question || !list.length || !list.every(ref => typeof (ref as { kind?: unknown })?.kind === "string" && typeof (ref as { id?: unknown })?.id === "string")) return answer;
+    const picked = (list as { kind: string; id: string }[]).map(({ kind, id }) => ({ kind, id }));
+    const now = read && owner ? await read(owner, picked, question.refKinds ?? []) : [];
+    if (picked.some((_, index) => !now[index])) refused.push({ question: question.index, ...(question.id === undefined ? {} : { id: question.id }), reason: "reference-unavailable" });
+    return { ...answer, value: picked.map((ref, index) => ({ ...ref, label: now[index]?.label || ref.id })) };
+  }));
+  return { answers: owned, refused: refused.sort((a, b) => a.question - b.question) };
 }

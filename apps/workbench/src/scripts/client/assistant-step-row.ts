@@ -1,9 +1,18 @@
 /**
  * The Assistant's next steps, in one row just above its input (specs/context-program §21.2, FLOW-01…05). The Host
  * derives and draws them (`next_html`, `next_all_html`); this row only places them and, when one is pressed, presses the
- * record's own control in the conversation: a card's run button, an option and the submit of a question, or it brings
- * the record into view. So there is no second way to run anything. A card with edits the person has not sent, an option
- * the card no longer offers, or a control that is disabled is only brought into view (FLOW-03).
+ * record's own control in the conversation: a card's run button, an option and the submit of a question, a control an
+ * outcome record names, or it brings the record into view. So there is no second way to run anything. A record with edits
+ * the person has not sent, an option the card no longer offers, a control it does not carry or one that is disabled is
+ * only brought into view (FLOW-03, SLOT-02).
+ *
+ * The outcome slot (§21.9): a delivery note or a result in the conversation is keyed by its own `data-ix-record`
+ * (`<kind>:<id>`) or, for a card's result, by the card; a control in it that a step may press carries
+ * `data-ix-press="<name>"` (a result's 「打开」, a delivery note's link), and the step's id is `<key>:<name>`. Its result
+ * buttons are written as a reply's (`data-assistant-object`), and the row hands each record to the island's `bindText`
+ * once per drawing, so they open as a reply's do (SLOT-03). The owner writes such a button only for an object that opens,
+ * as `assistant-text-parts.ts` does, and anything else as text. A card writes none: its result uses the card's own
+ * controls, and neither the island nor the row binds a card.
  *
  * A page's suggestion (`molis:assistant-message`, purpose `suggest`, or a hand-over the page did not start from a press)
  * is one more step here: pressing it puts its words and materials in the input, nothing is sent. With the panel closed it
@@ -11,19 +20,20 @@
  */
 export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
   const { row, thread, L, el } = input;
-  let offer = null, offerNode = null, unfolded = false, shownWork = null;
+  let offer, offerNode, unfolded = false, shownWork;
   const press = (node, control) => { input.jumpTo(node); if (control && !control.disabled) control.click(); };
-  // A step's id names the record it leads to (review:, question:, card:), as the conversation keys it.
+  // A step's id names the record it leads to (review:, question:, card:, or an outcome's own key), as the conversation keys it.
+  const at = (node, name, value) => node?.querySelector("[data-" + name + '="' + CSS.escape(value) + '"]');
   const go = (id) => {
-    for (const node of thread.querySelectorAll("[data-review], [data-question], [data-card]")) {
-      const { review, question, card } = node.dataset, key = review ? "review:" + review : question ? "question:" + question : "card:" + card;
+    for (const node of thread.querySelectorAll("[data-review],[data-question],[data-card],[data-ix-record]")) {
+      const { review, question, card, ixRecord } = node.dataset, key = review ? "review:" + review : question ? "question:" + question : card ? "card:" + card : ixRecord;
       if (id !== key && !id.startsWith(key + ":")) continue;
       const rest = id.slice(key.length + 1), cut = rest.indexOf(":");
-      const option = cut > 0 && [...node.querySelectorAll("[data-ix-option]")].find((one) => one.dataset.ixOption === rest.slice(cut + 1) && one.closest("[data-ix-field]").dataset.ixField === rest.slice(0, cut));
-      // As the person would: the option first (the card's client keeps the draft), then the card's own submit.
+      const option = cut > 0 && at(at(node, "ix-field", rest.slice(0, cut)), "ix-option", rest.slice(cut + 1));
+      // As the person would: the option first (the card's client keeps the draft), then the card's own submit; otherwise
+      // the record's own control, and only while it holds no edits the person has not sent.
       if (option && !option.disabled) { option.click(); press(node, node.querySelector("[type=submit]")); }
-      else if (card && rest === "run" && node.ixBase === JSON.stringify(node.ix?.read())) press(node, node.querySelector('[data-ix-action="run"]'));
-      else input.jumpTo(node);
+      else press(node, node.ixBase === JSON.stringify(node.ix?.read()) && (card && rest === "run" ? at(node, "ix-action", "run") : at(node, "ix-press", rest)));
       return;
     }
     input.other(id);
@@ -36,13 +46,15 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     return step;
   };
   const paint = () => {
-    const view = input.view(), open = input.open(), work = view ? view.work.work_id : null;
+    const view = input.view(), open = input.open(), work = view?.work.work_id;
+    // An outcome's record is drawn whole by its owner; its result buttons open as a reply's do, bound once per drawing.
+    for (const node of thread.querySelectorAll("[data-ix-record]")) if (node.ixBound !== node.firstChild) { input.bindText(node); node.ixBound = node.firstChild; }
     if (work !== shownWork) { shownWork = work; unfolded = false; }
-    input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_index, button) => go(button.dataset.ixStepId) });
+    input.drawn(row, open && view ? (unfolded ? view.next_all_html : view.next_html) || "" : "", { onStep: (_, button) => go(button.dataset.ixStepId) });
     // The suggestion keeps its one button while it stands: a new button on every paint (a resize, a poll) would play its entrance again.
     if (offer) {
       let group = row.querySelector(".mw-ix-steps");
-      if (!group) { group = el("div", "mw-ix-steps"); group.setAttribute("role", "group"); group.setAttribute("aria-label", L("下一步")); row.append(group); }
+      if (!group) { group = el("div", "mw-ix-steps"); group.role = "group"; group.ariaLabel = L("下一步"); row.append(group); }
       if (offerNode?.parentNode !== group) group.append(offerNode ||= offerStep());
     }
     row.hidden = !row.querySelector(".mw-ix-step");
@@ -52,5 +64,5 @@ export const ASSISTANT_STEP_ROW_FACTORY_SCRIPT = String.raw`(input) => {
     unfolded = true; paint();
     row.querySelector('[data-ix-step="3"]')?.focus();
   });
-  return { paint, offer(message, unconfirmed) { offerNode?.remove(); offer = { message, unconfirmed }; offerNode = null; paint(); } };
+  return { paint, offer(message, unconfirmed) { offerNode = offerNode?.remove(); offer = { message, unconfirmed }; paint(); } };
 }`;

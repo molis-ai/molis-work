@@ -2,8 +2,8 @@ import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prolog
 import { AsyncLocalStorage } from "node:async_hooks";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
-import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { announcesWithoutActing } from "./announce-guard.js";
+import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { endedOnPromise } from "./prologue-stop-guard.js";
 import type { createPluginBuilderAgent, PluginBuilderAgentOptions } from "./plugin-builder.js";
 import { actionToolRefs } from "./prologue-action-tools.js";
 import { createPrologueConditionCheckers } from "./prologue-checkers.js";
@@ -16,11 +16,13 @@ import { createPrologueMcpLibrary } from "./prologue-mcp.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
+import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
 import { createPrologueRecovery } from "./prologue-recovery.js";
 import { createApprovals, createPendingPort, createReviewMemory, restoreReviewHistory } from "./prologue-review-documents.js";
 import { createPrologueSchedule } from "./prologue-schedule.js";
 import { createSessionIndexStore } from "./prologue-session-index.js";
+import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
@@ -86,7 +88,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory:PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory:PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
@@ -122,7 +124,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const state = createRoundState();
   const index = createSessionIndexStore(effects.host, options.app.appId);
   // Bound to the runtime once it exists; nothing is looked at before a wait is registered.
-  const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id });
+  const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
+    owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
@@ -137,7 +140,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
       const inherited = dispatchGuards.getStore();
       return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
     },
-    resolveConnection: options.resolveMcpConnection,
+    directoryAuthorized: options.checks?.directoryAuthorized,
+    resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
@@ -145,6 +149,9 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
   const projectWork = createNodeProjectWork(options, host, runtime, state);
+  const workGraphs = createWorkGraphs(runtime, index);
+  // A part's round that ended while the Host stopped before its step's end was written: its step ends now (§6.0n).
+  await workGraphs.reconcile();
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
   const pendings = createPendingPort(reviews);
@@ -160,7 +167,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const { inference, createBuilderAgent, close: closeInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
-  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork,
+  const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
       mcpLibrary.dispose();
@@ -187,15 +194,14 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     }) },
     modelConfiguration: options.modelConfiguration,
     stopHeld: runId => { const queue = state.heldLabels.get(runId); const next = queue?.shift(); if (queue && !queue.length) state.heldLabels.delete(runId); return next; },
-    // Judged when the run ends, from its last words: the runtime stops consulting the hook after it has held twice.
-    endedOnPromise: (runId, sessionId, text) => {
-      const guard = state.stopGuards.get(sessionId), held = guard?.held.get(runId);
-      guard?.held.delete(runId);
-      return Boolean(guard?.writing && held?.has("announce") && announcesWithoutActing(text));
-    },
+    // Judged when the run ends, from its facts: held for only announcing, and nothing called after that.
+    endedOnPromise: (runId, sessionId) => endedOnPromise(state, runId, sessionId),
     approvals,
-    answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
-  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
+    answerPending: answerPending({ runtime, host, state, readQuestion, index, options, effects }),
+  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, writeCheckers: createPrologueWriteCheckers(runtime), diagnostics: () => {
+    const seen = runtimeDiagnostics(runtime);
+    return { ...seen, ledger_failures: [...seen.ledger_failures, ...workGraphs.failures().map((entry, at) => ({ ...entry, seq: seen.ledger_failures.length + at + 1 }))] };
+  },
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });

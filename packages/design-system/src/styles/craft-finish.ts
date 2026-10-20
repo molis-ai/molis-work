@@ -1,4 +1,3 @@
-import { MW_PLUGINS } from "../palette.js";
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
 
@@ -40,10 +39,6 @@ const CENTRED_DIALOG = ":is(dialog.mw-dialog, dialog.global-search-dialog, dialo
 
 /** Popovers and menus that drop from the control that opened them. */
 const DROPDOWN = ":is(.mw-menu, .navigator-project-menu-popover, .plugin-market-project-popover, .tree-filter, .feed-filter-panel, .source-filter-menu > .source-filter-row, .project-record-filter-menu > div, .tui-menu, .assistant-composer)";
-
-function viewChipTints(): string {
-  return MW_PLUGINS.map((plugin) => `${PAGES} .tab-view-chip[data-plugin="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`).join("\n  ");
-}
 
 const CRAFT_BASE_STYLES = `
   /* ─── Tokens ─── */
@@ -130,7 +125,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button):active:not(:disabled) svg { transform: scale(.86); }
   ${WORKBENCH} :is(.tab-add-button, .tab-split-button, .workspace-history-button) svg { transition: transform var(--dur-move) var(--ease-spring); }
 
-  /* Where am I: the plugin whose page this pane shows, ahead of the item tabs. */
+  /* A cover (market, settings) names itself ahead of the tabs. */
   ${PAGES} .tab-view-chip {
     flex: none; display: inline-flex; align-items: center; gap: 8px; height: 26px; margin: 0 4px 0 0; padding: 0 12px 0 8px;
     border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer;
@@ -147,7 +142,6 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} .tab-view-chip + .tab-view-divider { flex: none; width: 1px; height: 14px; margin: 0 4px 0 4px; background: var(--line-strong); align-self: center; }
   ${WORKBENCH} .tab-pane > .tab-strip .tab-view-chip { height: 24px; }
   @media (max-width: 760px), (pointer: coarse) { ${WORKBENCH} :is(.tab-strip, .tab-pane > .tab-strip) .tab-view-chip { height: 44px; } }
-  ${viewChipTints()}
 
   /* ─── Plugin rail: this project — where the work lives and its plugins; the account at the foot ── */
   :root ${ASSIST} :is(.assistant-island-card, .workspace-chrome .navigator-project-primary, .plugin-rail-items, .plugin-rail .personal-sidebar-footer) {
@@ -293,28 +287,28 @@ const CRAFT_BASE_STYLES = `
 
   /* One Dock button everywhere in the bar: 38px, soft corners, neutral glyph; hover washes and lifts a hair,
      the current one becomes a small raised piece of the work surface with a copper point under it. */
-  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger) {
+  ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) {
     position: relative; display: inline-grid; place-items: center; flex: none; width: var(--dock-btn); height: var(--dock-btn); padding: 0; border: 0; border-radius: 11px;
     background: transparent; box-shadow: none; color: var(--ink-soft); cursor: pointer; list-style: none;
     transition: transform var(--dur-move) var(--ease-spring), background-color var(--dur-move) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), color var(--dur-hover) var(--ease-quint);
   }
-  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
-  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
-  ${SHELL} :is(.dock-pin[aria-current], .bar-resident[aria-current], .bar-chat[aria-expanded="true"], .account-global-menu[open] > .account-global-trigger) {
+  ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger) svg { width: 20px; height: 20px; stroke-width: 1.6; }
+  ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):hover { background: var(--nav-hover); color: var(--ink); transform: translateY(-1px); }
+  ${SHELL} :is(.dock-pin[aria-current], .bar-chat[aria-expanded="true"], .account-global-menu[open] > .account-global-trigger) {
     background: var(--paper); color: var(--ink); box-shadow: var(--lift-1); transform: none;
   }
-  ${SHELL} :is(.dock-pin[aria-current], .bar-resident[aria-current])::after {
+  ${SHELL} .dock-pin[aria-current]::after {
     content: ""; position: absolute; left: 50%; bottom: 3px; width: 3px; height: 3px; margin-left: 0px; border-radius: 50%; background: var(--accent); pointer-events: none;
   }
-  ${SHELL} :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger):focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
-  ${SHELL} .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
+  ${SHELL} :is(.dock-pin, .bar-chat, .account-global-trigger):focus-visible { outline: var(--focus-stroke); outline-offset: 2px; }
+  ${SHELL} .workbench-bar :is(.dock-pin, .bar-chat, .plugin-picker-trigger, .account-global-trigger, .navigator-project-selector):active { transform: scale(.94); transition-duration: var(--dur-press); }
   /* A plugin kept in the Dock lands (the spring that settles a press); one taken out lets go. Neither moves its neighbours. */
   @keyframes dock-pin-arrive { from { opacity: 0; transform: scale(.6); } to { opacity: 1; transform: none; } }
   ${SHELL} .dock-pin.is-arriving { animation: dock-pin-arrive var(--dur-move) var(--ease-spring) both; }
   ${SHELL} .dock-pin.is-leaving { opacity: 0; transform: scale(.6); pointer-events: none; transition: opacity var(--dur-hover) var(--ease-quint), transform var(--dur-move) var(--ease-quint); }
 
-  /* Shelf and 灵光: the person's own, beside the project at the right. */
-  ${SHELL} .bar-residents { display: flex; align-items: center; gap: 4px; min-width: 0; }
+  /* The side panel's button, beside the project at the right. */
+  ${SHELL} .bar-side { display: flex; align-items: center; gap: 4px; min-width: 0; }
 
   /* The Dock menu: which plugins stay, what is yours everywhere, settings and the account. */
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
@@ -718,6 +712,12 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} button.assistant-item-title::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
   ${ASSIST} button.assistant-item-title:focus-visible { outline: none; }
   ${ASSIST} :is(.assistant-item, .assistant-tile):has(> button.assistant-item-title:focus-visible, .assistant-item-text > button.assistant-item-title:focus-visible) { outline: var(--focus-stroke); outline-offset: 1px; }
+  /* A result that can be picked up (W3-A3b): the card picks it, only its title opens it; picked, it is in hand. */
+  ${ASSIST} .assistant-item[role="group"] { cursor: pointer; }
+  ${ASSIST} .assistant-item[role="group"] button.assistant-item-title::after { content: none; }
+  ${ASSIST} .assistant-item[role="group"] button.assistant-item-title:hover { text-decoration: underline; }
+  ${ASSIST} .assistant-item[role="group"]:focus-visible { outline: var(--focus-stroke); outline-offset: 1px; }
+  ${ASSIST} .assistant-item[aria-current="true"] { background: var(--accent-soft); box-shadow: 0 0 0 1px var(--accent); }
   ${ASSIST} .assistant-item-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
   ${ASSIST} .assistant-item-sub.is-attention { color: var(--tone-attention, #b7791f); }
   ${ASSIST} .assistant-item-sub.is-blocked { color: var(--tone-blocked, var(--danger)); }
@@ -929,7 +929,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-rich pre { margin: 0 0 8px; padding: 8px 12px; border-radius: 8px; background: var(--wash); overflow: auto; font-size: 12px; }
   ${ASSIST} .assistant-rich code { padding: 0 4px; border-radius: 4px; background: var(--wash); font-size: 12px; }
   ${ASSIST} .assistant-rich pre code { padding: 0; background: none; }
-  ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); } ${ASSIST} .mw-receipt { align-self: flex-end; max-width: 88%; margin-top: -8px; }
+  ${ASSIST} :is(.assistant-activity, .assistant-round-status, .assistant-muted) { margin: 0; font-size: 12px; color: var(--muted); } ${ASSIST} .assistant-round > .mw-receipt { align-self: flex-end; max-width: 88%; margin-top: -8px; }
   ${ASSIST} .assistant-activity[data-state="failed"] { color: var(--danger); }
   ${ASSIST} .assistant-round-status[hidden] { display: none; }
   ${ASSIST} .assistant-round-status[data-phase="failed"] { color: var(--danger); }
@@ -1016,17 +1016,17 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-strip-row[data-more=end]{mask-image:linear-gradient(to right,#000 calc(100% - 28px),transparent)}
   ${ASSIST} .assistant-strip-row[data-more=start]{mask-image:linear-gradient(to left,#000 calc(100% - 28px),transparent)}
   ${ASSIST} .assistant-strip-row[data-more=both]{mask-image:linear-gradient(to right,transparent,#000 28px,#000 calc(100% - 28px),transparent)}
-  ${ASSIST} .assistant-context-strip[hidden]{display:none}
   ${ASSIST} .bar-center:has(>.assistant-context-strip:not([hidden])){--context-row:38px}
   ${ASSIST} .assistant-strip-chip{display:inline-flex;flex:none;align-items:center;gap:4px;max-width:240px;height:32px;padding:0 0 0 8px;border:0;border-radius:8px;background:var(--paper);box-shadow:inset 0 0 0 1px var(--line);color:var(--ink);font:inherit;font-size:12px}
   ${ASSIST} .assistant-strip-chip.is-optional{box-shadow:none;outline:1px dashed var(--line-strong);outline-offset:-1px;color:var(--muted)}
   ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
+  ${ASSIST} .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
   ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
   ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
-  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):hover{background:var(--nav-hover);color:var(--ink)}
-  ${ASSIST} :is(.assistant-strip-act,.assistant-strip-chip.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
+  ${ASSIST} :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}
+  ${ASSIST} :is(.assistant-strip-act,.is-work):focus-visible{outline:var(--focus-stroke);outline-offset:var(--focus-stroke-inset,-1px)}
   ${ASSIST} .assistant-notice-actions{display:flex;gap:6px;justify-content:flex-end}
   /* Attention: a count only for what the person's rules let through here; the list says what waits and why. */
   ${ASSIST} .assistant-attention {
@@ -1141,15 +1141,15 @@ const CRAFT_BASE_STYLES = `
     display: grid; place-items: center; flex: none; width: 20px; height: 20px; border-radius: 50%; background: var(--nav-active); color: var(--ink-soft);
   }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar svg { width: 12px; height: 12px; }
+  @media (min-width: 761px) { html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-avatar { box-shadow: inset 0 0 0 1px var(--line-strong); } }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy { display: flex; align-items: baseline; gap: 8px; min-width: 0; line-height: 1; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy strong { font-size: 13px; font-weight: 500; color: var(--ink); }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .personal-account-copy small { font-size: 12px; color: var(--muted); }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { display: grid; gap: 0; margin: 0; padding: 0; box-shadow: none; }
+  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; display: grid; gap: 0; margin: 12px 0 0; padding: 0; box-shadow: none; }
   /* Groups: switch projects · this project · you. The divider is drawn in the gap, so it never touches a row.
      Who you are is shown, not clicked: no hover, no pointer. */
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account { cursor: default; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal > .personal-account:hover { background: transparent; }
-  html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal { position: relative; margin-top: 12px; }
   html ${SHELL} .workbench-bar .navigator-project-menu-popover .navigator-personal::before {
     content: ""; position: absolute; left: 5px; right: 5px; top: -6px; height: 1px; background: var(--line); pointer-events: none;
   }
@@ -1201,7 +1201,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .dock-pins::before { left: -1px; }
     ${SHELL} .dock-pin.is-fixed { margin-right: 0; }
     ${SHELL} .dock-pin.is-fixed:not(:only-child)::before { right: -1px; }
-    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-residents) { gap: 0; }
+    html ${SHELL} .workbench-bar :is(.bar-start, .bar-end, .bar-side) { gap: 0; }
     ${SHELL} .plugin-picker-trigger { max-width: 132px; }
     html ${SHELL} .immersive-workspace > .tree-pane,
     html ${SHELL} .immersive-sidebar-scrim:not([hidden]) { bottom: var(--dock-h); }
@@ -1365,9 +1365,9 @@ const CRAFT_BASE_STYLES = `
   ${PAGES} :is(.mw-input, .mw-textarea, .mw-select, .mw-input-group) {
     transition: border-color var(--dur-hover) var(--ease-quint), box-shadow var(--dur-move) var(--ease-quint), background-color var(--dur-hover) var(--ease-quint);
   }
-  ${PAGES} :is(.mw-input, .mw-textarea, .mw-select):not([data-plain-field]):focus-visible,
+  ${PAGES} :is(.mw-input, .mw-textarea, .mw-select):not([data-plain-field], .mw-input-group *):focus-visible,
   ${PAGES} .mw-input-group:focus-within {
-    /* The edge is full copper so the focused field reads at 3:1 or better against its surface; the halo only softens it. */
+    /* The edge is full copper so the focused field reads at 3:1 or better against its surface; the halo only softens it; a grouped field gets it on its group. */
     outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 16%, transparent);
   }
   ${PAGES} [data-plain-field]:focus-visible { box-shadow: inset 0 -2px 0 var(--focus); }
@@ -1567,17 +1567,13 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH}[data-pane-embedded] .tab-pane-body > [data-work-surface] { animation: none; }
   @keyframes craft-rise { from { opacity: .4; transform: translateY(7px); } to { opacity: 1; transform: none; } }
 
-  /* Opening a project: the rail settles in from the edge, then the sheet. Once per page. */
-  ${SHELL}.is-craft-opening .plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account) {
-    animation: craft-rail-in 420ms var(--ease-quint) both; animation-delay: calc(var(--craft-i, 0) * 130ms + 130ms);
-  }
+  /* Opening a project: the sheet and the bar settle in. Once per page. */
   ${SHELL}.is-craft-opening .immersive-plugin-stage { animation: craft-sheet-open 640ms var(--ease-quint) both 130ms; }
   ${SHELL}.is-craft-opening .immersive-titlebar .tab-strip--chrome { animation: craft-fade-in 420ms var(--ease-quint) both 130ms; }
   ${SHELL}.is-craft-opening .workbench-bar > * { animation: craft-bar-in 420ms var(--ease-quint) both; }
   ${SHELL}.is-craft-opening .workbench-bar > .bar-center { animation-delay: 130ms; }
   ${SHELL}.is-craft-opening .workbench-bar > .bar-end { animation-delay: 130ms; }
   @keyframes craft-bar-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  @keyframes craft-rail-in { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
   @keyframes craft-sheet-open { from { opacity: 0; transform: translateY(10px) scale(.994); } to { opacity: 1; transform: none; } }
 
   /* ─── Home ─── */
@@ -1807,7 +1803,7 @@ const CRAFT_BASE_STYLES = `
     /* State still changes and focus still moves; only the movement goes. Transitions stop too, not just animations:
        a 0s duration (not 1ms) so a new size or position is there the moment the state changes. */
     ${PAGES} *, ${PAGES} *::before, ${PAGES} *::after { animation-duration: 1ms !important; animation-iteration-count: 1 !important; animation-delay: 0ms !important; transition-duration: 0s !important; transition-delay: 0s !important; scroll-behavior: auto !important; }
-    ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-resident, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
+    ${PAGES} :is(.mw-btn, .mw-toggle, .tree-create, .tab-item, .tab-view-chip, .home-day, [data-kanban-card], .mw-check, .mw-radio, .dock-pin, .bar-chat, .account-global-trigger, .plugin-picker-trigger):is(:active, :hover) { transform: none !important; }
     ${PAGES} :is(.mw-btn, .tab-item, [data-kanban-card], .plugin-market-body .mw-card, .plugin-market-installed-row > *):hover { transform: none !important; }
     ${PAGES} :is(.assistant-side-action, .assistant-segment, .assistant-tab-new, .assistant-tabbar .dock-window-action, .assistant-control, .assistant-start, .assistant-copy, .assistant-tab-close, .assistant-tab-main, .assistant-jump):active { transform: none !important; }
     .craft-burst, .craft-tip { transition: none; }
@@ -1845,30 +1841,11 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   const still = navigator.webdriver === true;
   if (still) root.setAttribute("data-craft-still", "");
   const reduced = () => still || matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const T = (text) => (typeof globalThis.L === "function" ? globalThis.L(text) : text);
   const embedded = body.hasAttribute("data-pane-embedded");
   const workbench = body.classList.contains("immersive-workbench");
 
-  /* A greeting that follows the local clock. */
-  const daylight = () => {
-    const hour = new Date().getHours();
-    if (hour >= 5 && hour < 11) return ["早上好", "yellow"];
-    if (hour >= 11 && hour < 13) return ["中午好", "orange"];
-    if (hour >= 13 && hour < 18) return ["下午好", "orange"];
-    if (hour >= 18 && hour < 23) return ["晚上好", "indigo"];
-    return ["夜深了", "purple"];
-  };
-  document.querySelectorAll("[data-craft-greeting]").forEach((node) => {
-    const [text] = daylight();
-    node.textContent = T(text);
-    node.hidden = false;
-  });
-
-  /* Opening a project: the rail settles in, then the sheet. Once per page. */
+  /* Opening a project: the sheet and the bar settle in. Once per page. */
   if (workbench && !embedded && !reduced()) {
-    let index = 0;
-    body.querySelectorAll(".plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account)")
-      .forEach((node) => node.style.setProperty("--craft-i", String(Math.min(index++, 28))));
     body.classList.add("is-craft-opening");
     setTimeout(() => body.classList.remove("is-craft-opening"), 1400);
   }
@@ -1979,7 +1956,7 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   }
 
   /* Rail tooltips: one element in the page, placed beside the control, so no scroll column clips it. */
-  const TIP_TARGETS = ".plugin-stack :is(.immersive-plugin-link, .navigator-project-selector, .navigator-project-search, .navigator-project-settings, .personal-account, .navigator-directory-toggle, .immersive-show-directory), .workbench-bar :is(.dock-pin, .bar-resident, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
+  const TIP_TARGETS = ".workbench-bar :is(.dock-pin, .bar-chat, .account-global-trigger, .navigator-project-selector, .plugin-picker-trigger), [data-craft-tip]";
   const tip = document.createElement("div");
   tip.className = "craft-tip";
   tip.setAttribute("aria-hidden", "true");
@@ -1991,13 +1968,12 @@ export const CRAFT_FINISH_CLIENT_SCRIPT = `
   };
   const place = (node) => {
     const box = node.getBoundingClientRect();
-    const beside = node.closest(".plugin-stack");
     const above = node.closest(".workbench-bar");
-    const x = beside ? box.right + 10 : box.left + box.width / 2 - tip.offsetWidth / 2;
-    const y = beside ? box.top + box.height / 2 - tip.offsetHeight / 2 : above ? box.top - tip.offsetHeight - 8 : box.bottom + 8;
+    const x = box.left + box.width / 2 - tip.offsetWidth / 2;
+    const y = above ? box.top - tip.offsetHeight - 8 : box.bottom + 8;
     tip.style.setProperty("--tip-x", Math.round(Math.max(6, Math.min(innerWidth - tip.offsetWidth - 6, x))) + "px");
     tip.style.setProperty("--tip-y", Math.round(Math.max(6, y)) + "px");
-    tip.style.transformOrigin = beside ? "left center" : above ? "bottom center" : "top center";
+    tip.style.transformOrigin = above ? "bottom center" : "top center";
   };
   const showTip = (node) => {
     const name = node.querySelector(":scope > span:not(.personal-account-avatar):not(.project-monogram), .personal-account-copy");

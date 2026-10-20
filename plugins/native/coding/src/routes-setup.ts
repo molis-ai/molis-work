@@ -1,12 +1,12 @@
 import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
-import { materialChoices, savedMaterials } from "./materials.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
-import { CODING_PLAN_SCHEMA_VERSION, confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference, portableCodingPlan } from "./plans.js";
-import { type CodingActivation, selected, sessionTitle, sessionOutputs } from "./route-activation.js";
+import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference, CODING_PLAN_SCHEMA_VERSION, portableCodingPlan } from "./plans.js";
+import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
 import { text } from "./run-inputs.js";
+import { libraryRuntime } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -17,13 +17,6 @@ import { isDeepStrictEqual } from "node:util";
 type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBinding[];
 
 const ROUTES: RouteMaker[] = [
-  (a) => {
-    const { context, route } = a;
-    return route("coding.materials", async (request, _api, execution) => {
-      const record = selected(a, request, execution);
-      return { materials: materialChoices(context, savedMaterials(context, record.session_id), execution.materialReferences?.(), sessionOutputs(execution), sessionTitle(a, execution), record.session_id) };
-    });
-  },
   (a) => {
     const { context, route } = a;
     return route("coding.actions", async (request, api, execution) => {
@@ -46,6 +39,8 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.save-mcp", async (request, api) => {
       const body = bodyOf(request);
+      // The project's Runtime holds its MCP servers; one whose matrix offers none refuses before anything is read or kept (PG-054).
+      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "mcp");
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
@@ -54,7 +49,7 @@ const ROUTES: RouteMaker[] = [
         if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
       }
-      return { server: await api!.invoke(agent.saveMcp, ["prologue", context.plugin_id, input]) };
+      return { server: await api!.invoke(agent.saveMcp, [runtime.runtime_id, context.plugin_id, input]) };
     });
   },
   (a) => {
@@ -62,7 +57,8 @@ const ROUTES: RouteMaker[] = [
     return route("coding.control-mcp", async (request, api) => {
       const action = bodyOf(request).action;
       if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw new Error("MCP 操作无效");
-      await api!.invoke(agent.controlMcp, ["prologue", context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
+      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "mcp");
+      await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
   },
@@ -70,23 +66,27 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.discover-methods", async (request, api) => {
       const body = bodyOf(request);
+      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
-      return { candidates: await api!.invoke(agent.discoverSkills, ["prologue", context.plugin_id,
+      return { candidates: await api!.invoke(agent.discoverSkills, [runtime.runtime_id, context.plugin_id,
         { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "方法目录", 1000)]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.install-method", async (request, api) => ({ method: await api!.invoke(agent.installSkill,
-      ["prologue", context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) }));
+    return route("coding.install-method", async (request, api) => {
+      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
+      return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) };
+    });
   },
   (a) => {
     const { context, route } = a;
     return route("coding.read-method", async (request, api) => {
+      const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
       const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
-      return { method: await api!.invoke(agent.readSkill, ["prologue", context.plugin_id, ref]) };
+      return { method: await api!.invoke(agent.readSkill, [runtime.runtime_id, context.plugin_id, ref]) };
     });
   },
   (a) => {

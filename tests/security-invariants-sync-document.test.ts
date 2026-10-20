@@ -85,7 +85,7 @@ test('PCSYNC-14 document isolates unavailable reads, waits for dependencies and 
   assert.equal(f.raw(), before);
 });
 
-test('S-40 PCSYNC-14 explicit temporary byte unavailability keeps the original queue and never exposes private diagnostics', () => {
+test('S-71 PCSYNC-14 explicit temporary byte unavailability keeps the original queue and never exposes private diagnostics', () => {
   const f=fixture();f.edit('one','original');f.edit('healthy','another item');f.unavailable(true);const before=f.raw();
   assert.throws(()=>f.doc.replica.next(),error=>{
     assert.ok(error&&typeof error==='object'&&'code' in error&&'kind' in error&&'details' in error);
@@ -96,7 +96,7 @@ test('S-40 PCSYNC-14 explicit temporary byte unavailability keeps the original q
   f.doc.replica.acknowledge(healthy.key,healthy.operationId,1);f.unavailable(false);assert.equal(f.open().replica.next()!.value,'original');
 });
 
-test('S-40 PCSYNC-15/16 JSON comparison rejects newer local text even when the remote revision is unchanged', () => {
+test('S-71 PCSYNC-15/16 JSON comparison rejects newer local text even when the remote revision is unchanged', () => {
   const f=fixture();f.edit('one','before');f.doc.replica.receive({operationId:'remote',key:'one',base:0,revision:1,value:'remote'});
   const shown=f.doc.replica.inspectConflict!('one')!;f.edit('one','new local');
   assert.throws(()=>f.doc.replica.resolve('one','remote',shown.revision,shown.state),/比较内容已变化/);
@@ -105,7 +105,7 @@ test('S-40 PCSYNC-15/16 JSON comparison rejects newer local text even when the r
   assert.equal(f.doc.replica.inspectRecovery!(f.doc.replica.recoveries!()[0]!.id)!.local,'new local');
 });
 
-test('S-40 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
+test('S-71 PCSYNC-06/25 public document uses real private-KV CAS and rejects revoked and contended writes without replay', () => {
   const db = new DatabaseSync(':memory:');
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: 'example.notes', name: 'Notes', version: '1.0.0', kind: 'app',
     publisher: { publisher_id: 'example', signature: 'signed-notes' }, entrypoints: [{ deployment: 'local', entrypoint: './index.js' }], permissions: [{ permission: 'storage:private', required: true, reason: 'notes' }] };

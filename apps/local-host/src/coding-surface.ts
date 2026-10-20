@@ -1,12 +1,16 @@
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { isTerminalAgentPhase, type AgentRunPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { projectRouteControl } from "./plugin-actions-client.js";
+import { pluginRouteControl } from "./plugin-route-control.js";
 import { ensureProjectPlugins as ensureStarted, type ProjectPluginPorts, type ProjectPluginState as Started } from "./project-plugins.js";
 import { agentQuestionHtml } from "./agent-question-card.js";
-import { interactionNextSteps } from "./agent-next-steps.js";
+import { CARD_RESULT_OPEN, cardOutcomeSteps, interactionNextSteps } from "./agent-next-steps.js";
 import { assistantCardHtml, cardView } from "./assistant/assistant-card-view.js";
 import type { StoredCard } from "./assistant/assistant-store.js";
 import { L } from "./web-locale.js";
 import { CHARACTERS_UI_CONTRIBUTION_ID, type CharactersUiModel } from "@molis-ai/molis-work-plugin-characters";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
-import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
+import { icon, escapeHtml, renderPluginStageShell, renderEmpty, renderSidebar, renderInteractionNextSteps, type InteractionNextStep } from "@molis-ai/molis-work-design-system";
 import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
@@ -56,6 +60,7 @@ import { readWorkspaceGit } from "./workspace-git.js";
 import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
+import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
 
 import { sendLocalWebJson } from "./web-http.js";
 import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";
@@ -77,6 +82,7 @@ import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-eve
  */
 
 export interface CodingSurfacePorts extends ProjectPluginPorts {
+  routeCaller?(): Promise<ActionCallContext>;
   escapeHtml(value: unknown): string;
   translate(value: string): string;
 }
@@ -189,8 +195,24 @@ export async function handleCodingPluginHttp(request: IncomingMessage, response:
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
-  return dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
-    projectRouteHooks(record, platform, pluginId, request, url, ports));
+  const abort = new AbortController();
+  const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
+  request.once("aborted", stop); response.once("close", stop);
+  let routed: ReturnType<typeof projectRouteControl> | undefined;
+  try {
+    const current = () => { if (platform.supervisor.state(pluginId)?.status !== "running") throw new ActionError("actions.plugin_unavailable", "插件已停止"); };
+    const plain = pluginRouteControl(abort.signal, current);
+    abort.signal.throwIfAborted();
+    const caller = await ports.routeCaller?.();
+    abort.signal.throwIfAborted();
+    if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
+    return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId,
+      projectRouteHooks(record, platform, pluginId, request, url, ports), {
+        execution: routed?.control ?? plain, stop,
+      });
+  } finally {
+    stop(); routed?.end(); request.off("aborted", stop); response.off("close", stop);
+  }
 }
 
 /**
@@ -236,6 +258,18 @@ function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, re
   if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
 }
 
+/**
+ * The row beside Coding's composer (AC-25; AC-06, H4): the round's questions and cards as the Assistant's are, then, once
+ * the round is over, the result of its card that ran last, then the round card's own follow-ups. Every step presses a
+ * control already on screen; a card result's 「打开」 is named by its selector, as Coding's follow-ups are.
+ */
+export function codingNextSteps(run: CodingFollowUpRun & { awaiting_input: readonly AgentPendingQuestion[] }, cards: readonly AssistantCard[],
+  say: (text: string, values?: Record<string, string | number>) => string): InteractionNextStep[] {
+  const ran = isTerminalAgentPhase(run.phase as AgentRunPhase)
+    ? cardOutcomeSteps(cards, "", say, card => `[data-card=${JSON.stringify(card.card_id)}] [data-ix-press=${JSON.stringify(CARD_RESULT_OPEN)}]`) : [];
+  return interactionNextSteps(run.awaiting_input, cards, [], [...ran, ...codingFollowUps(run, say)], say);
+}
+
 /** A card of a Coding session as Coding keeps it: the SDK's card, with no work of the Assistant's around it. */
 type CodingCard = Omit<StoredCard, "work_id">;
 
@@ -253,13 +287,13 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     for (const turn of run.turns) if (!(turn.kind === "user" && turn.text.startsWith(HISTORY_DIGEST_MARKER))) Object.assign(turn, {
       html: renderFeedRichText(turn.kind === "assistant" ? turn.text.replace(/^(?:[^\S\n]*\[(?:retained|historical) [^\]\n]*\][^\S\n]*\n?)+/, "") : turn.text) });
     // The same question card the Assistant shows, in the person's language; Coding's page restores its own drafts into it.
-    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L) });
+    for (const question of run.awaiting_input) Object.assign(question, { html: agentQuestionHtml(question, L, undefined, undefined, true) });
     // The row beside the composer: the round's questions as the Assistant's are, then what its card offers next (AC-25).
     // Drawn on every round the page receives in full, so a round it keeps unchanged keeps its row; it shows the latest one's.
     // The round's suggestions as the Assistant's cards are drawn; Coding keeps them and runs them (D25).
     const cards = (run.cards ?? []).map(card => cardView({ ...card, work_id: "" }));
     run.cards?.forEach((card, index) => Object.assign(card, { html: assistantCardHtml(cards[index]!, L, undefined, false) }));
-    const steps = interactionNextSteps(run.awaiting_input, cards, [], codingFollowUps(run, L), L);
+    const steps = codingNextSteps(run, cards, L);
     Object.assign(run, { next_html: steps.length ? renderInteractionNextSteps(steps, L("下一步"), { max: steps.length }) : "" });
   }
   const childBody = result.body as { subagents?: Array<{ children: Array<{ result: string | null }> }> } | undefined;

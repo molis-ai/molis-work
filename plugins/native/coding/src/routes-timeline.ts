@@ -12,9 +12,17 @@ import { codingRunForDisplay, codingSessionUsage, SESSION_PAGE, summariesFingerp
 import { codingTaskBoardPlans, stepVerdictKey } from "./taskboard.js";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentRunView, type AgentStepAmendment, type AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** Coding routes for a session's timeline: its rounds as they run and as recorded, the TaskBoard, recovery and rewind, messages and background commands. */
+
+/** The supplement a new step is for, as the page names it; the Host checks it is the round's own (stage 3d-3). */
+function origin(value: unknown): { origin?: string } {
+  if (value === undefined) return {};
+  if (typeof value !== "string" || !value || value.length > 200) throw new Error("补充引用无效");
+  return { origin: value };
+}
 
 /** A person's plan change, checked before it reaches the Host. */
 function stepAmendment(value: unknown): AgentStepAmendment {
@@ -23,7 +31,7 @@ function stepAmendment(value: unknown): AgentStepAmendment {
   const words = (key: string, label: string, max: number) => { const found = entry[key]; if (typeof found !== "string" || !found.trim() || found.length > max) throw new Error(`请填写${label}（不超过 ${max} 字）`); return found.trim(); };
   switch (entry.kind) {
     case "skip": return { kind: "skip", node: id("node"), reason: words("reason", "跳过原因", 300) };
-    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300), ...(entry.mine === true ? { mine: true as const } : {}) };
+    case "insert": return { kind: "insert", after: id("after"), title: words("title", "新步骤", 120), acceptance: words("acceptance", "完成条件", 300), ...(entry.mine === true ? { mine: true as const } : {}), ...origin(entry.origin) };
     case "unblock": return { kind: "unblock", node: id("node"), note: words("note", "你的决定", 500) };
     case "move": if (entry.direction !== "up" && entry.direction !== "down") throw new Error("移动方向无效"); return { kind: "move", node: id("node"), direction: entry.direction };
     case "assign": if (entry.to !== "me" && entry.to !== "session") throw new Error("改派对象无效"); return { kind: "assign", node: id("node"), to: entry.to };
@@ -142,7 +150,7 @@ const ROUTES: RouteMaker[] = [
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(projectId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, queued_inputs: snapshot.queued_inputs, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -225,7 +233,7 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request), amendment = stepAmendment(body.amendment), version = body.expected_version;
       if (typeof version !== "number" || !Number.isSafeInteger(version) || version < 1) throw new Error("计划图版本已失效，请刷新后再调整");
       const before = (await api!.invoke(agent.readRun, [session, ref])).step_board;
-      const board = await api!.invoke(agent.amendStepBoard, [session, ref, amendment, version]);
+      const { board } = await context.services!.actions!.invoke(agentCollaborationActions.revise, { ...session, run_id: ref.run_id, amendment, expected_version: version }, codingActionControl(beforeWrite));
       // The live round learns of the change through the same supplemental channel a person already uses.
       const note = amendmentNote(amendment, before ?? board);
       try { await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: ref.run_id, source: "host", text: note }, codingActionControl(beforeWrite)); return { board, steered: true }; }

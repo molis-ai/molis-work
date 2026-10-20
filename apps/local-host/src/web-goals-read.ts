@@ -27,6 +27,8 @@ import {
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
+  .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 
 async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
@@ -48,13 +50,7 @@ async function readProjectSettings(ports: LocalGoalsReadPorts, request: Incoming
 ): Promise<boolean> {
   const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
   const { renderMolisWorkProjectSettingsHub } = ports.renderer;
-  const open = url.pathname === "/settings/workspaces" ? "workspaces"
-    : url.pathname === "/settings/guidance" ? "guidance"
-    : url.pathname === "/settings/memory" ? "memory"
-    : url.pathname === "/settings/rules" ? "rules"
-    : url.pathname === "/settings/planning" ? "planning"
-    : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"
-    : null;
+  const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
   if (request.method === "GET" && open) {
     const view = await readWebView();
     if (!view.project) {

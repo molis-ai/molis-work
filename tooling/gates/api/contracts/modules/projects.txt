@@ -15,12 +15,6 @@ export interface AddWorkspaceProjectInput {
     user_confirmed: boolean;
 }
 
-export declare const BUILTIN_PROJECT_PLUGIN_IDS: readonly ["goals", "sessions", "inbox", "feed", "artifacts"];
-
-export declare const BUILTIN_PROJECT_PLUGIN_REGISTRY: ProjectPluginRegistry;
-
-export type BuiltinProjectPluginId = typeof BUILTIN_PROJECT_PLUGIN_IDS[number];
-
 export interface ChangeWorkspaceProjectInput {
     workspace_id: string;
     project_id: string;
@@ -39,10 +33,6 @@ export interface DeleteProjectInput {
     delete_confirmed: boolean;
     idempotency_key: string;
 }
-
-export declare const PROJECT_PLUGIN_COMPANIONS: {
-    readonly [K in BuiltinProjectPluginId]: readonly BuiltinProjectPluginId[];
-};
 
 export interface ProjectDataDeclaration {
     readonly label: string;
@@ -89,6 +79,7 @@ export interface ProjectPluginRegistry {
     has(pluginId: ProjectPluginId): boolean;
     companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
     isPersonal?(pluginId: ProjectPluginId): boolean;
+    isAlwaysOn?(pluginId: ProjectPluginId): boolean;
 }
 
 export interface ProjectRecord {
@@ -185,6 +176,7 @@ export declare const projectCatalogErrors: {
     workspace_membership_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     workspace_required: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     invalid_name: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    plugin_always_on: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     plugin_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;

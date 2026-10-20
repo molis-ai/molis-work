@@ -19,6 +19,7 @@
 | [src/content-store.ts](src/content-store.ts) | 加密内容引用 |
 | [src/session-surfaces.ts](src/session-surfaces.ts) | 终端面板与 Runtime 绑定写入时记下的会话 |
 | [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
+| [src/runtime-context-module.ts](src/runtime-context-module.ts) | 项目绑定、创建与清理服务的装配 |
 
 可对照现有调用方 [apps/local-host/src/session-registry.ts](../../apps/local-host/src/session-registry.ts) 阅读装配方式。
 
@@ -60,6 +61,7 @@ node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/sessi
 - 公开入口：`@molis-ai/molis-work-module-private-work-context`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/private-work-context`。
 - 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - Runtime 项目绑定由 `createRuntimeContextModule` 在同一连接内装配；Repository 不对包外导出，Host 只提供项目创建与补偿端口，并调用绑定、创建并绑定及清理服务。
   - 默认只在本机；私人恢复包不自动发布为 Artifact 或 Team 内容，共享必须由用户显式发布。
   - 关系事实只存在 Context Ledger，不另建关系表；打开时必须提供 `createLedger` 并复用事务连接。
   - 终端面板与 Runtime 绑定在写入时记下会话（读取时不再搬运）；面板的绑定与面板共用一个会话。

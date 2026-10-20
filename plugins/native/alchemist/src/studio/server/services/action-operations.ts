@@ -2,6 +2,10 @@ import { ActionError, searchEntriesPage, searchText, type SearchEntry, type Acti
 import type { ApiDependencies } from "../api/dependencies.js";
 import { ALCHEMIST_GENERATE_PERMISSION, alchemistOperations, type AlchemistHomeOperationName, type AlchemistOperationInput, type AlchemistOperationName } from "../../shared/contracts/actions.js";
 import type { AlchemistPulseGithubPort } from "../sources/pulse-github-port.js";
+import { DISCOVERY_BRAINSTORM_JOB } from "./create-exploration.js";
+import { RESEARCH_LENS_JOB } from "./start-lens-run.js";
+import { DISCOVERY_PULSE_JOB } from "./start-pulse-run.js";
+import { alchemistStateErrors } from "../../errors.js";
 import { deriveDirectionTitle } from "../../shared/contracts/direction.js";
 import { IdeaActionError } from "./idea-card-actions.js";
 import { ResearchPlanError } from "./create-research-plan.js";
@@ -11,7 +15,7 @@ import { AlchemistOperationError } from "./action-error.js";
 import {studioEditFingerprint} from '../db/edit-fingerprint.js';
 export { AlchemistOperationError } from "./action-error.js";
 
-export type AlchemistEffectControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
+export type AlchemistEffectControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current" | "retainBackgroundAuthority">;
 export interface AlchemistActionInvoker {
   invoke<I, O>(definition: ActionDefinition<I, O>, input: I, signal?: AbortSignal, control?: AlchemistEffectControl): Promise<O>;
 }
@@ -68,9 +72,13 @@ function implementations(d: ApiDependencies): Implementations {
     directionUpdate: input => ({ direction: d.directions.update(direction(input.id).id, {
       title: input.title ?? deriveDirectionTitle(input.description), description: input.description, updatedAt: d.clock.now() },input.expectedEtag) }),
     directionStatus: input => ({ direction: d.directions.setStatus(direction(input.id).id, input.status, d.clock.now()) }),
-    explorationStart: input => {
+    explorationStart: async (input, signal, control) => {
       if (direction(input.id).status === "archived") throw new AlchemistOperationError("alchemist.direction_archived", "请先恢复方向，再继续炼化。");
-      return d.createExploration({ directionId: input.id, reuseExisting: input.reuseExisting ?? false });
+      const accepted = await d.jobResumption.prepareStart(DISCOVERY_BRAINSTORM_JOB, control);
+      signal?.throwIfAborted();
+      const result = d.createExploration({ directionId: input.id, reuseExisting: input.reuseExisting ?? false });
+      if (result.jobId) d.jobResumption.accept(result.jobId, accepted);
+      return result;
     },
     explorationGet: input => {
       const exploration = d.explorations.get(input.id);
@@ -86,19 +94,34 @@ function implementations(d: ApiDependencies): Implementations {
     researchGet: (input, signal) => d.getResearchWorkspace(input.id, input.version, signal),
     researchPlan: async ({ id, ...input }, signal, control) => ({ plan: await d.workReuse.projectPlan(await d.createResearchPlan({ ideaId: id, ...input }, signal, control), signal) }),
     researchStart: async ({ id, ...input }, signal, control) => {
+      const accepted = await d.jobResumption.prepareStart(RESEARCH_LENS_JOB, control);
       const plan = d.research.getPlan(input.planId);
       if (plan) await d.workReuse.validate(plan, signal);
       await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
-      return { run: d.startLensRun({ ideaId: id, ...input }) };
+      const run = d.startLensRun({ ideaId: id, ...input });
+      d.jobResumption.accept(run.jobId, accepted);
+      return { run };
     },
+    // One action stops either kind of run, each through its own service (D27): the page's 「停止」, MCP and workflows share it.
     runCancel: input => {
-      try { return { run: d.cancelLensRun(input.id) }; }
-      catch (error) {
-        const code = error instanceof Error ? error.message : "alchemist.lens_run_not_cancellable";
-        if (!["alchemist.lens_run_not_found", "alchemist.lens_run_not_cancellable"].includes(code)) throw error;
-        throw new AlchemistOperationError(code, code === "alchemist.lens_run_not_found" ? "没有找到这次研究。" : "这次研究已经结束，不能再取消。", code === "alchemist.lens_run_not_found" ? 404 : 409);
+      try {
+        const kind = d.jobs.get(input.id)?.kind;
+        if (kind === RESEARCH_LENS_JOB) return { kind: "lens" as const, run: d.cancelLensRun(input.id) };
+        if (kind === DISCOVERY_PULSE_JOB) return { kind: "pulse" as const, run: d.cancelPulseRun(input.id) };
+        throw alchemistStateErrors.run_not_found("没有找到这次研究或市场脉搏。");
+      } catch (error) {
+        if (!(error instanceof ActionError) || !["alchemist.run_not_found", "alchemist.run_not_cancellable"].includes(error.code)) throw error;
+        throw new AlchemistOperationError(error.code, error.message, error.code === "alchemist.run_not_found" ? 404 : 409);
       }
     },
+    runList: () => ({ jobs: d.jobs.listRecent().filter(job => ["queued", "running", "interrupted", "failed"].includes(job.status)).map(job => {
+      const input = job.input && typeof job.input === "object" ? job.input as Record<string, unknown> : {};
+      const plan = typeof input.planId === "string" ? d.research.getPlan(input.planId) : undefined;
+      return { jobId: job.id, kind: job.kind, status: job.status, accepted: d.jobResumption.isAccepted(job.id), errorCode: job.errorCode,
+        directionId: typeof input.directionId === "string" ? input.directionId : undefined, ideaId: plan?.key.ideaId };
+    }) }),
+    runContinuation: input => d.jobResumption.view(input.id),
+    runContinue: (input, _signal, control) => d.jobResumption.continue(input.id, input.confirmation, control),
     runEvents: input => {
       // The original SQLite transaction gives events and terminal status one consistent snapshot.
       return d.jobs.readEvents(input.id, input.after ?? 0);
@@ -137,11 +160,11 @@ function businessError(error: unknown): never {
   if (error instanceof ResearchPlanError) throw new AlchemistOperationError(error.code,
     error.code === "alchemist.idea_version_not_found" ? "只有正式 Idea 版本可以开始研究。" : error.code === "alchemist.runtime_model_not_found" ? "没有找到所选模型。" : "预算上限无效。", error.code === "alchemist.idea_version_not_found" ? 404 : 422);
   if (error instanceof ActionError && ["alchemist.research_plan_not_found", "alchemist.research_plan_mismatch", "alchemist.lens_run_exists"].includes(error.code)) throw new AlchemistOperationError(error.code, "这份研究计划无法启动。");
+  if (error instanceof ActionError && error.code === "alchemist.job_not_found") throw new AlchemistOperationError("alchemist.run_not_found", error.message, 404);
   if (error instanceof Error) {
     const message = workspaceProblems[error.message];
     if (message) throw new AlchemistOperationError(error.message, message, error.message.endsWith("_not_found") ? 404 : 409);
     if (error.message === "alchemist.idea_version_not_found") throw new AlchemistOperationError(error.message, "没有找到这个 Idea 版本。", 404);
-    if (error.message === "alchemist.job_not_found") throw new AlchemistOperationError("alchemist.run_not_found", "没有找到这次运行。", 404);
     if (["alchemist.runtime_model_unavailable", "alchemist.runtime_not_configured"].includes(error.message)) throw new AlchemistOperationError(error.message,
       error.message === "alchemist.runtime_model_unavailable" ? "所选模型已不可用，请重新选择；系统不会自动换模型。" : "请在 Molis Work 全局设置中配置模型，再回来重试。");
   }
@@ -166,6 +189,7 @@ export function createAlchemistOperationExecutor(dependencies: ApiDependencies):
       const effect = async () => { signal?.throwIfAborted(); await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted(); };
       try {
         await effect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
+        if (operation.definition.operation === "command" && operation.name !== "runContinue") dependencies.initializeCommand();
         // The mapped implementation and schema always come from the same operation key.
         result = await (handlers[operation.name] as (input: unknown, signal?: AbortSignal, control?: AlchemistEffectControl) => unknown)(parsed.data, signal, { ...control, beforeEffect: effect });
         await effect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
@@ -225,7 +249,7 @@ export function createAlchemistActionHandlers(ports: AlchemistActionPorts): Acti
         return (await ports.resolve(caller)).invoke(definition as ActionDefinition, input, caller.signal, caller);
       },
     };
-    return modelAvailability && definition.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION)
+    return name !== "runContinue" && modelAvailability && definition.action.permissions.includes(ALCHEMIST_GENERATE_PERMISSION)
       ? { ...handler, availability: caller => caller.audience === "user" ? { available: true } : modelAvailability() } : handler;
   });
 }

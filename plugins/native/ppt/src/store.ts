@@ -1,12 +1,13 @@
-import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
-import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import {createAggregateReplica,initializeAggregateReplication,createAggregateCopy,AGGREGATE_REPLICA_SCHEMA_SQL,type AggregateReplicaContext,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
+import {pptAggregates} from './replication.js';
+import {replicaSchemaSql,type SqliteBaseline} from "@molis-ai/molis-work-storage";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
+import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
-import { createAggregateReplica, initializeAggregateReplication, type AggregateReplicaContext } from '@molis-ai/molis-work-storage';
-import { pptAggregates } from './replication.js';
 
 interface PptRow {
   id: string;
@@ -29,24 +30,39 @@ const DEFAULT_PRIMARY = "#5e6ad2";
 const DEFAULT_BACKGROUND = "#FCFCFB";
 const DEFAULT_TEXT = "#292A2E";
 
+/** The SQL the store runs: its own connection, or the library the Runtime gives the plugin, read or inside one write transaction. */
+export type PptSqlValue = string | number | null;
+export interface PptSql {
+  get(sql: string, parameters?: readonly PptSqlValue[]): Readonly<Record<string, unknown>> | null | undefined;
+  all(sql: string, parameters?: readonly PptSqlValue[]): readonly Readonly<Record<string, unknown>>[];
+  run(sql: string, parameters?: readonly PptSqlValue[]): { changes: number | bigint };
+}
+
+/** Where the actions read and write: reads run on their own; a write waits for the call's authority. Each writing Store operation is already one transaction through the injected `atomically`; the Runtime adapter will bind the Store inside its one `database.transaction`. */
+export interface PptStores {
+  read<T>(run: (store: PptStore) => T): T;
+  write<T>(caller: ActionExecutionContext, run: (store: PptStore) => T): Promise<T>;
+}
+
+/** Reads and writes on a store opened for each run, for tests and maintenance; the caller's beforeEffect is awaited, and the Store's own `atomically` still wraps each business operation. */
+export function ownPptStores(withStore: <T>(run: (store: PptStore) => T) => T): PptStores {
+  return { read: withStore, async write(caller, run) { await caller.beforeEffect(); return withStore(run); } };
+}
+
 export class PptStore {
-  constructor(private readonly db: DatabaseSync) {}
-  replica(context:AggregateReplicaContext){return createAggregateReplica(this.db,pptAggregates,context);}
+  constructor(private readonly db: PptSql, private readonly atomically: <T>(run: () => T) => T = run => run(), private readonly release: () => void = () => {}) {}
 
   close(): void {
-    this.db.close();
+    this.release();
   }
 
   list(projectId: string): PptRecord[] {
     const project_id = normalizeProjectId(projectId);
-    const rows = this.db.prepare(
-      "SELECT * FROM presentations WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE",
-    ).all(project_id) as unknown as PptRow[];
-    return rows.map(fromRow);
+    return this.rows("SELECT * FROM presentations WHERE project_id = ? ORDER BY datetime(updated_at) DESC, title COLLATE NOCASE", [project_id]).map(fromRow);
   }
 
   get(id: string, projectId?: string): PptRecord {
-    const row = this.db.prepare("SELECT * FROM presentations WHERE id = ?").get(id) as PptRow | undefined;
+    const row = this.rows("SELECT * FROM presentations WHERE id = ?", [id])[0];
     if (!row) throw pptErrors.not_found("找不到这份演示稿");
     if (projectId && row.project_id !== normalizeProjectId(projectId)) {
       throw pptErrors.not_found("找不到这份演示稿");
@@ -102,10 +118,10 @@ export class PptStore {
   }
 
   delete(id: string, projectId?: string, expectedVersion?: number): void {
-    this.transaction(() => {
+    this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       if (current.publication_pending) throw pptErrors.publication_pending("请先恢复上次成果发布，再删除演示稿");
-      this.db.prepare("DELETE FROM presentations WHERE id = ?").run(id);
+      this.db.run("DELETE FROM presentations WHERE id = ?", [id]);
     });
   }
 
@@ -115,12 +131,11 @@ export class PptStore {
    */
   relocate(id: string, from: string, to: string): PptRecord {
     const target = normalizeProjectId(to);
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, from);
       if (current.publication_pending) throw pptErrors.publication_pending("上次固定版本还没存完，请先在原位置恢复，再移动");
       // A move is not an edit: the content and its version stay as they were, so work that recorded this version still matches.
-      const result = this.db.prepare("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?")
-        .run(target, id, current.version);
+      const result = this.db.run("UPDATE presentations SET project_id = ?, artifact_id = '', artifact_version = 0 WHERE id = ? AND version = ?", [target, id, current.version]);
       if (result.changes !== 1) throw pptErrors.conflict("演示稿刚被修改，请重新读取后再移动");
       return this.get(id, target);
     });
@@ -129,16 +144,16 @@ export class PptStore {
   /** An independent copy in another partition; the same request always returns the same copy. */
   duplicate(id: string, from: string, to: string, requestId: string): PptRecord {
     const target = normalizeProjectId(to);
-    return this.transaction(() => {
-      const prior = this.db.prepare("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?").get(target, requestId) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, target);
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [target, requestId]);
+      if (prior) return this.get(String(prior.target_id), target);
       const source = this.get(id, from);
       const now = new Date().toISOString();
       const copy: PptRecord = { ...source, id: crypto.randomUUID(), project_id: target, created_at: now, updated_at: now, version: 1, artifact_id: "", artifact_version: 0,
         slides: source.slides.map(slide => ({ ...slide, id: crypto.randomUUID() })) };
       delete (copy as { publication_pending?: unknown }).publication_pending;
       this.write(copy, true);
-      this.db.prepare("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, requestId, id, copy.id, now);
+      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, requestId, id, copy.id, now]);
       return copy;
     });
   }
@@ -146,18 +161,18 @@ export class PptStore {
   /** A deck made from an outline another plugin hands over; one delivery makes one deck. */
   receive(projectId: string, requestId: string, title: string, slides: readonly PptSlideInput[]): PptRecord {
     const target = normalizeProjectId(projectId);
-    return this.transaction(() => {
-      const prior = this.db.prepare("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?").get(target, "receive:" + requestId) as { target_id: string } | undefined;
-      if (prior) return this.get(prior.target_id, target);
+    return this.atomically(() => {
+      const prior = this.db.get("SELECT target_id FROM presentation_copies WHERE project_id = ? AND request_id = ?", [target, "receive:" + requestId]);
+      if (prior) return this.get(String(prior.target_id), target);
       const created = this.create({ title, project_id: target });
       const filled = this.update(created.id, { slides, expected_version: created.version }, target);
-      this.db.prepare("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)").run(target, "receive:" + requestId, "", filled.id, filled.updated_at);
+      this.db.run("INSERT INTO presentation_copies (project_id, request_id, source_id, target_id, created_at) VALUES (?, ?, ?, ?, ?)", [target, "receive:" + requestId, "", filled.id, filled.updated_at]);
       return filled;
     });
   }
 
   beginPublication(id: string, projectId: string, actorId: string, expectedVersion?: number, existing?: PptPublicationSnapshot, version?: number): PptPublicationIntent {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId); this.assertVersion(current, expectedVersion);
       const pending = this.publicationIntent(id);
       if (pending) {
@@ -166,52 +181,45 @@ export class PptStore {
       }
       const intent: PptPublicationIntent = { content: existing ?? { title: current.title, description: current.description, color_primary: current.color_primary, color_background: current.color_background, color_text: current.color_text, slides: current.slides },
         version: version ?? current.artifact_version + 1, source_version: current.version, actor_id: actorId };
-      this.db.prepare("UPDATE presentations SET publication_pending_json = ? WHERE id = ?").run(JSON.stringify(intent), id);
+      this.db.run("UPDATE presentations SET publication_pending_json = ? WHERE id = ?", [JSON.stringify(intent), id]);
       return intent;
     });
   }
 
   completePublication(id: string, projectId: string, intent: PptPublicationIntent, artifact: { artifact_id: string; version: number }): PptRecord {
-    return this.transaction(() => {
+    return this.atomically(() => {
       const current = this.get(id, projectId);
       if (current.artifact_id === artifact.artifact_id && current.artifact_version >= intent.version) return current;
       if (JSON.stringify(this.publicationIntent(id)) !== JSON.stringify(intent)) throw pptErrors.publication_conflict("发布记录已改变，请重新读取演示稿");
-      this.db.prepare("UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?")
-        .run(artifact.artifact_id, artifact.version, new Date().toISOString(), id);
+      this.db.run("UPDATE presentations SET artifact_id = ?, artifact_version = ?, updated_at = ?, version = version + 1, publication_pending_json = NULL WHERE id = ?",
+        [artifact.artifact_id, artifact.version, new Date().toISOString(), id]);
       return this.get(id, projectId);
     });
   }
 
   private publicationIntent(id: string): PptPublicationIntent | null {
-    const row = this.db.prepare("SELECT publication_pending_json FROM presentations WHERE id = ?").get(id) as { publication_pending_json: string | null };
-    return row.publication_pending_json ? JSON.parse(row.publication_pending_json) as PptPublicationIntent : null;
+    const row = this.db.get("SELECT publication_pending_json FROM presentations WHERE id = ?", [id]);
+    const pending = row?.publication_pending_json;
+    return typeof pending === "string" && pending ? JSON.parse(pending) as PptPublicationIntent : null;
   }
   private assertVersion(current: PptRecord, expectedVersion?: number): void {
     if (expectedVersion !== undefined && expectedVersion !== current.version) throw pptErrors.conflict("演示稿已被其他窗口修改，请重新读取；当前草稿未覆盖服务器内容");
   }
-  private transaction<T>(run: () => T): T {
-    this.db.exec("BEGIN IMMEDIATE");
-    try { const result = run(); this.db.exec("COMMIT"); return result; }
-    catch (error) { this.db.exec("ROLLBACK"); throw error; }
+  /** The one cast from the SQL rows to this store's row shape: the columns are the schema's. */
+  private rows(sql: string, parameters?: readonly PptSqlValue[]): PptRow[] {
+    return this.db.all(sql, parameters) as unknown as PptRow[];
   }
 
   private write(record: PptRecord, insert: boolean, expectedVersion = record.version - 1): void {
     if (insert) {
-      this.db.prepare(
-      "INSERT INTO presentations (id, project_id, title, description, color_primary, color_background, color_text, slides_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).run(
-        record.id, record.project_id, record.title, record.description, record.color_primary,
-        record.color_background, record.color_text, JSON.stringify(record.slides),
-        record.created_at, record.updated_at, record.version,
-      );
+      this.db.run("INSERT INTO presentations (id, project_id, title, description, color_primary, color_background, color_text, slides_json, created_at, updated_at, version) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        [record.id, record.project_id, record.title, record.description, record.color_primary,
+          record.color_background, record.color_text, JSON.stringify(record.slides), record.created_at, record.updated_at, record.version]);
       return;
     }
-    const result = this.db.prepare(
-      "UPDATE presentations SET title = ?, description = ?, color_primary = ?, color_background = ?, color_text = ?, slides_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
-    ).run(
-      record.title, record.description, record.color_primary, record.color_background,
-      record.color_text, JSON.stringify(record.slides), record.updated_at, record.version, record.id, expectedVersion,
-    );
+    const result = this.db.run("UPDATE presentations SET title = ?, description = ?, color_primary = ?, color_background = ?, color_text = ?, slides_json = ?, updated_at = ?, version = ? WHERE id = ? AND version = ?",
+      [record.title, record.description, record.color_primary, record.color_background,
+        record.color_text, JSON.stringify(record.slides), record.updated_at, record.version, record.id, expectedVersion]);
     if (result.changes !== 1) throw pptErrors.conflict("演示稿已改变，请重新读取后保存");
   }
 }
@@ -220,6 +228,7 @@ export class PptStore {
  * The presentation store's one current schema (repository-anti-corruption §4.1): new stores are created from it,
  * existing ones must already be at its version. Columns keep the order existing stores have them in.
  */
+/** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
 export const PPT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE presentations (
     id TEXT PRIMARY KEY,
@@ -239,11 +248,23 @@ export const PPT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   );
   CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
+export const PPT_DATABASE: PluginDatabaseDeclaration = { ...PPT_STORE_BASELINE, store_name: "ppt", read_permission: "ppt:read", write_permission: "ppt:write" };
 
-export function openPptStore(homeDirectory: string): PptStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
-  const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_STORE_BASELINE);
+export function openPptStore(homeDirectory: string) {
+  const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_DATABASE);
+  const sql: PptSql = {
+    get: (text, parameters = []) => db.prepare(text).get(...parameters),
+    all: (text, parameters = []) => db.prepare(text).all(...parameters),
+    run: (text, parameters = []) => db.prepare(text).run(...parameters),
+  };
   initializeAggregateReplication(db,pptAggregates);
-  return Object.assign(new PptStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,pptAggregates,context)});
+  return Object.assign(new PptStore(sql, run => immediate(db, run), () => db.close()), {replica:(context:AggregateReplicaContext)=>createAggregateReplica(db,pptAggregates,context),copy:(context:AggregateCopyContext)=>createAggregateCopy(db,pptAggregates,context)});
+}
+
+function immediate<T>(db: DatabaseSync, run: () => T): T {
+  db.exec("BEGIN IMMEDIATE");
+  try { const result = run(); db.exec("COMMIT"); return result; }
+  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 function fromRow(row: PptRow): PptRecord {
@@ -315,4 +336,4 @@ function normalizeBullets(value: unknown): string[] {
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `ppt/ppt.db` at its one baseline. */
-export const PPT_HOME_STORE: HomeStoreDeclaration = { path: "ppt", library: { baseline: PPT_STORE_BASELINE } };
+export const PPT_HOME_STORE: HomeStoreDeclaration = { path: "ppt", library: { baseline: PPT_DATABASE } };

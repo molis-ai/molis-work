@@ -11,10 +11,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
  * Exceptions are listed with the reason they may stay serial.
  */
 const SERIAL_BY_DESIGN: Record<string, string> = {
-  "images.jobs.start@1": "persists a background image job and returns running",
-  "alchemist.explorations.start@1": "enqueues an exploration; the worker owns its lifetime",
   "alchemist.pulse.start@1": "enqueues a market pulse; the worker owns its lifetime",
-  "alchemist.research.start@1": "enqueues a confirmed research plan; the worker owns its lifetime",
 
 };
 const configurationOnly = (id: string) => id.startsWith("scenes.enable:");
@@ -39,6 +36,7 @@ test("every action that waits on a model runs beside the serial queue unless it 
   assert.ok(found.size >= 10, "the directory must actually contain the model actions");
   const serial = [...found].filter(([, scheduling]) => scheduling !== "concurrent").map(([id]) => id).sort();
   assert.deepEqual(serial, Object.keys(SERIAL_BY_DESIGN).sort());
+  assert.equal(found.get("images.jobs.start@2"), "concurrent", "Runtime background acceptance uses a concurrent model-authorized action");
   assert.ok(found.has("alchemist.reuse.assess@1"), "custom AI permissions must also enter the scheduling check");
 });
 

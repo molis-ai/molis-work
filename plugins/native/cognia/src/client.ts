@@ -4,6 +4,9 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate, $ = s => root.querySelector(s), dialog = $('[data-cognia-dialog]'), form = $('[data-cognia-form]'), content = $('[data-cognia-dialog-content]'), submit = $('[data-cognia-submit]');
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tx = value => esc(L(value)), button = (label, action, extra='') => '<button type="button" class="mw-btn mw-btn--ghost cognia-relation" data-cognia-action="'+action+'" '+extra+'>'+esc(label)+'</button>';
+  let state = {materials:[],domains:[],sources:[],drafts:[]}, selected = new Set(), cur = null, preview = null, receipt = null, draft = null, flow = '', busy = false, seq = 0, timer, returnFocus = null, listScroll = 0, listFocus = null;
+  const route = path => host.route('/api/plugins/io.molis.work.cognia/library'+path);
+  const api = (path, body) => molisWorkRequest(route(path), {method:body===undefined?'GET':'POST',body});
   let state={materials:[],domains:[],sources:[],drafts:[]},selected=new Set(),cur=null,etag='',preview=null,receipt=null,draft=null,flow='',busy=false,seq=0,timer,returnFocus=null,listScroll=0,listFocus=null;
   const api = async (path, body) => { const response = await fetch('/api/plugins/cognia'+path,{method:body===undefined?'GET':'POST',headers:typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}); const payload=await response.json().catch(()=>({})); if(!response.ok)throw Error(payload.error||L('Cognia 请求失败')); return payload; };
   const notice = error => { const el=$('[data-cognia-notice]'); el.hidden=!error; el.querySelector('span').textContent=error?L(error):''; };

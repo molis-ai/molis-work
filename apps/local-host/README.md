@@ -9,6 +9,8 @@
 
 初始化失败后释放本次资源，普通 `ready()` 保留失败结果，不因页面查询自动重试。用户从错误页点击重试，经受保护的 `POST /api/plugins/<plugin_id>/retry` 调用 `HomePluginHost.retry()`；并发重试共用一次启动，故障库不重建、不迁移。清理失败或 Host 已关闭时不可重启；恢复后仍保留用户停用意图。
 
+助理接续监听归 Local Host：关闭借用 Web 传输不终止共享助理，Host 关闭开始时释放监听，持久等待留待重启恢复。手动构造 `AssistantService` 的嵌入者需在关闭运行时及数据库前调用 `service.continuations.close()`；回归见 `tests/assistant-continuation-control.test.ts`、`tests/assistant-connector-continuation.test.ts`。
+
 Web 工厂自建 Host 时，`server.close(callback)` 在自有 Host 和目录连接关闭后才调用回调；调用方应等待它，再退出或清理 Home。传入的借用 Host 仍由嵌入者负责 `await host.close()`。
 
 ## 一次典型调用
@@ -70,6 +72,10 @@ PluginHostExecutor 提供私人存储、Artifact 和 UI clients；这是受信�
 
 Schedule 的提醒在项目动作目录直接注册，Scheduler 装配时绑定唤醒，无须打开 Studio。`schedule-reminders.ts` 只连接安装仓库和同库 Feed/Inbox 投递；时间、数量、安装隔离和一次性消费归 Schedule 插件。`schedule-operations.ts` 同样只装配安装执行器和 Inbox；计划与 occurrence、重装后的归属确认、未知结果恢复归 Schedule。执行器注册不派出工作，新的 lease 才能运行持久 pending；结果未知必须在 Schedule 核对后明确重试或跳过。
 
+服务连接的 `connectors.records.read` 复用设置页已有的 API / CLI 记录读取，仅接受连接 id，使用 `connectors:records:read` 权限；没有业务读取适配时明确拒绝，不能把账号检查当成读取结果。连接停用、换号或调用取消时，旧读取不返回结果。回归见 `tests/connector-record-actions.test.ts`、`tests/connector-cli.test.ts`。
+
+固定记录预览的 `result.record_count` 表示本次返回数量，由 API 的记录列表或 CLI 实际返回的数组计算，放在正文之前；非列表 CLI 不猜数量。工具正文被截断时仍可读到数量，完整记录保留在原工具结果资源；该字段不是服务端全部记录总数。
+
 ## 公共搜索与证据
 
 `createSearchEvidenceRuntime` 装配 SEL 的公共 web query、可信身份、intent 持久化和 Storage 正文端口；关闭时取消并等待在途操作和传输，再由数据库所有者关闭连接。`createFeedSourceRuntime` 注入 RSS Runtime、来源路由、条件请求游标和 receipt。Alchemist 直接使用公共装配，不初始化 Feed/RSS；研究查询、预算和可引用摘要仍由 Alchemist 决定。到 AnySearch 的出站只有一条：`anysearch-transport.ts`，由 `createSearchEvidenceRuntime` 默认装配，Feed 的网页搜索与 Alchemist 研究共用（固定主机、只连公网地址并钉住、请求 64 KiB 与响应 1 MiB 上限、不跟随跳转；主机名经 `resolveModelHostname`，系统解析返回 198.18/15 假地址且设了代理变量时改由公共 DNS 核验）。SEL 自带的钉死 HTTPS 宿主不再使用，`tests/anysearch-single-owner.test.ts` 守着这一点。历史存储名称及引用保留，不改写已有数据。
@@ -91,7 +97,13 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
+Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
+
 ## 开发要求
+
+炼金术士的关闭先停止接纳并撤销提交，再等待前台动作与 worker 的真实退出；只有工作室与搜索资源全部关闭后才移出登记和删除目录。失败保留 live 删除钩子与未关闭资源，公开 Host.close 的同次并发与成功后重复调用返回同一 Promise；失败后可单独重试炼金术士收尾，其余已完成 Host 收尾不重复执行。搜索组合直接拥有 query transport 的清理，避免 SEL 缓存一次关闭失败后无法重试；SEL 内部终端故障仍保留失败和资源，不假称清理成功。回归：`tests/security-invariants-alchemist-lifecycle.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/search-evidence-runtime.test.ts`。
+
+助理每轮的未完成接入材料由 `src/assistant/assistant-setup-material.ts` 从接入 owner 读取，按当前 actor、会话、项目和读取授权筛选；只给公开状态、意图修订及实际旧等待撤回结果，不带凭据、不决定保留/取消。新消息后的暂缓与等待撤回仍分别由连接 owner 和 SDK 负责。回归：`tests/assistant-connector-business.test.ts`。
 
 Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalHost 时归该 Host 所有，关闭或重建借用的 Web 传输仍保留连接，最终 Host 关闭才释放。借用时复核 owner/schema，查询不缓存授权或项目事实，关闭等待已有借用。当前 schema 的目录打开不取得初始化写事务，也不执行建表。首次准备遇到 SQLITE_BUSY 延迟重试目录准备，确定性 owner/schema 拒绝不自动重试，关闭取消待重试；不会重新执行失败的业务回调。`/health` 在请求校验后读取服务就绪状态，不通过目录数据库探活。
 
@@ -108,6 +120,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 插件平台的 Home 与夹具（W3-06 D0）：`createPluginPlatform` 的 `home` 必填，给进程内的 Home（`pluginHomeFor`，宿主的模型注入在调用时读、不在启动时拷）或明说 `null`（生成插件的平台、没有 Home 的测试）；测试不做类型检查，所以不给也在运行时拒绝。一份启动名单里同一个 `plugin_id` 只能出现一次（监督器按 id 收一条，后来的会悄悄顶掉先来的）。`MolisWorkLocalHostOptions.pluginFixtures` 只给测试和探针用，生产装配不传：`.home` 与 `.project` 均接受定义或 `{ definition, database }`，前者在唯一 Home 实例中，后者在项目平台里启动；都不是 `bundled`（按安装编号登记）、不能沙箱执行，宿主关闭即撤。夹具不得冒充内置 Home 定义，两份实际启动名单不得重复同一插件身份；不合规时拒绝整份启动。一个 Home 同一时间只有一个打开的宿主（Agent 服务只绑一次推理），所以登记一个 Home 一条。
   - Home 里每个有数据的条目只登记一次（W4-11）：`home-stores.ts` 的 `homeStores()`，由各 owner 在打开它的代码旁声明（宿主的库在各自文件里导出 `*_HOME_STORE`，插件的经目录条目 `home_store` 带进，Issues 的经 Home 条目 `runtime.database`），一个路径只能有一个主人。卸载清除只读它；新增 Home 里的库或目录先在 owner 那里声明，并改 `docs/system/HOME-DATA.md` 与 `tests/personal-plugins-review-fixes.test.ts` 钉死的名单。
   - 项目里宿主自己运行的插件的 Home 库（W3-06 D）：和 Home 级实例是同一个服务 `services.database`（`openPluginDatabase`），不另开第二份。声明在宿主自己的启动名单里：条目 `PluginPlatformEntry.database`（`PluginPlatform.start`），记在宿主列出的那个定义对象上；插件的定义、`plugin_id`、动作入参都不能选库，同 `plugin_id` 的另一个定义对象（开发中的、生成的）、没有声明的条目、`home: null` 的平台、沙箱定义都没有。名单里有错就整份不启动、不建任何库（`plugin-database-entries.ts` 的 `assertDatabaseEntries`）：沙箱定义，平台没有 Home，Manifest 没有声明 `storage:private` 和读写两个权限，库名不是一个目录名，库没有登记在 Home 的存储登记里（`home-stores.ts` 的 `homeStores()`，W4-11；`uninstall --purge-user-data` 清的就是它），登记里的这一项不是库（`feed`、`config/…` 等），库登记的主人不是这个插件（宿主、模块、别的插件的库），声明的版本或结构与登记的基线不同，同一名单里两个插件用同一个库。测试夹具的库按夹具自己的 id 登记，与已登记的名字重复时整个平台不启动（`home-side.ts`）。库在插件启动时打开、停止时关闭，每个项目的实例各持一对连接（读、写）指向同一个库文件，所以换项目数据不分开；每次调用复查实例仍在运行、授权仍在：停用、卸载、撤权后一律拒绝，停止开始后插件自己的 `stop` 也写不进去，重启前留下的旧句柄仍无效；写入走 `transaction(caller.beforeEffect, …)`，等授权在结构上，被取消的并发动作不写。一个库只有一个主人，所以 Home 条目（`BUILTIN_PLUGIN_CATALOG`）与项目条目不会把同一个库给两个插件。`pluginFixtures.project` 的项目可以写成 `{ definition, database }`，给生产路径的用例用；生产装配里目前没有条目声明库。
+  - 原生插件私有文件：可信启动条目的 `files` 由 `assertFilesEntries` 核对 Home 存储 owner、路径、权限与大小；Home 和项目执行器共用 `openPluginFiles`。只给声明目录内的普通文件，读不建目录，创建不覆盖，写入等待后复核授权；停止先撤销句柄，升级预检没有文件服务。回归 `tests/security-invariants-plugin-files.test.ts`。
+  - 已受理后台执行：`plugin-background-service.ts` 把共同的 `services.background` 接给声明 `background_job` 的非沙箱定义，两个执行器都先取消再等待 stop。HTTP 的 `plugin-route-control.ts` 和 MCP 的 `mcp-background-authority.ts` 保留原身份、项目与可撤销授权，只有传输结束被分离；MCP 实际授权持续重读，项目路由从目标安装读取 grants。业务任务/结果/恢复均归插件，Host 不另建任务表、不自动重放。验证：`tests/security-invariants-plugin-background.test.ts`、`tests/runtime-plugin-http-discovery.test.ts`。
   - 宿主自己运行的插件的模型服务（W3-06 E）：`context.services.model`，由 `PluginHostExecutor` 对「Manifest 声明 `model:invoke`、定义不是沙箱执行、平台有 Home」的插件建出来（`plugin-model-service.ts` 的 `pluginModelFor`），不是 typed 能力。是否放行（只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作里；发出前、返回后各问一次这次调用的 `beforeEffect()`；指令只收本插件自己的）在 `packages/plugin-runtime/src/model-service.ts`，这里的端口只负责发：宿主构造时给的 `completeText`（函数是测试替身，`null` 是没有模型，经 Home 登记在每次调用时读取）优先，否则 `hostTextGeneration({ homeDirectory })`，即 agent-host 的 Prologue 推理，与其他调用方同一条；指令经 `resolveModelPrompt`、`registeredInstructionBody` 解析成用户改过的版本，没登记的指令以 `plugin.model_instruction_refused` 拒绝；不向 Prologue 传调用编号（2026-10-10）。没有目录条目的插件的指令来自 `PluginDefinition.instructions`，在实例启动时登记（`plugin-instructions.ts`，按安装计数，最后一个运行它的实例停止时撤下），owner 必须是插件自己，目录已经为同一个 owner 登记了任何 Agent 定义（指令、Agent 提示词、角色或方法）则启动失败（第二个来源会顶掉目录登记的角色与方法；同一个插件的两个安装并排登记，不算目录的）。Home 级实例由 `HomePluginExecutor` 接同一模型与指令服务，停止开始即撤执行权，失败与关闭仍释放全部持有资源。
   - Home Runtime（W3-06 F）：现有 Issue 宿主复用 D/E 的数据库、模型、动作与指令服务，安装/发行物/私有 KV 在完整 v2 的 `plugin-runtime/plugin-runtime.db`；严格拒旧版与坏结构，构造 Repository 前核完整 schema。Home/project 动作与场景按实际 scope、运行安装的 grants 和世代授予；Home HTTP 在无项目及真实项目前缀下保持 Home scope，共用 `plugin-route-operations.ts` 并保留网页权限、取消、beforeEffect、页面上下文和 12 MiB 读体。Home 初始化失败保留失败与显式 retry，Goals 页面和其他项目动作仍可用。普通关闭保留 enabled 意图，停用跨重启保持，旧服务与停止钩子不能写。
   - 一个 Home 只有一个执行进程（`agent-runtime/.molis-runtime-owner.db` 锁）；其他入口经 `LocalActionGatewayClient` 转发，连接丢失不退回本地执行。
@@ -138,7 +152,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
   - 只装配和做 IO（连接、事务、文件、HTTP、进程），不复制 Module 的业务规则；能力注册不启动 SDK、CLI 或请求模型。
   - 项目选择页的简介（`GET /api/projects/:id/brief`，`project-arrival-http.ts`）只经公开读口按所选项目逐个读：Goals 目录与状态、Home 事项、长期背景；读一个项目就要打开它，所以页面在选中停住约 160 毫秒后才来读、服务端同时最多读两个（`createReadLimiter`），不批量预取、不写任何记录，读不到的部分在简介里缺席而不是被猜；缓存按请求语言区分、只留几秒。「最近打开」与采用时保存的一句话描述（`config/project-arrival.json`，`project-arrival.ts`）只是展示记忆：项目自己的页面被打开时写入，选择页渲染时对照目录清理，写失败不挡路，不存任何项目事实。
   - 有 Artifact 输入的 PluginPlatform 观察同一项目连接的领域 journal，每秒核对已提交的 Artifact 游标；其他连接的提交也能触发既有输入图重算，不读取未提交的外层事务。启动读取当前固定事实，关闭先调用 `closeCoordination()` 停止观察、输入处理与事件，再停插件和关数据库。此路径刷新投影，不重放业务操作。
-  - 默认接线（`plugin-default-bindings.ts` 的 `bindDeclaredDefaults`，每次项目插件启动及放回某个输入口时都会跑）按运行中插件 Manifest 的声明（输入口的 `default_source`、输入组的 `default`，W4-03）只给什么也没读的输入口装默认来源，而且只在随 Host 发布的插件之间（两端都是启动名单标了 `bundled` 的定义，`platform.shipsWithHost`）：已安装或生成的插件的声明当作没写，它的默认组也是（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）；来源插件没在跑、没有那个输出口或类型不同就不接：已读着另一个插件输出或人给它的固定成果版本的口保持原样（装默认来源会连带清掉固定版本）。放回输入口只在它仍读着那一版时生效，过期页面的点击不撤销后来的选择。
+  - 默认接线（`plugin-default-bindings.ts` 的 `bindDeclaredDefaults`，每次项目插件启动及放回某个输入口时都会跑）按运行中插件 Manifest 的声明（输入口的 `default_source`、输入组的 `default`，W4-03）只给什么也没读的输入口装默认来源，而且只在随 Host 发布的插件之间（两端都是启动名单标了 `bundled` 的定义，`platform.shipsWithHost`）：已安装或生成的插件的声明当作没写，它的默认组也是（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议。2026-10-18 改：改成按声明与授权、任何插件一样，见防腐 spec §1；实现前代码仍按本条）；来源插件没在跑、没有那个输出口或类型不同就不接：已读着另一个插件输出或人给它的固定成果版本的口保持原样（装默认来源会连带清掉固定版本）。放回输入口只在它仍读着那一版时生效，过期页面的点击不撤销后来的选择。
   - 安装器准备 npm 与 Desktop 资产但不自动发布；vendored 依赖的传递依赖必须能从标准 ancestor 解析。
   - 宿主自己打开的个人库（炼金术士每个项目的 `search.sqlite`，`alchemist-search.ts` 的 `ALCHEMIST_SEARCH_BASELINE`）也和别的库一样只认一份当前基线、版本不符拒绝：版本 1，有表没有版本的旧文件拒绝打开；改它的表结构要换版本并加新夹具（`tests/home-store-baselines.test.ts`）。
   - 系统搜索只在这里装配：`system.search` 注册一次；建索引用本机用户上下文，调用者按自己的项目或 Home 客户端访问；成功的命令与提供方注册/撤下都通知搜索，不另建能力名单或权限。
@@ -169,6 +183,8 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - Goals typed 桥删除和未注册拒绝改动另跑：`node scripts/run-tests.mjs tests/goal-management-identity.test.ts tests/goals-query-boundaries.test.mjs tests/typed-registry-inventory.test.ts tests/local-host.test.ts tests/local-host-actions.test.ts tests/workspace-read-actions.test.ts tests/management-door-identity.test.ts tests/mcp-management-actions.test.ts tests/proposal-entry-chain.test.ts`。
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-preference-integrity.test.ts tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)、[docs/platform/PROLOGUE-AI.md](../../docs/platform/PROLOGUE-AI.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+可信 Home 条目的 `owner_files` 与 `initialize_owner_files` 由实际 definition 对象绑定，先以唯一 HomeStoreRegistry 和两个 scope 的现行声明检查归属/共根，再向当前实例提供 `services.ownerFiles`。文件端口只接受声明顶层下的严格相对路径；每个文件句柄经 NOFOLLOW/NONBLOCK/fstat 后才读写，拒绝软硬链接与特殊节点。原子替换只承诺 rename 前失败保留原字节，树删除先预检；不承诺多文件事务、掉电持久或抵御同 OS 用户并发换父目录。对应 `tests/security-invariants-plugin-owner-files.test.ts`、`tests/security-invariants-plugin-owner-files-registration.test.ts`、`tests/security-invariants-plugin-owner-files-lifecycle.test.ts`；Shelf 本体尚未切换到此服务。
 
 ## 进一步阅读
 
@@ -216,7 +232,7 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 
 项目 Schedule/Feed 在常驻服务的第一轮 timer（30 秒）之前从 Catalog 打开，不在启动时打开（用户 2026-10-15：打开一个项目要编译它的动作合同、启动插件，启动头几秒的请求不排在这后面），之后新动作打开的项目实例也直接接入同一个后台 timer；不再以项目页面访问作为登记条件。调度服务按项目库复用，关闭或删除项目在 owner 与库释放前撤销等待和续租；借用 Host 的 Web 关闭也等待调度收束，重新绑定恢复同一实例，不自动重放已派发的一次任务。`tests/schedule-reminder-recovery.test.ts` 的 W2-18-SCHEDULE-01/02 覆盖隔离 Home 重启、纯动作网关创建、实际 service timer、真实 Todo owner 结果和迟到拒绝。`tests/assistant-reminders.test.ts` 的 W2-18-S8-TODO-01 走真实 Todo→共同到期查询→Assistant service timer，不经过 Schedule。测试只缩短定时器的等待，不手调业务 tick；尚未运行时不能把源码/夹具完成记为回归通过。
 
-子任务交回的自动续跑在当前父状态、最新已完成轮次与既有 `hand_back_held` 上核对。归档、停止正在准备的交回或本人开始新父轮，都使旧候选失效；原调用的同步 `assertBeforeStart` 与 owner 检查一并保留到实际 SDK 接受。拒绝不消费子任务的 `handed_back_run`，本人恢复后仍能核对这份结果。回归见 `tests/assistant-delegation.test.ts` 的 W2-18-HANDBACK-CURRENT-01/02；不将固定调用次数称为 SDK 接受点。
+子任务交回的自动续跑由 SDK 的等待与接续驱动（`specs/prologue-adoption` §6.0n）：父 Work 交出一步时，它的根挂一个等待，等根下所有没结束的步骤；都结束后根的接续变成 `eligible`，助理按接续的请求键起「子任务都已交回」那一轮。归档、本人停止父 Work（接续先被挂起给人，`blocked`）或本人开始新父轮，都使正在准备的交回失效；原调用的同步 `assertBeforeStart` 与 owner 检查一并保留到实际 SDK 接受。被拒的交回不再自己重试，接续留给这项工作的下一轮。回归见 `tests/assistant-delegation.test.ts` 的 W2-18-HANDBACK-CURRENT-01/02/03 与 `tests/assistant-delegation-handback.test.ts`；不将固定调用次数称为 SDK 接受点。
 
 插件消费动作时，`plugin-actions-client.ts` 从该项目真实目录解析唯一提供方并固定它，保留原声明、grant、实例取消与同步复查。Host 启动名单的实际内置 definition 通过 `plugin-entry-identity.ts` 给运行 caller 登记进程内资格；停止前及启动失败清理会撤销，复制对象、同名插件与 publisher 字符串不取得资格。原名单认可的 release restore 重新登记新 definition；Goals 的实际消费验收见防腐 spec §10.7。
 
@@ -229,3 +245,30 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 可信复制装配可用 `openProjectCopyJournal` 打开目标个人 Home 的本机回执，逐次核对不可变空间及目录无链接，不初始化 Runtime 或发起网络同步。Placement 拥有回执格式和提交编排，Host 仅注入原子文件存储。`createPersonalPluginRegistrations` 的文档集合在同一账号授权内复用 adapter，保持 owner 跨批次游标；旧账号缓存不能继续读写。整项目暂存/发布与用户入口仍未装配。
 
 个人版首用交付按 `specs/personal-cloud-sync/personal-trial.md` 执行。个人项目永久删除在唯一 ProjectDeletionService 拒绝；回收和恢复仍可用。HTTP 云端永久清理在打开服务前拒绝。
+助理接入等待的状态由 SDK 任务图持有。Host 的 `connector-setup-checker.ts` 只读原会话的接入请求，并从助理 owner 重查当前权限；`assistant-continuations.ts` 读取 SDK 接续，在原对话中按最新要求开下一轮。等待时不调模型，暂停与停止的本人选择单独保留；默认停止会撤回该会话尚未提交的接入请求，已提交连接保留；显式 `keep_connections: true` 先停止业务与撤回等待，再保留该会话有效接入，不能使已停止业务再开轮。该路径依赖 App-tools 等待支持，完整证据记录在 `specs/assistant-service-connections/spec.md`。
+
+接入提交由 `connector-authorization-commit.ts` 汇合：本人在原工作发来新要求时，连接 owner 暂缓该会话的未完成请求；协议完成材料放在现有加密本人操作记录中。`connectors.setup.resolve` 只接受同一会话当前意图修订的保留/取消，释放时再次核对原连接修订。公开状态不含完成材料和凭据。回归：`tests/security-invariants-connector-intent.test.ts`、`tests/connector-mcp.test.ts`、`tests/connector-setup.e2e.test.ts`。
+
+免凭据 HTTP/SSE MCP 可经 `connectors.setup.execute@1` 执行已准备的请求，只接收授权请求 id，并核对同一用户、项目、会话及当前意图。需要凭据或本人登录时仍返回受保护表单。请求前和连接提交前复核授权、取消及 Host 生命周期，重复执行读取同一请求状态；已有外部服务进程不由 Host 接管。生产路径及取消、撤权、关闭、暂缓、重启、停用回归在 `tests/connector-mcp.test.ts`。
+
+服务连接的四维查询从配置、最近技术观察、当前调用者权限和共同动作目录投影。直接连接动作的可用性与插件对象配置分开说明；没有服务端 scopes 证据就显示未知。记录读取和 MCP 工具/资源调用在实际派出后记录结果，连通检查不计作业务调用；取消、撤权或配置变化后不再写入观察。协议返回错误、返回成功和结果丢失分别保留失败、成功和未知；最近观察不含参数或业务正文。项目 MCP 配置仍归 SDK；观察同时绑定配置版本与关联凭据修订。设置页经同一管理动作查询和管理项目连接，Home 视角不借用项目调用权限；所属项目的能力仍按调用者自身授权判断。
+
+已有连接的修复等待由 `assistantConnectionCheckers` 装配 `molis.connection-ready@1`：只读当前连接检查与能力目录，绑定稳定连接、真实账号要求和任务所需精确动作。设置页的检查走共同管理动作；暂停工作、换账号、缺权限不满足条件，移除连接明确失败。检查器自身不登录、不修复或调用业务工具。
+
+本地 MCP 的连接协议实现是 `src/connector-local-mcp.ts`（固定可执行路径、参数、工作目录、凭据环境与进程关闭），`src/connector-local-mcp-setup.ts` 在真实握手和发现完成后经同一连接 owner 提交，候选失败保留原配置。它与远程 MCP 共用 `src/connector-mcp-inspection.ts` 的完整分页发现和共同动作目录。改这些路径跑 `node scripts/run-tests.mjs tests/security-invariants-local-mcp.test.ts tests/connector-mcp.test.ts tests/connector-status.test.ts`；本地安装和对话入口的进度见当前服务接入 spec。
+
+受管理包安装由 `src/connector-tool-install.ts` 负责固定包版本、隔离环境及安装文件所有权；运行时补装在 `src/connector-tool-runtime.ts`，下载边界与校验在 `src/connector-tool-download.ts`，无 shell 的受控子进程在 `src/connector-tool-process.ts`。本机实装回归为 `node scripts/run-tests.mjs tests/connector-managed-install.test.ts`（需要已有 npm、uv 和 Python，使用本机临时包源，不从公网安装测试包）；下载拒绝、取消和目录所有权由 `tests/security-invariants-connector-install.test.ts` 验证。实装文件因 uv 前置条件暂未加入 Linux 产品子集，不用跳过断言代替安装证据。
+
+本地接入的正式动作是 `connectors.local.prepare@1`、`connectors.local.execute@1` 与清理失败后的 `connectors.local.cleanup@1`，共享管理权限及原授权记录。本人页面只提交请求 id 和声明过的环境值；方案不可被 HTTP 参数替换。完成的安装若协议验证失败，保留资源与方案供明确重试，凭据不保留在请求中；关闭 Host 取消并等待其子进程，关闭页面不取消。新增路径跑 `node scripts/run-tests.mjs tests/connector-local-actions.test.ts tests/connector-managed-install.test.ts tests/connector-local-setup.e2e.test.ts tests/personal-plugins-review-fixes.test.ts`；安装目录归 Home 的 `runtime/` 存储 owner，purge 按同一登记清理。
+
+官方 CLI 的安装方案与接续在 `src/connector-cli-setup.ts`，来源仍由 `src/connector-cli.ts` 的适配表声明，`src/connector-cli-actions.ts` 登记准备、安装和账号验证动作。受管理 CLI 用自己的配置目录与运行时，实际版本检查通过才进入本人登录；登录进程退出后 Host 完成原请求，不依赖页面轮询提交。PTY 随原请求取消或 Host 关闭结束，已完成安装与登录由原授权/连接 owner 持有。改动跑 `node scripts/run-tests.mjs tests/security-invariants-cli-install.test.ts tests/connector-cli.test.ts tests/security-invariants-connector-intent.test.ts`；包安装回归用临时 HTTP 包源与真实 npm/PTY，不使用公网账号。
+
+受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
+
+`connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。
+
+MCP 工具的原始 schema 留在发现快照和版本指纹里。`src/mcp-tool-actions.ts` 只在动作校验副本中去掉一级基本类型参数上的有效 `x-mcp-header` 传输注释；不改参数约束，不关闭严格 schema 检查，未知关键字、嵌套或无效注释继续使该工具不可调用。HTTP 传输仍按 MCP SDK 实际协商的协议执行；这项处理不表示支持 2026-07-28 的头映射。真实 HTTP 派出与拒绝回归见 `tests/connector-mcp.test.ts` 的 ASC-03/13/31 注释用例。
+
+后台类别权限从受理时的真实 MCP allowed refs 固定来源，再与当前精确 grants/声明求交；新授予的同权限动作不能救活旧任务。Alchemist HTTP 的请求 signal 只约束本次传输控制，正常响应结束后已受理工作仍检查 Host/项目/原动作权限。搜索派出在 DNS 后、TLS 请求体前及后续请求复核同一调用，SearchEvidence/secret/opaque/content 写入保留最终同步检查。回归见 `tests/security-invariants-alchemist-resumption.test.ts`、`tests/search-effect-authority.test.ts`、`tests/action-background-authority.test.ts`。
+
+公共模型服务的原图由 `plugin-model-images.ts` 在 Host 私有临时目录适配现有 Prologue intake，路径由 Host 生成、目录 0700、文件 0600，调用结束清除源副本；SDK 继续负责图片格式和 intake 资源回收。`hostTextGeneration` 返回实际 dispatch 快照的同步复核函数，成功与可记账失败保留原推理事实；公共服务的 `choices()` 复用 `configuredModelChoices`，不解密或联网。回归见 `tests/security-invariants-plugin-model-materials.test.ts`、`tests/prologue-inference-images.test.ts`。

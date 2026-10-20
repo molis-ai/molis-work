@@ -4,7 +4,7 @@
   "private": true,
   "description": "Personal Home issue capture and editing through the Plugin Runtime.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

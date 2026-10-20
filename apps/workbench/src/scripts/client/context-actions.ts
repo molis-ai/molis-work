@@ -6,18 +6,22 @@
  * pointing at, and never shows a ranking for a context that is no longer current. A click hands the choice back to
  * the page that owns the object (`molis:assistant-context-action-chosen`), which prepares it through the Host and
  * shows a preview before anything is written. A split pane is its own document: it draws its own toolbar from the plan the
- * top document sends it, and sends its choices back.
+ * top document sends it, and sends its choices back. So is a plugin's tab in the side panel (specs/context-program §21.4 W3-C):
+ * its document runs the same part alone, and the top document hears it through the side frames' check (S-30).
  */
 import { compactScript, CONTEXT_TOOLBAR_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { CONTEXT_BAR_SCRIPT } from "./context-bar.js";
 import { CONTEXT_BUS_SCRIPT } from "./context-bus.js";
-import { CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
+import { CONTEXT_LANDING_PANE_SCRIPT, CONTEXT_LANDING_SCRIPT } from "./context-landing.js";
+import { SIDE_FRAME_FROM_SCRIPT } from "./pane-messages.js";
 
 // The factory is one closure, so the four files are joined into one script, in the order of the original text.
-export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
-  const L = host.translate;
-  const embedded = window.parent !== window && document.body.hasAttribute("data-pane-embedded");
+// What a surface's own document runs: the selection reader, the naming of an opened item and, in a split pane or a side
+// view, the toolbar it draws for the top document. A side view's document runs this part alone (side-view-document.ts).
+const PANE_PART = String.raw`  const L = host.translate;
+  const embedded = window.parent !== window && document.body.matches("[data-pane-embedded],[data-side-view]");
   const ownPane = embedded ? new URL(location.href).searchParams.get("workbenchPane") || "pane" : "main";
+  const panes = host.paneMessages;
   const post=(path,body,signal)=>molisWorkRequest(host.route(path),{body,signal,fallback:L("暂时处理不了，请稍后重试")});
   const newRequestId = () => (crypto.randomUUID ? crypto.randomUUID() : "cx-" + Date.now().toString(36) + Math.random().toString(36).slice(2, 8));
   const quoted = (focus) => focus.targets.map((target) => target.text).join("\n\n").slice(0, 20000);
@@ -78,7 +82,9 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
     };
     const own = (node) => {
       const el = node && (node.nodeType === 1 ? node : node.parentElement);
-      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], [data-assistant-island], .mw-ctx'));
+      // In the Assistant, only a reply's words are in hand (its own context); its input, strip and buttons are not.
+      return !el || Boolean(el.closest('[contenteditable=""], [contenteditable="true"], input, textarea, select, [data-surface-focus="own"], .mw-ctx'))
+        || el.matches('[data-assistant-island] :not([data-assistant-context], [data-assistant-context] *)');
     };
     const read = () => {
       const sel = getSelection();
@@ -150,8 +156,10 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       choose: (key) => say({ type: "workbench-context-action-choose", key }),
       assistant: () => say({ type: "workbench-context-assistant" }),
       dismiss: () => say({ type: "workbench-context-dismiss" }),
-      hold: (state) => say({ type: "workbench-context-hold", ...state }),
-      settled: () => say({ type: "workbench-context-hold", interacting: false, pinned: [] }),
+      // With the keys under the pointer on the bar and in its menu, for the top document to flash the landing (W3-C2).
+      hold: (state) => say({ type: "workbench-context-hold", ...state, pointed: toolbar.pointed() }),
+      // Nothing held, nothing under the pointer: the top document reads missing fields as that.
+      settled: () => say({ type: "workbench-context-hold" }),
     });
     document.addEventListener("molis:surface-focus", (event) => {
       shown = event.detail && typeof event.detail === "object" ? event.detail : null;
@@ -164,7 +172,7 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       if ((event.metaKey || event.ctrlKey) && event.key === "." && toolbar.hidden() && shown && shown.activity === "editing") { event.preventDefault(); say({ type: "workbench-context-summon" }); }
     });
     window.addEventListener("message", (event) => {
-      if (event.source !== window.parent || event.origin !== location.origin || !event.data) return;
+      if (!panes.fromParent(event)) return;
       const data = event.data;
       if (data.type === "workbench-context-view") {
         if (data.op === "idle") toolbar.hide();
@@ -180,9 +188,14 @@ export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) =>
       if (fallback) parent.postMessage({ type: "workbench-context-action-unhandled", context_id: shown.context_id, key: data.candidate.key, detail: fallback }, location.origin);
     });
     window.addEventListener("pagehide", () => parent.postMessage({ type: "workbench-surface-focus", focus: null }, location.origin));
+${CONTEXT_LANDING_PANE_SCRIPT}
     return null;
-  }
+  }`;
 
+export const CONTEXT_ACTIONS_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
+${PANE_PART}
+
+  const sideFrame = ${SIDE_FRAME_FROM_SCRIPT};
   const openAssistant = (detail) => document.dispatchEvent(new CustomEvent("molis:assistant-open", { detail }));
   const visible = (node) => Boolean(node && node.isConnected && node.getClientRects().length && !node.closest("[hidden]"));
 ${CONTEXT_BAR_SCRIPT}
@@ -190,4 +203,9 @@ ${CONTEXT_BAR_SCRIPT}
 ${CONTEXT_BUS_SCRIPT}
 ${CONTEXT_LANDING_SCRIPT}
   return { current: () => bus.focus, plan: () => bar.plan };
+}`);
+
+/** The same part for a document of its own (a plugin's side view): it needs `translate`, `paneMessages` and `route`. */
+export const CONTEXT_PANE_FACTORY_SCRIPT = compactScript(String.raw`(host) => {
+${PANE_PART}
 }`);

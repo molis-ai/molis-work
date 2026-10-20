@@ -7,28 +7,31 @@ import type {
   ShelfClipboardRecord,
   ShelfItemKind,
   ShelfItemRecord,
-  ShelfRecipeAvailability,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { icon, renderButton } from "@molis-ai/molis-work-design-system";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 
 export const SHELF_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.ui.v1";
 
-export type ShelfUiSurface = "directory" | "workbench";
+/** Shelf has one surface: its tab in the side panel (specs/side-shelf §3.2). It never opens in the work area. */
+export type ShelfUiSurface = "side";
 
 export interface ShelfUiPrimitives {
   escape(value: unknown): string;
   text(value: string, values?: Record<string, string | number>): string;
 }
 
+/** What the side panel hands every tab; the rows arrive from the client, which reads the shelf once it starts. */
 export interface ShelfUiModel {
+  readonly primitives: ShelfUiPrimitives;
+}
+
+export interface ShelfListModel extends ShelfUiModel {
   readonly materials: readonly ShelfItemRecord[];
   readonly results: readonly ShelfItemRecord[];
   readonly clipboard: readonly ShelfClipboardRecord[];
-  readonly recipes: readonly ShelfRecipeAvailability[];
   readonly selected_id: string | null;
   readonly current_clip_id?: string | null;
-  readonly primitives: ShelfUiPrimitives;
 }
 
 export const shelfUiDescriptor: UiContributionDescriptor = {
@@ -37,34 +40,21 @@ export const shelfUiDescriptor: UiContributionDescriptor = {
   kind: "primary-page",
   navigation_id: "shelf",
   label: "Shelf",
-  surfaces: [
-    { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
-    { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
-  ],
+  surfaces: [{ surface_id: "side", target_slot_id: "workbench.side", format: "declarative-html" }],
   slots: [],
 };
 
 export const shelfUiContribution: UiContribution<ShelfUiModel> = {
   descriptor: shelfUiDescriptor,
   render(request: UiRenderRequest<ShelfUiModel>): string {
-    switch (request.surface as ShelfUiSurface) {
-      case "directory":
-        return renderShelfDirectory(request.model);
-      case "workbench":
-        return renderShelfWorkbench(request.model);
-      default:
-        throw new Error(`Shelf UI surface ${(request as UiRenderRequest).surface} 不存在`);
-    }
+    if ((request.surface as ShelfUiSurface) !== "side") throw new Error(`Shelf UI surface ${(request as UiRenderRequest).surface} 不存在`);
+    return renderShelfWorkbench({ materials: [], results: [], clipboard: [], selected_id: null, primitives: request.model.primitives });
   },
 };
 
-export function renderShelfDirectory(_model: ShelfUiModel): string {
-  return "";
-}
-
-export function renderShelfWorkbench(model: ShelfUiModel): string {
+export function renderShelfWorkbench(model: ShelfListModel): string {
   const { primitives: p } = model;
-  return `<section class="desktop-work-surface plugin-stage-shell" data-work-surface="shelf" data-work-surface-label="Shelf" hidden data-shelf="workbench" data-shelf-stage-shell data-expanded="false">
+  return `<section data-work-surface="shelf" data-work-surface-label="Shelf" hidden data-shelf="workbench" data-shelf-stage-shell data-expanded="false">
     <div class="plugin-stage-list" data-shelf="directory">
       <header class="shelf-side-head shelf-stage-chrome">
         <label class="shelf-search shelf-stage-search">${SHELF_GLYPH.search}<input type="search" data-shelf-search placeholder="${p.text("搜索材料")}" aria-label="${p.text("搜索材料")}" autocomplete="off"></label>
@@ -93,11 +83,11 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <footer class="mw-form__footer">${renderButton({ label: p.text("刷新成果"), variant: "secondary", attrs: { "data-shelf-result-refresh": "" } })}${renderButton({ label: p.text("接收并打开副本"), type: "submit", attrs: { "data-shelf-result-receive": "", disabled: true } })}</footer>
       </form>
     </dialog>
-    <dialog class="mw-dialog mw-dialog--form" data-shelf-material-dialog aria-label="${p.text("保存项目材料")}">
+    <dialog class="mw-dialog mw-dialog--form" data-shelf-material-dialog aria-label="${p.text("存到项目资料")}">
       <form class="mw-form mw-dialog__shell" data-shelf-material-form>
-        <header class="mw-form__header"><h2>${p.text("存一份固定版本到项目")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
-        <div class="mw-form__body"><p data-shelf-material-destination></p><p>${p.text("保存下面的固定原文，之后可在 Coding 的「＋ 材料」中选择。编辑或移除 Shelf 副本不会改变已保存版本。")}</p><pre class="shelf-material-body" data-shelf-material-body></pre><p role="status" data-shelf-material-status></p></div>
-        <footer class="mw-form__footer">${renderButton({ label: p.text("重新读取"), variant: "secondary", attrs: { "data-shelf-material-refresh": "" } })}${renderButton({ label: p.text("保存固定版本"), type: "submit", attrs: { "data-shelf-material-save": "", disabled: true } })}${renderButton({ label: p.text("设为材料输出"), attrs: { "data-shelf-material-output": "", hidden: true } })}</footer>
+        <header class="mw-form__header"><h2>${p.text("存到项目资料")}</h2>${renderButton({ label: p.text("关闭"), variant: "ghost", attrs: { "data-shelf-material-close": "" } })}</header>
+        <div class="mw-form__body"><p data-shelf-material-destination></p><p>${p.text("把下面的原文存一份到项目资料，项目里的 Agent 都能找到。之后编辑或移除 Shelf 副本，不会改变存下的这一份。")}</p><pre class="shelf-material-body" data-shelf-material-body></pre><p role="status" data-shelf-material-status></p></div>
+        <footer class="mw-form__footer">${renderButton({ label: p.text("重新读取"), variant: "secondary", attrs: { "data-shelf-material-refresh": "" } })}${renderButton({ label: p.text("存到项目资料"), type: "submit", attrs: { "data-shelf-material-save": "", disabled: true } })}</footer>
       </form>
     </dialog>
     <div class="plugin-stage-workspace" data-shelf-stage-workspace hidden>
@@ -107,7 +97,7 @@ export function renderShelfWorkbench(model: ShelfUiModel): string {
         <span class="shelf-chrome-tag" data-shelf-chrome-tag></span>
         <span data-placement-slot data-placement-scope="home" data-placement-saved="off"></span>
         ${renderButton({ label: p.text("用于本项目"), variant: "ghost", attrs: { "data-shelf-use-in-project": "", hidden: true, title: p.text("项目首页会列出它，你在项目里能打开最新内容；它仍只在你的 Shelf 里") } })}
-        ${renderButton({ label: p.text("存一份固定版本到项目"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true, title: p.text("复制一份不会再变的原文到项目材料，项目里的 Coding 和助理能读取；之后改 Shelf 不影响这一份") } })}
+        ${renderButton({ label: p.text("存到项目资料"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true, title: p.text("存一份不会再变的原文到项目资料，项目里的 Agent 都能找到；之后改 Shelf 不影响这一份") } })}
         <a class="mw-btn mw-btn--ghost" data-shelf-original-artifact hidden>${p.text("查看原固定成果")}</a>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("编辑副本")}</span>
       </header>

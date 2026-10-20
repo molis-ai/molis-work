@@ -11,7 +11,7 @@
 // gives every test process), in a process whose parent already holds that slot (MOLIS_WORK_SLOT_HELD), or with MOLIS_WORK_SLOT=off;
 // MOLIS_WORK_SLOT=on takes it anyway (the tests of this file). The slots live in MOLIS_WORK_SLOT_DIR, else <tmpdir>/molis-work-slots.
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { constants, tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -36,6 +36,9 @@ const alive = (pid) => {
   try { process.kill(pid, 0); return true; } catch (error) { return error.code === "EPERM"; }
 };
 
+// A ticket is named <arrival>-<pid>.json; NaN (a name that is not a ticket) counts as gone.
+const ownerOf = (name) => Number(/-(\d+)\.json$/.exec(name)?.[1]);
+
 const readJson = (file) => {
   try { return JSON.parse(readFileSync(file, "utf8")); } catch { return null; } // gone or half-written: treated as absent
 };
@@ -53,12 +56,23 @@ export function slotState(kind, directory = slotDirectory()) {
   mkdirSync(queue, { recursive: true });
   const waiting = [];
   for (const name of readdirSync(queue).sort()) {
+    // Whose ticket it is comes from its name, not its contents, so a ticket another waiter cannot read is still a live place.
+    if (!alive(ownerOf(name))) { rmSync(path.join(queue, name), { force: true }); continue; }
     const ticket = readJson(path.join(queue, name));
-    if (ticket && alive(ticket.pid)) waiting.push({ ...ticket, name });
-    else rmSync(path.join(queue, name), { force: true });
+    if (ticket) waiting.push({ ...ticket, name });
   }
+  const writing = `${queue}.writing`;
+  for (const name of existsSync(writing) ? readdirSync(writing) : []) if (!alive(ownerOf(name))) rmSync(path.join(writing, name), { force: true });
   return { holder, waiting };
 }
+
+// Written whole beside the queue and renamed into it, so no reader sees it half-written (and none reads the half-written copy).
+const writeTicket = (ticket, info) => {
+  const writing = path.join(`${path.dirname(ticket)}.writing`, path.basename(ticket));
+  mkdirSync(path.dirname(writing), { recursive: true });
+  writeFileSync(writing, JSON.stringify(info));
+  renameSync(writing, ticket);
+};
 
 const tryTake = (held, info) => {
   try { mkdirSync(held); } catch { return false; } // someone else made it first
@@ -77,11 +91,13 @@ export async function acquireSlot(kind, { label = path.basename(process.cwd()), 
   const queue = path.join(directory, `${kind}.queue`);
   mkdirSync(queue, { recursive: true });
   const ticket = path.join(queue, `${String(info.since).padStart(15, "0")}-${process.pid}.json`);
-  writeFileSync(ticket, JSON.stringify(info));
+  writeTicket(ticket, info);
   const held = path.join(directory, `${kind}.held`);
   let shown = "";
   for (;;) {
     const { holder, waiting } = slotState(kind, directory);
+    // A place that went missing (removed from outside) is taken again with its first arrival time, so the run cannot wait forever.
+    if (!waiting.some((entry) => entry.pid === process.pid)) { writeTicket(ticket, info); continue; }
     const first = waiting[0]?.pid === process.pid;
     if (!holder && first && tryTake(held, { ...info, since: Date.now() })) break;
     const now = holder ? describe(holder) : `nobody, ${waiting.findIndex((entry) => entry.pid === process.pid)} ahead in the queue`;

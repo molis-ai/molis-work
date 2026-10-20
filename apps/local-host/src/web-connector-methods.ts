@@ -1,7 +1,8 @@
+import { handleConnectorLocalHttp } from "./web-connector-local.js";
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
-import { completeMcpAuthorization, inspectMcpConnection, startMcpConnection } from "./connector-mcp.js";
+import { completeMcpAuthorization, inspectMcpConnection, startMcpConnection, type StartMcpConnectionInput } from "./connector-mcp.js";
 import { handleConnectorApiMethodsHttp } from "./web-connector-api-methods.js";
 import { connectorAuthorizationFailed } from "./connector-authorization-return.js";
 import { ActionError, type ActionCallContext, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -20,7 +21,9 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
   if (!home || !directory) return false;
   // Whenever the person lists a connection's tools, the shared directory follows what the server offers now.
   const remember = directory.remember;
-  if (await handleConnectorApiMethodsHttp(request, response, url, home, remember)) return true;
+  const beforeEffect = () => { if (localHost.lifecycle() !== "running") throw connectorErrors["connector.connection.invalid"]("Host 已关闭，请重新打开接入请求"); };
+  if (await handleConnectorLocalHttp(request, response, url, home, remember, beforeEffect)) return true;
+  if (await handleConnectorApiMethodsHttp(request, response, url, home, remember, beforeEffect)) return true;
   const item = CONNECTION.exec(url.pathname);
   if (url.pathname !== `${PREFIX}/start` && url.pathname !== `${PREFIX}/complete` && url.pathname !== `${PREFIX}/callback` && !item) return false;
   try {
@@ -29,14 +32,18 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
     const origin = `http://${host}`;
     if (url.pathname === `${PREFIX}/callback` && request.method === "GET") {
       const result = await completeMcpAuthorization(home, { state: url.searchParams.get("state") ?? "", code: url.searchParams.get("code") ?? "", error: url.searchParams.get("error") ?? undefined, origin });
-      response.writeHead(302, { location: `/settings/connectors?connected=${encodeURIComponent(result.serviceId)}&connection=${encodeURIComponent(result.connectionId)}`, "cache-control": "no-store" });
+      if (!("awaiting_intent" in result)) remember(result.connectionId, result.tools, result.resources);
+      response.writeHead(302, { location: "awaiting_intent" in result ? `/capabilities/connections?setup=${result.authorization_id}`
+        : `/settings/connectors?connected=${encodeURIComponent(result.serviceId)}&connection=${encodeURIComponent(result.connectionId)}`, "cache-control": "no-store" });
       response.end();
       return true;
     }
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "不支持的 MCP 连接操作" }); return true; }
     const body = await readLocalWebBody(request);
     if (url.pathname === `${PREFIX}/complete` && typeof body.returned_url === "string") {
-      sendLocalWebJson(response, 200, await completeMcpAuthorization(home, { origin, returnedUrl: body.returned_url }));
+      const result = await completeMcpAuthorization(home, { origin, returnedUrl: body.returned_url });
+      if (!("awaiting_intent" in result)) remember(result.connectionId, result.tools, result.resources);
+      sendLocalWebJson(response, 200, result);
       return true;
     }
     if (url.pathname === `${PREFIX}/start`) {
@@ -44,15 +51,19 @@ export async function handleConnectorMethodsHttp(request: IncomingMessage, respo
         serviceId: typeof body.service_id === "string" ? body.service_id : "",
         displayName: typeof body.display_name === "string" ? body.display_name : "",
         endpoint: typeof body.endpoint === "string" ? body.endpoint : undefined,
+        authentication: body.authentication as StartMcpConnectionInput["authentication"],
+        transport: body.transport as StartMcpConnectionInput["transport"],
         clientId: typeof body.client_id === "string" ? body.client_id : undefined,
         clientSecret: typeof body.client_secret === "string" ? body.client_secret : undefined,
         token: typeof body.token === "string" ? body.token : undefined,
         connectionId: typeof body.connection_id === "string" ? body.connection_id : undefined,
+        setupId: typeof body.setup_id === "string" ? body.setup_id : undefined,
         redirectUri: typeof body.redirect_uri === "string" ? body.redirect_uri : undefined,
         origin,
       });
       if ("tools" in result && result.tools) remember(result.connectionId, result.tools as ConnectorMcpTool[], result.resources);
       sendLocalWebJson(response, 200, { connection_id: result.connectionId, authorization_id: result.authorizationId, authorization_url: result.authorizationUrl,
+        ...("awaiting_intent" in result ? { awaiting_intent: true } : {}),
         ...("tools" in result ? { tools: result.tools, resources: result.resources } : {}) });
       return true;
     }

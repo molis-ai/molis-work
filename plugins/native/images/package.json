@@ -4,7 +4,7 @@
   "private": true,
   "description": "本机多厂商图片生成工作台",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

@@ -25,7 +25,7 @@ import type { MolisWorkLocalHost, MolisWorkProjectRuntime } from "./project-host
 import { prepareGitIndexCapability, prepareGitOperationCapability, readGitOperationsCapability, readGitResultsCapability, type GitOperationRecord, type GitReviewedResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { prepareGitOperation } from "./git-operations.js";
 import { draftText } from "./model-draft.js";
-import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities, type AgentMcpLibrary, type AgentSkillOwner, type AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { resolveConfiguredHome } from "./product-home.js";
 import { readFile, rename, writeFile } from "node:fs/promises";
 import { prepareGitIndex } from "./workspace-git-index.js";
@@ -35,6 +35,8 @@ import { writerDirectoryCapabilities, writerIntegrationCapabilities, type Writer
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
+import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
+import { workAuthorityCheck } from "./agent-work-authority.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -53,6 +55,7 @@ export interface AgentHostCompositionOptions {
   authorizeWriterDirectory?(projectId: string, canonicalPath: string): Promise<void>;
   localHost: MolisWorkLocalHost;
   homeDirectory?: string;
+  projectReference?(projectId: string): Promise<LocalHostProjectReference>;
   /** Resolves the workspace a project is bound to, for directory authority. */
   workspacesFor?(projectId: string): readonly ProjectWorkspaceRef[] | Promise<readonly ProjectWorkspaceRef[]>;
   workspaceFor(projectId: string): ProjectWorkspaceRef | null | Promise<ProjectWorkspaceRef | null>;
@@ -63,6 +66,8 @@ export interface AgentHostCompositionOptions {
 export interface AgentHostComposition {
   readonly inference: PrologueInferenceClient;
   readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
+  mcpLibrary(): Promise<AgentMcpLibrary | undefined>;
+  refreshExternalMcp(owner: AgentSkillOwner): Promise<void>;
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   /** Starts the runtime when it has not started yet. */
@@ -93,16 +98,15 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
-  let disposed = false;
-  let disposal: Promise<void> | undefined;
+  let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
     return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
       ...options.prologue,
       // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
       documentParsers: [pdfDocumentParser],
-      // A step's wait on a file looks only while the round's directory is still authorized for the project.
-      checks: { directoryAuthorized: async (projectId, directory) => (await workspaceGrants(options, projectId)).some(entry => entry.realpath_verified && entry.canonical_path === directory) },
+      // File, owner and background-job waits each recheck the authority of their own source.
+      checks: hostConditionChecks(options),
       reviewQueue: agentHost.reviews,
       app: { appId: "io.molis.work", appVersion: "0.0.0" },
     }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
@@ -122,6 +126,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       authority: (runtime, pluginId, caller) => startAuthority(runtime, pluginId, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory, caller),
       projectId: (runtime) => runtime.project_id,
       mcpChanged: (runtime, runtimeId, pluginId, library, owner) => externalMcp.sync(runtime, pluginId, runtimeId, library, owner),
+      writeCheckers: async (runtime) => ({ workspaces: await workspaceGrants(options, runtime.project_id), store: keptWriteCheckers(prologue) }),
     },
   );
   const unregisterGit = options.localHost.registerCapability(prepareGitIndexCapability, async (project, input, invocation) => {
@@ -298,12 +303,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id };
   });
 
-  const inference: PrologueInferenceClient = {
-    async completeText(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeText(input); },
-    async completeTextResult(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.completeTextResult(input); },
-    async generateImages(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.generateImages(input); },
-    async evaluateTypeSafe(input) { await initialize(); if (!prologue) throw new Error("Prologue 推理服务未装配"); return prologue.inference.evaluateTypeSafe(input); },
-  };
+  const inference = inferenceClient(initialize, () => prologue);
   const createBuilderAgent: AgentHostComposition["createBuilderAgent"] = async input => { await initialize(); if (!prologue) throw new Error("Prologue 构建服务未装配"); return prologue.createBuilderAgent(input); };
   const restoreExternalMcp = (reference: LocalHostProjectReference) => disposed ? Promise.resolve()
     : externalMcp.restore(reference, async runtimeId => { await initialize(); return agentHost.adapter(runtimeId).mcpLibrary; });
@@ -311,7 +311,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     // A block also withdraws any standing approval there; the driver refuses the site from now on.
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
-  return { agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}}, createBuilderAgent, restoreExternalMcp, decideSurfaceSite, get ready() { return initialize(); }, started, dispose() {
+  const refreshExternalMcp = async (owner: AgentSkillOwner) => {
+    if (!options.projectReference) throw new Error("项目连接目录尚未装配");
+    const reference = await options.projectReference(owner.project_id); await initialize();
+    if (prologue?.mcpLibrary) await externalMcp.refresh(reference, "prologue", prologue.mcpLibrary, owner);
+  };
+  return { agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}}, createBuilderAgent, restoreExternalMcp, refreshExternalMcp, decideSurfaceSite, mcpLibrary: async () => { await initialize(); return prologue?.mcpLibrary; }, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();
@@ -330,6 +335,12 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       await prologue?.close();
     })();
   } };
+}
+
+/** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */
+function keptWriteCheckers(prologue: { writeCheckers: AgentWriteCheckerStore } | undefined): AgentWriteCheckerStore {
+  if (!prologue) throw new Error("Agent 运行时没有启动，读不到写后检查器");
+  return prologue.writeCheckers;
 }
 
 /**
@@ -458,4 +469,21 @@ export function workspaceRefFor(
     return bound.find((entry) => entry.canonical_path === preferred) ?? null;
   }
   return bound.length === 1 ? bound[0]! : null;
+}
+
+function inferenceClient(initialize: () => Promise<void>, current: () => Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined): PrologueInferenceClient {
+  const get = async () => { await initialize(); const adapter = current(); if (!adapter) throw new Error("Prologue 推理服务未装配"); return adapter.inference; };
+  return {
+    completeText: async input => (await get()).completeText(input),
+    completeTextResult: async input => (await get()).completeTextResult(input),
+    generateImages: async input => (await get()).generateImages(input),
+    evaluateTypeSafe: async input => (await get()).evaluateTypeSafe(input),
+  };
+}
+
+/** A file keeps its project directory grant; a prepared connection proves its own narrow, durable read grant. */
+function hostConditionChecks(options: AgentHostCompositionOptions): NonNullable<PrologueNodeAdapterOptions["checks"]> {
+  const home = options.homeDirectory ?? resolveConfiguredHome();
+  return { directoryAuthorized: async (project, directory) => (await workspaceGrants(options, project)).some(entry => entry.realpath_verified && entry.canonical_path === directory),
+    owned: assistantConnectionCheckers(home, options.localHost), workAuthority: workAuthorityCheck(options.localHost) };
 }

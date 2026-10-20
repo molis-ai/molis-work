@@ -1,11 +1,15 @@
 import { createHash } from "node:crypto";
 import type { HostSurfaceAction, HostSurfaceActReceipt, HostSurfaceDriver, HostSurfaceObservationKind, HostSurfaceRefusal, HostSurfaceRoundEnd } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import type { ComputerActivity } from "@molis-ai/molis-work-contracts/services/computer";
-import { tierOf, type AppTierVerdict } from "./app-tiers.js";
-import { modelImageReason, observationExpired, pointerFromNode } from "./computer-act.js";
+import { showsMolis, tierOf, type AppTierVerdict } from "./app-tiers.js";
+import { isUnnamedContainer, modelImageReason, nodeIsClickable, observationExpired, pointerFromNode, roleName } from "./computer-act.js";
 import { isHelperFailure, isRefused, refused } from "./computer-errors.js";
 import { injectDesktopAction } from "./computer-inject.js";
 import { refuseCapture, refuseDespiteWindowText, refuseLanding, refuseSelfApproval, type LandingProbe } from "./computer-policy.js";
+import { StepProgress, treeHash } from "./computer-progress.js";
+import { ocrText } from "./computer-ocr.js";
+import { windowMenuHint } from "./computer-windows.js";
+import { modelPicture } from "./computer-zoom.js";
 import type { ComputerRecords } from "./computer-records.js";
 import type { HelperConnection } from "./helper-connection.js";
 
@@ -15,14 +19,6 @@ export const NO_APP_SCOPE = "desktop:no-app";
 /** Moves of the person's mouse this recent make the next action wait for the mouse to settle. */
 const SETTLE_MS = 600;
 const TREE_TEXT_BUDGET = 22_000;
-
-const ROLE_NAMES: Readonly<Record<string, string>> = {
-  AXButton: "按钮", AXTextField: "文本框", AXTextArea: "文本区", AXStaticText: "文字", AXCheckBox: "复选框", AXRadioButton: "单选按钮",
-  AXPopUpButton: "弹出菜单", AXMenuButton: "菜单按钮", AXLink: "链接", AXTab: "标签", AXRow: "行", AXCell: "单元格", AXImage: "图像",
-  AXSlider: "滑块", AXComboBox: "组合框", AXMenuItem: "菜单项", AXMenuBarItem: "菜单", AXGroup: "组", AXScrollArea: "滚动区",
-  AXTable: "表格", AXOutline: "大纲", AXList: "列表", AXToolbar: "工具栏", AXWebArea: "网页区域", AXHeading: "标题",
-  AXDisclosureTriangle: "展开按钮", AXIncrementor: "步进器", AXSegmentedControl: "分段控件", AXSwitch: "开关", AXWindow: "窗口",
-};
 
 /** Words on a control or menu item that mean the step cannot be taken back. */
 const IRREVERSIBLE_WORDS = /发送|send\b|提交|submit|删除|delete|移到废纸篓|move to trash|清空|empty trash|抹掉|erase|付款|支付|\bpay\b|购买|buy\b|purchase|下单|place order|转账|transfer|发布|publish|\bpost\b|回复全部|reply all|签署|sign\b|确认订单|checkout|永久/iu;
@@ -63,19 +59,19 @@ function renderTree(state: AppState, tree: Tree): { text: string; cut: boolean }
     `窗口：「${tree.window.title || "无标题"}」，${width}×${height}。坐标以这个窗口的左上角为原点，单位是点；点击、滚动、拖动、悬停都用这里的坐标。`,
     ...(tree.menus.length ? [`菜单栏：${tree.menus.join("、")}（用 surface-act 的 menu 动作按菜单路径选，例如 ["${tree.menus[1] ?? tree.menus[0]}", "…"]）`] : []),
     "",
-    "窗口里的元素（@ 后是点击用的中心坐标）：",
+    "窗口里的元素（@ 后是点击用的中心坐标；pointer 的 node 可以填 [n]，也可以写「名称」「角色:名称」，或「~名称里的一段字」）：",
   ];
   let used = lines.join("\n").length;
-  let index = 0;
   let cut = tree.truncated;
-  for (const node of tree.nodes) {
-    const role = node.subrole === "AXSecureTextField" ? "密码框" : node.subrole === "AXSearchField" ? "搜索框" : ROLE_NAMES[node.role] ?? node.role.replace(/^AX/u, "");
+  for (const [offset, node] of tree.nodes.entries()) {
+    if (isUnnamedContainer(node)) continue;
+    const role = roleName(node);
     const states = [node.disabled ? "不可用" : "", node.focused ? "有焦点" : "", node.selected ? "已选中" : "", node.expanded ? "已展开" : ""].filter(Boolean);
     const value = node.secure ? (node.filled ? "（已填写，已隐藏）" : "") : node.value && node.value !== node.name ? ` 值=${node.value.replace(/\s+/gu, " ").slice(0, 300)}` : "";
     const at = node.frame && node.frame[2] > 0 && node.frame[3] > 0
       ? ` @(${Math.round(node.frame[0] - ox + node.frame[2] / 2)},${Math.round(node.frame[1] - oy + node.frame[3] / 2)})` : "";
     const name = node.name ? `「${node.name.replace(/\s+/gu, " ")}」` : node.role === "AXStaticText" ? "" : "「无名称」";
-    const line = `${"  ".repeat(Math.min(node.depth, 6))}[${++index}] ${role}${name}${value}${states.length ? ` （${states.join("、")}）` : ""}${at}`;
+    const line = `${"  ".repeat(Math.min(node.depth, 6))}[${offset + 1}] ${role}${name}${value}${states.length ? ` （${states.join("、")}）` : ""}${at}`;
     if (used + line.length > TREE_TEXT_BUDGET) { lines.push("（元素较多，后面的没有列出；可以滚动后再观察，或者看截图）"); cut = true; break; }
     lines.push(line);
     used += line.length + 1;
@@ -160,6 +156,8 @@ export interface DeskContext {
 export class ComputerDriver {
   /** When the last accessibility tree was read. A coordinate click after it expires is refused; a node id is read again. */
   private observedAt: number | null = null;
+  /** What the model last saw and what the last step left: a step that changes nothing is told so. */
+  private readonly progress = new StepProgress();
 
   constructor(private readonly ctx: DeskContext) {}
 
@@ -178,10 +176,11 @@ export class ComputerDriver {
       readiness: context => this.ctx.readiness(context.session_id),
       observe: (kind, context) => this.observe(kind, context?.session_id ?? null),
       perform: (action, context) => this.perform(action, context.session_id),
-      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.ctx.describeRound(sessionId, context); },
+      describeRound: (sessionId, context) => { round.sessionId = sessionId; this.progress.reset(); this.ctx.describeRound(sessionId, context); },
       noteRun: (sessionId, runId) => this.ctx.noteRun(sessionId, runId),
       // A run that ended without saying how (an older Host) is judged from the facts alone.
       release: async (ended?: HostSurfaceRoundEnd) => {
+        this.progress.reset();
         if (round.sessionId) this.ctx.release(round.sessionId, ended);
       },
       close: async () => undefined,
@@ -252,6 +251,7 @@ export class ComputerDriver {
     await this.ctx.ready(sessionId);
     const target = this.ctx.target();
     if (!target) {
+      this.progress.reset();
       if (kind === "screenshot") throw new Error("还没有选定应用：先用 surface-act 的 app 动作打开或切到一个应用");
       const running = await this.ctx.helper.call<{ apps: { bundle_id: string; name: string }[] }>("apps.running");
       return new TextEncoder().encode(renderApps(running.apps, this.ctx.settings.forbiddenIds()));
@@ -270,13 +270,19 @@ export class ComputerDriver {
     if (kind === "window-metadata") {
       const [x, y] = state.window.frame;
       return new TextEncoder().encode(JSON.stringify({ app: { bundle_id: state.bundle_id, name: state.name }, window: { title: state.window.title,
-        width: state.window.frame[2], height: state.window.frame[3] }, windows: (state.windows ?? []).map(one => ({ title: one.title, focused: one.focused,
+        width: state.window.frame[2], height: state.window.frame[3] }, windows: (state.windows ?? []).filter(one => !showsMolis(one.title)).map(one => ({ title: one.title, focused: one.focused,
           minimized: one.minimized, at: [Number(one.frame[0]) - x, Number(one.frame[1]) - y], size: [one.frame[2], one.frame[3]] })) }));
     }
     if (kind === "dom") throw new Error("桌面应用没有 DOM：请用 accessibility-tree 观察");
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
-    const text = renderTree(state, tree).text;
+    const rendered = renderTree(state, tree);
+    const base = rendered.text;
+    const sparse = !tree.nodes.some(node => node.secure)
+      && (tree.truncated || rendered.cut || tree.nodes.filter(nodeIsClickable).length < 3);
+    const text = base + await windowMenuHint(this.ctx.helper, target.pid, tree.menus, (state.windows ?? []).map(one => one.title))
+      + await ocrText(this.ctx.helper, target.pid, state.window.frame, sparse);
     this.observedAt = this.now();
+    this.progress.seen(base);
     // The words go to the model; the person's record and the tab get the picture of the same moment.
     const png = await this.screenshot(state).catch(error => { if (isRefused(error)) throw error; return undefined; });
     this.ctx.recordStep({ kind: "look", app: this.appRef(), summary: `查看「${target.name}」的窗口（${state.window.title || "无标题"}）` }, png);
@@ -303,6 +309,16 @@ export class ComputerDriver {
     const [ox, oy] = state.window.frame;
     const at = (x: number, y: number): [number, number] => [ox + x, oy + y];
     const aimed = await this.aim(action, target.pid, state.window.frame);
+    if (aimed.what === "menu" && aimed.path.some(showsMolis)) {
+      const why = "菜单项指向显示着 Molis Work 的窗口：助理不能操作自己的确认卡";
+      this.ctx.recordStep({ kind: "refused", app: this.appRef(), summary: why });
+      throw refused("outside-target", why);
+    }
+    const step = this.progress.before(aimed);
+    if (step.stuck) {
+      this.ctx.recordStep({ kind: "failed", app: this.appRef(), summary: `没有执行：${step.stuck}` });
+      throw new Error(step.stuck);
+    }
     try {
       await injectDesktopAction(aimed, target, at, target.pid, {
         helper: this.ctx.helper, ctx: this.ctx, settled: () => this.settled(), landsOnTarget: point => this.landsOnTarget(point),
@@ -321,7 +337,7 @@ export class ComputerDriver {
     try { png = await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; /* a missing picture does not undo the step */ }
     const activity = this.ctx.activity();
     this.ctx.recordStep({ kind: "act", app: this.appRef(), summary: activity?.summary ?? action.what, ...(activity?.point ? { point: activity.point } : {}) }, png);
-    return this.receipt(png);
+    return this.receipt(png, { action: aimed, signature: step.signature, beforeHash: step.beforeHash });
   }
 
   /** A node id is resolved on the tree read now. A bare coordinate from an expired look is refused before it is sent. */
@@ -338,15 +354,22 @@ export class ComputerDriver {
   }
 
   /** The tree after the step. The picture leaves toward a model only when that tree was cut or had nothing clickable. */
-  private async receipt(png?: Uint8Array): Promise<HostSurfaceActReceipt> {
+  private async receipt(png?: Uint8Array, step?: { readonly action: HostSurfaceAction; readonly signature: string; readonly beforeHash: string | null }): Promise<HostSurfaceActReceipt> {
     const target = this.ctx.target();
     const state = target ? await this.appState() : null;
     rememberSeen(this.ctx, state);
-    if (!target || !state?.window) return { tree: "这一步之后没有可读的窗口。" };
+    if (!target || !state?.window) {
+      this.progress.reset();
+      return { tree: "这一步之后没有可读的窗口。" };
+    }
     const tree = await this.ctx.helper.call<Tree>("observe.tree", { pid: target.pid, max_nodes: 600 });
     const rendered = renderTree(state, tree);
+    let note = "";
+    if (step) note = this.progress.after({ action: step.action, signature: step.signature, beforeHash: step.beforeHash, afterHash: treeHash(rendered.text) });
+    else this.progress.seen(rendered.text);
     const reason = modelImageReason(tree.nodes, rendered.cut);
-    return { tree: rendered.text, ...(reason && png ? { model_image: png, image_reason: reason } : {}) };
+    const modelImage = step ? await modelPicture(this.ctx, state, step.action, png, reason !== null) : png;
+    return { tree: rendered.text + note, ...(reason && modelImage ? { model_image: modelImage, image_reason: reason } : {}) };
   }
 
   private async switchApp(bundleId: string): Promise<Uint8Array | undefined> {
@@ -367,6 +390,7 @@ export class ComputerDriver {
     this.ctx.setTarget({ bundle_id: bundleId, name: state.name || known.name, pid: state.pid, verdict });
     try { this.forbidCheck(state); } catch (error) { rememberRefusal(this.ctx, this.appRef(), this.translate(error)); }
     this.ctx.changed();
+    this.progress.reset();
     try { return await this.freshFrame(); } catch (error) { if (isRefused(error)) throw error; return undefined; }
   }
 

@@ -106,9 +106,9 @@ for (const width of [1440, 390]) test(`Cognia ${width}px uses configured HTTP Pr
   await reloadPage(); await open(); assert.equal(read().materials.length, 2); assert.equal(requests.length, 1);
   await runWithMolisWorkHome(homeDirectory, () => withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.models.upsert({ ...catalog.models.get("local-only")!, enabled: false })));
   await reloadPage(); await open();
-  await waitFor("document.querySelector('[data-cognia-model]').textContent.includes('没有可用的文字模型')");
+  await waitFor("document.querySelector('[data-cognia-model]').textContent === '请先在「模型设置」里连接文字模型'");
   assert.equal(await evaluate("document.querySelector('[data-cognia-action=synthesize]').disabled"), true);
-  assert.match(await evaluate<string>("document.querySelector('[data-cognia-action=synthesize]').title"), /模型设置和服务连接/);
+  assert.equal(await evaluate<string>("document.querySelector('[data-cognia-action=synthesize]').title"), "请先在「模型设置」里连接文字模型");
   await click('[data-cognia-action=add]'); await waitFor("document.querySelector('[data-cognia-dialog]').open");
   await evaluate("document.querySelector('[data-cognia-form] [name=title]').value='停用后仍可保存';document.querySelector('[data-cognia-form] [name=body]').value='保留原始资料'");
   await click('[data-cognia-submit]'); await waitFor("!document.querySelector('[data-cognia-dialog]').open && document.querySelector('[data-cognia-heading]').textContent === '停用后仍可保存'");

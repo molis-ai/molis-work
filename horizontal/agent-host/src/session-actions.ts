@@ -1,5 +1,6 @@
 import { actionDigest } from "./action-digest.js";
 import { agentErrors } from "./errors.js";
+import { checkOrigin } from "./input-origin.js";
 import { ActionError, type ActionDefinition, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -15,8 +16,8 @@ export interface SessionActionPorts<C extends Call> {
   pluginFor(call: C): HostPluginCaller | undefined;
   adapter(call: C, runtimeId: string): AgentRuntimeAdapter;
   projectId(call: C): string;
-  /** The round belongs to this session, and the session to the caller's project and plugin. */
-  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<unknown>;
+  /** The round belongs to this session, and the session to the caller's project and plugin; gives the session's owner. */
+  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now; absent when it grants none. */
   actions(call: C, pluginId: string, runtimeId: string): Promise<AgentActionClient | undefined>;
 }
@@ -25,8 +26,8 @@ const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.ca
 
 /**
  * The Agent Host's unified actions about a session's rounds: what its sessions wait for and how they go on, and what a
- * plugin tells a round. Every write checks the call is still current right before it, and once more before a supplement
- * that found its round ended is kept in the session: a cancelled or revoked call writes nothing.
+ * plugin tells a round or takes back. Every write checks the call is still current right before it, and once more right before
+ * the runtime keeps a supplement whose round ended, or gives one back: a cancelled or revoked call writes nothing.
  */
 export function registerSessionActions<C extends Call>(register: Register<C>, ports: SessionActionPorts<C>): Array<() => void> {
   const fresh = async (call: C) => { await call.invocation.beforeEffect(); call.invocation.assertAuthorityCurrent(); };
@@ -45,6 +46,19 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const { runtime_id: _runtime, ...control } = input;
       return { session: await adapter.collaboration.control(ports.projectId(call), control, caller?.actor_id ?? "user") };
     }),
+    // A person's change to a round's plan: the round must be this session's, and the session the caller's.
+    register(agentCollaborationActions.revise, async (call, input) => {
+      const { runtime_id, session_id, run_id, amendment, expected_version } = input;
+      const run = { session_id, run_id };
+      const view = await ports.requireRun(call, { runtime_id, session_id }, run);
+      const adapter = ports.adapter(call, runtime_id);
+      if (!adapter.collaboration) throw agentErrors.capability_unavailable("当前运行时不能调整计划图");
+      // Checked once the call is current, so a supplement taken back while it waited is not a step's source (3d-5).
+      await fresh(call);
+      if (amendment.kind === "insert" && amendment.origin !== undefined) checkOrigin(amendment.origin, (await adapter.read(run)).turns);
+      // The person deciding: the calling plugin's actor, else the session's owner.
+      return { board: await adapter.collaboration.revise(run, amendment, expected_version, ports.pluginFor(call)?.actor_id ?? view.owner.actor_id) };
+    }),
     register(agentInputActions.send, async (call, input) => {
       const { runtime_id, session_id, run_id, ...send } = input;
       const run = { session_id, run_id };
@@ -53,6 +67,16 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       if (!adapter.inputs) throw agentErrors.capability_unavailable("当前运行时不能向一轮补充要求");
       await fresh(call);
       return adapter.inputs.send(run, send, () => call.invocation.assertAuthorityCurrent());
+    }),
+    // Taking a supplement back: the round, or the session, still holds it and the model has not seen it.
+    register(agentInputActions.withdraw, async (call, input) => {
+      const { runtime_id, session_id, run_id, input_id } = input;
+      const run = { session_id, run_id };
+      await ports.requireRun(call, { runtime_id, session_id }, run);
+      const adapter = ports.adapter(call, runtime_id);
+      if (!adapter.inputs?.withdraw) throw agentErrors.capability_unavailable("当前运行时不能撤回补充");
+      await fresh(call);
+      return adapter.inputs.withdraw(run, input_id, () => call.invocation.assertAuthorityCurrent());
     }),
     // The person clicked a round's suggestion (D25, D27): exactly the action it names, under the round's own grant as it is now.
     register(agentOfferActions.run, async (call, input) => {

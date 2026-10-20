@@ -1,6 +1,7 @@
 import type { BoundedInferenceReceipt } from "../services/agent-host.js";
 import type { ArtifactReference } from "./artifacts.js";
 import type { ContractDescriptor } from "../platform/package.js";
+import type { ActionDefinition } from "../platform/actions.js";
 import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
@@ -38,30 +39,15 @@ export interface ShelfArtifactPreview {
   fingerprint: string;
 }
 
-/** Explicitly saved project material; the personal Shelf copy may change independently. */
-export const SHELF_TEXT_MATERIAL_TYPE = "shelf.text-material.v1";
+/**
+ * Shelf text the person explicitly saves into a project's knowledge, with where it came from. The project keeps it as an imported
+ * document; the personal Shelf copy may change independently.
+ */
 export interface ShelfTextMaterial {
   title: string;
   text: string;
   content_hash: string;
   source: { item_id: string; kind: ShelfItemKind; group: ShelfItemGroup; source_item_ids: string[]; job_id: string | null; artifact?: ShelfArtifactSource };
-}
-export function parseShelfTextMaterial(value: unknown): ShelfTextMaterial {
-  const item = value as Partial<ShelfTextMaterial> | null;
-  if (!item || typeof item.title !== "string" || !item.title || typeof item.text !== "string"
-    || typeof item.content_hash !== "string" || !/^[a-f0-9]{64}$/.test(item.content_hash)
-    || !item.source || typeof item.source.item_id !== "string" || !item.source.item_id
-    || !["text", "markdown", "file"].includes(item.source.kind)
-    || !["material", "result"].includes(item.source.group)
-    || !Array.isArray(item.source.source_item_ids) || !item.source.source_item_ids.every(id => typeof id === "string")
-    || (item.source.job_id !== null && typeof item.source.job_id !== "string")) throw new Error("Shelf 固定材料格式无效");
-  if (item.source.artifact) {
-    const source = item.source.artifact;
-    if (typeof source.project_id !== "string" || !source.project_id || typeof source.project_path !== "string"
-      || typeof source.producer_plugin_id !== "string" || typeof source.content_hash !== "string" || !/^[a-f0-9]{64}$/.test(source.content_hash)
-      || typeof source.reference?.artifact_id !== "string" || !source.reference.artifact_id || !Number.isSafeInteger(source.reference.version) || source.reference.version < 1) throw new Error("Shelf 材料来源格式无效");
-  }
-  return item as ShelfTextMaterial;
 }
 
 export const modulesShelfContract = {
@@ -71,6 +57,40 @@ export const modulesShelfContract = {
   maturity: "partial",
   ssot: "docs/modules/shelf.md",
 } as const satisfies ContractDescriptor;
+
+/** The input of `shelf.items.admit`: a text (whose web pages may be captured) or a file copy. */
+export interface ShelfAdmitActionInput {
+  text?: string; title?: string; capture_pages?: boolean;
+  filename?: string; bytes_base64?: string; mime?: string; origin_realpath?: string;
+}
+/**
+ * `shelf.items.admit`, defined once: Shelf registers its handler for this definition, and another plugin that puts a
+ * file it made into the person's Shelf (Images' 放进 Shelf) invokes it through the action directory, never reaching
+ * Shelf's implementation.
+ */
+export const SHELF_ADMIT_ACTION: ActionDefinition<ShelfAdmitActionInput, { item: ShelfItemRecord }> = {
+  capability_id: "shelf.items.admit", version: 1, operation: "command",
+  action: {
+    title: "放进 Shelf", description: "把一段文字（可抓取其中网页）或一个文件副本放进置物架；同一原件重复加入保留原副本", kind: "operation",
+    scope: "home", scheduling: "concurrent", audiences: ["user", "workflow", "agent", "mcp"], permissions: ["shelf:write"], subject_kinds: ["shelf_item"],
+    input_schema: {
+      type: "object",
+      properties: {
+        text: { type: "string", maxLength: 2_000_000, title: "文字" }, title: { type: "string", maxLength: 200, title: "标题" }, capture_pages: { type: "boolean", title: "抓取其中的网页" },
+        filename: { type: "string", maxLength: 500, title: "文件名" }, bytes_base64: { type: "string", maxLength: 128 * 1024 * 1024, title: "文件内容（Base64）" }, mime: { type: "string", maxLength: 200, title: "文件类型" },
+        origin_realpath: { type: "string", maxLength: 4096, title: "原文件位置", description: "仅本机界面拖入文件时提供，用于任务前核对原件未变" },
+      },
+      required: [], additionalProperties: false,
+    },
+    output_schema: {
+      type: "object",
+      properties: { item: { type: "object", required: ["item_id", "group", "kind", "name", "mime", "size_bytes", "hidden", "status", "created_at"] } },
+      required: ["item"], additionalProperties: false,
+    },
+    result_view: { summary: "已接收材料", title_pointer: "/item/name",
+      link: { label: "打开材料", href_template: "/projects/{project_id}/?openPlugin=shelf&openItem={/item/item_id}&openTitle={/item/name}" } },
+  },
+};
 
 export type ShelfItemGroup = "material" | "result" | "clipboard";
 export type ShelfItemKind =

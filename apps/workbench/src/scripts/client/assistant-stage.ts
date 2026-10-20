@@ -73,3 +73,17 @@ export const ASSISTANT_ELEMENT_SCRIPT = String.raw`(tag, className, text) => {
   if (text !== undefined && text !== null) node.textContent = text;
   return node;
 }`;
+
+/**
+ * Puts children in order without moving any that already stand in place: moving a node drops the focus inside it (an answer
+ * being typed, a button reached by keyboard), and a running work repaints every few seconds.
+ */
+export const ASSISTANT_PLACER_SCRIPT = String.raw`(parent) => {
+  let last = null;
+  return (child) => {
+    const want = last ? last.nextElementSibling : parent.firstElementChild;
+    if (want !== child) parent.insertBefore(child, want);
+    last = child;
+    return child;
+  };
+}`;

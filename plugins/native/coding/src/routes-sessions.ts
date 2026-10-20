@@ -6,17 +6,21 @@ import { type Capabilities, type CodingActivation, selected, sessionState, prior
 import { codingActionControl } from "./route-entry.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
-import { codingBudgetSelection, nextConfiguration, runControl, text } from "./run-inputs.js";
+import { nextConfiguration, runControl, text, codingBudgetSelection } from "./run-inputs.js";
+import { projectRuntime, requireProjectRuntime, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
-import { startRound } from "./start-round.js";
-import {codingInputPatch} from './inputs.js';
+import { roundAfterParkedAnswer, startRound } from "./start-round.js";
+import { codingInputPatch } from "./inputs.js";
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineErrorCodes, parseExactActionReferences, searchEntriesPage, subjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+
+/** A control for a round this session does not have, or for one that has ended (a second tab answering after the first, AC-08). */
+const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found", round_ended: "conflict" });
 
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
@@ -66,8 +70,10 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     }
     return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
   });
-  const methods = runtimes.some(runtime=>runtime.runtime_id === "prologue") ? await api.invoke(agent.listSkills, ["prologue", context.plugin_id]) : [];
-  const mcp = runtimes.some(runtime=>runtime.runtime_id === "prologue" && runtime.capabilities.mcp !== "unsupported") ? await api.invoke(agent.listMcp, ["prologue", context.plugin_id]) : [];
+  // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
+  const { runtime: library } = projectRuntime(runtimes);
+  const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
+  const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
   return { sessions, methods, mcp, models: await execution.models(),
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
@@ -118,10 +124,12 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, route } = a;
-    return route("coding.create-session", async (request, _api, execution) => {
+    return route("coding.create-session", async (request, api, execution) => {
       const body = bodyOf(request);
+      // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
+      const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
       const record = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(),
-        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: "prologue", at: new Date().toISOString() });
+        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };
     });
   },
@@ -298,7 +306,7 @@ const ROUTES: RouteMaker[] = [
     });
   },
   (a) => {
-    const { context, route } = a;
+    const { context, route, busy } = a;
     return route("coding.control-run", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       if (!record.runtime_session_id) throw new Error("这个会话尚未执行");
@@ -306,17 +314,27 @@ const ROUTES: RouteMaker[] = [
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
-      if (!run) throw new Error("找不到属于这个会话的执行");
+      if (!run) throw codingRunErrors.run_not_found("找不到属于这个会话的执行");
       const control = await runControl(body, () => execution.models());
       if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
+      if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await api!.invoke(agent.readRun, [session, run]);
-      if (isTerminalAgentPhase(view.phase)) throw new Error("这一轮已经结束，请开始新一轮");
+      if (isTerminalAgentPhase(view.phase)) throw codingRunErrors.round_ended("这一轮已经结束，请开始新一轮");
+      const question = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id) : undefined;
       await api!.invoke(agent.controlRun, [session, run, control]).catch((error: { code?: string }) => {
         // A refused answer goes back with the questions it answered, so each field's line can name the limit it crossed.
-        const asked = control.kind === "answer" ? view.awaiting_input.find(item => item.pending_id === control.pending_id)?.questions : undefined;
-        throw error?.code === "agent.answer_invalid" && asked ? Object.assign(error, { questions: asked }) : error;
+        throw error?.code === "agent.answer_invalid" && question?.questions ? Object.assign(error, { questions: question.questions }) : error;
       });
-      return { accepted: true };
+      if (control.kind !== "answer") return { accepted: true };
+      // The answer's receipt, in the words the page shows. A round parked at a restart ended with the answer; the next round
+      // takes it from the session's queue, or, refused, it waits there for 「从断点继续」.
+      if (!question?.parked) return { accepted: true, message: "回答已交给原执行者，继续这一轮任务。" };
+      const next = busy.has(record.session_id) ? { started: false as const, reason: "会话正在提交任务" } : await (async () => {
+        busy.add(record.session_id);
+        try { return await roundAfterParkedAnswer(a, record, session, request.actor_id, api!, execution, beforeWrite); } finally { busy.delete(record.session_id); }
+      })();
+      return { accepted: true, next_round: next,
+        message: next.started ? "已回答，下一轮已开始，接着原来的任务。" : `已回答、下一轮没能开始：${next.reason}。回答留在排队里，点「从断点继续」再开始。` };
     });
   },
 ];

@@ -1,4 +1,6 @@
+import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
+export type { PluginBackgroundClient, PluginBackgroundExecution } from "./plugin-background.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -31,10 +33,12 @@ import type {
 import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
+import type { PluginMaterialsClient } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
-export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput } from "./plugin-artifacts.js";
+export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner } from "./plugin-package.js";
 export * from "./plugin-events.js";
 export * from "./plugin-wiring.js";
@@ -42,7 +46,10 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-sync.js";
 export * from "./plugin-database.js";
+export type { PluginFilesClient, PluginFilesDeclaration } from "./plugin-files.js";
+export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
+export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 
 /** Opaque, personal installation data. The author owns serialization, not storage paths or SQL. */
 export interface PluginPrivateStorage {
@@ -74,15 +81,29 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
+export interface PluginActionClient extends BoundActionClient {
+  invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+}
+
 export interface PluginHostServices {
+  /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */
+  readonly background?: import("./plugin-background.js").PluginBackgroundClient;
   /** Host-bound entry to this Plugin's declared public actions; no arbitrary capability access. */
-  readonly actions?: import("./actions.js").BoundActionClient;
+  readonly actions?: PluginActionClient;
   /** Present only when the Manifest declares private storage. Actual grant is checked on each operation. */
   readonly storage?: PluginPrivateStorage;
-  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. */
+  /** Plugin-owned SQLite, only for trusted Host entries declaring a database. 2026-10-18 改: by Manifest declaration (PG-022). */
   readonly database?: import("./plugin-database.js").PluginDatabase;
+  /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
+  readonly files?: import("./plugin-files.js").PluginFilesClient;
+  readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
   /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
   readonly model?: PluginModelClient;
+  /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
+  readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
+  /** Host material readers, independently declared as materials:read and materials:fetch. */
+  readonly materials?: PluginMaterialsClient;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
@@ -174,8 +195,17 @@ export interface PluginRouteDeclaration {
   path: string;
   /** Permission the caller's session must hold. Omitted means the Plugin's own grants suffice. */
   permission?: string;
-  /** The largest request body, in bytes, the Host reads for this route (at most 12 MiB); omitted, the Host's own default (256 000 bytes). */
+  /**
+   * The largest request body, in bytes, the Host reads for this route (at most 45 000 000). Omitted, the Host's own default: 256 000
+   * bytes on a project instance's route, 12 MiB on a Home instance's.
+   */
   max_body_bytes?: number;
+  /**
+   * `"ndjson"` (POST only): the answer is a stream of `PluginRouteStreamLine`s. The handler reports progress through the request's
+   * `emit`; the Host writes each as a `progress` line and ends the stream with one `result` or `error` line, which only the Host
+   * writes. The stream ends at once when the call is cancelled, the person leaves, or the plugin stops or is replaced.
+   */
+  stream?: "ndjson";
 }
 
 export interface PluginManifest {
@@ -191,6 +221,12 @@ export interface PluginManifest {
     signature: string;
   };
   host_api_version: 1 | 2;
+  /**
+   * v2: 常开插件. Enabled in every project, never listed where plugins are chosen, added or removed (the plugin list, the
+   * market, the Dock, a project's plugin settings), so it cannot be removed. Only a plugin that ships with the Host may
+   * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
+   */
+  always_on?: boolean;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {
@@ -301,17 +337,40 @@ export interface PluginRouteRequest {
   actor_id: string;
   /** Trusted Host invocation control, never decoded from route parameters or JSON body. */
   execution?: PluginExecutionControl;
+  /** Present only on a route that declares `stream`: one progress event, written by the Host as a `progress` line. */
+  emit?(event: import("./actions.js").ActionProgressEvent): void;
 }
 
-export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current">;
+/**
+ * One line of a streamed route's answer, the only shape the Host writes and a page reads. Any number of `progress` lines, then
+ * exactly one `result` (the route's answer body) or `error` (the same fields a JSON route's refusal has). Progress lines are
+ * bounded (64 KiB each, 10 000 in all, 1 MiB together); the `result` line is bounded only by the action's own output limit.
+ */
+export type PluginRouteStreamLine =
+  | ({ type: "progress" } & import("./actions.js").ActionProgressEvent)
+  | { type: "result"; result: unknown }
+  | { type: "error"; status: number; code: string; error: string; call_id?: string; details?: Readonly<Record<string, unknown>> };
+
+export type PluginExecutionControl = Pick<import("./actions.js").ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only"> & {
+  /**
+   * The project a Home instance's route was called in: the Host reads it from the page's path (`/projects/<id>/api/plugins/…`) after
+   * checking that the project exists and shows this plugin, never from the route's parameters, query or body. The plugin's own action
+   * called with this control sees it as `caller.project_id`. The Host reads it only on a control it issued itself: on any other object
+   * (a plugin's own, or a caller context passed on) it is ignored, as every field the control does not name is, and the call runs in
+   * the instance's project (none for a Home instance).
+   */
+  readonly project_id?: string;
+};
 
 export interface PluginRouteResponse {
   status: number;
   body?: unknown;
   headers?: Readonly<Record<string, string>>;
+  /** Non-stream HTTP bytes default to attachment; the Host allows inline only for PNG, JPEG and WebP MIME. */
   bytes?: Uint8Array;
   filename?: string;
   mime?: string;
+  disposition?: "inline" | "attachment";
 }
 
 export interface PluginRouteBinding {
@@ -328,6 +387,12 @@ export interface PluginAppContribution {
   kind: "app";
   /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
   sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
+  /**
+   * Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. 2026-10-18 改:
+   * removed; deleting a project cancels its work through `services.background` before the platform purges what the plugin declared
+   * (PG-106 in specs/repository-anti-corruption/privileges.md).
+   */
+  onProjectDeleted?(projectId: string): void;
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -378,7 +443,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "model"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -509,6 +574,7 @@ export type IntegrationProviderSyncResult =
 export interface IntegrationProviderPort {
   readonly type: string;
   health(): Promise<{
+    account?: { login: string; account_id?: string };
     ok: boolean;
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
     message: string;

@@ -1,16 +1,17 @@
-import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
-import { SearchService, confirmReferences, findReferenceCandidates, type SearchAccess } from "@molis-ai/molis-work-service-search";
+import { SearchService, findReferenceCandidates, readReferences, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { SEARCH_OWNER } from "./project-deleted-owners.js";
+import { createKnowledgeHost, type KnowledgeHost } from "./knowledge-actions.js";
 
 /**
  * Host wiring for the system search (specs/archive/system-search §6): the index lives in this Home, indexing reads with the local
  * person's own access, and every caller reaches search through the shared directory with its own authority.
- * Search itself is in horizontal/search; nothing about any plugin is known here.
+ * Search itself is in horizontal/search; nothing about any plugin is known here. Project knowledge rides on it (knowledge-actions.ts).
  */
 export interface SearchHostPorts {
   homeDirectory: string;
@@ -40,6 +41,11 @@ export interface SearchHost {
    * kind, read from its owner with their authority just now), in order. False for a project that is not open.
    */
   confirmReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<boolean[]>;
+  /** The same read, giving each object's label and revision as its owner has it (null where `confirmReferences` says false). */
+  readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
+  /** How many pieces of project knowledge a caller whose directory is `views` would see listed (specs/project-knowledge PMAT-33). */
+  knowledgeTally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
+  knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeHost["catalog"]>;
   close(): Promise<void>;
 }
 
@@ -72,21 +78,32 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     { ...searchActions.status, handle: (caller, input) => service.status(access(caller), input as { scope?: SearchScope }) },
     { ...searchActions.rebuild, handle: (caller, input) => service.rebuild(access(caller), input as SearchRebuildRequest) },
   ];
-  const dispose = ports.registry.registerProvider({ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" },
-    definitions: Object.values(searchActions), handlers });
+  // Project knowledge reads through this search, so it is registered and withdrawn with it (specs/project-knowledge).
+  const ownerContext = async (projectId: string) => {
+    const reference = ports.project(projectId);
+    if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
+    return ports.ownerContext(reference);
+  };
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, ...(ports.onError ? { onError: ports.onError } : {}) });
+  const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
+    knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;
   // A deleted project's entries leave the index with it; the index is derived, so this needs no label in the dialog.
-  projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); } });
+  projectDeletedHooksFor(ports.homeDirectory).register({ ...SEARCH_OWNER, alive: () => !closed, clear: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); } });
+  const read = async (projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]) => {
+    const reference = ports.project(projectId);
+    if (!reference) return picked.map(() => null);
+    return readReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
+  };
   return {
     service,
-    changed: (providerId, projectId) => service.markChanged(providerId, projectId),
+    changed: (providerId, projectId) => { service.markChanged(providerId, projectId); knowledge.changed(projectId); },
     providerChanged: provider => service.markRegistration(provider.provider_id, provider.project_id ?? null),
-    projectDeleted: projectId => { service.removeProject(projectId); },
-    confirmReferences: async (projectId, picked, kinds) => {
-      const reference = ports.project(projectId);
-      if (!reference) return picked.map(() => false);
-      return confirmReferences({ client: ports.projectClient(reference), caller: await ports.ownerContext(reference) }, picked, kinds);
-    },
-    close: async () => { closed = true; dispose(); await service.close(); index.close(); },
+    projectDeleted: projectId => { service.removeProject(projectId); knowledge.projectDeleted(projectId); },
+    confirmReferences: async (projectId, picked, kinds) => (await read(projectId, picked, kinds)).map(found => found !== null),
+    readReferences: (projectId, picked, kinds) => read(projectId, picked, kinds),
+    knowledgeTally: (projectId, views) => knowledge.tally(projectId, views),
+    knowledgeCatalog: (projectId, views, words) => knowledge.catalog(projectId, views, words),
+    close: async () => { closed = true; for (const dispose of disposers) dispose(); await knowledge.close(); await service.close(); index.close(); },
   };
 }

@@ -12,6 +12,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - `publisher.signature` 变了 = 新身份，旧 grant 不继承。
 - `entrypoints[]`：`deployment: "local" | "server"` + `entrypoint` 路径。一等插件常用 `./index.js`。
 - `kind`：`native` | `app` | `integration`。选贡献形态，不是信任等级。
+- `always_on`（schema 2）：常开插件，每个项目都开着、不进插件列表与市场、不能移除。只有随宿主发布的内置插件能声明；插件包、开发目录和创作台的产物带 `always_on: true` 会在安装时被拒（`plugin.declaration_invalid`），升级到带它的版本也被拒。外部插件不写它。（2026-10-18 改：「只许内置声明」是只给内置的特权，要改成按声明与授权，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；代码改完之前仍按上文，外部插件仍不要写。）
 
 ## 版本升级
 
@@ -23,7 +24,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
 - `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
 
-内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升，并拿到新 Manifest 声明的全部权限（必需的和可选的都给，不再声明的去掉），所以内置插件的权限不能逐项关掉。
+内置插件（监督器条目 `bundled: true`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（设置里的开关是下一片，现在只有 Runtime 的授权接口能关）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
 
 完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
@@ -49,7 +50,7 @@ Manifest 在 `packages/contracts/src/platform/plugin.ts`。用不到的块省略
 
 Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：每个项目都可用，不进项目启用列表。今天（`BUILTIN_PLUGIN_CATALOG`）：Cognia、插件创作台、Images、Jelly、Shelf、灵光、Todo、Characters、Pages、Forms、Dataset、PPT、Alchemist、Workflows。
 
-其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（`PROJECT_PLUGIN_COMPANIONS`）。
+其余按项目启用。必选输入口会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。Feed 启用会带上 Inbox（Feed 条目上的 `companions`）。
 
 市场卡片要同时有 catalog 的 `summary` 和一个 `navigator` 或 `island` 视图；没有这两种视图、页面只放在设置里的插件（Characters）不进内建市场。
 
@@ -69,7 +70,7 @@ Host catalog（`apps/workbench/src/builtin-plugins.ts`）的 `personal: true`：
 
 两条路径，不要抄错：
 
-1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节，某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 12 MiB）。
+1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节（Home 级实例的路由默认 12 MiB），某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 45 000 000 字节，`packages/plugin-sdk/src/manifest.ts` 的 `MAX_ROUTE_BODY_BYTES`，超过的 Manifest 解析时被拒）。
 2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`、`/api/pages/`…），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
@@ -109,7 +110,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 输入口默认必选。项目启用时会拉上能产出该类型的同伴插件；可选取消口（Diff）不拉同伴。不会永远有生产者就不要声明必选入口。
 - 缺绑定仍然可以 `start`。状态是 `missing`，Host 不会调用 `onUpstreamReady`。整份构建里没有产出者时，解析只记 `port_type_unsatisfiable`，插件不因此进 `blocked`。挡住启动的是必需 Capability、依赖成环，或依赖的插件被挡住。
 - 产品里没有通用连线页：输入口由默认连线（下一条）接上，或由人在成果库详情把某一版接给插件输入（`artifacts.plugin_inputs.bind`，只对人开放）。`PluginWiringApi.bind` / `selectInputGroup` 在 Runtime 里。Local Host 没有挂 `/api/plugins/:id/ports`。
-- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。
+- 默认连线由消费方自己的 Manifest 声明：输入口写 `default_source: { plugin_id, port }`（另一个插件的输出口，类型必须相同），有输入组的写一个 `default: true` 的组（至多一个）。宿主在两个插件都在项目里运行、这个口什么也没读时接上（`apps/local-host/src/plugin-default-bindings.ts`），人选过的来源或固定成果版本不被覆盖；来源插件不在、没有那个口或类型不同就不接。没有名单可加（W4-03，原 D-04）。**现在只在随 Host 发布的插件之间生效**：已安装的插件写了 `default_source` 或默认组也不会自动接上，它的输入口由人接；已安装的插件不能声明默认连线（用户 2026-10-16 定：暂只在随宿主发的插件之间；装插件时的同意流程有了再议）。2026-10-18 改：这是只给内置的特权，要改成任何插件声明了、经同意或按安装信任就有，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；改完之前仍按上文。
 - 输出口：`services.outputs.publish`、`invalidate(port, 给人看的原因)`、`retain(引用)`。同一轮输入是否算一组，由 Host 创建 client 时附上 `scope_key`。`publish` 参数里没有这个字段。
 - `input_groups`：组之间换着用；选中的那一组端口生效，其余不绑也不算失败。
 - 完整输入一次送达 `onUpstreamReady`；失效走 `onUpstreamUnavailable`。Host 不投递半套。
@@ -159,13 +160,13 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 每个角色写 `role_id`、`version`、`name`，用 `prompts` 点名自己的提示词，用 `host_tools` 点名能叫的 Host 工具。不写 `prompts` 时，运行组合会把本插件声明的全部提示词交给这个角色；解析器同时要求有一条与 `role_id` 同名的 Prompt，否则 Manifest 无效。只读角色点名自己的那几条。
 
-一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是开新一轮时已经选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。不需要按用途分方法就不写。
+一个插件有几种用途（规划、执行、讨论……）时，每种用途是一个角色。角色可以写 `skills: { allowed: [...], default: [...] }`：`allowed` 是这个用途能挑的方法（只能点名 agent 块 `skills` 里声明过的），`default` 是这个用途默认选上的（必须在 `allowed` 里，用户可以去掉）。每个可选方法要的 `tools` 都必须在角色的 `host_tools` 里，否则 Manifest 无效：给不了工具的方法不该出现在这个用途里。现在只有解析 Manifest 时的这些检查：宿主开新一轮时还不按 `default` 选上，也不拒绝 `allowed` 之外的方法，要等宿主那一片（#576 的后续 PR）合入后，宿主开轮时才按它选上；在那之前写了不生效。不需要按用途分方法就不写。
 
 提示词层级是 `base` | `role` | `project`，省略等于 `role`。`task` 是用户这一次写的，插件声明会被拒绝。正文在包装里的 `agent_prompts` / `agent_skills`，不进 Manifest。Host 还要把正文挂进 catalog，见 [host.md](host.md)。
 
 `subagent_workspaces: "required"` 只放在只读父角色上（Coding 的协调者、并行写入）。工作目录是 Host 事实，候选通过 `projectSettingsCapabilities.workspaces` 读取。`directory_input_port` 不会让 Host 采信目录。
 
-今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`text_sources`、`skills`，只有 Coding 用了 `compaction` 与 `skills`，先不要写成必填。
+今天三例：`plugins/native/coding`（kind `app`），以及 `plugins/native/schedule`、`plugins/native/todo`（kind `native`）。不要把 Coding 的 agent 块抄到普通内容插件。合同里还有 `compaction`、`ending_review`、`text_sources`、`skills`，只有 Coding 用了 `compaction`、`ending_review` 与 `skills`，先不要写成必填。`ending_review` 指向自己 `prompts` 里的一条：可写的一轮没有成功的改动就要结束时，宿主用它对照这一轮的事实核对最后的话（用户能在「设置 › 提示词」的「收尾核对」下改）；不声明就不核对。
 
 ## Integration
 

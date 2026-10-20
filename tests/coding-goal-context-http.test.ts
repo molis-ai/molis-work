@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
-import { agentHostCapabilities as agent, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -23,6 +23,10 @@ function codingHostFixture(root: string) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
     } return { available: true }; }, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
   host.registerCapability(agent.availableRoles, () => [{ role_id: "reader", available: true }] as any);
+  // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
+  const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
+  host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
+  host.registerCapability(agent.listActions, () => []);
   host.registerCapability(agent.createSession, () => ({ runtime_id: "prologue", session_id: `sdk-${++sdkSessions}` }));
   host.registerCapability(agent.startRun, (_runtime, [, input]) => {
     starts.push(structuredClone(input));
@@ -73,10 +77,8 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
     await releaseCodingSurface(owner, DEMO_PROJECT_ID);
     barrier.release();
     const refused = await pending;
-    // D26: a stopped instance's call is expired, a conflict by its platform kind, so Coding's edge answers 409 (was 400).
-    const stopStatuses: Record<string, number> = { "actions.expired": 409, "actions.forbidden": 403, "goals.builtin_plugin_required": 400 };
-    const expectedStatus = stopStatuses[String(refused.body.code)];
-    assert.ok(expectedStatus, JSON.stringify(refused.body)); assert.equal(refused.status, expectedStatus, JSON.stringify(refused.body));
+    // W5-01-AQD-07: the shared route checks the stopped instance before the Goal write resumes.
+    assert.deepEqual([refused.status, refused.body.code], [503, "actions.plugin_unavailable"], JSON.stringify(refused.body));
     assert.deepEqual(owner.readEventsDescending(DEMO_PROJECT_ID), before, "revocation writes no progress, receipt or Goal event");
   } finally { barrier.release(); }
   assert.ok(caller);

@@ -64,7 +64,7 @@ export function queueReplicaChange(db: ReplicaDatabase, key: string): void {
 /** Save a complete owner preimage before a local deletion. Call in the same owner transaction as deletion.
  * No server event/revision is invented; unuploaded originals remain durable until an explicit recovery decision.
  */
-export function retainLocalReplicaSnapshot(db:ReplicaDatabase,key:string,value:unknown,authorize:()=>void,protection?:import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncLocalProtection):void {
+export function retainLocalReplicaSnapshot(db:{prepare(sql:string):{run(...parameters:string[]):unknown}},key:string,value:unknown,authorize:()=>void,protection?:import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncLocalProtection):void {
   authorize();if(typeof key!=='string'||!key||key.length>500||value===null)throw syncError('invalid','本机删除保留内容无效');
   const json=canonical(value);if(Buffer.byteLength(json)>100000000)throw syncError('limit','本机删除保留内容超过上限，原件已保留');
   const serial=replicaSerialization(authorize,protection);

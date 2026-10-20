@@ -26,6 +26,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return grants as Output;
       if (definition.capability_id === writerDirectoryCapabilities.list.capability_id) { assert.equal((args as any).workspace_id, "main"); return owned as Output; }
       if (definition.capability_id === agent.availableRoles.capability_id) return ["reader", "writers"].map(role_id => ({ role_id, available: true })) as Output;
+      if (definition.capability_id === agent.listActions.capability_id) return [] as Output;
       if (definition.capability_id === agent.createSession.capability_id) { created++; return { runtime_id: "prologue", session_id: "sdk" } as Output; }
       if (definition.capability_id === agent.startRun.capability_id) { starts.push(structuredClone((args as any[])[1])); return { ref: { session_id: "sdk", run_id: `run-${starts.length}` } } as Output; }
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;

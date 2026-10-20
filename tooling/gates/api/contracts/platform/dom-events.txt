@@ -31,14 +31,6 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ texts, message }";
     readonly summary: "The Shelf terminal was not connected, so typed text was not sent; the Shelf puts it back into its input.";
 }, {
-    readonly name: "molis-work:artifact-imported";
-    readonly kind: "announcement";
-    readonly owner: "artifacts-import";
-    readonly on: "element";
-    readonly bubbles: true;
-    readonly detail: "{ href }";
-    readonly summary: "An import into the Artifacts library finished in the form that dispatched it; the dialog that hosts the form closes on it.";
-}, {
     readonly name: "molis-work:attention";
     readonly kind: "announcement";
     readonly owner: "attention";
@@ -95,6 +87,20 @@ export declare const DOM_EVENTS: readonly [{
     readonly bubbles: true;
     readonly detail: "none";
     readonly summary: "A Goal event panel is present in the document; the shell re-reads whether to offer the panel layout.";
+}, {
+    readonly name: "molis-work:knowledge-pick";
+    readonly kind: "request";
+    readonly owner: "knowledge-picker";
+    readonly on: "document";
+    readonly detail: "{ request_id, selected?: Array<{ kind, id, title }>, max? }";
+    readonly summary: "Open the project knowledge picker with these pieces already chosen. Sent by an input that brings pieces into a round: the Assistant's ＋ and Coding's 材料.";
+}, {
+    readonly name: "molis-work:knowledge-picked";
+    readonly kind: "announcement";
+    readonly owner: "knowledge-picker";
+    readonly on: "document";
+    readonly detail: "{ request_id, picks: Array<{ kind, id, title, plugin_title }> }";
+    readonly summary: "The person confirmed the picker opened for request_id; picks is the whole choice, replacing what was chosen before.";
 }, {
     readonly name: "molis-work:model-ready";
     readonly kind: "announcement";
@@ -202,6 +208,13 @@ export declare const DOM_EVENTS: readonly [{
     readonly detail: "{ goalId, mode }";
     readonly summary: "The Goal work mode changed. Nothing in the tree listens yet.";
 }, {
+    readonly name: "molis:assistant-card-target";
+    readonly kind: "request";
+    readonly owner: "assistant";
+    readonly on: "document";
+    readonly detail: "{ object: { kind, id }, reply(work_id: string | null) }";
+    readonly summary: "A write chosen on the page asks which work its card goes into. The Assistant replies with its current work when its panel is open, the work is its own (not Coding's) and holds the object (one of the work's objects, or added to its strip); otherwise nobody replies and a new work starts. One reply counts. The work id is a pointer: the Host checks it when placing the card.";
+}, {
     readonly name: "molis:assistant-context-action-chosen";
     readonly kind: "announcement";
     readonly owner: "context-actions";
@@ -228,8 +241,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "assistant";
     readonly on: "document";
-    readonly detail: "{ work_id?, new?, source?, materials?, object? }";
-    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent.";
+    readonly detail: "{ work_id?, new?, source?, materials? ({ title, text } or a piece of project knowledge { title, subject: { kind, id } }), object? }";
+    readonly summary: "Open the Assistant panel on a Work, or a new one, with what is in hand (materials and the object they are from) put in its strip; no words are written and nothing is sent. A piece of project knowledge goes in by its subject (the knowledge picker sends these) and is read from its owner when the message is sent.";
 }, {
     readonly name: "molis:assistant-starter-choose";
     readonly kind: "request";
@@ -296,28 +309,28 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ source, station | goal, payload?, note? }";
-    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog.";
+    readonly summary: "Hand content to another plugin (or make it a Goal) through the shared conversion dialog. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
+}, {
+    readonly name: "molis:placement-flush";
+    readonly kind: "announcement";
+    readonly owner: "placement";
+    readonly on: "window";
+    readonly detail: "{ mode, object, settle }";
+    readonly summary: "The placement bar is about to move an object; the page that has it open pushes a promise onto settle that stores unsaved edits. The bar waits, and does not move if that promise fails.";
 }, {
     readonly name: "molis:placement-request";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ action: use-in-project | move | copy, object }";
-    readonly summary: "Open the shared dialog that uses, moves or copies an object.";
+    readonly summary: "Open the shared dialog that uses, moves or copies an object. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:placement-result";
     readonly kind: "request";
     readonly owner: "placement";
     readonly on: "window";
     readonly detail: "{ verb, title, object?, note?, file? }";
-    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is.";
-}, {
-    readonly name: "molis:shelf-admit";
-    readonly kind: "request";
-    readonly owner: "shelf";
-    readonly on: "window";
-    readonly detail: "{ filename, mime, bytes_base64, source }";
-    readonly summary: "Put a file made elsewhere (a generated image) into the Shelf.";
+    readonly summary: "A plugin reports what it made, imported, converted or exported, so the workbench shows what was made and where it is. From a plugin's side view it is dispatched in that view's own document and the side panel dispatches it again here, on the page's window, after the S-30 check (`SIDE_FORWARD_SCRIPT`).";
 }, {
     readonly name: "molis:side-browser-control";
     readonly kind: "announcement";
@@ -383,7 +396,14 @@ export declare const DOM_EVENTS: readonly [{
     readonly on: "element";
     readonly bubbles: true;
     readonly detail: "SurfaceLanding | null (services/contextual)";
-    readonly summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; the row keeps one landing and sends it with the requests for a thing in hand elsewhere.";
+    readonly summary: "The page that owns the object open on the left tells the context row where something in hand would land in it (cursor, selection or end, with the version its positions belong to), or that there is no landing now. Raised from the page's own root and bubbling to the row's listener on document; a split pane's report comes up as a pane message and is raised again on that pane's frame. The row keeps one landing and sends it with the requests for a thing in hand elsewhere.";
+}, {
+    readonly name: "molis:surface-landing-flash";
+    readonly kind: "request";
+    readonly owner: "pages-landing";
+    readonly on: "element";
+    readonly detail: "none";
+    readonly summary: "The context row asks the page that reported the landing to show it once: a way to put the thing in hand there was hovered or focused on the bar or in its menu. Dispatched on the element that raised molis:surface-landing, only while it is connected; a split pane's landing is asked of that pane's frame (pane message workbench-surface-landing-flash, top document to pane only), which raises it on its own landing element. The page shows it without covering text, not again while it shows, and not at all under reduced motion.";
 }, {
     readonly name: "workbench-feed-task";
     readonly kind: "request";
@@ -425,11 +445,11 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Whether the right-hand panel is open, which tab it shows and what that tab was asked to show (a file, a web page, the browser held by the person or by a Work). The last tab is kept in localStorage as molis:side-tab.";
     };
     readonly assistant: {
-        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/assistant-island.ts", "apps/workbench/src/scripts/client/assistant-send.ts", "apps/workbench/src/scripts/client/assistant-stage.ts", "apps/workbench/src/scripts/client/assistant-work-objects.ts"];
         readonly state: "The bottom Assistant: the Work it shows, the draft and the materials in its input, what waits on the person.";
     };
     readonly "context-actions": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-landing.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/context-actions.ts", "apps/workbench/src/scripts/client/context-bar.ts", "apps/workbench/src/scripts/client/context-bus.ts", "apps/workbench/src/scripts/client/context-card-target.ts", "apps/workbench/src/scripts/client/context-landing.ts"];
         readonly state: "What the person has in hand on the focused surface, where it would land on the left, the ranked actions offered for it, and the starters offered for the open Work.";
     };
     readonly "context-toolbar": {
@@ -441,8 +461,8 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "Where the objects on the page live (project, personal, Home) and the shared dialogs that use, move, copy or convert them.";
     };
     readonly "tab-workspace": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts"];
-        readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show.";
+        readonly files: readonly ["apps/workbench/src/scripts/client/tab-workspace.ts", "apps/workbench/src/scripts/client/system-tabs.ts", "apps/workbench/src/side-view-document.ts"];
+        readonly state: "The open tabs and panes of the work area, the current place, and which item each plugin surface has been asked to show (a plugin's side tab is its own document, which asks its one surface the same way).";
     };
     readonly "settings-directory": {
         readonly files: readonly ["apps/workbench/src/scripts/client/settings-directory.ts"];
@@ -492,13 +512,17 @@ export declare const PAGE_STATE_OWNERS: {
         readonly files: readonly ["apps/workbench/src/character-terminal-client.ts"];
         readonly state: "The terminal that shows a Character run: which process it is attached to.";
     };
-    readonly "artifacts-import": {
-        readonly files: readonly ["plugins/native/artifacts/src/import-client.ts"];
-        readonly state: "The import form of the Artifacts library.";
-    };
     readonly "goals-event-document": {
         readonly files: readonly ["plugins/native/goals/src/event-document-client.ts"];
         readonly state: "The Goal event panel inside an open Goal document.";
+    };
+    readonly "pages-landing": {
+        readonly files: readonly ["plugins/native/pages/src/landing-editor.ts"];
+        readonly state: "Where something in hand would land in the Pages document open on the left, the preview there, and the brief flash that shows the place.";
+    };
+    readonly "knowledge-picker": {
+        readonly files: readonly ["apps/workbench/src/browser/knowledge/picker.ts"];
+        readonly state: "The one picker of project knowledge (specs/project-knowledge PMAT-17): what it was asked for, the person's query and their picks until they confirm.";
     };
 };
 

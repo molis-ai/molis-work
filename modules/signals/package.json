@@ -4,7 +4,7 @@
   "private": true,
   "description": "Normalized external-event facts, deduplication identity, revisions, and provenance.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

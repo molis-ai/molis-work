@@ -12,6 +12,8 @@ import { pptSync } from "./replication.js";
 
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
+const PPT_BODY_BYTES = 1_000_000;
+
 export const pptManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
@@ -23,13 +25,27 @@ export const pptManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: [...Object.values(pptActions), ...Object.values(pptContentActions)],
+  routes: [
+    { route_id: "ppt.list", method: "GET", path: "/ppt" },
+    { route_id: "ppt.outline_pages", method: "GET", path: "/ppt/outline-pages" },
+    { route_id: "ppt.create", method: "POST", path: "/ppt", max_body_bytes: PPT_BODY_BYTES },
+    { route_id: "ppt.get", method: "GET", path: "/ppt/:id" },
+    { route_id: "ppt.update", method: "POST", path: "/ppt/:id", max_body_bytes: PPT_BODY_BYTES },
+    { route_id: "ppt.delete", method: "POST", path: "/ppt/:id/delete", max_body_bytes: PPT_BODY_BYTES },
+    { route_id: "ppt.export", method: "GET", path: "/ppt/:id/export" },
+    { route_id: "ppt.pptx", method: "GET", path: "/ppt/:id/pptx" },
+    { route_id: "ppt.promote", method: "POST", path: "/ppt/:id/promote", max_body_bytes: PPT_BODY_BYTES },
+    { route_id: "ppt.outline", method: "POST", path: "/ppt/:id/outline", max_body_bytes: PPT_BODY_BYTES },
+    { route_id: "ppt.outline_ai", method: "POST", path: "/ppt/:id/outline-ai", max_body_bytes: PPT_BODY_BYTES },
+  ],
   permissions: [
     ...PPT_ACTION_PERMISSIONS.filter(permission => permission !== "artifact:write").map(permission => ({ permission, required: permission !== "model:invoke" && permission !== "pages:read",
       reason: permission === "model:invoke" ? "让模型把文字整理成大纲（显式调用）" : permission === "pages:read" ? "选一篇 Pages 文档生成大纲（经 Pages 的公开动作读取）" : "演示稿动作" })),
     { permission: "storage:private", required: true, reason: "本机演示稿库" },
     { permission: "artifact:write", required: true, reason: "把演示稿存为成果" },
+    { permission: "artifact:read", required: true, reason: "给下一版编号、恢复没存完的固定版本时读回自己固定的演示稿" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["pages.content.read", "pages.content.list"] },
   artifacts: {
     produces: [{ artifact_type_id: PPT_ARTIFACT_TYPE_ID, schema_version: PPT_ARTIFACT_SCHEMA_VERSION, title: "演示稿",
       preview: { capability_id: "ppt.artifacts.preview", version: 1 }, pin: { capability_id: "ppt.artifacts.pin", version: 1 },

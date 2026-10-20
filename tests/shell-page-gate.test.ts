@@ -137,7 +137,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/goals-page-renderer.ts": "the workbench",
   "apps/workbench/src/home-plugin-page.ts": "Home workbench: Host document and UI lifetime, Runtime plugin content only",
   "apps/workbench/src/side-view-document.ts": "宿主排版的侧栏文档",
-  "apps/local-host/src/web-request.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
+  "apps/local-host/src/web-project-platform-routes.ts": "宿主排版的侧栏文档：插件不在时侧栏框里的一句说明",
   "apps/local-host/src/personal-http.ts": "Host 账号回调响应：仅 /account/callback 的失败提示；成功 303 返回工作台，不属于插件页面",
   "apps/workbench/src/arrival/shell.ts": "进入页",
   "apps/workbench/src/arrival/chooser.ts": "进入页：项目选择",

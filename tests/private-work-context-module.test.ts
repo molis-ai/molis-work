@@ -3,8 +3,8 @@ import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import * as privateContext from "@molis-ai/molis-work-module-private-work-context";
 import Database from "better-sqlite3";
-import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import {
   MolisWorkSessionRegistry,
   SESSION_REGISTRY_OWNER,
@@ -13,6 +13,9 @@ import {
   createRuntimeContextSetupRequestTable,
   createRuntimeContextSuggestionRejectionTable,
 } from "@molis-ai/molis-work-module-private-work-context";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 test("Private Work Context public entrypoint preserves private Session facts across restart", async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-private-work-context-"));
@@ -70,55 +73,41 @@ test("Private Work Context public entrypoint preserves private Session facts acr
   }
 });
 
-test("Runtime context binding facts are stored by the Private Work Context repository", () => {
-  const db = new Database(":memory:");
+test("W5-08-CTX-01/02 Runtime binding services keep confirmation, setup replay and project cleanup", async () => {
+  assert.equal("RuntimeContextBindingRepository" in privateContext, false);
+  const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-runtime-context-owner-"));
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: directory });
+  const context = { runtime_id: "codex", stable_work_context_id: "thread-context-owner", host_declares_stable: true };
   try {
-    db.pragma("foreign_keys = ON");
-    db.exec("CREATE TABLE projects (project_id TEXT PRIMARY KEY)");
-    db.prepare("INSERT INTO projects (project_id) VALUES (?)").run("project-context-owner");
-    createRuntimeContextBindingTables(db);
-    createRuntimeContextSetupRequestTable(db);
-    createRuntimeContextSuggestionRejectionTable(db);
-    const repository = new RuntimeContextBindingRepository(db, {
-      ledger: createContextLedger(db, { authorize: () => true }),
-      assertProject: (id) => { assert.equal(id, "project-context-owner"); },
-    });
-    const binding = {
-      binding_id: "binding-context-owner",
-      runtime_id: "codex",
-      stable_work_context_id: "thread-context-owner",
-      project_id: "project-context-owner",
-      bound_by: "user",
-      created_at: "2026-09-02T00:00:00.000Z",
-      updated_at: "2026-09-02T00:00:00.000Z",
-    };
-    repository.insert(binding);
-    repository.appendEvent({
-      binding,
-      type: "context.bound",
-      previous_project_id: null,
-      actor_id: "user",
-      created_at: binding.created_at,
-    });
-    repository.insertSetupRequest({
-      runtime_id: binding.runtime_id,
-      persistence_id: binding.stable_work_context_id,
-      idempotency_key: "setup-context-owner",
-      request_fingerprint: "fingerprint",
-      project_id: binding.project_id,
-      created_at: binding.created_at,
-    });
-    assert.equal(repository.find(binding.runtime_id, binding.stable_work_context_id)?.binding_id, binding.binding_id);
-    assert.equal(repository.listEvents()[0]?.type, "context.bound");
-    assert.equal(repository.findSetupRequest(
-      binding.runtime_id,
-      binding.stable_work_context_id,
-      "setup-context-owner",
-    )?.project_id, binding.project_id);
-    assert.equal(repository.removeProjectFacts(binding.project_id, "user", binding.updated_at), 1);
-    assert.equal(repository.list().length, 0);
+    const input = { context, display_name: "Context owner", actor_id: "user", user_confirmed: true, idempotency_key: "setup-context-owner" };
+    await assert.rejects(catalog.createProjectAndBindRuntimeContext({ ...input, user_confirmed: false }),
+      (error: unknown) => error instanceof ActionError && error.code === "work.context.user_confirmation_required");
+    assert.deepEqual(catalog.listProjects(), []);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), []);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(), []);
+
+    const created = await catalog.createProjectAndBindRuntimeContext(input);
+    assert.equal(created.status, "bound");
+    assert.ok(created.project);
+    const bindings = catalog.listRuntimeContextBindings(), events = catalog.listRuntimeContextBindingEvents(context);
+    assert.equal(bindings.length, 1);
+    assert.equal(bindings[0].project_id, created.project.project_id);
+    assert.equal(events.length, 1);
+    assert.equal(events[0].type, "context.bound");
+    const replay = await catalog.createProjectAndBindRuntimeContext(input);
+    assert.equal(replay.project?.project_id, created.project.project_id);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), bindings);
+    assert.deepEqual(catalog.listRuntimeContextBindingEvents(context), events);
+    assert.equal(catalog.listProjects().length, 1);
+
+    const deletion = await catalog.deleteProject({ project_id: created.project.project_id,
+      actor_id: "user", delete_confirmed: true, idempotency_key: "delete-context-owner" });
+    assert.equal(deletion.deletion.deleted_binding_count, 1);
+    assert.deepEqual(catalog.listRuntimeContextBindings(), []);
+    assert.equal(catalog.resolveRuntimeContext(context).status, "unbound");
   } finally {
-    db.close();
+    catalog.close();
+    await rm(directory, { recursive: true, force: true });
   }
 });
 import { openWorkSessionRegistry,createSessionReplicationSupport } from "@molis-ai/molis-work-app-local-host";

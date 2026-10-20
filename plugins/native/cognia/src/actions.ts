@@ -1,6 +1,7 @@
-import type { ActionAvailability, ActionCallContext, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionAvailability, ActionExecutionContext, ActionDefinition, ActionHandlerBinding, ActionSchema, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { generateCogniaDraft, type CogniaAiPorts } from "./ai.js";
-import type { CogniaStore } from "./store.js";
+import type { CogniaStore, CogniaStores } from "./store.js";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, type Domain, type Draft, type ImportFile, type Material, type Preview, type Receipt, type Source, type SourceKind } from "./types.js";
 import * as s from "./action-schema.js";
 import { cogniaSearchActions, createCogniaSearchHandlers } from "./search.js";
@@ -48,11 +49,10 @@ export const cogniaActions = {
 };
 export const COGNIA_ACTIONS: readonly ActionDefinition[] = Object.values(cogniaActions);
 export const COGNIA_ACTION_PERMISSIONS = [...new Set(COGNIA_ACTIONS.flatMap(definition => definition.action.permissions))];
-export interface CogniaActionPorts {
-  withStore<T>(run: (store: CogniaStore) => T): T;
+export interface CogniaActionPorts extends CogniaStores {
   model(): CogniaAiPorts;
-  ai(caller: ActionCallContext): CogniaAiPorts;
-  actions(caller: ActionCallContext): BoundActionClient;
+  ai(caller: ActionExecutionContext): CogniaAiPorts;
+  actions: BoundActionClient;
   scan(path: string, signal?: AbortSignal): Promise<Scan>;
 }
 export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHandlerBinding[] {
@@ -61,28 +61,38 @@ export function createCogniaActionHandlers(ports: CogniaActionPorts): ActionHand
   const available = (): ActionAvailability => { const ai = model(); return ai.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: ai.unavailableReason ?? "尚未配置可用的文字模型，请检查模型设置和服务连接" }; };
   const summarize = (material: Material, query?: string): Summary => { const { body, frontmatter: _, ...rest } = material; const term = query?.trim().split(/\s+/u)[0], index = term ? body.toLocaleLowerCase().indexOf(term.toLocaleLowerCase()) : -1; return { ...rest, excerpt: query === undefined ? body.slice(0, 600) : index < 0 ? "" : body.slice(Math.max(0, index - 60), index + 120) }; };
   return [
-    bind(cogniaActions.workspace, input => ports.withStore(store => { const ai = model(); return { materials: store.materials(input.query ?? "", input.domain_id, input.source_id).map(m => summarize(m, input.query ?? "")), domains: store.domains(), sources: store.sources(), drafts: store.drafts().map(({ body: _, references: _refs, ...draft }) => draft), ai_available: !!ai.completeText, ai_runtime: ai.runtimeLabel ?? null, ai_unavailable_reason: ai.unavailableReason ?? null, limits: COGNIA_LIMITS }; })),
-    bind(cogniaActions.search, input => ports.withStore(store => ({ materials: store.materials(input.query, input.domain_id, input.source_id).slice(0, 30).map(m => summarize(m)) }))),
-    bind(cogniaActions.read, input => ports.withStore(store => store.detail(input.id, input.revision))),
-    bind(cogniaActions.download, input => ports.withStore(store => { const { material, bytes } = store.download(input.id, input.revision); return { data: bytes.toString("base64"), filename: material.path.split("/").at(-1) ?? "material", mime: material.mime }; })),
-    bind(cogniaActions.createDomain, input => ports.withStore(store => ({ domain: store.createDomain(input.name) }))),
-    bind(cogniaActions.updateDomain, input => ports.withStore(store => ({ domain: store.renameDomain(input.id, input.name) }))),
-    bind(cogniaActions.deleteDomain, input => ports.withStore(store => { store.deleteDomain(input.id); return { deleted: true }; })),
-    bind(cogniaActions.updateSource, input => ports.withStore(store => ({ source: store.renameSource(input.id, input.name) }))),
-    bind(cogniaActions.deleteSource, input => ports.withStore(store => { store.deleteSource(input.id); return { deleted: true }; })),
-    bind(cogniaActions.createMaterial, input => ports.withStore(store => ({ material: store.createMaterial(input) }))),
-    bind(cogniaActions.updateMaterial, input => ports.withStore(store => ({ material: store.updateMaterial(input.id, input,input.etag) }))),
-    bind(cogniaActions.deleteMaterial, input => ports.withStore(store => { store.deleteMaterial(input.id); return { deleted: true }; })),
-    bind(cogniaActions.preview, input => ports.withStore(store => ({ preview: store.preview({ ...input, locator: input.locator ?? "upload" }) }))),
+    bind(cogniaActions.workspace, input => ports.read(store => { const ai = model(); return { materials: store.materials(input.query ?? "", input.domain_id, input.source_id).map(m => summarize(m, input.query ?? "")), domains: store.domains(), sources: store.sources(), drafts: store.drafts().map(({ body: _, references: _refs, ...draft }) => draft), ai_available: !!ai.completeText, ai_runtime: ai.runtimeLabel ?? null, ai_unavailable_reason: ai.unavailableReason ?? null, limits: COGNIA_LIMITS }; })),
+    bind(cogniaActions.search, input => ports.read(store => ({ materials: store.materials(input.query, input.domain_id, input.source_id).slice(0, 30).map(m => summarize(m)) }))),
+    bind(cogniaActions.read, input => ports.read(store => store.detail(input.id, input.revision))),
+    bind(cogniaActions.download, input => ports.read(store => { const { material, bytes } = store.download(input.id, input.revision); return { data: bytes.toString("base64"), filename: material.path.split("/").at(-1) ?? "material", mime: material.mime }; })),
+    bind(cogniaActions.createDomain, (input, caller) => ports.write(caller, store => ({ domain: store.createDomain(input.name) }))),
+    bind(cogniaActions.updateDomain, (input, caller) => ports.write(caller, store => ({ domain: store.renameDomain(input.id, input.name) }))),
+    bind(cogniaActions.deleteDomain, (input, caller) => ports.write(caller, store => { store.deleteDomain(input.id); return { deleted: true }; })),
+    bind(cogniaActions.updateSource, (input, caller) => ports.write(caller, store => ({ source: store.renameSource(input.id, input.name) }))),
+    bind(cogniaActions.deleteSource, (input, caller) => ports.write(caller, store => { store.deleteSource(input.id); return { deleted: true }; })),
+    bind(cogniaActions.createMaterial, (input, caller) => ports.write(caller, store => ({ material: store.createMaterial(input) }))),
+    bind(cogniaActions.updateMaterial, (input, caller) => ports.write(caller, store => ({ material: store.updateMaterial(input.id, input,input.etag) }))),
+    bind(cogniaActions.deleteMaterial, (input, caller) => ports.write(caller, store => { store.deleteMaterial(input.id); return { deleted: true }; })),
+    bind(cogniaActions.preview, (input, caller) => ports.write(caller, store => ({ preview: store.preview({ ...input, locator: input.locator ?? "upload" }) }))),
     bind(cogniaActions.scan, (input, caller) => ports.scan(input.path, caller.signal)),
-    bind(cogniaActions.previewDirectory, async (input, caller) => { const actions = ports.actions(caller); const scanned = await actions.invoke(cogniaActions.scan, { path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return actions.invoke(cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
-    bind(cogniaActions.commit, input => ports.withStore(store => ({ receipt: store.commit(input.preview_id) }))),
-    bind(cogniaActions.cancel, input => ports.withStore(store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
-    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
-    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports.withStore, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
-    bind(cogniaActions.draft, input => ports.withStore(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", cogniaErrors.not_found); return { draft }; })),
-    bind(cogniaActions.saveDraft, input => ports.withStore(store => ({ material: store.saveDraft(input.id) }))),
-    bind(cogniaActions.archiveDraft, input => ports.withStore(store => { store.archiveDraft(input.id); return { deleted: true }; })),
-    ...createCogniaSearchHandlers(ports.withStore),
+    bind(cogniaActions.previewDirectory, async (input, caller) => { const scanned = await invokeNested(ports.actions, cogniaActions.scan, { path: input.path }, caller); await caller.beforeEffect(); caller.assert_authority_current?.(); caller.signal?.throwIfAborted(); return invokeNested(ports.actions, cogniaActions.preview, { ...scanned, kind: input.kind, source_id: input.source_id, domain_id: input.domain_id }, caller); }),
+    bind(cogniaActions.commit, (input, caller) => ports.write(caller, store => ({ receipt: store.commit(input.preview_id) }))),
+    bind(cogniaActions.cancel, (input, caller) => ports.write(caller, store => { store.cancelPreview(input.preview_id); return { cancelled: true }; })),
+    bind(cogniaActions.synthesize, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "synthesize" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
+    bind(cogniaActions.query, async (input, caller) => ({ draft: await generateCogniaDraft(ports, { ...input, mode: "query" }, { ...ports.ai(caller), beforeEffect: caller.beforeEffect }) }), available),
+    bind(cogniaActions.draft, input => ports.read(store => { const draft = store.drafts().find(d => d.id === input.id); requireCognia(draft, "草稿不存在", cogniaErrors.not_found); return { draft }; })),
+    bind(cogniaActions.saveDraft, (input, caller) => ports.write(caller, store => ({ material: store.saveDraft(input.id) }))),
+    bind(cogniaActions.archiveDraft, (input, caller) => ports.write(caller, store => { store.archiveDraft(input.id); return { deleted: true }; })),
+    ...createCogniaSearchHandlers(ports.read),
   ];
+}
+
+async function invokeNested<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I, caller: ActionExecutionContext): Promise<O> {
+  const authority = caller.retainAuthority?.([definition]);
+  if (!authority) throw new ActionError("actions.unredeemed", "宿主未提供目录导入授权检查");
+  await authority();
+  return actions.invoke(definition, input, { ...caller,
+    beforeEffect: async () => { await caller.beforeEffect(); await authority(); },
+    assert_authority_current: () => { caller.assert_authority_current?.(); authority.assertCurrent(); },
+  });
 }

@@ -41,9 +41,10 @@
 | Issue | `issues/issues.db` | 3 | `user_version` | `plugins/native/issues/src/store.ts#ISSUES_DATABASE` | 拒绝 |
 | 记忆 | `memory/memory.db` | 2 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 3 | `user_version` | `plugins/native/form/src/store.ts#FORM_DATABASE` | 拒绝 |
+| 项目资料 | `knowledge/knowledge.db` | 1 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
-| 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 拒绝 |
+| 连接 | `connectors/connectors.db` | 2 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 拒绝 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 拒绝 |
 | Cognia | `cognia/cognia.db` | 2 | `user_version` | `plugins/native/cognia/src/store.ts#COGNIA_STORE_BASELINE` | 拒绝；知识图同步日志入新基线，旧库另行批准维护 |
 | Dataset | `dataset/dataset.db` | 2 | `user_version` | `plugins/native/dataset/src/store.ts#DATASET_STORE_BASELINE` | 拒绝 |
@@ -64,6 +65,7 @@
 
 - Builder 的项目私有 KV owner 文档改为格式 2（不是新库、也不复制私有表）：草稿及删除后编辑高水位在同一次 CAS 中保存。原无格式文档、坏 JSON 或错高水位拒绝，不重建空文档；可能阻止旧创作/安装记录被新构建读取。真实 Home 的备份、格式整理与维护须另行批准，不能以同步启动为由隐式转换。此项不表示 Builder 的源码、发布文件或云端接入完成。
 - Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
+- 统一服务接入将连接库基线从 1 改为 2，授权结果增加接入方案与发起者字段，并由连接 owner 保存最近检查和调用观察。原连接、协议、绑定及凭据引用保留；隔离副本维护已演练，真实 Home 尚未维护，不能直接用新构建打开旧库。维护与回退边界见[统一服务接入规格](../../specs/assistant-service-connections/spec.md) §9.3。
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
 - （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
 - 项目库 v7（2026-10-10，用户决定删除 Casebook）比 v6 少 Casebook 的 5 张表（`casebook_interaction_scopes`、`casebook_interaction_facts`、`casebook_goal_contexts`、`casebook_interaction_audit_keys`、`casebook_interaction_actions`），别的表没变。新构建拒绝 v6 的项目库，只认 6 的旧构建（Home 安装版、已开着的会话里的 MCP）拒绝 v7，所以带这一行的发布要先做真实 Home 的维护六，见第 4.3 节。
@@ -90,8 +92,9 @@
 
 ### 4.3 第 3 节有库的版本变了：先演练再动真库
 
-没有变化的发布跳过这一节。这一节的做法（版本不符就拒绝，旧 Home 先一次性维护）只适用到第一个装到开发机之外的版本为止（第 1 节第 2 项）。
+没有变化的发布跳过这一节，但第一项每次都做。这一节的做法（版本不符就拒绝，旧 Home 先一次性维护）只适用到第一个装到开发机之外的版本为止（第 1 节第 2 项）。
 
+- [ ] 发布前逐库对照上一个装出去的构建（看它的提交，不只看版本号：0.2.0 的 tag 是 9 月的，真实 Home 装的是 10-11 用同一版本号构建的）：第 3 节表里每个库的版本，和那个提交里定义处的数比；升了的每一个都要在 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的「库版本维护清单」里有一行（哪个提交改的、怎么维护、做没做），没有的先补上再往下走；对 merge-base 的那一半由 `pnpm health:check` 拦（`scripts/gates/store-versions.mjs`），对上一个装出去的构建的这一半只能在这里查。
 - [ ] 把备份再拷一份作演练副本，维护流程先在副本上跑完。演练脚本只许打开副本里的路径：目录库存的是真实 Home 的绝对路径，照着它去开会打到真库——2026-10-07 的演练就误开过一个项目库，靠版本不符被拒绝才没改动文件（`specs/repository-anti-corruption/spec.md` §4.1）。
 - [ ] 副本上逐库核对：结构与当前基线逐项相同（表、列顺序、索引、外键、CHECK，`packages/storage/src/sqlite-baseline.ts` 的 `describeSqliteSchema`），版本等于第 3 节的数，`PRAGMA integrity_check` 为 `ok`，`PRAGMA foreign_key_check` 没有行，行数与搬之前一致。
 - [ ] 演练通过后，在真库上按同一份流程做：被换下的原库不删，也不留在 Home 里，搬到 `~/molis-work-backups` 下（用户 2026-10-08 的决定，「真实 Home 的残留物」一行），建议目录名 `<日期>-replaced-by-<事项>/`、权限 700（维护三留下的 `maintenance-3-replaced/` 就是 700）；2026-10-07 维护三留在 Home 里的 `~/.molis-work/maintenance-3-replaced/` 在 4.5 的一次性清理里按同一规则搬走。密钥文件（如 `feed/secrets.json`）不读值：要改就只按键名改，原文件先原样备份（2026-10-07 的做法，`specs/repository-anti-corruption/spec.md` §1）。

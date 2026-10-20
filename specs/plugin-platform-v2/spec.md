@@ -1,6 +1,6 @@
 # Plugin Platform v2：合并 FlyLeaf 插件内核，落地 Coding App
 
-状态：现行规范（2026-10-01 合入后梳理确认）。插件声明、宿主装配与插件间交换的现行规则；P0–P7 已落地（Coding 见 [coding-plugin](../coding-plugin/spec.md)）。未做事项见[统一待办清单](../BACKLOG.md)。原状态句：进行中。本文件是这次行为变更的唯一需求书。
+状态：现行规范（2026-10-01 合入后梳理确认；2026-10-18 补充 Skill Pack、目录元数据、hooks 与 LSP 声明）。插件声明、宿主装配与插件间交换的现行规则；P0–P7 已落地（Coding 见 [coding-plugin](../coding-plugin/spec.md)）。未做事项见[统一待办清单](../BACKLOG.md)。原状态句：进行中。本文件是这次行为变更的唯一需求书。
 
 落地结果的复查见 [架构复查](architecture-review.md)；Coding 插件的界面与交互设计见
 [`specs/coding-plugin/design.md`](../coding-plugin/design.md)。
@@ -219,6 +219,45 @@ publish 推进它，invalidate 撤回它，重启后从它恢复连线现状。
 ### D7 兼容策略
 
 v1 manifest 继续解析：`parsePluginManifest` 按 `schema_version` 分派，v1 投影为 v2（`artifacts.produces/consumes` → 单端口 `default` 输入/输出；`ui.contributions` → 无位置声明的视图）。已安装 v1 实例不因升级失效；`manifest_digest` 基于原始 v1 字节计算，不因投影变化。
+
+## 2026-10-18 补充：Skill Pack、目录元数据、hooks 与 LSP 声明
+
+这一节只扩展“插件能声明什么、宿主怎么装配”，不改变 D1–D7 的依赖、事件、端口、视图与授权规则。详细需求见 [skill-packs](../skill-packs/spec.md)、[agent-approval](../agent-approval/spec.md) 与 [coding-plugin/next-requirements](../coding-plugin/next-requirements.md) §9。
+
+### S1 Skill Pack（内容包）
+
+内容包不是新的包种类，而是**没有 runtime、只有 Manifest 的插件**：技能写在 Manifest 的 `methods`（`AgentSkillDeclaration`，加 `description`、`when_to_use`、`applies_to` 等可选字段）里，正文与 `references/`、`scripts/`、`assets/` 随插件发布；没有 runtime、actions、views、storage 或 routes。它和别的插件走同一条安装路径：签名、版本、授权、启用与卸载都一样，随宿主发布、从本地目录或从受控目录安装都行；平台不设 `pack.json` 或专用的技能注册表（2026-10-19 改，原因是 2026-10-18 的「待遇一样、不开私路」）。助理与 Coding 读同一份平台方法目录，Coding 按 `applies_to` 把技能注册为可安装方法/`agent.skills`。技能不授予权限；技能里声明的工具仍走动作授权。Manifest 目前要求有 `entrypoints`，没有 runtime 的插件需要允许它为空，这是合同改动（`docs/system/CONTRACT-CHANGES.md`）。格式、渐进披露与 `applies_to` 见 [skill-packs](../skill-packs/spec.md)。
+
+### S2 目录元数据
+
+插件目录条目在现有 `name`/`description` 之外可以声明：`displayName`、`category`、`tags`、`keywords`、`homepage`、`repository`、`license`、`icon`、`renames`（旧 name → 新 name）、来源类型（本地、`git-subdir` 带 `ref` + `sha`、`url` 带 `sha`）和安装前详情（commands/skills/agents/hooks/MCP/LSP/权限）。`name` 仍是不可变 slug；展示名走 `displayName`。目录只列本地注册表或受控来源，不做无审核的任意 URL 安装；外部插件的信任与审核沿用 [THIRD-PARTY-PLUGINS](../../docs/system/THIRD-PARTY-PLUGINS.md)。
+
+### S3 Hooks 声明
+
+插件 Manifest 可以声明 `hooks`（事件、匹配器、动作、超时、是否阻塞），项目可以声明 `.molis/hooks/*.md` 规则；两者都注册到 Prologue 现有的 `runtime.hooks`，不另造机制。事件至少覆盖 `tool-before`、`tool-after`、`tool-failed`、`session-start`、`session-stop`、`prompt-submit`、`compaction-before/after`、`subagent-start/end`；动作支持 allow/ask/deny/rewrite/warn；默认失败即挡，超时、归属、作用域沿用现有 hook bus。用户/插件钩子必须有面板启停、日志和沙箱；不能执行无界脚本。
+
+hooks 的 allow/deny/rewrite 能放行、拒绝或改写工具调用，是信任边界的变化。实现之前必须先在 `docs/system/SECURITY-INVARIANTS.md` 加新的一行并配「拒绝」测试（钩子不能放宽动作授权、不能改写出越权的调用、超时与失败即挡），并先把设计拿给用户确认（弹窗问用户）；没有这两步，S3 不开工。
+
+### S4 LSP 声明
+
+插件 Manifest 可以声明 `lsp_servers`：`command`、`args`、`extensionToLanguage`、启动/请求超时。宿主按扩展名懒启动、初始化、didOpen/didChange、definition/references/hover/documentSymbol/workspaceSymbol/diagnostics，会话结束关闭；只允许本机已安装的 server，不自动下载。语言支持因此是一个插件声明，不是宿主里每加一种语言就改一次代码。
+
+### S5 作者工具
+
+插件 CLI 增加/明确：`validate`（manifest、hook schema、agent/skill 声明、LSP 声明）、`eval`（用例、禁用工具、评分与报告）、`plugin-types`（给作者的公开类型）、跨 surface 的 UI 测试入口。`create` 生成的插件默认仍是 v2 Integration；内容包用 `create --kind content`（名称实现时定）。这些工具不改变运行时权限，只提高作者侧质量。
+
+### 补充验收（2026-10-18）
+
+| 编号 | 通过条件 |
+| --- | --- |
+| PLP-01 | 一个只有 `skills/` 的内容包可以安装、启用、卸载，不新增 runtime/actions/views/storage；卸载只删内容 |
+| PLP-02 | 内容包的技能同时出现在个人助理与 Coding 的目录里，按 `applies_to` 与项目启用决定可见性；两边版本一致 |
+| PLP-03 | 目录条目能显示 displayName/category/tags/homepage/license/icon；`name` 改名通过 `renames` 迁移，旧安装不失效 |
+| PLP-04 | 安装前能看到 commands/skills/agents/hooks/MCP/LSP 与需要的权限；来源固定到 ref/sha，未审核来源不能静默安装 |
+| PLP-05 | Manifest 的 hooks 与项目 `.molis/hooks/*.md` 注册到同一条 hook bus；warn/block/ask、超时、失败即挡、启停与日志可验证 |
+| PLP-06 | 一个 LSP 声明插件能让宿主按扩展名启动 server、返回定义/引用/诊断，卸载后 server 退出；缺 server 时提示而不自动下载 |
+| PLP-07 | `validate` 能拒绝坏 manifest/hook/agent/skill/LSP 声明；`eval` 能跑用例并给出可复查的评分/报告 |
+| PLP-08 | `[人工]` 安装一个内容包与一个 LSP 插件，在助理和 Coding 各用一次；再卸载两者，确认没有残留进程、业务事实或权限 |
 
 ## 输入输出与依赖
 

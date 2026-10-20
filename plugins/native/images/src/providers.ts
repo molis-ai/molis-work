@@ -1,19 +1,11 @@
-import type { ImageApiFormat, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import type { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { imagesErrors, isImagesFailure } from "./error.js";
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 
 export interface ProviderImage { bytes: Buffer; mime: GeneratedImage["mime_type"] }
-export interface ImageProviderRequest {
-  api_format: ImageApiFormat;
-  base_url: string;
-  model: string;
-  credential_ref: string;
-  resolveCredential(reference: string): string | null;
-  prompt: string;
-  size: string;
-  aspect_ratio: string;
-}
+export type { PluginImageGenerationRequest as ImageProviderRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginImageGenerationRequest as ImageProviderRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 
 export function isLocalImageEndpoint(url: string): boolean {

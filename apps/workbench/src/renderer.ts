@@ -50,16 +50,11 @@ import {
   createWorkbenchGoalsStatusRenderer,
   createWorkbenchGoalsTreeRenderer,
   renderProjectOperations,
-  renderShelfContribution,
-  renderImagesContribution,
   renderPagesContribution,
   renderFormContribution,
   renderDatasetContribution,
   renderPptContribution,
   renderLingguangContribution,
-  renderTodoContribution,
-  renderJellyContribution,
-  renderCogniaContribution,
   renderAlchemistContribution,
   renderWorkflowsContribution,
   renderWorkbenchDocument,
@@ -84,17 +79,6 @@ const { renderGoalTreeProposalDecision } = createWorkbenchGoalsProposalRenderer(
 const { renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
 const { renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
 const { renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
-function renderShelfNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderShelfContribution(surface, {
-    materials: [],
-    results: [],
-    clipboard: [],
-    recipes: [],
-    selected_id: null,
-    primitives: { escape: escapeHtml, text: L },
-  });
-}
-
 function renderPagesNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPagesContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
@@ -113,32 +97,16 @@ function renderDatasetNativePluginSurface(surface: "directory" | "workbench"): s
   });
 }
 
-function renderImagesNativePluginSurface(): string {
-  return renderImagesContribution({ primitives: { escape: escapeHtml, text: L } });
-}
-
 function renderPptNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderPptContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
 }
 
-function renderCogniaNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderCogniaContribution(surface, { primitives: { escape: escapeHtml, text: L } });
-}
-
-function renderJellyNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderJellyContribution(surface, { primitives: { escape: escapeHtml, text: L } });
-}
-
 function renderLingguangNativePluginSurface(surface: "directory" | "workbench"): string {
   return renderLingguangContribution(surface, {
     primitives: { escape: escapeHtml, text: L },
   });
-}
-
-function renderTodoNativePluginSurface(surface: "directory" | "workbench"): string {
-  return renderTodoContribution(surface, { primitives: { escape: escapeHtml, text: L } });
 }
 
 function renderWorkflowsNativePluginSurface(surface: "directory" | "workbench"): string {
@@ -388,7 +356,7 @@ const { renderMolisWorkWeb, renderMolisWorkRefreshFragment } =
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderProjectOperations: (project, data) => renderProjectOperations(project, data, icon, L),
     renderDesktopProjectChrome, renderProjectSwitcher,
-    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderShelfNativePluginSurface, renderImagesNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderTodoNativePluginSurface, renderJellyNativePluginSurface, renderCogniaNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
+    renderFeedNativePluginSurface, renderInboxNativePluginSurface, renderScheduleNativePluginSurface, renderPagesNativePluginSurface, renderFormNativePluginSurface, renderDatasetNativePluginSurface, renderPptNativePluginSurface, renderLingguangNativePluginSurface, renderAlchemistNativePluginSurface, renderWorkflowsNativePluginSurface,
   });
   return {
     renderMolisWorkProjectIndex,

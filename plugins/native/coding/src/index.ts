@@ -119,9 +119,11 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
-export { codingSync, codingContentReplicationDefinition, CODING_CONTENT_REPLICA_ID } from './session-replication.js';
+export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
+export { codingSync, codingContentReplicationDefinition, CODING_CONTENT_REPLICA_ID } from "./session-replication.js";
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
+export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
 export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
@@ -184,6 +186,7 @@ export {
 export { createCodingTimeline, type TimelineActivity, type TimelineRun } from "./timeline.js";
 export { codingTimelineWords } from "./timeline-words.js";
 export { createCodingTurnChanges } from "./turn-changes-client.js";
+export { codingQuestionAnswered } from "./question-answered-client.js";
 export {
   STICK_THRESHOLD_PX,
   atBottom,
@@ -197,7 +200,9 @@ export {
 export { CODING_STYLES } from "./styles.js";
 export { CODING_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
+export { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
+export { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
 export type { CodingCharacterChoice, CodingCharacterPorts } from "./characters.js";
 
 export { codingMethods } from "./methods.js";

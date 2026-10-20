@@ -4,6 +4,7 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { endingReviewReply } from "./ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -30,6 +31,10 @@ export interface IssueModelBehavior {
   suggest?: boolean;
   title?: string;
   type?: "bug" | "experience" | "feature";
+  /** Ask the Assistant's memory to keep this, quoting the person (`said`); then end in words. */
+  remember?: { text: string; said: string };
+  /** After the free-text question, state how it handles the supplement the round was given (by the id the runtime showed). */
+  acknowledge?: { treatment: string; kind?: string; impacts: string[] };
 }
 
 /** Model replies are scripted the way the Issue method asks; the Assistant, vision intake, action directory and undo stay real. */
@@ -38,7 +43,10 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
   const requests: unknown[] = [], rounds = new Map<string, number>();
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
+    const raw = Buffer.concat(chunks).toString("utf8"), review = endingReviewReply(raw);
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    if (review) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, review)); return; }
+    const body = JSON.parse(raw); requests.push(body);
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }
     const revision = JSON.stringify(body).match(/待整理记录 ([0-9a-f-]{36}) 版本 (\d+)/);
     const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? (revision ? revision[1] + revision[2] + behavior.title : "missing-draft");
@@ -56,7 +64,9 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
       why: "需要定位页面", questions: [{ prompt: "在哪个页面点击保存没有反应？", options: ["首页", "项目页"], allowOther: true }],
     } : { why: "你在哪个页面做了什么，出现了什么问题？也可以补充截图。" } });
     // One planned tool call per model turn of a draft; after the plan, the round ends in words.
-    const plan = behavior.replyText ? [] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
+    const steer = raw.match(/steer-[0-9a-z]+-[0-9a-z]+/)?.[0];
+    const handled = behavior.acknowledge && steer ? { name: "acknowledge-inputs", input: { items: [{ input: steer, ...behavior.acknowledge }] } } : undefined;
+    const plan = behavior.replyText ? [] : behavior.acknowledge ? [ask(true), handled] : behavior.remember ? [{ name: "remember", input: { ...behavior.remember, scope: "personal" } }] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
       : behavior.question === "never-correct" ? [ask(false), ask(false), ask(false), ask(false)] : behavior.malformedCaptureAlways ? [bad, bad, bad, bad]
       : behavior.malformedCaptureOnce ? [bad, good] : behavior.suggest ? [good, card] : [good];
     const tool = revision && !behavior.replyText && !behavior.question ? (turn === 0 ? { name: "suggest-action", input: {

@@ -12,6 +12,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { createBrowserSurfaceDriver } from "../apps/local-host/dist/browser/surface-driver.js";
 import type { BrowserPage } from "../apps/local-host/dist/browser/browser-host.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 /*
  * The Assistant drives the side panel's browser through Molis's own wiring (specs/archive/side-panel P5): a business round gets
@@ -78,11 +79,11 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const browser = { on: true };
   const requests: any[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(body);
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.side-surface-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
@@ -97,7 +98,7 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const send = (text: string, work_id?: string) => service.send({ ...(work_id ? { work_id } : {}), text, request_id: `req-${Math.random().toString(36).slice(2, 10)}`, context: { source: { surface: "home", title: "项目首页" }, captured_at: new Date().toISOString() } }, { project_ref: project });
   const pending = () => until(() => queue.list("board", "pending")[0], "a pending review");
-  return { service, queue, requests, page, browser, send, pending, adapter, home, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, queue, requests, page, browser, send, pending, adapter, home, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("from a blank page the Assistant looks, then opens a site and clicks only after the person approves each step", { timeout: 60_000 }, async t => {

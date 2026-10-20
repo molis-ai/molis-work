@@ -1,5 +1,6 @@
+import { createLocalRuntime } from "./alchemist-runtime.js";
 import { alchemistOutput } from "./alchemist-output.js";
-import { createAlchemistStudioRuntime, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
+import { type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 
 const [databasePath, provider] = process.argv.slice(2);
 if (!databasePath || !provider || !process.send) throw new Error("Missing isolated worker fixture configuration");
@@ -12,7 +13,7 @@ const ai: AlchemistAiPort = {
   },
   search: async () => { throw new Error("This fixture only generates ideas"); },
 };
-const runtime = createAlchemistStudioRuntime({ databasePath, ai, workerIntervalMs: 25, jobLeaseMs: 600, pulseSourceMode: "fixture" });
+const runtime = createLocalRuntime({ databasePath, ai, workerIntervalMs: 25, jobLeaseMs: 600, pulseSourceMode: "fixture" });
 process.on("message", async (message: { id: number; operation?: "start" | "close"; path?: string; method?: string; body?: unknown }) => {
   try {
     if (message.operation === "start") { runtime.start(); process.send!({ id: message.id, result: {} }); return; }

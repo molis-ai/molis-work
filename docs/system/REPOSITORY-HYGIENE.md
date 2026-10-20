@@ -49,7 +49,7 @@ git ls-tree -r --name-only e4bdeb12 -- .impeccable
 
 | 材料 | 现在 | 说明 |
 | --- | --- | --- |
-| `molis-work-introduction.html`（9/25 第四版介绍页） | `docs/product-intro/archive/molis-work-introduction.html` | 对外介绍的正式位置是 `docs/product-intro/`；旧介绍页只作叙事参考，`v0`、`v1` 里的链接已改过去 |
+| `molis-work-introduction.html`（9/25 第四版介绍页） | `docs/product-operations/archive/molis-work-introduction.html` | 对外介绍与运营文档统一在 `docs/product-operations/`（2026-10-18 整理）；旧介绍页与 V0–V3 归档，旧稿链接随迁移修正 |
 | `outputs/`（定位材料与商业计划） | 不入库 | `.gitignore` 的 `/outputs/`；商业材料放在仓库之外 |
 | `.zcode/`（个人工具的会话计划） | 不入库 | `.gitignore` 的 `/.zcode/`；个人工具状态不进仓库 |
 
@@ -61,6 +61,12 @@ git show e4bdeb12:outputs/molis-work-positioning-2026-09-25/bp.zh-CN.md > bp.zh-
 ```
 
 `.gitignore` 里旧名 `.goalboard/` 与 `.requirements/` 两行也去掉了：现在没有任何代码、文档或脚本会在仓库里建这两个目录（代码里没有 `.goalboard` 的引用；Home 目录里的 `~/.goalboard` 链接是真实 Home 的事，见 `docs/system/HOME-DATA.md`）。
+
+## 原始采集与开发机路径
+
+产品运营的两份原始采集（`docs/product-operations/research/` 下的 `2026-10-17-快照.json` 26,839 行、`2026-10-18-快照.json` 14,525 行）在 #717（`59fd7850c`）入库，#719（`4e729b6c3`）从树里删掉，`docs/product-operations/.gitignore` 从此忽略 `/research/*-快照.json` 与 `/research/raw/`。这两份文件里有私有仓库 molis-club 的本机路径、分支、HEAD 和 60 个文件的路径与 sha256，以及 38 个工作树的路径和 git status；没有令牌或邮箱。
+
+用户 2026-10-18 定：Git 历史不改写（改写要 force push），这两份仍在 `59fd7850c` 的历史里；以后靠规则挡住同类文件：`pnpm health:check` 加一条不比基线的规则，拒绝 `docs/` 下（含 `archive/`）超过阈值的 `.json`，以及以 `/Users/` 或 `/home/` 开头、带用户名的开发机绝对路径。规则在 `scripts/gates/doc-raw-data.mjs`，阈值是 `tooling/gates/limits.json` 的 `docsJsonBytes`（65,536 字节），口径和阈值的依据见 [scripts/gates/README.md](../../scripts/gates/README.md#文档里的原始数据)「文档里的原始数据」。原始采集放在仓库之外。文档里要指某台机器上的 Home 或工作树时，写 `~/.molis-work` 或仓库相对路径，不写带用户名的绝对路径。
 
 ## vendored Prologue 包
 

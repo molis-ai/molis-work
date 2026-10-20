@@ -1,3 +1,4 @@
+import { acceptTestJob } from "../fixtures/job-authority.js";
 // @vitest-environment node
 
 import { describe, expect, it } from "vitest";
@@ -39,6 +40,7 @@ describe("createExplorationService", () => {
     try {
       const result = fixture.createExploration({ directionId: fixture.direction.id });
 
+      acceptTestJob(fixture.worker, result.jobId);
       await fixture.worker.runNext();
 
       const run = fixture.explorations.get(result.runId);
@@ -80,6 +82,7 @@ describe("createExplorationService", () => {
     try {
       const result = fixture.createExploration({ directionId: fixture.direction.id });
 
+      acceptTestJob(fixture.worker, result.jobId);
       await fixture.worker.runNext();
 
       expect(fixture.explorations.get(result.runId)).toMatchObject({

@@ -24,6 +24,8 @@ Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也
 
 动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），加上 4 项评论线程能力，共 36 项，统一由 `PAGES_ACTIONS` 声明，与 `createPagesActionHandlers` 逐项对应。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
+`pages.create@2` 接受可选 `request_id`，只有本次真正新建才返回 `created_version`，用来安全撤销；重放交回当前文档但不提供撤销版本。它替换 1，MCP 工具为 `pages.create__v2`；固定旧版本的工作流、绑定和外部插件须重新发现、绑定当前版本。HTTP `/pages` 路径不变，其他 Pages 动作的版本不变。
+
 内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Runtime 实例所在项目绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
 Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_DATABASE`）。

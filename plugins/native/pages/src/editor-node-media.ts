@@ -20,6 +20,7 @@ import { PAGES_CODE_LANGUAGES, safePagesLanguage } from "./code-language.js";
 import { pagesSchema } from "./schema.js";
 import type { Translate } from "./editor-types.js";
 import { t, dsIcon } from "./editor-view-ui.js";
+import { SIZE_KEYS } from "./editor-size-keys.js";
 
 const codeHighlightKey = new PluginKey<DecorationSet>("pages-code-highlight");
 
@@ -113,6 +114,7 @@ export function imageNodeView(node: Node, view: EditorView, getPos: () => number
   handle.type = "button";
   handle.className = "pages-image-resize";
   handle.setAttribute("aria-label", t(translate, "调整宽度"));
+  handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const caption = document.createElement("input");
   caption.type = "text";
   caption.className = "pages-image-caption";

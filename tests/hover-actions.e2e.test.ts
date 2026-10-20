@@ -107,10 +107,10 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     for (const selector of checked) if (!flagged.has(selector)) cleared.add(selector);
     for (const rule of rules) found.set(rule.selector, `${rule.selector}${rule.keyboard ? "" : " — no keyboard focus"}${rule.touch ? "" : " — hidden without hover"}`);
   }
-  // Not done (spec §8): Pages sizes columns, table columns and images only by dragging their handles, so a keyboard has
-  // nothing to focus there; the handles show on touch.
+  // Pages' sizing handles are not keyboard stops inside the document: the keyboard sizes the column, table column or image
+  // the caret is in with Mod-Alt-Shift-← and →, which the handles name (tests/pages-size-keys.e2e.test.ts). They show on touch.
   const pointerOnlySizing = /\.pages-(column|col|image)-resize — no keyboard focus$/;
   const left = [...found].filter(([selector]) => !cleared.has(selector)).map(([, line]) => line);
   assert.deepEqual(left.filter((line) => !pointerOnlySizing.test(line)).sort(), []);
-  assert.equal(left.filter((line) => pointerOnlySizing.test(line)).length, 4, "the four sizing handles are the known gap, and nothing else hides behind it");
+  assert.equal(left.filter((line) => pointerOnlySizing.test(line)).length, 4, "the four sizing handles are the ones the keyboard reaches by keys, and nothing else hides behind it");
 });

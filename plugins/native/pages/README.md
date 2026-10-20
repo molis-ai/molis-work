@@ -56,6 +56,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - 工具定义、heading/list 命令工厂、分组与 pressed/opens 投影、选区矩形归 `src/editor-tools.ts`；每次 tools/screen 调用都读当次 view/state，不缓存编辑器或选区。runTool 仍由入口路由原弹层或命令；列表工厂只捕获固定类型，工具定义的创建与翻译顺序保持。
   - 链接与评论预览的 DOM、绘制、按钮、120ms blur 和滚动/resize 跟随归 `src/editor-previews.ts`；工厂仅返回两根节点及操作，内部按钮不外露。入口保留原挂载、绑定与释放时点，先解除跟随，再关闭表单，最后移除预览；不另存 view 或选区，翻译与 onScreen 仍动态读取原 options。
   - 自定义键盘命令归 `src/editor-keyboard.ts`，三组短键表仍在原插件位置装配为一个 keymap；工具栏共用同一 commandToggle。命令执行时从事件第三参数读取当前 view，只有链接面板沿用入口回调；方向键和 Tab 的方向助手不保存编辑状态，保持原回退与吞键顺序。
+  - 尺寸键归 `src/editor-size-keys.ts`（VUX-06）：光标所在的选中图片、表格列或分栏，按 Mod-Alt-Shift-← / → 变窄变宽，用的是手柄拖动时的同一组命令（`setImageWidth`、`setColumnWidth`、`nudgeColumnShare`），一次 32 px 或这一对栏的二十分之一；三个手柄用 `aria-keyshortcuts` 写出这两个键。改了它跑 `tests/pages-size-keys.e2e.test.ts`。
   - 编辑器的布局、媒体和卡片节点视图分别在 `src/editor-node-layout.ts`、`src/editor-node-media.ts`、`src/editor-node-cards.ts`；共用类型与 DOM 小函数在 `src/editor-types.ts`、`src/editor-view-ui.ts`。节点视图依赖现有命令与临时资源 owner，挂载入口依赖视图，不反向引用入口；跨文档的延迟操作仍由 transient API 归属和撤销。
   - 查找替换的状态键、查找栏创建/更新/销毁及打开动作归 `src/editor-find.ts`；匹配与替换计算仍在 `src/find.ts`。浏览器入口只装配这一个插件和快捷键，不另存查询或匹配状态。
   - 斜杠与 @ 提及菜单归 `src/editor-insert-menu.ts`，原状态键供块悬浮菜单共用；段间装饰与临时输入归 `src/editor-gap.ts`，其中临时输入区通过不可编辑的外层成为独立编辑根，点击段间条后打字不能落回原段落。剪贴板输入/输出、HTML 节点读取与图片拖入归 `src/editor-paste.ts`，入口只装配处理器，段间输入共用图片读取；保留图片、块组选区、Shift 纯文本、URL、HTML、Markdown 的原优先级，剪切先写剪贴板再删除选中块。图片延迟读取仍由 transient owner 撤销，不另存编辑器或选区。

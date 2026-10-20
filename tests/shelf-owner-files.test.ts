@@ -3,10 +3,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
-import type { PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_OWNER_FILES } from "@molis-ai/molis-work-plugin-shelf";
 import { openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
-import { shelfTestAi } from "./shelf-test-ai.js";
+import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 
 /** PG-026 (specs/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares. */
 
@@ -141,5 +142,41 @@ test("PG-026-S1-8 a missing catalog reads as an empty shelf, and the first write
     assert.equal(existsSync(join(root, catalog.items[0]!.relative_path)), true, "the sample copy was written under files/ through the client");
     await store.addClipboard("first clip");
     assert.equal((await store.snapshot()).clipboard.length, 1);
+  });
+});
+
+test("PG-026-S1-9 a cancel decides on the run's row as its write finds it: a run that finished meanwhile keeps its record", async () => {
+  await withHome(async (home, root) => {
+    // The catalog while a real run is going, and after it finished.
+    const source = mkdtempSync(join(tmpdir(), "shelf-owner-files-source-"));
+    let running: Buffer, finished: Buffer, jobId: string;
+    try {
+      let enter!: () => void, release!: () => void;
+      const started = new Promise<void>(resolve => { enter = resolve; }), held = new Promise<void>(resolve => { release = resolve; });
+      const real = openHostShelfStore(source, { disabled: true }, {}, shelfTestAi(async () => { enter(); await held; return { text: "摘要", execution: shelfTestReceipt }; }));
+      const item = await real.admit({ filename: "材料.md", bytes: Buffer.from("原材料"), mime: "text/markdown" });
+      const pending = real.runJob({ recipe: "summarize", item_id: item.item_id });
+      await started;
+      running = readFileSync(join(source, SHELF_OWNER_FILES.store_name, "catalog.json"));
+      release();
+      jobId = (await pending).job.job_id;
+      finished = readFileSync(join(source, SHELF_OWNER_FILES.store_name, "catalog.json"));
+    } finally { rmSync(source, { recursive: true, force: true }); }
+    // A client whose writes wait their turn, as one across a process boundary would (S2's services.ownerFiles).
+    const host = openHostShelfFiles(home);
+    let open!: () => void;
+    const turn = new Promise<void>(resolve => { open = resolve; });
+    const files: PluginOwnerFilesClient = { stat: relative => host.stat(relative), read: relative => host.read(relative), list: relative => host.list(relative),
+      write: <Result>(run: (writer: PluginOwnerFilesWriter) => Result) => turn.then(() => host.write(run)) };
+    await host.write(writer => writer.replaceFileAtomic("catalog.json", running));
+    const cancelling = openShelfStore(root, files, { disabled: true }).cancelJob(jobId);
+    // The run finishes after the cancel read its row and before the cancel's write lands.
+    await host.write(writer => writer.replaceFileAtomic("catalog.json", finished));
+    open();
+    assert.equal((await cancelling).status, "succeeded", "the cancel answers with the record the run left");
+    const catalog = JSON.parse(readFileSync(join(root, "catalog.json"), "utf8")) as { jobs: Array<{ job_id: string; status: string; result_item_id: string | null }> };
+    const row = catalog.jobs.find(job => job.job_id === jobId);
+    assert.equal(row?.status, "succeeded", "a finished run is not rewritten as cancelled");
+    assert.ok(row?.result_item_id, "the finished run still points at its result");
   });
 });

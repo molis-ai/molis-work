@@ -679,11 +679,17 @@ export class ShelfStore {
     if (!job) throw shelfErrors.item_not_found("这个任务不存在");
     if (job.status !== "running") return job;
     activeJobs.get(jobKey(this.root, jobId))?.abort(shelfErrors.cancelled("任务已取消"));
-    const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
-    await this.update((next) => {
-      next.jobs = next.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
+    // Decided on the row the write finds: a run that finished in the meantime keeps its own record.
+    return this.files.write((writer) => {
+      const catalog = this.catalogFrom(writer);
+      const live = catalog.jobs.find((entry) => entry.job_id === jobId);
+      if (!live) throw shelfErrors.item_not_found("这个任务不存在");
+      if (live.status !== "running") return live;
+      const cancelled: ShelfJobRecord = { ...live, status: "cancelled", finished_at: now() };
+      catalog.jobs = catalog.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
+      saveCatalog(writer, catalog);
+      return cancelled;
     });
-    return cancelled;
   }
 
   async writeCopy(itemId: string, text: string): Promise<ShelfItemRecord> {

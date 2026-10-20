@@ -282,8 +282,7 @@ function renderModelList(provider: ModelProviderRecord, p: ModelSettingsPrimitiv
 }
 
 function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettingsPrimitives): string {
-  // Badges state facts the provider gave us. An unknown context window shows no
-  // badge rather than a guessed number.
+  // Badges show saved model metadata; an unknown context window has no badge.
   const badges = [
     model.context_tokens === undefined ? "" : `<span class="model-badge">${p.escape(formatContext(model.context_tokens))}</span>`,
     model.vision === true ? `<span class="model-badge">${p.L("视觉")}</span>` : "",
@@ -292,6 +291,11 @@ function renderModelRow(providerId: string, model: ModelRecord, p: ModelSettings
     <input class="mw-input model-row-id" data-model-id value="${p.escape(model.model_id)}" aria-label="${p.L("模型 ID")}" placeholder="MiniMax-M3" maxlength="200">
     ${badges}
     <span class="model-row-spacer"></span>
+    <label class="model-row-flag">${p.L("读图能力")}<select class="mw-select" data-model-vision>
+      <option value="">${p.L("未声明")}</option>
+      <option value="true"${model.vision === true ? " selected" : ""}>${p.L("能看图")}</option>
+      <option value="false"${model.vision === false ? " selected" : ""}>${p.L("不能看图")}</option>
+    </select></label>
     <label class="model-row-flag" title="${p.L("这个模型接受思考力度（快速 / 平衡 / 深入）时才勾上；勾上后 Coding 发送一轮时可以选力度")}"><input type="checkbox" data-model-effort${model.reasoning_effort === true ? " checked" : ""}>${p.L("可调思考力度")}</label>
     <button type="button" class="mw-btn" data-model-test="${p.escape(model.model_id)}" aria-label="${p.L("测试这个模型")}">${p.icon("link")}</button>
     <button type="button" class="mw-btn" data-model-remove="${p.escape(model.model_id)}" aria-label="${p.L("删除")}">${p.icon("trash")}</button>

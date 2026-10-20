@@ -47,6 +47,7 @@ import { mapReportEvent, mapStoredWorkEvent, mapTimelineItem } from "./event-fac
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 import { GoalEventIntent } from "./event-intent.js";
 import { resolveGoalPolicy } from "./query.js";
+import { eventActorKind } from "./event-state-write.js";
 import { requireWritableGoal } from "./goal-writable.js";
 
 const DEFAULT_PAGE_SIZE = 50;
@@ -595,9 +596,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   }
 
   private actorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null {
-    if (kind == null) return null;
-    if (kind !== "user" && kind !== "runtime") throw goalErrors["goals.event_report.invalid_actor_kind"]("actor_kind 只能是 user 或 runtime");
-    return kind;
+    return eventActorKind(kind);
   }
 
 }

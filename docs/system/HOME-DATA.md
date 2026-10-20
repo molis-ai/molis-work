@@ -63,7 +63,7 @@ Home 里有 30 种 SQLite 文件：权威库 26 种（Home 级 23 种，按项�
 
 ### 3.3 个人插件库（Home 级，`{home}/<名>/<名>.db`）
 
-路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经 `apps/workbench/src/builtin-plugins.ts` 目录条目的 `home_store` 带进登记；Issues 的库由它的 Home 条目 `runtime.database` 带进）。项目里或 Home 里的 Runtime 插件由宿主启动名单声明的库（`PluginPlatformEntry.database`，W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
+路径由 `homeSqlitePath` 给出（`packages/storage/src/home-sqlite.ts`），目录权限 0700、文件 0600。备份都是必备份，卸载都是 purge（每个库都登记在 `homeStores()`，由它的 owner 声明：插件的 `<插件>_HOME_STORE`，经插件自己 `registration` 的 `home_store` 带进登记（目录由 `registration` 生成）；Issues 的库由它的 Home 条目 `runtime.database` 带进）。项目里或 Home 里的 Runtime 插件由宿主启动名单声明的库（`PluginPlatformEntry.database`，W3-06 D），必须是登记里**这个插件自己**的库、基线与声明相同（`apps/local-host/src/plugin-database-entries.ts`）：宿主、模块或别的插件的库，以及登记里不是库的条目，都拒绝；测试夹具的库按夹具自己的 id 登记，不能占用已登记的名字（`apps/local-host/src/home-side.ts`）。库里按 `project_id` 分区的行，删除项目时由各 owner 清理（`docs/platform/STORAGE-AND-EXCHANGE.md:21`；各插件包的 `project-data.ts`，登记在 `apps/local-host/src/project-deleted-owners.ts`）。`lingguang/` 目录里除库以外还有 `imports/`、`models/`、`material-upload-*`，见 6.2。
 
 | 路径 | owner 与打开它的代码 | 版本 · 日志 | 表 |
 | --- | --- | --- | --- |

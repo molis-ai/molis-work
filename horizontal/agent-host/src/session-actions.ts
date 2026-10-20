@@ -18,8 +18,8 @@ export interface SessionActionPorts<C extends Call> {
   projectId(call: C): string;
   /** The round belongs to this session, and the session to the caller's project and plugin; gives the session's owner. */
   requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
-  /** The actions the plugin's rounds are granted through this runtime, as that grant reads now; absent when it grants none. */
-  actions(call: C, pluginId: string, runtimeId: string): Promise<AgentActionClient | undefined>;
+  /** The actions the plugin's rounds are granted through this runtime, as that grant reads now, carrying the session the Host checked; absent when it grants none. */
+  actions(call: C, pluginId: string, runtimeId: string, session: AgentSessionRef): Promise<AgentActionClient | undefined>;
 }
 
 const sameReference = (a: ExactActionReference, b: ExactActionReference) => a.capability_id === b.capability_id && a.version === b.version && a.provider_id === b.provider_id;
@@ -83,14 +83,16 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
       const caller = ports.pluginFor(call);
       if (!caller) throw new ActionError("actions.forbidden", "只有插件能执行它会话里的建议");
       const { runtime_id, session_id, run_id, offer_id, reference } = input;
-      await ports.requireRun(call, { runtime_id, session_id }, { session_id, run_id });
+      // The session is the one `requireRun` just checked against the Runtime's record (the caller's plugin, install, person and project), never one the input names apart from it.
+      const session = { runtime_id, session_id };
+      await ports.requireRun(call, session, { session_id, run_id });
       const view = await ports.adapter(call, runtime_id).read({ session_id, run_id });
       const offer = view.offers?.find(entry => entry.offer_id === offer_id);
       if (!offer) throw agentErrors.offer_unknown("这一轮没有这条建议");
       if (!sameReference(offer.reference, reference) || !view.frozen.action_tools?.some(entry => sameReference(entry, offer.reference))) {
         throw agentErrors.offer_mismatch("只能执行这条建议点名的那个动作");
       }
-      const client = await ports.actions(call, caller.plugin_id, runtime_id);
+      const client = await ports.actions(call, caller.plugin_id, runtime_id, session);
       const current = (await client?.discover())?.find(row => sameReference({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id }, offer.reference));
       if (!client || !current || !current.action.audiences.includes("agent")) throw new ActionError("actions.missing", "这项能力已不可用或已对这一轮关闭");
       if (!current.availability.available) throw new ActionError(current.availability.code, current.availability.reason, { kind: "unavailable" });

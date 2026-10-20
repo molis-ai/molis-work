@@ -1,13 +1,14 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
-import type { ExactRef, Runtime } from "@prologue/sdk";
+import type { ExactRef, PackTool, Runtime } from "@prologue/sdk";
 import { BUSINESS_HOST_TOOLS } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { requireSynchronous, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import { gatewayProblem, prologueActionGateway } from "./prologue-action-gateway.js";
 import { prologueActionTools, SUGGEST_HOST_TOOL } from "./prologue-action-tools.js";
+import { AFTER_WRITE_EXECUTOR, afterWriteExecutor } from "./prologue-after-write.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { createPrologueCheckpoints } from "./prologue-checkpoints.js";
 import { createPrologueCompactor } from "./prologue-compaction.js";
@@ -19,6 +20,7 @@ import type { createSessionMessages } from "./prologue-messages.js";
 import { inlineMethods } from "./prologue-methods.js";
 import { projectWorkDigest, workPaths, type createProjectWork } from "./prologue-project-work.js";
 import type { createWorkGraphs } from "./prologue-work-graphs.js";
+import { createPrologueWriteCheckers } from "./prologue-write-checkers.js";
 import { withInteractionRepairLimit } from "./prologue-questions.js";
 import { roundReferenceKinds } from "./prologue-reference-kinds.js";
 import { runModelParams } from "./prologue-run-params.js";
@@ -137,6 +139,21 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
     }
   }
   return { actionController, actionTools, parameterBranches: gatewayTools?.parameterBranches };
+}
+
+/**
+ * A Coding round's after-write check (specs/prologue-adoption §6.0p.3): given when the round's pack declares the check and
+ * the round works in a directory whose workspace has the person's checkers now. Without it the pack may still declare the
+ * check, and nothing is asked.
+ */
+async function roundChecks(deps: RunDeps, input: PrologueStartInput, index: SessionIndex, mode: Mode, attempt: { run_id?: string }, tools: readonly PackTool[] | undefined) {
+  const workspaceAt = deps.options.checks?.workspaceAt, projectId = index.owner.project_id, store = createPrologueWriteCheckers(deps.runtime);
+  const declared = tools?.some(tool => tool.afterWriteCheck === true) === true;
+  const workspace = !declared || mode.none || mode.business || !input.root_path || !workspaceAt ? undefined : await workspaceAt(projectId, input.root_path);
+  if (!workspace || !(await store.read(projectId, workspace)).checkers.length) return undefined;
+  return afterWriteExecutor({ projectId, rootPath: input.root_path!, workspaceAt: workspaceAt!, store, ...(input.beforeDispatch ? { beforeDispatch: input.beforeDispatch } : {}),
+    // A round stopped while the index was being read keeps nothing either: the check is in the change itself, just before the write.
+    note: (key, note, signal) => deps.index.update(input.session_id, saved => { signal?.throwIfAborted(); const held = attempt.run_id && saved.attempts.find(item => item.run_id === attempt.run_id); if (held) (held.write_checks ??= {})[key] = note; }) });
 }
 
 /** What a parent that hands its children their own directories may hold: reading, dispatching, asking the person, the board,
@@ -557,10 +574,11 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const ref = state.sessions.get(input.session_id);
   const { actionController, actionTools, parameterBranches } = roundGateway(deps, input, mode.none);
   ensureStopGuard(runtime, state, input.session_id);
-  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id));
+  const attempted: { run_id?: string } = {}, afterWrite = await roundChecks(deps, input, index, mode, attempted, actionTools?.pack.tools);
+  const bindActions = !mode.none && (!!input.actions || !!input.action_gateway || state.actionToolSessions.has(input.session_id) || !!afterWrite);
   // The gateway also declares, on its capability tools, the capabilities this round has found (prologue-gateway-declared.ts).
-  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack, executors: actionTools!.executors,
-    ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
+  const session = ref === undefined ? undefined : await runtime.sessions.open(ref, bindActions ? { pack: actionTools!.pack,
+    executors: { ...actionTools!.executors, ...(afterWrite ? { [AFTER_WRITE_EXECUTOR]: afterWrite } : {}) }, ...(parameterBranches ? { parameterBranches } : {}) } : undefined);
   if (bindActions && session) state.actionToolSessions.add(input.session_id);
   if (session === undefined) throw new Error("agent.session_unknown");
   const root = mode.none || mode.business ? undefined : await runtime.workspace.authorize({ path: input.root_path! });
@@ -608,6 +626,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
     }
     throw error;
   });
+  attempted.run_id = started.run.ref.id;
   watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).

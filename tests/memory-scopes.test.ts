@@ -10,6 +10,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
 async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-scopes-"));
@@ -135,11 +136,14 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
 // board follows the directory: tests/agent-built-plugins-catalog.test.ts.
 test("plugins are not an audience of memory yet: the directory offers them none of memory.*, and a call is refused", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-memory-plugin-actions-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  // A plugin that declares and holds every memory permission, started by the Host: the call context it presents carries the caller the Host issued it.
+  const tables = callerPlugin("memorytables", "home", Object.fromEntries(MEMORY_PERMISSIONS.map(permission => [permission, true])));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [tables.definition] } });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const client = host.homeActionClient();
-  const plugin = (plugin_id: string): ActionCallContext => ({ actor_id: `plugin:${plugin_id}`, actor_kind: "runtime", project_id: null, audience: "plugin",
-    host_plugin: { plugin_id, install_id: `install-${plugin_id}` } as never, permissions: [...MEMORY_PERMISSIONS] });
+  const probe = registerProbe(host.actionRegistry(), "home");
+  await host.homePlugins!.ready();
+  const plugin: ActionCallContext = callAs(await issuedCaller(probe, tables), [...MEMORY_PERMISSIONS]);
   const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
   const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
   const ofMemory = (views: readonly { provider: { provider_id: string }; capability_id: string }[]) => views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
@@ -150,13 +154,13 @@ test("plugins are not an audience of memory yet: the directory offers them none 
     assert.equal(action.action.plugin, false, action.capability_id);
   }
   // Directory and metadata inspection: a plugin sees none of them, an agent the same three as before.
-  assert.deepEqual(ofMemory(await client.discover(plugin("tables"))), []);
-  assert.deepEqual(ofMemory(await host.inspectActions(plugin("tables"))), []);
+  assert.deepEqual(ofMemory(await client.discover(plugin)), []);
+  assert.deepEqual(ofMemory(await host.inspectActions(plugin)), []);
   assert.deepEqual(ofMemory(await client.discover(agent)), ["memory.list", "memory.recall", "memory.write"]);
 
   // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
   const asPerson = bindActionClient(client, () => person);
-  const call = (capability_id: string, input: unknown) => client.invoke(plugin("tables"), { capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, input);
+  const call = (capability_id: string, input: unknown) => client.invoke(plugin, { capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, input);
   const forbidden = { code: "actions.forbidden" };
   await assert.rejects(call(memoryActions.write.capability_id, { scope: "personal", text: "表格默认按日期倒序" }), forbidden);
   await assert.rejects(call(memoryActions.recall.capability_id, { query: "表格 日期 排序" }), forbidden);

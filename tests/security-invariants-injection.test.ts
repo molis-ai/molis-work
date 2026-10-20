@@ -103,7 +103,7 @@ test("S-13 memory, page context and Feed, Jelly and Cognia materials reach the m
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   t.after(() => local.close());
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, undefined, undefined, service.memoryTools(work)), memory: (task: string) => service.memoryForRound(work, task) }),
     projectTitle: async id => id, timeZone: "Asia/Shanghai", memory: () => memory, learnFromRound: () => undefined }, "web-user");
 

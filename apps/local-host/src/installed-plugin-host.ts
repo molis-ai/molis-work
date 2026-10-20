@@ -1,6 +1,8 @@
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { resolve } from 'node:path';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { HostPluginCaller } from '@molis-ai/molis-work-contracts/platform/app-host';
+import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -18,7 +20,8 @@ import { configuredModelChoices } from './configured-models.js';
 import { hostScheduleReminders } from './schedule-reminders.js';
 import { scheduleServiceFor } from './schedule-runtime.js';
 import { STABLE_PREVIEW, studioStorage } from './plugin-builder/storage.js';
-import { installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
+import { generatedPluginManifest, installedSignature, releaseVersion, sandboxedPluginDefinition } from './plugin-builder/installed.js';
+import { effectsFromContract } from './plugin-builder/build-project.js';
 import { exposedOperationCosts, type InstalledPluginActions } from './plugin-builder/exposed-actions.js';
 import { bindInstalledOperationCaller } from './schedule-operations.js';
 import type { CapabilityImplementations } from './plugin-builder/capabilities.js';
@@ -114,8 +117,9 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
     }
   };
-  const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> =>
-    catalogCapabilities({ actions, catalog, live, author: titleOf });
+  const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => catalogCapabilities({ actions, catalog, live, author: titleOf,
+    declaration: identity => sandboxDeclaration(identity, releases, release => definitions.get(JSON.stringify([release.pluginId, release.buildId, release.version]))?.value.manifest, { recordFor, releaseFor }),
+    granted: identity => sandboxGrants(identity, releases, { recordFor, releaseFor, approvedFor }) });
   const secrets = pluginSecrets(homeDirectory, projectId, storage);
   const network = hostNetwork({ reach: identity => identity.namespace === 'installed' ? 'all' : 'read', secret: (pluginId, name) => secrets.resolve(pluginId, name) });
   const schedule = scheduleServiceFor(store.db);
@@ -216,4 +220,35 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
       installations: () => records().map(item => ({ pluginId: item.plugin_id, buildId: item.publisher_signature.slice(SIGNATURE.length), version: Number(item.version.split('.')[0]),
         state: recoveryErrors.has(item.plugin_id) ? 'failed' : item.state, effects: approvedFor(item.plugin_id) ?? {}, ...(recoveryErrors.has(item.plugin_id) ? { error: recoveryErrors.get(item.plugin_id) } : {}) })) };
   } catch (error) { await close(); throw error; }
+}
+
+/**
+ * What a sandboxed plugin declared to the Host, for the caller its capability calls run under (S-15): the Manifest its running
+ * installation was started with, or for a trial, the one its build would install with. Anything else has declared nothing.
+ */
+function sandboxDeclaration(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, started: (release: AgentRelease) => PluginManifest | undefined,
+  installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined; releaseFor(pluginId: string): AgentRelease | undefined }): HostPluginCaller['declaration'] | undefined {
+  if (identity.namespace === 'installed') {
+    const record = installed.recordFor(identity.pluginId);
+    const release = record?.install_id === identity.installationId && record.state === 'running' ? installed.releaseFor(identity.pluginId) : undefined;
+    const manifest = release && started(release);
+    return manifest ? { manifest } : undefined;
+  }
+  const build = identity.installationId.startsWith(STABLE_PREVIEW) ? releases.get(identity.installationId.slice(STABLE_PREVIEW.length)) : null;
+  return build?.design?.contract.pluginId === identity.pluginId ? { manifest: generatedPluginManifest({ pluginId: identity.pluginId, version: 0, buildId: build.id, design: build.design }) } : undefined;
+}
+
+/**
+ * The capabilities a sandbox identity may reach: for an installed plugin, those its running release declares and the person
+ * approved; for a trial, those its design declares (its writes stay stand-ins).
+ */
+function sandboxGrants(identity: Readonly<SandboxIdentity>, releases: Pick<AgentBuilderStore, 'get'>, installed: { recordFor(pluginId: string): { install_id: string; state: string } | undefined;
+  releaseFor(pluginId: string): AgentRelease | undefined; approvedFor(pluginId: string): SandboxEffects | null }): readonly string[] {
+  if (identity.namespace === 'installed') {
+    const record = installed.recordFor(identity.pluginId), approved = installed.approvedFor(identity.pluginId)?.capabilities ?? [];
+    const release = record?.install_id === identity.installationId && record.state === 'running' ? installed.releaseFor(identity.pluginId) : undefined;
+    return (release?.permissions.capabilities ?? []).filter(id => approved.includes(id));
+  }
+  const build = identity.installationId.startsWith(STABLE_PREVIEW) ? releases.get(identity.installationId.slice(STABLE_PREVIEW.length)) : null;
+  return build?.design?.contract.pluginId === identity.pluginId ? effectsFromContract(build.design.contract).capabilities ?? [] : [];
 }

@@ -15,6 +15,7 @@ import { todoActions, TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugi
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const pluginId = "io.molis.work.test.reminder";
 function installation(generation = "original"): PluginInstanceRecord {
@@ -24,10 +25,11 @@ function installation(generation = "original"): PluginInstanceRecord {
     updated_at: "2026-01-01T00:00:00.000Z", uninstalled_at: null, retain_private_data: false };
 }
 /** A reminder the plugin set under an earlier generation of its installation and the person then paused: after the reinstall it waits for them to confirm. */
-function setBeforeReinstall(db: LocalProjectDatabase["db"], projectId: string, schedule: ReturnType<typeof scheduleServiceFor>, at: string, repeat: "daily" | "none" = "none") {
+function setBeforeReinstall(db: LocalProjectDatabase["db"], projectId: string, schedule: ReturnType<typeof scheduleServiceFor>, at: string, repeat: "daily" | "none" = "none",
+  owner = { pluginId, installationId: installation().install_id }) {
   const reminders = createScheduleReminders({ db, projectId, schedule, now: () => Date.parse(at) - 3_600_000,
     describe: () => ({ title: "原笔记插件", link: "/original-link", generation: "before-reinstall" }) });
-  const { reminderId } = reminders.add({ projectId, pluginId, installationId: installation().install_id }, { at, text: "复习 <今天> 的笔记", repeat });
+  const { reminderId } = reminders.add({ projectId, ...owner }, { at, text: "复习 <今天> 的笔记", repeat });
   const { jobId, jobOwner } = getScheduleReminder(db, reminderId)!;
   schedule.setEnabled(jobId, false, jobOwner);
   return { id: reminderId, job: schedule.get(jobId)! };
@@ -42,59 +44,74 @@ async function reminderHost(path: string, projectId = "p", clock?: () => Date) {
   const runtime = await host.withProject(reference, value => { if (clock) scheduleServiceFor(value.store.db, clock); return value; });
   const client = host.actionClient(reference);
   const owner = bindActionClient(client, () => ({ actor_id: "owner", project_id: projectId, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS }));
-  const plugin = bindActionClient(client, () => ({ actor_id: `plugin:${pluginId}`, project_id: projectId, audience: "plugin", permissions: [], plugin_install_id: installation().install_id }));
   const view = async (jobId: string) => { const found = (await owner.invoke(scheduleActions.list, {})).jobs.find(row => row.job_id === jobId); assert.ok(found); return found; };
-  return { host, reference, store: runtime.store, schedule: scheduleServiceFor(runtime.store.db, clock), owner, plugin, view };
+  return { host, reference, store: runtime.store, schedule: scheduleServiceFor(runtime.store.db, clock), owner, view };
+}
+
+/** A reminder plugin started in the project as itself, as a generated plugin runs: it calls with the caller the Host issued its session. */
+async function startReminderPlugin(f: Awaited<ReturnType<typeof reminderHost>>) {
+  const fixture = callerPlugin("reminder", "project"), probe = registerProbe(f.host.actionRegistry(f.reference), "project");
+  const started = await startPlugin(f.host, f.reference, f.store, fixture, { actorId: "plugin:" + fixture.id });
+  const issued = await issuedCaller(probe, fixture, f.reference.project_id);
+  return { plugin: bindActionClient(f.host.actionClient(f.reference), () => callAs(issued, [])), owner: { pluginId: fixture.id, installationId: started.install_id },
+    record: () => new SqlitePluginRuntimeRepository(f.store.db).get(started.install_id)!, stop: () => started.runtime.stop(started.install_id) };
 }
 
 test("recovery respects the current installation's reminder limit and requires a running unique target", async () => {
   const home = await mkdtemp(join(tmpdir(), "reminder-recover-limit-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
   const f = await reminderHost(path), { store, schedule } = f;
+  let started: Awaited<ReturnType<typeof startReminderPlugin>> | undefined;
   try {
-    const repository = new SqlitePluginRuntimeRepository(store.db); repository.save(installation());
+    started = await startReminderPlugin(f);
+    const repository = new SqlitePluginRuntimeRepository(store.db), installed = started.record();
     const at = new Date(Date.now() + 86_400_000).toISOString();
-    const { id, job } = setBeforeReinstall(store.db, "p", schedule, at);
+    const { id, job } = setBeforeReinstall(store.db, "p", schedule, at, "none", started.owner);
     const input = confirmation(await f.view(job.job_id));
-    repository.save({ ...installation(), state: "disabled" });
+    repository.save({ ...installed, state: "disabled" });
     assert.equal((await f.view(job.job_id)).reminder?.installation, null);
     await assert.rejects(f.owner.invoke(scheduleActions.recoverReminder, input), /安装并启用/);
-    repository.save(installation());
-    repository.save({ ...installation("another"), install_id: "another", publisher_signature: "another" });
+    repository.save(installed);
+    repository.save({ ...installed, installation_generation: "another", install_id: "another", publisher_signature: "another" });
     assert.equal((await f.view(job.job_id)).reminder?.installation, null);
     await assert.rejects(f.owner.invoke(scheduleActions.recoverReminder, input), /安装并启用/);
     repository.save({ ...repository.get("another")!, state: "uninstalled" });
     const created = [];
-    for (let index = 0; index < 200; index++) created.push(await f.plugin.invoke(reminderActions.add, { at, text: "current reminder" }));
+    for (let index = 0; index < 200; index++) created.push(await started.plugin.invoke(reminderActions.add, { at, text: "current reminder" }));
     await assert.rejects(f.owner.invoke(scheduleActions.recoverReminder, input), /提醒已经太多/);
     assert.equal(schedule.get(job.job_id)?.enabled, false);
     assert.equal(getScheduleReminder(store.db, id)?.installationGeneration, "before-reinstall");
-    await f.plugin.invoke(reminderActions.cancel, created[0]!);
+    await started.plugin.invoke(reminderActions.cancel, created[0]!);
     assert.equal((await f.owner.invoke(scheduleActions.recoverReminder, input)).job.enabled, true);
-    await assert.rejects(f.plugin.invoke(reminderActions.add, { at, text: "overflow" }), /提醒已经太多/);
-  } finally { await f.host.close(); await rm(home, { recursive: true, force: true }); }
+    await assert.rejects(started.plugin.invoke(reminderActions.add, { at, text: "overflow" }), /提醒已经太多/);
+  } finally { await started?.stop(); await f.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("W3-02-E: a plugin whose installation is not running cannot set or cancel a reminder; the action answers schedule.job_invalid, not an uncoded failure", async () => {
   const home = await mkdtemp(join(tmpdir(), "reminder-not-running-")), path = join(home, "project.db"); seedDemoBoard(path, "p");
   const f = await reminderHost(path), { store } = f;
+  let started: Awaited<ReturnType<typeof startReminderPlugin>> | undefined;
   try {
-    const repository = new SqlitePluginRuntimeRepository(store.db);
     const at = new Date(Date.now() + 86_400_000).toISOString();
     const refused = { code: "schedule.job_invalid", kind: "invalid" };
-    await assert.rejects(f.plugin.invoke(reminderActions.add, { at, text: "复习" }), refused);
-    await assert.rejects(f.plugin.invoke(reminderActions.cancel, { reminderId: "any" }), refused);
+    // A plugin the Host never started has no caller to present: the action gateway refuses it before Schedule looks for an installation.
+    const unissued = bindActionClient(f.host.actionClient(f.reference), () => ({ actor_id: `plugin:${pluginId}`, project_id: "p", audience: "plugin" as const, permissions: [],
+      plugin_install_id: installation().install_id }));
+    await assert.rejects(unissued.invoke(reminderActions.add, { at, text: "复习" }), { code: "host.plugin_caller_invalid" });
+    await assert.rejects(unissued.invoke(reminderActions.cancel, { reminderId: "any" }), { code: "host.plugin_caller_invalid" });
+    started = await startReminderPlugin(f);
+    const repository = new SqlitePluginRuntimeRepository(store.db), installed = started.record();
     for (const state of ["installed", "disabled", "crashed", "quarantined", "uninstalled"] as const) {
-      repository.save({ ...installation(), state });
-      await assert.rejects(f.plugin.invoke(reminderActions.add, { at, text: "复习" }), refused, `add while ${state}`);
-      await assert.rejects(f.plugin.invoke(reminderActions.cancel, { reminderId: "any" }), refused, `cancel while ${state}`);
+      repository.save({ ...installed, state });
+      await assert.rejects(started.plugin.invoke(reminderActions.add, { at, text: "复习" }), refused, `add while ${state}`);
+      await assert.rejects(started.plugin.invoke(reminderActions.cancel, { reminderId: "any" }), refused, `cancel while ${state}`);
     }
-    repository.save({ ...installation(), plugin_id: "io.molis.work.test.other", state: "running" });
-    await assert.rejects(f.plugin.invoke(reminderActions.add, { at, text: "复习" }), refused, "add under another plugin's installation");
-    repository.save({ ...installation(), state: "running" });
-    const { reminderId } = await f.plugin.invoke(reminderActions.add, { at, text: "复习" });
+    repository.save({ ...installed, plugin_id: "io.molis.work.test.other", state: "running" });
+    await assert.rejects(started.plugin.invoke(reminderActions.add, { at, text: "复习" }), refused, "add under another plugin's installation");
+    repository.save({ ...installed, state: "running" });
+    const { reminderId } = await started.plugin.invoke(reminderActions.add, { at, text: "复习" });
     assert.equal(typeof reminderId, "string");
-    assert.deepEqual(await f.plugin.invoke(reminderActions.cancel, { reminderId }), { cancelled: true });
-  } finally { await f.host.close(); await rm(home, { recursive: true, force: true }); }
+    assert.deepEqual(await started.plugin.invoke(reminderActions.cancel, { reminderId }), { cancelled: true });
+  } finally { await started?.stop(); await f.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("reminder recovery after a reinstall rechecks current consent, commits atomically and preserves cadence across restart", async () => {
@@ -154,6 +171,7 @@ test("reminder recovery through Host and HTTP uses current authorization and can
   const refs = ["one", "two"].map(name => { const path = join(home, name + ".db"); seedDemoBoard(path, "p");
     return molisWorkHostProjectReference({ databasePath: path, projectId: "p" }); });
   const caller = { actor_id: "owner", project_id: "p", audience: "user" as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
+  let stopPlugin = async () => {};
   try {
     const jobs = [];
     for (let i = 0; i < hosts.length; i++) jobs.push(await hosts[i]!.withProject(refs[i]!, runtime => {
@@ -165,7 +183,12 @@ test("reminder recovery through Host and HTTP uses current authorization and can
     const input = confirmation(view);
     assert.equal(view.reminder?.text, "复习 <今天> 的笔记");
     await assert.rejects(client.invoke({ ...caller, project_id: "elsewhere" }, scheduleActions.recoverReminder, input), { code: "actions.scope_mismatch" });
-    await assert.rejects(client.invoke({ ...caller, audience: "plugin" }, scheduleActions.recoverReminder, input), { code: "actions.forbidden" });
+    // A plugin cannot confirm a reminder for the person: one the Host never issued a caller is refused at the gateway, one it did as unseen.
+    await assert.rejects(client.invoke({ ...caller, audience: "plugin" }, scheduleActions.recoverReminder, input), { code: "host.plugin_caller_invalid" });
+    const reviewer = callerPlugin("reminderreviewer", "project"), probe = registerProbe(hosts[0]!.actionRegistry(refs[0]!), "project");
+    const started = await startPlugin(hosts[0]!, refs[0]!, await hosts[0]!.withProject(refs[0]!, runtime => runtime.store), reviewer, { actorId: "plugin:" + reviewer.id });
+    stopPlugin = () => started.runtime.stop(started.install_id).then(() => undefined);
+    await assert.rejects(client.invoke(callAs(await issuedCaller(probe, reviewer, "p"), SCHEDULE_ACTION_PERMISSIONS), scheduleActions.recoverReminder, input), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, permissions: ["schedule:read"] }, scheduleActions.recoverReminder, input), { code: "actions.forbidden" });
     await assert.rejects(client.invoke({ ...caller, validate_authority: async () => { throw new Error("authority-revoked"); } }, scheduleActions.recoverReminder, input), /authority-revoked/);
     await assert.rejects(hosts[1]!.actionClient(refs[1]!).invoke(caller, scheduleActions.recoverReminder, { ...input, job_id: jobs[1]!.job_id }), /安装已变更/);
@@ -177,7 +200,7 @@ test("reminder recovery through Host and HTTP uses current authorization and can
     assert.equal(response?.status, 200); assert.equal(changed, 1);
     assert.equal((response?.body as { job: ScheduleJobView }).job.reminder?.needs_confirmation, false);
     assert.equal((await hosts[1]!.actionClient(refs[1]!).invoke(caller, scheduleActions.list, {})).jobs.find(job => job.job_id === jobs[1]!.job_id)?.enabled, false);
-  } finally { await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); }
+  } finally { await stopPlugin(); await Promise.all(hosts.map(host => host.close())); await rm(home, { recursive: true, force: true }); }
 });
 
 test("Schedule reminder recovery can be cancelled and re-reviewed after reinstall in a narrow browser", { timeout: 60_000 }, async t => {

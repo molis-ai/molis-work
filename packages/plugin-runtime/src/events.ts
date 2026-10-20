@@ -25,7 +25,7 @@ import {
 
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import { readEventRecoveries, resolveEventRecovery } from "./event-recovery.js";
-import { outsidePluginAction } from "./action-scope.js";
+import { assertPluginActionCurrent, outsidePluginAction } from "./action-scope.js";
 
 interface Envelope {
   generation: number;
@@ -134,7 +134,7 @@ export class PluginEventBus implements PluginEventBusApi {
       if (error instanceof PluginEventError) throw error;
       throw new PluginEventError("plugin.event_payload_invalid", "事件内容没有通过类型校验");
     }
-
+    assertPluginActionCurrent(identity.install_id); // Inside an action the event is that action's write: its caller is checked in the append's turn.
     const record = this.#repository.append({
       event_id: this.#createId(),
       project_id: this.#projectId,

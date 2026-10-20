@@ -13,6 +13,7 @@ import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
 import { bindInstalledOperationCaller } from '../apps/local-host/dist/schedule-operations.js';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from './fixtures/plugin-callers.js';
 
 const pluginId = 'io.molis.work.test.recovery';
 const installation = (generation = 'original'): PluginInstanceRecord => ({ install_id: 'review-install', plugin_id: pluginId, installation_generation: generation,
@@ -36,18 +37,23 @@ function seedUnknown(db: Parameters<typeof scheduleServiceFor>[0], projectId: st
 test('operation recovery is a public authorized Host/HTTP action; plugin callers, stale snapshots and other projects are refused', async () => {
   const home = await mkdtemp(join(tmpdir(), 'operation-recovery-host-')), databasePath = join(home, 'project.db'); seedDemoBoard(databasePath, 'p');
   const host = new MolisWorkLocalHost(), ref = molisWorkHostProjectReference({ databasePath, projectId: 'p' });
-  let stop = () => {};
+  let stop = () => {}, stopPlugin = async () => {};
   try {
-    const id = await host.withProject(ref, runtime => {
+    const { id, store } = await host.withProject(ref, runtime => {
       const id = seedUnknown(runtime.store.db, 'p');
-      stop = bindInstalledOperationCaller(runtime.store.db, 'p', { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return id;
+      stop = bindInstalledOperationCaller(runtime.store.db, 'p', { describe: () => descriptor(), async call() { assert.fail('confirmation never invokes'); } }); return { id, store: runtime.store };
     });
+    // A plugin acting as itself, with the caller the Host issued its session.
+    const reviewer = callerPlugin('recoveryreviewer', 'project'), probe = registerProbe(host.actionRegistry(ref), 'project');
+    const started = await startPlugin(host, ref, store, reviewer, { actorId: 'plugin:' + reviewer.id });
+    stopPlugin = () => started.runtime.stop(started.install_id).then(() => undefined);
+    const plugin = callAs(await issuedCaller(probe, reviewer, 'p'), SCHEDULE_ACTION_PERMISSIONS);
     const caller = { actor_id: 'owner', project_id: 'p', audience: 'user' as const, permissions: SCHEDULE_ACTION_PERMISSIONS };
     const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
     const view = (await bound.invoke(scheduleActions.list, {})).operations.find(item => item.id === id)!;
     assert.deepEqual(view.input, { topic: '<本周> 笔记' }); assert.equal(view.installation?.publisher, 'test');
     const input = inputFor(view);
-    await assert.rejects(client.invoke({ ...caller, audience: 'plugin', actor_id: 'plugin:' + pluginId, plugin_install_id: 'review-install' }, scheduleActions.recoverOperation, input), { code: 'actions.forbidden' });
+    await assert.rejects(client.invoke(plugin, scheduleActions.recoverOperation, input), { code: 'actions.forbidden' });
     await assert.rejects(client.invoke({ ...caller, project_id: 'elsewhere' }, scheduleActions.recoverOperation, input), { code: 'actions.scope_mismatch' });
     await assert.rejects(client.invoke({ ...caller, permissions: ['schedule:read'] }, scheduleActions.recoverOperation, input), { code: 'actions.forbidden' });
     await assert.rejects(client.invoke({ ...caller, validate_authority() { throw new Error('revoked'); } }, scheduleActions.recoverOperation, input), /revoked/);
@@ -57,7 +63,7 @@ test('operation recovery is a public authorized Host/HTTP action; plugin callers
     assert.equal(response?.status, 200); assert.equal(changes, 1);
     assert.equal((response?.body as { operation: ScheduledOperationView }).operation.state, 'completed');
     await assert.rejects(bound.invoke(scheduleActions.recoverOperation, input), /已变更/);
-  } finally { stop(); await host.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { stop(); await stopPlugin(); await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test('narrow Schedule UI reviews unknown outcomes, cancels safely and rejects a stale installation before an explicit skip', { timeout: 60_000 }, async t => {

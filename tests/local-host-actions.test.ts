@@ -3,11 +3,12 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalHost, LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalMcpServer, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type LocalHostOptions } from "@molis-ai/molis-work-app-local-host";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import type { ActionAvailability, ActionCallContext, ActionDefinition, ActionSceneBinding, ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "host.counter.add", version: 1, operation: "command",
   action: { title: "累计", description: "累计项目值", kind: "operation", scope: "project", audiences: ["user", "mcp"],
@@ -258,12 +259,18 @@ const note: HostCapabilityDefinition<{ text: string }, string> = { capability_id
 const broken: HostCapabilityDefinition<Record<string, never>, string> = { capability_id: "host.notes.broken", version: 1, operation: "command" };
 const syncCounter: ActionDefinition<number, number> = { capability_id: "host.counter.sync", version: 1, operation: "command",
   action: { ...counter.action, title: "同步累计", audiences: ["plugin"], input_schema: { type: "integer" } } };
-const pluginCaller = (id: string): ActionCallContext => ({ ...context(id), audience: "plugin" });
+/** A plugin started in a bare Host's project, acting for alice: its synchronous calls present the caller the Host issued it. */
+async function pluginCaller(host: Parameters<typeof startPlugin>[0], project: ReturnType<typeof ref>, store: LocalProjectDatabase): Promise<ActionCallContext> {
+  const probe = registerProbe(host.actionRegistry(project), "project"), plugin = callerPlugin("sync", "project");
+  await startPlugin(host, project, store, plugin, { actorId: "alice" });
+  return callAs(await issuedCaller(probe, plugin, project.project_id), []);
+}
 
 test("every route into an action or a typed capability is settled exactly once, each operation with its own id", async () => {
   const { rows, actionSettled } = settlements();
   const host = new LocalHost({ runtimeFactory: { open: () => ({ total: 0 }), close: () => {} }, actionSettled });
   const project = ref("routes"), caller = context("routes"), noted: Array<string | undefined> = [];
+  const directory = await mkdtemp(join(tmpdir(), "host-actions-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   const homeRead = { ...counter, capability_id: "host.home.read", action: { ...counter.action, title: "首页读取", scope: "home" as const } };
   host.register(counter, (runtime, input) => (runtime.total += input.amount));
   host.register(note, (_runtime, input, invocation) => { noted.push(invocation.call_id); return input.text; });
@@ -283,12 +290,13 @@ test("every route into an action or a typed capability is settled exactly once, 
     assert.deepEqual(Object.fromEntries(Object.keys(expected).map(key => [key, row[key as keyof SettledRow]])), expected);
   };
   try {
+    const plugin = await pluginCaller(host, project, store);
     const action = { title: "累计", provider_title: "Molis Work", provider_id: "platform", operation: "command", ok: true };
     await settledOnce(() => host.actionClient(project).invoke(caller, counter, { amount: 1 }), { ...action, actor_id: "alice" });
     await settledOnce(() => host.client(project).invoke(counter, { amount: 1 }), { ...action, actor_id: "local-host" });
     await settledOnce(() => host.homeActionClient().invoke({ ...caller, project_id: null }, homeRead, { amount: 0 }),
       { title: "首页读取", provider_title: "Home", provider_id: "home", operation: "command", ok: true });
-    await settledOnce(() => host.syncActionClient(project).invokeSync(pluginCaller("routes"), syncCounter, 5),
+    await settledOnce(() => host.syncActionClient(project).invokeSync(plugin, syncCounter, 5),
       { title: "同步累计", provider_title: "Sync", provider_id: "sync", operation: "command", ok: true });
     await settledOnce(() => host.client(project).invoke(note, { text: "hello" }),
       { title: note.capability_id, provider_title: "Molis Work", provider_id: undefined, operation: "command", ok: true, path: "typed", actor_id: "local-host" });
@@ -304,7 +312,7 @@ test("every route into an action or a typed capability is settled exactly once, 
     await assert.rejects(host.client(project).invoke(lookalike, {}), error => error === ownerFailure);
     assert.deepEqual([rows.at(-1)!.code, rows.at(-1)!.refused], ["kernel.capability_missing", undefined]);
     assert.equal(new Set(rows.map(row => row.call_id)).size, rows.length, "operations do not share ids");
-  } finally { await host.close(); }
+  } finally { await host.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("a typed wait only observes: it runs but is not settled, while the typed query and command around it are", async () => {
@@ -348,21 +356,23 @@ test("the host's availability policy refuses before dispatch on every route into
   let policy: ActionAvailability = { available: true }, ran = 0;
   const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} }, actionAvailability: () => policy, actionSettled });
   const project = ref("policy"), homeRead = { ...counter, capability_id: "host.home.policy", action: { ...counter.action, scope: "home" as const } };
+  const directory = await mkdtemp(join(tmpdir(), "host-actions-")), store = new LocalProjectDatabase(join(directory, "project.db"));
   host.register(counter, () => ++ran);
   host.actionRegistry().registerProvider({ provider: { provider_id: "home", kind: "system", title: "Home" }, definitions: [homeRead], handlers: [{ ...homeRead, handle: () => ++ran }] });
   host.actionRegistry(project).registerProvider({ provider: { provider_id: "sync", kind: "plugin", title: "Sync", project_id: project.project_id },
     definitions: [syncCounter], handlers: [{ ...syncCounter, execution: "sync", handle: () => ++ran }] });
   try {
     await host.withRuntime(project, () => undefined);
+    const plugin = await pluginCaller(host, project, store), setup = rows.length;
     policy = { available: false, code: "actions.plugin_disabled", reason: "插件已停用" };
     await assert.rejects(host.actionClient(project).invoke(context("policy"), counter, { amount: 1 }), { code: "actions.plugin_disabled" });
     await assert.rejects(host.client(project).invoke(counter, { amount: 1 }), { code: "actions.plugin_disabled" });
     await assert.rejects(host.homeActionClient().invoke({ ...context("policy"), project_id: null }, homeRead, { amount: 0 }), { code: "actions.plugin_disabled" });
-    assert.throws(() => host.syncActionClient(project).invokeSync(pluginCaller("policy"), syncCounter, 1), { code: "actions.plugin_disabled" });
+    assert.throws(() => host.syncActionClient(project).invokeSync(plugin, syncCounter, 1), { code: "actions.plugin_disabled" });
     assert.equal(ran, 0, "no handler was entered");
-    assert.deepEqual(rows.map(row => [row.title, row.ok, row.code, row.refused, row.actor_id]), [["累计", false, "actions.plugin_disabled", true, "alice"],
+    assert.deepEqual(rows.slice(setup).map(row => [row.title, row.ok, row.code, row.refused, row.actor_id]), [["累计", false, "actions.plugin_disabled", true, "alice"],
       ["累计", false, "actions.plugin_disabled", true, "local-host"], ["累计", false, "actions.plugin_disabled", true, "alice"], ["同步累计", false, "actions.plugin_disabled", true, "alice"]]);
-  } finally { await host.close(); }
+  } finally { await host.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("an id registered only for another project is refused as missing and described by the caller's reference alone", async () => {

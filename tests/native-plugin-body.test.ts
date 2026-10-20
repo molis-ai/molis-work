@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, handleScheduleNativePluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { scheduleActions, SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { serveNativeHttp } from "./fixtures/native-http.js";
 
@@ -17,6 +18,10 @@ test("W2-18-NATIVE-BODY-01 native HTTP accepts Chinese within budget and refuses
   let modelCalls = 0, ownerEntries = 0, invalidations = 0;
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async () => { modelCalls++; throw new Error("no model request expected"); } });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "body-test" });
+  await host.withProject(reference, ({ coordinator, store }) => {
+    coordinator.initializeBoard({ project_id: "body-test", title: "Native body", actor_id: "owner", idempotency_key: "native-body-project" });
+    assert.deepEqual(listProjectRoots(store.db).map(row => row.project_id), ["body-test"], "the HTTP fixture uses a current project library with its root");
+  });
   const actions = bindActionClient(host.actionClient(reference), () => ({ actor_id: "owner", project_id: "body-test", audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS }));
   const counted: BoundActionClient = { discover: () => actions.discover(),
     invoke: (definition, input, control, transport) => { ownerEntries++; return actions.invoke(definition, input, control, transport); } };

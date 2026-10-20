@@ -318,7 +318,8 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
       return original(...args); }; })()`);
   await click(`${coding} [data-coding-send]`);
   await waitFor(`Boolean(document.querySelector(${JSON.stringify(card)})) && window.__motion.length === 1`, 30_000);
-  const focused = () => evaluate<[string | undefined, string | null, string | undefined]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
+  // Read back by value (CDP `returnByValue`): what the focused element lacks (a field, a role, an option) comes back null, not undefined.
+  const focused = () => evaluate<[string | null, string | null, string | null]>(`[document.activeElement.closest('[data-ix-field]')?.dataset.ixField, document.activeElement.getAttribute('role'), document.activeElement.dataset.ixOption]`);
   const states = () => evaluate<{ name: string; tag: string; radios: Array<string | null>; toggles: Array<string | null>; status: string | null }>(`(() => { const node = document.querySelector(${JSON.stringify(card)}), title = document.getElementById(node.getAttribute('aria-labelledby') || '');
     return { name: title?.textContent.trim() || '', tag: node.tagName, radios: [...node.querySelectorAll('[data-ix-field="q0"] [role=radiogroup] [role=radio]')].map(radio => radio.getAttribute('aria-checked')),
       toggles: [...node.querySelectorAll('[data-ix-field="q2"] [role=group] [data-ix-option]')].map(button => button.getAttribute('aria-pressed')), status: node.querySelector('[data-ix-note]')?.getAttribute('role') ?? null }; })()`);
@@ -336,7 +337,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   assert.deepEqual(await focused(), ["q0", "radio", "1"], "the arrow keys move between the options");
   await evaluate(`window.__moving('pick').then(seen => window.__motion.push(seen))`);
   await press(opened, "Tab");
-  assert.deepEqual(await focused(), ["t1", null, undefined], "Tab goes on to the next question");
+  assert.deepEqual(await focused(), ["t1", null, null], "Tab goes on to the next question");
 
   // AC-10-4: pinyin being composed is no draft, and the input method's Enter neither answers nor moves on; the chosen words are kept.
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);
@@ -346,7 +347,7 @@ test("AC-10-3, AC-10-4, AC-10-5, AC-10-8: Coding's card by keyboard and input me
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 229, nativeVirtualKeyCode: 229 }, sessionId);
   await new Promise(resolve => setTimeout(resolve, 600));
   assert.equal(await evaluate<number>("window.__answers.length"), 0, "the input method's Enter does not answer");
-  assert.deepEqual(await focused(), ["t1", null, undefined], "nor move on to the next question");
+  assert.deepEqual(await focused(), ["t1", null, null], "nor move on to the next question");
   // Since Chrome 155 that synthetic Enter may itself commit the pinyin, so the candidate is chosen on a composition of its own.
   await evaluate(`(() => { const input = document.activeElement; input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); })()`);
   await command("Input.imeSetComposition", { text: "ceshi", selectionStart: 5, selectionEnd: 5 }, sessionId);

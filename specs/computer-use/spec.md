@@ -1,6 +1,55 @@
 # 个人助理的完整 Computer Use
 
-状态：收尾中（2026-10-19）。能力切片 CU-G05～G12 已合入 main（[#721](https://github.com/molis-ai/molis-work/pull/721)，选择器不编译正则的跟进 [#735](https://github.com/molis-ai/molis-work/pull/735)，S-25）：一轮 60 步、观察压缩、效果与卡住检测、树不够时的落点裁剪、窗口菜单切换、Vision OCR 兜底、按名称与角色定位、10 场景评测骨架；门禁与全量 CU-G13 由 CI 证明（§9.1）。还差真机：跨应用二十步、Shelf 带截图、五类拒绝（CU-G02～G04），CU-G06、G08、G10 的真实数据，以及同进程 sheet 的打开/保存用例（用户 2026-10-18 选 A：独立进程的面板继续拒绝），都按 [acceptance-runbook.md](acceptance-runbook.md) 等这台 Mac 空闲时由用户安排；真机做完后索引与归档（CU-G14）。2026-10-09 的最小真机切片见 §5，2026-10-10～12 的真机走查与几次全量对照见 §7、§8。目标原文见 [goal-prompt.md](goal-prompt.md)，收尾任务书见 [goal-prompt-wrapup.md](goal-prompt-wrapup.md)。
+状态：等真机验收（2026-10-20 交接，见下节）。能力切片 CU-G05～G12 已合入 main（[#721](https://github.com/molis-ai/molis-work/pull/721)，选择器不编译正则的跟进 [#735](https://github.com/molis-ai/molis-work/pull/735)，S-25）：一轮 60 步、观察压缩、效果与卡住检测、树不够时的落点裁剪、窗口菜单切换、Vision OCR 兜底、按名称与角色定位、10 场景评测骨架；门禁与全量 CU-G13 由 CI 证明（§9.1）。还差真机：跨应用二十步、Shelf 带截图、五类拒绝（CU-G02～G04），CU-G06、G08、G10 的真实数据，以及同进程 sheet 的打开/保存用例（用户 2026-10-18 选 A：独立进程的面板继续拒绝），都按 [acceptance-runbook.md](acceptance-runbook.md) 等这台 Mac 空闲时由用户安排（BL-325）；真机做完后索引与归档（CU-G14）。2026-10-09 的最小真机切片见 §5，2026-10-10～12 的真机走查与几次全量对照见 §7、§8。目标原文见 [goal-prompt.md](goal-prompt.md)，收尾任务书见 [goal-prompt-wrapup.md](goal-prompt-wrapup.md)。
+
+## 交接（2026-10-20）
+
+Computer Use 线由手册线（⑦）一起收尾，按统筹 10-20 的重新安排停下，之后这条线上没有人接着做。接续时从本节读起；本节取代统筹目录 `coordination/2026-10-18/lines/` 里本线的那份（那份不在 main 上）。需求书里没有「远端交接」「统筹更正」段落。[goal-prompt-wrapup.md](goal-prompt-wrapup.md) 是 10-18 的任务书，已经执行完，现状以本节和 §9.1 为准。
+
+**现状**
+- 能力切片和门禁都已合入。已完成：CU-G01、G05、G07、G11、G13。部分完成：G06、G08、G09、G10、G12。
+- 剩下的都要这台 Mac 和用户本人在场：真机验收 CU-G02～G04，顺带 CU-G06、G08、G10 的真实数据和 CU-G09 的同进程 sheet。CU-G14 的索引与归档在它们之后做。
+- 所以不归档。
+
+**已合入**
+
+| PR | 合入提交 | 内容 |
+| --- | --- | --- |
+| [#721](https://github.com/molis-ai/molis-work/pull/721) | `7509b10ad` | CU-G05～G12 的能力切片 |
+| [#735](https://github.com/molis-ai/molis-work/pull/735) | `35eea0614` | 选择器不编译成正则（S-25） |
+| [#773](https://github.com/molis-ai/molis-work/pull/773) | `ebad9a223` | 菜单路径指向 Molis 窗口时的拒绝，挪进 CI 的安全用例 |
+| [#809](https://github.com/molis-ai/molis-work/pull/809) | `ee6df47d8` | runbook 第 6 节按用户选的 A 改正（QA-008） |
+
+**在途**：没有。
+
+**分支与工作树**
+- 本线没有留下 Computer Use 的分支或工作树。
+- #773 的本地分支 `claude/cu-security-status` 已删。远端分支不由本线删。
+
+**没做完的**（`specs/BACKLOG.md`）
+- BL-325：真机验收。做完以后补索引、归档（CU-G14）。
+- BL-326：模型主动要求放大看某个区域（CU-G08，[open-decisions.md](open-decisions.md) 第 2 节）。
+- BL-327：没验证过的机器，以及可选的 CU-G15。
+- 签名与公证仍是 BL-021。
+
+**真机验收怎么做**（BL-325）
+- 照 [acceptance-runbook.md](acceptance-runbook.md) 做，约 45 分钟，要屏幕解锁、用户在跟前。
+- 准备的人先起好隔离 Home 和端口，用户只在页面里操作和看。
+- 结果写回 §9.1，证据齐了再勾掉，全部勾完再归档。
+- 系统的打开/保存面板按用户 10-18 选的 A 处理，这次不放宽。
+
+**风险与不能碰的**
+- 只用隔离 Home 和独立端口。不碰真实 Home、真实数据和用户的文件。
+- 不删 Home 主密钥的钥匙串条目：所有 Home 共用它。
+- 不为验收锁屏，不发 Ctrl+Cmd+Q。不猜密码，不用真实密码，也不为验收新建密码框。
+- 屏幕锁着或有人在用，就记下时间和原因，不伪造。
+- 截图含屏幕内容，只留在本机，不进仓库，也不放进 `.impeccable/`。
+- 以下都登记在 `docs/system/SECURITY-INVARIANTS.md`（如 S-25），不为验收放宽：
+  - 落点校验；
+  - 禁区；
+  - 终端只能看和点；
+  - 自批的时间闸。
+- 放行独立进程的打开/保存面板（open-decisions 第 1 节的选项 B），要用户确认才能动。
 
 ## 1. 要解决的事
 
@@ -104,7 +153,7 @@
 - 真实模型走完了 TextEdit 与计算器的多步操作，也触发了锁屏、用户在场和驱动不可用。终端打字、系统设置、被挡住的落点、自批和密码截图外带，发出去的驱动会拒绝并记下 refused（`tests/computer-use-gaps.test.ts`，2026-10-11）；那次真机走查里模型没有调用这些工具，遮挡窗也没有盖住落点，所以还没有对应的真机拒绝记录。全量回归对 `72137e89a` 已经跑完，没有新的产品失败。对 `db9cbddca` 的又一次全量：基线 5144 项、失败 1、失败文件 `tests/agent-action-selection.e2e.test.ts`（页面条件超时）。Computer Use 5146 项、失败 8、失败文件 5 个：`tests/install.test.ts`、`tests/npm-package.test.ts`、`tests/runtime-payload.test.ts`、`tests/uninstall.test.ts` 都是 `source.build_stale`，因为全量开始前源码又改过而 dist 还是上一次构建；`tests/goals-document.e2e.test.ts` 是页面脚本 `Runtime.evaluate` 超时。这 5 个文件在基线全量里是通过的。重新构建后那 4 个安装类文件共 30 项通过。`tests/goals-document.e2e.test.ts` 单独重跑 4 项通过。所以这 5 个新失败文件不是产品回归。接到 `a28d7584b` 之后的全量没有新的失败文件：基线与 Computer Use 都是 5 项失败，文件都是 `tests/immersive-directory.e2e.test.ts` 和 `tests/touch-targets.e2e.test.ts`（基线 5560 项，Computer Use 5571 项）。接到 origin/main `4fb2db83f` 之后又跑了一次：基线 5569 项、失败 7、失败文件 4 个；Computer Use 5580 项、失败 5、失败文件仍是上述两个 e2e，没有新的失败文件。二十步整格和带截图的 Shelf 放入仍未完成。准备再走真机时屏幕是锁着的，没有发 Ctrl+Cmd+Q，也没有改先前的走查记录。合入 `4fb2db83f` 之后屏幕会话仍打印 `locked`，没有启动 `computer-use-live.mjs`。这不是用户验收。接到 origin/main `02ceba8c9` 之后又跑了一次全量：基线 5606 项、失败 5、失败文件 `tests/alchemist-mcp.test.ts`、`tests/immersive-directory.e2e.test.ts`、`tests/touch-targets.e2e.test.ts`；Computer Use 5618 项、失败 7。多出的 `tests/goals-document.e2e.test.ts` 是选中后 `goalView === 'RELEASE'` 超时，`tests/model-first-setup.e2e.test.ts` 是清理 Chrome profile 时 `ENOTEMPTY`。两棵树上单独重跑这两个文件都是 8 项通过、0 失败。Alchemist MCP 只在基线全量里超时。二十步整格和带截图的 Shelf 放入仍未完成。2026-10-12 屏幕没有锁（`cu-session` 打印 `unlocked`）。走查没有启动：另一会话的全量还占着这台机器。没有新的 transcript，没有发 Ctrl+Cmd+Q。先前的走查记录还在。2026-10-12 18:05Z 前台是 ChatGPT，鼠标和滚轮刚动过，`browser.lock` 空着，走查没有启动。
 - 记录的 `goal` 取自 attach 时的 `input.task`；`run_id` 在 attach 时还没有，记为 null。
 - 没选项目时的确认卡走个人工作的 owner（`home`），由 `tests/computer-use-gaps.test.ts` 覆盖。浏览器里的空 Home 画面没有另拍。
-- 右栏 Shelf、多显示器、Intel、macOS 14/15、发布签名与公证（BL-021）未做或未验证。现有 `POST /api/shelf/items` 在走查里对文字返回过 200；截图那次 POST 还没有真机记录。
+- 右栏 Shelf（BL-325）、多显示器、Intel、macOS 14/15（BL-327）、发布签名与公证（BL-021）未做或未验证。现有 `POST /api/shelf/items` 在走查里对文字返回过 200；截图那次 POST 还没有真机记录。
 
 ## 9. 收尾与能力补强（2026-10-18）
 

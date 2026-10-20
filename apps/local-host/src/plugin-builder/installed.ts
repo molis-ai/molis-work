@@ -16,6 +16,7 @@ export const releaseVersion = (version: number) => `${version}.0.0`;
 const ENTRIES = 'sandbox:entries';
 const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+const uiContribution = (pluginId: string) => pluginId + '.ui.v1';
 
 /** The sandbox's storage transactions over the installation's private store: serialized and atomically committed. */
 export function storageTransactions(storage: PluginPrivateStorage): NonNullable<SandboxServices['storage']> {
@@ -41,21 +42,29 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
   };
 }
 
-/** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
-  if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
-  const uiId = release.pluginId + '.ui.v1';
-  const manifest: PluginManifest = {
+/**
+ * What a generated plugin declares to the Host: a release's Manifest, or for a trial of a build that has none yet, the one it
+ * would install with at version 0.
+ */
+export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
+  const uiId = uiContribution(release.pluginId);
+  return {
     schema_version: 2, host_api_version: 2, plugin_id: release.pluginId, version: releaseVersion(release.version), name: release.design.title, kind: 'app',
     publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) },
     entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
-    ...(compatibleFrom.length ? { upgrade_compatibility: { compatible_from_versions: compatibleFrom.map(releaseVersion) } } : {}),
+    ...(earlierVersions.length ? { upgrade_compatibility: { compatible_from_versions: earlierVersions.map(releaseVersion) } } : {}),
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: release.design.presentation ? [PLUGIN_PRESENTATION_CAPABILITY.capability_id] : [] }, artifacts: { produces: [], consumes: [] },
     ...(release.design.presentation ? { requires: [{ ...PLUGIN_PRESENTATION_CAPABILITY, reason: '此插件需要整页组合与详情渲染器 v1' }] } : {}),
     routes: [{ route_id: 'studio.call', method: 'POST', path: '/call' }],
     ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: release.design.title, contribution_id: uiId }] },
   };
+}
+
+/** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {}): PluginDefinition {
+  if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
+  const manifest = generatedPluginManifest(release, compatibleFrom), uiId = uiContribution(release.pluginId);
   // A model call runs in its own process, so the plugin's other reads and saves never wait behind it.
   const lanes = new Map<Lane, Promise<SandboxRunner>>();
   return {

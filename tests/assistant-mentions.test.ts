@@ -57,7 +57,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
     resolveCredential: () => "fixture-only" });
   agentHost.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => agentHost,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
     // The person's own authority in the work's scope, as the web Host gives it.
     scopeActions: async work => {

@@ -13,6 +13,8 @@ import {
   OWNER_COLUMN,
   ownerErrors,
   packageOwner,
+  PLATFORM_REVIEWERS,
+  REGISTRATION_PATTERN,
   renderCodeowners,
   renderSsot,
 } from "../scripts/package-owners.mjs";
@@ -44,7 +46,23 @@ test("the lead answers for every package; the second reviewer also for Coding, A
   assert.deepEqual(gateRules, GATE_PATHS.map((gatePath) => `/${gatePath} ${LEAD}`));
   for (const rule of rules.slice(1)) {
     const [pattern] = rule.split(" ");
-    assert.ok(fs.existsSync(new URL(`..${pattern}`, import.meta.url)), `${pattern} exists`);
+    const [before, after] = pattern.split("/*/");
+    const matches = after === undefined ? [pattern]
+      : fs.readdirSync(new URL(`..${before}/`, import.meta.url)).map((name) => `${before}/${name}/${after}`);
+    assert.ok(matches.some((match) => fs.existsSync(new URL(`..${match}`, import.meta.url))), `${pattern} exists`);
+  }
+});
+
+test("W5-02: a built-in plugin's registration asks the platform's reviewers too, also where the package has its own", () => {
+  const rules = codeowners().split("\n").filter((line) => line && !line.startsWith("#"));
+  const at = rules.indexOf(`/${REGISTRATION_PATTERN} ${PLATFORM_REVIEWERS.join(" ")}`);
+  assert.ok(at > 0, "the pattern line is there");
+  const packageLines = rules.filter((rule) => rule.split(" ")[0].endsWith("/") && !GATE_PATHS.some((gatePath) => rule.startsWith(`/${gatePath} `)));
+  assert.ok(packageLines.length > 0 && packageLines.every((rule) => rules.indexOf(rule) < at), "after the package lines, so it wins over them");
+  for (const item of WORKSPACE_PACKAGES.filter((entry) => entry.path.startsWith("plugins/native/") && entry.owner.handles.some((handle) => handle !== LEAD))) {
+    const own = rules.find((rule) => rule.startsWith(`/${item.path}/src/registration.ts `));
+    assert.ok(own && rules.indexOf(own) > at, `${item.path} has its own registration line after the pattern`);
+    for (const handle of [...item.owner.handles, ...PLATFORM_REVIEWERS]) assert.ok(own.split(" ").includes(handle), `${item.path}: ${handle}`);
   }
 });
 

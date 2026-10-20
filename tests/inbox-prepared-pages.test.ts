@@ -1,4 +1,4 @@
-import { preparePagesFileImport } from "../apps/local-host/src/pages-import.js";
+import { readMaterialUploads } from "../apps/local-host/src/material-documents.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -9,7 +9,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import type { PagesInputSnapshot } from "@molis-ai/molis-work-contracts/modules/pages";
 import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "@molis-ai/molis-work-plugin-inbox";
 import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis-work-plugin-inbox";
-import { createPagesActionHandlers, pagesActions, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
+import { createPagesActionHandlers, ownPagesStores, pagesActions, preparePagesImport, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createHomeOfferHandlers, homeOfferActions, type HomeActionOffers, type HomeOfferExecutionInput } from "../apps/local-host/src/home-offer-actions.js";
 
@@ -29,8 +29,9 @@ async function fixture(t: test.TestContext) {
   const caller: ActionCallContext = { actor_id: "owner", project_id: "project", audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "home:read"],
     validate_permissions() { if (!permitted) throw new ActionError("actions.forbidden", "权限已撤销"); } };
   actions.registerProvider({ provider: { provider_id: pagesId, kind: "plugin", title: "Pages", project_id: "project" }, definitions: PAGES_ACTIONS,
-    handlers: createPagesActionHandlers({ prepareImport: (files, caller) => preparePagesFileImport(files, { signal: caller.signal }), withStore: run => run(store), modelAvailability: () => ({ available: true }),
-      async completeText(_prompt, options) { await beforeRequest(options.beforeDispatch); dispatches++; return "有边界的整理。[材料 1]"; } }) });
+    handlers: createPagesActionHandlers({ prepareImport: async (files, caller) => preparePagesImport(await readMaterialUploads(files.map(file => ({ file_name: file.name, data_base64: file.data })), { signal: caller.signal })),
+      ...ownPagesStores(run => run(store)), modelAvailability: () => ({ available: true }),
+      async complete(_prompt, options) { await beforeRequest(options.beforeDispatch); dispatches++; return { text: "有边界的整理。[材料 1]", validateResult: () => {} }; } }) });
   const pages = createInboxPagesHandlers({
     async generation(request_id, current) { return (await actions.invoke(current, { ...pagesActions.generation, provider_id: pagesId }, { request_id }) as { record: ReturnType<typeof store.generation> }).record; },
     async generations(current) { return (await actions.invoke(current, { ...pagesActions.generations, provider_id: pagesId }, {}) as { records: ReturnType<typeof store.generations> }).records; },

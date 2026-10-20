@@ -10,7 +10,7 @@ const description = "  切换页面后输入消失。\n原文保留。\n";
 const title = "切换页面后输入消失";
 
 async function manual(t: TestContext) {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   await issueModel(t, b.homeDirectory, { question: "free-text" });
   const v = issueView(b);
   await v.viewport(1440); await v.go("/plugins/issues");

@@ -34,7 +34,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "./plu
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { PluginModelClient } from "./plugin-model.js";
 import type { PluginMaterialsClient } from "./plugin-materials.js";
-export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, MaterialSourceContent } from "./plugin-materials.js";
+export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, MaterialSourceContent } from "./plugin-materials.js";
 
 /** The permission a Plugin declares to name the websites it uses in the side panel browser (specs/archive/side-panel D16). */
 export const SURFACE_BROWSER_PERMISSION = "surface:browser";
@@ -80,9 +80,21 @@ export interface PluginCapabilityClient {
   ): Promise<Output>;
 }
 
+/**
+ * The Host's action directory as the plugin's own running action's caller sees it, for a plugin whose Manifest declares `actions:delegate`.
+ * Both calls run as the original caller under the workflow audience, never with the plugin's own grants; a target that audience or that
+ * caller's permissions do not reach is refused (docs/system/SECURITY-INVARIANTS.md S-43).
+ */
+export interface PluginActionDirectory {
+  discover(): Promise<readonly import("./actions.js").ActionView[]>;
+  invoke<Output = unknown>(reference: import("./actions.js").ActionReference, input: unknown, control?: PluginExecutionControl): Promise<Output>;
+}
+
 /** Query delegation uses the active Runtime action's caller, never a caller supplied by the plugin. */
 export interface PluginActionClient extends BoundActionClient {
   invokeQuery<Input = unknown, Output = unknown>(reference: import("./actions.js").ActionReference, input: Input): Promise<Output>;
+  /** Present only when the Manifest declares `actions:delegate`; every call also needs the installation's grant. */
+  readonly directory?: PluginActionDirectory;
 }
 
 export interface PluginHostServices {
@@ -278,6 +290,8 @@ export interface PluginManifest {
   methods?: import("./plugin-agent.js").AgentSkillDeclaration[];
   /** Exact old installation versions this release can upgrade from. */
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
+  /** The plugin's own tables, by scope (PG-020). The Host does not make them yet (specs/plugin-project-database). */
+  databases?: import("./plugin-database.js").PluginManifestDatabases;
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

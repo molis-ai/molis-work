@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { Effect, ExactRef, Runtime } from "@prologue/sdk";
+import { WORKSPACE_REWIND_KIND, type Effect, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentCheckpoint, AgentCheckpointsCapability, AgentReviewReceipt, AgentReviewRequest, AgentRewindReviewDocument, AgentWorkingDirectory } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentReviewQueue } from "../reviews.js";
 
@@ -51,7 +51,7 @@ export function createPrologueCheckpoints(ports: Ports): AgentCheckpointsCapabil
   const document = async (effect: Effect, intent: PrologueRewindIntent, sessionId: string): Promise<AgentRewindReviewDocument> => {
     if (!effect.proposal.reviewRef || effect.proposal.origin?.session !== sessionId || effect.proposal.origin.run !== undefined) throw new Error("手动回退归属不一致");
     const value = await ports.readResource(effect.proposal.reviewRef) as Record<string, unknown>;
-    if (!value || value.kind !== "workspace-rewind" || value.version !== 1 || value.operationKey !== intent.operation_id
+    if (!value || value.kind !== WORKSPACE_REWIND_KIND || value.version !== 1 || value.operationKey !== intent.operation_id
       || value.checkpointId !== intent.checkpoint_id || value.sessionId !== sessionId || !sameRef(value.rootRef, intent.root_ref)
       || typeof value.previewFingerprint !== "string" || !Array.isArray(value.files) || value.files.length === 0) throw new Error("检查点完整预览不可用，不能批准");
     const files = value.files.map((item: unknown) => {

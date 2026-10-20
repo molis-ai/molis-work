@@ -1,6 +1,12 @@
 import {
+  goalEventAcknowledgementCategories,
+  goalEventAcknowledgementTreatments,
   goalEventDecisionPurposes,
   goalEventSystemOperations,
+  type GoalEventAcknowledgementBy,
+  type GoalEventAcknowledgementCategory,
+  type GoalEventAcknowledgementReference,
+  type GoalEventAcknowledgementTreatment,
   type GoalEventAgreementChange,
   type GoalProgressArtifactSource,
   type GoalEventConcernStatus,
@@ -133,6 +139,15 @@ export function parseGoalEventSystemPayload(raw: Record<string, unknown>): GoalE
         operation,
         source_kind: asSourceKind(raw.source_kind),
       };
+    case "input_acknowledged":
+      return {
+        operation,
+        reference: asAcknowledgementReference(raw.reference),
+        treatment: asAcknowledgementTreatment(raw.treatment),
+        note: text(raw.note),
+        read_cursor: Number(raw.read_cursor) || 0,
+        by: asAcknowledgementBy(raw.by),
+      };
     default:
       return emptyProgress();
   }
@@ -192,6 +207,26 @@ function asConcernStatus(value: unknown): GoalEventConcernStatus {
 function asWorkStatus(value: unknown, fallback: GoalEventWorkStatus): GoalEventWorkStatus {
   if (value === "open" || value === "completed" || value === "cancelled") return value;
   return fallback;
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function asAcknowledgementTreatment(value: unknown): GoalEventAcknowledgementTreatment {
+  return (goalEventAcknowledgementTreatments as readonly unknown[]).includes(value) ? value as GoalEventAcknowledgementTreatment : "noted";
+}
+
+function asAcknowledgementReference(value: unknown): GoalEventAcknowledgementReference {
+  const raw = asRecord(value);
+  const category = (goalEventAcknowledgementCategories as readonly unknown[]).includes(raw.category) ? raw.category as GoalEventAcknowledgementCategory : "note";
+  return { event_id: text(raw.event_id), category, operation: nullable(raw.operation), title: text(raw.title), journal_seq: Number(raw.journal_seq) || 0 };
+}
+
+function asAcknowledgementBy(value: unknown): GoalEventAcknowledgementBy {
+  const raw = asRecord(value);
+  const channel = raw.channel === "mcp" || raw.channel === "assistant" ? raw.channel : "agent";
+  return { channel, runtime_id: nullable(raw.runtime_id), session_id: nullable(raw.session_id) };
 }
 
 function asSourceKind(value: unknown): "web" | "onboarding" | "feed" | "runtime" | "tree" {

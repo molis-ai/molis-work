@@ -1,5 +1,5 @@
 import { isDeepStrictEqual } from "node:util";
-import type { ExactRef, Runtime } from "@prologue/sdk";
+import { WORKSPACE_COMMAND_KIND, isAfterWriteCheckOperationKey, type ExactRef, type Runtime } from "@prologue/sdk";
 import type { AgentReviewReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { GATEWAY_TOOLS, gatewayReview } from "./prologue-action-gateway.js";
 import { agentActionToolName } from "./prologue-action-tools.js";
@@ -125,18 +125,23 @@ async function workspaceCard(deps: ReviewDeps, pending: Pending, effect: Effect,
   const root = pending.origin?.run && deps.state.runRoots.get(pending.origin.run);
   if (!root || review.rootRef?.kind !== root.kind || review.rootRef?.id !== root.id || review.rootRef?.revision !== root.revision) throw new Error("审查工作区与本轮授权不一致");
   const index = pending.origin?.session ? await deps.index.read(pending.origin.session) : undefined;
-  const childDirectory = index?.parent_run && index.attempts.find(attempt => attempt.run_id === pending.origin?.run)?.frozen.directory?.canonical_path;
-  if (review.kind === "workspace-command" && review.version === 1
+  const attempt = index?.attempts.find(each => each.run_id === pending.origin?.run);
+  const childDirectory = index?.parent_run && attempt?.frozen.directory?.canonical_path;
+  if (review.kind === WORKSPACE_COMMAND_KIND && review.version === 1
     && typeof review.executable === "string" && Array.isArray(review.argv) && review.argv.every((arg: unknown) => typeof arg === "string")
     && typeof review.cwd === "string" && Number.isFinite(review.timeoutMs) && review.timeoutMs > 0
     && Array.isArray(review.envAllowlist) && review.envAllowlist.every((name: unknown) => typeof name === "string") && typeof review.escalate === "boolean") {
     // Extra access the command names (paths, network) is shown exactly as asked; one the card cannot read is not approvable.
     const grants = review.grants === undefined ? undefined : commandGrants(review.grants);
     if (grants === null) throw new Error("命令点名要的额外访问不可读，不能批准");
+    // The person's after-write check (§6.0p.3): which checker, from which list version, as its executor noted under this key.
+    const check = isAfterWriteCheckOperationKey(review.operationKey) ? attempt?.write_checks?.[review.operationKey] ?? null : undefined;
+    if (check === null) throw new Error("这条写后检查找不到当时用的检查器，不能批准");
     deps.state.reviewEffects.set(`prologue:${pending.ref.id}`, effect.ref);
     return { kind: "command", ...(childDirectory ? { workspace_path: childDirectory } : {}), command: review.executable, args: review.argv, cwd: review.cwd,
       timeout_ms: review.timeoutMs, env_allowlist: review.envAllowlist, escalate: review.escalate, ...(grants ? { grants } : {}),
-      ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}) };
+      ...(review.background === true ? { background: true, outlives_run: review.outlivesRun === true } : {}),
+      ...(check ? { after_write_check: { checker_id: check.checker_id, display_name: check.display_name, version: check.version } } : {}) };
   }
   if (review.kind !== "workspace-patch" || review.version !== 1 || typeof review.path !== "string"
     || typeof review.baseExists !== "boolean" || typeof review.baseText !== "string" || typeof review.nextText !== "string") throw new Error("这类操作的完整审查尚未接通，不能批准");

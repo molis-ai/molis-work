@@ -25,7 +25,7 @@ test("ASC-08 ASC-24: the Assistant preserves the original result link across a d
     result_view: { summary: "Request prepared", link: { label: "Open request", href_template: "/projects/{project_id}/requests/{/id}" } } } };
   local.actionRegistry(project).registerProvider({ provider: { provider_id: "fixture.receipts", kind: "plugin", title: "Receipts" }, definitions: [resultDefinition],
     handlers: [{ ...resultDefinition, async handle(context) { await context.beforeEffect(); calls++; return { saved: true, id: "request/1", project_id: "untrusted-project", unselected: "PRIVATE-FIXTURE" }; } }] });
-  const service = () => new AssistantService(new AssistantStore(db), { host: async () => host,
+  const service = () => new AssistantService(new AssistantStore(db), { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "Project" }, "web-user");
   let assistant = service();
   const placed = await assistant.offers.offerFromPage({ message_id: "result-page-0001", source: { surface: "fixture", title: "Receipts" },
@@ -65,7 +65,7 @@ for (const outcome of ["invalid-output", "unknown", "before-effect"] as const) {
     const host = new AgentHost();
     const service = () => {
       const store = new AssistantStore(db);
-      return new AssistantService(store, { host: async () => host,
+      return new AssistantService(store, { pages: async () => ["home"], host: async () => host,
         authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "Project" }, "web-user");
     };
     let assistant = service();
@@ -99,7 +99,7 @@ for (const outcome of ["success", "invalid-output", "unknown"] as const) test(`A
       if (outcome === "unknown") throw new ActionError("actions.outcome_unknown", "Outcome is not confirmed");
       return { saved: outcome === "invalid-output" ? "invalid" : true, id: "request/1", unselected: "PRIVATE-RESULT-FIXTURE" };
     } }] });
-  const make = (): AssistantService => new AssistantService(store, { host: async () => host,
+  const make = (): AssistantService => new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async (work, origin) => assistantAuthority(local, work, () => new Set(), undefined,
       (view, input, output) => assistant.recordResult(work, view, input, output, origin?.source !== "card")) }, "web-user");
   let assistant = make();

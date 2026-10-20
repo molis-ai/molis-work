@@ -34,7 +34,7 @@ test("S-39 RAC-26 runtime material authority strips download permission from eve
       },
       readSource: async (_url, options) => { await options.beforeEffect(); seen.push(options.allowModelDownload); return { ...answer, source_url: "https://example.com", provider: "article" }; },
       readDocuments: () => Promise.reject(new Error("not read here")),
-    }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
+    }, { install_id: context.install_id, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
     const request = { allowModelDownload: true, audience: "user", helperPath: "/untrusted", whisperHelperPath: "/untrusted", modelDirectory: "/untrusted", platform: "darwin" };
     await service.extract!({ file_name: "a.txt", bytes: Buffer.from("authorized") }, request);
     return service.readSource!("https://example.com", { allowModelDownload: true });
@@ -49,7 +49,7 @@ test("RAC-25 material methods are independently declared; real Host extraction w
   const probes = [materialsProbe("onlyread", { permissions: ["materials:read"] }), materialsProbe("onlyfetch", { permissions: ["materials:fetch"] }), materialsProbe("nomaterials", { permissions: [] })];
   const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: probes.map(probe => probe.definition) } });
   for (const probe of probes) await grantMaterials(host, probe);
-  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments"]);
+  assert.deepEqual(Object.keys(probes[0]!.contexts.at(-1)!.services!.materials!), ["extract", "readDocuments", "imageTextAvailable"]);
   assert.deepEqual(Object.keys(probes[1]!.contexts.at(-1)!.services!.materials!), ["readSource"]);
   assert.equal(probes[2]!.contexts.at(-1)!.services!.materials, undefined);
   const probe = probes[0]!, client = host.homeActionClient(), caller = person(probe.permissions);
@@ -156,7 +156,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
           await wait(options);
           return { documents: [{ name: "late.md", format: "markdown" as const, content: "late material", coverage: { status: "sufficient" as const, issues: [] } }], warnings: [] };
         },
-      }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
+      }, { install_id: context.install_id, project_id: null, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
       try {
         const text = method === "extract"
           ? (await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") })).text

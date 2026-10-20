@@ -40,7 +40,7 @@ test("PAS-10: retained authority refuses a provider replaced while authorization
   } finally { release.resolve();dispose(); }
 });
 
-test("PAS-10 S-42: a guard retained as workflow admits a target only workflow reaches, still refuses one workflow does not reach, and still rejects its replacement", async () => {
+test("PAS-10 S-43: a guard retained as workflow admits a target only workflow reaches, still refuses one workflow does not reach, and still rejects its replacement", async () => {
   const service = new ActionService();
   const reaching = (capability_id: string, audiences: ActionAudience[]): ActionDefinition => ({ ...action, capability_id, action: { ...action.action, audiences } });
   const workflowOnly = reaching("fixture.workflow_only", ["workflow"]), userOnly = reaching("fixture.user_only", ["user"]);

@@ -16,7 +16,7 @@
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [status-ring-system](status-ring-system/spec.md)：统一轻量环刻状态组件、规格板与适用业务场景；本分支已实现，待合入。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
-- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；已与 main（#471、#472）对账、Molis 依赖换成过渡包（P1 + Computer Use），A1 改为核对 #472，P2a–P2g 与输入回执第四刀随 P3 第二次换包。
+- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-301～309。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。

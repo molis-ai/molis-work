@@ -22,7 +22,7 @@ const define = (capability: string, operation: "query" | "command", title: strin
 
 export const ASSISTANT_RULE_ACTIONS = {
   list: define("assistant.rules.list", "query", "查看提醒规则", "列出用户为助理设的提醒规则：在哪些插件页面不提醒、暂停到何时、哪些情况例外。", { type: "object", properties: {}, additionalProperties: false }),
-  add: define("assistant.rules.add", "command", "添加提醒规则",
+  add: { ...define("assistant.rules.add", "command", "添加提醒规则",
     "按用户的话添加一条提醒规则：quiet 表示在所列插件页面（不列则处处）不提醒；pause 表示暂停提醒到 until。except 里的情况仍然提醒（例如“失败除外”写 failed）。label 用用户原话。“这次先别提醒”用 pause，并给出结束时间。",
     { type: "object", additionalProperties: false, required: ["kind", "label"], properties: {
       kind: { type: "string", title: "规则类型", enum: ["quiet", "pause"], description: "quiet：在某些页面不提醒；pause：暂停提醒到某时" },
@@ -31,7 +31,7 @@ export const ASSISTANT_RULE_ACTIONS = {
       except: { type: "array", title: "仍然提醒的情况", items: { type: "string", enum: KINDS.map(([id]) => id) }, description: KINDS.map(([id, name]) => `${id}=${name}`).join("，") },
       until: { type: "string", format: "date-time", title: "到什么时候", description: "暂停必填；quiet 可不填（长期有效）" },
       label: { type: "string", title: "规则说法", maxLength: 200, description: "用户的原话，例如“写文档时不要提醒，失败除外”" },
-    } }, "write"),
+    } }, "write"), version: 2 },
   remove: define("assistant.rules.remove", "command", "删除提醒规则", "删除一条提醒规则（先用“查看提醒规则”找到它的 rule_id）。",
     { type: "object", additionalProperties: false, required: ["rule_id"], properties: { rule_id: { type: "string", title: "规则" } } }, "write"),
 } as const;
@@ -74,7 +74,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
   const handlers: ActionHandlerBinding[] = [
     ...records.handlers, ...extra.handlers,
     { capability_id: "assistant.rules.list", version: 1, handle: async () => ({ rules: service().followUps.rules() }) },
-    { capability_id: "assistant.rules.add", version: 1, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
+    { capability_id: "assistant.rules.add", version: 2, handle: async (_context, input) => ({ rules: await service().followUps.addRule(input as AssistantRuleInput) }) },
     { capability_id: "assistant.rules.remove", version: 1, handle: async (_context, input) => ({ rules: service().followUps.removeRule(String((input as { rule_id?: unknown }).rule_id ?? "")) }) },
     { capability_id: "assistant.followups.list", version: 1, handle: async context => ({ followups: service().followUps.list(callingWork(context) ?? undefined) }) },
     { capability_id: "assistant.followups.add", version: 1, handle: async (context, input) => {

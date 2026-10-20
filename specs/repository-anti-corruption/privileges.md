@@ -191,6 +191,8 @@
 | PG-036 | P2 · 助理代码按插件名分支：`assistant-service.ts` 里有 31 处 `executor.kind === "coding"`，界面表 SURFACES 点名 jelly、cognia 等 | `assistant/assistant-service.ts`、`assistant/assistant-delegation.ts:293`、`assistant/assistant-rule-actions.ts:12-14` | Coding、Jelly、Cognia 等 | 助理按动作和消费场景选执行方，不点插件名；W5-10 之后由 ② 改（① 10-20 从 ④ 改派，③ 执行） | ② | 4 | 10-18 待遇 | PRIV-33、CJ-26 | #845（部分：规则按页面 id、只认已装插件的页面，宿主和设置页不再列插件名；按动作选执行方与 `kind:"coding"` 的维护等 W5-10；创作台装的页面见 BL-373） |
 | PG-108 | P3 · `alchemist.runs.continue` 声明的权限是空的，运行时却按任务类别另要 `alchemist:generate` 或 `alchemist:collect`；授权视图里看不到这两项 | `plugins/native/alchemist/src/studio/shared/contracts/actions.ts:218-220`、`plugins/native/alchemist/src/studio/server/services/job-resumption.ts:117-121`（`:120`；均为 `ffb3db076`） | Alchemist；以后按输入另要权限的动作 | 照 §4 q：动作可能要的权限都写进 Manifest 声明，在授权视图里列出；运行时再按任务类别收窄，只收窄不放宽。迁 Runtime 时一并决定 `runs.continue` 是否声明 `model:invoke`，否则 `services.model` 会拒 | ③ | 2 | 10-18 授权 | #747 复查、§10.29 裁定 10 | 待做（统筹已定，见 §4） |
 
+**PG-036 提醒规则合同（#845，2026-10-20）**：`assistant.rules.add` 的 `surfaces` 从固定枚举改为页面 id 格式，并新增 `maxItems: 20`，按现行合同规则升为 `@2`；它既放开了页面取值，又收窄了数组长度，不能沿用 `@1`。只登记新版本，不保留旧版处理器或自动换版。其余规则动作、定时动作和方法动作的版本不变；设置页仍走原 HTTP 规则接口，存储形状不变。固定旧动作引用须重新选择 `@2`。**PG036-01**：临时真实 Home 初始化助理后，宿主公共动作目录只发现 `assistant.rules.add@2`，list/remove 仍为 `@1`；同一输入调用旧 `@1` 必须得到 `actions.missing` 且规则不变，新 `@2` 成功后 HTTP 读取同一条规则。回归在 `tests/assistant-rule-pages.test.ts`，连同 attention、followups 和动作回归验证；整体构建后跑 boundary、merge-base health 与资源检查。动作快照当前只收集初始化时已登记的宿主动作，没有触发助理 HTTP 惰性登记，因而不含此动作；本片以真实动作发现与调用覆盖，不扩大快照门禁。
+
 ### 3.4 后台、调度与生命周期
 
 | 编号 | 特权或缺口（一句） | 代码位置 | 受影响的插件 | 要补的平台能力或改法 | 归属 | 阶段 | 依据 | 来源编号 | 状态 |

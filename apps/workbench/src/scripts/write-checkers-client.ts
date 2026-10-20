@@ -7,6 +7,7 @@ import { readFileSync } from "node:fs";
  * when the package builds (its banner and footer make the constant). Only the two places that draw the workspaces section load it,
  * the Workbench program and the project settings page; the global settings page has no such section and does not get it.
  * The path goes through the package root, so this file reads the same bundle from dist/scripts/ and from src/scripts/ (tests load
- * the source with tsx); either way the package must be built.
+ * the source with tsx); either way the package must be built. The footer is a bare `}` (as Forms' is), so the health gate reads the
+ * bundle as its typed entry, and the bundle's own closing line break, kept rather than trimmed, ends the global before the next program.
  */
-export const WRITE_CHECKERS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/write-checkers-client.js", import.meta.url), "utf8").trim();
+export const WRITE_CHECKERS_CLIENT_SCRIPT = readFileSync(new URL("../../dist/write-checkers-client.js", import.meta.url), "utf8");

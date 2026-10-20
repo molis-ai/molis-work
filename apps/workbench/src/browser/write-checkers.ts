@@ -138,7 +138,9 @@ export function bindWriteCheckers(host: WriteCheckersHost): void {
     event.preventDefault();
     const target = editing, kept = target && lists.find((item) => item.workspace_id === target.workspace_id);
     if (!target || !kept) { error.textContent = say.gone; error.hidden = false; return; }
-    const fields = Object.fromEntries(new FormData(form)) as unknown as WriteCheckerFields;
+    const data = new FormData(form), text = (name: keyof WriteCheckerFields) => String(data.get(name) ?? "");
+    const fields: WriteCheckerFields = { display_name: text("display_name"), executable: text("executable"), args: text("args"),
+      applies_to: text("applies_to"), cwd: text("cwd"), timeout_seconds: text("timeout_seconds") };
     const checker = writeCheckerFromFields(fields, kept.checkers.map((item) => item.checker_id).filter((id) => id !== target.checker_id), target.checker_id);
     const submit = form.querySelector("[type=submit]") as HTMLButtonElement;
     submit.disabled = true; error.hidden = true;

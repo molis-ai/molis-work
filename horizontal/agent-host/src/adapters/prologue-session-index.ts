@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { ExactRef } from "@prologue/sdk";
-import type { AgentReviewReceipt, AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { PrologueRestoredSession, PrologueRunTiming, PrologueStartInput } from "./prologue.js";
 import type { PrologueRewindIntent } from "./prologue-checkpoints.js";
 import type { PrologueSubagentRoot } from "./prologue-subagents.js";
@@ -22,7 +22,9 @@ export interface SessionIndex {
   title: string;
   owner: PrologueRestoredSession["owner"];
   /** Frozen intent and display times only; streamed output stays in the SDK ledger. */
-  attempts: Array<PrologueStartInput["provenance"] & { action_tool_scope?: string; refused?: { code: string; at: string }; step_board?: ExactRef<"task-board">; step_prefix?: string; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; stop_reason?: string; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming; desktop_target?: string }>;
+  attempts: Array<PrologueStartInput["provenance"] & { action_tool_scope?: string; refused?: { code: string; at: string }; step_board?: ExactRef<"task-board">; step_prefix?: string; task: string; subagent_errors?: Record<string, string>; subagent_roots?: PrologueSubagentRoot[]; subagent_roles?: Array<[string, NonNullable<PrologueStartInput["subagents"]>[number]]>; run_id?: string; stop_intent?: "stopped" | "cancelled"; stop_reason?: string; root_ref?: ExactRef<"authorized-root">; timing?: PrologueRunTiming; desktop_target?: string;
+    /** The round's after-write checks, by the SDK's key for each: which checker answered (prologue-after-write.ts). */
+    write_checks?: Record<string, AgentWriteCheckNote> }>;
   rewinds?: PrologueRewindIntent[];
   review_decisions?: Record<string, Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> & { requested_at?: string; expires_at?: string | null }>;
 }

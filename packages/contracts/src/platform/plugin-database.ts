@@ -1,4 +1,7 @@
-/** SQL owned by a trusted native plugin. This is a lifecycle service, not a JavaScript sandbox. */
+/**
+ * SQL over a plugin's own tables, in the Home (`services.database`) or in the project's library (`services.project_database`). The
+ * Host owns the connections and checks every call: reads only through a read-only connection, writes only inside `transaction`.
+ */
 export type PluginSqlValue = string | number | bigint | Uint8Array | null;
 export type PluginSqlRow = Record<string, PluginSqlValue>;
 
@@ -7,6 +10,11 @@ export interface PluginDatabaseReader {
   all(sql: string, parameters?: readonly PluginSqlValue[]): PluginSqlRow[];
 }
 
+/**
+ * The one handle through which a platform service may later join a plugin's write transaction (a scheduler registering a job, the
+ * journal): it would check that the handle is the write transaction in progress on its own connection. Nothing joins one today
+ * (specs/plugin-project-database §2.6).
+ */
 export interface PluginDatabaseTransaction extends PluginDatabaseReader {
   run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number | bigint };
 }
@@ -35,7 +43,8 @@ export interface PluginDatabaseDeclaration {
  * `schema` the first time the plugin opens there and records, with the publisher's signature, in its ledger; the statements may
  * only create tables and indexes, and foreign keys may only point at the plugin's own tables or the project's root row
  * (specs/plugin-project-database). A refusal (another publisher, version or shape) stops only that plugin in that project. The Host
- * makes them for the built-in project plugins when it opens a library; an installed plugin gets them with the service (L2).
+ * makes them for the built-in project plugins when it opens a library, and checks them again for any plugin it starts with the
+ * service (`services.project_database`).
  */
 export interface PluginManifestDatabases {
   readonly project?: PluginDatabaseDeclaration;

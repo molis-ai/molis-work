@@ -20,6 +20,7 @@ import { pluginHostActions } from "./plugin-actions-client.js";
 import { heldPermissions, issuePluginCaller } from "./plugin-callers.js";
 import { openPluginDatabase } from "./plugin-database.js";
 import { openPluginFiles } from "./plugin-files.js";
+import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -46,11 +47,12 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
   let active = true;
   let disposeArtifacts = () => {};
   let library: ReturnType<typeof openPluginDatabase> | undefined;
+  let projectLibrary: ReturnType<typeof openPluginProjectLibrary> | undefined;
   let files: ReturnType<typeof openPluginFiles> | undefined;
   let background: ReturnType<typeof pluginBackgroundFor>;
   let withdrawAgentDefinitions: (() => void) | undefined;
   let withdrawCaller: (() => void) | undefined;
-  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
+  const dispose = () => { active = false; background?.close(); withdrawCaller?.(); disposeArtifacts(); library?.close(); projectLibrary?.close(); files?.close(); withdrawAgentDefinitions?.(); ui.dispose(); };
   const assertActive = () => { if (!active) throw new ActionError("actions.forbidden", "此插件实例已停止，请重新打开"); };
   try {
     const manifest = definition.manifest;
@@ -63,6 +65,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       author: () => { const scope = currentPluginInvocation(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
+    projectLibrary = openProjectTables(options, definition, context, assertActive);
     const fileDeclaration = options.filesFor?.(definition);
     if (fileDeclaration) {
       if (!options.home) throw new Error("私有文件服务需要 Home");
@@ -71,7 +74,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive);
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
-      database: library?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
+      database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client });
     return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
@@ -91,6 +94,17 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   if (declaration === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
   return openPluginDatabase(options.home.directory, declaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
+}
+
+/**
+ * The plugin's own tables in the project's library, when its Manifest declares them (`databases.project`). Unlike a library in
+ * the Home, the declaration is the plugin's own: the platform makes the tables and checks them against the ledger when the
+ * plugin starts, and checks every statement against them after. Every call follows the same rules as a library in the Home.
+ */
+function openProjectTables(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  if (!definition.manifest.databases?.project) return undefined;
+  if (!options.projectLibrary) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了项目库，但这个插件平台没有项目库`);
+  return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -113,6 +127,8 @@ interface SessionParts {
   readonly isActive: () => boolean;
   /** The library the Host's start list declared for this plugin, if any (`openDeclaredLibrary`). */
   readonly database: PluginDatabase | undefined;
+  /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
+  readonly project_database: PluginDatabase | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
   /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
   readonly model: PluginModelClient | undefined;
@@ -137,6 +153,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       ...(parts.database === undefined ? {} : { database: parts.database }),
+      ...(parts.project_database === undefined ? {} : { project_database: parts.project_database }),
       ...(parts.files === undefined ? {} : { files: parts.files }),
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),

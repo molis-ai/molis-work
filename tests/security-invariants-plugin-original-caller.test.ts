@@ -28,8 +28,11 @@ const ID = "io.molis.work.example.callerprobe", READ = "callerprobe:read", WRITE
 const LISTENER = "io.molis.work.example.callerlistener", ANNOUNCED = `${ID}.announced`, WRITTEN = `${ID}.written`;
 const DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
   schema: "CREATE TABLE notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
+/** The probe's own table in the project's library (PLIB-07). */
+const PROJECT_DATABASE: PluginDatabaseDeclaration = { store_name: "callerprobe", version: 1, read_permission: READ, write_permission: WRITE,
+  schema: "CREATE TABLE callerprobe_notes (id INTEGER PRIMARY KEY, text TEXT NOT NULL);" };
 const FILES: PluginFilesDeclaration = { store_name: "callerprobe-files", directory: "assets", max_file_bytes: 64, read_permission: READ, write_permission: WRITE };
-const TARGETS = ["database", "storage", "files", "publish", "record", "event", "select", "invalidate", "retain"] as const;
+const TARGETS = ["database", "project_database", "storage", "files", "publish", "record", "event", "select", "invalidate", "retain"] as const;
 type Target = typeof TARGETS[number];
 const preview = artifactPreview(ID);
 
@@ -43,6 +46,7 @@ function prepare(services: PluginHostServices, target: Target, name: string): vo
 async function write(services: PluginHostServices, target: Target, name: string, wait: () => Promise<void>): Promise<void> {
   const content = { kind: "inline" as const, payload: { name } };
   if (target === "database") { await services.database!.transaction(wait, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [name])); return; }
+  if (target === "project_database") { await services.project_database!.transaction(wait, tx => tx.run("INSERT INTO callerprobe_notes (text) VALUES (?)", [name])); return; }
   if (target === "files") { await services.files!.create({ beforeEffect: wait }, `${name}.bin`, Buffer.from(name)); return; }
   const expected = target === "select" ? services.outputs!.reference("fixed") : null;
   await wait();
@@ -70,7 +74,7 @@ function probe() {
     permissions: ["storage:private", READ, WRITE, "artifact:read", "artifact:write"].map(permission => ({ permission, required: true, reason: "写自己的数据" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [preview.type], consumes: [{ artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     process_items: { produces: [{ artifact_type_id: ITEM, schema_version: 1 }], consumes: [] },
-    ui: { contributions: [] }, actions: [writeAction, leave, announce, output, preview.definition],
+    ui: { contributions: [] }, actions: [writeAction, leave, announce, output, preview.definition], databases: { project: PROJECT_DATABASE },
     events: { publishes: [{ event_type_id: ANNOUNCED, type_version: 1 }, { event_type_id: WRITTEN, type_version: 1 }], subscribes: [] },
     ports: { inputs: [], outputs: [{ port: "item", artifact_type_id: ITEM, schema_version: 1 },
       { port: "fixed", artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
@@ -170,6 +174,7 @@ async function platform(t: TestContext) {
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;
+    if (target === "project_database") return store.db.prepare("SELECT 1 FROM callerprobe_notes WHERE text = ?").get(name) !== undefined;
     if (target === "storage") return services.storage!.get(name) !== null;
     if (target === "files") return existsSync(join(home, FILES.store_name, FILES.directory, `${name}.bin`));
     if (target === "event") return store.db.prepare("SELECT 1 FROM plugin_events WHERE source_plugin_id = ? AND event_type_id = ? AND json_extract(payload_json, '$.name') = ?")

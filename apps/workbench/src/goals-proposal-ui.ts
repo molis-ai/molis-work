@@ -6,5 +6,8 @@ export function createGoalsProposalWorkbenchRenderer(host: UiHostApi, slot: UiSl
     renderGoalTreeProposalDecision: (proposal, view) => host.mount({ slot, contribution: {
       contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, surface: "decision", model: { proposal, view, primitives },
     } }).html,
+    renderGoalTreeProposalList: (proposals, view) => host.mount({ slot, contribution: {
+      contribution_id: GOALS_PROPOSAL_UI_CONTRIBUTION_ID, surface: "list", model: { proposals, view, primitives },
+    } }).html,
   });
 }

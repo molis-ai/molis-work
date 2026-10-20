@@ -217,7 +217,7 @@ test("W4-2-05: 拆成目标步骤 always comes back as a draft for a card, and n
     assert.equal(entry.always_card, true);
     const submit = directory.find(item => item.capability_id === "goals.tree.submit")!;
     assert.equal(submit.action.undo, undefined, "withdrawing a proposal is the approval decision, not an undo");
-    assert.deepEqual(submit.action.result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals" });
+    assert.deepEqual(submit.action.result_view?.link, { label: "去 Goals 确认", href_template: "/projects/{project_id}/?openPlugin=goals#{/proposal/proposal_id}" });
     assert.match(submit.action.result_view!.summary, /要在 Goals 里确认才生效/u);
 
     const proposals = () => invoke<{ proposals: unknown[] }>("goals.tree.read", {}).then(out => out.proposals.length);

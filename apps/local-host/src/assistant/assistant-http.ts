@@ -15,7 +15,8 @@ import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
-import { AssistantService } from "./assistant-service.js";
+import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
+import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
@@ -53,7 +54,7 @@ export interface AssistantHttpPorts {
 const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ store, actorId: WEB_ACTOR, fail: (code, message) => assistantErrors[code.slice("assistant.".length) as keyof typeof assistantErrors](message) });
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
-const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads }>();
+const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> }>();
 
 /** The Host owns the shared Assistant; closing a borrowed HTTP transport does not release it. */
 export function closeAssistantService(host: MolisWorkLocalHost): void {
@@ -61,7 +62,7 @@ export function closeAssistantService(host: MolisWorkLocalHost): void {
   services.delete(host);
 }
 
-export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads } {
+export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads; surroundings: ReturnType<typeof assistantSurroundings> } {
   const existing = services.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing;
   const store = new AssistantStore(openHomeSqliteDatabase(ports.homeDirectory, ASSISTANT_STORE_NAME));
@@ -98,7 +99,7 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     };
   };
   let threads: AssistantThreads;
-  const service: AssistantService = new AssistantService(store, {
+  const servicePorts: AssistantServicePorts = {
     cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
     retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
     holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
@@ -143,14 +144,15 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
     knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
     knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
-  }, WEB_ACTOR);
+  };
+  const service: AssistantService = new AssistantService(store, servicePorts, WEB_ACTOR), surroundings = assistantSurroundings(store, servicePorts, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
     actorId: WEB_ACTOR, host: async () => { await ports.agentReady();return ports.agentHost; },
     project: async id => { if (!ports.projectReference) throw assistantErrors.scope("当前宿主未提供项目上下文");return ports.projectReference(id); },
     client: project => ports.localHost.actionClient(project), caller: project => localWebActionContext(ports.localHost, project, LOCAL_OWNER_PERMISSIONS),
     alive: () => ports.localHost.lifecycle() === "running",
   });
-  const entry = { home: ports.homeDirectory, service, store, threads };
+  const entry = { home: ports.homeDirectory, service, store, threads, surroundings };
   services.set(ports.localHost, entry);
   // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
   registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
@@ -188,7 +190,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
   // A document the person brings travels as base64 (up to 8 MB of file); everything else stays small.
   return dispatchNativePluginJsonHttp(request, response, url, { prefix: "/api/assistant", maxBodyBytes: url.pathname.endsWith("/api/assistant/attachments") ? 11_500_000 : 400_000,
     async handle({ method, pathname, body }) {
-      const { service, store } = assistantServiceFor(ports);
+      const { service, store, surroundings } = assistantServiceFor(ports);
       const parts = pathname.slice("/api/assistant/".length).split("/").map(decodeURIComponent);
       const thread = await handleThreadHttp(parts, method, url, body, ports);
       if (thread) return thread;
@@ -295,6 +297,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         finally { response.off("close", stop); }
       }
       if (method === "GET" && parts.length === 3 && parts[2] === "recovery") return { status: 200, body: await service.recovery(workId) };
+      if (method === "GET" && parts.length === 3 && parts[2] === "surroundings") return { status: 200, body: await surroundings(workId) };
       if (method === "GET" && parts.length === 4 && parts[2] === "materials") return { status: 200, body: { material: service.material(workId, parts[3]!) } };
       if (method === "GET" && parts.length === 5 && parts[2] === "materials" && parts[4] === "image") return { status: 200, body: { image: await service.materialImage(workId, parts[3]!) } };
       if (method !== "POST") return null;

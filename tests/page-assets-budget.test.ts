@@ -694,6 +694,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 700700],
   // The 产出 split allowance (#869, VUX-08) is spent.
   ["/assets/molis-work-workbench.js", 1135934],
+  // The 上下文 allowance (#871, VUX-08/09) is spent.
+  ["/assets/molis-work-workbench.js", 1136078],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -709,9 +711,12 @@ for (const [asset, old] of [
 // specs/visual-ui-experience (2026-10-20): the remaining copy buttons and conversations take the shared mechanisms; each
 // asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
 // the new baseline still fails.
-test("VUX-08 VUX-09 the 上下文 group allowance is bounded and spent once; other assets and later growth still fail", () => {
+test("VUX-08 VUX-09 the 工作环境 and 连接与工具 allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1136078, 1138107],
+    "/assets/molis-work-workbench.js": [1138107, 1142662],
+    "/assets/molis-work-workbench.css": [1605394, 1605433],
+    "/assets/molis-work-settings.css": [991169, 991208],
+    "/assets/molis-work-arrival.css": [700755, 700794],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
@@ -727,7 +732,7 @@ test("VUX-08 VUX-09 the 上下文 group allowance is bounded and spent once; oth
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured 上下文 size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured 工作环境 and 连接与工具 size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

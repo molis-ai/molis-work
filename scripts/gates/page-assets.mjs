@@ -235,15 +235,18 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 材料 becomes 上下文,
-// with what waits to be sent, what the latest round used (its selection too) and what earlier rounds used apart (VUX-08/09).
-// +2,029 B of workbench.js: the pending list read from the strip's items, the split by the latest round's start, each
-// round's selection, and the group moved out of assistant-island.ts into its own factory (the giant-unit gate keeps the island
-// from growing), whose parameters are named twice. Tried first: the island's own tiles, glyphs and blocks passed in rather
-// than copied; the shipped script is not minified, so the factory sits at the shallowest indent.
-// Spent once from exactly the 产出 split slice's budget (#869).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 工作环境 and 连接与工具
+// groups (VUX-08/09), read from each owner by the Host when the work changes (the user's decision ②). +4,555 B of
+// workbench.js: the two groups' drawing (scope, directory, repository and branch, each connection by its status, what can and
+// cannot be called) with 27 English strings and four more glyphs; +39 B in each of the three stylesheets that carry the side
+// groups (their grid column is minmax(0, 1fr), so a long line in a card ellipsizes instead of widening the side column, a
+// fault of #861). Tried first: the island's own cards, stacks and blocks passed in, one counting helper for "{n}" strings
+// (−80 B), the island not growing (the 上下文 wrapper went). Spent once from exactly the 上下文 slice's budget (#871).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1136078, 1138107],
+  "/assets/molis-work-workbench.js": [1138107, 1142662],
+  "/assets/molis-work-workbench.css": [1605394, 1605433],
+  "/assets/molis-work-settings.css": [991169, 991208],
+  "/assets/molis-work-arrival.css": [700755, 700794],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -644,7 +644,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-block-chevron::before { content: "›"; font-size: 13px; line-height: 1; transform: rotate(90deg); transition: transform var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block-head[aria-expanded="false"] .assistant-block-chevron::before { transform: none; }
   ${ASSIST} .assistant-block-head:hover .assistant-block-chevron { color: var(--ink); }
-  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
+  ${ASSIST} .assistant-block:not([hidden], .assistant-block--usage) { /* opens and folds to its natural height (VUX-08, VUX-22): the body is a 0fr→1fr row; folded, out of reach */ display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; transition: grid-template-rows var(--dur-move) var(--ease-quint); }
   ${ASSIST} .assistant-block[data-folded] { grid-template-rows: auto 0fr; }
   ${ASSIST} .assistant-block[data-folded] .assistant-block-body { padding-top: 0; visibility: hidden; transition: padding-top var(--dur-move) var(--ease-quint), visibility 0s var(--dur-move); }
   ${ASSIST} .assistant-block-title { color: var(--ink); font-size: 12px; font-weight: 600; }

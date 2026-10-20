@@ -1,6 +1,6 @@
 import type { ScheduleJobRecord } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { scheduleErrors } from "./error.js";
-import { getScheduleReminder, SCHEDULE_REMINDERS_SCHEMA_SQL, REMINDERS_PER_INSTALLATION, type ScheduleReminder } from "./reminders.js";
+import { getScheduleReminder, REMINDERS_PER_INSTALLATION, type ScheduleReminder } from "./reminders.js";
 import type { ScheduleTaskDatabase } from "./tasks.js";
 
 /** Resolved by the Host from Runtime, never from a request's claimed installation. */
@@ -23,7 +23,6 @@ export function createScheduleReminderManagement(options: {
   currentInstallation(pluginId: string): ReminderRecoveryInstallation | null;
 }) {
   const { db, schedule } = options;
-  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
   const recordFor = (job: ScheduleJobRecord): ScheduleReminder | null => {
     const row = db.prepare("SELECT id FROM schedule_plugin_reminders WHERE project_id = ? AND json_extract(record_json, '$.jobId') = ?")
       .get(options.projectId, job.job_id) as { id: string } | undefined;

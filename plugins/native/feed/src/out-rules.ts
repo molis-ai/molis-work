@@ -42,10 +42,10 @@ export interface FeedOutRuleWrite {
 
 type Row = Record<string, unknown>;
 
-/** The out rules table, as one current schema; the host composes it into the project database baseline. */
+/** The out rules table, as one current schema; Feed declares it as its project database (`FEED_PROJECT_DATABASE`). */
 export const FEED_OUT_RULES_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_out_rules (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       rule_id TEXT NOT NULL,
       name TEXT NOT NULL,
       enabled INTEGER NOT NULL DEFAULT 1,
@@ -66,9 +66,8 @@ export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
 }
 
 export class FeedOutRuleStore {
-  constructor(private readonly db: FeedPluginSqliteDatabase) {
-    db.exec(FEED_OUT_RULES_SCHEMA_SQL);
-  }
+  /** The table is already there: the platform made it when the project's library opened with Feed. */
+  constructor(private readonly db: FeedPluginSqliteDatabase) {}
 
   list(projectId: string): FeedOutRuleRecord[] {
     return (this.db.prepare(

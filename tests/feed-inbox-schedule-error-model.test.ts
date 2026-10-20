@@ -422,6 +422,7 @@ test("with the real scheduler: a toggle of a job that is gone is schedule.job_no
 
 test("with the real reminder and timed-operation services: the caller's mistakes are schedule.job_invalid, an identity they cannot take is actions.forbidden, a good call still works", async () => {
   const db = new Database(":memory:");
+  db.exec(schedulePlugin.SCHEDULE_PROJECT_DATABASE.schema);
   const wakeups = new PluginWakeupIndex();
   wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_REMINDER_WAKEUP, async () => {});
   wakeups.register(schedulePlugin.SCHEDULE_PLUGIN_ID, schedulePlugin.SCHEDULE_OPERATION_WAKEUP, async () => {});

@@ -8,6 +8,7 @@ import {
 } from "@molis-ai/molis-work-service-scheduler";
 import {
   SCHEDULE_PLUGIN_ID,
+  SCHEDULE_PROJECT_DATABASE,
   SCHEDULE_TASK_WAKEUP_CAPABILITY,
   SchedulePluginRouteTable,
   bindScheduleConversationJob,
@@ -28,8 +29,15 @@ import {
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { directScheduleActions } from "./schedule-direct-actions.js";
 
+/** A bare library with Schedule's declared tables, as the platform makes them when a project opens with Schedule. */
+function scheduleDatabase() {
+  const db = new Database(":memory:");
+  db.exec(SCHEDULE_PROJECT_DATABASE.schema);
+  return db;
+}
+
 for (const failure of [false, true]) test(`paused conversation ignores the late runner ${failure ? "error" : "result"} without writing failure`, async () => {
-  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
   const wakeupIndex = new PluginWakeupIndex();
   const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
@@ -52,7 +60,7 @@ for (const failure of [false, true]) test(`paused conversation ignores the late 
 });
 
 test("LOGIC-04 a failed round still leaves 这一轮没跑成 when the task text changed while it ran", async () => {
-  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
   const wakeupIndex = new PluginWakeupIndex();
   const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
@@ -75,7 +83,7 @@ test("LOGIC-04 a failed round still leaves 这一轮没跑成 when the task text
 });
 
 test("LOGIC-04 a lost lease writes no failure sentence", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const task = createScheduleConversationTask(db, { title: "租约", instructions: "看一眼", hour: 9, minute: 0, notify_important: false }, () => new Date("2026-09-20T01:00:00.000Z"));
   let checks = 0;
   await assert.rejects(() => handleScheduleTaskWakeup(db, task.task_id, {
@@ -88,7 +96,7 @@ test("LOGIC-04 a lost lease writes no failure sentence", async () => {
 });
 
 test("LOGIC-04 the lease that guards the failure sentence is asked inside its write, so it cannot be lost in between", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const task = createScheduleConversationTask(db, { title: "租约", instructions: "看一眼", hour: 9, minute: 0, notify_important: false }, () => new Date("2026-09-20T01:00:00.000Z"));
   const asked: boolean[] = [];
   await assert.rejects(() => handleScheduleTaskWakeup(db, task.task_id, {
@@ -100,7 +108,7 @@ test("LOGIC-04 the lease that guards the failure sentence is asked inside its wr
 });
 
 test("a concurrent calendar tick does not replace the lease of a running one-shot conversation", async () => {
-  const db = new Database(":memory:"), clock = { now: new Date(2026, 8, 20, 8, 50) };
+  const db = scheduleDatabase(), clock = { now: new Date(2026, 8, 20, 8, 50) };
   const gate = Promise.withResolvers<void>(), entered = Promise.withResolvers<void>();
   const wakeupIndex = new PluginWakeupIndex();
   const schedule = createScheduleService(db, { wakeupIndex, now: () => clock.now });
@@ -178,7 +186,7 @@ test("a scheduled round's task is the person's title, instructions and history, 
 });
 
 test("创建任务会留下说明回合，到点 runner 写入助手回复并标有更新", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const created = createScheduleConversationTask(db, {
     title: "早上汇总",
     instructions: "把未读收成三条",
@@ -204,7 +212,7 @@ test("创建任务会留下说明回合，到点 runner 写入助手回复并标
 });
 
 test("拨钟过点后只跑一轮，失败会留下系统说明，再排到明天", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const clock = { now: new Date(2026, 8, 20, 8, 50, 0) };
   const wakeupIndex = new PluginWakeupIndex();
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input) => {
@@ -240,7 +248,7 @@ test("拨钟过点后只跑一轮，失败会留下系统说明，再排到明�
 });
 
 test("暂停后不再叫醒，恢复后重新挂下一拍", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const clock = { now: new Date(2026, 8, 20, 8, 50, 0) };
   let runs = 0;
   const wakeupIndex = new PluginWakeupIndex();
@@ -271,7 +279,7 @@ test("暂停后不再叫醒，恢复后重新挂下一拍", async () => {
 });
 
 test("HTTP 能创建对话任务并返回 tasks", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const wakeupIndex = new PluginWakeupIndex();
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
   const schedule = createScheduleService(db, {
@@ -321,7 +329,7 @@ test("HTTP 能创建对话任务并返回 tasks", async () => {
 });
 
 test("对话任务编辑会重新排期；归档后不在列表且不会再唤醒", async () => {
-  const db = new Database(":memory:");
+  const db = scheduleDatabase();
   const wakeupIndex = new PluginWakeupIndex();
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async () => undefined);
   const now = () => new Date("2026-09-20T00:50:00.000Z");

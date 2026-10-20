@@ -16,7 +16,7 @@
 - [ai-development-handbook](ai-development-handbook/spec.md)：内部 AI 能力开发手册；context over control、prompt/Skill/context/tool 分工、基础实现与评测方法，手册正文已写入 `docs/platform/PROLOGUE-AI.md` 第二部分（2026-10-16），存量清理清单已做完。2026-10-18 补充技能包渐进披露、从一次过程生成 Skill、评测循环与作者侧校验，正文 2026-10-19 写入（第 13.2、13.5、16.6、16.7 节），一个技能包在两处各用一次那条等技能包实现；用户验收未做（BL-320）。
 - [status-ring-system](status-ring-system/spec.md)：统一轻量环刻状态组件、规格板与适用业务场景；本分支已实现，待合入。
 - [ai-input-receipts](ai-input-receipts/spec.md)：输入回执与会话排队；SDK S1–S4 已在 Prologue main，Molis 现用的过渡包带 S1–S3，Molis 接入（阶段 1）进行中。
-- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；已与 main（#471、#472）对账、Molis 依赖换成过渡包（P1 + Computer Use），A1 改为核对 #472，P2a–P2g 与输入回执第四刀随 P3 第二次换包。
+- [prologue-adoption](prologue-adoption/spec.md)：Prologue 完整能力采用——原 1–23 项及存储/预算决定，加 TaskBoard 统一协作与零模型外部等待；P1–P4、A0、A1、A2-1、A2-2、A2-3 已合；采用线 2026-10-20 交接，换包 #887 已合，接续见 spec 开头的「交接（2026-10-20）」与 BL-301～309。
 - [context-program](context-program/spec.md)：情境动作完整总纲与分期；W0 原型已实操；W1、W2（浮条取代底栏、Pages 迁移）已在交接分支 #411 里通过工程用例，未验收。接续入口见第 20 节「远端交接」。
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
@@ -24,6 +24,7 @@
 - [issue-home-v0](issue-home-v0/spec.md)：个人 Home 的 Issue 插件；补齐 Home Runtime 与插件 SQLite 服务，接通页面、助理和 MCP。
 - [goal-closure-identity](goal-closure-identity/spec.md)：完成前的「必须你点头」接到真实检查（授权和接受要求都只对当时的约定和那一轮工作有效）；管理入口固定记本机这个人；决策工具 schema 不再要求 `actor_id`；这些 typed 入口插件够不到（`host_only`）。
 - [repository-anti-corruption](repository-anti-corruption/spec.md)：系统性代码与架构防腐整理（防腐收尾第二步）。
+- [repository-cleanup](repository-cleanup/spec.md)：2026-10-20 审计后的系统清理——死代码、边界、重复实现；先等当前 PR 波次合入，按 hold 清单分批做，只删确认无主的代码。需求已整理，尚未实现。
 - [artifact-positioning](artifact-positioning/spec.md)：Artifact 定位与动线梳理，所有插件统一进同一个壳子。
 - [coding-quality-assurance](coding-quality-assurance/spec.md)：Coding 质量保证（已定方向，防腐收尾后做）。2026-10-18 补充多代理 PR 评审、置信分、安全评审、真人批准门、有界迭代与对抗验证。
 - [risk-plugin](risk-plugin/spec.md)：专门记录风险的插件（风险已移出 Goals）。

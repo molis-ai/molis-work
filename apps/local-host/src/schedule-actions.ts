@@ -1,5 +1,5 @@
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createReminderActionHandlers, createScheduleActionHandlers, createScheduleActionPorts, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
+import { createReminderActionHandlers, createScheduleActionHandlers, createScheduleActionPorts, REMINDER_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID, SCHEDULE_REMINDER_PROVIDER_ID, scheduleManifest } from "@molis-ai/molis-work-plugin-schedule";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { scheduleServiceFor } from "./schedule-runtime.js";
 import { hostScheduleReminders, hostScheduleReminderManagement } from "./schedule-reminders.js";
@@ -20,6 +20,14 @@ export function scheduleActionProvider(runtime: MolisWorkProjectRuntime, readine
       reminders: hostScheduleReminderManagement({ db: runtime.store.db, projectId: runtime.project_id, schedule }),
       readiness: () => scheduledTaskReadiness({ ...readiness, projectId: runtime.project_id }) })),
   };
+}
+
+/**
+ * The plugin whose tables a provider reads and writes: its own `plugin_id`, or Schedule's for the two system providers that keep
+ * reminders and scheduled operations in Schedule's tables. A refused Schedule takes those out with its own actions (S-46).
+ */
+export function providerTablesOwner(provider: ActionProviderRegistration["provider"]): string | undefined {
+  return provider.plugin_id ?? ([SCHEDULE_REMINDER_PROVIDER_ID, SCHEDULE_OPERATION_PROVIDER_ID].includes(provider.provider_id) ? scheduleManifest.plugin_id : undefined);
 }
 
 /** Common reminders existed without the optional conversation UI; moving the owner must not add a hidden enablement grant. */

@@ -235,17 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 25, hover-only actions (VUX-06).
-// +789 B of workbench.css (+252 B settings, +146 B arrival): twelve actions a row showed only on hover now also show on a
-// device without hover (`@media (hover: none)`) and, where they did not, on keyboard focus (`:focus-within`): file rows,
-// directory-row and Shelf ops, Pages folder, row and code-copy actions and sizing handles, Jelly block tools, Coding's
-// chevron, the studio's inspect. +53 B of workbench.js: a tab declares Delete as its close key. Each is added on the line of
-// the rule it extends; nothing could be removed in its place. Spent once from exactly the tooltip slice's budgets (#906).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 26, sizing by keys (VUX-06).
+// +1,580 B of the Pages editor: Mod-Alt-Shift-← and → size the selected image, table column or layout column the caret is
+// in through the handles' own commands, and the handles name the keys. Tried first: one command for all three, written
+// compactly, since this bundle keeps its identifiers (2,378 → 1,580 B). Spent once from exactly the hover slice's budget (#907).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1162964, 1163017],
-  "/assets/molis-work-workbench.css": [1607967, 1608756],
-  "/assets/molis-work-settings.css": [991992, 992244],
-  "/assets/molis-work-arrival.css": [702287, 702433],
+  "/assets/molis-work-pages-editor.js": [707306, 708886],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

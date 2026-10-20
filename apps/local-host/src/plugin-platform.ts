@@ -58,7 +58,7 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
  * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
  * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files"> {
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files" | "dual_instance"> {
   readonly database?: PluginDatabaseDeclaration;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
@@ -144,8 +144,10 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
+  // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(pluginInstallRecords(options.db), executor,
-    { actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
+    { redemption: definition => ({ partial: identity.dualInstance(definition) }),
+      actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],

@@ -63,11 +63,23 @@ test("W5-01-SHM-01 JSON decode and provider failures retain their actual complet
   }
 });
 
+// BL-355: fifty is the limit, not past it. The Host's own inference has its case (prologue-inference-images); this one goes through the plugin model service.
+test("W5-01-SHM-01 fifty images are one call: the plugin model service sends every one, in order", { timeout: 60_000 }, async t => {
+  const f = await modelRuntimeFixture(t);
+  const pictures = Array.from({ length: 50 }, (_, index) => Buffer.concat([png, Buffer.from([index])]));
+  await f.result({ images: pictures.map(bytes => ({ bytes })) });
+  assert.equal(f.requests.length, 1);
+  assert.deepEqual(f.sources.map(source => source.bytes), pictures);
+  const sent = JSON.stringify(f.requests[0]);
+  for (const bytes of pictures) assert.equal(sent.split(bytes.toString("base64")).length - 1, 1, "each image reaches the model exactly once");
+  await f.assertClean();
+});
+
 test("W5-01-SHM-01 false images, byte limits and nonvision models refuse without dispatch or invented receipts", { timeout: 60_000 }, async t => {
   const f = await modelRuntimeFixture(t);
   for (const request of [
     { images: [{ bytes: Buffer.from("not an image") }] },
-    { images: Array.from({ length: 31 }, () => ({ bytes: png })) },
+    { images: Array.from({ length: 51 }, () => ({ bytes: png })) },
     { images: [{ bytes: new Uint8Array(32 * 1024 * 1024 + 1) }] },
     { images: [{ bytes: png }], selection: { ...f.selection, model_id: "text" } },
   ]) {

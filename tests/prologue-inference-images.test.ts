@@ -7,13 +7,18 @@ import test from "node:test";
 import { createPrologueNodeAdapter, isDispatchRefusal, type PrologueTextInput } from "@molis-ai/molis-work-service-agent-host";
 
 const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=", "base64");
+// The request body the fixture model received: Anthropic image blocks carry the base64 in source.data, OpenAI ones in a data URL.
+type SentBlock = { type: string; source?: { data: string }; image_url?: { url: string } };
+type SentBody = { tools?: unknown; messages: { content: SentBlock[] }[] };
+const sentImages = (sent: SentBody | undefined) => (sent?.messages.at(-1)?.content ?? []).filter(block => block.type === "image" || block.type === "image_url")
+  .map(block => (block.type === "image" ? block.source?.data : block.image_url?.url.split(",")[1]) ?? "");
 async function fixture(run: (f: {
   home: string; root: string; storage: string; adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>>;
-  requests: any[]; input: (extra?: Partial<PrologueTextInput>) => PrologueTextInput; staged: () => Promise<string[]>;
+  requests: SentBody[]; input: (extra?: Partial<PrologueTextInput>) => PrologueTextInput; staged: () => Promise<string[]>;
 }) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "inference-images-")), root = join(home, "source"), storage = join(home, "runtime");
   await mkdir(root); await writeFile(join(root, "one.png"), png);
-  const requests: any[] = [];
+  const requests: SentBody[] = [];
   const server = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const body = JSON.parse(Buffer.concat(chunks).toString()); requests.push(body);
@@ -52,12 +57,27 @@ test("original images use both Prologue protocols, preserve source/order and rel
     const result = await f.adapter.inference.completeTextResult(request);
     assert.equal(result.value, "image result"); assert.equal(result.state, "completed"); assert.equal(result.run_ref.kind, "run");
     assert.deepEqual(result.reportedModels, ["reported-vision"]); assert.equal(result.usage[0]?.input.tokens, 12);
-    const sent = f.requests.at(-1); assert.equal(sent.tools, undefined);
-    const blocks = sent.messages.at(-1).content;
-    const images = blocks.filter((block: any) => block.type === "image" || block.type === "image_url").map((block: any) =>
-      block.type === "image" ? block.source.data : block.image_url.url.split(",")[1]);
-    assert.deepEqual(images.map((value: string) => Buffer.from(value, "base64")), [png, gif, png]);
+    const sent = f.requests.at(-1); assert.ok(sent); assert.equal(sent.tools, undefined);
+    assert.deepEqual(sentImages(sent).map(value => Buffer.from(value, "base64")), [png, gif, png]);
     assert.deepEqual(await f.staged(), []); assert.deepEqual(await readFile(join(f.root, "one.png")), png);
+  }
+}));
+
+// BL-355: the vendored Prologue's placeholders had no end, so "…-1" was the start of "…-10" and every call from the 11th image on was refused whole.
+test("50 original images from one folder are one call: each reaches the model exactly once, in order", { timeout: 60_000 }, async () => fixture(async f => {
+  const pictures = Array.from({ length: 50 }, (_, index) => Buffer.concat([png, Buffer.from([index])]));
+  for (const [index, bytes] of pictures.entries()) await writeFile(join(f.root, `${index}.png`), bytes);
+  for (const protocol of ["openai-compatible", "anthropic-compatible"]) {
+    const request = f.input({ protocol, images: pictures.map((_, index) => ({ root_path: f.root, relative_path: `${index}.png` })) });
+    if (protocol === "anthropic-compatible") request.endpoint = request.endpoint.replace("/chat/completions", "/messages");
+    const before = f.requests.length;
+    const result = await f.adapter.inference.completeTextResult(request);
+    assert.equal(result.state, "completed"); assert.equal(f.requests.length, before + 1);
+    const sent = f.requests.at(-1), body = JSON.stringify(sent); assert.ok(sent);
+    assert.equal(body.includes("PROLOGUE-ATTACHMENT-"), false);
+    assert.deepEqual(sentImages(sent).map(value => Buffer.from(value, "base64")), pictures);
+    for (const bytes of pictures) assert.equal(body.split(bytes.toString("base64")).length - 1, 1);
+    assert.deepEqual(await f.staged(), []);
   }
 }));
 
@@ -76,12 +96,12 @@ test("intake rejects false image types, path escapes, symlinks, count and byte l
     await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: [{ root_path: f.root, relative_path: "one.png" }, { root_path: f.root, relative_path }] })));
     assert.deepEqual(await f.staged(), []); assert.equal(f.requests.length, 0);
   }
-  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 31 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "agent.inference.image_limit" });
+  await assert.rejects(f.adapter.inference.completeTextResult(f.input({ images: Array.from({ length: 51 }, () => ({ root_path: f.root, relative_path: "one.png" })) })), { code: "agent.inference.image_limit" });
   assert.equal(f.requests.length, 0);
   // The size boundary is checked on bytes, independently of external image quality/decoding.
   await writeFile(join(f.root, "large.png"), tooLarge.subarray(0, 32 * 1024 * 1024));
   await f.adapter.inference.completeTextResult(f.input({ images: [{ root_path: f.root, relative_path: "large.png" }] }));
-  assert.equal(Buffer.from(f.requests[0].messages[0].content.find((part: any) => part.type === "image_url").image_url.url.split(",")[1], "base64").length, 32 * 1024 * 1024);
+  assert.deepEqual(sentImages(f.requests[0]).map(value => Buffer.from(value, "base64").length), [32 * 1024 * 1024]);
   assert.deepEqual(await f.staged(), []);
 }));
 

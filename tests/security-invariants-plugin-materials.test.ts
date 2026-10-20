@@ -124,26 +124,33 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
 });
 
 // S-39 on every platform: the materials client the Runtime gives a plugin (`createPluginMaterialsClient`, bound to this installation's
-// running action and grants), around a port that waits where the Host's native helper would. The cases after this drive the Host's
-// own speech helper, which only macOS has, and are listed under 「只在本机跑」.
-for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
-  test(`S-39 RAC-27 ${invalidation} while material extraction waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
+// running action and grants), around a port that waits where the Host's native helper would. `extract` and the document batch
+// (`readDocuments`, PG-050) both run through it. The cases after this drive the Host's own speech helper, which only macOS has, and
+// are listed under 「只在本机跑」.
+for (const method of ["extract", "readDocuments"] as const) for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
+  test(`S-39 RAC-27 ${invalidation} while ${method === "extract" ? "material extraction" : "a document batch read"} waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
     const probe = materialsProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
     const { platform, install } = await grantMaterials(host, probe);
     const entered = deferred(), release = deferred(), over = deferred(), abort = new AbortController();
-    let extracted = false, handed = false;
+    let waited = false, handed = false;
+    const wait = async (options: { beforeEffect(): Promise<void> }) => { await options.beforeEffect(); entered.resolve(); await release.promise; waited = true; };
     probe.behavior.read = async (context, caller) => {
       const materials = createPluginMaterialsClient(probe.definition.manifest, {
         extract: async (_source, options) => {
-          await options.beforeEffect(); entered.resolve(); await release.promise; extracted = true;
+          await wait(options);
           return { text: "late material", extractor: "waiting-port", pages: [], coverage: { status: "sufficient" as const, processed_pages: 0, total_pages: 0, issues: [] } };
         },
         readSource: () => Promise.reject(new Error("not read here")),
-        readDocuments: () => Promise.reject(new Error("not read here")),
+        readDocuments: async (_files, options) => {
+          await wait(options);
+          return { documents: [{ name: "late.md", format: "markdown" as const, content: "late material", coverage: { status: "sufficient" as const, issues: [] } }], warnings: [] };
+        },
       }, { install_id: context.install_id, assertActive: () => { context.services!.storage!.get("authority"); }, requireGrant: permission => context.requireGrant(permission) });
       try {
-        const result = await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") });
-        handed = true; await caller.beforeEffect(); context.services!.storage!.set("late", result.text); return result;
+        const text = method === "extract"
+          ? (await materials.extract!({ file_name: "speech.wav", bytes: Buffer.from("media fixture") })).text
+          : (await materials.readDocuments!([{ file_name: "late.md", data_base64: Buffer.from("late material").toString("base64") }])).documents[0]!.content;
+        handed = true; await caller.beforeEffect(); context.services!.storage!.set("late", text); return text;
       } finally { over.resolve(); }
     };
     const pending = host.homeActionClient().invoke({ ...person(probe.permissions), signal: abort.signal }, probe.read, {});
@@ -163,7 +170,7 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
       }
     } finally { release.resolve(); }
     await over.promise; await refused;
-    assert.equal(extracted, true, "the port finished: what is refused is its result");
+    assert.equal(waited, true, "the port finished: what is refused is its result");
     assert.equal(handed, false);
     if (invalidation === "stop" || invalidation === "revoke") await platform.supervisor.restart(probe.id);
     assert.equal(replacement.contexts.at(-1)!.services!.storage!.get("late"), null);

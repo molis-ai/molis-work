@@ -91,7 +91,7 @@ const CRAFT_BASE_STYLES = `
     ${SHELL} .tab-workspace[data-exclusive] .tab-workspace-exclusive { inset: 0 var(--sheet-inset) 0 0; }
     ${SHELL} .tab-workspace-panes > .tab-pane.is-focused { box-shadow: var(--sheet-shadow); }
     /* Split panes: the focused one carries a copper hint so typing lands where you expect. */
-    ${SHELL} .tab-workspace-panes:has(> .tab-pane + .tab-pane) > .tab-pane.is-focused {
+    ${SHELL} .tab-workspace[data-split] .tab-workspace-panes > .tab-pane.is-focused {
       box-shadow: var(--sheet-shadow), 0 0 0 1px color-mix(in srgb, var(--accent) 38%, transparent);
     }
     /* The directory sits on the desk; one hair of desk separates it from the sheet. */
@@ -314,7 +314,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .bar-start .personal-sidebar-footer { display: contents; }
   ${SHELL} .account-global-menu { position: relative; flex: none; }
   ${SHELL} .account-global-trigger::-webkit-details-marker { display: none; }
-  ${SHELL} .account-global-menu:not([open]):has([data-market-update-count]:not([hidden])) > .account-global-trigger::after {
+  ${SHELL} .account-global-menu:not([open])[data-market-updates] > .account-global-trigger::after {
     content: ""; position: absolute; top: 8px; right: 8px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   ${SHELL} .account-global-popover {
@@ -506,7 +506,7 @@ const CRAFT_BASE_STYLES = `
   ${SHELL} .plugin-picker-all { display: none; }
   ${SHELL} .plugin-picker-all svg { width: 20px; height: 20px; stroke-width: 1.6; }
   ${SHELL} .bar-start .plugin-picker-trigger { height: var(--dock-btn, 38px); position: relative; }
-  ${SHELL} .plugin-picker:has([data-market-update-count]:not([hidden])) > .plugin-picker-trigger::after {
+  ${SHELL} .plugin-picker[data-market-updates] > .plugin-picker-trigger::after {
     content: ""; position: absolute; top: 7px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
   }
   /* The head: search, and beside it the two ways to get more plugins — the market and the studio — as buttons, not rows among

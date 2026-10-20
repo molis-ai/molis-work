@@ -235,15 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/project-knowledge (2026-10-19, each under the 10 KB the user lets review admit, AGENTS.md): the 项目资料 settings page
-// styles (+6.6 KB, in both sheets, as the model and memory settings are, since the settings cover renders in the workbench), the
-// shared picker's (+1.9 KB) and the side panel's import dialog in the workbench sheet; +881 B of workbench.js for the side
-// panel's 资料 tab and the Assistant's ＋ entry, net of the 成果库 import dialog it removed, and the dialog-aware Escape and searching state of the 10-19 review. Each is spent once from exactly
-// main's budget; the outcome slot's spent start (workbench.js 1,130,033) is refused, like every spent start before it.
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): +591 B of workbench.js so that one press
+// on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36: the side panel's context and the
+// segmented thumbs read once per frame, scroll memory reads only what scrolled, the market's dot is a mark instead of a
+// :has() over the whole switcher). Tried first: comments moved out of the shipped strings, the thumbs' read/write split
+// dropped for frame coalescing alone (+868 → +591). Spent once from exactly main's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1128644, 1129525],
-  "/assets/molis-work-workbench.css": [1593165, 1603154],
-  "/assets/molis-work-settings.css": [982397, 988933],
+  "/assets/molis-work-workbench.js": [1129525, 1130116],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

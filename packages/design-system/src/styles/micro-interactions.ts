@@ -145,7 +145,8 @@ export function segmentThumbOffsets(
   };
 }
 
-/** Measures the three travelling marks. Absent, every surface keeps its static presentation. */
+/** Measures the three travelling marks. Absent, every surface keeps its static presentation. A changed mark is measured in
+ * the next frame, once however many changes a click made, not in the click itself. */
 export const MICRO_INTERACTION_CLIENT_SCRIPT = `
 (() => {
   const SEGMENTED = ${JSON.stringify(SEGMENTED)};
@@ -198,10 +199,13 @@ export const MICRO_INTERACTION_CLIENT_SCRIPT = `
     list.setAttribute("data-search-glide", "");
   };
 
+  const pending = new Map();
+  const flush = () => { for (const [node, sync] of pending) { pending.delete(node); sync(node); } };
+  const request = (node, sync) => { if (!pending.size) requestAnimationFrame(flush); pending.set(node, sync); };
   const watch = (node, sync, attributeFilter) => {
     if (tracked.has(node)) return;
     tracked.add(node);
-    new MutationObserver(() => sync(node)).observe(node, { subtree: true, childList: true, attributes: true, attributeFilter });
+    new MutationObserver(() => request(node, sync)).observe(node, { subtree: true, childList: true, attributes: true, attributeFilter });
     sync(node);
   };
 

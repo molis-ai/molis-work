@@ -41,13 +41,17 @@ export const SYSTEM_TABS_FACTORY = String.raw`({getState,ops,apply,persist,close
   return {root,sync};
 }`;
 
-/** Scroll positions belong to the existing view, including when it is pooled between tab visits. */
+/** Scroll positions belong to the existing view, including when it is pooled between tab visits. Only what has scrolled is
+ * read: asking every descendant measured the page on each switch of plugin. */
 export const SCROLL_MEMORY_FACTORY = String.raw`()=>{
   const scrollMemory = new WeakMap();
+  const scrolled = new Set();
+  document.addEventListener("scroll", (event) => { if (event.target?.nodeType === 1) scrolled.add(event.target); }, { capture: true, passive: true });
   const rememberScroll = (node) => {
     const offsets = [];
-    for (const element of [node, ...node.querySelectorAll("*")]) {
-      if (element.scrollTop > 0 || element.scrollLeft > 0) offsets.push([element, element.scrollTop, element.scrollLeft]);
+    for (const element of scrolled) {
+      if (!element.isConnected) scrolled.delete(element);
+      else if (node.contains(element) && (element.scrollTop > 0 || element.scrollLeft > 0)) offsets.push([element, element.scrollTop, element.scrollLeft]);
     }
     if (offsets.length) scrollMemory.set(node, offsets); else scrollMemory.delete(node);
   };

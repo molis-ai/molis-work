@@ -23,9 +23,11 @@ export const CLIENT_EVENTS_PRIMARY_SCRIPT = `        changed.removeAttribute("ar
       resizeStartX = clientX;
       resizeStartWidth = treePane.getBoundingClientRect().width;
       treeResizer.classList.add("is-dragging");
+      workspace.classList.add("is-tree-resizing");
     };
     const stopTreeResize = () => {
       treeResizer?.classList.remove("is-dragging");
+      workspace.classList.remove("is-tree-resizing");
       saveUiState();
     };
     treeResizer?.addEventListener("pointerdown", (event) => {

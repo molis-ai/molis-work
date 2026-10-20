@@ -670,6 +670,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1129841],
   // The outcome slot's +442 B (#789 with #803) is spent; main's budget has since fallen below its start.
   ["/assets/molis-work-workbench.js", 1130033],
+  // The project-knowledge allowances (#839) are spent.
+  ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -682,31 +684,30 @@ for (const [asset, old] of [
   });
 }
 
-// specs/project-knowledge (2026-10-19): the 项目资料 styles and the side panel's 资料 tab may grow these three once, each
-// from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from the new
-// baseline still fails.
-test("PMAT the project-knowledge allowances are bounded and spent once; other assets and later growth still fail", () => {
-  const allowed = { "/assets/molis-work-workbench.js": [1128644, 1129525], "/assets/molis-work-workbench.css": [1593165, 1603154],
-    "/assets/molis-work-settings.css": [982397, 988933] } as const;
+// specs/visual-ui-experience (2026-10-19): one press on the plugin switcher stops measuring the page inside the click; the
+// workbench script may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset,
+// or growth from the new baseline still fails.
+test("VUX-36 the plugin-switch allowance is bounded and spent once; other assets and later growth still fail", () => {
+  const allowed = { "/assets/molis-work-workbench.js": [1129525, 1130116] } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
-  branch("pmat-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
-  git("checkout", "-q", "-B", "pmat-change");
+  branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
+  git("checkout", "-q", "-B", "vux-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];
-  assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  assert.equal(gate("--base", "pmat-base").code, 0);
+  assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  assert.equal(gate("--base", "vux-base").code, 0);
   for (const asset of assets) {
     sizes[asset]++;
-    assert.equal(gate("--update", "--base", "pmat-base").code, 1, `${asset}: one byte over its allowance`);
+    assert.equal(gate("--update", "--base", "vux-base").code, 1, `${asset}: one byte over its allowance`);
     sizes[asset]--;
   }
   sizes["/assets/a.css"]++;
-  assert.equal(gate("--update", "--base", "pmat-base").code, 1, "other assets stay frozen");
-  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "pmat-base").code, 0);
-  commit("freeze the measured project-knowledge sizes"); git("branch", "-f", "pmat-frozen");
+  assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
+  sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
+  commit("freeze the measured plugin-switch size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
-    assert.equal(gate("--base", "pmat-frozen").code, 1, `${asset}: the new baseline has no allowance`);
-    assert.equal(gate("--update", "--base", "pmat-frozen").code, 1);
+    assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);
+    assert.equal(gate("--update", "--base", "vux-frozen").code, 1);
     sizes[asset]--; putBudget(sizes);
   }
 });

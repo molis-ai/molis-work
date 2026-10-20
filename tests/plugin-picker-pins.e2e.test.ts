@@ -303,6 +303,8 @@ test("DOCK-08 Feed comes in place: its pages fill, its source directory joins th
     // Its page: the entry opens Feed.
     await click(`${tile("feed")} > .plugin-rail-item`);
     await waitFor("document.body.dataset.desktopSurface === 'feed' && !document.querySelector('[data-work-surface=\"feed\"]').hidden");
+    // Choosing closes the switcher in the next frame; open it again only after that, as a person would.
+    await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
     await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
     await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
     // Taking it away: asked once, then in place; the pane that showed it goes back, the directory loses the section.

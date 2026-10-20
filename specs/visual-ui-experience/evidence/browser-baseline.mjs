@@ -115,8 +115,12 @@ async function main() {
     // A plugin not kept in the Dock is reached through the switcher's list, as a person would.
     const point = await evaluate(`(async () => { let el = document.querySelector(${JSON.stringify(link)});
       if (!el.getClientRects().length) { document.querySelector('[data-plugin-picker-toggle]')?.click(); await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))); el = document.querySelector(${JSON.stringify(link)}); }
-      const box = el.getBoundingClientRect(); return { x: box.x + box.width / 2, y: box.y + box.height / 2, w: box.width }; })()`);
-    assert.ok(point.w > 0, `${id}: entry is not reachable`);
+      // The switcher opens with motion: measure where the entry comes to rest, or the press lands beside it.
+      await Promise.all(document.getAnimations().filter(a => Number.isFinite(a.effect?.getComputedTiming().endTime)).map(a => a.finished.catch(() => {})));
+      const box = el.getBoundingClientRect(), x = box.x + box.width / 2, y = box.y + box.height / 2;
+      return { x, y, w: box.width, lands: el.contains(document.elementFromPoint(x, y)) }; })()`);
+    assert.ok(point.w > 0 && point.lands, `${id}: entry is not reachable`);
+    delete point.lands;
     const started = performance.now();
     await command('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await command('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });

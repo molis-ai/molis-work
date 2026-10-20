@@ -20,10 +20,11 @@ test("S-18 RAC-39 model display metadata follows current configuration without c
     t.mock.method(secrets, "get", () => { reads++; throw new Error("discovery must not read credentials"); });
     t.mock.method(globalThis, "fetch", async () => { requests++; throw new Error("discovery must not make requests"); });
     const model = probe.contexts.at(-1)!.services!.model!;
-    assert.deepEqual(model.availability(), { available: true, runtime_label: "Prologue · Readable provider · first-model" });
+    assert.deepEqual(model.availability(), { available: true, runtime_label: "Prologue · Readable provider · first-model", vision: false });
     const initial = catalog.models.get("metadata")!;
-    catalog.models.upsert({ ...initial, display_name: "Renamed provider", models: initial.models.map(row => ({ ...row, enabled: row.model_id === "second-model" })) });
-    assert.deepEqual(model.availability(), { available: true, runtime_label: "Prologue · Renamed provider · second-model" });
+    // ISSUE-50: whether the model in use reads images is display metadata too, so a plugin knows when to attach screenshots.
+    catalog.models.upsert({ ...initial, display_name: "Renamed provider", models: initial.models.map(row => ({ ...row, enabled: row.model_id === "second-model", vision: row.model_id === "second-model" })) });
+    assert.deepEqual(model.availability(), { available: true, runtime_label: "Prologue · Renamed provider · second-model", vision: true });
     catalog.models.upsert({ ...catalog.models.get("metadata")!, enabled: false });
     assert.equal(model.availability().available, false); assert.equal(model.availability().runtime_label, undefined);
     catalog.models.upsert({ ...catalog.models.get("metadata")!, enabled: true });

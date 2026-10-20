@@ -1,5 +1,6 @@
 /** The agent-host contract (`services/agent-host`): what a run asks a person to review, and the review queue. */
 import type { AgentRunRef } from "./agent-host-runtime.js";
+import type { AgentWriteCheckNote } from "./agent-host-write-checkers.js";
 
 export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
 
@@ -35,6 +36,8 @@ export interface AgentCommandReviewDocument {
   background?: boolean;
   /** A background command that keeps running after the round ends, until it ends or is stopped. */
   outlives_run?: boolean;
+  /** The person's after-write check this command is: which checker, from which version of its workspace's list. */
+  after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
 
 export interface AgentCommandGrants {

@@ -31,7 +31,7 @@
 | PR | 分支 @ 头提交 | 内容 | 还差什么 |
 | --- | --- | --- | --- |
 | [#777](https://github.com/molis-ai/molis-work/pull/777) | `claude/handbook-coding-run` @ `b2d69387d` | §9.5「Coding 小跑结果」：holdFinish 不设；BL-176 那行改为指向 prologue#53。只改文档 | 已合入 `8b9df4e7a` |
-| [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | ⑤ 的评审在看第 08 项。8 个浏览器用例改了没在本机跑（10-19 起这台机器暂停浏览器用例，PR 里写明了） |
+| [#819](https://github.com/molis-ai/molis-work/pull/819) | `claude/bl149-issue-naming` @ `5a8a6fa51` | BL-149：Issue 自己起标题，不再经助理（`specs/issue-home-v0/spec.md` ISSUE-50～53） | 已合入 `c679dc172`。8 个浏览器用例改了没在本机跑（10-19 起这台机器暂停浏览器用例，PR 里写明了） |
 | [#825](https://github.com/molis-ai/molis-work/pull/825) | `claude/qa-021-rac-trace` @ `65275d89e` | 修 QA-021：防腐的 RAC-44、55、60 逐部分指向证明 | 已合入 `202625fde` |
 | [prologue#53](https://github.com/molis-ai/prologue/pull/53) | `fix/ask-user-answered-key` @ `b0858ea5b` | `ask-user` 答过的结果不再用 `pending` 键（BL-176） | 统筹评审过，可合；最后一个提交是 ⑤ 推的。按约定，等某次换 Prologue 包把它带上再合。[#814](https://github.com/molis-ai/molis-work/pull/814) 换到的是 `a51607fb`，不含它；下一次换包还没人领 |
 

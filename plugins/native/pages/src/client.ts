@@ -4,8 +4,8 @@ import { PAGES_LANDING_CLIENT_SCRIPT } from "./landing-client.js";
 
 /** Pages workbench client: library, autosave, ProseMirror host. */
 export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const { translate: L } = host;
-  if (host.side) return window.MolisWorkPagesEditor.mountComments({ ...host, controlHeaders: molisWorkControlHeaders });
+  const { translate: L } = host, api = "/api/plugins/io.molis.work.pages/pages";
+  if (host.side) return window.MolisWorkPagesEditor.mountComments({ ...host, api, controlHeaders: molisWorkControlHeaders });
   const bench = document.querySelector("[data-pages=workbench]");
   if (!bench) return;
   const el = (s) => bench.querySelector(s), els = (s) => bench.querySelectorAll(s);
@@ -73,7 +73,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!id) throw new Error(L("缺少项目"));
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
-  const pageUrl = (id, tail) => "/api/plugins/pages/" + encodeURIComponent(id) + (tail || "");
+  const pageUrl = (id, tail) => api + "/" + encodeURIComponent(id) + (tail || "");
   const request = async (method, path, body, more) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(route(withProject(path)), {
@@ -622,7 +622,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadList = async () => {
     const seq = ++listSeq;
-    const payload = await request("GET", "/api/plugins/pages");
+    const payload = await request("GET", api);
     if (seq !== listSeq) return;
     records = payload.documents || [];
     folders = payload.folders || [];
@@ -751,7 +751,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (sel && (saveTimer || dirty)) await persist();
     if (editorEpoch !== epoch) return;
     const left = blankLeaving();
-    const payload = await request("POST", "/api/plugins/pages", body || {});
+    const payload = await request("POST", api, body || {});
     if (!body || !(body.template_id || body.body || body.title)) fresh.set(payload.document.id, { title: payload.document.title, version: payload.document.version });
     storeDocument(payload.document); placed({ verb: "created", title: payload.document.title || L("无标题"), object: { kind: "pages_document", id: payload.document.id } });
     await loadList();
@@ -925,7 +925,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!folder) return;
         const title = await askName(L("文件夹名称"), folder.title);
         if (title == null) return;
-        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(folder.id), { title });
+        await request("POST", api + "/folders/" + encodeURIComponent(folder.id), { title });
         await loadList();
         return;
       }
@@ -936,7 +936,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!ok) return;
         const id = folderDelete.dataset.pagesFolderDelete;
         if (sel?.folder_id === id) await saveOpen(sel.id);
-        await request("POST", "/api/plugins/pages/folders/" + encodeURIComponent(id) + "/delete", {});
+        await request("POST", api + "/folders/" + encodeURIComponent(id) + "/delete", {});
         await loadList();
         return;
       }
@@ -957,7 +957,7 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
         closeCreate();
         const title = await askName(L("文件夹名称"), "");
         if (title == null) return;
-        await request("POST", "/api/plugins/pages/folders", { title });
+        await request("POST", api + "/folders", { title });
         await loadList();
         return;
       }

@@ -209,7 +209,10 @@ test("Agent tool declarations preserve provider deadlines within the Agent ceili
   const tools = service.discover(context);
   const actions = { tools, client: { discover: () => service.discover(context), invoke: (ref: ExactActionReference, input: unknown, signal?: AbortSignal) => service.invoke({ ...context, signal }, ref, input) } };
   const projected = prologueActionTools(actions, 60_000);
-  assert.deepEqual(projected.pack.tools!.map(tool => tool.registration.timeoutMs), [2_000, 60_000, 60_000]);
+  const [checks, declared] = [projected.pack.tools!.filter(tool => tool.afterWriteCheck === true), projected.pack.tools!.filter(tool => tool.afterWriteCheck !== true)];
+  assert.deepEqual(declared.map(tool => tool.registration.timeoutMs), [2_000, 60_000, 60_000]);
+  // The pack also carries exactly one after-write check, optional, a read, answered only where the round gives its executor (specs/prologue-adoption §6.0p.12).
+  assert.deepEqual(checks.map(tool => [tool.registration.name, tool.optional, tool.registration.effectKind]), [["molis-after-write-" + projected.scope, true, "safe-read"]]);
   // PA-22: a read only when both say so (specs/prologue-adoption §2 item 4): the runtime may start a read before the model has
   // finished speaking, so a query that declares a write, and any command, go through the change path.
   const writes: ActionDefinition = { ...definitions[0]!, capability_id: 'arbitrary.writes', action: { ...definitions[0]!.action, effect: 'write' } };

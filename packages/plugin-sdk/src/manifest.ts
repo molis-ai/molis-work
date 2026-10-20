@@ -5,6 +5,7 @@ import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
+import { databaseDeclarationProblems } from "./database-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
@@ -67,6 +68,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       throw pluginErrors.permission_invalid("只有 surface:browser 可以列出 origins");
     }
   }
+  const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
+  if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
   strings(capabilities.consumes, "capabilities.consumes");

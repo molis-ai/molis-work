@@ -91,6 +91,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
+  /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
+  readonly read_only_effects?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -379,17 +381,23 @@ export interface ActionSceneBinding {
   readonly revision?: string;
 }
 
+/** Active scene callback control, issued by the Kernel; no action declaration or background authority is implied. */
+export interface ActionSceneExecutionContext extends ActionCallContext {
+  /** Recheck the original scene, judgment, permissions and caller after each wait and before committing an effect. */
+  beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
   readonly scene_id: string;
   readonly version: number;
   bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
   targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
   /** Must write through the authoritative owner; when options are supplied, atomically reject a stale expected_revision. */
-  bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+  bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
   prepare?(context: ActionCallContext, event: unknown): { input: unknown; state?: unknown } | Promise<{ input: unknown; state?: unknown }>;
-  consume(context: ActionCallContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   /** Optional explicit failure consumption, after the same stale-state and authority checks. */
-  failed?(context: ActionCallContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
   /** Configuration-only availability must not depend on execution/model grants. */
   configuration_availability?(context: ActionCallContext): ActionAvailability;
@@ -506,14 +514,21 @@ export function actionPermissionDeclarations(definitions: readonly ActionDefinit
 function object(v: unknown): v is Record<string, unknown> { return !!v && typeof v === "object" && !Array.isArray(v); }
 function text(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0; }
 function id(v: unknown): v is string { return text(v) && /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(v); }
+/**
+ * A provider id is only ever matched exactly against the directory, and the platform makes ids that follow no one alphabet: an external
+ * MCP server's is `system.connectors#mcp:<connection>` or `<plugin_id>#mcp:<server>`, with the server's own id in it. What is refused is
+ * what no provider can be named: a blank id, a control character, or one longer than any the platform makes.
+ */
+const PROVIDER_ID_LIMIT = 512;
+function providerId(v: unknown): v is string { return typeof v === "string" && v.trim().length > 0 && v.length <= PROVIDER_ID_LIMIT && !/\p{Cc}/u.test(v); }
 function version(v: unknown): v is number { return typeof v === "number" && Number.isSafeInteger(v) && v > 0; }
 
-/** Exact selections do not grant permission; the action service checks live authority. */
+/** Exact selections do not grant permission; the action service checks live authority, so a wider provider id reaches no new provider. */
 export type ExactActionReference = ActionReference & { readonly provider_id: string };
 export function parseExactActionReferences(value: unknown): ExactActionReference[] {
   if (!Array.isArray(value) || value.length > 100) throw new ActionError("actions.reference_invalid", "Invalid action selection or more than 100 actions");
   const refs = value.map(item => {
-    if (!object(item) || !id(item.capability_id) || !version(item.version) || !id(item.provider_id)) {
+    if (!object(item) || !id(item.capability_id) || !version(item.version) || !providerId(item.provider_id)) {
       throw new ActionError("actions.reference_invalid", "An action selection requires its exact identity, version and provider");
     }
     return { capability_id: item.capability_id, version: item.version, provider_id: item.provider_id };

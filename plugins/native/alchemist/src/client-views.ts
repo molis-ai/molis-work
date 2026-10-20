@@ -26,7 +26,7 @@ el.querySelectorAll('details[data-alc-group]').forEach(d=>{if(folded.has(d.datas
 const waiting=id=>jobs.some(j=>j.jobId===id&&!j.accepted);
 const stopButton=(label,id)=>button(label,'cancel',false,'data-job="'+esc(id)+'"');
 const resumeButton=j=>j&&!j.accepted?button('查看继续条件','continue-job',false,'data-job="'+esc(j.jobId)+'"'):'';
-const pulseActions=r=>button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(r?status(r.status)+(active(r.status)&&!waiting(r.jobId)?stopButton('停止',r.jobId):''):'');
+const pulseActions=r=>button('采集市场信号','pulse-start',true)+button('来源设置','sources')+(r?status(r.status)+(active(r.status)?stopButton('停止',r.jobId):''):'');
 function paintDir(d){
 const runs=data.explorations.filter(e=>e.directionId===d.id),run=runs[0],ok=!noRun(run);ctx={kind:'direction',directionId:d.id,label:d.title};target=null;
 setTitle(d.title); mainEl.innerHTML=paraHtml(d.description)+(run&&ok?'<div class="alc-progress">'+status(waiting(run.jobId)?'waiting':run.status)+'<span>'+esc(run.runtimeLabel)+'</span></div>':'')+(run?.errorCode&&ok?'<p class="alc-warning">'+tx('这次炼化未完成，方向已保存。检查模型后可重新炼化。')+' '+esc(run.errorCode)+'</p>':'')+(run?.understanding?section('对方向的理解',run.understanding.summary)+section('待验证',run.understanding.unknowns):'')+
@@ -51,7 +51,7 @@ mainEl.innerHTML=ideaTabs(focus.panel)+(stopped?'':'<div class="alc-progress">'+
 (lens.status==='partial'?'<p class="alc-warning">'+tx('预算范围内只完成了部分研究。补充研究后才能正式决策。')+'</p>':'')+
 (report?section('研究摘要',report.summary,'summary')+report.judgments.map(c=>'<section class="alc-claim" data-alc-block="'+esc(c.id)+'"><h3>'+tx(c.label)+status(c.status)+'</h3>'+paraHtml(c.conclusion)+paraHtml(c.rationale)+cited(c.supportingEvidenceIds,'支持来源')+cited(c.counterEvidenceIds,'反向来源')+section('仍然未知',c.unknowns)+section('什么会改变判断',c.changeConditions)+'</section>').join(''):empty(waiting(lens.run?.jobId)?'任务已暂停，确认继续条件后才会运行。':active(lens.status)?'正在研究，可以离开此页，稍后回来查看。':'先确认研究范围、模型和调用预算，再开始。'));
 if(lens.evidence?.length)mainEl.insertAdjacentHTML('beforeend','<details><summary>'+tx('全部来源')+' · '+lens.evidence.length+'</summary>'+lens.evidence.map(e=>evidence(e,'已采集')).join('')+'</details>');
-footer.innerHTML=waiting(lens.run?.jobId)?'':active(lens.status)?stopButton('停止研究',lens.run?.jobId):button(report?'重新研究':'开始研究','plan',true);
+footer.innerHTML=active(lens.status)?stopButton('停止研究',lens.run?.jobId):waiting(lens.run?.jobId)?'':button(report?'重新研究':'开始研究','plan',true);
 footer.innerHTML+=resumeButton(jobs.find(j=>j.jobId===lens.run?.jobId));
 if(lens.status==='planned'&&lens.plan)footer.innerHTML+=button('继续已确认计划','resume-plan');
 if(report)footer.innerHTML+=button('保存固定版本','reuse-publish',false,'data-report="'+esc(report.id)+'" '+(canReuse?'':'disabled'))+(canReuse?'':'<p role="status">'+tx('成果入口尚未连接；可以先沿用研究方法。')+'</p>');

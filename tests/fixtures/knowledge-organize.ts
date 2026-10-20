@@ -8,3 +8,18 @@ export const isKnowledgeOrganize = (body: string): boolean => body.includes(MARK
 
 /** A card the organizer accepts. */
 export const organizedCard = JSON.stringify({ title: "夹具资料", brief: "夹具整理出的卡片。", keywords: [], sections: [] });
+
+const strings = (value: unknown): string[] => typeof value === "string" ? [value] : value && typeof value === "object" ? Object.values(value).flatMap(strings) : [];
+
+/**
+ * The card for the piece an organize request (`raw`, its JSON body) asks about, keeping the piece's own title as the instruction
+ * asks of a clear one: a catalog a test reads after organizing still names each piece by it. The organizer's input follows the
+ * instruction as `{"title":…}`.
+ */
+export function organizedCardFor(raw: string): string {
+  for (const text of strings(JSON.parse(raw))) {
+    const found = /\{"title":("(?:[^"\\]|\\.)*")/.exec(text);
+    if (found) return JSON.stringify({ ...JSON.parse(organizedCard), title: JSON.parse(found[1]!) });
+  }
+  return organizedCard;
+}

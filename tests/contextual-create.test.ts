@@ -152,7 +152,7 @@ async function openHost(permissions: string[]) {
   const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", project_id: project.project_id, audience: "user", permissions };
   const client = host.actionClient(ref);
   const actions = { discover: () => client.discover(caller), invoke: (reference: ActionReference, input: unknown) => client.invoke(caller, reference, input) };
-  return { actions, invoke: <O>(capability_id: string, input: unknown) => actions.invoke({ capability_id, version: 1 }, input) as Promise<O>,
+  return { actions, invoke: <O>(capability_id: string, input: unknown, version = 1) => actions.invoke({ capability_id, version }, input) as Promise<O>,
     close: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
 type PagesDocument = { id: string; title: string; version: number; body: { content?: { type: string; content?: { text?: string }[] }[] } };
@@ -201,8 +201,8 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
     assert.equal((await invoke<{ documents: PagesDocument[] }>("pages.list", {})).documents.some(item => item.id === document.id), true);
     // The call that made it says so (`created_version`, which the undo reads); a retry does not.
     const fields = { title: "直接调用", markdown: "正文", request_id: "req-direct" };
-    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields)).created_version, 1);
-    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields)).created_version, undefined);
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 2)).created_version, 1);
+    assert.equal((await invoke<{ created_version?: number }>("pages.create", fields, 2)).created_version, undefined);
   } finally { await close(); }
 });
 

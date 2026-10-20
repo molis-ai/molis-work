@@ -102,9 +102,9 @@ export const pagesActions = {
   // A new document can be taken back while no one has changed it, so the Assistant may create one when asked without a confirmation.
   // Only the call that made it can take it back: a retry under the same request id returns the document as it is now (maybe edited
   // since) and carries no `created_version`, so the undo, which reads it, is not offered there.
-  create: withAction(define<WrittenFields & { template_id?: string; request_id?: string }, CreatedPagesDocument>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇（这时没有 created_version，也就没有可撤销的新建），同一 request_id 换了内容会被拒绝", "command",
+  create: { ...withAction(define<WrittenFields & { template_id?: string; request_id?: string }, CreatedPagesDocument>("create", "新建文档", "在当前项目创建正文或使用内置模板；正文可用 markdown 给出，由 Pages 转换；带同一 request_id 重试同样的内容时返回第一次创建的那篇（这时没有 created_version，也就没有可撤销的新建），同一 request_id 换了内容会被拒绝", "command",
     object({ ...writeFields, template_id: text, request_id: { type: "string", minLength: 1, maxLength: 160 } }, []), object({ document: page, created_version: version }, ["document"]), write),
-    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } } }),
+    { intake: PAGES_INTAKE, undo: { capability_id: "pages.discard", version: 1, input: { id: "document.id", expected_version: "created_version" } } }), version: 2 },
   // Taking a document back removes it for good (only while unchanged): an agent calling it directly is asked every time.
   discard: withAction(define<{ id: string; expected_version: number }, { ok: true }>("discard", "撤销新建文档", "撤回刚新建的文档：只在它新建后没被改过时删除；改过就不删并说明", "command", object({ id, expected_version: version }), object({ ok: { const: true } }), write),
     { effect: "irreversible" }),

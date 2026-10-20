@@ -29,7 +29,7 @@ export function preparePagesIntakeOffers(input: FragmentOffersInput): FragmentAc
   const source = fragment.object.title?.trim();
   const markdown = [...parts.map(part => part.role === "heading" ? `## ${part.text}` : part.text), ...(source ? [`摘自『${clip(source, SOURCE_MAX)}』`] : [])].join("\n\n");
   const cut = parts.some(part => part.truncated) ? "（选中的内容太长，只存了前面的部分）" : "";
-  return [{ offer_id: PAGES_DOCUMENT_INTAKE, title: "存为文档", action: { capability_id: "pages.create", version: 1 },
+  return [{ offer_id: PAGES_DOCUMENT_INTAKE, title: "存为文档", action: { capability_id: "pages.create", version: 2 },
     input: { ...(title ? { title } : {}), markdown, request_id: request_id.slice(0, 160) },
     summary: `${title ? `存为文档：「${title}」` : "存为文档"}${cut}`, editable: ["title", "markdown"] }];
 }

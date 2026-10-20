@@ -56,10 +56,10 @@ export function filesActionHandlers(context: PluginStartContext): ActionHandlerB
     const id = selected?.workspace_id ?? null;
     if (id !== previousWorkspace) {
       await beforeWrite();
-      previousWorkspace = id;
       if (id) services?.storage?.set("last-workspace", id);
       else services?.storage?.delete("last-workspace");
       for (const port of ["files", "before", "after", "selection"]) services?.outputs?.invalidate(port, "工作目录已切换，请在当前目录重新固定快照");
+      previousWorkspace = id;
     }
     if (!selected) throw filesErrors.invalid("请在项目设置的工作目录中选择可用浏览目录");
     return { workspace_id: selected.workspace_id, name: selected.display_name, handle: selected.workspace_id };

@@ -672,9 +672,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1130033],
   // The project-knowledge allowances (#839) are spent.
   ["/assets/molis-work-workbench.js", 1128644], ["/assets/molis-work-workbench.css", 1593165], ["/assets/molis-work-settings.css", 982397],
-  // The plugin-switch allowance (#854, VUX-35, VUX-36) is spent.
-  ["/assets/molis-work-workbench.js", 1129525],
-  // The overflow-fade allowances (#856, VUX-27) are spent.
+  // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
   ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
   ["/assets/molis-work-arrival.css", 698467],
 ] as const) {
@@ -689,15 +687,15 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-19): one press on the plugin switcher stops measuring the page inside the click; the
-// workbench script may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset,
-// or growth from the new baseline still fails.
-test("VUX-19 VUX-22 VUX-42 the copy, disclosure and live-number allowance is bounded and spent once; other assets and later growth still fail", () => {
+// specs/visual-ui-experience (2026-10-19): the plugin switch, overflow fade, copy, disclosure and live numbers grow these
+// assets once, from exactly main's budget to the measured size. One byte more, another asset, or growth from the new
+// baseline still fails.
+test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1130995, 1132516],
-    "/assets/molis-work-workbench.css": [1603559, 1604893],
-    "/assets/molis-work-settings.css": [989369, 990668],
-    "/assets/molis-work-arrival.css": [698955, 700254],
+    "/assets/molis-work-workbench.js": [1129525, 1132516],
+    "/assets/molis-work-workbench.css": [1603154, 1604893],
+    "/assets/molis-work-settings.css": [988933, 990668],
+    "/assets/molis-work-arrival.css": [698519, 700254],
     "/assets/molis-work-pages-editor.js": [706942, 707006],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];

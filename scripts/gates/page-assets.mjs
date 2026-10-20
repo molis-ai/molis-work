@@ -235,17 +235,22 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md): the shared copy feedback (VUX-19), the
-// natural-height disclosure and the measured thumb's resize/font/label triggers (VUX-22), and reserved-width live numbers
-// (VUX-42–45). +1,521 B of workbench.js (the copy helper, bundled TypeScript, which replaces the assistant's two hand-written
-// copy timers), +1,299–1,334 B of each stylesheet, +64 B of the Pages editor (its find count reserves its width). Tried
-// first: the status region reuses `.mw-sr-only`, no token fallbacks, the collapsible's old padding rule folded in, one
-// selector per face; Coding's own copy code went (−185 B). Spent once from exactly the overflow-fade slice's budget (#856).
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
+// admission from exactly main's budget (#851 carries #854, #856 and #860; user re-approved the re-anchoring 2026-10-20):
+// - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
+//   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
+// - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
+//   assistant strip's own: +879 B of workbench.js, +460–488 B of each stylesheet; tried first: one gradient for both sides
+//   and directions, short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet);
+// - the shared copy feedback (VUX-19), the natural-height disclosure and the measured thumb's triggers (VUX-22), reserved-width
+//   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
+//   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
+//   face; Coding's own copy code went (−185 B).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1130995, 1132516],
-  "/assets/molis-work-workbench.css": [1603559, 1604893],
-  "/assets/molis-work-settings.css": [989369, 990668],
-  "/assets/molis-work-arrival.css": [698955, 700254],
+  "/assets/molis-work-workbench.js": [1129525, 1132516],
+  "/assets/molis-work-workbench.css": [1603154, 1604893],
+  "/assets/molis-work-settings.css": [988933, 990668],
+  "/assets/molis-work-arrival.css": [698519, 700254],
   "/assets/molis-work-pages-editor.js": [706942, 707006],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -116,7 +116,7 @@ export function renderLingguangWorkbench(model: LingguangUiModel): string {
         <div class="lingguang-context" data-lingguang-context></div>
         <div data-lingguang-messages></div>
         <form class="lingguang-chat-form" data-lingguang-chat>
-          <textarea class="mw-textarea" data-lingguang-chat-input rows="2" aria-label="${p.text("接着往下说")}" placeholder="${p.text("接着往下说")}"></textarea>
+          <textarea class="mw-textarea" data-lingguang-chat-input data-fit rows="2" aria-label="${p.text("接着往下说")}" placeholder="${p.text("接着往下说")}"></textarea>
           <div class="lingguang-chat-actions">
             <button class="mw-btn mw-btn--ghost" type="button" data-lingguang-chat-stop hidden>${p.text("停止")}</button>
             <button class="mw-btn mw-btn--primary" type="submit">${p.text("发送")}</button>

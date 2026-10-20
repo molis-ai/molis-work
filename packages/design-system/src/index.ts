@@ -43,7 +43,8 @@ export {
 
 export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./overflow-sides.js";
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
-export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT } from "./page-clients.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT } from "./page-clients.js";
+export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
 export { SHOW_MORE_STYLES, type ShowMoreOptions } from "./show-more.js";
 export { STREAM_TEXT_STYLES, freshStart, type StreamTextOptions, type StreamTextResult } from "./stream-text.js";
 export { MEDIA_ZOOM_STYLES, mediaAxis, type MediaZoom, type MediaZoomOptions, type MediaZoomState } from "./media-zoom.js";

@@ -120,8 +120,8 @@ export function renderPptWorkbench(model: PptUiModel): string {
             <div data-ppt-slide-list></div>
             <div class="ppt-slide-editor">
               <label class="ppt-field">${p.text("页标题")}<input class="mw-input" data-ppt-slide-title autocomplete="off"></label>
-              <label class="ppt-field">${p.text("要点")}<textarea class="mw-textarea" data-ppt-slide-bullets rows="6" placeholder="${p.text("每行一条")}"></textarea></label>
-              <label class="ppt-field">${p.text("备注")}<textarea class="mw-textarea" data-ppt-slide-notes rows="2" placeholder="${p.text("讲者备注")}"></textarea></label>
+              <label class="ppt-field">${p.text("要点")}<textarea class="mw-textarea" data-ppt-slide-bullets data-fit rows="6" placeholder="${p.text("每行一条")}"></textarea></label>
+              <label class="ppt-field">${p.text("备注")}<textarea class="mw-textarea" data-ppt-slide-notes data-fit rows="2" placeholder="${p.text("讲者备注")}"></textarea></label>
             </div>
           </div>
           <div class="ppt-preview" data-ppt-preview></div>

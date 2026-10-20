@@ -15,12 +15,12 @@ export const CONTEXT = ["workspace", "goal", "writer-directories", "material", "
  * `hold.release()`, or with `hold.fail` answered with a 503; `hold.next` is the kind the switch takes after that one, and
  * `hold.id` the session of the read it took last (the directory marks a session current only once its read lands).
  * `fakes` answers the requests a test has no real data for (a fixed change set) with what it holds; `hold.slow` delays
- * every save (PATCH) by that many milliseconds.
+ * every save (PATCH) by that many milliseconds. `before` is a script run first on every page (a capability taken away).
  */
-export async function openCoding(t: TestContext) {
+export async function openCoding(t: TestContext, before = "") {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return null;
   const { command, sessionId, evaluate, waitFor, click, navigate, origin, projectId, homeDirectory } = browser;
-  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `${before}
     window.hold={what:null,fail:false,next:null,except:'',seen:0,id:'',release:null,slow:0};window.stateReads=0;window.posts=[];window.patches=[];window.puts=[];window.fakes=[];const originalFetch=window.fetch;
     window.fetch=(input,init)=>{const path=String(input?.url||input),method=init?.method||'GET';
       if(method!=='GET')(method==='POST'?posts:method==='PATCH'?patches:puts).push({path,body:typeof init?.body==='string'?init.body:''});

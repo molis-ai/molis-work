@@ -79,23 +79,17 @@ const GOALS_TRASH_DIALOG_SCRIPT = `    const openGoalTrashDialog = (trigger, tra
 `;
 
 /** The composer stays a writing surface: the example retires on the first keystroke and the
- * outcome grows with what is written, so neither line ever needs a scrollbar of its own. */
+ * outcome grows with what is written (data-fit, the shared intrinsic sizing) up to 260px. */
 const GOALS_CREATE_COMPOSE_SCRIPT = `    const composeExample = dialog?.querySelector("[data-create-example]");
     const composeOutcome = dialog?.querySelector(".create-compose-outcome");
-    const growOutcome = () => {
-      if (!composeOutcome) return;
-      composeOutcome.style.height = "auto";
-      composeOutcome.style.height = Math.min(composeOutcome.scrollHeight, 260) + "px";
-    };
     const syncExample = () => {
       if (composeExample) composeExample.hidden = Boolean(form?.elements.title.value.trim());
     };
     const prepareCompose = () => {
-      if (composeOutcome) composeOutcome.style.height = "";
+      if (composeOutcome) { composeOutcome.style.height = ""; window.molisFit?.(composeOutcome); }
       syncExample();
     };
     form?.elements.title?.addEventListener("input", syncExample);
-    composeOutcome?.addEventListener("input", growOutcome);
 
 `
 

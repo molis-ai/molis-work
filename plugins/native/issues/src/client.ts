@@ -50,7 +50,8 @@ export const ISSUES_CLIENT_FACTORY_SCRIPT = String.raw`function mountIssues(host
     toastBox.firstChild.textContent = text; toastBox.lastChild.textContent = action; toastBox.hidden = false;
     toastTimer = scope.timeout(() => { toastBox.hidden = true; toastRun = null; }, action ? 7000 : 3500);
   };
-  const fit = area => { if (!area.clientWidth) return; area.style.height = 'auto'; area.style.height = area.scrollHeight + 'px'; };
+  // A description grows with the page (data-fit with no max); a value set here sends no input event.
+  const fit = area => window.molisFit?.(area);
   const when = iso => {
     const date = new Date(iso), now = new Date(), minutes = Math.round((now - date) / 60000), today = new Date(now).setHours(0, 0, 0, 0);
     const time = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

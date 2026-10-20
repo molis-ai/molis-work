@@ -35,11 +35,16 @@ export function renderFoundationSection(): string {
       <figure class="mw-catalog__specimen"><figcaption>新写出的文字 · 6px（对照上限）</figcaption><div class="mw-catalog-stream" data-catalog-stream="6"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-catalog-stream-replay>重播</button><label class="mw-catalog-row"><input type="checkbox" data-catalog-stream-slow>慢放 4 倍</label></div></figure>
       <figure class="mw-catalog__specimen"><figcaption>跟随到底 · 往上滚就停</figcaption><div class="mw-catalog-follow" data-catalog-follow style="height:120px;overflow:auto;font-size:12px;line-height:20px"></div><div class="mw-catalog-row"><button type="button" class="mw-btn mw-btn--secondary" data-catalog-latest hidden>↓ 新消息</button></div></figure>
     </div>
+    <p class="mw-catalog__hint">输入框自然高度：从两行加内边距起，随内容一行行长高，删掉就回落；上限取框自己的上限（默认 240px）与所在窗格高度的 40% 中较小的一个，到了上限在框内滚动，光标在末尾时整行可见；外面的页面不跳。引擎没有 field-sizing 时由同一份程序测量。</p>
+    <div class="mw-catalog__specimens">
+      <figure class="mw-catalog__specimen"><figcaption>输入框 · 随内容长高</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit rows="2" aria-label="试着写几行" placeholder="试着写几行，再删掉"></textarea></figure>
+      <figure class="mw-catalog__specimen"><figcaption>输入框 · 达到上限（160px）</figcaption><textarea class="mw-textarea mw-catalog-fit" data-fit style="--fit-max:160px" rows="2" aria-label="达到上限的输入框">第 1 行：写到上限之后在框内滚动&#10;第 2 行：写到上限之后在框内滚动&#10;第 3 行：写到上限之后在框内滚动&#10;第 4 行：写到上限之后在框内滚动&#10;第 5 行：写到上限之后在框内滚动&#10;第 6 行：写到上限之后在框内滚动&#10;第 7 行：写到上限之后在框内滚动&#10;第 8 行：写到上限之后在框内滚动&#10;第 9 行：写到上限之后在框内滚动&#10;第 10 行：写到上限之后在框内滚动&#10;第 11 行：写到上限之后在框内滚动&#10;第 12 行：写到上限之后在框内滚动&#10;第 13 行：写到上限之后在框内滚动&#10;第 14 行：写到上限之后在框内滚动</textarea></figure>
+    </div>
   </section>`;
 }
 
 /** The specimen boxes are narrower than the strips, so the strips overflow the way a narrow pane makes them. */
-export const FOUNDATION_SPECIMEN_STYLES = `.mw-catalog-stream{width:min(100%,280px);min-height:120px;font-size:13px;line-height:20px}.mw-catalog-stream p{margin:0 0 8px}.mw-catalog-stream[data-slow]{--dur-reveal:360ms}`
+export const FOUNDATION_SPECIMEN_STYLES = `.mw-catalog-fit{width:min(100%,280px)}.mw-catalog-stream{width:min(100%,280px);min-height:120px;font-size:13px;line-height:20px}.mw-catalog-stream p{margin:0 0 8px}.mw-catalog-stream[data-slow]{--dur-reveal:360ms}`
   // The comparison's upper bound only; the product's one blurred keyframes is the design system's 2 px reveal.
   + `.mw-catalog-stream[data-catalog-stream="6"] .mw-fresh{animation-name:mw-catalog-fresh-6}@keyframes mw-catalog-fresh-6{from{opacity:0;filter:blur(6px)}}`
   + `.mw-catalog-media{width:min(100%,280px);height:180px;border-radius:8px;background:var(--wash)}.mw-catalog-fade-box{width:min(100%,280px)}.mw-catalog-fade-box [data-catalog-fade]{max-width:100%;overflow-x:auto;scrollbar-width:none;flex-wrap:nowrap}.mw-catalog-fade-box .mw-toggle{flex:none;white-space:nowrap}.mw-catalog-row{display:flex;align-items:center;gap:8px}`

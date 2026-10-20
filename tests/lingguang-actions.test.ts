@@ -283,7 +283,8 @@ test("a streamed reply shows the model's text as it comes; closing the request s
     const submit = client.slice(client.indexOf('chatForm.addEventListener("submit"'), client.indexOf('chatForm.addEventListener("keydown"'));
     const caught = submit.slice(submit.indexOf("} catch"), submit.indexOf("} finally"));
     assert.equal(caught.includes("chatInput.value"), false, "closing the request leaves the typed input in the box");
-    assert.match(submit, /if \(chatInput\.value === body\) chatInput\.value = "";/);
+    // Cleared only when the box still holds what was sent; the emptied box is fitted again (VUX-16, data-fit).
+    assert.match(submit, /if \(chatInput\.value === body\) \{ chatInput\.value = ""; window\.molisFit\?\.\(chatInput\); \}/);
   } finally {
     finish.resolve();
     if (server.listening) await new Promise<void>(resolve => { server.closeAllConnections?.(); server.close(() => resolve()); });

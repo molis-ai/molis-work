@@ -17,3 +17,5 @@ export const SHOW_MORE_CLIENT_SCRIPT = readFileSync(new URL("../dist/show-more-c
 export const MEDIA_ZOOM_CLIENT_SCRIPT = readFileSync(new URL("../dist/media-zoom-client.js", import.meta.url), "utf8").trim();
 /** `window.molisStreamText`, a streamed reply kept block by block, its fresh text shown arriving once (`browser/stream-text.ts`, VUX-14/15). */
 export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-text-client.js", import.meta.url), "utf8").trim();
+/** `window.molisFit`, intrinsic sizing's fallback for engines without `field-sizing` (`browser/field-fit.ts`, VUX-16). */
+export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-client.js", import.meta.url), "utf8").trim();

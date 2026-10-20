@@ -357,7 +357,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     slideKey = slide?.id || "";
     slideTitle.value = slide?.title || "";
     slideBullets.value = (slide?.bullets || []).join("\\n");
-    slideNotes.value = slide?.notes || "";
+    slideNotes.value = slide?.notes || ""; [slideBullets, slideNotes].forEach((field) => window.molisFit?.(field));
   };
   const markSelected = (id) => {
     list.querySelectorAll("[data-ppt-id]").forEach((row) => {

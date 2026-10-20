@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import { PLUGIN_ICON, STATUS_ICON } from "@molis-ai/molis-work-design-system";
 import { pluginTabGlyphs } from "../apps/workbench/src/plugin-catalog.js";
 import {
@@ -109,6 +111,26 @@ test("a gradient mask is only the shared overflow fade", () => {
     for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])(?:-webkit-)?mask(?:-image)?\s*:\s*([^;}]+)/g)) {
       if (!/gradient\(/.test(match[2]!)) continue;
       assert.match(match[1]!.trim(), /^\[data-overflow-fade\]\[data-more\]$/, `${name}: ${match[1]!.trim().slice(-100)} masks with a gradient of its own`);
+    }
+  }
+});
+
+// specs/visual-ui-experience §composer-mentions (VUX-16): one intrinsic sizing. A field that grows with what is written
+// marks itself data-fit; no page writes its own field-sizing rule or sets a height from scrollHeight.
+test("a field grows only through the shared intrinsic sizing", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?field-sizing\s*:\s*content/g)) assert.equal(match[1]!.trim(), ":where(textarea[data-fit])", `${name}: ${match[1]!.trim().slice(-100)} sizes a field of its own`);
+  }
+  const roots = ["apps", "packages", "plugins/native"].flatMap(top => readdirSync(top, { withFileTypes: true }).filter(entry => entry.isDirectory()).map(entry => join(top, entry.name, "src")));
+  const own = new Set([join("packages", "design-system", "src", "field-fit.ts"), join("packages", "design-system", "src", "browser", "field-fit.ts")]);
+  for (const root of roots) {
+    let files: string[];
+    try { files = readdirSync(root, { recursive: true, encoding: "utf8" }); } catch { continue; }
+    for (const file of files.filter(file => file.endsWith(".ts")).map(file => join(root, file))) {
+      if (own.has(file)) continue;
+      const source = readFileSync(file, "utf8");
+      assert.doesNotMatch(source, /field-sizing\s*:\s*content/, `${file} sizes a field of its own; mark it data-fit`);
+      assert.doesNotMatch(source, /\.style\.height\s*=[^;\n]*scrollHeight/, `${file} grows a field by hand; mark it data-fit`);
     }
   }
 });

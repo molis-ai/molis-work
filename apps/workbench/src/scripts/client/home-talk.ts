@@ -30,7 +30,7 @@ export const HOME_TALK_FACTORY_SCRIPT = `(host) => {
   const render = () => {
     const state = active(); if (!state) return;
     const locked = !!state.payload;
-    input.value = state.text;
+    if (input.value !== state.text) { input.value = state.text; window.molisFit?.(input); }
     input.disabled = state.busy || locked;
     submit.disabled = state.busy || state.loading || locked || !state.selected || !state.text.trim();
     submit.setAttribute('aria-label', L(state.busy ? '正在发送' : '发送消息'));

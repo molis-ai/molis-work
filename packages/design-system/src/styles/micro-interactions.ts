@@ -3,6 +3,7 @@ import { DISCLOSURE_STYLES } from "./disclosure.js";
 import { NUMBER_STYLES } from "./numbers.js";
 import { FOLLOW_STYLES } from "../scroll-follow.js";
 import { SHOW_MORE_STYLES } from "../show-more.js";
+import { FIELD_FIT_STYLES } from "../field-fit.js";
 import { MEDIA_ZOOM_STYLES } from "../media-zoom.js";
 import { STREAM_TEXT_STYLES } from "../stream-text.js";
 import { OVERFLOW_FADE_STYLES } from "./overflow-fade.js";
@@ -135,7 +136,7 @@ export const MICRO_INTERACTION_STYLES = `
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
-${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${FOLLOW_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}`;
+${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${FOLLOW_STYLES}${SHOW_MORE_STYLES}${MEDIA_ZOOM_STYLES}${STREAM_TEXT_STYLES}${FIELD_FIT_STYLES}`;
 
 /** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
 export function segmentThumbOffsets(

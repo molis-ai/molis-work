@@ -84,7 +84,7 @@ test("ISSUE-50 screenshots go to the model only when the model in use declares t
 test("ISSUE-50 screenshots alone for a model not declared to read images: the model is not asked, the one fixed question comes back, nothing is written", async t => {
   const { store, drafts, count } = await issues(t);
   // It says what happened, why and what to do, in one line the page can show as a question.
-  for (const part of ["没有声明能看图", "截图没有交给它", "写一句话"]) assert.ok(ISSUE_SCREENSHOTS_UNREAD.includes(part), part);
+  for (const part of ["未声明能看图", "已设为不能看图", "截图没有交给它", "写一句话", "设置 → 模型 → 供应商的模型列表", "能看图并保存"]) assert.ok(ISSUE_SCREENSHOTS_UNREAD.includes(part), part);
   assert.ok(ISSUE_SCREENSHOTS_UNREAD.length <= 200 && !/[\r\n]/.test(ISSUE_SCREENSHOTS_UNREAD));
   for (const vision of [false, undefined]) for (const description of ["", "  \n "]) {
     const draft_id = crypto.randomUUID(), state = { available: true as const, ...(vision === undefined ? {} : { vision }) };

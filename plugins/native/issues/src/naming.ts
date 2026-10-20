@@ -19,7 +19,7 @@ const bytes = (image: IssueImage, index: number): PluginModelImage => {
 };
 
 /** What the person sees when there are screenshots, no words, and the model in use does not declare that it reads images: nothing can be named from nothing. */
-export const ISSUE_SCREENSHOTS_UNREAD = "当前模型没有声明能看图，截图没有交给它；写一句话说明问题，再整理";
+export const ISSUE_SCREENSHOTS_UNREAD = "当前模型未声明能看图或已设为不能看图，截图没有交给它；写一句话再整理，或在设置 → 模型 → 供应商的模型列表中将读图能力设为能看图并保存";
 
 const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u3000-\u303f\uff00-\uffef]/u;
 /** The language the title is written in, decided here from the person's words (never left for the model to guess): English for words with Latin letters and no CJK, Chinese otherwise. */

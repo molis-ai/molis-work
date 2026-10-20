@@ -11,10 +11,11 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
     roots.forEach((root) => {
       if (bound.has(root)) return;
       bound.add(root);
+      const find = (selector) => root.querySelector(selector);
       let busy = false;
       let dirty = false;
       const status = (text, failed) => {
-        const line = root.querySelector('[data-model-status]');
+        const line = find('[data-model-status]');
         line.textContent = text; line.toggleAttribute('data-failed', Boolean(failed)); line.setAttribute('aria-live', failed ? 'assertive' : 'polite');
         if (failed) line.scrollIntoView({ block: 'nearest' });
       };
@@ -31,7 +32,7 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
       root.addEventListener('click', async (event) => {
         const button = event.target.closest('button');
         if (!button || !root.contains(button) || busy) return;
-        const detail = root.querySelector('[data-model-detail]');
+        const detail = find('[data-model-detail]');
         const provider = detail?.dataset.modelDetail;
         const query = provider ? '?provider=' + encodeURIComponent(provider) : '';
         let locked = [];
@@ -42,34 +43,35 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
         };
         try {
           if (button.matches('[data-model-add]')) {
-            root.querySelector('[data-model-rows]').append(root.querySelector('[data-model-row-template]').content.cloneNode(true));
-            root.querySelector('[data-model-rows]').querySelectorAll('.model-field-hint').forEach((node) => node.remove());
+            find('[data-model-rows]').append(find('[data-model-row-template]').content.cloneNode(true));
+            find('[data-model-rows]').querySelectorAll('.model-field-hint').forEach((node) => node.remove());
             [...root.querySelectorAll('[data-model-id]')].at(-1)?.focus();
             dirty = true; return;
           }
           if (button.matches('[data-model-remove]')) { button.closest('[data-model-row]').remove(); dirty = true; return; }
           if (button.matches('[data-model-provider-remove]')) {
-            const confirm = root.querySelector('[data-model-delete-confirm]');
+            const confirm = find('[data-model-delete-confirm]');
             confirm.hidden = false; confirm.querySelector('[data-model-delete]').focus(); return;
           }
-          if (button.matches('[data-model-delete-cancel]')) { root.querySelector('[data-model-delete-confirm]').hidden = true; return; }
+          if (button.matches('[data-model-delete-cancel]')) { find('[data-model-delete-confirm]').hidden = true; return; }
           if (button.matches('[data-model-save]')) {
             begin(); status(L('正在保存，并检查连接…'));
-            const keyField = root.querySelector('[data-model-key-field]');
-            const apiKey = keyField && !keyField.hidden ? root.querySelector('[data-model-api-key]')?.value.trim() : '';
+            const keyField = find('[data-model-key-field]');
+            const apiKey = keyField && !keyField.hidden ? find('[data-model-api-key]')?.value.trim() : '';
             const saved = await mutate(encodeURIComponent(provider), {
               check_connection: true,
-              display_name: root.querySelector('[data-model-name]').value,
-              base_url: root.querySelector('[data-model-base-url]').value,
-              api_format: root.querySelector('[data-model-api-format]').value,
-              enabled: root.querySelector('[data-model-provider-enabled]').checked,
-              prompt_cache: root.querySelector('[data-model-prompt-cache]').value,
-              thinking: root.querySelector('[data-model-thinking]')?.value || 'off',
+              display_name: find('[data-model-name]').value,
+              base_url: find('[data-model-base-url]').value,
+              api_format: find('[data-model-api-format]').value,
+              enabled: find('[data-model-provider-enabled]').checked,
+              prompt_cache: find('[data-model-prompt-cache]').value,
+              thinking: find('[data-model-thinking]')?.value || 'off',
               models: [...root.querySelectorAll('[data-model-rows] [data-model-row]')].map((row) => ({
                 ...JSON.parse(row.dataset.modelRecord || '{}'), model_id: row.querySelector('[data-model-id]').value.trim(),
                 enabled: row.querySelector('[data-model-enabled]').checked, reasoning_effort: Boolean(row.querySelector('[data-model-effort]')?.checked),
+                vision: { true: true, false: false }[row.querySelector('[data-model-vision]').value],
               })),
-              connection_id: root.querySelector('[data-model-connection]')?.value || '',
+              connection_id: find('[data-model-connection]')?.value || '',
               ...(apiKey ? { api_key: apiKey } : {}),
             });
             dirty = false;
@@ -94,24 +96,24 @@ export const MODEL_SETTINGS_CLIENT_SCRIPT = `
               : button.dataset.modelTemplate ? '?new=1&template=' + encodeURIComponent(button.dataset.modelTemplate)
               : button.dataset.modelProvider ? '?provider=' + encodeURIComponent(button.dataset.modelProvider) : query;
             await refresh(next);
-            if (button.dataset.modelTemplate) root.querySelector('[data-model-api-key]')?.focus();
+            if (button.dataset.modelTemplate) find('[data-model-api-key]')?.focus();
           }
         } catch (error) {
           status(molisWorkRequest.text(error, L('操作失败，输入已保留')), true);
         } finally { busy = false; root.removeAttribute('aria-busy'); locked.forEach((control) => { if (control.isConnected) control.disabled = false; }); }
       });
       const syncKeyField = () => {
-        const field = root.querySelector('[data-model-key-field]');
-        const selected = root.querySelector('[data-model-connection]')?.value;
+        const field = find('[data-model-key-field]');
+        const selected = find('[data-model-connection]')?.value;
         if (field) field.hidden = Boolean(selected);
       };
       syncKeyField();
       root.addEventListener('change', (event) => {
         if (event.target.matches('[data-model-connection]')) syncKeyField();
         if (!event.target.matches('[data-model-api-format]')) return;
-        const required = root.querySelector('[data-model-prompt-cache] option[value=required]');
+        const required = find('[data-model-prompt-cache] option[value=required]');
         if (required) required.disabled = event.target.value !== 'anthropic-messages';
-        if (required?.disabled && required.selected) root.querySelector('[data-model-prompt-cache]').value = 'off';
+        if (required?.disabled && required.selected) find('[data-model-prompt-cache]').value = 'off';
       });
       window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
     });

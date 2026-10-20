@@ -1,5 +1,6 @@
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertJson, SandboxError } from './schema.js';
+import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
 import { BoundedQueue, RateBudget } from './queue.js';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
 
@@ -16,6 +17,8 @@ export interface SandboxServices {
   events?: { publish(context: SandboxServiceContext, id: string, payload: SandboxJson): Promise<void> };
   network?: { request(context: SandboxServiceContext, request: SandboxNetworkRequest, authorization: { domains: string[]; secretRefs: string[] }): Promise<SandboxNetworkResponse> };
   resource?: { read(context: SandboxServiceContext, name: string): Promise<string> };
+  /** The plugin's own tables in the project's library (`sandboxDatabase` over `services.project_database`). */
+  projectDatabase?: SandboxDatabaseService;
 }
 export interface BrokerLimits { sdkQueue: number; sdkPerMinute: number; eventsPerMinute: number; serviceTimeoutMs: number; storageBytes: number; messageBytes: number }
 
@@ -74,6 +77,19 @@ export class SandboxBroker {
         } else entries.delete(key);
         return null;
       });
+    }
+    if (method.startsWith('projectDatabase.')) {
+      const database = this.services.projectDatabase;
+      if (method === 'projectDatabase.transaction') {
+        count(1); permit('projectDatabase', 'write');
+        const statements = sandboxStatements(args[0]);
+        return database ? database.transaction(context, statements) : missing();
+      }
+      if (method !== 'projectDatabase.get' && method !== 'projectDatabase.all') throw new SandboxError('sandbox.invalid_request', 'Unknown project database method');
+      count(2); permit('projectDatabase', 'read');
+      const statement = sandboxStatement(args[0], args[1]);
+      if (!database) return missing();
+      return method === 'projectDatabase.get' ? database.get(context, statement) : database.all(context, statement);
     }
     switch (method) {
       case 'artifacts.get': {

@@ -28,6 +28,8 @@ export const pluginProjectDatabaseErrors = defineErrorCodes("plugin.project_data
   publisher_mismatch: "forbidden",
   version_mismatch: "conflict",
   shape_mismatch: "conflict",
+  /** A statement that reaches past the plugin's own tables, or does more than read or change rows (`project-database-statements.ts`). */
+  statement_refused: "forbidden",
 });
 
 /** One entry of a database's schema table, as storage's `listSqliteObjects` gives it. */

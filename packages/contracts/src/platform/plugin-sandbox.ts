@@ -29,6 +29,8 @@ export interface SandboxEffects {
   networkDomains?: string[];
   secretRefs?: string[];
   resources?: string[];
+  /** The plugin's own tables in the project's library, which its Manifest declares (`databases.project`). */
+  projectDatabase?: Array<'read' | 'write'>;
 }
 
 export interface SandboxOperationExample {
@@ -89,6 +91,11 @@ export interface SandboxNetworkResponse {
   body: string;
 }
 
+/** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
+export type SandboxSqlValue = null | number | string;
+export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
+export interface SandboxSqlStatement { sql: string; parameters?: SandboxSqlValue[] }
+
 export interface SandboxSdk {
   storage: {
     get(key: string): Promise<SandboxJson>;
@@ -104,11 +111,22 @@ export interface SandboxSdk {
   events: { publish(id: string, payload: SandboxJson): Promise<void> };
   network: { request(request: SandboxNetworkRequest): Promise<SandboxNetworkResponse> };
   resource: { read(name: string): Promise<string> };
+  /**
+   * The plugin's own tables in the project's library. The Host checks every statement against the tables the plugin's Manifest
+   * declares: a read is one `SELECT` or `WITH`, and `transaction` runs `INSERT`, `UPDATE` or `DELETE` statements in one write
+   * transaction on the Host's side, all of them or none.
+   */
+  projectDatabase: {
+    get(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow | null>;
+    all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
+    transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
+  };
 }
 
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
-  | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read';
+  | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
+  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */
 export type SandboxWorkerMessage =

@@ -8,7 +8,8 @@ import { hostLog } from "./host-log.js";
 // built-in project plugin whose Manifest declares `databases.project` gets its tables there through the platform's one open
 // function: made and recorded the first time, checked against the ledger after. A refusal (another publisher, another version, a
 // changed shape) stops only that plugin: the library and the other plugins open as usual, and the plugin's own paths throw the
-// refusal before they touch its tables. Plugins installed into a project get theirs with the service (L2).
+// refusal before they touch its tables. Any plugin the platform starts with `services.project_database` has its tables opened
+// again when it starts (`openPluginTables`), so a plugin installed into a project gets them then.
 
 export type ProjectPluginDatabaseOutcome =
   | { readonly plugin_id: string; readonly record: PluginProjectDatabaseRecord }
@@ -28,16 +29,21 @@ export function projectDatabasePlugins(): PluginManifest[] {
   return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 
+/** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */
+export function openPluginTables(db: PluginRuntimeDatabase, path: string, manifest: PluginManifest): PluginProjectDatabaseRecord {
+  const declaration = manifest.databases?.project;
+  if (!declaration) throw new Error(`插件 ${manifest.plugin_id} 的 Manifest 没有声明项目库`);
+  return openPluginProjectDatabase(db, { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration }, inspector, { path }).record;
+}
+
 /** Open each plugin's tables in the library at `path`; what happened to each is kept with the connection. */
 export function openProjectPluginDatabases(db: PluginRuntimeDatabase, path: string,
   manifests: readonly PluginManifest[] = projectDatabasePlugins()): ReadonlyMap<string, ProjectPluginDatabaseOutcome> {
   const opened = new Map<string, ProjectPluginDatabaseOutcome>();
   for (const manifest of manifests) {
-    const declaration = manifest.databases?.project;
-    if (!declaration) continue;
-    const owner = { plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, declaration };
+    if (!manifest.databases?.project) continue;
     try {
-      opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, record: openPluginProjectDatabase(db, owner, inspector, { path }).record });
+      opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, record: openPluginTables(db, path, manifest) });
     } catch (error) {
       hostLog.warn("project_database", "plugin_database_refused", error, { plugin_id: manifest.plugin_id });
       opened.set(manifest.plugin_id, { plugin_id: manifest.plugin_id, error: error instanceof Error ? error : new Error(String(error)) });

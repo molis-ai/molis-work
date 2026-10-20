@@ -24,6 +24,11 @@ export interface PluginHostExecutorOptions {
    * a generated one), whatever its Manifest asks for; the plugin never names a library. Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /**
+   * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
+   * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
+   */
+  projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its

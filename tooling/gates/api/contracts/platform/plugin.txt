@@ -2755,6 +2755,7 @@ export interface PluginHostServices {
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly model?: PluginModelClient;
@@ -3450,7 +3451,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

@@ -112,6 +112,12 @@ export interface PluginHostServices {
    * Manifest declaration (PG-022).
    */
   readonly database?: import("./plugin-database.js").PluginDatabase;
+  /**
+   * The plugin's own tables in this project's library, present when its Manifest declares `databases.project`. Every statement is
+   * checked against the tables the platform made for it (and the project's root row, which it may read); a statement that reaches
+   * any other table, a schema step or a pragma is refused (specs/plugin-project-database).
+   */
+  readonly project_database?: import("./plugin-database.js").PluginDatabase;
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
@@ -459,7 +465,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

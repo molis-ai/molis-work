@@ -8,13 +8,13 @@
 
 Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也未操作真实 Home。已有基线 1 的 Home 须先经过明确授权的维护升级，才能试用此构建。
 
-包名：`@molis-ai/molis-work-plugin-pages`。
+包名：`@molis-ai/molis-work-plugin-pages`。装配：每个项目一个 Plugin Runtime 实例（`src/plugin.ts` 的 `createPagesPlugin`，`apps/local-host/src/project-plugins.ts` 的 Home 库条目，`bundled: true`）；库仍是 Home 级的 `{home}/pages/pages.db`（`PAGES_DATABASE`），按 `project_id` 分区，经 Runtime 的 `services.database` 读写；成果经 `services.artifacts`、模型经 `services.model`、Goals 与其他插件经 `services.actions`。宿主里不再有 Pages 专用的动作、HTTP 或成果适配文件。
 
 导入入口在 Pages 文档列表的「导入」。支持 Notion 的 Markdown & CSV / HTML ZIP 导出包，飞书等工具导出的 DOCX、Markdown，以及通用 HTML、TXT、CSV。先预览、查看转换提示并勾选文档，再导入当前项目的指定文件夹；可继续编辑、自动保存。保留常用文字格式、列表、待办、表格和代码。导入只创建新文档；一次批量写入使用事务，同一请求重试不会覆盖手工编辑或重复创建。
 
 边界：目前为文件导入，不连接来源账号、不抓取私有链接、不持续同步。ZIP 中的文档平铺到所选文件夹，不重建子页面树；相对链接保留路径说明，不自动转为 Pages 引用。当前编辑器没有图片/附件块，导入会转换为安全链接或文字说明并提示；评论、权限、历史版本不迁移。PDF、旧版 `.doc` 不支持，请从来源导出为 DOCX / Markdown / HTML。上传总计最多 10 MiB，每篇文本最多 1 MB，压缩包单项最多 5 MiB、展开合计最多 20 MiB，每批最多 100 篇。
 
-接口：`POST /api/pages/import/preview` 接收 `project_id` 和 `files: [{name, data}]`（base64）；`POST /api/pages/import` 增加 `selected_keys`、`folder_id`、稳定的 UUID `request_id`。Host 对外沿用 `/api/plugins/pages/...` 路由。预览不写入，提交重新解析并验证，转换只在本机进行。
+接口：`POST /api/plugins/io.molis.work.pages/pages/import/preview` 接收 `files: [{name, data}]`（base64）；`POST /api/plugins/io.molis.work.pages/pages/import` 增加 `selected_keys`、`folder_id`、稳定的 UUID `request_id`。路由由 Manifest 的 `routes` 声明（共 17 条，导入两条的请求体上限 15,000,000 字节，其余 1,000,000），Plugin Runtime 在每个项目的 Pages 实例上提供；旧的 `/api/pages/...` 与 `/api/plugins/pages/...` 已不存在（W5-01-PAGES-02）。预览不写入，提交重新解析并验证，转换只在本机进行。
 
 不改 Goal 树。Promote 经 Host 发出个人 Artifact。对外能力就是它声明的动作，经「能力 → 对外接入」授权后才出现在 MCP；Host 从绑定项目注入分区。
 
@@ -24,9 +24,9 @@ Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也
 
 动作服务迁移：插件自己的 `actions.ts` 声明并实现 20 项公开业务能力（文档、文件夹、模板、文件导入、已解析材料保存、生成及历史、写作、提取、发布），加上 12 项标准能力（主体读取、片段、系统搜索、文件条目与内容、成果库的预览/固定/比较/继续/被引用、放置的移动与复制），加上 4 项评论线程能力，共 36 项，统一由 `PAGES_ACTIONS` 声明，与 `createPagesActionHandlers` 逐项对应。Manifest 注册这些能力和四项内容交接合同；Host 组合原 Store、模型和 Artifact owner，HTTP 不再自行打开文档库。工作流内容处理器调用同一业务动作并保留调用者身份与权限。MCP 只经授权的动作工具。
 
-内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Host 绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
+内部与 MCP 的项目来自可信调用上下文；HTTP 的项目由 Runtime 实例所在项目绑定，query/body 中声明不同项目会拒绝。`pages.update` 接受 `expected_version`，编辑器自动使用服务器版本，冲突保留草稿并阻止离开。提取任务/知识页和删除文件夹各自在原 SQLite 库事务内完成。原表、文档 ID、导入请求和历史均保留。
 
-Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_STORE_BASELINE`）。
+Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读写文稿；项目上下文采纳通过 `pages.documents.import` 保存来源与摘要。`request_id` 与 `request_hash` 表示调用方已确认的稳定意图，保留旧值以支持历史重试，不用它们证明权限或来源。文档按 canonical project_id 分区；库只认当前 schema 基线（`PAGES_DATABASE`）。
 
 `pages.promote` 在原 `pages` 行保存未完成发布快照后才调用 Artifact owner；失败后继续原快照和版本。已存成 Artifact、尚未回写文稿关联时，重试读取并核对原 Artifact，恢复关联而不重复发布。没有未完成发布快照时，已有成果（包括没有数字来源修订号的版本）保留，显式新固定生成下一版，不把它当作中断恢复。文稿移走又移回时记录重新从 0 数固定版本，而项目成果库仍留着之前的各版：下一次固定接着成果库里已有的最高版号（`nextPinnedVersion`），不把旧版当作中断记录交回。完成关联与清除快照在同一文稿事务提交，保留后续正文和 Goal 编辑；固定下来的版本归本机的人，不论谁（人、工作流、Agent、MCP 客户端）固定的，生产者记在 `created_by`，下一次固定不会因为上一版是别人固定的而被拒绝；未完成的发布意图仍只由发起它的行为者恢复，其他行为者不能代为完成。
 
@@ -47,7 +47,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
   - HTTP 的项目由 Host 绑定，query 或 body 声明不同项目会拒绝；`pages.update` 带 `expected_version`，冲突保留草稿。
   - 生成按请求保存材料快照；缺模型明确拒绝，不生成占位文稿。
   - 被取消或撤权的生成不写任何业务记录（调用记录里的“未执行”诊断行除外），本进程可以立即接手重试；其他进程的尝试仍守租约。
-  - Host 注入 prepareImport；ZIP/DOCX/编码解析归 Host worker，Pages 的 preparePagesImport 只接受公共 MaterialDocumentBatch 并转换为编辑器正文。解析等待不占项目串行队列，返回后复查授权/取消。
+  - 上传文件由 Runtime 的 `services.materials.readDocuments`（`materials:read`，只能在本插件自己声明了该权限的 concurrent 动作里调；ZIP/DOCX/编码解析归 Host worker）读成公共 MaterialDocumentBatch，Pages 的 `preparePagesImport` 只把它转换为编辑器正文；平台的 `material.*` 拒绝按 `pages.invalid` 说给人听。解析等待不占项目串行队列，返回后复查授权/取消（W5-01-PAGES-01、-03）。
   - 导入预览不写入；批量写入一个事务，同一请求重试不覆盖编辑、不重复创建。
   - 编辑器单独打成浏览器脚本，不进工作台 factory 字符串。
   - 编辑命令由 `src/commands.ts` 显式汇总既有出口；实现按选区与菜单、块变更、内容插入、列表与容器、光标与代码、格式、Markdown 分在 `commands-*.ts`。命令族直接依赖所需的内部模块，不回指汇总入口；选区/位置读取不依赖编辑命令，函数不跨模块保留编辑状态。

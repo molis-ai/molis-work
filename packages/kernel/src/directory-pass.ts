@@ -20,3 +20,8 @@ export function rememberInDirectoryPass<T>(scope: object, key: unknown, read: ()
   answers.set(key, value);
   return value;
 }
+
+/** A write within a pass: the next read of `scope` and `key` in it reads afresh. */
+export function forgetInDirectoryPass(scope: object, key: unknown): void {
+  current?.get(scope)?.delete(key);
+}

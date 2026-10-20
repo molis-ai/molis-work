@@ -25,6 +25,7 @@ import {
 
 import type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";
 import { readEventRecoveries, resolveEventRecovery } from "./event-recovery.js";
+import { outsidePluginAction } from "./action-scope.js";
 
 interface Envelope {
   generation: number;
@@ -295,8 +296,8 @@ export class PluginEventBus implements PluginEventBusApi {
     this.#queued.add(pendingKey);
     const key = `${envelope.subscriber_plugin_id}\u0000${envelope.record.source_plugin_id}`;
     const previous = this.#tails.get(key) ?? Promise.resolve();
-    const next = previous
-      .then(() => this.#deliver(envelope), () => this.#deliver(envelope))
+    const next = outsidePluginAction(() => previous
+      .then(() => this.#deliver(envelope), () => this.#deliver(envelope)))
       .then(() => undefined, () => undefined)
       .finally(() => {
         this.#queued.delete(pendingKey);

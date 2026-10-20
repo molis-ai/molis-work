@@ -240,12 +240,12 @@ const headErrors = (measured, budget, base) => {
 // follow helper, bundled TypeScript, 1.3 KB; the Assistant's own near-bottom measuring and its opening timer went),
 // +446 B of each stylesheet (the anchoring rule and the 0fr→1fr fold, which replaces the instant hide and the rise).
 // Tried first: one rule turns anchoring off only while following, no token fallbacks, the fold reuses the existing body
-// padding. Spent once from exactly the copy-feedback slice's budget (#860).
+// padding. Spent once from exactly the branch's budget below it (#851; its stylesheets 108 B lighter since 2026-10-20).
 const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.js": [1132686, 1134508],
-  "/assets/molis-work-workbench.css": [1604893, 1605339],
-  "/assets/molis-work-settings.css": [990668, 991114],
-  "/assets/molis-work-arrival.css": [700254, 700700],
+  "/assets/molis-work-workbench.css": [1604785, 1605231],
+  "/assets/molis-work-settings.css": [990560, 991006],
+  "/assets/molis-work-arrival.css": [700146, 700592],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -680,7 +680,7 @@ for (const [asset, old] of [
   ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
   // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
   ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
-  ["/assets/molis-work-arrival.css", 698519],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -699,9 +699,9 @@ for (const [asset, old] of [
 test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-workbench.js": [1132686, 1134508],
-    "/assets/molis-work-workbench.css": [1604893, 1605339],
-    "/assets/molis-work-settings.css": [990668, 991114],
-    "/assets/molis-work-arrival.css": [700254, 700700],
+    "/assets/molis-work-workbench.css": [1604785, 1605231],
+    "/assets/molis-work-settings.css": [990560, 991006],
+    "/assets/molis-work-arrival.css": [700146, 700592],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

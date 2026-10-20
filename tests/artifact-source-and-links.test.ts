@@ -34,8 +34,8 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const detail = async (artifactId: string, version: number) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
     { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
-  const created = (await post("/api/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
-  const pinned = (await post("/api/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
   const fresh = await detail(pinned.artifact_id, pinned.version);
   assert.doesNotMatch(fresh, /原文已改|原对象已经删除/);
   assert.match(fresh, /在 Pages 打开原对象/);
@@ -44,13 +44,13 @@ test("a pinned document shows when the original changed or was deleted, and whic
   assert.match(fresh, /被谁引用[\s\S]*还没有目标引用这一版/);
 
   // Starring changes the document's revision but not its content: still the same.
-  let current = (await (await fetch(`${origin}/api/pages/${created.id}`)).json() as { document: { version: number } }).document;
-  await post("/api/pages/" + created.id, { starred: true, expected_version: current.version });
+  let current = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
+  await post("/api/plugins/io.molis.work.pages/pages/" + created.id, { starred: true, expected_version: current.version });
   assert.doesNotMatch(await detail(pinned.artifact_id, pinned.version), /原文已改/);
 
   // Editing the content is a change; the pinned version itself stays as it was.
-  current = (await (await fetch(`${origin}/api/pages/${created.id}`)).json() as { document: { version: number } }).document;
-  await post("/api/pages/" + created.id, { markdown: "第二稿", expected_version: current.version });
+  current = (await (await fetch(`${origin}/api/plugins/io.molis.work.pages/pages/${created.id}`)).json() as { document: { version: number } }).document;
+  await post("/api/plugins/io.molis.work.pages/pages/" + created.id, { markdown: "第二稿", expected_version: current.version });
   const changed = await detail(pinned.artifact_id, pinned.version);
   assert.match(changed, /原文已改，这里仍是第 1 版/);
   assert.match(changed, /第一稿/);
@@ -68,15 +68,15 @@ test("a pinned document shows when the original changed or was deleted, and whic
 
   // A document whose text links to this version is listed too (五.1), and opens in Pages; links to another version are not.
   const path = `/artifacts/${encodeURIComponent(pinned.artifact_id)}/versions/${pinned.version}`;
-  const citing = (await post("/api/pages", { title: "周报", markdown: `本周交了[季度计划](${origin}${path})。` })).document as { id: string };
-  await post("/api/pages", { title: "别的版本", markdown: `见[第 9 版](${path.replace(/\/\d+$/, "/9")})。` });
+  const citing = (await post("/api/plugins/io.molis.work.pages/pages", { title: "周报", markdown: `本周交了[季度计划](${origin}${path})。` })).document as { id: string };
+  await post("/api/plugins/io.molis.work.pages/pages", { title: "别的版本", markdown: `见[第 9 版](${path.replace(/\/\d+$/, "/9")})。` });
   const cited = await detail(pinned.artifact_id, pinned.version);
   assert.ok(cited.includes(`data-workbench-item-plugin="pages" data-workbench-item-id="${citing.id}" data-workbench-item-title="周报">周报</a><span>Pages · 链接了这一版</span>`),
     "the document that links to this version, opening in Pages");
   assert.doesNotMatch(cited, /别的版本/);
 
   // Deleting the document leaves the version, says so, and no longer offers to open the original.
-  await post("/api/pages/" + created.id + "/delete", {});
+  await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/delete", {});
   const missing = await detail(pinned.artifact_id, pinned.version);
   assert.match(missing, /原对象已经删除，这里仍保留第 1 版/);
   assert.doesNotMatch(missing, /在 Pages 打开原对象/);
@@ -102,8 +102,8 @@ test("a pinned document that moved to another place says so, instead of saying i
   const detail = async (artifactId: string, version: number) => await (await fetch(`${origin}/artifacts/${encodeURIComponent(artifactId)}/versions/${version}`,
     { headers: { "x-molis-work-fragment": "artifact-workbench" } })).text();
 
-  const created = (await post("/api/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
-  const pinned = (await post("/api/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
+  const created = (await post("/api/plugins/io.molis.work.pages/pages", { title: "季度计划", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinned = (await post("/api/plugins/io.molis.work.pages/pages/" + created.id + "/promote", { expected_version: created.version })).artifact as { artifact_id: string; version: number };
   const store = openPagesStore(directory);
   try { store.relocate(created.id, DEMO_PROJECT_ID, "personal"); } finally { store.close(); }
   const moved = await detail(pinned.artifact_id, pinned.version);

@@ -128,7 +128,7 @@ test("ISSUE-09 ISSUE-27 screenshots: six join a capture, a seventh and a mislabe
 });
 
 test("ISSUE-10 ISSUE-43 dropped screenshots preview, save and reopen; a late import joins nothing", { timeout: 90_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "empty"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-page");
   await v.viewport(1440, 940); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");

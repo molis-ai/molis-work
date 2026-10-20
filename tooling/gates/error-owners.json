@@ -328,8 +328,7 @@
     },
     "workflows": {
       "paths": [
-        "apps/local-host/src/workflow-*",
-        "apps/local-host/src/workflows-*"
+        "apps/local-host/src/workflow-*"
       ],
       "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
     }

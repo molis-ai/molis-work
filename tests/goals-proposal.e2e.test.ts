@@ -4,20 +4,20 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
-test("Proposal UI preserves user input on failed confirmation, retries atomically, and rejects without creating Goals", { timeout: 60_000 }, async (t) => {
+test("W4-2-13 Proposal UI preserves other drafts during forced refresh, retries atomically, and rejects without creating Goals", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
   if (!browser) return;
   const { store, origin, sessionId, command, evaluate, waitFor, click, navigate, reloadPage } = browser;
   const coordinator = new GoalProjectApplication(store);
-  function propose(id: string) {
-    coordinator.goalEvents.createIntent({
+  function propose(id: string, rootId = id + "-root") {
+    if (!store.snapshot(DEMO_PROJECT_ID).goals.some(goal => goal.goal_id === rootId)) coordinator.goalEvents.createIntent({
       project_id: DEMO_PROJECT_ID, actor_id: "browser-planner", actor_kind: "runtime",
-      goal_id: id + "-root", title: "用户决定以后才创建子目标 " + id,
+      goal_id: rootId, title: "用户决定以后才创建子目标 " + id,
       outcome: "保留用户明确选择的子目标", idempotency_key: id + "-start",
     });
     return coordinator.goalTreeSubmission.submitGoalTreeProposal({
       project_id: DEMO_PROJECT_ID, actor_id: "browser-planner",
-      root_goal_id: id + "-root", summary: "保留用户明确选择的子目标", idempotency_key: id + "-proposal",
+      root_goal_id: rootId, summary: "保留用户明确选择的子目标", idempotency_key: id + "-proposal",
       items: [{
         item_id: id + "-child", kind: "goal", operation: "create",
         payload: { goal_id: id + "-child", title: '待确认的子目标 <安全> "' + id, outcome: "用户确认后再创建" },
@@ -25,15 +25,15 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
         affected_objects: [{ object_type: "goal", object_id: id + "-child" }],
       }, {
         item_id: id + "-relation", kind: "relation", operation: "create",
-        payload: { from_goal_id: id + "-child", to_goal_id: id + "-root", type: "part_of", reason: "同一结果的子工作" },
+        payload: { from_goal_id: id + "-child", to_goal_id: rootId, type: "part_of", reason: "同一结果的子工作" },
         source_refs: ["conversation://browser-proposal"], reason: "确认后再建立归属", confidence: 1,
-        affected_objects: [{ object_type: "goal", object_id: id + "-root" }],
+        affected_objects: [{ object_type: "goal", object_id: rootId }],
       }],
     }).proposal;
   }
-  const adopted = propose("browser-adopt"), rejected = propose("browser-reject");
+  const adopted = propose("browser-adopt"), rejected = propose("browser-reject"), draft = propose("browser-draft", "browser-adopt-root");
   const before = store.snapshot(DEMO_PROJECT_ID);
-  const form = (id: string) => '[data-goal-tree-proposal-id="' + id + '"]';
+  const form = (id: string) => '[data-document-pane] [data-goal-tree-proposal-id="' + id + '"]';
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const adoptForm = form(adopted.proposal_id), rejectForm = form(rejected.proposal_id);
   await command("Network.enable", {}, sessionId);
@@ -47,6 +47,9 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
     await waitFor(dom(formSelector) + "?.getBoundingClientRect().width > 0");
   };
   await openGoal("browser-adopt-root", adoptForm);
+  const draftForm = form(draft.proposal_id);
+  await click(draftForm + ' textarea[name="reason"]');
+  await command("Input.insertText", { text: "这份还没决定，先写下需要补充的依据。" }, sessionId);
   assert.equal(await evaluate("document.querySelectorAll('[data-feed-entry-id^=\"decision:\"]').length"), 0);
   assert.equal(await evaluate("document.querySelectorAll('[data-feed-detail^=\"decision:\"]').length"), 0);
   await click(adoptForm + ' button[value="confirm"]');
@@ -64,7 +67,10 @@ test("Proposal UI preserves user input on failed confirmation, retries atomicall
   await command("Network.setBlockedURLs", { urls: [] }, sessionId);
   await click(adoptForm + ' button[value="confirm"]');
   await waitFor("!" + dom(adoptForm) + " && " + dom("[data-decision-receipt]"));
+  assert.equal(await evaluate(dom(draftForm + ' textarea[name="reason"]') + ".value"), "这份还没决定，先写下需要补充的依据。", "a Goal detail's other draft survives a forced refresh");
+  assert.equal(await evaluate(dom(`#${draft.proposal_id} textarea[name="reason"]`) + ".value"), "", "the detail draft does not overwrite the same proposal's list form");
   const afterAdopt = store.snapshot(DEMO_PROJECT_ID);
+  assert.equal(afterAdopt.goal_tree_proposals.find(proposal => proposal.proposal_id === draft.proposal_id)?.state, "pending");
   assert.equal(afterAdopt.goals.filter((g) => g.goal_id === "browser-adopt-child").length, 1);
   assert.equal(coordinator.goalEvents.isEventStateOwner(DEMO_PROJECT_ID, "browser-adopt-child"), true);
   assert.equal(coordinator.goalEvents.readState(DEMO_PROJECT_ID, "browser-adopt-child").work_status, "open");

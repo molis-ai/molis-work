@@ -62,6 +62,22 @@ test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is serv
   for (const client of clients.values()) if (!['files', 'git', 'diff', 'text-stats'].includes(client.id)) assert.equal(client.bundle, client.id, client.id);
 });
 
+test('W5-02-REG-08 a client gets the clients its registration names in clientUses, and the plugins it uses ship no bundle of their own', () => {
+  const entry = futurePlugin(), at = (id: string, order: number, workbench: Omit<PluginRegistration['workbench'], 'order' | 'contributions'>): PluginRegistration =>
+    ({ ...entry, project_plugin_id: id, catalog_order: order, manifest: { ...entry.manifest, plugin_id: 'io.molis.work.' + id }, workbench: { order, contributions: [], ...workbench } });
+  const user = at('user', 1, { clientFactory: 'host => host.clients.lent(host)(host.reviews)', clientUses: ['lent'] });
+  const lent = at('lent', 2, { clientFactory: 'host => reviews => host.root + ":" + typeof reviews', clientFrom: 'user' });
+  const packs = pluginWorkbenchPacks([lent, user]);
+  assert.equal(packs.find(pack => pack.project_plugin_id === 'lent')?.clientFactory, undefined, 'the used plugin ships no bundle');
+  assert.equal(runInNewContext(`(${packs.find(pack => pack.project_plugin_id === 'user')?.clientFactory})({ root: 'r' })`), 'r:function', 'its client and the Host\'s reviews reach the user');
+  assert.throws(() => pluginWorkbenchPacks([{ ...user, workbench: { ...user.workbench, clientUses: undefined } }, lent]), /lent has a client and borrows the bundle of user, which does not name it in clientUses/);
+  assert.throws(() => pluginWorkbenchPacks([user, { ...lent, workbench: { ...lent.workbench, clientFrom: undefined } }]), /user uses the client of lent, which does not name it in clientFrom/);
+  // The build: Coding's bundle carries Git's and Files' clients; the workbench has no Coding-specific script.
+  assert.deepEqual(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'coding')?.workbench.clientUses, ['git', 'files']);
+  for (const id of ['git', 'files']) assert.equal(pluginWorkbenchPacks().find(pack => pack.project_plugin_id === id)?.clientFactory, undefined, id);
+  assert.match(pluginWorkbenchClientAsset('coding') ?? '', /clients: \{ "git": \(.+\), "files": \(.+\) \}, reviews: \(/s);
+});
+
 test('a registration that sets clientServed is sent without its whole-line comments and indentation; one that does not, as written', () => {
   const entry = futurePlugin(), script = "api => {\n  // mounts the panel\n  api.mountPluginClient('future', api.projectId());\n}";
   const [served] = pluginWorkbenchPacks([{ ...entry, workbench: { ...entry.workbench, clientFactory: script, clientServed: true } }]);

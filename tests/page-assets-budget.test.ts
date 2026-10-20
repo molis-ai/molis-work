@@ -692,6 +692,25 @@ for (const [asset, old] of [
   // The show-more allowances (#868, VUX-08) are spent.
   ["/assets/molis-work-workbench.js", 1135021], ["/assets/molis-work-workbench.css", 1605196], ["/assets/molis-work-settings.css", 990971],
   ["/assets/molis-work-arrival.css", 700557],
+  // Previous admissions and earlier branch starts are spent after synchronizing the predecessor.
+  ["/assets/molis-work-workbench.css", 1604893],
+  ["/assets/molis-work-settings.css", 990668],
+  ["/assets/molis-work-arrival.css", 700254],
+  ["/assets/molis-work-workbench.js", 1134948],
+  ["/assets/molis-work-workbench.css", 1603130],
+  ["/assets/molis-work-settings.css", 988929],
+  ["/assets/molis-work-workbench.js", 1129726],
+  ["/assets/molis-work-workbench.js", 1138109],
+  ["/assets/molis-work-workbench.css", 1604761],
+  ["/assets/molis-work-settings.css", 990556],
+  ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
+  ["/assets/molis-work-workbench.js", 1139931],
+  ["/assets/molis-work-workbench.js", 1140247],
+  ["/assets/molis-work-workbench.js", 1140444],
+  ["/assets/molis-work-workbench.css", 1605172],
+  ["/assets/molis-work-settings.css", 990967],
+  ["/assets/molis-work-workbench.js", 1135978],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -709,7 +728,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-08 the 产出 split allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1135978, 1136122],
+    "/assets/molis-work-workbench.js": [1141401, 1141545],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

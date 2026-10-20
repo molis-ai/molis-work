@@ -38,21 +38,23 @@ AGENTS.md 的硬约束同时有效：新的内置插件只走 Runtime；不再�
 
 ### 2.1 26 个目录条目
 
-`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条，在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
+`apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG` 有 26 条（W5-02 PR-1a 起由 `node scripts/generate-plugin-registry.mjs` 从各包 `src/registration.ts` 生成，不手改），在 `tests/builtin-plugin-assembly-gate.test.ts` 里分成：
 
-- `RUNTIME_ASSEMBLED`（12）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、pages、ppt、dataset，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 11。
-- Home 级（5）：issues、todo、cognia、images、jelly，目录条目带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
-- `BUILD_TIME_ASSEMBLED`（9）：alchemist、artifacts、feed、goals、inbox、plugin-builder、schedule、sessions、workflows。
+- `RUNTIME_ASSEMBLED`（13）：characters、shelf、coding、files、git、diff、text-stats、form、lingguang、pages、ppt、dataset、workflows，由 `apps/local-host/src/project-plugins.ts` 的监督器启动。Characters 将移出（第 5.4 节），所以长期是 12。
+- Home 级（5）：issues、todo、cognia、images、jelly，包自己的 `registration` 带 `runtime: { scope: "home", … }`，由 `apps/local-host/src/home-plugins.ts` 的 Home 监督器启动。
+- `BUILD_TIME_ASSEMBLED`（8）：alchemist、artifacts、feed、goals、inbox、plugin-builder、schedule、sessions。
 
 PPT 的本地 Runtime 迁移候选已实现（见防腐 spec W5-01-PPT；宿主 `ppt-actions.ts`/`ppt-native-plugin-http.ts` 已删，尚未推送/合入）。
 
 Pages 已迁到 Runtime（见防腐 spec W5-01-PAGES；宿主 `pages-actions.ts`/`pages-native-plugin-http.ts`/`pages-artifact.ts`/`pages-import.ts` 已删；Inbox 写死的 `provider_id` 不变，`inbox.pages.generate` 迁后仍走通）。
 
+Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主的 `workflows-actions.ts`、`workflows-native-plugin-http.ts` 已删，站点与动作步骤经动作目录（`actions:delegate`）以调用者本人的身份到达，写法见该节与 `skills/molis-plugin-dev/host.md`。
+
 以下接线数量为原迁移调研基线，不能当作当前完成证据；Form、Todo、灵光、Cognia、Images、Jelly 已删除各自的动作/HTTP适配；Images 的专用 Host 服务也已移除。宿主里手写的接线（`apps/local-host/src` 下）：17 个 `*-native-plugin-http.ts`（共 905 行）；16 个以插件命名的 `*-actions.ts`（共 593 行：artifact、cognia、dataset、form、goals、images、inbox、jelly、lingguang、pages、ppt、schedule、shelf、todo、work、workflows）；`project-host.ts` 里 25 处 `registerProvider`，其中按插件逐个登记的 16 处；`web-request.ts` 和 `web-catalog.ts` 里各有 `handle*NativePluginHttp` 的引用（30 行、18 行）。这几个文件也是最挤的热点：自 2026-09-28 起合入 main 的次数（`git log --first-parent --since=2026-09-28 origin/main -- <文件>`），`web-request.ts` 22、`web-catalog.ts` 15、`project-host.ts` 14、`builtin-plugins.ts` 11。
 
 ### 2.2 18 个构建期插件的分类与放置
 
-范围（个人或项目）取自目录条目的 `personal`；数据位置取自 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`、`apps/local-host/src/project-database-schema.ts` 和各包。
+范围（个人或项目）取自插件 `registration` 的 `personal`；数据位置取自 `packages/storage/src/home-sqlite.ts` 的 `PERSONAL_HOME_SQLITE_STORES`、`apps/local-host/src/project-database-schema.ts` 和各包。
 
 **批准的构建期例外（4）**（2026-10-18 改：已取消，见第 1 节与第 3 节开头）：Goals、Artifacts、Sessions（包 `plugins/native/work`）、插件创作台（`plugin-builder`），见第 3 节。
 
@@ -119,10 +121,10 @@ Pages 已迁到 Runtime（见防腐 spec W5-01-PAGES；宿主 `pages-actions.ts`
 
 - **提供方身份会变，而且不只是存量数据会失配。** 构建期插件的提供方 `provider_id` 是 `manifest.plugin_id`（例如 `apps/local-host/src/inbox-actions.ts`）；Runtime 插件的提供方 `provider_id` 是安装的 `install_id`（`packages/plugin-runtime/src/action-provider.ts`）。`install_id` 是 `plugin-install-` 加 plugin_id 与发布者签名的哈希前 32 位（`packages/plugin-runtime/src/index.ts` 的 `installIdentity`）；签名写在各插件自己的 Manifest 里（例如 `plugins/native/pages/src/manifest.ts` 第 20 行），不在公开合同 `packages/contracts` 里，别的插件的代码拿不到它，除非 import 对方的实现，而这是被禁止的。凡是拿 `provider_id` 做精确匹配的地方，迁移后都会失配，已知有三类后果：**（已定并实现：用户 2026-10-10 选「内置插件一律用插件名」，W3-06 C。随宿主发布的插件登记在 `plugin_id` 之下，其余仍用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写，见 [CHECKLIST.md](../releases/CHECKLIST.md) 第 4.3 节。迁移候选不再改变提供方编号，下面三类后果对它们不再发生。）**
   1. **MCP 授权。** 逐客户端的授权按 `provider_id` 匹配（`apps/local-host/src/mcp-action-grants.ts` 第 27、39 行），失配后这些存量授权不再对应任何动作。
-  2. **存储里的引用。** 工作流的动作步骤存 `provider_id`，执行时按它在目录里找动作（`plugins/native/workflows/src/actions.ts` 的 `reachFor`，第 200–209 行，其中 `find` 在第 206 行）；判断规则在 Functions 库里存场景提供方 `scene_provider_id`（`modules/functions/src/store.ts` 第 39 行），内核按它比对，不符就报「此规则仅适用于选定的场景版本和提供方」（`packages/kernel/src/action-service.ts` 第 465 行）。声明场景的插件是 Feed（`plugins/native/feed/src/manifest.ts` 第 39 行）和 Inbox（`plugins/native/inbox/src/manifest.ts` 第 31 行）。
+  2. **存储里的引用。** 工作流的动作步骤存 `provider_id`，执行时按它在目录里找动作（`plugins/native/workflows/src/actions.ts` 的 `reachFor`，第 201–211 行，其中 `find` 在第 207 行）；判断规则在 Functions 库里存场景提供方 `scene_provider_id`（`modules/functions/src/store.ts` 第 39 行），内核按它比对，不符就报「此规则仅适用于选定的场景版本和提供方」（`packages/kernel/src/action-service.ts` 第 465 行）。声明场景的插件是 Feed（`plugins/native/feed/src/manifest.ts` 第 39 行）和 Inbox（`plugins/native/inbox/src/manifest.ts` 第 31 行）。
   3. **代码里写死的 `provider_id`。** 插件和宿主的源码把 `<插件>_PLUGIN_ID`（值就是 `plugin_id`）或字面量直接写成 `provider_id`，都是精确匹配，有三种用法：
      - **依赖声明 `required_actions`**：内核每次判断可用性时，若依赖里写了 `provider_id` 而登记的提供方不是它，就报 `actions.provider_changed`，整个动作不可用（`packages/kernel/src/action-service.ts` 第 427–428 行）。有 `plugins/native/inbox/src/actions.ts` 第 67 行（`inbox.pages.results` 依赖 Pages 的 `pages.generations.list`）和第 78 行（`inbox.pages.generate` 依赖 Pages 的三个动作），都钉 `PAGES_PLUGIN_ID`；还有 `apps/local-host/src/information-actions.ts` 第 15 行（`information.plan` 依赖 Feed 的快照与 `inbox.list`），钉 `FEED_PLUGIN_ID`、`INBOX_PLUGIN_ID`。
-     - **保留调用权限 `retainActionAuthority` 与 `validate_authority`**：嵌套调用把原动作的 `provider_id` 钉住（`packages/contracts/src/platform/actions.ts` 第 386 行，这里的 `provider_id` 必填），入口再逐个核对。已查到的三类入口都要求与当前登记的完全相等，否则拒绝：本地网页（`apps/local-host/src/local-web-actions.ts` 第 34–44 行，`actions.forbidden`）、MCP（`mcp-action-client.ts` 第 19–24 行经 `mcp-action-grants.ts` 第 48–54 行，`mcp.action_revoked`）、助理（`apps/local-host/src/assistant/assistant-authority.ts` 第 69–76 行，`assistant.action_revoked`）。写死处：Feed 自己的四个文件 `plugins/native/feed/src/content-actions.ts` 第 40 行、`item-actions.ts` 第 79 行、`rule-actions.ts` 第 93 行、`source-actions.ts` 第 72 行，另有宿主的 `apps/local-host/src/content-action-providers.ts` 第 44 行（钉 `feedManifest.plugin_id`）；Inbox 自己的 `plugins/native/inbox/src/actions.ts` 第 141 行、`content-actions.ts` 第 58 行；Inbox 钉 Pages 的 `plugins/native/inbox/src/pages.ts` 第 69 行（`pages.generate`）；Workflows 自己的 `plugins/native/workflows/src/actions.ts` 第 213 行。
+     - **保留调用权限 `retainActionAuthority` 与 `validate_authority`**：嵌套调用把原动作的 `provider_id` 钉住（`packages/contracts/src/platform/actions.ts` 第 386 行，这里的 `provider_id` 必填），入口再逐个核对。已查到的三类入口都要求与当前登记的完全相等，否则拒绝：本地网页（`apps/local-host/src/local-web-actions.ts` 第 34–44 行，`actions.forbidden`）、MCP（`mcp-action-client.ts` 第 19–24 行经 `mcp-action-grants.ts` 第 48–54 行，`mcp.action_revoked`）、助理（`apps/local-host/src/assistant/assistant-authority.ts` 第 69–76 行，`assistant.action_revoked`）。写死处：Feed 自己的四个文件 `plugins/native/feed/src/content-actions.ts` 第 40 行、`item-actions.ts` 第 79 行、`rule-actions.ts` 第 93 行、`source-actions.ts` 第 72 行，另有宿主的 `apps/local-host/src/content-action-providers.ts` 第 44 行（钉 `feedManifest.plugin_id`）；Inbox 自己的 `plugins/native/inbox/src/actions.ts` 第 141 行、`content-actions.ts` 第 58 行；Inbox 钉 Pages 的 `plugins/native/inbox/src/pages.ts` 第 69 行（`pages.generate`）；Workflows 自己的 `plugins/native/workflows/src/actions.ts` 第 228 行（迁到 Runtime 后仍是自钉死，值仍是 `WORKFLOWS_PLUGIN_ID`，没有别的插件钉着它）。
      - **算键的字面量**：`apps/local-host/src/functions-host.ts` 第 16 行用 `"io.molis.work.inbox"` 算内置首页规则的推荐选项键；键里含源提供方的 `provider_id`，并且没有它就不给算（`packages/kernel/src/subject-offer-choices.ts` 第 35–39 行），Inbox 迁后这个键就对不上 Inbox 实际给出的选项。
      - 指向批准的构建期例外的不受影响（2026-10-18 改：例外取消后，迁 Goals 时这几处一并查），例外期间它们的 `provider_id` 不变：Goals（`plugins/native/feed/src/item-actions.ts` 第 14 行，`plugins/native/feed/src/query-actions.ts` 第 28 行，`server/src/continuity/actions.ts` 第 4–6 行；`project-capabilities.ts` 里已经没有点名 Goals 的行）、Sessions（`apps/local-host/src/work-actions.ts` 第 10 行，`home-talk-actions.ts` 第 16、29 行）。
      - **还没逐个核对的**：下列地方也读写带 `provider_id` 的引用，本文没有确认它们迁移后会不会失配，设计稿要查全：搜索索引的 `search_sources` 表（`packages/storage/src/adapters/text-search-index.ts` 第 148 行）和搜索命中编号（`horizontal/search/src/index.ts` 第 110 行的 `encodeSearchHitId`）、角色可选能力的引用（`plugins/native/characters/src/actions.ts` 第 10 行、`plugin.ts` 第 59 行）。
@@ -219,14 +221,14 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 2. 加 `plugin.ts`，`start()` 兑现 Manifest 的每一条声明；缺一条或多一条都是启动失败。
 3. 在 `project-plugins.ts` 加监督器条目（`bundled: true`，`nativePluginReleaseArtifact`）；Home 级的插件放进 Home 级实例（2.2 的放置规则）。
 4. 删：宿主的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`、`project-host.ts` 的 `registerProvider`、`web-request.ts` 与 `web-catalog.ts` 里的处理段和 import、`index.ts` 里的导出。
-5. 目录条目（`builtin-plugins.ts`）保留。**这一条偏离任务书**：`docs/prompts/repository-anti-corruption.md` §4.6 写的是迁一个就删掉对应的宿主 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` 和工作台目录条目。保留的原因：Runtime 装配的插件同样有目录条目，门禁的第二项断言要求它们有；目录条目还带着 Manifest 里没有的工作台字段（`summary`、`personal`、样式、客户端工厂、`searchRow`、`instructions`、`agent`、`methods` 的正文）。手写的目录条目由 W5-02 改成从各包的声明生成，到那时它就没了，意图与任务书一致，只是晚于单个迁移 PR。用户 2026-10-18 确认保留到 W5-02 生成（第 10 节第 9 项）。工作台里这个插件的挂载改为 Runtime 视图。
+5. 目录条目（`builtin-plugins.ts`）保留。**这一条偏离任务书**：`docs/prompts/repository-anti-corruption.md` §4.6 写的是迁一个就删掉对应的宿主 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts` 和工作台目录条目。保留的原因：Runtime 装配的插件同样有目录条目，门禁的第二项断言要求它们有；目录条目还带着 Manifest 里没有的工作台字段（`summary`、`personal`、样式、客户端工厂、`searchRow`、`instructions`、`agent`、`methods` 的正文）。手写的目录条目由 W5-02 改成从各包的声明生成，意图与任务书一致，只是晚于单个迁移 PR（PR-1a 已做：各包的 `src/registration.ts` 写条目，`builtin-plugins.ts` 是生成文件）。用户 2026-10-18 确认保留到 W5-02 生成（第 10 节第 9 项）。工作台里这个插件的挂载改为 Runtime 视图。
 6. 客户端请求改到 `/api/plugins/<plugin_id>/…`。
 7. 门禁名单：从 `BUILD_TIME_ASSEMBLED`、`NATIVE_PLUGIN_HTTP_FILES` 移走，加进 `RUNTIME_ASSEMBLED`。
 8. 提供方身份与授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：条目标 `bundled: true`，动作登记在 `plugin_id` 之下，清单声明的每一项权限（必需的和可选的）在迁移后都授予；`kind` 按 4.2 授权第 3 点办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：提供方身份保持 `plugin_id`，这些行不变，PR 描述里写明；被别的插件钉着的动作，加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
 9. `methods`：插件有 `methods` 的，W4-02 之后加一个用例，停用后方法不再登记。
 10. **「项目已删」步骤**：2.2 的表里标「有」的插件，按 4.2 末项定下的送达方式保持这一步可用，并加用例：删除一个有该插件数据的项目后，这个项目的数据没了、别的项目的还在；插件被停用时也成立；这一步失败后重试成功。
 11. 跑受影响用例；浏览器里走一遍主路径；W6-02 之后再加生命周期用例（升级、停用、卸载）。
-12. 一个 PR 只迁一个插件或一族，串行合入：它们都改 `project-host.ts`、`web-request.ts`、`web-catalog.ts`、`builtin-plugins.ts`。
+12. 一个 PR 只迁一个插件或一族，串行合入：它们都改 `project-host.ts`、`web-request.ts`、`web-catalog.ts`、`builtin-plugins.ts`（W5-02 PR-1a 之后目录条目在各包里，`builtin-plugins.ts` 是生成的，冲突时重新生成）。
 
 ## 7. 数据与真实 Home
 

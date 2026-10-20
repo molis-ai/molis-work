@@ -51,7 +51,7 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
   const v = issueView(b, "issue-home-locale");
   await v.viewport(1440); await v.go("/locale?lang=en&next=%2Fplugins%2Fissues");
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await v.press(composer); await v.type("问题描述"); await v.send();
+  await v.press(composer); await v.type("问题描述"); await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')", 30_000); await v.press("[data-state=attention]");
   await v.until(`!$('${editor}').hidden`);
   assert.equal(await v.ask(`$('${editor} [name=description]').value`), "问题描述");

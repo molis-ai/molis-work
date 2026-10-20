@@ -18,6 +18,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { createWebCatalogAccess } from "../apps/local-host/dist/web-catalog-access.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
 const user: ActionCallContext = { actor_id: "owner", actor_kind: "user", audience: "user", project_id: null,
   permissions: ["goals:read", "goals:write"], user_action: { source: "management", conversation_ref: "test://planning", message_ref: "test://save" } };
@@ -70,7 +71,9 @@ test("an external Host keeps its Catalog through Web shutdown and replacement, r
 
 test("Home planning actions use the original Catalog, require trusted users and keep Homes and lifecycle isolated", async t => {
   const home = await mkdtemp(join(tmpdir(), "planning-home-actions-")), otherHome = join(home, "separate-home");
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  // A Home plugin that holds the Goals permissions, started by the Host (S-15).
+  const planner = callerPlugin("homeplanner", "home", { "goals:read": true, "goals:write": true });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [planner.definition] } });
   const other = new MolisWorkLocalHost({ homeDirectory: otherHome, completeText: null });
   const client = host.homeActionClient(), actions = bindActionClient(client, () => user);
   try {
@@ -82,9 +85,14 @@ test("Home planning actions use the original Catalog, require trusted users and 
     other.configurePersonalPlanning(otherHome, withCatalog);
     assert.throws(() => host.configurePersonalPlanning(otherHome, withCatalog), { code: "actions.scope_mismatch" });
     await assert.rejects(client.invoke({ ...user, permissions: [] }, personalPlanningActions.list, {}), { code: "actions.forbidden" });
+    // The plugin's call carries the caller the Host issued its Home session, claiming the person's permissions and management entry.
+    const probe = registerProbe(host.actionRegistry(), "home");
+    await host.homePlugins!.ready();
+    const asPlugin = callAs(await issuedCaller(probe, planner), user.permissions, { user_action: user.user_action });
     for (const audience of ["agent", "workflow", "plugin", "mcp"] as const) {
-      assert.equal((await client.discover({ ...user, audience })).some(v => v.capability_id === personalPlanningActions.save.capability_id), false);
-      await assert.rejects(client.invoke({ ...user, audience }, personalPlanningActions.save, input), { code: "actions.forbidden" });
+      const claimed = audience === "plugin" ? asPlugin : { ...user, audience };
+      assert.equal((await client.discover(claimed)).some(v => v.capability_id === personalPlanningActions.save.capability_id), false);
+      await assert.rejects(client.invoke(claimed, personalPlanningActions.save, input), { code: "actions.forbidden" });
     }
     await assert.rejects(client.invoke({ ...user, user_action: undefined }, personalPlanningActions.save, input), { code: "goals.planning.user_required" });
     await assert.rejects(client.invoke({ ...user, actor_kind: "runtime" }, personalPlanningActions.save, input), { code: "goals.planning.user_required" });

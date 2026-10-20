@@ -385,6 +385,17 @@ test("a call through the Host's typed port is a row of its own kind, named for t
   assert.deepEqual([row!.call_id, row!.path, row!.provider_id, row!.provider_title, row!.operation], [call.call_id, "typed", "", "Molis Work", "command"]);
 }));
 
+test("W5-01-DELEGATE-07 S-43 a call made through a plugin's action directory records which plugin made it, and never folds into the same call made another way", () => logOf("delegated", (_home, log) => {
+  const by = (delegated_by?: string) => callBy(null, { actor_id: "runtime:logged", audience: "workflow", ...(delegated_by ? { delegated_by } : {}) });
+  const delegator = "io.molis.work.example.delegator", other = "io.molis.work.example.other";
+  log.record(by(delegator), action("w.command"), { ok: true });
+  log.record(by(delegator), action("w.command"), { ok: true });
+  log.record(by(), action("w.command"), { ok: true });
+  log.record(by(other), action("w.command"), { ok: true });
+  assert.deepEqual(log.list(null).map(row => [row.actor_id, row.delegated_by, row.count ?? 1]),
+    [["runtime:logged", other, 1], ["runtime:logged", undefined, 1], ["runtime:logged", delegator, 2]]);
+}));
+
 test("a client trying many ids that do not exist leaves one row, with the last twenty of them and of the operations", () => logOf("missing", (home, log) => {
   const calls = Array.from({ length: 500 }, () => callBy(null, { actor_id: "mcp-client", audience: "mcp" }));
   calls.forEach((call, i) => log.record(call, action(`guess.nothing_${i}`, "unknown"), refusal("actions.missing", `没有能力 guess.nothing_${i}`)));

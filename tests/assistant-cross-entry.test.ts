@@ -28,7 +28,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   agent.register(adapter);
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  const service: AssistantService = new AssistantService(store, { host: async () => agent,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agent,
     authority: async work => assistantAuthority(home.host, work, () => store.disabledActions("web-user")),
     projectTitle: async () => project.display_name }, "web-user");
   t.after(async () => { service.continuations.close(); await adapter.close(); db.close(); });
@@ -101,7 +101,7 @@ for (const failure of ["disabled", "invalid"] as const) test(`W3-09-2-01 assista
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   agent.register(adapter);
   const db = new DatabaseSync(":memory:"), store = new AssistantStore(db);
-  const service = new AssistantService(store, { host: async () => agent,
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => agent,
     authority: async work => assistantAuthority(home.host, work, () => new Set()), projectTitle: async () => project.display_name }, "web-user");
   t.after(async () => { service.continuations.close(); await adapter.close(); db.close(); });
   const originalFetch = globalThis.fetch.bind(globalThis), requests: unknown[] = [];

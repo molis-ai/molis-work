@@ -1,7 +1,7 @@
 import type { ActionDefinition, ActionExecutionContext, ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { WorkflowContentPorts, WorkflowsActionPorts, workflowsActions } from "./actions.js";
+import type { WorkflowContentPorts, workflowsActions } from "./actions.js";
 import { advanceInstance, isActionStation, nextUpdatedAt, type WorkflowInstance, type WorkflowItemRef, type WorkflowPayload, type WorkflowStation } from "./model.js";
-import { recordStoppedDelivery, type WorkflowsStore } from "./store.js";
+import { recordStoppedDelivery, type WorkflowsStore, type WorkflowsStores } from "./store.js";
 import { workflowRequestId } from "./content-client.js";
 import { workflowsErrors } from "./error.js";
 
@@ -10,7 +10,8 @@ type Pending = NonNullable<WorkflowInstance["steps"][number]["pending"]>;
 type Arrival = { payload?: WorkflowPayload; result?: unknown; result_presentation?: ActionResultPresentation; result_truncated?: true };
 interface Dependencies<Reach> {
   projectId: string;
-  withStore: WorkflowsActionPorts["withStore"];
+  read: WorkflowsStores["read"];
+  write: WorkflowsStores["write"];
   commit<T>(caller: ActionExecutionContext, run: (store: WorkflowsStore) => T): Promise<T>;
   live(store: WorkflowsStore, id: string): WorkflowInstance;
   changed(value: { instance: WorkflowInstance }): { instance: WorkflowInstance };
@@ -22,7 +23,7 @@ interface Dependencies<Reach> {
 /** One continuation owns its fixed handoff and attempt; the store's CAS, rather than a process queue, settles concurrent calls. */
 export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
   return async (input: Input, content: WorkflowContentPorts, caller: ActionExecutionContext, reach: Reach, original: ActionExecutionContext) => {
-    let current = await d.withStore(store => d.live(store, input.id));
+    let current = d.read(store => d.live(store, input.id));
     if (input.updated_at !== undefined && input.updated_at !== current.updated_at) throw workflowsErrors.conflict("这一次刚被推进过，已载入最新进度");
     const from = handoffIndex(current, input.from);
     let pending = current.steps[from]!.pending;
@@ -45,7 +46,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
     }
     // Stop cancels uncommitted work. Actual returned results may settle the original attempt, never revive the run.
     await original.beforeEffect();
-    const stopped = await d.withStore(store => { original.assert_authority_current?.(); original.signal?.throwIfAborted(); return recordStoppedDelivery(store, current, from, arrived, arrival); });
+    const stopped = await d.write(original, store => { original.assert_authority_current?.(); original.signal?.throwIfAborted(); return recordStoppedDelivery(store, current, from, arrived, arrival); });
     if (stopped) return d.changed({ instance: stopped });
     await caller.beforeEffect();
     const { attempted_at: _attempted, attempt_error: _error, ...recorded } = pending;
@@ -54,7 +55,7 @@ export function createWorkflowContinuation<Reach>(d: Dependencies<Reach>) {
       return d.changed({ instance: await d.commit(caller, store => store.saveInstance(base, advanceInstance(base, from, recorded, arrived, nextUpdatedAt(base.updated_at), arrival))) });
     } catch (error) {
       await original.beforeEffect(); original.assert_authority_current?.(); original.signal?.throwIfAborted();
-      const latest = await d.withStore(store => store.instance(current.instance_id, d.projectId));
+      const latest = d.read(store => store.instance(current.instance_id, d.projectId));
       original.assert_authority_current?.(); original.signal?.throwIfAborted();
       if (latest.steps[from]?.handoff?.key === recorded.key) return { instance: latest };
       throw error;

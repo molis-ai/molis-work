@@ -1,12 +1,12 @@
 /** Layout only: controls, colours and focus treatments remain Design System owned. */
 export const MODEL_SETTINGS_STYLES = `
-.model-settings-head,.model-settings-actions,.model-provider-detail-head,.model-list-head,.model-row { display:flex; align-items:center; gap:8px; }
+.model-settings-head,.model-settings-actions,.model-provider-detail-head,.model-list-head,.model-row,.model-provider-row { display:flex; align-items:center; gap:8px; }
 .model-settings-head,.model-list-head { justify-content:space-between; }
-.model-settings-actions { flex-wrap:wrap; }
+.model-settings-actions,.model-row { flex-wrap:wrap; }
 .model-settings-panes { display:grid; grid-template-columns:minmax(140px,200px) minmax(0,1fr); gap:32px; margin-top:24px; }
 .model-provider-list { display:flex; flex-direction:column; gap:4px; }
 .model-provider-group,.model-list h3 { font-size:12px; font-weight:400; color:var(--muted); }
-.model-provider-row { display:flex; align-items:center; gap:8px; width:100%; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--ink); text-align:left; }
+.model-provider-row { width:100%; padding:8px; border:0; border-radius:6px; background:transparent; color:var(--ink); text-align:left; }
 .model-provider-row:hover { background:var(--nav-hover); }
 .model-provider-row.is-current { background:var(--nav-active); }
 .model-provider-detail { min-width:0; }
@@ -24,7 +24,7 @@ export const MODEL_SETTINGS_STYLES = `
 [data-model-status] { min-height:20px; }
 [data-model-status][data-failed]{color:var(--red)}
 .model-row { margin:12px 0; }
-.model-row-id { flex:1; min-width:0; }
+.model-row-id { flex:1 1 140px; min-width:0; }
 .model-row-flag { display:inline-flex; align-items:center; gap:4px; color:var(--muted); font-size:12px; white-space:nowrap; cursor:pointer; }
 .model-list { margin:32px 0; }
 .model-provider-name { flex:1; overflow:hidden; text-overflow:ellipsis; }

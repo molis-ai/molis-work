@@ -42,17 +42,23 @@ for (const width of [1440, 390]) {
     const selectParagraph = (index: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
-    const slots = width === 390 ? 2 : 3;
+    // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
+    // does not fit goes to 更多's 推荐 rather than being squeezed under its text (context-toolbar §6, QA-014).
+    const shown = `(${width === 390 ? "n => n >= 1 && n <= 2" : "n => n === 3"})(document.querySelectorAll(${JSON.stringify(ACTION)}).length)`;
     await selectParagraph(1);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots} && window.__contextPlan`);
-    const row = await evaluate<{ titles: string[]; planned: string[]; tools: number; inView: boolean }>(`(() => { const plan = window.__contextPlan, title = key => plan.candidates.find(item => item.key === key).title;
+    await waitFor(`${shown} && window.__contextPlan`);
+    const slots = await evaluate<number>(`document.querySelectorAll(${JSON.stringify(ACTION)}).length`);
+    const row = await evaluate<{ titles: string[]; planned: string[]; tools: number; inView: boolean; fits: boolean; tight: boolean }>(`(() => { const plan = window.__contextPlan, title = key => plan.candidates.find(item => item.key === key).title;
       const bar = document.querySelector('.mw-ctx'), box = bar.getBoundingClientRect();
       return { titles: [...bar.querySelectorAll('.mw-btn[data-key] > span:first-child')].map(node => node.textContent.trim()), planned: plan.primary.map(title),
-        tools: bar.querySelectorAll('.mw-ctx__tools button').length, inView: box.left >= 0 && box.right <= innerWidth && box.top >= 0 }; })()`);
+        tools: bar.querySelectorAll('.mw-ctx__tools button').length, inView: box.left >= 0 && box.right <= innerWidth && box.top >= 0,
+        fits: bar.scrollWidth <= bar.clientWidth, tight: bar.hasAttribute('data-tight') }; })()`);
     assert.ok(row.planned.includes("改得更简洁"), `rules offer a rewrite for a passage: ${row.planned.join(" / ")}`);
     assert.deepEqual(row.titles, row.planned.slice(0, slots), "the bar shows the plan's first actions in order");
     assert.ok(row.tools > 0, "the editor's tools sit at the left of the bar");
     assert.equal(row.inView, true);
+    assert.equal(row.fits, true, "everything on the bar fits inside it");
+    assert.equal(row.tight, false, "the rules' own titles are shown whole");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
     // 更多 holds exactly the plan (spec §6.4.1, W2-03): the actions that did not fit, the same groups, every action, the whole document's last.
@@ -68,7 +74,7 @@ for (const width of [1440, 390]) {
     await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
     await waitFor("!document.querySelector('.mw-ctx-menu')");
     await selectParagraph(1);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(shown);
 
     // Choose through the bar: the editor keeps the selection (the bar never takes focus), the range freezes at once.
     const key = await evaluate<string>(`window.__contextPlan.candidates.find(item => item.title === '改得更简洁').key`);
@@ -89,7 +95,7 @@ for (const width of [1440, 390]) {
     // but the result waits where it was and still belongs to the paragraph they asked about.
     const firstContext = await evaluate<string>("window.__contextPlan.context_id");
     await selectParagraph(0);
-    await waitFor(`window.__contextPlan.context_id !== ${JSON.stringify(firstContext)} && document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(`window.__contextPlan.context_id !== ${JSON.stringify(firstContext)} && ${shown}`);
     assert.equal(await evaluate("Boolean(document.querySelector('.mw-ctx-panel .pages-pop:not([hidden])'))"), true, "the waited-for result stays when something else is selected");
     release();
     await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value.includes('主因是上手困难：')");
@@ -107,7 +113,7 @@ for (const width of [1440, 390]) {
     } finally { saved.close(); }
     const output = reviewEvidenceUrl("contextual-interaction/"); await mkdir(output, { recursive: true });
     await selectParagraph(2);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(shown);
     await writeFile(new URL(`contextual-bar-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   });
 }

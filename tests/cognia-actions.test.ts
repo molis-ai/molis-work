@@ -32,6 +32,8 @@ test("Cognia Home capabilities are discovered without UI/project; grants and sep
   assert.ok((await readonly.discover()).every(d => !d.capability_id.startsWith("cognia.") || d.operation === "query" && d.capability_id !== actions.scan.capability_id));
   await assert.rejects(readonly.invoke(actions.createMaterial, { title: "denied", body: "private" }), { code: "actions.forbidden" });
   await assert.rejects(readonly.invoke(actions.scan, { path: f.home }), { code: "actions.forbidden" });
+  const agent = bindActionClient(f.service, () => ({ ...f.caller, audience: "agent" }));
+  await assert.rejects(agent.invoke(actions.scan, { path: f.home }), { code: "actions.forbidden" }, "the audience, not just the permission, keeps a non-person out");
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Stored", body: "Original Home data" });
   assert.equal((await readonly.invoke(actions.read, { id: material.id })).material.body, "Original Home data");
   assert.equal((await other.read()).materials.length, 0);

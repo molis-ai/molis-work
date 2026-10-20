@@ -7,10 +7,12 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
   assertPluginActionCurrent,
+  assertCapturedPluginActionCurrent,
   createPluginCapabilityClient,
   createPluginInputsClient,
   createPluginOutputsClient,
-  currentPluginAction,
+  currentPluginInvocation,
+  pluginInvocationReadOnly,
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createPluginUiClient } from "@molis-ai/molis-work-ui-host";
@@ -58,7 +60,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const artifactService = createPluginArtifactClient({ assertInput: assertActionInput, api: options.artifacts, process: options.processItems, manifest, context, actions: options.actions, plugin_caller: pluginCaller,
       project_id: options.project_id, actor_id: options.actor_id, assertCallerCurrent: () => assertPluginActionCurrent(context.install_id),
       // A version pinned inside one of this installation's actions is the caller's (an Agent, a workflow, an MCP client, the person).
-      author: () => { const scope = currentPluginAction(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
+      author: () => { const scope = currentPluginInvocation(); return scope?.install_id === context.install_id ? scope.caller.actor_id : undefined; } });
     disposeArtifacts = artifactService.dispose;
     library = openDeclaredLibrary(options, definition, context, assertActive);
     const fileDeclaration = options.filesFor?.(definition);
@@ -169,7 +171,7 @@ function coordinationServices(options: PluginHostExecutorOptions, manifest: Plug
       ? { inputs: createPluginInputsClient(wiringInput) }
       : {}),
     ...(declaresOutputs && wiringInput !== undefined
-      ? { outputs: createPluginOutputsClient(wiringInput) }
+      ? { outputs: createPluginOutputsClient(wiringInput, pluginCaller.assertActive) }
       : {}),
     ...(declaresCapabilities && options.capabilities !== undefined
       ? { capabilities: createPluginCapabilityClient(manifest, withPluginCaller(pluginCaller, options.capabilities), isActive) }
@@ -181,14 +183,17 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
   return {
     ...(port.availability ? { availability: (capability: ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">) => port.availability!(capability, options) } : {}),
     invoke(capability, input, options) {
+      const outer = currentPluginInvocation();
       caller.assertActive();
+      assertCapturedPluginActionCurrent(outer, caller.install_id);
       const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal;
       const assertAuthorityCurrent = () => {
         caller.assertActive(); signal?.throwIfAborted();
         requireSynchronous(current?.(), "最终授权检查必须同步完成");
+        assertCapturedPluginActionCurrent(outer, caller.install_id);
         signal?.throwIfAborted(); caller.assertActive();
       };
-      const bound = { ...options, consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
+      const bound = { ...options, ...(pluginInvocationReadOnly(outer) ? { query_only: true as const } : {}), consumer: "plugin" as const, plugin_caller: caller, before_effect: async () => {
         caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
       }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.

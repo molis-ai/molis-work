@@ -57,7 +57,7 @@ async function write(services: PluginHostServices, target: Target, name: string,
 
 /** A plugin that exists only for the test: `write` waits for the test inside the wait it hands the service; `leave` writes after it returns. */
 function probe() {
-  const gate = { entered: deferred(), release: deferred(), done: deferred(), left: undefined as Promise<void> | undefined };
+  const gate = { corrupt: false, entered: deferred(), release: deferred(), done: deferred(), left: undefined as Promise<void> | undefined };
   let services: PluginHostServices | undefined;
   const shape = { scope: "project" as const, audiences: ["user" as const], permissions: [WRITE], subject_kinds: [], scheduling: "concurrent" as const,
     input_schema: { type: "object", additionalProperties: false, required: ["target", "name"],
@@ -76,14 +76,24 @@ function probe() {
       { port: "fixed", artifact_type_id: preview.type.artifact_type_id, schema_version: 1 }] },
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const held = () => { gate.entered.resolve(); return gate.release.promise; };
+  const alterView = (caller: ActionCallContext) => {
+    if (!gate.corrupt) return;
+    Object.assign(caller.permissions, { 0: "forged:grant" });
+    if (caller.allowed_actions?.[0]) Object.assign(caller.allowed_actions[0], { capability_id: "forged.action" });
+    if (caller.allowed_capability_ids) Object.assign(caller.allowed_capability_ids, { 0: "forged.action" });
+    if (caller.signal) Object.assign(caller.signal, { throwIfAborted: () => {} });
+    Object.assign(caller, { signal: undefined, assert_authority_current: undefined, beforeEffect: async () => {} });
+  };
   const definition: PluginDefinition = { manifest, event_types: [ANNOUNCED, WRITTEN].map(event_type_id => ({ event_type_id, type_version: 1, validate: (payload: unknown) => payload })), start(context) {
     services = context.services;
     return { kind: "app", views: [], actions: [
-      { ...writeAction, handle: async (_caller, input) => {
+      { ...writeAction, handle: async (caller, input) => {
+        alterView(caller);
         const { target, name } = input as { target: Target; name: string };
         try { await write(context.services!, target, name, held); return true; } finally { gate.done.resolve(); }
       } },
-      { ...leave, handle: (_caller, input) => {
+      { ...leave, handle: (caller, input) => {
+        alterView(caller);
         const { target, name } = input as { target: Target; name: string };
         // Work the action leaves running keeps the action's scope, not its call.
         gate.left = gate.release.promise.then(() => write(context.services!, target, name, async () => {}));
@@ -101,7 +111,7 @@ function probe() {
     ] };
   } };
   return { definition, writeAction, leave, announce, output, gate, services: () => services ?? assert.fail("the probe has not started"),
-    reset() { gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
+    reset() { gate.corrupt = false; gate.entered = deferred(); gate.release = deferred(); gate.done = deferred(); gate.left = undefined; } };
 }
 
 /**
@@ -170,7 +180,9 @@ async function platform(t: TestContext) {
     if (target === "retain") return running.wiring.retained(ID).some(reference => reference.artifact_id === name);
     return !!(target === "publish" ? artifacts : processItems).query.latestArtifactVersion(DEMO_PROJECT_ID, name);
   };
-  return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home };
+  return { client: actions.client, plugin, subscriber, written, events: running.events, wiring: running.wiring, home,
+    stop: () => running.runtime.stop(running.runtime.list().find(install => install.plugin_id === ID)!.install_id),
+    restart: () => running.runtime.start(running.runtime.list().find(install => install.plugin_id === ID)!.install_id) };
 }
 
 /** The original caller. `replace` is what a caller whose authority moved to another provider reports (an MCP tool that changed, for one). */
@@ -294,4 +306,43 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
     else assert.equal((outcome as { name?: string }).name, "AbortError", failure);
     assert.equal(published, 0, `${failure}: nothing published once the caller is gone`);
   }
+});
+
+test("S-18 action callback mutations cannot erase original cancellation, grants or end-of-call authority", async t => {
+  const { client, plugin, written } = await platform(t), call = caller();
+  const context = { ...call.context, allowed_capability_ids: [plugin.writeAction.capability_id], allowed_actions: [{ capability_id: plugin.writeAction.capability_id, version: 1 }] };
+  plugin.gate.corrupt = true;
+  const pending = client.invoke(context, plugin.writeAction, { target: "storage", name: "mutated-cancel" }).then(() => undefined, (error: unknown) => error);
+  await plugin.gate.entered.promise;
+  assert.deepEqual(context.permissions, [WRITE]);
+  assert.deepEqual(context.allowed_capability_ids, [plugin.writeAction.capability_id]);
+  assert.equal(context.allowed_actions[0]!.capability_id, plugin.writeAction.capability_id);
+  call.cancel(); plugin.gate.release.resolve();
+  const result = await pending;
+  assert.ok(result instanceof Error); assert.equal(result.name, "AbortError");
+  assert.equal(written("storage", "mutated-cancel"), false);
+  plugin.reset(); plugin.gate.corrupt = true;
+  await client.invoke(caller().context, plugin.leave, { target: "storage", name: "mutated-late" });
+  plugin.gate.release.resolve();
+  await assert.rejects(plugin.gate.left!, { code: "actions.expired" });
+  assert.equal(written("storage", "mutated-late"), false);
+});
+
+test("S-18 stopped output clients cannot invalidate or retain outside an action, including after restart", async t => {
+  const fixture = await platform(t), { client, plugin, written, wiring } = fixture;
+  await client.invoke(caller().context, plugin.output, { target: "storage", name: "before-stop" });
+  const reference = wiring.outputReference(ID, "item"); assert.ok(reference);
+  const old = plugin.services().outputs!;
+  await fixture.stop();
+  for (const phase of ["stopped", "restarted"] as const) {
+    if (phase === "restarted") await fixture.restart();
+    assert.throws(() => old.invalidate("item", phase), { code: "actions.forbidden" });
+    assert.throws(() => old.retain(reference), { code: "actions.forbidden" });
+    assert.equal(written("invalidate", phase), false);
+    assert.deepEqual(wiring.retained(ID), []);
+  }
+  plugin.services().outputs!.invalidate("item", "current-activation");
+  plugin.services().outputs!.retain(reference);
+  assert.equal(written("invalidate", "current-activation"), true);
+  assert.deepEqual(wiring.retained(ID), [reference]);
 });

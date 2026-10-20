@@ -11,14 +11,14 @@ import type {
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, bindCall, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
+import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { settleTyped } from "./typed-call-settlement.js";
-import { typedCapabilityInvocation } from "./typed-capability-invocation.js";
+import { typedCapabilityCaller, typedCapabilityInvocation } from "./typed-capability-invocation.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
   type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
-import { admitPluginCall, requireIssuedPluginCaller, verifiedCaller } from "./plugin-callers.js";
+import { admitPluginCall, verifiedCaller } from "./plugin-callers.js";
 
 export interface LocalHostRuntimeFactory<Runtime> {
   open(reference: LocalHostProjectReference): Runtime | Promise<Runtime>;
@@ -434,16 +434,7 @@ export class LocalHost<Runtime> {
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
-    const beforeEffect = options?.before_effect, current = options?.assert_authority_current, signal = options?.signal, plugin = options?.plugin_caller;
-    if (plugin) requireIssuedPluginCaller(plugin, reference.project_id);
-    // A plugin reaches an action through this port as the plugin audience, as it would through the action client: an action
-    // not offered to plugins stays out of its reach.
-    const caller = bindCall({ actor_id: plugin?.actor_id ?? "local-host", project_id: reference.project_id, audience: plugin ? "plugin" : "user", permissions: [],
-      ...callSignal(capability.operation, () => this.ensureEntry(reference), signal),
-      ...(plugin ? { host_plugin: plugin, plugin_install_id: plugin.install_id } : {}),
-      ...(beforeEffect ? { validate_authority: () => beforeEffect() } : {}), assert_authority_current: () => {
-        signal?.throwIfAborted(); plugin?.assertActive(); requireSynchronous(current?.(), "最终授权检查必须同步完成"); signal?.throwIfAborted(); plugin?.assertActive();
-      } });
+    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(capability.operation, () => this.ensureEntry(reference), options?.signal), options);
     if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
     // A typed identity may omit the activation scope; only the bound Host supplies it.
     const registered = this.capabilities.descriptor(capability, reference.project_id);

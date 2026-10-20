@@ -198,7 +198,7 @@ test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what 
   const answer = { environment: { scope: { kind: "project", project_id: "p", title: "发布计划" }, coding: { workspace: { name: "molis", path: "/work/molis" },
       git: { repository: "molis-ai/molis-work", branch: "feature/env", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
     connections: [{ connection_id: "c1", title: "GitHub", account: "octo", state: "connected", tools: "callable" }, { connection_id: "c2", title: "Notion", account: null, state: "needs-authorization", tools: "none-discovered" }],
-    tools: { executor: "coding", callable: [], unavailable: [] }, read_at: at };
+    tools: { executor: "coding", callable: [{ provider: "GitHub MCP", count: 3 }], unavailable: [{ title: "create_issue", provider: "Linear MCP", reason: "服务未连接" }] }, read_at: at };
   await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
     const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
     if (/\\/api\\/assistant\\/works\\/${id}\\/surroundings$/.test(path)) return new Response(JSON.stringify(${JSON.stringify(answer)}), { status: 200, headers: { "Content-Type": "application/json" } });
@@ -218,6 +218,8 @@ test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what 
   assert.match(read.tools, /GitHub.*已连接 · octo · 工具可调用/);
   assert.match(read.blocked, /需要登录授权/);
   assert.deepEqual(read.toolsBadge, ["1 项要处理", true]);
-  assert.match(read.tools, /Coding Agent.*用它自己的工具与 MCP/);
+  assert.match(read.tools, /Coding Agent自己的读写与命令，加上为这个会话选的 MCP 工具/);
+  assert.match(read.tools, /GitHub MCP3 项可用/, "the MCP tools chosen for the session, by server, as Coding has them");
+  assert.match(read.blocked, /Linear MCP · 服务未连接/, "a chosen tool its server cannot serve now, with why");
   assert.equal(await evaluate<boolean>(`(() => { const side = document.querySelector('[data-assistant-block="tools"]').parentElement; return side.scrollWidth <= side.clientWidth; })()`), true, "a long line in a card ellipsizes; it never widens the side column");
 });

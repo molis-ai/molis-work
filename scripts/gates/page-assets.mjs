@@ -235,19 +235,13 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): the Assistant's 用量 told apart (VUX-11):
-// the context window with its share, this round's input, output, cache reads and writes, reasoning and cost, the account's
-// quota, each from the runtime's own report for the round with estimates marked and unknowns read as 暂不可用, and the model the
-// round really ran on (start → now). +2,761 B of workbench.js: the box's drawing moved out of the island into a factory (the
-// island shrank 31 lines) with 12 English strings; +280 B in each of the three stylesheets that carry the side groups (one
-// part per measure, a label and its number per row). Tried first: the island's progress bar and blocks passed in, one
-// coverage-mark helper (−20 B), the stylesheet's rules written compact with the note kept out of the shipped text (−59 B).
-// Spent once from exactly the 工作环境 and 连接与工具 slice's budget (#873).
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): 连接与工具 lists a Coding work's own MCP
+// tools (VUX-08/09): the ones chosen for its session, by server, and the ones its server cannot serve now with why. +148 B
+// of workbench.js: the English for the six reasons the Host gives and the Coding card's two lines (the old line went).
+// Tried first: the Coding card reuses the provider list the Assistant already draws, no new card or style. Spent once
+// from exactly the 用量 slice's budget (#874).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1142662, 1145423],
-  "/assets/molis-work-workbench.css": [1605433, 1605713],
-  "/assets/molis-work-settings.css": [991208, 991488],
-  "/assets/molis-work-arrival.css": [700794, 701074],
+  "/assets/molis-work-workbench.js": [1145423, 1145571],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

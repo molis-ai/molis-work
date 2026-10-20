@@ -113,8 +113,8 @@ export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, c
         subTone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : "" }));
       if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
       if (linked.length) box.append(group(L("连接"), stack(linked, work.work_id + ":tools:connections")));
-      const callable = can.executor === "coding" ? [card({ icon: "terminal", title: "Coding Agent", sub: L("用它自己的工具与 MCP，在 Coding 里设置") })]
-        : can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
+      const callable = can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
+      if (can.executor === "coding") callable.unshift(card({ icon: "terminal", title: "Coding Agent", sub: can.callable.length || can.unavailable.length ? L("自己的读写与命令，加上为这个会话选的 MCP 工具") : L("自己的读写与命令；MCP 工具在 Coding 里为会话选择") }));
       if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
       if (callable.length) box.append(group(L("可调用"), stack(callable, work.work_id + ":tools:callable")));
       const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + one.reason : ""), subTone: "blocked" }));

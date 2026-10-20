@@ -4,16 +4,56 @@
 
 目录里现在有这些东西：
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
+- 当前包 `prologue-sdk-0.0.0-rc.1-after-write-check-marker.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
 - 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 28 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
+- `patch-history.json`：已删除的 26 份历史补丁和 29 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
 - 本文件。
 
 另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
 
-## 当前依赖：after-write-check-key（2026-10-18）
+## 当前依赖：after-write-check-marker（2026-10-19）
 
-当前包 `prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`（1,223,766 字节），SHA-256 `ac2029b40e4e8a8a3d8cd85e9b239b27700161a3431903f7128192e045caedc8`。来源为上游 main `3adc5e87e81567af59983d1e7ac411a703454167`，即 [Prologue #49](https://github.com/molis-ai/prologue/pull/49) 的合并，当时的 main 头；#49 只改 `docs/slices/input-board-refs.md`，包的内容和 #48 的合并 `72866036` 打出来的逐字节相同。无补丁、dirty 为 false。从两份各自独立的干净 `git archive` 各打一次，两份逐字节相同。
+当前包 `prologue-sdk-0.0.0-rc.1-after-write-check-marker.tgz`（1,228,137 字节），SHA-256 `0339fb9ef4935e70b534b35319052bd57d04931654c12fb861ed4ac8b4de6d60`。来源为上游 main `a51607fbfa11e8f59ac0962906aa1bcbf155d8e6`，即 [Prologue #52](https://github.com/molis-ai/prologue/pull/52) 的合并，当时的 main 头；无补丁、dirty 为 false。上游按这个提交给的源码归档（GitHub tarball，即上游的 `git archive`）解到两个各自独立的空目录，各自装依赖、构建、打包，两份逐字节相同。
+
+比上一份多三项：
+
+- [#50](https://github.com/molis-ai/prologue/pull/50)（合并 `dd639069`，head `c077dcb3`）：`acknowledge-inputs` 只在这一轮收得下时列 `todo`：这一轮的名单里有 `update-todo`，或者构建这次请求时这一跑的待办清单不空。列不列在构建请求时定下，这次请求里不再变；没列时硬写的 `todo` 目标在读清单之前就以 `AGENT_INPUT_REF_REJECTED` 拒掉，整次调用不记。没有可指的步骤类目标时，`later-step` 只要求在 note 里写是哪一步。
+- [#51](https://github.com/molis-ai/prologue/pull/51)（合并 `43f223e6`，head `912e2d03`）：写后检查是包里标了 `afterWriteCheck: true` 的那个工具，不再认固定名字 `coding.diagnose-after-write`，工具名由包自己起。`validatePack` 以 `SCENARIO_PACK_INVALID` 拒绝（点名工具）：一个包标了两个以上、标在不是 `safe-read` 的工具上、值不是 `true`。官方编码包已标上；没有按名字的退路。
+- [#52](https://github.com/molis-ai/prologue/pull/52)（合并 `a51607fb`，head `8decb428`）：没有退出码的命令不再写成 `exit undefined`。Node Host 的前台 `runCommand` 起不来（没有这个可执行文件、没有执行权限、argv 里有 NUL）时以 `COMMAND_FAILED` 拒掉、不留回执，和后台、交互进程以及 Tauri Host 一致；于是不是取消也不是超时、又没有退出码的回执只剩一种来源：被信号结束。各处说法统一成 `exit none (a signal ended it)`，提醒里的状态跟着改成 `exit 2`、`exit timed-out`、`exit cancelled`。写后检查遇到信号结束写 `not checked: no exit code (a signal ended it)`，检查器起不来写 `not checked: COMMAND_FAILED: …`，两种情况写入都照样落盘。
+
+对 Molis 的影响：
+
+- #50：助理业务轮次的名单里有 `update-todo`（`BUSINESS_HOST_TOOLS`），照旧列 `todo`。Coding 的各个角色（`plugins/native/coding/src/roles.ts`）都不列 `update-todo`，Molis 也不替这些跑写待办清单，所以它们的 `acknowledge-inputs` 不再列 `todo`；原先硬写的 `todo` 目标也会因为清单为空、id 不存在被拒，现在是提前拒、换了拒绝的话。插件方法只选了部分业务工具、没选 `update-todo` 的跑同理。Molis 的用例里没有硬写 `todo` 目标的。Molis 的代码一行不动。
+- #51：现在没有影响。Molis main 上没有写后检查的执行器，也不引用旧名字。A2-2（Molis 自己的写后检查，[采用 spec](../../specs/prologue-adoption/spec.md) §6.0p）要按它做：Coding 的包带自己的检查工具，按包起名、标 `afterWriteCheck: true`、`effectKind` 为 `safe-read`；执行器照 `PackTool.afterWriteCheck` 的 JSDoc，收 `{ path }`，回 `{ command }` 或 `{ unchecked }`。
+- #52：
+  - 起不来的前台命令现在没有回执。Molis 读命令输出（`horizontal/agent-host/src/adapters/prologue-node-port.ts` 的 `readCommandOutput`）对这次调用回「没有这次命令的持久回执；结果未知」，不再给一份 `exit_code` 为空的回执。
+  - Coding 时间线（`plugins/native/coding/src/timeline.ts`）用 `/^exit (-?\d+)/` 从输出文字里读退出码：起不来的命令现在是工具失败，显示「失败」；被信号结束（`exit none (…)`）、超时、取消的读不到退出码，照旧落到「完成」。这个缺口记在 `specs/BACKLOG.md` 的 BL-222，由交互线单独改。
+  - Molis 不读提醒里的 `status`，也不认 `exit unknown`、`exited` 这些旧说法。
+
+验证（2026-10-19）：
+- 打包的工具链和上一份不同。上游 `.npmrc` 开着 `engine-strict=true`，`package.json` 要 node 24.14.0；这台机器只有 node 24.21.0（darwin x64），没有 24.14.0，所以装依赖、构建、打包三步都在命令行上关掉 engine-strict（命令见 `.provenance.json` 的 `build.steps`）。pnpm 是要求的 11.9.0，TypeScript 由上游锁文件定在 5.9.3。上一份是 node 24.14.0（darwin arm64）打的。
+- 换工具链没有改产物：把上一份包和这一份解开逐个比，666 个文件里不同的 27 个，全都对应 `3adc5e87...a51607fb` 之间改过的 20 个 `packages/sdk/src` 源文件（其中 `composition/core/command-outcome` 是新文件，`.js` 和 `.d.ts` 两个）；其余文件逐字节相同，`package.json` 也相同。
+- 同一棵树上 `tsc -p tsconfig.typecheck.json --noEmit` 无错；SDK 不含 live 的用例 208 个文件、2879 条通过、无类型错误。live 用例只单独跑了 `coding-diagnose-after-write.live`：3 条过，其中两条是 #52 新加的（检查器被信号结束、检查器起不来）；只用本机 node，不出网、不要密钥。
+- 13 个消费者脚本（`prologue-verify.sh`）不在这台机器上，这次没跑。代替它的是 SDK 的 `packaged-consumer.test.ts`（只认打好的 dist，在上面 208 个文件里），和下面 Molis 这一侧的干净安装、构建与相关用例。
+- 从两个各自解开的源码目录各打一次，字节数与 SHA-256 相同。
+
+重建命令与工具版本见同目录的 `.provenance.json`。
+
+Molis 侧的验证（这一刀只换包，不写进采用 spec）：
+- 在 main `7d1cc4bfa`（#807 之后）上换包。`pnpm install --frozen-lockfile --offline` 通过，锁文件只改这个包的文件名与 integrity。
+- 构建：`design-system`、`agent-host`、`workbench` 从干净构建，`local-host` 跑 `tsc`，都通过。根目录的 `dist` 另照 `pnpm build` 的后几步补做：`clean`、`tsc`、`build:pty-client`、写构建指纹。本机 `local-host` 的 Swift 原生步骤编不过，所以没有跑整体 `pnpm build`。
+- 相关的非浏览器用例 84 个文件：`affected-tests` 选的 35 个，加上 `prologue-*`、助理委托、Coding 的命令与等待、输入回执、安全不变量里与 Agent 有关的几份、`vendor-provenance`。
+  - 82 个一次过，其中 S-13 的 `prologue-memory-boundary` 在新包上通过。
+  - `install` 与 `npm-package` 两个失败，都是本机环境的原因，和换包无关：
+    - 工作树里还没有根目录构建：找不到 `dist/cli/main.js`，安装器报 `installer.source.build_stale`；
+    - 补上根目录构建后，又缺 Computer Use 助手 `native/computer/bin`：本机 Swift 编不过它，主检出也没有。
+
+    在这个已忽略的目录里放上 Linux 构建写的那份说明（`native/computer/build.mjs` 在 macOS 之外只写它）后，两个都过：install 22/22，npm-package 2/2，包括 npm 包打进 `@prologue/sdk`、不带 `vendor/prologue-sdk/*.tgz` 这几条。测完删掉了说明。
+- 没跑：浏览器用例与全量，交 CI 的集成批次。
+
+## 上一份：after-write-check-key（#723，2026-10-19 换掉）
+
+上一份包 `prologue-sdk-0.0.0-rc.1-after-write-check-key.tgz`（1,223,766 字节），SHA-256 `ac2029b40e4e8a8a3d8cd85e9b239b27700161a3431903f7128192e045caedc8`。来源为上游 main `3adc5e87e81567af59983d1e7ac411a703454167`，即 [Prologue #49](https://github.com/molis-ai/prologue/pull/49) 的合并，当时的 main 头；#49 只改 `docs/slices/input-board-refs.md`，包的内容和 #48 的合并 `72866036` 打出来的逐字节相同。无补丁、dirty 为 false。从两份各自独立的干净 `git archive` 各打一次，两份逐字节相同。
 
 比上一份多两项：
 
@@ -32,7 +72,7 @@
 - 这个包装进干净目录，13 个消费者脚本全过；
 - 同样的步骤打第二次，字节数与 SHA-256 相同。
 
-重建命令与工具版本见旁边 `.provenance.json`。
+重建命令与工具版本：来源记录（`.provenance.json`）随包删除，从 `f7f8adbf2` 取回。
 
 Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - 在 main `7faaa027c`（#699 合入之后）上换包：`pnpm install --frozen-lockfile --offline`、`pnpm build` 通过。
@@ -40,6 +80,8 @@ Molis 侧的验证（这一刀只换包，不写进采用 spec）：
 - `pnpm test:security` 79 个文件，78 个一次过，`assistant-thread-reply` 同样是超时、重跑过；`pnpm test:contracts` 44/44（动作合同快照没有变化）。
 - `check-health-gates --base origin/main`、`page-assets --base origin/main`、`boundary:check`、`verify-release-versions` 都过。
 - 浏览器用例交给全量，由 CI 跑。
+
+#723 起是 main 的依赖，2026-10-19 换成 after-write-check-marker；已删除，记在 `packagesWithoutPatch`，按 `gitBlob` 取回。
 
 ## 上一份：after-write-check（#699，2026-10-18 换掉）
 
@@ -268,8 +310,8 @@ shasum -a 256 /absolute/path/to/prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz   
 26 份补丁（合计 2,791,897 字节）是历史包的重建材料。重建当前包用不着它们（当前包不加任何补丁），按决定从树里删掉；Git 历史不改写。记录在 [`patch-history.json`](patch-history.json)：
 
 - `patches`：26 项，每项有 `bytes`、`sha256`、`gitBlob`（补丁在 Git 里的对象号）、`base`（基线提交）、`commit`（补丁重建出其树的上游提交，没有则为 `null`）、`sourceKind`、`source`、`summary`，以及它产出的包 `package`（文件名、字节数、SHA-256、`gitBlob`）；
-- `packagesWithoutPatch`：28 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 after-write-check、之前的 parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
-- `upstream`：38 个 Prologue 提交于 2026-10-18 对 main `3adc5e87e81567af59983d1e7ac411a703454167` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
+- `packagesWithoutPatch`：29 个没有补丁的历史包（文件名、字节数、SHA-256、`gitBlob`、提交、说明），含本次换掉的 after-write-check-key、之前的 after-write-check、parked-run、app-wait-ends-step、mcp-schema-annotations、app-tools-waits 与 mcp-refresh，以及 2026-10-12 换掉的 dirty 候选 a0-s1 和 adoption-receipts-fields、2026-10-13 换掉的 adoption-receipts-handling 与 main 上的 computer-use、2026-10-14 换掉的 interim-p1-cu，同日换掉的 interim-p1-cu-image，2026-10-15 换掉的 interim-p1-cu-image-acceptance，2026-10-16 换掉的 collaboration、found-tools 与 find-tools-deferral，2026-10-17 换掉的 parameter-branches 与 reference-kinds，以及随 #472 进入 main 历史的 molis-adoption；换掉的 side-panel-memory 包记在 `patches` 里 `side-panel-memory.patch` 的 `package`；
+- `upstream`：39 个 Prologue 提交于 2026-10-19 对 main `a51607fbfa11e8f59ac0962906aa1bcbf155d8e6` 逐项核对；除三个已替换的过渡包来源 `08b84296`、`923e5a40`、`4007a93c` 以外，均为 main 祖先。这三个过渡提交自身不在 main，记录如实保留。`21cdfbf8`、`d4a2f41b`是Molis仓库提交，不是Prologue提交。
 
 怎么取回并核对：
 

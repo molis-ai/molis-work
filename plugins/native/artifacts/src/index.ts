@@ -10,10 +10,7 @@ export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } fr
 export type { ArtifactBrowserUiModel } from "./browser-ui.js";
 export { ARTIFACT_EN } from "./en.js";
 export { importArtifactDocument, documentErrors, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, EXTERNAL_DOCUMENT_SOURCES } from "./document-import.js";
-export type { ArtifactDocumentImportPorts, ImportedArtifactDocument, ExternalDocumentSource } from "./document-import.js";
-export { renderArtifactImportDialog, ARTIFACT_IMPORT_STYLES } from "./import-ui.js";
-export type { ArtifactImportUiModel } from "./import-ui.js";
-export { ARTIFACT_IMPORT_CLIENT_SCRIPT } from "./import-client.js";
+export type { ArtifactDocumentImportPorts, ImportedArtifactDocument, ExternalDocumentSource, ModelRequired } from "./document-import.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";
 export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
 export { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "./handoff-client.js";

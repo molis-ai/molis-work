@@ -4,8 +4,6 @@ import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AG
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
-import { type ProjectDataDeclaration, type ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
-import { type PluginManifest, type PluginDefinition, type PluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
@@ -13,7 +11,6 @@ import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugi
 import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
-import { type AgentPromptText, type AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
@@ -29,90 +26,18 @@ import { TODO_INSTRUCTIONS, TODO_PROJECT_PLUGIN_ID, todoManifest, todoMethods, t
 import { ALCHEMIST_PROJECT_PLUGIN_ID, ALCHEMIST_INSTRUCTIONS, alchemistManifest, ALCHEMIST_CLIENT_FACTORY_SCRIPT, ALCHEMIST_STYLES, alchemistUiContribution } from "@molis-ai/molis-work-plugin-alchemist";
 import { WORKFLOWS_INSTRUCTIONS, WORKFLOWS_PROJECT_PLUGIN_ID, workflowsManifest, WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_STYLES, workflowsUiContribution, workflowsProjectData, WORKFLOWS_HOME_STORE } from "@molis-ai/molis-work-plugin-workflows";
 import { WORK_PROJECT_PLUGIN_ID, workManifest, workTerminalUiContribution, workUiContribution } from "@molis-ai/molis-work-plugin-work";
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-
-import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-
-export interface PluginSearchRow { readonly selector: string; readonly idDataset: string }
-
-/**
- * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
- * are notes and layout for the people who read its source; the page does not run them. An entry that lists its script through
- * this is sent without them (the page asset budget only shrinks, and these are the bytes that are provably dead). A block comment
- * is taken only when nothing else shares its lines; indentation inside a multi-line string or template would be content, so a
- * script that has one cannot use this. tests/plugin-client-served.test.ts holds the result to the same program as the source.
- */
-const served = (script: string): string => script
-  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
-  .replace(/^[ \t]+/gm, "");
-
-export interface BuiltinPluginWorkbench {
-  /** Asset cascade/initialization order, independent of navigation order in the Manifest. */
-  readonly order: number;
-  readonly contributions: readonly UiContribution[];
-  readonly stylesheet?: string;
-  readonly clientFactory?: string;
-  /**
-   * The plugin whose client also serves this surface: its bundle is loaded once and its factory mounts this surface's root,
-   * so a companion does not ship a second copy of the same client (W4-03).
-   */
-  readonly clientFrom?: string;
-  /** Browser dependencies prepared before this factory mounts. */
-  readonly clientAssets?: readonly string[];
-  readonly settingsClient?: string;
-  readonly searchRow?: PluginSearchRow;
-  /**
-   * The row a record is opened from on this plugin's page, where it differs from `searchRow`: ⌘/Ctrl- or middle-click on it
-   * opens the record as a tab in the plugin's group (specs/plugin-tab-groups).
-   */
-  readonly recordRow?: PluginSearchRow;
-}
-
-/** One build-shipped plugin and its already exported implementations. This declaration grants no authority. */
-export interface BuiltinPluginEntry {
-  readonly project_plugin_id: ProjectPluginId;
-  readonly manifest: PluginManifest;
-  /** Owner-scoped UI words, projected into the page language by the common translator. */
-  readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
-  readonly personal?: boolean;
-  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable and enabled where already added. */
-  readonly developer?: boolean;
-  /** Explicit Runtime activation; personal visibility alone never migrates an existing plugin. */
-  readonly runtime?: { readonly scope: "home"; readonly create: () => PluginDefinition; readonly database?: PluginDatabaseDeclaration; readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
-    readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
-    readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
-    readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
-    readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
-    readonly package_name: string; readonly factory_export: string;
-    /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
-    readonly keys?: string };
-  readonly summary?: string;
-  /** Fixed model-call instructions, exported by this plugin and registered by the Host. */
-  readonly instructions?: readonly InstructionPrompt[];
-  readonly agent?: { readonly prompts: readonly AgentPromptText[]; readonly skills?: readonly AgentSkillDefinition[] };
-  /** Bodies of the Manifest's `methods` (offered to other Agents for business work); the package ships them. */
-  readonly methods?: readonly AgentSkillDefinition[];
-  readonly workbench?: BuiltinPluginWorkbench;
-  /**
-   * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted
-   * (the owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation; absent when the
-   * plugin keeps nothing outside the project's own directory.
-   */
-  readonly project_data?: ProjectDataDeclaration;
-  /** The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home stores. */
-  readonly home_store?: HomeStoreDeclaration;
-}
+import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 /** Shared build composition for catalog and UI resources. */
-export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
+export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   {
-    project_plugin_id: "issues", manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
+    project_plugin_id: "issues", catalog_order: 1, manifest: issuesManifest, methods: issuesMethods, personal: true, summary: "记录、查看和整理自己的问题。",
     runtime: { scope: "home", create: createIssuesPlugin, database: ISSUES_DATABASE, package_name: "@molis-ai/molis-work-plugin-issues", factory_export: "createIssuesPlugin", keys: "Mod+Shift+I" },
     workbench: { order: 5, contributions: [issuesUiContribution], clientFactory: ISSUES_CLIENT_FACTORY_SCRIPT,
       searchRow: { selector: "[data-issue-id]", idDataset: "issueId" } },
   },
   {
-    project_plugin_id: COGNIA_PROJECT_PLUGIN_ID,
+    project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
     runtime: { scope: "home", create: createCogniaPlugin, database: COGNIA_DATABASE, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
     manifest: cogniaManifest,
     instructions: COGNIA_INSTRUCTIONS,
@@ -127,7 +52,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: "plugin-builder",
+    project_plugin_id: "plugin-builder", catalog_order: 3,
     manifest: builderManifest,
     instructions: BUILDER_CHOICE_INSTRUCTIONS,
     personal: true,
@@ -141,7 +66,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: IMAGES_PROJECT_PLUGIN_ID,
+    project_plugin_id: IMAGES_PROJECT_PLUGIN_ID, catalog_order: 4,
     runtime: { scope: "home", create: createImagesPlugin, database: IMAGES_DATABASE, files: IMAGES_FILES, image_generation: IMAGES_IMAGE_GENERATION,
       package_name: "@molis-ai/molis-work-plugin-images", factory_export: "createImagesPlugin" },
     manifest: imagesManifest,
@@ -158,7 +83,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: JELLY_PROJECT_PLUGIN_ID,
+    project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
     runtime: { scope: "home", create: createJellyPlugin, database: JELLY_DATABASE, model_configuration: JELLY_MODEL_CONFIGURATION,
       package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
     manifest: jellyManifest,
@@ -174,7 +99,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: GOALS_PROJECT_PLUGIN_ID,
+    project_plugin_id: GOALS_PROJECT_PLUGIN_ID, catalog_order: 6,
     manifest: goalsManifest,
     summary: "确定目标，推进工作，留下结果。",
     workbench: {
@@ -198,7 +123,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: WORK_PROJECT_PLUGIN_ID,
+    project_plugin_id: WORK_PROJECT_PLUGIN_ID, catalog_order: 7,
     manifest: workManifest,
     summary: "回到你的会话，继续正在做的事。",
     workbench: {
@@ -208,7 +133,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: INBOX_PROJECT_PLUGIN_ID,
+    project_plugin_id: INBOX_PROJECT_PLUGIN_ID, catalog_order: 8,
     manifest: inboxManifest,
     summary: "只看需要你介入的事项。",
     workbench: {
@@ -218,7 +143,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID,
+    project_plugin_id: SCHEDULE_PROJECT_PLUGIN_ID, catalog_order: 9,
     manifest: scheduleManifest,
     summary: "定时跑对话任务，也替插件准时提醒。",
     agent: { prompts: schedulePrompts },
@@ -226,13 +151,15 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 7,
       contributions: [scheduleUiContribution],
       stylesheet: SCHEDULE_STYLES,
-      clientFactory: served(SCHEDULE_CLIENT_FACTORY_SCRIPT),
+      clientFactory: SCHEDULE_CLIENT_FACTORY_SCRIPT, clientServed: true,
       searchRow: { selector: "[data-schedule-row][data-schedule-task-id]", idDataset: "scheduleTaskId" },
     },
   },
   {
-    project_plugin_id: FEED_PROJECT_PLUGIN_ID,
+    project_plugin_id: FEED_PROJECT_PLUGIN_ID, catalog_order: 10,
     manifest: feedManifest,
+    // Enabling Feed always enables Inbox, so the attention entry cannot disappear.
+    companions: ["inbox"],
     summary: "订阅来源，读消息，留下值得留的。",
     workbench: {
       order: 5,
@@ -242,7 +169,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: SHELF_PROJECT_PLUGIN_ID,
+    project_plugin_id: SHELF_PROJECT_PLUGIN_ID, catalog_order: 11,
     manifest: shelfManifest,
     instructions: SHELF_INSTRUCTIONS,
     personal: true,
@@ -258,7 +185,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID,
+    project_plugin_id: LINGGUANG_PROJECT_PLUGIN_ID, catalog_order: 12,
     home_store: LINGGUANG_HOME_STORE,
     manifest: lingguangManifest,
     project_data: lingguangProjectData,
@@ -269,12 +196,12 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 13,
       contributions: [lingguangUiContribution],
       stylesheet: LINGGUANG_STYLES,
-      clientFactory: served(LINGGUANG_CLIENT_FACTORY_SCRIPT),
+      clientFactory: LINGGUANG_CLIENT_FACTORY_SCRIPT, clientServed: true,
       searchRow: { selector: "[data-lingguang-id]", idDataset: "lingguangId" },
     },
   },
   {
-    project_plugin_id: TODO_PROJECT_PLUGIN_ID,
+    project_plugin_id: TODO_PROJECT_PLUGIN_ID, catalog_order: 13,
     manifest: todoManifest,
     runtime: { scope: "home", create: createTodoPlugin, database: TODO_DATABASE, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
     project_data: todoProjectData,
@@ -292,7 +219,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID,
+    project_plugin_id: CHARACTERS_PROJECT_PLUGIN_ID, catalog_order: 14,
     manifest: charactersManifest,
     personal: true,
     summary: "定义 AI 做事方式，供任务选用。",
@@ -304,7 +231,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: PAGES_PROJECT_PLUGIN_ID,
+    project_plugin_id: PAGES_PROJECT_PLUGIN_ID, catalog_order: 15,
     home_store: PAGES_HOME_STORE,
     manifest: pagesManifest,
     project_data: pagesProjectData,
@@ -316,13 +243,13 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
       order: 9,
       contributions: [pagesUiContribution],
       stylesheet: PAGES_STYLES,
-      clientFactory: served(PAGES_CLIENT_FACTORY_SCRIPT),
+      clientFactory: PAGES_CLIENT_FACTORY_SCRIPT, clientServed: true,
       clientAssets: ["/assets/molis-work-pages-editor.js"],
       searchRow: { selector: "button.feed-stage-entry[data-page-id]", idDataset: "pageId" },
     },
   },
   {
-    project_plugin_id: FORM_PROJECT_PLUGIN_ID,
+    project_plugin_id: FORM_PROJECT_PLUGIN_ID, catalog_order: 16,
     home_store: FORM_HOME_STORE,
     manifest: formManifest,
     project_data: formProjectData,
@@ -338,7 +265,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: DATASET_PROJECT_PLUGIN_ID,
+    project_plugin_id: DATASET_PROJECT_PLUGIN_ID, catalog_order: 17,
     home_store: DATASET_HOME_STORE,
     manifest: datasetManifest,
     project_data: datasetProjectData,
@@ -354,7 +281,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: PPT_PROJECT_PLUGIN_ID,
+    project_plugin_id: PPT_PROJECT_PLUGIN_ID, catalog_order: 18,
     home_store: PPT_HOME_STORE,
     manifest: pptManifest,
     project_data: pptProjectData,
@@ -370,7 +297,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID,
+    project_plugin_id: ALCHEMIST_PROJECT_PLUGIN_ID, catalog_order: 19,
     manifest: alchemistManifest,
     instructions: ALCHEMIST_INSTRUCTIONS,
     personal: true,
@@ -384,7 +311,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID,
+    project_plugin_id: WORKFLOWS_PROJECT_PLUGIN_ID, catalog_order: 20,
     home_store: WORKFLOWS_HOME_STORE,
     manifest: workflowsManifest,
     project_data: workflowsProjectData,
@@ -399,7 +326,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID,
+    project_plugin_id: ARTIFACTS_PROJECT_PLUGIN_ID, catalog_order: 21,
     manifest: artifactsManifest,
     summary: "项目的固定成果，各版本可回看。",
     workbench: {
@@ -408,7 +335,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: CODING_PROJECT_PLUGIN_ID,
+    project_plugin_id: CODING_PROJECT_PLUGIN_ID, catalog_order: 22,
     manifest: codingManifest,
     instructions: CODING_INSTRUCTIONS,
     summary: "和 Agent 一起写代码，留每轮记录。",
@@ -420,25 +347,25 @@ export const BUILTIN_PLUGIN_CATALOG: readonly BuiltinPluginEntry[] = [
     },
   },
   {
-    project_plugin_id: FILES_PROJECT_PLUGIN_ID,
+    project_plugin_id: FILES_PROJECT_PLUGIN_ID, catalog_order: 23,
     manifest: filesManifest,
     workbench: { order: 21, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区文件与保留的内容。",
   },
   {
-    project_plugin_id: GIT_PROJECT_PLUGIN_ID,
+    project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24,
     manifest: gitManifest,
     workbench: { order: 22, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区的版本与变更。",
   },
   {
-    project_plugin_id: DIFF_PROJECT_PLUGIN_ID,
+    project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25,
     manifest: diffManifest,
     workbench: { order: 23, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "比较固定版本，逐项阅读差异。",
   },
   {
-    project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID,
+    project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
     manifest: textStatsManifest,
     developer: true,
     workbench: { order: 24, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },

@@ -153,6 +153,7 @@ test("AC-07 the round after a parked answer is started by the one who answered, 
       if(definition.capability_id===agent.controlRun.capability_id)return;
       if(definition.capability_id===projectSettingsCapabilities.workspaces.capability_id)return [{workspace_id:'w',canonical_path:'/tmp/parked-answer',realpath_verified:true}];
       if(definition.capability_id===agent.availableRoles.capability_id)return [{role_id:'reader',available:true}];
+      if(definition.capability_id===agent.listActions.capability_id)return [];
       // The start itself: what it was asked as is all this needs, so it stops here.
       if(definition.capability_id===agent.startRun.capability_id){started.push((args as [string,{actor_id?:string}])[1]);throw new Error('不再往下');}
       throw new Error('unexpected capability '+definition.capability_id);

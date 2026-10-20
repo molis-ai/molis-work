@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -185,6 +185,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.ok(tarballName, "npm pack 必须生成 tarball");
     await execFileAsync("tar", ["-xzf", join(artifacts, tarballName), "-C", dirname(packageDirectory)]);
     await rename(join(dirname(packageDirectory), "package"), packageDirectory);
+    // The dependencies below are linked from this workspace's pnpm tree, which pnpm-workspace.yaml's overrides shaped (it never
+    // installs officeparser's tesseract.js). `npm pack` does not carry that file, so the source carries it beside the packed files to
+    // say which pairs the linked tree lacks on purpose, as the repository source does (PMAT-47). A real npm install has no such gap:
+    // npm installs the full tree and ignores pnpm overrides.
+    await copyFile(join(repository, "pnpm-workspace.yaml"), join(packageDirectory, "pnpm-workspace.yaml"));
     const packageMetadata = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as {
       version: string;
       dependencies?: Record<string, string>;

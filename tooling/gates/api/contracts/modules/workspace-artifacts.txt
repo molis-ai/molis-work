@@ -258,6 +258,8 @@ export interface TextDiffRow {
 
 export declare const WORKSPACE_BYTES_LIMIT: number;
 
+export declare const WORKSPACE_FILE_SUBJECT_KIND = "workspace_file";
+
 export declare const WORKSPACE_HANDLE_MAX_LENGTH = 128;
 
 export declare const WORKSPACE_NAME_MAX_LENGTH = 256;
@@ -267,6 +269,8 @@ export declare const WORKSPACE_REF_SCHEMA_VERSION = 1;
 export declare const WORKSPACE_REF_TYPE = "workspace.ref.v1";
 
 export declare const WORKSPACE_SELECTED_EVENT = "io.molis.work.workspace.selected";
+
+export declare const WORKSPACE_SKIPPED_FOLDERS: readonly ["node_modules", ".git", "dist", "build", ".next", ".cache", "target", "__pycache__", ".venv", "vendor"];
 
 export interface WorkspaceFileQuery {
     workspace_id: string;
@@ -440,6 +444,11 @@ export declare function parseTextSelectionRange(start: unknown, end: unknown): {
     end: number;
 };
 
+export declare function parseWorkspaceFileSubjectId(id: string): {
+    workspace_id: string;
+    path: string[];
+} | null;
+
 export declare function parseWorkspaceRef(content: unknown): WorkspaceRef;
 
 export declare function pathKey(path: readonly string[]): string;
@@ -491,6 +500,8 @@ export declare const workspaceArtifactsContract: {
     readonly maturity: "partial";
     readonly ssot: "docs/SSOT-MATRIX.md";
 };
+
+export declare function workspaceFileSubjectId(workspaceId: string, path: readonly string[]): string;
 
 export declare const workspaceReadActions: {
     readonly file: ActionDefinition<WorkspaceFileQuery, WorkspaceFileResult>;

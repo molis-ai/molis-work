@@ -1,7 +1,7 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/alchemist";
 import { ALCHEMIST_UI_CONTRIBUTION_ID } from "./ui.js";
-import { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS } from "./studio/shared/contracts/actions.js";
+import { alchemistActions, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_MODEL_PERMISSION } from "./studio/shared/contracts/actions.js";
 
 export { ALCHEMIST_PLUGIN_ID, ALCHEMIST_PROJECT_PLUGIN_ID };
 
@@ -16,7 +16,9 @@ export const alchemistManifest: PluginManifest = {
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(alchemistActions),
   permissions: [
-    ...ALCHEMIST_ACTION_PERMISSIONS.map(permission => ({ permission, required: true, reason: "炼金术士业务动作" })),
+    ...ALCHEMIST_ACTION_PERMISSIONS.map(permission => permission === ALCHEMIST_MODEL_PERMISSION
+      ? { permission, required: false, reason: "讨论、复用判断、炼化和研究使用系统文字模型" }
+      : { permission, required: true, reason: "炼金术士业务动作" }),
     { permission: "storage:private", required: true, reason: "按项目保存方向、Idea、研究证据、决策和个人 Memory" },
   ],
   capabilities: { provides: [], consumes: [] },

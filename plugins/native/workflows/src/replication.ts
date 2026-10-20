@@ -18,7 +18,7 @@ type Kind = "workflow" | "instance";
 type Row = Record<string, string | number | null>;
 const workflowColumns = ["workflow_id", "project_id", "title", "chain_json", "revision", "created_at", "updated_at", "deleted"] as const;
 const instanceColumns = ["instance_id", "workflow_id", "project_id", "title", "status", "current", "chain_json", "steps_json", "created_at", "updated_at"] as const;
-const limit = 512 * 1024;
+const limit = 100000000;
 
 /** Install the journal when the store opens, so edits and deletions are recorded before the first sync run. */
 export function initializeWorkflowsReplication(db: DatabaseSync): void {
@@ -72,6 +72,8 @@ export function createWorkflowsReplica(db: DatabaseSync, context: AggregateRepli
   };
   return createSqliteReplica(db, {
     authorize: context.authorize,
+    conflictState: context.conflictState,
+    belongsToProject:(key,projectId)=>decode(key).projectId===projectId,
     canUpload: key => context.canUploadProject(decode(key).projectId),
     read(key) {
       const { projectId, kind, id } = decode(key), project = context.project(projectId), row = local(kind, id, projectId);
@@ -157,6 +159,6 @@ function recordOf(value: unknown, fields: readonly string[]): Record<string, unk
   return row;
 }
 function checkSize(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > limit) throw syncError("limit", "流程记录超过当前同步上限（512 KiB），原数据仍保留在本机");
+  if (Buffer.byteLength(JSON.stringify(value)) > limit) throw syncError("limit", "流程记录超过账号容量上限（100 MB），原数据仍保留在本机");
 }
 function invalid(): never { throw syncError("invalid", "工作流程同步数据不合法"); }

@@ -1,3 +1,4 @@
+import {renderSyncIndicator} from './sync-indicator.js';
 import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
@@ -271,7 +272,7 @@ export function renderWorkbenchBar(
     <div class="bar-end">
       <div class="bar-residents" role="toolbar" aria-label="${L("常驻插件")}">${residents}<button class="bar-chat" type="button" data-dock-toggle="im" data-side-toggle aria-expanded="false" aria-controls="dock-window-im" data-craft-tip="${L("侧栏：讨论、浏览器与文件")}" aria-label="${L("侧栏：讨论、浏览器与文件")}">${icon("sidebar")}</button></div>
       ${renderSidePanel(primitives, parts.sideTabs ?? [])}
-      ${parts.projectChrome}
+      ${renderSyncIndicator(primitives)}${parts.projectChrome}
     </div>
   </div>`;
 }

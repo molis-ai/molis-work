@@ -33,7 +33,7 @@ export const reuseFeedbackSchema = z.strictObject({ planId: id, explanation: z.s
 export const reuseReceiptSchema = z.strictObject({ planId: id, runId: id, consumedAt: z.string(),
   artifacts: adoptedArtifacts, methods: z.array(reuseMethodSchema),
   relationState: z.enum(["pending", "recorded", "not_needed"]), feedback: reuseFeedbackSchema.omit({ planId: true }).nullable() });
-export const reuseReviseSchema = z.strictObject({ id, expectedVersion: z.number().int().positive(), methodChange: text,
+export const reuseReviseSchema = z.strictObject({ id, expectedVersion: z.number().int().positive(), expectedEtag:z.string().regex(/^[a-f0-9]{64}$/), methodChange: text,
   positiveExamples: z.array(text).max(20), negativeExamples: z.array(text).max(20) });
 export type ReuseSelection = z.infer<typeof reuseSelectionSchema>;
 export type ReuseSnapshot = z.infer<typeof reuseSnapshotSchema>;

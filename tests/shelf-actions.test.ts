@@ -24,8 +24,10 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     // The panel's writes and an Agent's writes land in the same store the HTTP panel reads.
     const { item } = await bound.invoke(a.admit, { text: "会议纪要：周三前定稿", title: "纪要", capture_pages: false });
     const agent = bindActionClient(client, () => ({ ...user, actor_id: "agent:writer", audience: "agent" }));
-    assert.deepEqual((await agent.invoke(a.readText, { item_id: item.item_id })).text, "会议纪要：周三前定稿");
-    const edited = (await agent.invoke(a.edit, { item_id: item.item_id, text: "会议纪要：周五前定稿" })).item;
+    const initial = await agent.invoke(a.readText, { item_id: item.item_id });
+    assert.deepEqual(initial.text, "会议纪要：周三前定稿");
+    const edited = (await agent.invoke(a.edit, { item_id: item.item_id, text: "会议纪要：周五前定稿", expected_content_hash: initial.content_hash })).item;
+    await assert.rejects(agent.invoke(a.edit, { item_id: item.item_id, text: "旧编辑不覆盖", expected_content_hash: initial.content_hash }), { code: "shelf.conflict" });
     assert.equal(edited.item_id, item.item_id);
     assert.equal(openShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
     const listed = await agent.invoke(a.list, {});
@@ -57,6 +59,15 @@ test("the personal Shelf is a Home action provider; clipboard, settings and loca
     assert.deepEqual(names.sort(), ["shelf.items.list__v1", "shelf.items.read__v1", "shelf.search.entries__v1", "shelf.subject.read__v1"]);
     const read = await handleMcpMessage({ jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "shelf.items.read__v1", arguments: { item_id: item.item_id } } }, mcp) as { result: { structuredContent: { text: string } } };
     assert.equal(read.result.structuredContent.text, "会议纪要：周五前定稿");
+    const writer = createActionMcpPorts({ service: client, serverInfo: { name: "shelf", version: "1" },
+      context: () => ({ actor_id: "runtime:writer", project_id: null, audience: "mcp", permissions: SHELF_ACTION_PERMISSIONS }) });
+    const writerTools = await handleMcpMessage({ jsonrpc: "2.0", id: 3, method: "tools/list", params: {} }, writer) as { result: { tools: { name: string }[] } };
+    assert.ok(writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v2"));
+    assert.ok(!writerTools.result.tools.some(tool => tool.name === "shelf.items.edit__v1"));
+    const staleWrite = await handleMcpMessage({ jsonrpc: "2.0", id: 4, method: "tools/call", params: {
+      name: "shelf.items.edit__v2", arguments: { item_id: item.item_id, text: "stale MCP draft", expected_content_hash: initial.content_hash } } }, writer);
+    assert.match(JSON.stringify(staleWrite), /shelf.conflict/);
+    assert.equal(openShelfStore(home).readFile(item.item_id).bytes.toString("utf8"), "会议纪要：周五前定稿");
 
     // Without a configured model the automatic action refuses before creating a job, with the platform's word for it (as Jelly, Todo, Form and Dataset do).
     await assert.rejects(bound.invoke(a.generate, { recipe: "summarize", item_id: item.item_id }), { code: "actions.connection_required" });

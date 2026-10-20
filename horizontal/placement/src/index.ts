@@ -10,6 +10,10 @@ import type {
 } from "@molis-ai/molis-work-contracts/services/placement";
 
 import { readPlacementIn, PROJECT_GONE, type PlacementRead } from "./subject-reader.js";
+export {previewProjectCopy,type ProjectCopyPreviewInput,type ProjectCopySource,type ProjectCopyPreview,type ProjectCopyPreviewView,type ProjectCopyPreviewEntry,type ProjectCopyBlocker} from './project-copy-preview.js';
+export {projectCopyIdentities,type ProjectCopyIdentityInput} from './project-copy-identity.js';
+export {createProjectCopyJournal,type ProjectCopyJournal,type ProjectCopyPlan,type ProjectCopyReceipt} from './project-copy-journal.js';
+export {executeProjectCopy,type ProjectCopyExecution} from './project-copy-execution.js';
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-placement",

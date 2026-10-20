@@ -1,3 +1,4 @@
+import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -29,6 +30,8 @@ async function fixture(t: TestContext) {
   const transport: typeof fetch = async (input, init) => {
     if (!online) throw new Error('host.test_offline');
     const url = new URL(String(input));
+    if(url.pathname==='/v1/round')return syncRoundResponse(policy,events.at(-1)?.revision??0);
+    if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes:0});
     if (url.pathname === '/v1/policy') {
       if (init?.method === 'PUT') {
         const next = JSON.parse(String(init.body)) as SpaceSyncPolicy;
@@ -37,14 +40,21 @@ async function fixture(t: TestContext) {
       }
       return Response.json(policy);
     }
+    if(url.pathname==='/v1/history/pin'){
+      assert.equal(init?.method,'POST');const pin=JSON.parse(String(init.body));
+      assert.equal(pin.namespace,syncNamespace(selection));assert.equal(pin.policyRevision,policy.revision);
+      assert.equal(events.filter(e=>e.key===pin.key).at(-1)?.revision,pin.revision);
+      return Response.json({accepted:true,revision:pin.revision});
+    }
     if (init?.method === 'POST') {
+      assert.equal(url.pathname,'/v1/changes');
       const { mutation: m } = JSON.parse(String(init.body)) as { mutation: SyncMutation };
       if (!events.some(e => e.operationId === m.operationId)) {
         if ((events.filter(e => e.key === m.key).at(-1)?.revision ?? 0) !== m.base) return Response.json({}, { status: 409 });
         events.push({ ...m, revision: events.length + 1 });
       }
       if (drop) { drop = false; throw new Error('host.test_receipt_lost'); }
-      return Response.json({ accepted: true });
+      return Response.json({ accepted: true,revision:events.find(e=>e.operationId===m.operationId)!.revision });
     }
     const rows = events.filter(e => e.revision > Number(url.searchParams.get('after')));
     return Response.json({ events: rows.slice(0, 2), more: rows.length > 2 });

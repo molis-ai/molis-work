@@ -1,3 +1,4 @@
+import { syncRoundResponse } from './fixtures/sync-round.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { existsSync, mkdtempSync, rmSync, readFileSync, statSync } from 'node:fs';
@@ -90,6 +91,93 @@ test('native login and restart remain isolated from ordinary browser sessions an
   }
 });
 
+test('PCSYNC-02/04/05/06 Host keeps manual runs separate, resumes opted-in accounts and stops on local switch/logout',async t=>{
+  t.mock.timers.enable({apis:['setInterval']});
+  const home=mkdtempSync(join(tmpdir(),'sync-host-device-'));
+  let state='',remote='',syncRequests=0;
+  const upstream=createServer(async(req,res)=>{
+    let raw='';for await(const chunk of req)raw+=chunk;
+    res.setHeader('content-type','application/json');
+    if(req.url==='/api/v1/auth/transactions'){state=JSON.parse(raw).state;res.end(JSON.stringify({data:{loginUrl:remote+'/login'}}));}
+    else if(req.url==='/oauth2/token')res.end(JSON.stringify({access_token:'synthetic-sync',refresh_token:'synthetic-refresh',expires_in:3600}));
+    else if(req.url==='/api/v1/users/me')res.end(JSON.stringify({data:{userId:'alice',displayName:'Alice',emails:[],applicationId:'work',clientId:'web-test'}}));
+    else res.end('{}');
+  });
+  const listen=async(value:ReturnType<typeof createServer>)=>{
+    await new Promise<void>(resolve=>value.listen(0,'127.0.0.1',resolve));const address=value.address();assert.ok(address&&typeof address==='object');return 'http://127.0.0.1:'+address.port;
+  };
+  const close=async(value:ReturnType<typeof createServer>)=>new Promise<void>(resolve=>value.close(()=>resolve()));
+  remote=await listen(upstream);
+  const names=['MOLIS_WORK_AUTH_ORIGIN','MOLIS_WORK_AUTH_CLIENT_ID','MOLIS_WORK_CLOUD_ORIGIN','MOLIS_WORK_SYNC_LOCAL'];
+  const previous=names.map(name=>process.env[name]);[remote,'web-test',remote,'1'].forEach((value,index)=>process.env[names[index]]=value);
+  let spaceId='';const original=fetch,historyKey=JSON.stringify(['project','document','page']);
+  const historySelection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};let syncSelections:typeof historySelection[]=[];const historyWrites:unknown[]=[];
+  t.mock.method(globalThis,'fetch',(async(input,init)=>{
+    if(new URL(String(input)).origin!=='http://127.0.0.1:8788')return original(input,init);
+    syncRequests++;const url=new URL(String(input));
+    if(url.pathname==='/v1/round')return syncRoundResponse({spaceId,revision:1,selections:syncSelections},0);
+    if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes:0});
+    if(url.pathname==='/v1/changes')return Response.json({events:[],more:false});
+    if(url.pathname==='/v1/history/keys')return Response.json({items:[{key:historyKey,currentRevision:1,versions:1,retainedAt:1000}],more:false,next:null});
+    if(url.pathname==='/v1/history')return Response.json({items:[{revision:2,createdAt:1000,current:false,retained:true,action:'archive'}],more:false,next:null,currentRevision:1});
+    if(url.pathname==='/v1/history/version')return Response.json({event:{key:historyKey,revision:2,base:1,operationId:'archive',value:null,attachments:[]},createdAt:1000,currentRevision:1,retained:true});
+    if(url.pathname==='/v1/history/restore'||url.pathname==='/v1/history/purge'){historyWrites.push(JSON.parse(String(init?.body)));return Response.json({accepted:true,revision:3});}
+    return Response.json({spaceId,revision:1,selections:syncSelections});
+  }) as typeof fetch);
+  const rootToken='synthetic-device-root-control-0123456789';
+  let server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken}),origin=await listen(server),cookie='',token=rootToken,sequence=0;
+  const request=async(path:string,method='GET',body:object={})=>{
+    const response=await fetch(origin+path,{method,headers:{Cookie:cookie,Origin:origin,'content-type':'application/json',...(method!=='GET'||path.startsWith('/api/sync')?{'x-molis-work-control-token':token}:{}),'x-molis-work-idempotency-key':'device-'+(++sequence)},...(method==='GET'?{}:{body:JSON.stringify(body)}),redirect:'manual'});
+    if(response.headers.get('set-cookie')?.startsWith('molis-work-session='))cookie=response.headers.get('set-cookie')!.split(';')[0];
+    assert.ok(response.status<400,'unexpected HTTP '+response.status+' for '+path);return response;
+  };
+  const login=async()=>{
+    await request('/api/personal/login','POST');await request('/account/callback?code=synthetic&state='+state);
+    await request('/api/personal/space?kind=personal','POST');
+    const scopes=await(await request('/api/spaces')).json();spaceId=scopes.current.spaceId;
+    token=(await(await request('/api/personal/status')).json()).viewToken;
+  };
+  try{
+    await login();const initial=await(await request('/api/sync')).json();
+    assert.deepEqual(initial.device,{automatic:null});assert.equal(syncRequests,0);
+    const stale=await fetch(origin+'/api/sync/run',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'stale-sync-space','x-molis-sync-space':'another-account-space'},body:'{}'});
+    assert.equal(stale.status,409);assert.equal(syncRequests,0,'a stale dialog cannot start another space sync');
+    for(const state of [undefined,'', 'not-a-comparison', 'A'.repeat(64)]){
+      const refused=await fetch(origin+'/api/sync/resolve',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'uninspected-choice-'+(++sequence),'x-molis-sync-space':spaceId},body:JSON.stringify({namespace:'unknown',key:'asset',choice:'remote',revision:1,state})});
+      assert.equal(refused.status,409);assert.match((await refused.json()).error,/请先查看当前冲突版本/);
+    }
+    assert.equal(syncRequests,0,'PCSYNC-15/16 no inspected content token means no conflict decision or remote call');
+    await request('/api/sync/run','POST');assert.equal(syncRequests,1,'one authenticated idle summary includes policy and quota without separate reads');
+    t.mock.timers.tick(60000);assert.equal(syncRequests,1);
+    for(const path of ['/history/keys','/history','/history/version']){
+      const refused=await fetch(origin+'/api/sync'+path+'?namespace=unknown&key=asset&revision=2',{headers:{Cookie:cookie,Origin:origin,'x-molis-work-control-token':token,'x-molis-sync-space':spaceId}});
+      assert.equal(refused.status,409);
+    }
+    assert.equal(syncRequests,1,'history reads cannot bypass selection or create a remote request');
+    syncSelections=[historySelection];await request('/api/sync/run','POST');
+    const ns=JSON.stringify([historySelection.plugin_id,historySelection.publisher_id,historySelection.publisher_signature,historySelection.collection_id,1]),query='?'+new URLSearchParams({namespace:ns,key:historyKey,revision:'2'});
+    const listed=await(await request('/api/sync/history/keys?'+new URLSearchParams({namespace:ns}))).json();assert.equal(listed.items[0].key,historyKey);
+    assert.equal((await(await request('/api/sync/history'+query)).json()).items[0].revision,2);
+    const inspected=await(await request('/api/sync/history/version'+query)).json();assert.equal(inspected.value,null);assert.equal(inspected.currentRevision,1);
+    const source={namespace:ns,key:historyKey,sourceRevision:2,revision:1};await request('/api/sync/history/restore','POST',{...source,operationId:'inspect-then-restore'});const beforePurge=syncRequests;const refusedPurge=await fetch(origin+'/api/sync/history/purge',{method:'POST',headers:{Cookie:cookie,Origin:origin,'content-type':'application/json','x-molis-work-control-token':token,'x-molis-work-idempotency-key':'refused-history-purge','x-molis-sync-space':spaceId},body:JSON.stringify({...source,confirm:true})});assert.equal(refusedPurge.status,409);assert.match((await refusedPurge.json()).error,/永久清理暂未开放/);assert.equal(syncRequests,beforePurge);
+    assert.deepEqual(historyWrites,[{...source,operationId:'inspect-then-restore',policyRevision:1}],'Host forwards the inspected source/head while the coordinator injects current policy');
+    await request('/api/sync/device','PUT',{automatic:true});
+    await request('/api/sync/run','POST');const enabled=syncRequests;assert.ok(enabled>=2);
+    await request('/api/personal/space?kind=local','POST');
+    t.mock.timers.tick(60000);assert.equal(syncRequests,enabled,'switching local cancels the old timer');
+    token=rootToken;await request('/api/personal/space?kind=personal','POST');
+    token=(await(await request('/api/personal/status')).json()).viewToken;
+    await request('/api/sync/run','POST');assert.ok(syncRequests>enabled,'re-entering restores the opted-in loop');
+    await close(server);server=createMolisWorkWebServer({homeDirectory:home,controlToken:rootToken});origin=await listen(server);cookie='';token=rootToken;
+    const before=syncRequests;await login();await request('/api/sync/run','POST');assert.ok(syncRequests>before);
+    assert.deepEqual((await(await request('/api/sync')).json()).device,{automatic:true});
+    await request('/api/personal/logout','POST');const signedOut=syncRequests;t.mock.timers.tick(60000);assert.equal(syncRequests,signedOut);
+  }finally{
+    await close(server);await close(upstream);
+    names.forEach((name,index)=>{if(previous[index]===undefined)delete process.env[name];else process.env[name]=previous[index];});rmSync(home,{recursive:true,force:true});
+  }
+});
+
 test('web sessions expire, rotate identifiers, reject duplicate cookies and do not survive restart',()=>{
   let now=1000;const sessions=new PersonalWebSessions(()=>now);
   const config={authOrigin:'https://auth.example',clientId:'web',cloudOrigin:'https://cloud.example'};
@@ -144,8 +232,14 @@ test('web login is cookie-bound, isolated and never opens the local credential s
     assert.equal(start.status,200);
     const login=await start.json();assert.ok(login.loginAttempt);assert.equal(transaction.forceLogin,undefined);
     const preLoginCookie=cookie;
-    const stolen=await fetch(origin+'/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});assert.equal(stolen.status,401);
+    const stolen=await fetch(origin+'/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});assert.equal(stolen.status,401);assert.match(stolen.headers.get('content-type')??'',/application\/json/);
     const invalid=await browser('/account/callback?code=synthetic&state=wrong',{redirect:'manual'});assert.equal(invalid.status,400);
+    // Host account protocol response, not plugin content (user confirmed 2026-10-18).
+    assert.match(invalid.headers.get('content-type')??'',/^text\/html/);assert.equal(invalid.headers.get('cache-control'),'no-store');
+    assert.equal(invalid.headers.get('referrer-policy'),'no-referrer');assert.equal(invalid.headers.get('x-frame-options'),'DENY');
+    const failure=await invalid.text();assert.equal((failure.match(/<!doctype html>/gi)??[]).length,1);
+    assert.match(failure,/登录未完成或请求已失效/);assert.deepEqual([...failure.matchAll(/href="([^"]*)"/g)].map(match=>match[1]),['/']);
+    assert.doesNotMatch(failure,/<(?:script|form|iframe|nav|main)\b|data-plugin|synthetic|wrong|access_token|refresh_token|code=|state=/i);
     const callback=await browser('/account/callback?code=synthetic&state='+transaction.state,{redirect:'manual'});
     assert.equal(callback.status,303);assert.equal(callback.headers.get('location'),'/projects/demo?view=work#task');assert.equal(await callback.text(),'');
     assert.match(callback.headers.get('set-cookie')!,/HttpOnly; SameSite=Lax/);assert.notEqual(cookie,preLoginCookie);
@@ -225,4 +319,19 @@ test('first launch skips account onboarding and never opens credentials in local
     names.forEach((name,i)=>{if(old[i]===undefined)delete process.env[name];else process.env[name]=old[i];});
     rmSync(home,{recursive:true,force:true});
   }
+});
+
+// PTR-01: real authenticated local HTTP boundary refuses permanent cleanup even with confirmation.
+test('PTR-01 permanent cloud cleanup is refused before opening the sync service',async()=>{
+ const home=mkdtempSync(join(tmpdir(),'molis-trial-purge-refusal-')),controlToken='synthetic-trial-control-token-0123456789';
+ const server=createMolisWorkWebServer({homeDirectory:home,controlToken});
+ await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address==='object');
+ const origin='http://127.0.0.1:'+address.port;
+ try{
+  for(const [i,path] of ['/api/sync/purge-trash','/api/sync/history/purge'].entries()){
+   const response=await fetch(origin+path,{method:'POST',headers:{Origin:origin,'content-type':'application/json','x-molis-work-control-token':controlToken,'x-molis-work-idempotency-key':'trial-refusal-'+i},body:JSON.stringify({namespace:'anything',key:'unique',revision:1,confirm:true})});
+   assert.equal(response.status,409);assert.match((await response.json()).error,/永久清理暂未开放/);
+  }
+  assert.equal(existsSync(join(home,'feed','secrets.json')),false,'refusal does not open credentials or a sync service');
+ }finally{await new Promise<void>(resolve=>server.close(()=>resolve()));rmSync(home,{recursive:true,force:true});}
 });

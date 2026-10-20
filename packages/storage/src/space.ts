@@ -38,12 +38,16 @@ export function ensureStorageSpace(home: string, expected?: StorageSpace): Stora
       try { fs.linkSync(temp,file); } catch(error) { if((error as NodeJS.ErrnoException).code!=='EEXIST')throw error; }
     } finally { if(fs.existsSync(temp))fs.unlinkSync(temp); }
   }
-  const fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);
-  let stored:StorageSpace;
-  try { if(fs.fstatSync(fd).size>4096)throw new Error('SPACE_METADATA_INVALID'); stored=validate(JSON.parse(fs.readFileSync(fd,'utf8'))); }
-  finally { fs.closeSync(fd); }
+  const stored=readStorageSpace(home);if(!stored)throw new Error('SPACE_METADATA_INVALID');
   if(expected && JSON.stringify(stored)!==JSON.stringify(validate(expected)))throw new Error('SPACE_OWNERSHIP_MISMATCH');
   return stored;
+}
+
+/** Existing ownership only. Copy previews never create a Home descriptor. */
+export function readStorageSpace(home:string):StorageSpace|null {
+ const file=path.join(home,FILE);let fd:number;
+ try{fd=fs.openSync(file,fs.constants.O_RDONLY|fs.constants.O_NOFOLLOW);}catch(error){if(error&&typeof error==='object'&&'code' in error&&error.code==='ENOENT')return null;throw error;}
+ try{const stat=fs.fstatSync(fd);if(!stat.isFile()||stat.size>4096)throw new Error('SPACE_METADATA_INVALID');return validate(JSON.parse(fs.readFileSync(fd,'utf8')));}finally{fs.closeSync(fd);}
 }
 
 export interface SpaceDatabase {

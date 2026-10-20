@@ -14,11 +14,47 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
 const shapeOf = (path: string) => { const db = new DatabaseSync(path, { readOnly: true }); try { return describeSqliteSchema(db); } finally { db.close(); } };
 
 // A project's database (repository-anti-corruption §4.1) has one current schema, made of every owner's creation
-// statements. The fixture is that schema as of version 7: changing any owner's tables means a new version and a new
+// statements. The fixture is that schema as of version 15: changing any owner's tables means a new version and a new
 // fixture, never a silent drift.
-test("the project database baseline is version 7 and every owner's current tables", () => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 7);
+test("the project database baseline is version 15 and every owner's current tables", () => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 15);
   assert.deepEqual(shape(PROJECT_DATABASE_BASELINE.schema), shape(readFileSync(new URL("./fixtures/project-database-schema.sql", import.meta.url), "utf8")));
+});
+
+test('PCSYNC-12 a v8 project refuses before WAL or ownership writes and keeps every original byte',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v8-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v8.sql',import.meta.url),'utf8')+'PRAGMA user_version=8');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+});
+
+test('PCSYNC-12 a v9 project also refuses unchanged before installing a new journal',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v9-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v9.sql',import.meta.url),'utf8')+'PRAGMA user_version=9');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+});
+
+test('PCSYNC-12 a v10 project refuses unchanged before adding message-content journals',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v10-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v10.sql',import.meta.url),'utf8')+'PRAGMA user_version=10');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+});
+
+test('PCSYNC-12 a v11 project refuses unchanged before adding process-item journals',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v11-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v11.sql',import.meta.url),'utf8')+'PRAGMA user_version=11');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+});
+
+test('PCSYNC-12 a v12 project refuses unchanged before adding private Coding journals and editor high-water marks',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v12-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v12.sql',import.meta.url),'utf8')+'PRAGMA user_version=12');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
+});
+
+test('PCSYNC-12 a v13 project refuses unchanged before adding private authoring item journals',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v13-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v13.sql',import.meta.url),'utf8')+'PRAGMA user_version=13');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
 });
 
 test("a new project database is created at the baseline, and a project's plugins add nothing to it", async t => {
@@ -57,4 +93,11 @@ test("a project database at another version, or with tables but no version, is r
       assert.deepEqual(shapeOf(path), before, "nothing is upgraded in place");
     }
   } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+// PCSYNC-12: never alter an existing v14 database while adding canonical derived history.
+test('a v14 project refuses unchanged before adding derived saved SDK history',t=>{
+ const directory=mkdtempSync(join(tmpdir(),'project-v14-refusal-'));t.after(()=>rmSync(directory,{recursive:true,force:true}));const path=join(directory,'old.db'),db=new DatabaseSync(path);
+ db.exec(readFileSync(new URL('./fixtures/project-database-schema-v14.sql',import.meta.url),'utf8')+'PRAGMA user_version=14');db.close();
+ const before=readFileSync(path);assert.throws(()=>new LocalProjectDatabase(path),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(path),before);
 });

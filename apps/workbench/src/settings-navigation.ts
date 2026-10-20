@@ -7,6 +7,8 @@ export interface WebProjectNavigation {
   data_class?: "user" | "regenerable_demo";
   database_path?: string;
   source?: "created";
+  /** Host observation only; never an installation or activation request. */
+  plugin_requirements?: readonly { plugin_id: string; installed: boolean }[];
 }
 
 

@@ -168,3 +168,18 @@
 | BL-127 | 精细指针的桌面窗口里，展开的助理面板的标签栏（新工作、全部工作、详情、最小化 28px，标签里的关闭键 20px）与正文（详情里的操作 22–26px、分段按钮 24px、复制与代码块的复制 22px、下一步按钮 28px）低于 `DESIGN.md`「Focus and accessibility」的桌面下限 32px（紧凑 28px）；决定 10 只给标题栏标签条与底栏写了例外，展开的面板不在其内，而该节写明「其他表面不得引用这个例外」。触屏与手机宽度已是 44px（W2-18 决定 10 的后续，`fix/touch-targets-360`）。把桌面的控件提到 32px 会让线程与详情更松，是产品判断，等用户定 | [DESIGN.md Focus and accessibility](../DESIGN.md)、`tests/touch-targets.e2e.test.ts`（面板标签栏与正文两节，精细指针一侧只守住触屏规则不外泄，不把现有尺寸当作期望值） | 已知缺口 | 低 |
 | BL-131 | Inbox 点「更新前 20 条待处理建议」：先跑判断规则，再在 Host 里重画整个 Inbox 舞台（`POST /api/inbox/judgment/evaluate` 后 `GET /api/inbox/workbench`），机器空闲时也要一个线程约 1.6–2.5 秒 CPU，碰上同一时间的看板刷新再多约 4 秒；`tests/inbox-current.e2e.test.ts` 因此把这一处等待放到 15 秒（`fix/inbox-current-wait-budget`）。这是产品自身的开销，不是测试问题：查清楚时间花在判断、读取还是渲染，再决定是否只重画变了的部分 | `apps/workbench/src/scripts/client/navigation-inbox.ts:224-238`、2026-10-11 整合分支 `integration/wave3-i1` 的测量（两个构建各约 30 次带计时的运行） | 不挡功能，排在性能片里 | 中 |
 | BL-144 | 页面代写、交给 Coding 一轮的补充丢了来源：`coding.runs.control` 的补充 schema 没有 `source`，助理转给 Coding 的端口只好去掉它，所以交还浏览器的说明、插件交来的请求等页面写的话，在 Coding 那边记成人说的（助理自己的运行时按 `host` 记）。要给 `coding.runs.control` 升版加 `source`（第 4 版），并按 `docs/system/CONTRACT-CHANGES.md` 改完所有调用方 | [ai-input-receipts D14c](ai-input-receipts/spec.md) | 无 | 中 | Coding |
+
+## 9. 联网个人版同步
+
+用户 2026-10-17 逐项确认范围。需求、实施依赖及验收编号见[总规格](personal-cloud-sync/spec.md)；这些条目仅登记待交付工作，不代表已有本机联调覆盖全功能。
+
+| 编号 | 事项 | 来源 | 类型 | 依赖 | 优先级 | 负责人 |
+| --- | --- | --- | --- | --- | --- | --- |
+| BL-150 | 设备首次选择、手动单轮、自动恢复及租约撤销、通用内容合同和动态 Runtime 注册已有隔离证据，空间策略不携带设备选择；跨阶段整合及完整验收未完成 | [个人云同步 S1](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | S0 需求规格 | 高 | 个人同步线 |
+| BL-151 | 可信 HTTPS、D1/R2 共用的 100 MB 原子准入、保留版本/预留计量、幂等、满额下拉与独立删除及到期引用清理已有隔离证据；正式资源、免费计划实压与真实云端验收未完成 | [个人云同步 S2](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | BL-150；云资源操作另行批准 | 高 | 个人同步线 |
+| BL-152 | R2 分块/摘要/续传、Artifact 原件与大 Goal 聚合、已登记 owner 内容及异常项隔离已有隔离证据；S6 剩余内容、各 owner 嵌套回收/文件 GC 和完整阶段验收仍待收尾 | [个人云同步 S3](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | BL-150、BL-151 | 高 | 个人同步线与业务 owner |
+| BL-153 | 冲突对比与未采用版本恢复、30 天删除保留、跨端恢复、引用清理及旧设备防复活 | [个人云同步 S4](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | BL-151、BL-152 | 高 | 个人同步线与业务 owner |
+| BL-154 | 项目资料与插件清单、项目删除恢复及本地资产显式复制到个人空间，不迁移目录或权限 | [个人云同步 S5](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | BL-150、BL-152、BL-153 | 高 | Projects 与业务 owner |
+| BL-155 | 补齐各插件可携带业务内容与附件，独立插件沿统一生命周期适配；接收执行历史不自动执行 | [个人云同步 S6](personal-cloud-sync/spec.md#7-项目和插件覆盖) | 部分实现 | BL-150、BL-152、BL-153、BL-154 | 高 | 个人同步线与插件 owner |
+| BL-156 | 新设备/设备开关、容量、单项重试、历史、空闲摘要、限流/压缩及维护只读已有分项证据；统一状态详情正在验证，常驻定位、告警、配对备份/恢复演练、真实实压及最终全量仍待完成 | [个人云同步 S7](personal-cloud-sync/spec.md#8-分阶段实施与依赖) | 部分实现 | BL-150 至 BL-155 | 高 | 个人同步线 |
+| BL-157 | 经批准的真实 Cloudflare 和线上 Auth 部署、两设备验收及发布恢复演练 | [个人云同步 S8](personal-cloud-sync/spec.md#9-验收标准) | 未实现 | BL-150 至 BL-156；资源和设备授权 | 高 | 个人同步线与用户 |

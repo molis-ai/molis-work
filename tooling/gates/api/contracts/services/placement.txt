@@ -183,6 +183,36 @@ export interface PlacementSpaceView {
 
 export type PlacementSubject = ActionSubject;
 
+export interface ProjectCopyAsset {
+    readonly key: string;
+    readonly value: unknown;
+}
+
+export interface ProjectCopyIdentity {
+    readonly sourceSpaceId: string;
+    readonly targetSpaceId: string;
+    readonly sourceProjectId: string | null;
+    readonly targetProjectId: string | null;
+    readonly targetTitle: string;
+    id(kind: string, sourceId: string, sourceProjectId?: string | null): string;
+    project(sourceProjectId: string | null): string | null;
+}
+
+export interface ProjectCopyOwner {
+    readonly kinds: readonly string[];
+    read(reference: ProjectCopyReference): ProjectCopyAsset | null;
+    snapshot(projectId: string): readonly ProjectCopyAsset[];
+    references(asset: ProjectCopyAsset): readonly ProjectCopyReference[];
+    fork(asset: ProjectCopyAsset, identity: ProjectCopyIdentity): ProjectCopyAsset;
+    apply(asset: ProjectCopyAsset): void;
+}
+
+export interface ProjectCopyReference {
+    readonly kind: string;
+    readonly id: string;
+    readonly projectId: string | null;
+}
+
 export declare const placementActions: {
     describe: ActionDefinition<{
         object: PlacedObject;

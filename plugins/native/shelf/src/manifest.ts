@@ -31,6 +31,7 @@ export const shelfManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "将明确选择的 Shelf 固定版本设为材料输出" },
   ],
   capabilities: { provides: [], consumes: [] },
+  sync:{protocol_version:1,collections:[{id:'copies',title:'材料、结果与终态任务',schema_version:1,requires:[]}]},
   // Redeemed by this project's Runtime instance. The personal store's actions are Home-level; the Host registers them from `SHELF_ACTIONS`.
   actions: SHELF_RUNTIME_ACTIONS,
   artifacts: { produces: [], consumes: [{ artifact_type_id: "coding.report.v1", schema_version: 1 }] },

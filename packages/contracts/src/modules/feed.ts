@@ -11,6 +11,7 @@ export const modulesFeedContract = {
 } as const satisfies ContractDescriptor;
 
 export type FeedItemDisposition = "inbox" | "saved" | "promoted" | "processing" | "archived";
+export const FEED_CONTENT_REPLICA_ID = 'feed_content';
 
 export interface FeedMaterialRecord {
   project_id: string;

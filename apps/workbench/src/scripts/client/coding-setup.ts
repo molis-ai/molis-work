@@ -8,6 +8,8 @@ import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./agent-review.js";
 /** Original Coding/companion wiring, loaded through their existing catalog entries. */
 export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
   const { mountPluginClient, route, translate: L } = host;
+  const reviewFactory=${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT};
+  const fileIcons=${JSON.stringify({ folder: icon("folder"), file: icon("file") })};
   const molisWorkControlHeaders = host.headers;
   const tabWorkspace = { openItem: host.openItem, openBeside: host.openBeside, openPlugin: host.openPlugin };
   const immersiveNavigation = { hideDirectory: host.hideDirectory };
@@ -23,18 +25,18 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       if(codingRoot){codingRoot.dataset.codingResults='false';if(!codingRoot.querySelector('[data-coding-session][aria-current="true"]'))codingRoot.dataset.codingDetail='false';}
     };
     const gitBrowser = codingRoot ? (${GIT_CLIENT_FACTORY_SCRIPT})({mountPluginClient,root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
-      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient,route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
+      showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
     const filesBrowser = codingRoot ? (${FILES_CLIENT_FACTORY_SCRIPT})({mountPluginClient,root:codingRoot,
-      icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
+      icons:fileIcons,
       request: companionRequest,
       onWorkspaceSelected: () => { void gitBrowser?.refresh(); },
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
     }) : null;
-    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient, interaction: host.interaction, receipts: host.receipts,
+    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient, interaction: host.interaction, receipts: host.receipts,translate:L,
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
-      showReviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),
+      showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {
         const result=await molisWorkRequest(route("/api/workspaces"),{body:{workspace_path,user_confirmed:true},fallback:"无法关联工作区"});
         return result.workspace;
@@ -44,9 +46,9 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
     });
     (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
       root: host.root, mountPluginClient,
-      request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
+      request: companionRequest, route, icons:fileIcons,
       openPlugin: plugin => tabWorkspace?.openPlugin(plugin),
-      reviewFactory: ${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT},
+      reviewFactory,
       headers: () => molisWorkControlHeaders(),
     });
 

@@ -2,9 +2,9 @@
   "name":"molis-work-personal-sync-tools", "private":true, "type":"module",
   "scripts":{
     "build":"node ../../apps/sync-worker/build.mjs",
-    "dev":"wrangler dev --config ../../apps/sync-worker/wrangler.jsonc --local --ip 127.0.0.1 --port 8788",
-    "db:migrate":"wrangler d1 migrations apply molis-work-sync-local --config ../../apps/sync-worker/wrangler.jsonc --local",
-    "test":"node --test --import ./environment.mjs ../../apps/sync-worker/test.mjs"
+    "dev":"wrangler dev --cwd ../../apps/sync-worker --config wrangler.jsonc --local --ip 127.0.0.1 --port 8788",
+    "db:migrate":"wrangler d1 migrations apply DB --cwd ../../apps/sync-worker --config wrangler.jsonc --local",
+    "test":"node --test --import ./environment.mjs ../../apps/sync-worker/test.mjs ../../apps/sync-worker/cloud.test.mjs ../../apps/sync-worker/attachments.test.mjs ../../apps/sync-worker/retention.test.mjs ../../apps/sync-worker/images.test.mjs ../../apps/sync-worker/cognia.test.mjs ../../apps/sync-worker/alchemist.test.mjs ../../apps/sync-worker/sources.test.mjs ../../apps/sync-worker/attention.test.mjs ../../apps/sync-worker/feed.test.mjs ../../apps/sync-worker/runtime.test.mjs ../../apps/sync-worker/shelf.test.mjs ../../apps/sync-worker/process-items.test.mjs ../../apps/sync-worker/work.test.mjs ../../apps/sync-worker/coding.test.mjs ../../apps/sync-worker/builder.test.mjs ../../apps/sync-worker/history.test.mjs ../../apps/sync-worker/projects.test.mjs"
   },
   "devDependencies":{"wrangler":"4.135.0","miniflare":"5.20260918.0-alpha"}
 }

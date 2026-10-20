@@ -23,6 +23,7 @@ export interface CodingModelChoice { provider_id: string; model_id: string; labe
   reasoning_effort?: boolean }
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
+  savedHistoryView?(json:string):import('@molis-ai/molis-work-contracts/services/agent-host').AgentSavedHistoryView;
   sessions: CodingSessionStore;
   materialReferences?(): ArtifactReference[];
   reportReferences?(): ArtifactReference[];

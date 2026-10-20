@@ -19,6 +19,13 @@ export interface ProjectPluginHost {
   agents(): AgentHostComposition | undefined;
 }
 
+/** Reuse the complete production composition, without restoring external MCP or executing an Agent. */
+export async function withPreparedProject<Result>(source: ProjectPluginHost, reference: LocalHostProjectReference,
+  operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, activatePlugins = false): Promise<Result> {
+  if (activatePlugins) await ensureProjectPluginActions(source, reference);
+  return source.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins(source, reference, runtime); return operation(runtime); });
+}
+
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */
 export async function prepareInstalledPlugins(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
   const { host, options } = source;

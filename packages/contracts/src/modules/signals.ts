@@ -12,6 +12,7 @@ export interface SignalAdapterRef {
   plugin_id: string;
   version: string;
 }
+export const SIGNAL_CONTENT_REPLICA_ID = 'signals_content';
 
 export interface SignalDraft {
   project_id: string;

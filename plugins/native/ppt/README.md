@@ -34,3 +34,7 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
 - 大纲等待、标题页与弹窗定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-editing-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；provider 停用由目录注册的 disposer 模拟，不代替真实 Host Catalog 停用）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+公开 `openPptStore(home).copy(context)` 兑现完整保存图的 owner 复制端口，与 `replica()` 的个人同步准入分开。方向、账号/项目范围和最终授权由可信调用上下文固定；源本地读取不记录同步变化，目标新标识稳定重试，不覆盖已编辑副本。跨 owner 只声明具体依赖，只有已选择图中的内部引用由 owner 重映射；不执行源任务或沿正文猜 ID。整项目多选编排尚未完成。
+
+同一集合目录也提供 `openPptCopyOwner`：源读取使用现有库的只读连接，缺文件返回未发现且不创建；错版、错误空间和链接拒绝。目标只向当前个人空间导入；关闭接口后旧句柄拒绝。项目复制预览不得用会初始化库的普通写连接代替它。

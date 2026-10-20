@@ -12,12 +12,12 @@ import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHo
 import { CodingSessionStore, createCodingPlugin, codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 
 /** The existing Coding effect fixture's real Plugin Runtime, Host and SDK composition, shared by recovery tests. */
-export async function codingSdkRuntime(t: TestContext) {
+export async function codingSdkRuntime(t: TestContext, modelEndpoint="https://1.1.1.1/v1/messages") {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), sessions = new CodingSessionStore(store.db), service = new ActionService(), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: modelEndpoint, model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter = await makeAdapter(), agentHost = new AgentHost({ reviews }); agentHost.register(adapter);
   const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: file };
   registerAgentHostCapabilities({ register: (definition, handler) => local.register(definition, handler) }, {

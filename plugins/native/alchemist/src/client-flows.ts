@@ -38,23 +38,23 @@ body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
 async function action(name,el){
-if(name==='to-goal'&&model){const nl=String.fromCharCode(10)+String.fromCharCode(10);const made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx('决定：去做。')+made.reason:'',made&&made.revisitCondition?tx('下一步：')+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx('这个想法和决定是它的来源；炼金术士里的记录不变')}}));return;}
+if(name==='to-goal'&&model){const nl='\n\n',made=choice&&choice.decision;window.dispatchEvent(new CustomEvent('molis:placement-convert',{detail:{source:{kind:'alchemist-idea',id:model.ideaId||model.cardId},goal:true,payload:{title:model.title,body:[model.highlight||'',made&&made.reason?tx('决定：去做。')+made.reason:'',made&&made.revisitCondition?tx('下一步：')+made.revisitCondition:''].filter(Boolean).join(nl)||model.title},note:tx('这个想法和决定是它的来源；炼金术士里的记录不变')}}));return;}
 if(name==='notice-close'){notice('');return;}
 if(name==='back'){closeDetail();return;}
 if(name==='close'){closeDialog();return;}
 if(name==='side-close'){side.hidden=true;sideMode='';if(focus?.kind==='idea'&&['market','cost'].includes(focus.panel)&&study&&JSON.stringify(study)!==detailId){const scroll=mainEl.scrollTop;paintStudy(study);mainEl.scrollTop=scroll;detailId=JSON.stringify(study);$('action=annotations').hidden=!target;}return;}
 if(name==='reload'){await load();if(focus)await open(focus,false);notice('');return;}
 if(name==='archived-toggle'){archived=!archived;renderList();return;}
-if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+muted(tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')),'保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
+if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true})+muted(tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')),'保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
 if(name==='settings'){await open({kind:'settings'});return;}
 if(name==='runtime'){await runtimeForm();return;}
 if(name==='sources'){await sources();return;}
 if(name==='pulse-start'){await api('/pulse/runs',{});view='pulse';await load();notice(L('正在采集，完成后会出现在报告列表中。'));return;}
 if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await load();await open(focus,false);return;}
 if(name==='edit-direction'){
-const d=data.directions.find(item=>item.id===focus?.id);if(!d)return;
-show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,max:4000,value:d.description}),'保存',async f=>{
-await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await load();await open(focus,false);
+const path='/directions/'+enc(focus.id),{direction:d,etag}=await api(path+'/editing');
+show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,value:d.description}),'保存',async f=>{
+await api(path,{title:f.get('title'),description:f.get('description'),expectedEtag:etag},'PATCH');closeAfterSubmit();await load();await open(focus,false);
 });return;
 }
 if(name==='archive-direction'||name==='restore-direction'){

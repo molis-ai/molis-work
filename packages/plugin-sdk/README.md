@@ -6,6 +6,12 @@
 
 ## Home 插件服务
 
+公共 `createSyncDocument` 用原子 `SyncDocumentStorage.read/compareAndSet` 同次保存业务 JSON、变更日志和冻结上传。owner 显式给出 `validate/observe/read/apply`；SDK 不遍历 Home，也不解释业务字段。`update` 是一次同步提交，不重跑 CAS 失败的回调；接收不生成回传，ACK 只结算冻结前缀。恢复保留双方并核对所见修订；缺原子存储须拒绝。实际 Runtime 私有 KV 可按单 key 绑定此端口，不用 get/set 模拟 CAS。它不自动注册插件或授予同步权限；完整动态接线仍以个人同步规格为准。
+
+owner 读取完整内容时可明确抛出 `kind: unavailable`：SDK 转成不含原始路径/诊断的 `plugin.sync_unavailable`，保留资产键、原文和待上传队列；它不是永久格式错误。协调器本轮跳过该键而继续健康资产，下轮重试。普通解析错误仍明确拒绝，不按任意异常猜测暂时不可用。
+
+`createSyncConflictState` 是 SQLite 与 JSON owner 共用的比较指纹，不是授权凭据。`inspectConflict` 的 `state` 同时绑定远端事件、本机内容和本机编辑代次；用户确认须把所见 `revision/state` 原样交回 `resolve`。查看之后任一方变化就拒绝旧确认，不为旧页面自动换取新指纹。
+
 SDK 导出 `PluginDatabaseDeclaration`、`PluginDatabase`、读事务接口和 SQL 值类型。可信 Home 目录声明当前库基线，Host 绑定路径和安装授权；业务查询归插件，写入使用 `database.transaction(caller.beforeEffect, tx => …)`，事务回调不能异步。Home 激活的 `context.provider_id` 是插件 ID，`install_id` 仍是安装身份。
 
 `services.artifacts` 是可选的：Home 没有项目成果服务，项目插件使用前应明确要求。HTTP 转动作时 `bindPluginActionRoute` 保留取消、授权复查与带来源的页面上下文，版本冲突返回 409。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
@@ -235,3 +241,11 @@ result_view: {
 ```
 
 工作流在成功返回后保存有界呈现和原结果；重开记录不会套用新版插件的声明。缺字段时省略对应正文或链接，无声明的旧记录只确认动作已返回，原数据可展开查看。声明不能将失败或仍在运行的工作声称为业务完成；例如启动任务的摘要应写“任务已启动”。对象页面仍负责当前读取权限、已删除对象和恢复。原生工作台插件可处理已有的 `molis-work:select-item` 事件打开准确对象，无需为每个结果增加 Host 分支。
+
+共同同步文档 owner 可声明 `locate(data,key)`，在账号与当前文档格式检查下返回本机位置，供同步比较使用；导航不取得执行、写入或跨空间权限。
+
+共同同步文档支持 owner 的 `belongsToProject(data,key,projectId,retained)`，检查当前变化、冻结上传和等待/保留冲突；缺少声明必须拒绝。跨项目独立的 Home 内容可以由 owner 明确返回 false，项目引用本身不自动取得所有权。
+
+共同同步文档现行技术格式为 v2，实际 v1 夹具原样拒绝，不做读取转换。正常 `update` 移除稳定键时，在同一次 CAS 保留 owner 返回的完整原件（`local_delete`），未曾冻结上传也可离线撤销；已有新内容、冻结上传、冲突或修订变化时拒绝。owner 的 `read` 必须自包含完整字节，不能只给可删除路径；读取失败或 CAS 失败保留原目录和原件。不依据设备时钟自动丢弃这些唯一原件。
+
+文件 owner 可选使用 `SyncDocumentStorage.withReadLock` 与 `compareAndSetChecked`，两者必须共用同一跨进程互斥锁。暂存清理在读锁内按当前 owner 事实确定引用；复用旧暂存文件的提交须在 checked CAS 的最终锁内再次验证字节，缺失则拒绝旧提交。只实现普通 CAS 的作者不会因此获得文件清理能力。

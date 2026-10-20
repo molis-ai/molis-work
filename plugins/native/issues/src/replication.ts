@@ -18,7 +18,7 @@ const columns = [
   "id", "title", "type", "description", "context_json", "images_json",
   "submitter_id", "entered_via", "created_at", "updated_at", "version",
 ] as const;
-const LIMIT = 512 * 1024;
+const LIMIT = 100000000;
 type Row = Record<string, string | number | null>;
 
 /** A sync-only view of Issue's existing Host-owned PluginDatabase file. */
@@ -68,6 +68,8 @@ export function createIssuesReplica(db: DatabaseSync, owner: string, context: Ag
   };
   return createSqliteReplica(db, {
     authorize: context.authorize,
+    conflictState: context.conflictState,
+    belongsToProject(key) { decode(key); return false; },
     read(key) {
       const id = decode(key);
       const row = db.prepare("SELECT * FROM issues WHERE id=? AND submitter_id=?").get(id, owner) as Row | undefined;
@@ -139,7 +141,7 @@ function parse(value: unknown): unknown {
 }
 function stamp(value: unknown): boolean { return typeof value === "string" && Number.isFinite(Date.parse(value)); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Issue 记录超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Issue 记录超过账号容量上限（100 MB），原数据仍保留在本机", "limit");
 }
 function invalid(message = "Issue 同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
   throw syncError(code, message);

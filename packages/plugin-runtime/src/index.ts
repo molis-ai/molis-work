@@ -13,9 +13,9 @@ import { NativePluginExecutor } from "./native-executor.js";
 import { assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
 import { createActivationContext } from "./activation-context.js";
 
-export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
+export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, privateValueReplicaOwner, validatePrivateValueReplication, installPrivateValueReplicationJournal } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
-export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
+export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, listPluginInstallationRecords } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export {
   createPluginRuntimeReleaseArtifact,
@@ -36,6 +36,8 @@ export { NativePluginExecutor } from "./native-executor.js";
 export { pluginManifestDigest } from "./identity.js";
 export { loadDevelopmentPlugin } from "./development-loader.js";
 export { assertContributionMatchesManifest, viewContributionId } from "./contribution.js";
+export { bindRuntimeSyncCollection } from './sync-binding.js';
+export type { RuntimeSyncCollection, RuntimeSyncAuthority } from './sync-binding.js';
 export { resolvePluginActivation } from "./resolution.js";
 export { PluginEventBus } from "./events.js";
 export type { PluginActiveInstance, PluginHostLifecycle } from "./lifecycle.js";

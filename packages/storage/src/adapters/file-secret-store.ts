@@ -18,7 +18,7 @@ import {
   scryptSync,
 } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { DatabaseSync } from "node:sqlite";
+import { withFileLock } from './file-lock.js';
 import { atomicWriteFileSync } from "./atomic-write.js";
 import { readProductEnv, resolveFeedSecurityDirectory, resolveMolisWorkHome, runWithMolisWorkHome } from "./local-security-paths.js";
 
@@ -93,37 +93,7 @@ function secretsLockDbPath(): string {
  * holder is released by the OS/SQLite; no durable lock file is required.
  */
 function withSecretsLock<T>(fn: () => T): T {
-  const lockDbPath = secretsLockDbPath();
-  fs.mkdirSync(path.dirname(lockDbPath), { recursive: true });
-  let db: DatabaseSync | undefined;
-  let begun = false;
-  try {
-    db = new DatabaseSync(lockDbPath);
-    db.exec("PRAGMA busy_timeout = 5000;");
-    db.exec("BEGIN IMMEDIATE;");
-    begun = true;
-    const result = fn();
-    db.exec("COMMIT;");
-    begun = false;
-    return result;
-  } catch (error) {
-    if (begun && db) {
-      try {
-        db.exec("ROLLBACK;");
-      } catch {
-        /* already rolled back */
-      }
-    }
-    throw error;
-  } finally {
-    if (db) {
-      try {
-        db.close();
-      } catch {
-        /* ignore */
-      }
-    }
-  }
+  return withFileLock(secretsLockDbPath(), fn);
 }
 
 /** Test helper: hold the secrets mutex until `fn` returns. */

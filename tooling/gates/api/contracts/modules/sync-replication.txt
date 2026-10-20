@@ -11,7 +11,36 @@ export interface SpaceSyncPolicy {
     })[];
 }
 
+export interface SpaceSyncProgress {
+    readonly selected: number;
+    readonly pending: number;
+    readonly conflicts: number;
+    readonly waiting: number;
+    readonly failures: number;
+    readonly unavailable: number;
+    readonly complete: boolean;
+}
+
 export type SyncCollectionAvailability = "available" | "adapter_missing" | "schema_unsupported" | "publisher_changed";
+
+export interface SyncDevicePreference {
+    readonly automatic: boolean | null;
+}
+
+export interface SyncQuotaStatus {
+    readonly limitBytes: number;
+    readonly usedBytes: number;
+}
+
+export interface SyncRoundSummary {
+    readonly format: 1;
+    readonly policy: SpaceSyncPolicy;
+    readonly quota: SyncQuotaStatus;
+    readonly heads: readonly {
+        readonly namespace: string;
+        readonly revision: number;
+    }[];
+}
 
 export declare const modulesSyncReplicationContract: {
     readonly contractId: "io.molis.work.module.sync-replication.v1";

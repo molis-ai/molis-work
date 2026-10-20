@@ -28,3 +28,5 @@ export { purgeDatasetProject, datasetProjectData } from "./project-data.js";
 export { mergeDatasetDraftRows } from "./row-merge.js";
 export type { DatasetDraftColumn, DatasetDraftRow } from "./row-merge.js";
 export { datasetErrors } from "./error.js";
+
+export {openDatasetCopyOwner} from './copy.js';

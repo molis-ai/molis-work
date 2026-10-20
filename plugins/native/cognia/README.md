@@ -18,6 +18,8 @@ Cognia declares 25 capabilities in `src/actions.ts` (22 knowledge-base actions p
 
 Authorized MCP clients use individual registered capabilities, including writes, through the same handlers. Download actions return original bytes as Base64, filename and MIME; HTTP preserves inert attachment delivery. Existing HTTP mutations retain the Host same-origin/control-token gate. Production client grant management and general workflow mapping remain part of the system migration.
 
+`cognia.material.get@2` returns an `etag` of the complete selected material; `cognia.material.update@2` requires that token and checks the current content inside the write transaction. A stale editor is refused even when two devices produced the same numeric revision. Web editing carries the token automatically. MCP tools are now `cognia.material.get__v2` and `cognia.material.update__v2`; clients and fixed action references must select v2 explicitly. No v1 alias is registered. This name change was approved for personal-sync safety on 2026-10-18.
+
 Synthesis accepts either `material_refs` (each containing `id` and positive `revision`) or legacy `material_ids` (current version when invoked), never both. The UI sends the displayed revisions, including historical citations. AI reads immutable version snapshots in a short store operation, releases the store while awaiting Prologue, and persists a validated draft in another short transaction. Edits during generation do not change its evidence; deleting the target domain rejects draft persistence and leaves the materials available for retry. Discovery inspects model/connection metadata without decrypting credentials. Execution resolves the selected credential and revalidates the model/connection before and after the run. Cancellation, model failure and invalid citations do not save drafts.
 
 The bundled Prologue SDK accepts HTTPS and explicitly authorized loopback HTTP model endpoints through the same Run/Host path. Discovery never starts a request or decrypts credentials. A disabled model or missing connection makes generation unavailable while local reading/import remain usable. Tests exercise the packed SDK against controlled HTTP and HTTPS providers for generation/cancellation, and the actual desktop/narrow UI for review, explicit save and disablement. These controlled responses do not establish external commercial model quality.
@@ -30,14 +32,14 @@ node scripts/run-tests.mjs tests/cognia-*.test.ts tests/context-onboarding.test.
 pnpm boundary:check
 ```
 
-No cloud sync, background watching, bidirectional sync, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
+Personal synchronization declares `knowledge`: one owner-consistent graph for domains, source descriptions, current materials, every fixed version and draft/adoption references. Concurrent graph edits retain both sides; partial knowledge graphs are never applied. Cognia exports its pure `cogniaSyncProjection`; the existing composition root connects it to the common SDK codec for private R2 bytes, without adding an SDK dependency to Cognia. Local scanner paths, unfinished import previews and receipts stay device-local; a receiving device sees an upload source, while its existing local source association remains local. Receiving never scans, synthesizes, adopts drafts or executes attachments. Baseline v2 contains its technical journal; older libraries are refused intact and need separately approved maintenance. No background watching, proprietary database migration, graph view, Dataview execution, block-reference reconstruction, or PDF/OCR extraction is included.
 
 ## 开发要求
 
 - 负责：个人知识的导入、阅读与有出处的综合。
 - 不负责：修改来源库、项目事实、第二个运行时。
 - 公开入口：`@molis-ai/molis-work-plugin-cognia`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同与声明过的 Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录扫描返回后，建立预览前复查原调用授权、取消及执行资格；嵌套扫描/预览沿共享动作控制传递原调用身份。返回列表、移出当前材料或删除其来源时清空本页当前对象，固定历史引用仍由资料 owner 读取。
   - 不改原文件；删除源文件不删除已导入的材料，取消预览不添加材料。
@@ -51,3 +53,5 @@ No cloud sync, background watching, bidirectional sync, proprietary database mig
 - 授权等待及可见对象定向回归：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/content-context-regressions.e2e.test.ts`（浏览器文件需要本机 Chrome；owner 用例的授权是受控策略回调）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)、[specs/archive/cognia-plugin/spec.md](../../../specs/archive/cognia-plugin/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

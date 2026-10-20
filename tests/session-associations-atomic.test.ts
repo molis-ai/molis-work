@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { openWorkSessionRegistry,createSessionReplicationSupport } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 
@@ -16,7 +16,7 @@ test("Session association changes roll back all edges if one Ledger write fails"
     const sessionId = created.createSession({ runtime_id: "codex", actor_id: "user", user_confirmed: true }).session_id;
     created.close();
     let fail = false;
-    const registry = await MolisWorkSessionRegistry.open({ homeDirectory, createLedger: (db) => {
+    const registry = await MolisWorkSessionRegistry.open({ homeDirectory, replication:createSessionReplicationSupport(), createLedger: (db) => {
       const ledger = createContextLedger(db, { authorize: () => true });
       return { query: ledger.query, commands: { ...ledger.commands, put: (access, input) => {
         if (fail && input.type === "work.project") throw new Error("project edge failure");

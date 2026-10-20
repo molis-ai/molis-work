@@ -10,11 +10,19 @@
     "reason": "actions.* is the platform's own family; placement.same_location, search.entry_duplicate, files.entry_duplicate and files.too_large are the protocol codes the contracts' helpers raise. Every one of them has a row in ACTION_ERROR_KINDS and may be raised by anyone."
   },
   "owners": {
+    "sample_notes": {
+      "paths": ["examples/personal-sync-plugin/"],
+      "reason": "The independent author-only personal sync example owns its note validation and unavailable-storage failures."
+    },
     "storage": {
       "paths": [
-        "packages/storage/src/project-replica*.ts"
+        "packages/storage/src/project-replica*.ts",
+        "packages/storage/src/catalog-metadata.ts",
+        "packages/storage/src/adapters/file-document.ts",
+        "packages/storage/src/adapters/local-aead.ts",
+        "packages/storage/src/adapters/local-payload-protection.ts"
       ],
-      "reason": "Project replication validates portable rows and journal sequence references within Storage's technical persistence boundary."
+      "reason": "Project replication validates portable rows and journal sequence references; atomic file documents validate opaque UTF-8 and file shape; local payload protection owns AEAD validation and pinned local-key refusal. Catalog metadata owns read-only SQLite observation and refusal of partial or changing journals, while the Host decides business owner/version acceptance. These remain within Storage's technical persistence boundary."
     },
     "agent": {
       "paths": [

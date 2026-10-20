@@ -29,3 +29,5 @@ export { pptErrors } from "./error.js";
 
 export { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers } from "./actions.js";
 export type { PptActionPorts } from "./actions.js";
+
+export {openPptCopyOwner} from './copy.js';

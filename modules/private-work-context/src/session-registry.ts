@@ -4,11 +4,9 @@ import type { WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/priv
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { SessionAssociationRepository } from "./session-associations.js";
 import { HandoffAssociationRepository } from "./handoff-associations.js";
-import { promises as fs } from "node:fs";
-import os from "node:os";
 import path from "node:path";
-import Database from "better-sqlite3";
-import { createSessionContentStore } from "./content-store.js";
+import type Database from "better-sqlite3";
+import { openSessionOwnerDatabase } from './session-database.js';
 import type {
   AppendMolisWorkSessionEventInput,
   CreateMolisWorkSessionInput,
@@ -32,10 +30,11 @@ import { SessionEventRepository } from "./session-events.js";
 import { SessionHandoffRepository } from "./session-handoffs.js";
 import { SessionSurfaceRecorder } from "./session-surfaces.js";
 import { SessionRecordRepository } from "./session-records.js";
-import { initializeOrValidateSessionSchema } from "./session-schema.js";
+import type {SessionReplicationSupport} from './session-replication-journal.js';
 
 export interface MolisWorkSessionRegistryOptions {
-  createLedger(db: Database.Database): ContextLedgerApi;
+  createLedger(db: Database.Database,initializeSchema:boolean): ContextLedgerApi;
+  replication:SessionReplicationSupport;
   homeDirectory?: string;
   now?: () => Date;
 }
@@ -65,37 +64,21 @@ export class MolisWorkSessionRegistry implements WorkSessionApi {
   }
 
   static async open(options: MolisWorkSessionRegistryOptions): Promise<MolisWorkSessionRegistry> {
-    const homeDirectory = path.resolve(options.homeDirectory ?? path.join(os.homedir(), ".molis-work"));
-    const sessionsDirectory = path.join(homeDirectory, "sessions");
-    await fs.mkdir(sessionsDirectory, { recursive: true });
-    const databasePath = path.join(sessionsDirectory, "sessions.db");
-    const db = new Database(databasePath, { timeout: 5000 });
-    try {
-      db.pragma("journal_mode = WAL");
-      db.pragma("synchronous = FULL");
-      db.pragma("foreign_keys = ON");
-      db.pragma("busy_timeout = 5000");
-      const now = options.now ?? (() => new Date());
-      const contentStore = createSessionContentStore(path.join(sessionsDirectory, "content"));
+    const now = options.now ?? (() => new Date());
+    const registry = openSessionOwnerDatabase(options.homeDirectory, options.replication, (db, homeDirectory, contentStore,_journal,fresh) => {
       // Only the current schema is read; a new registry is created at it (no upgrade path from older registries).
-      const registry = db.transaction(() => {
-        initializeOrValidateSessionSchema(db);
-        const ledger = options.createLedger(db);
-        const associations = new SessionAssociationRepository(ledger);
-        const handoffAssociations = new HandoffAssociationRepository(ledger);
-        const sessions = new SessionRecordRepository(db, now, associations);
-        const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
-        const events = new SessionEventRepository(db, now, contentStore, sessions);
-        const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
-        return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
-          new SessionSurfaceRecorder(db, now, sessions), messages);
-      }).immediate();
-      registry.handoffs.recoverInterrupted();
-      return registry;
-    } catch (error) {
-      db.close();
-      throw error;
-    }
+      const ledger = options.createLedger(db,fresh);
+      const associations = new SessionAssociationRepository(ledger);
+      const handoffAssociations = new HandoffAssociationRepository(ledger);
+      const sessions = new SessionRecordRepository(db, now, associations);
+      const handoffs = new SessionHandoffRepository(db, now, contentStore, sessions, handoffAssociations);
+      const events = new SessionEventRepository(db, now, contentStore, sessions);
+      const messages = new SessionMessageRepository(db, now, contentStore, sessions, events);
+      return new MolisWorkSessionRegistry(db, homeDirectory, sessions, events, handoffs,
+        new SessionSurfaceRecorder(db, now, sessions), messages);
+    });
+    try { registry.handoffs.recoverInterrupted(); return registry; }
+    catch (error) { registry.close(); throw error; }
   }
 
   close(): void {

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdir, mkdtemp, rm, unlink, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, rm, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -239,8 +239,11 @@ fi
       editor.dispatchEvent(new Event('input',{bubbles:true})); document.querySelector('[data-shelf-copy-file]').click(); })()`);
     await waitFor("window.parityNativeCalls.length === 1");
     const single = await evaluate<{ payload: { paths: string[] }; saved: string }>("window.parityNativeCalls[0]");
-    assert.deepEqual(single.payload.paths, [join(shelf.root, first.relative_path)]);
+    const persisted = shelf.readFile(first.item_id);
+    assert.deepEqual(single.payload.paths, [join(shelf.root, persisted.item.relative_path)], 'native copy uses the owner\'s current immutable version after saving');
+    assert.notEqual(persisted.item.relative_path, first.relative_path, 'saving never mutates the admission snapshot in place');
     assert.equal(single.saved, markdown + "\n已修改且保留全文。" + suffix);
+    assert.equal(await readFile(single.payload.paths[0]!, 'utf8'), single.saved, 'the native path really exists and contains the complete saved bytes');
     assert.equal(shelf.readFile(first.item_id).bytes.toString("utf8"), single.saved);
     await click("[data-shelf-edit]");
     await waitFor("!document.querySelector('[data-shelf-editor]')");
@@ -249,7 +252,7 @@ fi
     await evaluate("document.body.dispatchEvent(new KeyboardEvent('keydown',{bubbles:true,code:'KeyC',key:'c',metaKey:true}))");
     await waitFor("window.parityNativeCalls.length === 2");
     const multi = await evaluate<string[]>("window.parityNativeCalls[1].payload.paths");
-    assert.deepEqual([...multi].sort(), [join(shelf.root, first.relative_path), join(shelf.root, second.relative_path)].sort());
+    assert.deepEqual([...multi].sort(), [first, second].map(item => join(shelf.root, shelf.readFile(item.item_id).item.relative_path)).sort());
   });
 
   await t.test("wheel send reopens a dead terminal while its pane remains open (client contract)", async () => {

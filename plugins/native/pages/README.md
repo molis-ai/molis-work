@@ -36,6 +36,8 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 
 ## 开发要求
 
+项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。
+
 同步试点：`store.syncAdapter(trustedContext)` 提供项目快照验证，`store.replica(trustedContext)` 提供逐文档/文件夹增量，复用 storage 队列。未发布草稿保留，缺关联依赖、待完成发布、撤权时不覆盖；并发编辑进入冲突处理。正文内嵌图片可携带，HTTP 图片仅保留引用，本机/相对链接拒绝。Host 已接个人空间同步配置页与 Rust/D1 本机联调，默认关闭，未部署公网。生成历史、Goal/Artifact、附件对象不在本轮集合里。说明见[规范](../../../skills/molis-plugin-dev/sync.md)。
 
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。

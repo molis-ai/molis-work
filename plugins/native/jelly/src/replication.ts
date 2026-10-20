@@ -17,7 +17,7 @@ export const jellySync: PluginSyncDeclaration = {
 };
 
 const KEY = JSON.stringify(["jelly", "workspace"]);
-const LIMIT = 512 * 1024;
+const LIMIT = 100000000;
 type Row = { revision: number; body: string; checksum: string };
 
 /** The editable workspace is portable; temporary previews, undo history and source imports stay on their device. */
@@ -42,6 +42,8 @@ export function createJellyReplica(db: DatabaseSync, context: AggregateReplicaCo
   };
   return createSqliteReplica(db, {
     authorize: context.authorize,
+    conflictState: context.conflictState,
+    belongsToProject(id) { key(id); return false; },
     read(id) {
       key(id);
       const row = db.prepare("SELECT revision,body,checksum FROM jelly_workspace WHERE singleton=1").get() as Row | undefined;
@@ -91,7 +93,7 @@ function validate(workspace: JellyWorkspace): void {
   catch { invalid("Jelly 工作区数据无效"); }
 }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 工作区超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("Jelly 工作区超过账号容量上限（100 MB），原数据仍保留在本机", "limit");
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();

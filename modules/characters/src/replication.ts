@@ -15,7 +15,7 @@ import {
 
 function invalid(): never { throw syncError("invalid", "角色草稿同步数据不合法"); }
 function limit(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) throw syncError("limit", "角色草稿超过当前同步上限（512 KiB）");
+  if (Buffer.byteLength(JSON.stringify(value)) > 100000000) throw syncError("limit", "角色草稿超过账号容量上限（100 MB）");
 }
 function object(value: unknown): Record<string, unknown> {
   if (!value || typeof value !== "object" || Array.isArray(value)) invalid();
@@ -69,7 +69,7 @@ export function installCharactersReplication(db: DatabaseSync): void {
 }
 
 export function createCharactersReplica(db: DatabaseSync, actorId: string, context: {
-  spaceId: string; authorize(): void;
+  spaceId: string; authorize(): void; conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
   if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) throw syncError("scope", "角色草稿不属于当前个人空间");
@@ -82,6 +82,8 @@ export function createCharactersReplica(db: DatabaseSync, actorId: string, conte
   };
   return createSqliteReplica(namespacedReplicaDatabase(db, "characters"), {
     authorize: context.authorize,
+    conflictState: context.conflictState,
+    belongsToProject(key) { idFromKey(key); return false; },
     canUpload: key => {
       try { idFromKey(key); return true; } catch { return false; }
     },

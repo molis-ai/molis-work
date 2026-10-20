@@ -62,6 +62,7 @@ export interface AgentHostCompositionOptions {
 
 export interface AgentHostComposition {
   readonly inference: PrologueInferenceClient;
+  readonly savedHistory: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["savedHistory"];
   createBuilderAgent: Awaited<ReturnType<typeof createPrologueNodeAdapter>>["createBuilderAgent"];
   readonly agentHost: AgentHost;
   /** Starts the runtime when it has not started yet. */
@@ -310,7 +311,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     // A block also withdraws any standing approval there; the driver refuses the site from now on.
     prologue?.surfaces?.decide(decision.decision === "block" ? { scope: decision.scope, decision: "forget" } : decision);
   };
-  return { agentHost, inference, createBuilderAgent, restoreExternalMcp, decideSurfaceSite, get ready() { return initialize(); }, started, dispose() {
+  return { agentHost, inference, savedHistory:{async read(id,owner,authorize){authorize();await initialize();authorize();if(!prologue)throw new Error("会话历史服务尚未装配");return prologue.savedHistory.read(id,owner,authorize);}}, createBuilderAgent, restoreExternalMcp, decideSurfaceSite, get ready() { return initialize(); }, started, dispose() {
     if (disposal) return disposal;
     disposed = true;
     unregister();

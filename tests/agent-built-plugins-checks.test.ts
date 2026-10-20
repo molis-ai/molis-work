@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, readFile, rm, chmod, symlink } from 'node:fs/promises';
+import { mkdtemp, writeFile, readFile, rm, chmod, symlink, mkdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createBuildProject, buildManifest } from '../apps/local-host/src/plugin-builder/build-project.js';
+import { createBuildProject, buildManifest, copyBuildRevisionInputs, copyUnchangedBuildOperations } from '../apps/local-host/src/plugin-builder/build-project.js';
 import { runPluginChecks } from '../apps/local-host/src/plugin-builder/build-checks.js';
 import type { BuildCheckOptions } from '../apps/local-host/src/plugin-builder/build-types.js';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
@@ -21,6 +21,48 @@ async function fixture() {
   const options: BuildCheckOptions = { root, contract: c, manifest, operationIds: ['echo'], services: {}, identity: { projectId: 'project', installationId: 'check', pluginId: c.pluginId, namespace: 'preview' }, grants: {} };
   return { root, project, options, close: () => rm(root, { recursive: true, force: true }) };
 }
+
+test('a revised contract preserves helpers and declared dependency inputs without copying local grants or installed packages', mac, async () => {
+  const f = await fixture(), target = await mkdtemp(join(tmpdir(), 'plugin-revision-test-'));
+  try {
+    await mkdir(join(f.root, 'src/helpers')); await mkdir(join(f.root, 'tests/helpers'));
+    const helper = 'export const upper=(input:string)=>input.toUpperCase();\n';
+    await writeFile(join(f.root, 'src/helpers/转大写.ts'), helper);
+    await writeFile(join(f.root, 'tests/helpers/empty.ts'), '');
+    await writeFile(join(f.root, 'tests/helpers/sample.ts'), 'export const sample="TEST";');
+    await writeFile(f.project.operationFiles.echo!, `import type {SandboxJson,SandboxSdk} from '@molis/plugin-sdk';import {upper} from '../helpers/转大写.js';export default async function(input:SandboxJson,_sdk:SandboxSdk):Promise<SandboxJson>{return upper(input as string)}`);
+    await writeFile(f.project.testFiles.echo!, `import type {SandboxTest} from '@molis/plugin-sdk';import {sample} from '../helpers/sample.js';export const tests:SandboxTest[]=[async(_sdk,call,assert)=>{assert.same(await call('test'),sample)}];`);
+    const lock = JSON.stringify({ version: 1, registry: 'https://registry.npmjs.org', requested: {}, packages: [] });
+    await writeFile(join(f.root, 'dependency-lock.json'), lock);
+    await mkdir(join(f.root, 'node_modules')); await writeFile(join(f.root, 'node_modules/secret'), 'not transferable');
+    const next = { ...f.options.contract, revision: 'next', operations: [...f.options.contract.operations].reverse() };
+    await createBuildProject(target, next, buildManifest(next), { capabilities: [], resources: [] });
+    const authority = await readFile(join(target, 'developer/capabilities.json'));
+    await copyBuildRevisionInputs(f.root, target);
+    await copyUnchangedBuildOperations(f.root, target, f.options.contract, next, ['echo'], target + '.settled');
+    assert.equal(await readFile(join(target, 'src/helpers/转大写.ts'), 'utf8'), helper);
+    assert.equal((await readFile(join(target, 'tests/helpers/empty.ts'))).length, 0);
+    assert.equal(await readFile(join(target, 'dependency-lock.json'), 'utf8'), lock);
+    assert.deepEqual(await readFile(join(target, 'developer/capabilities.json')), authority);
+    await assert.rejects(readFile(join(target, 'node_modules/secret')), { code: 'ENOENT' });
+    const checked = await runPluginChecks({ ...f.options, root: target, contract: next, manifest: buildManifest(next), settled: target + '.settled' });
+    assert.equal(checked.passed, true, JSON.stringify(checked.gates));
+    assert.match(await readFile(join(target, 'src/operations/1.ts'), 'utf8'), /转大写/);
+    assert.equal(await readFile(join(f.root, 'src/helpers/转大写.ts'), 'utf8'), helper);
+  } finally { await f.close(); await rm(target, { recursive: true, force: true }); await rm(target + '.settled', { recursive: true, force: true }); }
+});
+
+test('revision helper symlinks refuse before any target input changes', async () => {
+  const f = await fixture(), target = await mkdtemp(join(tmpdir(), 'plugin-revision-refusal-'));
+  try {
+    await createBuildProject(target, f.options.contract, f.options.manifest, []);
+    const before = await readFile(join(target, 'package.json'));
+    await symlink(join(f.root, 'src/operations/0.ts'), join(f.root, 'src/escape.ts'));
+    await assert.rejects(copyBuildRevisionInputs(f.root, target), /symbolic links/);
+    assert.deepEqual(await readFile(join(target, 'package.json')), before);
+    await assert.rejects(readFile(join(target, 'src/escape.ts')), { code: 'ENOENT' });
+  } finally { await f.close(); await rm(target, { recursive: true, force: true }); }
+});
 
 test('all six gates run actual code and tests in Seatbelt while unrelated stub remains disconnected', mac, async () => {
   const f = await fixture();
@@ -40,6 +82,13 @@ test('frozen manifest and entrypoint changes fail G1', mac, async () => {
     const path = join(f.root, 'manifest.json'); await chmod(path, 0o600); await writeFile(path, JSON.stringify({ ...f.options.manifest, effects: { storage: ['write'] } }));
     const result = await runPluginChecks(f.options); assert.equal(result.gates[0]?.passed, false); assert.match(result.gates[0]!.detail, /manifest/);
   } finally { await f.close(); }
+});
+
+test('a settled-source commit failure after live examples marks G6 failed and preserves the original file',mac,async()=>{
+  const f=await fixture();try{
+    const settled=join(f.root,'immutable-settled'),file=join(settled,'src/operations/0.ts');await mkdir(join(settled,'src/operations'),{recursive:true});await writeFile(file,'immutable original',{mode:0o400});
+    const result=await runPluginChecks({...f.options,settled});assert.equal(result.passed,false);assert.equal(result.gates.find(g=>g.id==='G6')?.passed,false);assert.match(result.gates.find(g=>g.id==='G6')!.detail,/EACCES|permission denied/i);assert.equal(await readFile(file,'utf8'),'immutable original');
+  }finally{await f.close();}
 });
 
 test('host ignores Agent tsconfig and rejects Node globals and path imports', mac, async () => {

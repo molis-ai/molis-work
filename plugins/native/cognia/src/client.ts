@@ -4,8 +4,8 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const L = host.translate, $ = s => root.querySelector(s), dialog = $('[data-cognia-dialog]'), form = $('[data-cognia-form]'), content = $('[data-cognia-dialog-content]'), submit = $('[data-cognia-submit]');
   const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const tx = value => esc(L(value)), button = (label, action, extra='') => '<button type="button" class="mw-btn mw-btn--ghost cognia-relation" data-cognia-action="'+action+'" '+extra+'>'+esc(label)+'</button>';
-  let state = {materials:[],domains:[],sources:[],drafts:[]}, selected = new Set(), cur = null, preview = null, receipt = null, draft = null, flow = '', busy = false, seq = 0, timer, returnFocus = null, listScroll = 0, listFocus = null;
-  const api = async (path, body) => { const response = await fetch('/api/plugins/cognia'+path,{method:body===undefined?'GET':'POST',headers:typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}); const payload=await response.json().catch(()=>({})); if(!response.ok)throw new Error(payload.error||L('Cognia 请求失败')); return payload; };
+  let state={materials:[],domains:[],sources:[],drafts:[]},selected=new Set(),cur=null,etag='',preview=null,receipt=null,draft=null,flow='',busy=false,seq=0,timer,returnFocus=null,listScroll=0,listFocus=null;
+  const api = async (path, body) => { const response = await fetch('/api/plugins/cognia'+path,{method:body===undefined?'GET':'POST',headers:typeof molisWorkControlHeaders==='function'?molisWorkControlHeaders():{'content-type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)}); const payload=await response.json().catch(()=>({})); if(!response.ok)throw Error(payload.error||L('Cognia 请求失败')); return payload; };
   const notice = error => { const el=$('[data-cognia-notice]'); el.hidden=!error; el.querySelector('span').textContent=error?L(error):''; };
   const fail = error => { const el=$('[data-cognia-error]'); el.hidden=!error; el.textContent=error?L(error):''; };
   const options = (values, first) => '<option value="">'+tx(first)+'</option>'+values.map(v=>'<option value="'+esc(v.id)+'">'+esc(v.name)+'</option>').join('');
@@ -19,9 +19,8 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       ? '<div class="cognia-empty"><strong>'+tx('没有符合条件的资料')+'</strong><p>'+tx('试试其他关键词，或清除筛选查看全部资料。')+'</p>'+button(L('清除筛选'),'clear-filters')+'</div>'
       : '<div class="cognia-empty"><span class="mw-empty__mark"><svg aria-hidden="true"><use href="#icon-book"></use></svg></span><strong>'+tx('把已有的知识带进来')+'</strong><p>'+tx('导入 Markdown 目录，或添加一份材料。')+'</p>'+button(L('导入知识库'),'import')+button(L('添加材料'),'add')+'</div>');
     $('[data-cognia-selected]').textContent=L('已选')+' '+selected.size+' / 5';
-    const filtering = Boolean($('[data-cognia-search]').value || $('[data-cognia-domain]').value || $('[data-cognia-source]').value);
+    const filtering = $('[data-cognia-search]').value || $('[data-cognia-domain]').value || $('[data-cognia-source]').value;
     const bare = !state.materials.length && !filtering;
-    // Search stays (an empty library still answers a search honestly); the domain / source filters and the selection tools wait.
     for (const selector of ['[data-cognia-domain]', '[data-cognia-source]', '.cognia-selection']) { const node = $(selector); if (node) (node.closest('.mw-select-picker') || node).hidden = bare; }
   }
   async function load() {
@@ -64,10 +63,10 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     flush();if(code)output+='</code></pre>';return output;
   }
   const refs = references => references.length?'<section class="cognia-relations"><h3>'+tx('固定版本来源')+'</h3>'+references.map(r=>button('['+r.label+'] '+r.title+' · v'+r.revision,'reference','data-id="'+esc(r.material_id)+'" data-revision="'+r.revision+'"')).join('')+'</section>':'';
-  const publishContext = () => { const ctx={plugin_id:'io.molis.work.cognia',surface_title:'Cognia'}; if(cur)ctx.object={kind:'cognia_material',id:cur.id,version:cur.revision||cur.updated_at||'',title:cur.title}; root.setAttribute('data-assistant-context',JSON.stringify(ctx)); };
+  const publishContext = () => { const ctx={plugin_id:'io.molis.work.cognia',surface_title:'Cognia'}; if(cur)ctx.object={kind:'cognia_material',id:cur.id,version:cur.revision,title:cur.title}; root.setAttribute('data-assistant-context',JSON.stringify(ctx)); };
   const fold = () => { const id=cur?.id; cur=null;publishContext();root.dataset.expanded='false';$('[data-cognia-workspace]').hidden=true;$('[data-cognia=directory]').scrollTop=listScroll;if(listFocus?.isConnected&&$('[data-cognia=directory]').contains(listFocus))listFocus.focus();else root.querySelector('[data-cognia-id="'+id+'"]')?.focus(); };
   async function openMaterial(id,revision) {
-    const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); cur=data.material; publishContext(); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=cur.title;
+    const data=await api('/materials/'+encodeURIComponent(id)+(revision?'?revision='+revision:'')); cur=data.material;etag=data.etag; publishContext(); if(root.dataset.expanded!=='true'){listFocus=document.activeElement;listScroll=$('[data-cognia=directory]').scrollTop;}root.dataset.expanded='true';$('[data-cognia-workspace]').hidden=false;$('[data-cognia-heading]').textContent=cur.title;
     $('[data-cognia-download]').href='/api/plugins/cognia/materials/'+encodeURIComponent(id)+'/download?revision='+cur.revision;
     $('[data-cognia-action="edit-material"]').hidden=!!revision||!['manual','knowledge'].includes(cur.source_id);
     $('[data-cognia-action="delete-material"]').hidden=!!revision||!state.materials.some(m=>m.id===id);
@@ -88,7 +87,7 @@ export const COGNIA_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     else if(flow==='preview'){if(content.dataset.importable==='false')throw new Error(L('没有可导入的内容，请查看跳过原因并选择 Markdown 导出目录。'));const result=await api('/import/commit',{preview_id:preview.id});receipt=result.receipt;flow='receipt';content.innerHTML='<p class="cognia-receipt">'+tx('导入完成')+'<br>'+tx('新增')+' '+receipt.added+' · '+tx('更新')+' '+receipt.updated+' · '+tx('不变')+' '+receipt.unchanged+' · '+tx('跳过')+' '+receipt.skipped+'</p>'+table(receipt.entries);submit.textContent=L('打开资料');$('[data-cognia-step]').textContent=L('结果');await load().catch(e=>fail(L('导入已完成，但列表刷新失败。关闭后可重试读取。')+' '+e.message));}
     else if(flow==='receipt'){dialog.close();if(receipt.material_ids[0])await openMaterial(receipt.material_ids[0]);else await load();}
     else if(flow==='add'){const result=await api('/materials',{title:data.get('title'),body:data.get('body'),domain_id:data.get('domain_id')||null});dialog.close();await load().catch(e=>notice(e.message));await openMaterial(result.material.id);}
-    else if(flow==='edit'){const result=await api('/materials/'+encodeURIComponent(cur.id)+'/update',{title:data.get('title'),body:data.get('body'),domain_id:data.get('domain_id')||null});dialog.close();await load().catch(e=>notice(e.message));await openMaterial(result.material.id);}
+    else if(flow==='edit'){const result=await api('/materials/'+encodeURIComponent(cur.id)+'/update',{etag,title:data.get('title'),body:data.get('body'),domain_id:data.get('domain_id')||null});dialog.close();await load().catch(e=>notice(e.message));await openMaterial(result.material.id);}
     else if(flow==='domain'){await api('/domains',{name:data.get('name')});dialog.close();await load();}
     else if(flow==='ai'){const result=await api('/ai',{mode:content.dataset.mode,question:data.get('question'),domain_id:$('[data-cognia-domain]').value,material_refs:JSON.parse(content.dataset.refs||'[]')});showDraft(result.draft);await load().catch(e=>notice(e.message));}
     else if(flow==='review'){const result=draft.saved_id?{material:{id:draft.saved_id}}:await api('/drafts/'+draft.id+'/save',{});draft.saved_id=result.material.id;dialog.close();await load().catch(e=>notice(e.message));await openMaterial(result.material.id);}

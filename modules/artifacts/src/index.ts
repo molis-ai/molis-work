@@ -34,8 +34,8 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-export { createArtifactReplication, type ArtifactReplicationContext, type PortableArtifact } from './replication.js';
-export { installArtifactReplicationJournal } from './replication-journal.js';
+export { createArtifactReplication, createProcessItemReplication, validateArtifactReplication, validateProcessItemReplication, type ArtifactReplicationContext, type PortableArtifact, type PortableProcessItem } from './replication.js';
+export { installArtifactReplicationJournal, installProcessItemReplicationJournal } from './replication-journal.js';
 
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
@@ -109,3 +109,4 @@ export {
   type ArtifactsServiceOptions,
   type VersionStoreKind,
 } from "./service.js";
+export {createArtifactSyncContent} from './sync-content.js';

@@ -5,9 +5,22 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
-import { MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, SqlitePluginPrivateStorage, privateValueReplicaOwner } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginPrivateStorage, PluginDefinition, PluginExecutor, PluginManifest, PluginStartContext, PluginUpgradeContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type {PrivateValueReplicationOwner} from '@molis-ai/molis-work-contracts/platform/sync-transport';
+
+test('private replication refuses a false absent-row CAS instead of acknowledging newly created content',()=>{
+ const db=new Database(':memory:');try{const repository=new SqlitePluginPrivateStorage(db);
+  const definition=createGithubIntegrationPlugin({provider:{type:'fixture',async health(){return {ok:true,status:'connected',message:'ready'};},async sync(){return {ok:true,mode:'fixture',items:[],cursor:null};}}});
+  const manifest={...definition.manifest,permissions:[...definition.manifest.permissions,{permission:'storage:private',required:true,reason:'fixture'}]};
+  const storage=repository.forPlugin({install_id:'replica-test:project',plugin_id:manifest.plugin_id,version:manifest.version,deployment:'local',grants:['storage:private'],project_id:'project',requireGrant(){}},manifest);
+  const owner:PrivateValueReplicationOwner={id:'private_test',assetKind:'private_test',namespacePrefix:'replica-test:',key:'state',journal:[{array:'items',id:'id'}],project(){return null;},validate(){},restore(){storage.set('state','{"items":[]}');return null;}};
+  const port=privateValueReplicaOwner(db,owner,{spaceId:'space',projectId:'project',title:'project',authorize(){}});
+  assert.throws(()=>port.apply('["project","private_test","item"]',null),{code:'plugin.sync_private_conflict'});assert.equal(storage.get('state'),'{"items":[]}');
+  assert.throws(()=>privateValueReplicaOwner(db,{...owner,journal:[]},{spaceId:'space',projectId:'project',title:'project',authorize(){}}),{code:'plugin.sync_private_invalid'});
+ }finally{db.close();}
+});
 
 test("Plugin private storage persists opaque values, isolates signatures and rejects revoked or missing grants", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-private-"));

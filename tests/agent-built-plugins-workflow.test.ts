@@ -826,6 +826,44 @@ test('visual model review has one repair and one confirmation; a stale cancelled
   } finally { await workflow.close(); }
 });
 
+for (const passed of [true, false]) test('portable pending visual continuation reruns local gates before any composition: ' + passed, async () => {
+  const h = harness([PROPOSALS, experience(), detail('阅读'), composition(), composition('tight')]);
+  h.ports.presentation = true;
+  h.ports.inspectPresentation = async () => ({ structural: true, issues: [], images: [] });
+  const workflow = new AgentBuilderWorkflow(memoryStorage(), h.ports);
+  try {
+    const { id } = workflow.create('阅读摘记');
+    let build = await until(workflow, id, b => b.phase === 'choosing');
+    await workflow.action(id, { action: 'choose', revision: build.revision, candidateId: 'quick' });
+    build = await until(workflow, id, b => ['ready', 'failed'].includes(b.phase));
+    assert.equal(build.phase, 'ready', build.error ?? '');
+    build = workflow.store.update(id, build.revision, row => {
+      row.phase = 'paused'; row.pendingVisual = '保留同步来的界面调整意图';
+      delete row.checks.global!.bundlePath;
+    });
+    const before = h.requests.length, pendingDesign = structuredClone(build.design);
+    let checks = 0;
+    h.ports.check = async () => {
+      checks++; assert.equal(h.requests.length, before, 'no model request precedes local gates');
+      return { passed, gates: [{ id: 'G1', passed, detail: 'target gate evidence' }], ...(passed ? { bundlePath: '/tmp/current-device/plugin.mjs' } : {}) };
+    };
+    await workflow.action(id, { action: 'resume', revision: build.revision });
+    const restored = await until(workflow, id, value => ['ready', 'failed'].includes(value.phase));
+    assert.equal(checks, 1);
+    assert.equal(restored.phase, passed ? 'ready' : 'failed', restored.error ?? '');
+    if (passed) {
+      assert.equal(restored.checks.global!.bundlePath, '/tmp/current-device/plugin.mjs');
+      assert.equal(restored.pendingVisual, undefined);
+      assert.ok(h.requests.slice(before).some(request => request.role === 'designer'));
+    } else {
+      assert.match(restored.error!, /target gate evidence/);
+      assert.equal(h.requests.length, before);
+      assert.deepEqual(restored.design, pendingDesign);
+      assert.equal(restored.pendingVisual, '保留同步来的界面调整意图');
+    }
+  } finally { await workflow.close(); }
+});
+
 test('experience planning reshapes parts before detail and freeze, preserving selected operations and passing real content downstream', async () => {
   const plan = JSON.parse(experience()); plan.pages[0].parts = plan.pages[0].parts.filter((part: any) => part.id !== 'title');
   plan.pages[0].parts[0].id = 'capture'; plan.summary = '从内容开始，录入与浏览相邻';

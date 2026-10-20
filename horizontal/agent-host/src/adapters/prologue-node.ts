@@ -1,3 +1,4 @@
+import {createPrologueSavedHistory,type PrologueSavedHistoryPort} from './prologue-saved-history.js';
 import { AsyncLocalStorage } from "node:async_hooks";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
@@ -85,7 +86,7 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  */
 export async function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
-): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
+): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; savedHistory:PrologueSavedHistoryPort; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort;
   surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
   const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
   try {
@@ -194,7 +195,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     },
     approvals,
     answerPending: answerPending({ runtime, host, state, readQuestion, index, options }),
-  }), { inference, createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
+  }), { inference, savedHistory:createPrologueSavedHistory(runtime,index), createBuilderAgent, gitReviews, diagnostics: () => runtimeDiagnostics(runtime),
     /** The person's standing site decisions for the side panel's browser, applied to the running runtime. */
     surfaces: surfaceHost ? { decide: (decision: Parameters<PrologueSurfaces["decide"]>[0]) => surfaceHost!.decide(decision) } : undefined,
     assertDirectoriesIdle: directoriesIdle(runtime, index), withEffect: effects.call });

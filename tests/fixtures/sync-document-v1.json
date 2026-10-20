@@ -1,0 +1,1 @@
+{"version":1,"spaceId":"personal:alice","device":"7c2f9286-4ade-489f-afda-11715eee1a8c","seq":1,"cursor":0,"data":{"items":[{"id":"frozen-original","body":"Original v1 bytes"}]},"changes":[{"key":"frozen-original","seq":1}],"heads":[],"outbox":[],"conflicts":[],"history":[]}

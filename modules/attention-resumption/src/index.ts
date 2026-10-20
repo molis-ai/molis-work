@@ -329,15 +329,9 @@ export function assertAttentionTransition(from: AttentionStatus, to: AttentionSt
   assertTransition(from, to);
 }
 
-export function assertAttentionEntryShape(entry: AttentionEntryRecord): void {
-  assertShape(entry);
-}
-
-function assertReference(subjectType: AttentionSubjectType, subjectId: string): void {
-  if (!subjectId.trim() || !["feed_item", "goal_decision", "source_fault"].includes(subjectType)) {
-    throw attentionErrors.invalid_reference("Inbox Entry 必须引用一个有效对象");
-  }
-}
+export {assertAttentionEntryShape} from './entry-shape.js';
+import {assertAttentionEntryShape as assertShape,assertAttentionReference as assertReference} from './entry-shape.js';
+export {attentionContentReplicationDefinition} from './replication.js';
 
 function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason): void {
   const valid = subjectType === "feed_item"
@@ -346,22 +340,6 @@ function assertReason(subjectType: AttentionSubjectType, reason: AttentionReason
       ? reason === "source_fault"
       : reason === "goal_decision";
   if (!valid) throw attentionErrors.invalid_transition(referenceMessage(subjectType));
-}
-
-function assertShape(entry: AttentionEntryRecord): void {
-  assertReference(entry.subject_type, entry.subject_id);
-  const forbidden = ["title", "summary", "body", "message", "content", "credential", "cursor"];
-  for (const key of forbidden) {
-    if (Object.hasOwn(entry, key)) {
-      throw attentionErrors.invalid_reference(`Inbox Entry 不能复制 ${key}`);
-    }
-  }
-  for (const key of Object.keys(entry.detail)) {
-    const normalized = key.toLowerCase();
-    if (forbidden.some((token) => normalized.includes(token))) {
-      throw attentionErrors.invalid_reference(`Inbox Entry detail 不能复制 ${key}`);
-    }
-  }
 }
 
 function assertTransition(from: AttentionStatus, to: AttentionStatus): void {

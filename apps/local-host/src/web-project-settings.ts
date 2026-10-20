@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { WebSettingsProject } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { projectCatalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
 import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } from "./project-catalog.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
@@ -10,6 +11,26 @@ import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailur
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
+
+async function renameProjectFromHttp(request: IncomingMessage, response: ServerResponse, projectId: string, homeDirectory: string | undefined, withCatalog: LocalWebCatalogRunner): Promise<void> {
+  const body = await readBody(request);
+  const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
+  if (!displayName) {
+    sendJson(response, 400, { error: L("项目名称不能为空") });
+    return;
+  }
+  try {
+    if (typeof body.expected_display_name !== "string") throw projectCatalogErrors.project_name_conflict("The original project name is required. Reopen project settings before saving.");
+    const expectedName = body.expected_display_name;
+    await withCatalog({ homeDirectory }, async catalog => {
+      const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectId), displayName, LOCAL_PERSON_ACTOR_ID, expectedName));
+      sendJson(response, 200, { project: settingsProject(project) });
+    });
+  } catch (error) {
+    const failure = actionErrorResponse(error);
+    sendJson(response, failure.status, failure.body);
+  }
+}
 
 export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
   const handleProjectDeletion = createProjectDeletionHttp(withMolisWorkProjectCatalog);
@@ -140,20 +161,7 @@ export function createLocalProjectSettingsHttp(withMolisWorkProjectCatalog: Loca
     if (await handleProjectDeletion(request, response, url, homeDirectory, deletionPorts)) return true;
     const projectRenameMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/rename$/);
     if (request.method === "POST" && projectRenameMatch) {
-      const body = await readBody(request);
-      const displayName = typeof body.display_name === "string" ? body.display_name.trim() : "";
-      if (!displayName) {
-        sendJson(response, 400, { error: L("项目名称不能为空") });
-        return true;
-      }
-      try {
-        await withMolisWorkProjectCatalog({ homeDirectory }, async (catalog) => {
-          const project = await catalog.commit(() => catalog.renameProject(decodeURIComponent(projectRenameMatch[1]), displayName, LOCAL_PERSON_ACTOR_ID));
-          sendJson(response, 200, { project: settingsProject(project) });
-        });
-      } catch (error) {
-        sendJson(response, 400, { error: error instanceof Error ? error.message : String(error) });
-      }
+      await renameProjectFromHttp(request, response, projectRenameMatch[1], homeDirectory, withMolisWorkProjectCatalog);
       return true;
     }
     if (request.method === "GET" && url.pathname === "/api/settings/diagnostics") {

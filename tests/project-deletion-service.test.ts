@@ -1,3 +1,4 @@
+import {ensureStorageSpace,personalStorageSpace} from '@molis-ai/molis-work-storage';
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import { existsSync } from "node:fs";
@@ -59,6 +60,27 @@ test("the service stops while a terminal of the project is alive, and changes no
   assert.ok(ports.asked.every(panelId => panelId === panel.panel_id), "only the project's own terminals are asked about");
 });
 
+test("PCSYNC-20: a terminal started while runtime release waits prevents project deletion", async t => {
+  const { directory, home, catalog } = await scratchHome(t);
+  const project = await catalog.createProject({ display_name: "释放期间打开终端", actor_id: "test-user" });
+  let livePanel: string | undefined;
+  const service = new ProjectDeletionService(withMolisWorkProjectCatalog, {
+    isPanelAlive: panelId => panelId === livePanel,
+    async releaseProject() {
+      // Model a terminal opened by another entry during the asynchronous runtime shutdown.
+      await Promise.resolve();
+      livePanel = catalog.openDesktopPanel({ project_id: project.project_id, goal_id: "goal-late",
+        runtime_kind: "generic", launch_command: "/bin/cat", cwd: directory,
+        actor_id: "test-user", user_confirmed: true }).panel_id;
+    },
+  });
+  await assert.rejects(service.deleteProject(home, deletion(project.project_id)), { code: "catalog.project_terminal_live" });
+  assert.equal(existsSync(project.database_path), true);
+  assert.ok(catalog.listProjects().some(p => p.project_id === project.project_id));
+  assert.equal(catalog.listProjectDeletions().length, 0);
+  assert.deepEqual(catalog.listDesktopPanels(project.project_id).map(p => p.panel_id), [livePanel]);
+});
+
 test("the service lets go of the project's runtime before the directory moves, and only for a confirmed request", async t => {
   const { home, catalog } = await scratchHome(t);
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
@@ -100,6 +122,56 @@ async function residentHost(t: TestContext, home: string) {
   };
   return { localHost, origin, token, stop };
 }
+
+test('PCSYNC-20 recycle refuses active work and fences Runtime and PTY starts until commit; recycled projects cannot reopen', {timeout:60_000}, async t => {
+  const {home,catalog}=await scratchHome(t);
+  const project=await catalog.createProject({display_name:'生命周期保护',actor_id:'test-user'});
+  const panel=catalog.openDesktopPanel({project_id:project.project_id,goal_id:'goal',runtime_kind:'generic',launch_command:'/bin/cat',cwd:home,actor_id:'test-user',user_confirmed:true});
+  const resident=await residentHost(t,home);let socket:WebSocket|undefined;
+  t.after(async()=>{socket?.terminate();await resident.stop();});
+  const reference=molisWorkHostProjectReference({databasePath:project.database_path,projectId:project.project_id});
+  let endWork!:()=>void,started!:()=>void;
+  const startedWork=new Promise<void>(resolve=>{started=resolve;});
+  const work=new Promise<void>(resolve=>{endWork=resolve;});
+  const active=resident.localHost.withProject(reference,async()=>{started();await work;},{activatePlugins:false});
+  await startedWork;
+  const input={project_id:project.project_id,actor_id:'test-user',operation_id:'recycle-live',expected_state:catalog.recycle.inspect(project.project_id).state,recycled:true,confirmed:true};
+  let released=0,finishRelease!:()=>void,releaseStarted!:()=>void;
+  const releasing=new Promise<void>(resolve=>{releaseStarted=resolve;});
+  const releaseWait=new Promise<void>(resolve=>{finishRelease=resolve;});
+  const service=new ProjectDeletionService(withMolisWorkProjectCatalog,{
+    isPanelAlive:()=>false,
+    isProjectBusy:path=>resident.localHost.isProjectBusy(path),
+    async releaseProject(path){released++;await resident.localHost.closeProject(path);releaseStarted();await releaseWait;},
+  });
+  try {
+    await assert.rejects(service.changeRecycled(home,input,()=>{}),{code:'catalog.project_task_live'});
+    assert.equal(released,0);assert.equal(catalog.recycle.inspect(project.project_id).recycled,false);
+  } finally {endWork();await active;}
+  socket=new WebSocket(resident.origin.replace('http:','ws:')+'/pty');await once(socket,'open');
+  const exchange=async(message:Record<string,unknown>)=>{const response=once(socket!,'message');socket!.send(JSON.stringify(message));return JSON.parse(String((await response)[0]));};
+  assert.equal((await exchange({type:'auth',token:resident.token})).type,'ready');
+  const changing=service.changeRecycled(home,input,()=>{});
+  try {
+    await releasing;
+    await assert.rejects(resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false}),{code:'host.sync_execution_busy'});
+    const blocked=await exchange({type:'spawn',panelId:panel.panel_id,command:'/bin/cat',cwd:home});
+    assert.equal(blocked.type,'error');assert.match(blocked.message,/生命周期/);
+    assert.equal(catalog.recycle.inspect(project.project_id).recycled,false,'reservation alone changes no owner facts');
+  } finally {finishRelease();}
+  const archived=await changing;assert.equal(archived.recycled,true);
+  await assert.rejects(resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false}),{code:'host.project_closing'});
+  const blocked=await exchange({type:'spawn',panelId:panel.panel_id,command:'/bin/cat',cwd:home});
+  assert.equal(blocked.type,'error');assert.match(blocked.message,/找不到.*项目/);
+  assert.equal(existsSync(project.database_path),true);
+  const restored=await service.changeRecycled(home,{...input,operation_id:'restore-live',expected_state:archived.state,recycled:false},()=>{});
+  assert.equal(restored.recycled,false);assert.equal(released,1,'restoration never starts or stops execution');
+  assert.equal((await service.changeRecycled(home,input,()=>{})).recycled,true,'old archive receipt cannot archive the restored project again');
+  await resident.localHost.withProject(reference,()=>undefined,{activatePlugins:false});
+  const attached=await exchange({type:'spawn',panelId:panel.panel_id,attachOnly:true});
+  assert.equal(attached.type,'spawned');assert.equal(attached.started,false,'restore does not restart the terminal');
+
+});
 
 /** A running Web server (the resident Host) with one live terminal on the project, the way the deletion page test makes it. */
 async function residentHostWithTerminal(t: TestContext, home: string, projectId: string, cwd: string, catalog: Catalog) {
@@ -515,4 +587,32 @@ test("the settings route gives only a live terminal its own code and status; any
   assert.match(refused.stderr, /ENOENT/, "the CLI prints the message the Host gave");
   assert.doesNotMatch(refused.stderr, /project_deletion\.failed|catalog\.[a-z_]+/, "and no code");
   assert.equal(catalog.listProjectDeletions().length, 0, "the CLI did not go on to delete in its own process");
+});
+
+test('PCSYNC-20 sync admission preserves owner state until receive and rechecks child writes after release',async t=>{
+ const {home,catalog}=await scratchHome(t),project=await catalog.createProject({display_name:'Sync admission',actor_id:'test-user'});
+ let dirty=false,released=0,committed=0;
+ const ports={isPanelAlive:()=>false,isProjectBusy:()=>false,async releaseProject(){released++;await Promise.resolve();dirty=true;}};
+ const service=new ProjectDeletionService(withMolisWorkProjectCatalog,ports),before=catalog.recycle.inspect(project.project_id);
+ await assert.rejects(service.admitSync(home,project.project_id,true,()=>{},()=>{if(dirty)throw new Error('CHILD_CHANGED');},()=>{committed++;}),/CHILD_CHANGED/);
+ assert.equal(released,1);assert.equal(committed,0);assert.deepEqual(catalog.recycle.inspect(project.project_id),before);
+ dirty=false;ports.releaseProject=async()=>{released++;};
+ const result=await service.admitSync(home,project.project_id,true,()=>{},()=>{assert.equal(dirty,false);},()=>{
+  committed++;assert.deepEqual(catalog.recycle.inspect(project.project_id),before,'admission must not recycle before receiver CAS');return 'received';
+ });
+ assert.equal(result,'received');assert.equal(committed,1);assert.equal(released,2);
+});
+
+// PTR-01: the trusted catalog Home decides the policy, before releasing a runtime or deleting any owner.
+test('PTR-01 personal permanent deletion refuses before effects and preserves project files',async t=>{
+  const directory=await mkdtemp(join(tmpdir(),'molis-personal-delete-refusal-')),home=join(directory,'personal');
+  scratchDirectories.push(directory);ensureStorageSpace(home,personalStorageSpace('https://auth.example.test','work','alice'));
+  const catalog=await openMolisWorkProjectCatalog({homeDirectory:home});t.after(()=>catalog.close());
+  const project=await catalog.createProject({display_name:'唯一原件',actor_id:'test-user'});
+  const attachment=join(dirname(project.database_path),'unique-attachment.txt');await writeFile(attachment,'完整的离线附件');
+  const before=await readFile(project.database_path),ports=recordingPorts(),service=new ProjectDeletionService(withMolisWorkProjectCatalog,ports);
+  await assert.rejects(service.deleteProject(home,deletion(project.project_id)),{code:'catalog.personal_deletion_unavailable'});
+  assert.deepEqual(ports.released,[]);assert.deepEqual(ports.asked,[]);
+  assert.deepEqual(await readFile(project.database_path),before);assert.equal(await readFile(attachment,'utf8'),'完整的离线附件');
+  assert.equal(catalog.listProjectDeletions().length,0);assert.ok(catalog.listProjects().some(item=>item.project_id===project.project_id));
 });

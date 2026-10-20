@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderStatusMark, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
 export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "rules" | "planning";
@@ -9,6 +9,7 @@ export interface ProjectSettingsFoldProject {
   data_class?: "user" | "regenerable_demo";
   database_path?: string;
   source?: "created";
+  plugin_requirements?: readonly { plugin_id: string; installed: boolean }[];
 }
 
 export interface ProjectSettingsFoldContent {
@@ -21,6 +22,12 @@ export interface ProjectSettingsFoldsPrimitives {
   escapeHtml(value: unknown): string;
   icon(name: Extract<MolisWorkIcon, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
+}
+
+function renderMissingPlugins(project: ProjectSettingsFoldProject, { L, escapeHtml }: Pick<ProjectSettingsFoldsPrimitives, "L" | "escapeHtml">): string {
+  const missing = (project.plugin_requirements ?? []).filter(plugin => !plugin.installed);
+  if (!missing.length) return "";
+  return `<section class="settings-section" data-project-missing-plugins><h2>${L("缺少的插件")}</h2>${missing.map(plugin => `<div class="settings-setting-row"><span class="setting-copy"><strong>${(plugin.plugin_id.match(/.{1,24}/gu) ?? []).map(escapeHtml).join("<wbr>")}</strong><span>${L("请在本机安装此插件，已同步内容会保留。")}</span></span><div class="setting-value">${renderStatusMark({ label: L("未安装"), plain: true })}</div></div>`).join("")}</section>`;
 }
 
 export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimitives) {
@@ -51,7 +58,7 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
       ? `<dl class="project-manager-storage"><div><dt>${L("项目 ID")}</dt><dd>${safe}</dd></div><div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div></dl>`
       : "";
     return `<section class="project-settings-identity" data-settings-fold="general">
-      <form class="inline-settings-form" data-project-rename="${safe}">
+      <form class="inline-settings-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">
         <label>${L("项目名称")}<input name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"></label>
         <button class="mw-btn mw-btn--primary" type="submit">${L("保存名称")}</button>
         <p class="settings-form-error" role="alert" hidden></p>
@@ -65,13 +72,14 @@ export function createProjectSettingsFolds(primitives: ProjectSettingsFoldsPrimi
     return `<section class="project-settings-page" data-project-pane="${safe}" data-settings-panel="general">
       <header class="settings-page-heading"><h1>${L("常规")}</h1><p>${L("管理项目名称和保存在本机的数据。")}</p></header>
       <section class="settings-section" aria-label="${L("项目信息")}">
-        <form class="settings-setting-row project-name-form" data-project-rename="${safe}">
+        <form class="settings-setting-row project-name-form" data-project-rename="${safe}" data-project-observed-name="${escapeHtml(project.display_name)}">
           <label class="setting-copy" for="project-display-name"><strong>${L("项目名称")}</strong><span>${L("显示在项目列表、目录和工作区中。")}</span></label>
           <div class="setting-value"><input id="project-display-name" name="display_name" type="text" value="${escapeHtml(project.display_name)}" required maxlength="160"><button class="mw-btn mw-btn--secondary" type="submit">${L("保存名称")}</button></div>
           <p class="settings-form-error" role="alert" hidden></p>
         </form>
         <details class="settings-data-disclosure"><summary><span class="setting-copy"><strong>${L("本地数据")}</strong><span>${L("查看项目标识与数据库位置。")}</span></span>${icon("chevron-down")}</summary><dl class="settings-data-list"><div><dt>${L("项目 ID")}</dt><dd>${safe}</dd></div>${project.database_path ? `<div><dt>${L("数据文件")}</dt><dd>${escapeHtml(project.database_path)}</dd></div>` : ""}</dl></details>
       </section>
+      ${renderMissingPlugins(project, primitives)}
       <section class="settings-section settings-project-maintenance"><h2>${L("项目管理")}</h2>${renderDanger(project)}</section>
       ${renderProjectDeleteDialog(project, desktopShell)}
     </section>`;

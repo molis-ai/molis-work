@@ -1,4 +1,5 @@
 import path from "node:path";
+import {bindSavedHistory} from './saved-history-host.js';
 import { projectOrNull } from "./catalog-lookup.js";
 import { prologueModelConfiguration } from "@molis-ai/molis-work-service-agent-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -72,7 +73,9 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       },
     });
     const unbind = bindPrologueInference(storageHome, service.inference);
-    const unbindBuilder = bindPrologueBuilder(storageHome, service.createBuilderAgent);
+    let unbindBuilder=()=>{},unbindHistory=()=>{};
+    try {unbindBuilder=bindPrologueBuilder(storageHome, service.createBuilderAgent);unbindHistory=bindSavedHistory(storageHome,service.savedHistory);}
+    catch(error){unbindBuilder();unbind();throw error;}
     // Memory lives in this runtime: the platform memory is registered with it (specs/archive/memory-system §5.2).
     // The Web server and the embedded MCP pass the catalog owner: they have taken this service as their own and run the Home's
     // runtime. The lazy binding every Host with a Home gets in its constructor, all a forwarding stdio MCP has, does not.
@@ -81,7 +84,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
       projects: async () => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().map(project => project.project_id)) : [],
       projectExists: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => catalog.listProjects().some(project => project.project_id === projectId)) : null,
       projectTitle: async projectId => owner.withCatalog ? owner.withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null) : null });
-    owner.release = () => { unbind(); unbindBuilder(); };
+    owner.release = () => { unbind(); unbindBuilder(); unbindHistory(); };
     const dispose = service.dispose.bind(service);
     service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
     return service;

@@ -8,6 +8,7 @@ import { alchemistManifest, createAlchemistActionHandlers, createAlchemistStudio
 import { alchemistModelChoices, createAlchemistProloguePort } from "./alchemist-prologue.js";
 import { createAlchemistSearchPort } from "./alchemist-search.js";
 import { alchemistPulseGithub } from "./alchemist-pulse-github.js";
+import {ensureStorageSpace} from '@molis-ai/molis-work-storage';
 
 export interface AlchemistHostOptions {
   /** Explicit embedding/test boundary. Production uses the configured Prologue and search owners. */
@@ -69,7 +70,7 @@ export class AlchemistHostService {
         return entry!.search.search(input);
       } });
       const runtime = createAlchemistStudioRuntime({ databasePath: join(alchemistProjectDirectory(this.home, projectId), "studio.sqlite"),
-        ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: this.pulseGithub });
+        ai, pulseSourceMode: this.options.pulseSourceMode, pulseGithub: this.pulseGithub,storage:{space:ensureStorageSpace(this.home),projectId} });
       entry = { runtime, owners: new Set(), lastUsed: Date.now() }; studios.set(key, entry); runtime.start();
     }
     entry.owners.add(this); this.entries.set(key, entry); entry.lastUsed = Date.now();

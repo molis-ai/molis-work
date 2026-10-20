@@ -22,6 +22,8 @@ SourcesModule.query 查询项目来源，commands.save/setEnabled/retire 等操�
 
 来源希望何时运行与实际游标/租约是不同事实：前者在此，后者归 Listener。凭据内容不进入 Source 记录；这里只保留相关引用。
 
+个人同步的 `sourceContentReplicationDefinition` 由本 owner 选择来源业务描述与历史。导出不携带连接引用、账号标识、Provider 配置、拉取状态或计划；仅保留删除生命周期。新设备的来源停用且须重新关联，本机已有同类来源的连接与计划留在目标端，改变来源类型时不会沿用另一种连接。删除标记继续传播，不恢复拉取；owner 的纯投影/目标合并在共同事务边界中使用，不由恢复调用业务命令或 Provider。
+
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
 ## 本地开发

@@ -1,6 +1,8 @@
 # Personal plugin replication
 
-状态：进行中（partial）。Pages、Artifacts、Goals、Form、Dataset、PPT、Lingguang、Workflows、Jelly、Todo、Issues、Schedule、Characters 与 Feed 捕捉规则已有本地同步适配器；全插件同步仍未完成，也未部署生产云端。
+状态：进行中（partial）。既有适配继续保留；2026-10-18 隔离工作树增加 Images/Cognia/Alchemist、Feed/Signal/来源/Inbox、Shelf、共用大对象传输及实际 Host 的独立 Runtime 发现，已有分项验证、尚未整合交付；Work/Coding/Plugin Builder、完整项目生命周期及生产验收未完成。
+
+2026-10-17 用户已确认下一阶段的[联网个人版同步总规格](../personal-cloud-sync/spec.md)：D1/R2、设备自动与手动同步、完整插件范围、每账号 100 MB、删除保留 30 天。本文继续记录本机适配范围和历史证据；新阶段的实施、依赖与验收以总规格为准，不把需求确认当作功能交付。
 
 ## Requested outcome
 
@@ -12,18 +14,18 @@ Portable business assets from every installed plugin can follow a personal accou
 - A business write and its change journal commit together, including child records and tombstones. First installation seeds existing data once.
 - Remote reconciliation is transactional; stable object/child IDs and ordering survive. Editor CAS versions are local and must advance on remote writes.
 - Pending publication/execution is never transported or erased. Referenced fixed Artifact versions must exist before applying the dependent record.
-- Cross-project ID collisions, unknown fields, malformed domain data and payloads over the current 512 KiB record limit fail without partial restoration.
+- Cross-project ID collisions, unknown fields, malformed domain data and oversized content fail without partial restoration. Current D1 metadata is capped at 512 KiB; connected owners slice larger portable content through private R2, within domain limits and the 100 MB account budget.
 - Concurrent edits preserve both sides for explicit resolution. Restore never calls a model, external API, scheduler or plugin installer.
 - New plugin collections remain opt-in. Host exposes actual registered adapters, not manifest-only promises.
-- Existing localhost-only transport and explicit Host opt-in remain unchanged. No production deployment or real-account upload is part of implementation tests.
+- Explicit Host opt-in remains required. The approved cloud-sync phase adds trusted HTTPS or fixed localhost transport; no production deployment or real-account upload is part of implementation tests.
 
 ## Work tracking (not a completion claim)
 
-Implementation order for the remaining portable records: Schedule; Feed/Inbox; Images and binary transport; Cognia; Alchemist; Work/Coding; Shelf/Characters; Experiments/Plugin Builder; then independent plugin runtime registration. Each owner must pass isolated two-Home transfer, conflict, identity, restart and no-side-effect restoration tests before its row is marked complete.
+Remaining portable-owner work is Work/Coding (including fixed process items) and Plugin Builder. Each owner must pass isolated two-Home transfer, conflict, identity, restart and no-side-effect restoration tests before its row is marked complete. Existing isolated evidence does not replace whole-set or production acceptance.
 
 - Existing: Pages documents/folders and inline Artifact versions.
 - Implemented: reusable owner-declared aggregate journal and adapters for Form (including submissions), Dataset (including saved versions), PPT, Lingguang (including complete conversation turns and delivery idempotency).
-- Remaining owner integrations: Images and binary attachment transport; Cognia; current Alchemist Studio; Feed/Inbox 的 Source、Signal、Feed Item、Attention 数据；其他执行型插件的可移植结果；独立插件数据注册。Goals is covered by [personal-goals-sync](../personal-goals-sync/spec.md).
+- Remaining owner integrations: Work/Coding 会话与草稿、固定过程项、Plugin Builder 可移植内容。Alchemist、Feed/Inbox、Shelf 及实际 Host 的独立 Runtime 接线已有分项证据，但全插件组合、项目生命周期、复制和正式验收未完成。Goals is covered by [personal-goals-sync](../personal-goals-sync/spec.md).
 - Files/Git/Coding local directories, secrets, process state and external authorizations require explicit scope; they are not blanket-uploaded.
 
 ## Verification
@@ -52,30 +54,32 @@ Use two isolated personal Homes and synthetic identities; test create/update/del
 
 | Entry | Current support | Remaining work |
 | --- | --- | --- |
-| Pages | Documents/folders and inline bodies | Binary/local attachments; Goal dependencies wait rather than lose references |
-| Artifacts | Inline fixed versions and lifecycle | `content_ref` / binary blobs |
-| Form | Questions, captured submissions, request IDs, metadata | Large aggregates/chunk transport; automatic concurrent submission merge is not implemented |
-| Dataset | Columns/rows, saved snapshots, metadata | Large aggregates; automatic row merge is not implemented |
-| PPT | Slides, theme, notes, metadata | Large aggregates |
+| Pages | Documents/folders, large portable bodies and raw embedded image bytes | Arbitrary local files are not scanned; Goal dependencies wait rather than lose references |
+| Artifacts | Fixed versions, lifecycle, imported original file bytes and large immutable bodies | Unknown external `content_ref` refused; full project lifecycle remains separate |
+| Form | Questions, captured submissions, request IDs, metadata and common large-content codec | Automatic concurrent submission merge is not implemented |
+| Dataset | Columns/rows, saved snapshots, metadata and common large-content codec | Automatic row merge is not implemented |
+| PPT | Slides, theme, notes, metadata and common large-content codec | Complete cross-owner dependencies still require acceptance |
 | Lingguang | Sparks, discard state, completed conversations, stable message ordering, delivery request IDs | Same-spark independently created conversations remain a conflict |
-| Goals | Project-consistent facts, relations, work history, proposals, decisions and Goal-related ContextLedger edges | Local journal sequences use stable event anchors; same-project conflicts require explicit selection; 512 KiB aggregate limit, no execution state or attachment transfer |
-| Feed / Inbox | Feed 捕捉规则逐条同步；接收端默认停用 | Source/Signal/Feed Item/Attention owner 历史、加密正文及引用；不传账号授权或实时拉取租约 |
-| Images | Not implemented | Completed output bytes + history; connection credentials and executing requests remain local |
-| Cognia | Not implemented | Knowledge material versions / attachments / citations; restore must invalidate local previews and editor revisions |
-| Jelly | Calendar entries, notes and links in one personal workspace aggregate | Per-item merge and large workspaces; device-specific import receipts and undo previews intentionally remain local |
-| Alchemist | Not implemented | Current `studio.sqlite` research/report/decision owners, NOT the obsolete read-only demo store |
+| Goals | Project-consistent facts, relations, work history, proposals, decisions, Goal-related ContextLedger edges and large aggregate blocks | Stable event anchors and whole-project conflicts remain; execution state is not portable; full project lifecycle/copy is separate |
+| Feed / Inbox | 捕捉规则、来源业务描述/历史；Feed 消息/材料、Signal 固定修订/事件及原始证据字节；Inbox 引用/处置/事件，实际 WASM/D1/R2 已验证 | 单位仍为 owner 项目一致图；嵌套 30 天业务回收/语义恢复与全插件验收未完。不传密钥、账号授权和拉取租约，接收不判断/执行 |
+| Images | Saved terminal job records and validated PNG/JPEG/WebP bytes; isolated two-Home + real WASM/D1/R2 verified | No active job migration, credentials or runner; full plugin-set acceptance pending |
+| Cognia | Owner-consistent domains/source descriptions/materials/fixed bytes/history/draft citations; isolated WASM/D1/R2 verified | Local scanner paths and unfinished previews stay local; no automatic scans/AI/adoption; latest v2 editor CAS has separate validation |
+| Jelly | Calendar entries, notes and links in one personal workspace aggregate with common large-content codec | Per-item merge not implemented; device-specific import receipts and undo previews intentionally remain local |
+| Alchemist | Current studio research graph, reports/evidence/decisions/playbook history, fixed versions and terminal observations; actual WASM/D1/R2 and stale editor CAS verified | Running work, execution inputs/checkpoints, connection settings and active jobs stay local; receive never starts execution |
 | Workflows / Schedule | Workflows definitions/instance history and Schedule conversation tasks/turn history implemented locally | Restored Workflows instances are observation-only; received Schedule tasks are paused with no job binding. Plugin reminders, operation leases and execution authority remain local |
-| Work / Coding | Not implemented | Finished session/report history and dependency refs; PTYs, active runs, local paths and approvals are not portable |
-| Shelf / Characters | Character personal drafts, states and bounded import snapshots implemented; published inline Artifact versions use the Artifact owner | Shelf catalog and file bytes require attachment transport; oversize Character imports remain local |
-| Experiments / Plugin Builder | Not implemented | Persisted experiment/build outputs; installation/executable activation remains explicit |
-| Files / Git | Not implemented as directory sync | Only explicitly captured assets should be considered; do not upload local working trees by walking paths |
+| Work | Private Session aggregate: complete event and Handoff bytes, typed reference history, per-Home encryption of owner and technical bodies, passive restores; actual Host/Rust/WASM/temporary D1/R2 verified | Active Native targets and unsettled dispatch reject replacement, even during manual conflict adoption. No native identities, workspace grants or send authority transfer. Nested recycling, orphan collection and whole-set acceptance remain |
+| Coding | Fixed reports/process items retain original Artifact owners; saved sessions, complete plans, unsent text/question drafts and canonical SDK export event histories are portable | Real two-round SDK/SQL receiver, digest tampering, revoked/foreign reads and terminal pending protection pass locally (261); narrow renderer and independent history paging pass (264); actual production prepareUploads → real SDK → Host/WASM/D1/R2 passes (70). Active runs, paths, native bindings, checkpoints and approvals stay local |
+| Shelf | Per-item materials/results and per-terminal-job keys; full text, original binary and explicit folder children through R2, strict catalog v2 with atomic file CAS | Final same-batch 20/20 files (including two Chrome files), 7 new security cases and 27/27 actual temporary WASM/D1/R2 cases passed. Unreferenced staging cleanup and whole-set acceptance remain; settings, clipboard, source paths and live execution stay local |
+| Characters | Personal drafts, states and bounded import snapshots use common content slicing; published versions use the Artifact owner | Original Character domain bounds still apply; importing content never installs or executes it |
+| Experiments / Plugin Builder | The original authoring private-KV owner transfers complete source, tests, creation history and saved publication bytes through the common codec; actual Host/WASM/D1/R2 verified | Installation, preview execution and publication authority remain explicit; received source must pass the original gates before executing |
+| Files / Git | Device workspace browsers and commands have no saved content store to replicate; explicitly captured fixed files use Artifacts/Shelf owners | Arbitrary working directories, repository credentials and native grants remain on the device; no directory walking upload |
 | Diff / Text Stats | No independent replicated business store | Recompute/present the owning snapshot; do not create duplicate authoritative assets |
 | Todo | Personal/project-assigned items, change history and request receipts | Organizer review batches and source-memory deduplication remain local; over-limit history needs chunking |
-| Issues | Per-item records, small inline images, owner isolation and editor CAS | Large inline images need binary chunk transport |
-| External provider plugins | Not implemented | Replicate ingested business records through their owners, not OAuth tokens/cursors/leases |
-| Independent plugins | Contract only, not automatically connected | Runtime adapter registration, permissions, migrations, attachment declaration and compatibility tests |
+| Issues | Per-item records, raw embedded image bytes, owner isolation and editor CAS | Original image/domain validation remains; no arbitrary local file scanning |
+| External provider plugins | Ingested records use their Sources, Feed, Signal, Inbox and fixed Artifact owners above | OAuth tokens, device cursors, connection leases and live subscriptions stay local; they are not missing replicated business assets |
+| Independent plugins | Actual Host discovers enabled Home/project Runtime owners. SDK-only sample includes a default PluginDefinition, declared CAS read/change actions, independent Node build and a minimal npm archive using only the two public packages | Clean offline build/pack, two-Home isolation, stale edits, foreign actors and stopped handles pass locally (261). No automatic install, re-enable or format opt-in. Updated sample also passed the actual Host/WASM/temporary D1/R2 binary round-trip (70) |
 
-Current transfer limit is **512 KiB per aggregate**. An over-limit or unfinished-publication aggregate is retained locally and reported; this can pause uploads for that collection, while unrelated collections continue. No truncation or blanket database fallback is permitted.
+Current D1 metadata limit is **512 KiB**. Connected owners project portable content into 1 MiB R2 blocks (up to 100000000 bytes before domain/account constraints); original-file owners explicitly project raw bytes. An over-limit or unfinished-publication asset is retained locally and reported. Permanent malformed items are quarantined individually; temporary owner unavailability skips only that item for the current cycle. No truncation or blanket database fallback is permitted.
 
 ## Verified delivery — 2026-09-30
 
@@ -124,3 +128,4 @@ The review corrections and their authoritative evidence are recorded in [reposit
 - Rust source is in `apps/sync-worker`; its generated runtime is `dist`, while locked Node tools live in `examples/personal-sync-tools`. Actual rebuilt WASM plus isolated D1 tests passed, without changing the Rust business protocol or deploying resources.
 
 Current build, boundary/API/version/health/resource gates, focused owner/security/contracts/install regression, desktop/narrow Chrome interaction and actual WASM/D1 integration have local evidence in the authoritative record. Full repository CI, real-data maintenance and production acceptance remain separate steps. The existing 512 KiB per-record bound, missing binary transport and outstanding owner rows are unchanged.
+后续变化（2026-10-17）：[个人云同步 S3 首片](../personal-cloud-sync/spec.md#s3-首片记录2026-10-17) 已扩展私有 R2 公共传输及 Artifact 原件/较大正文；本文较早的 512 KiB 与缺二进制描述是当时范围。其他 owner 的大对象、全部附件、回收和正式验收仍未完成，不把新增阶段倒写为旧阶段证据。

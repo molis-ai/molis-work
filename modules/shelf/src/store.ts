@@ -1,3 +1,4 @@
+import {shelfHomeReplica} from './sync-owner.js';
 import { createHash, randomBytes } from "node:crypto";
 import {
   appendFileSync,
@@ -7,7 +8,6 @@ import {
   mkdirSync,
   readFileSync,
   readdirSync,
-  renameSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -37,6 +37,11 @@ import type {
   ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
+import { prepareShelfTextEdit } from "./text-edit.js";
+import { createShelfCatalog, type CatalogFile, type StoredItem, type ShelfSyncOptions } from "./catalog.js";
+import { shelfFileDigest as sha256 } from './file-hash.js';
+import { shelfPortableHash, stageShelfTextCopy } from './sync-files.js';
+import { shelfSyncKey } from './sync-shape.js';
 import { markdownFromExtract } from "./extract.js";
 import { OCR_MISSING, ocrLanguages, ocrMarkdown } from "./ocr.js";
 import { SAMPLE_PDF_TEXT, createExtractablePdf } from "./pdf.js";
@@ -54,14 +59,12 @@ import {
   type ShelfRuntimeProbe,
 } from "./runtimes.js";
 import {
-  defaultShelfDeviceSettings,
   mergeShelfSettings,
   normalizeShelfSettings,
   shortcutOutputName,
 } from "./settings.js";
 
 export const SHELF_JOB_TIMEOUT_MS = 10 * 60 * 1000;
-const CATALOG_VERSION = 1;
 const SAMPLE_NAME = "试用示例.pdf";
 export const CLIPBOARD_LIMIT = 10;
 const MAX_CLIP_TEXT_BYTES = 256 * 1024;
@@ -80,23 +83,6 @@ function recipeTable(ai: ShelfAiStatus): readonly ShelfRecipeAvailability[] {
     available: spec.requires_agent ? ai.available : true,
     reason: spec.requires_agent && !ai.available ? ai.reason : null,
   }));
-}
-
-interface StoredItem extends Omit<ShelfItemRecord, "hidden" | "size_bytes" | "preview_text"> {
-  hidden: boolean;
-  size_bytes: number;
-  preview_text: string | null;
-  origin_realpath: string | null;
-}
-
-interface CatalogFile {
-  version: number;
-  seeded_sample: boolean;
-  items: StoredItem[];
-  jobs: ShelfJobRecord[];
-  clipboard: ShelfClipboardRecord[];
-  current_clip_id: string | null;
-  settings: ShelfDeviceSettings;
 }
 
 const activeJobs = new Map<string, AbortController>();
@@ -126,11 +112,22 @@ function safeInside(root: string, target: string): string {
 
 export class ShelfStore {
   private readonly probe: ShelfRuntimeProbe;
+  private readonly catalog: ReturnType<typeof createShelfCatalog>;
 
-  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts) {
+  constructor(readonly root: string, probe: ShelfRuntimeProbe = {}, private readonly materials: ShelfMaterialPorts = {}, private readonly ai?: ShelfAiPorts, sync?:ShelfSyncOptions) {
     this.probe = probe;
+    this.catalog = createShelfCatalog(root,sync,(catalog,key)=>{
+      const identity=shelfSyncKey(key);
+      if(catalog.jobs.some(job=>job.status==='running'&&!isStaleJob(job,root)&&(identity.kind==='job'?job.job_id===identity.id:job.item_ids.includes(identity.id)||job.item_id===identity.id||job.result_item_id===identity.id)))
+        throw shelfErrors.conflict('材料或任务正在使用中，稍后再同步',{sync_waiting:true});
+    });
     mkdirSync(path.join(root, "files"), { recursive: true });
     mkdirSync(path.join(root, "jobs"), { recursive: true });
+  }
+
+  replica() {
+    if(!this.catalog.replica)throw shelfErrors.invalid('本地空间未启用置物架同步');
+    return shelfHomeReplica(this.catalog.replica,this.catalog.collect);
   }
 
   /** Manual terminal discovery. Automatic recipes use the independent AI port. */
@@ -152,18 +149,18 @@ export class ShelfStore {
   }
 
   settings(): ShelfDeviceSettings {
-    return normalizeSettings(this.readCatalog().settings);
+    return normalizeSettings(this.catalog.read().settings);
   }
 
   saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings {
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       catalog.settings = normalizeSettings(mergeShelfSettings(normalizeSettings(catalog.settings), patch));
     });
     return this.settings();
   }
 
   snapshot(): ShelfSnapshot {
-    const catalog = this.ensureSample(this.readCatalog());
+    const catalog = this.ensureSample(this.catalog.read());
     const visible = (group: StoredItem["group"]) =>
       catalog.items.filter((item) => item.group === group && !item.hidden).map(publicItem);
     const settings = normalizeSettings(catalog.settings);
@@ -206,14 +203,13 @@ export class ShelfStore {
     // can be explicitly received again; deleted copies are new admissions.
     if (input.artifact_source) {
       const source = input.artifact_source;
-      const original = this.readCatalog().items.find(item => item.artifact_source?.project_id === source.project_id
-        && item.artifact_source.project_path === source.project_path
+      const original = this.catalog.read().items.find(item => item.artifact_source?.project_id === source.project_id
         && item.artifact_source.reference.artifact_id === source.reference.artifact_id
         && item.artifact_source.reference.version === source.reference.version);
       if (original) {
         if (original.artifact_source!.content_hash !== source.content_hash) throw shelfErrors.source_conflict("同一成果版本的内容不一致，未覆盖已有副本");
         if (!existsSync(this.absolute(original))) throw shelfErrors.missing_output("原接收副本已不可读，请先在 Shelf 核对处理");
-        if (original.hidden) this.update(catalog => { this.requireItem(catalog, original.item_id).hidden = false; });
+        if (original.hidden) this.catalog.update(catalog => { this.requireItem(catalog, original.item_id).hidden = false; });
         return publicItem({ ...original, hidden: false });
       }
     }
@@ -240,6 +236,7 @@ export class ShelfStore {
       mime: input.mime || mimeFor(kind, filename),
       size_bytes: bytes.byteLength,
       origin_hash: originHash,
+      copy_hash: originHash,
       hidden: false,
       created_at: now(),
       source_item_id: null,
@@ -251,7 +248,7 @@ export class ShelfStore {
       children: [],
       origin_realpath: originRealpath,
     };
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       catalog.items.unshift(item);
       catalog.seeded_sample = true;
     });
@@ -298,6 +295,7 @@ export class ShelfStore {
       mime: "inode/directory",
       size_bytes: total,
       origin_hash: digest.digest("hex"),
+      copy_hash: shelfPortableHash({kind:'folder'},entries.map(entry=>({relative:entry.relative,digest:sha256(entry.bytes),size:entry.bytes.byteLength,data:''}))),
       hidden: false,
       created_at: now(),
       source_item_id: null,
@@ -309,7 +307,7 @@ export class ShelfStore {
       children,
       origin_realpath: input.origin_realpath ? path.resolve(input.origin_realpath) : null,
     };
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       catalog.items.unshift(item);
       catalog.seeded_sample = true;
     });
@@ -318,7 +316,7 @@ export class ShelfStore {
 
   /** Read one file inside a staged folder. */
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer } {
-    const item = this.requireItem(this.readCatalog(), itemId);
+    const item = this.requireItem(this.catalog.read(), itemId);
     if (item.kind !== "folder") throw shelfErrors.item_not_found("这不是一个文件夹");
     const child = item.children.find((entry) => entry.relative === relative);
     if (!child) throw shelfErrors.item_not_found("这个文件不在这个文件夹里");
@@ -371,7 +369,7 @@ export class ShelfStore {
   }
 
   seedSample(): ShelfItemRecord {
-    const catalog = this.readCatalog();
+    const catalog = this.catalog.read();
     const existing = catalog.items.find((item) => item.name === SAMPLE_NAME && item.group === "material" && !item.hidden);
     if (existing) return publicItem(existing);
     const item = this.admit({
@@ -379,14 +377,14 @@ export class ShelfStore {
       bytes: createExtractablePdf(SAMPLE_PDF_TEXT),
       mime: "application/pdf",
     }, SAMPLE_PDF_TEXT);
-    this.update((next) => {
+    this.catalog.update((next) => {
       next.seeded_sample = true;
     });
     return item;
   }
 
   hide(itemId: string): void {
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       const item = this.requireItem(catalog, itemId);
       assertNotBusy(catalog, itemId, this.root);
       item.hidden = true;
@@ -394,18 +392,19 @@ export class ShelfStore {
   }
 
   deleteCopy(itemId: string): void {
-    const catalog = this.readCatalog();
+    const catalog = this.catalog.read();
     const item = this.requireItem(catalog, itemId);
     assertNotBusy(catalog, item.item_id, this.root);
     const copyDir = item.relative_path
-      ? safeInside(path.join(this.root, "files"), path.join(this.root, path.dirname(item.relative_path)))
+      ? safeInside(path.join(this.root, "files"), path.join(this.root, "files", item.item_id))
       : null;
     const jobDir = item.job_id
       ? safeInside(path.join(this.root, "jobs"), path.join(this.root, "jobs", item.job_id))
       : null;
-    this.update((next) => {
+    this.catalog.update((next) => {
       next.items = next.items.filter((entry) => entry.item_id !== itemId);
     });
+    if(this.catalog.collect){try{this.catalog.collect();}catch{/* A later bounded owner pass retries cleanup; original bytes are already preserved. */}return;}
     if (copyDir) rmSync(copyDir, { recursive: true, force: true });
     if (jobDir && existsSync(jobDir)) {
       thawTree(jobDir);
@@ -432,7 +431,7 @@ export class ShelfStore {
     const actionName = shortcut ? shortcut.name : spec.label;
     const itemIds = input.item_ids?.length ? [...input.item_ids] : input.item_id ? [input.item_id] : [];
     if (!itemIds.length) throw shelfErrors.empty_selection("请先选择一份材料");
-    const catalog = this.readCatalog();
+    const catalog = this.catalog.read();
     const items = itemIds.map((id) => this.requireItem(catalog, id));
     for (const item of items) {
       if (item.group !== "material" || item.hidden) throw shelfErrors.item_not_found("请先选择一份材料");
@@ -502,7 +501,7 @@ export class ShelfStore {
       created_at: createdAt,
       finished_at: null,
     };
-    this.update((next) => {
+    this.catalog.update((next) => {
       next.jobs.unshift(running);
     });
 
@@ -511,7 +510,7 @@ export class ShelfStore {
       timeout: { milliseconds: SHELF_JOB_TIMEOUT_MS, reason: shelfErrors.job_timeout("任务超时，未继续保存结果") } });
     activeJobs.set(key, controller);
     const assertCurrent = () => {
-      const current = this.readCatalog();
+      const current = this.catalog.read();
       if (spec.requires_agent && (JSON.stringify(normalizeSettings(current.settings).model_selection) !== JSON.stringify(settings.model_selection)
         || (shortcut && JSON.stringify(normalizeSettings(current.settings).shortcuts.find(row => row.id === shortcut.id)) !== JSON.stringify(shortcut)))) {
         throw shelfErrors.configuration_changed("生成期间模型选择或快捷动作已变化，结果未保存");
@@ -579,7 +578,7 @@ export class ShelfStore {
         result_item_id: result.item_id,
         finished_at: now(),
       };
-      this.update((next) => {
+      this.catalog.update((next) => {
         next.jobs = next.jobs.map((job) => job.job_id === jobId ? finished : job);
       });
       return { job: finished, result, origin_hash: items[0].origin_hash };
@@ -596,7 +595,7 @@ export class ShelfStore {
         error: cancelled ? null : reason,
         finished_at: now(),
       };
-      this.update((next) => {
+      this.catalog.update((next) => {
         next.jobs = next.jobs.map((job) => job.job_id === jobId ? closed : job);
       });
       // A cancel leaves the shelf as it was; a failure leaves a row saying why.
@@ -639,7 +638,7 @@ export class ShelfStore {
     failureReason?: string | null;
     coverage?: readonly string[];
   }): ShelfItemRecord {
-    const taken = this.readCatalog().items.filter((item) => item.group === "result").map((item) => item.name);
+    const taken = this.catalog.read().items.filter((item) => item.group === "result").map((item) => item.name);
     const name = uniqueTitle(options.outputName, taken);
     const resultId = this.id("item");
     const kind = resultKind(name);
@@ -661,6 +660,7 @@ export class ShelfStore {
       mime: resultMime(name),
       size_bytes: bytes?.byteLength ?? 0,
       origin_hash: bytes ? sha256(bytes) : "",
+      copy_hash: bytes ? sha256(bytes) : "",
       hidden: false,
       created_at: now(),
       source_item_id: options.sourceItemIds[0] ?? null,
@@ -673,7 +673,7 @@ export class ShelfStore {
       ...(options.coverage?.length ? { material_coverage: options.coverage } : {}),
       origin_realpath: null,
     };
-    this.update((next) => {
+    this.catalog.update((next) => {
       next.items.unshift(result);
     });
     return publicItem(result);
@@ -681,42 +681,40 @@ export class ShelfStore {
 
   /** Stop a run from another request; the materials stay, no result is filed. */
   cancelJob(jobId: string): ShelfJobRecord {
-    const catalog = this.readCatalog();
+    const catalog = this.catalog.read();
     const job = catalog.jobs.find((entry) => entry.job_id === jobId);
     if (!job) throw shelfErrors.item_not_found("这个任务不存在");
     if (job.status !== "running") return job;
     activeJobs.get(jobKey(this.root, jobId))?.abort(shelfErrors.cancelled("任务已取消"));
     const cancelled: ShelfJobRecord = { ...job, status: "cancelled", finished_at: now() };
-    this.update((next) => {
+    this.catalog.update((next) => {
       next.jobs = next.jobs.map((entry) => entry.job_id === jobId ? cancelled : entry);
     });
     return cancelled;
   }
 
-  writeCopy(itemId: string, text: string): ShelfItemRecord {
-    const catalog = this.readCatalog();
+  writeCopy(itemId: string, text: string, expectedContentHash: string): ShelfItemRecord {
+    const catalog = this.catalog.read();
     const item = this.requireItem(catalog, itemId);
     if (item.hidden) throw shelfErrors.item_not_found("这份材料不在架子上");
     if (!isEditableShelfItem(item)) throw shelfErrors.not_text("这份材料不能编辑");
-    if (text.includes("\0")) throw shelfErrors.not_text("这份材料不能编辑");
-    const bytes = Buffer.from(text, "utf8");
-    if (bytes.byteLength > MAX_EDIT_BYTES) throw shelfErrors.too_large("文件超过 512 KB");
     const abs = this.absolute(item);
-    writeFileSync(abs, bytes);
-    if (item.job_id) {
-      const output = path.join(this.root, "jobs", item.job_id, "output", item.name);
-      if (existsSync(output)) writeFileSync(output, bytes);
-    }
-    this.update((next) => {
+    const bytes = prepareShelfTextEdit(abs, text, expectedContentHash);
+    const staged=stageShelfTextCopy(this.root,item.item_id,item.name,bytes);
+    this.catalog.update((next) => {
       const live = this.requireItem(next, itemId);
+      if(live.hidden||live.relative_path!==item.relative_path||live.copy_hash!==item.copy_hash)throw shelfErrors.conflict('副本已变化，未提交旧修改');
+      prepareShelfTextEdit(this.absolute(live),text,expectedContentHash);
+      live.relative_path=staged.relative;
+      live.copy_hash=staged.digest;
       live.size_bytes = bytes.byteLength;
       live.preview_text = previewFor(live.kind, bytes);
     });
-    return publicItem(this.requireItem(this.readCatalog(), itemId));
+    return publicItem(this.requireItem(this.catalog.read(), itemId));
   }
 
   useAsMaterial(itemId: string): ShelfItemRecord {
-    const catalog = this.readCatalog();
+    const catalog = this.catalog.read();
     const item = this.requireItem(catalog, itemId);
     if (item.group !== "result") throw shelfErrors.not_result("只有生成结果可以再用作材料");
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
@@ -729,14 +727,14 @@ export class ShelfStore {
     options: { concealed?: boolean; types?: readonly string[] } = {},
   ): ShelfClipboardRecord | null {
     if (options.concealed || isConcealedClipboard(options.types ?? [])) {
-      this.update((catalog) => {
+      this.catalog.update((catalog) => {
         catalog.current_clip_id = null;
       });
       return null;
     }
     const text = clipText(body);
     if (!text || isFileUrl(text)) {
-      this.update((catalog) => {
+      this.catalog.update((catalog) => {
         catalog.current_clip_id = null;
       });
       return null;
@@ -745,7 +743,7 @@ export class ShelfStore {
     const fingerprint = clipFingerprint(kind, text);
     const title = clipTitleFor(kind, text);
     let recorded: ShelfClipboardRecord | null = null;
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       const existing = catalog.clipboard.find((entry) => entry.fingerprint === fingerprint);
       if (existing) {
         const moved: ShelfClipboardRecord = {
@@ -778,7 +776,7 @@ export class ShelfStore {
   }
 
   deleteClipboard(clipId: string): void {
-    this.update((catalog) => {
+    this.catalog.update((catalog) => {
       const exists = catalog.clipboard.some((entry) => entry.clip_id === clipId);
       if (!exists) throw shelfErrors.item_not_found("这条剪贴板不存在");
       catalog.clipboard = catalog.clipboard.filter((entry) => entry.clip_id !== clipId);
@@ -787,17 +785,17 @@ export class ShelfStore {
   }
 
   async clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord> {
-    const clip = this.readCatalog().clipboard.find((entry) => entry.clip_id === clipId);
+    const clip = this.catalog.read().clipboard.find((entry) => entry.clip_id === clipId);
     if (!clip) throw shelfErrors.item_not_found("这条剪贴板不存在");
     const assertCurrent = () => {
-      const latest = this.readCatalog().clipboard.find(entry => entry.clip_id === clipId);
+      const latest = this.catalog.read().clipboard.find(entry => entry.clip_id === clipId);
       if (!latest || latest.fingerprint !== clip.fingerprint) throw shelfErrors.item_not_found("这条剪贴板已删除或改变，未保存材料");
     };
     return this.admitCapturedText(clip.body, clip.title, true, control, assertCurrent);
   }
 
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer } {
-    const item = this.requireItem(this.readCatalog(), itemId);
+    const item = this.requireItem(this.catalog.read(), itemId);
     if (!item.relative_path) throw shelfErrors.missing_output("这次没有生成文件");
     return { item: publicItem(item), bytes: readShelfCopy(this.absolute(item)) };
   }
@@ -807,7 +805,7 @@ export class ShelfStore {
       return catalog;
     }
     this.seedSample();
-    return this.readCatalog();
+    return this.catalog.read();
   }
 
   /** A file hashes its bytes; a folder hashes every path and file under it. */
@@ -844,37 +842,13 @@ export class ShelfStore {
     return path.join(this.root, item.relative_path);
   }
 
-  private catalogPath(): string {
-    return path.join(this.root, "catalog.json");
-  }
-
-  private readCatalog(): CatalogFile {
-    if (!existsSync(this.catalogPath())) {
-      return emptyCatalog();
-    }
-    return readCurrentCatalog(JSON.parse(readFileSync(this.catalogPath(), "utf8")), this.catalogPath());
-  }
-
-  private update(mutate: (catalog: CatalogFile) => void): void {
-    const catalog = this.readCatalog();
-    mutate(catalog);
-    this.writeCatalog(catalog);
-  }
-
-  private writeCatalog(catalog: CatalogFile): void {
-    mkdirSync(this.root, { recursive: true });
-    const temp = `${this.catalogPath()}.${process.pid}.tmp`;
-    writeFileSync(temp, `${JSON.stringify(catalog, null, 2)}\n`);
-    renameSync(temp, this.catalogPath());
-  }
-
   private id(prefix: string): string {
     return `${prefix}_${Date.now().toString(36)}_${randomBytes(4).toString("hex")}`;
   }
 }
 
-export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
-  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials, ai);
+export function openShelfStore(homeDirectory: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts, sync?:ShelfSyncOptions): ShelfStore {
+  return new ShelfStore(path.join(path.resolve(homeDirectory), "shelf"), probe, materials, ai,sync);
 }
 
 async function beforeShelfEffect(control?: ShelfExecutionControl): Promise<void> {
@@ -930,12 +904,8 @@ export function clipTitleFor(kind: "text" | "url", body: string): string {
 }
 
 function publicItem(item: StoredItem): ShelfItemRecord {
-  const { origin_realpath: _origin, ...visible } = item;
+  const { origin_realpath: _origin,copy_hash:_copyHash, ...visible } = item;
   return visible;
-}
-
-function sha256(bytes: Buffer): string {
-  return createHash("sha256").update(bytes).digest("hex");
 }
 
 function now(): string {
@@ -982,39 +952,8 @@ function extractionNote(extracted: MaterialExtraction): string {
   return incomplete ? `\n\n提取说明：${extracted.coverage.issues.join("；") || "仅提取了部分内容，请核对原件"}` : "";
 }
 
-function emptyCatalog(): CatalogFile {
-  return {
-    version: CATALOG_VERSION,
-    seeded_sample: false,
-    items: [],
-    jobs: [],
-    clipboard: [],
-    current_clip_id: null,
-    settings: defaultSettings(),
-  };
-}
-
-function defaultSettings(): ShelfDeviceSettings {
-  return defaultShelfDeviceSettings();
-}
-
 function normalizeSettings(raw: unknown): ShelfDeviceSettings {
   return normalizeShelfSettings(raw);
-}
-
-function readCurrentCatalog(value: unknown, filename: string): CatalogFile {
-  const raw = value as Partial<CatalogFile> | null;
-  if (!raw || raw.version !== CATALOG_VERSION || typeof raw.seeded_sample !== "boolean"
-    || !Array.isArray(raw.items) || !Array.isArray(raw.jobs) || !Array.isArray(raw.clipboard)
-    || !(raw.current_clip_id === null || typeof raw.current_clip_id === "string") || !raw.settings
-    || raw.items.some(item => !item || !Array.isArray(item.source_item_ids) || !Array.isArray(item.children)
-      || !["done", "failed"].includes(item.status) || !(item.failure_reason === null || typeof item.failure_reason === "string"))
-    || raw.jobs.some(job => !job || !Array.isArray(job.item_ids) || !(job.option_id === null || typeof job.option_id === "string") || typeof job.runtime !== "string")
-    || raw.clipboard.some(clip => !clip || typeof clip.clip_id !== "string" || !["url", "text"].includes(clip.kind)
-      || typeof clip.body !== "string" || typeof clip.title !== "string" || typeof clip.created_at !== "string" || typeof clip.fingerprint !== "string")) {
-    throw shelfErrors.invalid_file(`Shelf 目录格式不符：${filename}；期望版本 ${CATALOG_VERSION} 的现行格式。原文件已保留，请恢复当前格式的目录。`);
-  }
-  return raw as CatalogFile;
 }
 
 function clipText(body: string): string {

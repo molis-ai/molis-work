@@ -98,7 +98,7 @@ test("Shelf project material confirms current full bytes, preserves original ver
     assert.equal((await start([other.body.reference])).status, 400);
     refused(await request(output, { reference: other.body.reference, expected_reference: save.body.reference }), "shelf.invalid");
     const changed = "新版🙂\n现在只允许核对文档，不做修改。";
-    assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed })).status, 200);
+    assert.equal((await request(`/api/shelf/items/${id}/edit`, { text: changed, expected_content_hash: preview.body.payload.content_hash })).status, 200);
     assert.equal((await request(path, { expected_fingerprint: preview.body.fingerprint })).status, 409);
     const second = await request(path); assert.notEqual(second.body.fingerprint, preview.body.fingerprint);
     assert.notEqual(second.body.payload.content_hash, admitted.body.item.origin_hash);

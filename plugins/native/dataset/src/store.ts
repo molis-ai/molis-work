@@ -1,3 +1,4 @@
+import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -310,10 +311,10 @@ export const DATASET_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE dataset_receipts (project_id TEXT NOT NULL, request_id TEXT NOT NULL, dataset_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
-export function openDatasetStore(homeDirectory: string): DatasetStore {
+export function openDatasetStore(homeDirectory: string): DatasetStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
   const db = openBaselineHomeSqlite(homeDirectory, DATASET_HOME_STORE.path, DATASET_STORE_BASELINE);
   initializeAggregateReplication(db,datasetAggregates);
-  return new DatasetStore(db);
+  return Object.assign(new DatasetStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,datasetAggregates,context)});
 }
 
 export function parseCsv(text: string): { columns: DatasetColumn[]; rows: DatasetRow[] } {

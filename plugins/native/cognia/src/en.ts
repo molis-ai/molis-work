@@ -1,4 +1,5 @@
 export const COGNIA_EN: Record<string, string> = {
+  "资料已更新，请重新打开后编辑": "This material has changed. Reopen it before editing.",
   "当前没有可用的文字模型，请检查模型设置和服务连接；导入、搜索和阅读仍可使用。": "No text model is currently available. Check model settings and service connections; import, search and reading remain available.",
   "尚未配置文字模型。请在宿主配置文字模型后重试；导入、搜索和阅读仍可使用。": "No text model configured. Enable a model in the Host settings and retry; import, search and reading remain available.",
   "请选择来源格式": "Choose a source format", "请输入来源名称": "Enter a source name", "请输入绝对目录路径": "Enter an absolute folder path", "来源必须是实际目录，不能是符号链接": "Choose a real folder, not a symbolic link", "符号链接未读取": "Symbolic link was not read", "文件编码无效或超过大小限制": "Invalid file encoding or size limit exceeded", "文件编码无效": "Invalid file encoding", "正文不是有效 UTF-8": "Text is not valid UTF-8", "文件超过大小限制": "File size limit exceeded", "批次超过 32 MB，请选择较小目录": "Batch exceeds 32 MB. Choose a smaller folder.",

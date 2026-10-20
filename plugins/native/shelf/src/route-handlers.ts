@@ -1,6 +1,6 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ShelfRecipeId } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
+import { hashBytes, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions, shelfProjectActions, type ShelfAdmitActionInput } from "./actions.js";
 import type { ShelfPluginRouteHandler, ShelfPluginRouteResponse } from "./routes.js";
@@ -78,7 +78,8 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
     "shelf.edit": async ({ params, request }) => {
       if (!params.item_id) return { status: 404, body: { error: "这份材料不在架子上" } };
       if (typeof request.body.text !== "string") return { status: 400, body: { error: "请输入要保存的文字" } };
-      return withShelf(await call(shelfActions.edit, { item_id: params.item_id, text: request.body.text }));
+      return withShelf(await call(shelfActions.edit, { item_id: params.item_id, text: request.body.text,
+        expected_content_hash: stringValue(request.body.expected_content_hash) }));
     },
     "shelf.job": async ({ request }) => {
       const recipe = stringValue(request.body.recipe) as ShelfRecipeId;
@@ -124,7 +125,8 @@ export function createShelfRouteHandlers(options: ShelfRouteHandlerPorts): Recor
       if (!params.item_id) return { status: 404, body: { error: "这份材料不在架子上" } };
       const child = request.query.get("child")?.trim();
       const file = await call(shelfActions.file, { item_id: params.item_id, ...(child ? { child } : {}) });
-      return { status: 200, bytes: Buffer.from(file.bytes_base64, "base64"), filename: file.name, mime: file.mime };
+      const bytes = Buffer.from(file.bytes_base64, "base64");
+      return { status: 200, bytes, filename: file.name, mime: file.mime, headers: { ETag: '"' + hashBytes(bytes) + '"' } };
     },
   };
 }

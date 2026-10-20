@@ -1,5 +1,7 @@
 # Private Work Context
 
+个人同步（隔离开发中）：会话库当前 v8，可信 Host 注入同连接 Storage 技术日志，Module 仍只依赖合同；v7 原字节拒绝，不自动维护真实 Home。实际 Session 正文、事件及交接图已通过 Host/Rust/WASM/临时 D1/R2 往返，目标以自己的密钥重加密，被动交接禁止恢复发送、修改或取消。该证据不是生产或物理双设备验收；Work 嵌套回收、清理和全量组合仍需继续验证。
+
 **定位：** 用户或 Runtime 为完成工作产生的私人 Session、内容引用、workspace 关联和 handoff 事实的唯一 owner。
 
 大白话说，它保存的是“这次私人工作从哪里开始、现在关联哪个 Project / Goal、私密过程内容放在哪里、换 Runtime 后从哪继续”。这些事实默认只在本机，不会因为进入 Team 就自动同步。

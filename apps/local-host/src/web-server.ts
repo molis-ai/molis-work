@@ -1,5 +1,6 @@
 import { createLocalImServer } from "./im-server.js";
 import { createSpaceWebServer, type SpaceWebSurface } from './space-web-server.js';
+import { runtimeSyncSurface } from './runtime-sync-discovery.js';
 import { spaceDisposal } from './space-disposal.js';
 import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
@@ -36,7 +37,7 @@ import { BrowserSiteDecisions, registerBrowserSurfaces } from "./browser/browser
 import { createBrowserSurfaceDriver } from "./browser/surface-driver.js";
 import { installComputerDesk } from "./computer/computer-surfaces.js";
 import { locateBrowser } from "./browser/locate.js";
-import { createWebCatalogAccess } from "./web-catalog-access.js";
+import { createWebCatalogAccess, assertTerminalProjectAvailable } from "./web-catalog-access.js";
 import { finishLeftOverDeletions } from "./web-deletion-sweep.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
@@ -53,6 +54,23 @@ function loopbackWebOrigin(server: http.Server): string {
 // The terminal keeps running when its record cannot be written; that is written once per process, not once per chunk.
 const recording = repeatingFailure("terminal", "recording_failed");
 const recordingFailure = (error: unknown) => recording.failed("recorder", error);
+
+function terminalHandlers(
+  catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined,
+  home: string,
+  sessionResources: ReturnType<ReturnType<typeof createMolisWorkLocalHost>['sessionResources']>,
+): Parameters<typeof attachMolisWorkPtySocket>[2] {
+  return {
+    beforeSpawn: request => assertTerminalProjectAvailable(catalogAccess, home, request.panelId),
+    environment: {MOLIS_WORK_HOME: home},
+    onData(panelId, sessionId, data) {
+      void sessionResources.then(resources => resources.recorder.recordOutput(panelId, sessionId, data)).catch(recordingFailure);
+    },
+    onExit(panelId, sessionId, exit) {
+      void sessionResources.then(resources => resources.recorder.recordExit(panelId, sessionId, exit)).catch(recordingFailure);
+    },
+  };
+}
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   function createMolisWorkWebServer(options: WebServerOptions = {}): SpaceWebSurface {
@@ -174,7 +192,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
         await runWithLocale(locale, async () => {
           if (!authorizeLocalWebRequest(request, response, url, controlToken, mutationKeys)) return;
           if (request.method === "GET" && url.pathname === "/health" && catalogAccess) {
-            const ready = server.listening && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
+            const ready = server.address() !== null && Boolean(pty.host) && (Boolean(fixture) || catalogAccess.ready);
             sendJson(response, ready ? 200 : 503, {
               status: ready ? "ok" : "starting", process_id: process.pid,
               service_process_id: serviceProcessId(), desktop_tui: Boolean(pty.host),
@@ -220,19 +238,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     attachMolisWorkBrowserSocket(server, controlToken, browserHost, { projectExists });
     computer.attach(server, controlToken);
-    pty.host = attachMolisWorkPtySocket(server, controlToken, {
-      environment: { MOLIS_WORK_HOME: storageHome },
-      onData(panelId, sessionId, data) {
-        void sessionResources
-          .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
-          .catch(recordingFailure);
-      },
-      onExit(panelId, sessionId, exit) {
-        void sessionResources
-          .then((resources) => resources.recorder.recordExit(panelId, sessionId, exit))
-          .catch(recordingFailure);
-      },
-    });
+    pty.host = attachMolisWorkPtySocket(server, controlToken, terminalHandlers(catalogAccess, storageHome, sessionResources));
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
@@ -260,7 +266,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       () => browserHost.current()?.close(),
     ]);
     if (!fixture && catalogAccess) finishLeftOverDeletions(server, storageHome, catalogAccess, periodic, serverOptions.deletionSweepMs);
-    return server;
+    return Object.assign(runtimeSyncSurface(server, storageHome, localHost, withCatalog),{projectSyncLifecycle:webProjectDeletion(withCatalog,{isPanelAlive:panelId=>pty.host?.alive(panelId)??false,feedSchedulers,webViewCache,localHost})});
   }
   return scopedWebFactory(createMolisWorkWebServer,platform.withCatalog);
 }

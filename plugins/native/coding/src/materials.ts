@@ -6,6 +6,7 @@ import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentTextMaterialContent, type AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { CODING_PLAN_TYPE } from "./artifacts.js";
+import { CODING_PLAN_SCHEMA_VERSION } from "./plans.js";
 import { codingReportPreview } from "./report.js";
 import { codingChangeSetPreview } from "./changeset.js";
 
@@ -47,7 +48,7 @@ export function savedMaterials(context: PluginStartContext, sessionId: string): 
 }
 function materialFrom(record: FixedVersionRecord | null, sessionTitle?: SessionTitle): AgentTextMaterial {
   if (!record || record.availability !== "available" || record.lifecycle_state !== "active") throw new Error("材料已归档或不可读，请移除或重新选择");
-  if (record.schema_version !== 1 || record.content_kind !== "inline") throw new Error("材料没有可读取的固定正文");
+  if (record.schema_version !== (record.artifact_type_id === CODING_PLAN_TYPE ? CODING_PLAN_SCHEMA_VERSION : 1) || record.content_kind !== "inline") throw new Error("材料没有可读取的固定正文");
   let title: string, text: string;
   if (record.artifact_type_id === SHELF_TEXT_MATERIAL_TYPE) {
     if (record.producer_plugin_id !== "io.molis.work.shelf" || record.producer_binding_signature !== "official-shelf-binding") throw new Error("Shelf 材料来源不一致");

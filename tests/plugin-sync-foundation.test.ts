@@ -210,3 +210,13 @@ test("snapshot pilot rejects oversized collections without truncating them", t =
   assert.throws(() => f.source.read("documents"), hasCode("sync.limit"));
   assert.equal(f.a.listFolders("project").length, 1001);
 });
+
+test('PCSYNC-20 Pages detects pending project deletion after the business row is gone, excluding unrelated projects',t=>{
+ const f=fixture(t),replica=f.a.replica({authorize(){},project:id=>({title:id,context:{...f.context,projectId:id}})});
+ const page=f.a.create({project_id:'project-a',title:'Original',body:body('retain')});
+ assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
+ const creation=replica.next()!;replica.acknowledge(creation.key,creation.operationId,1);assert.equal(replica.hasProjectChanges!('project-a'),false);
+ f.a.delete(page.id);assert.equal(replica.hasProjectChanges!('project-a'),true);
+ const deletion=replica.next()!;assert.equal(deletion.value,null);assert.equal(replica.hasProjectChanges!('project-a'),true);
+ replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(replica.hasProjectChanges!('project-a'),false);
+});

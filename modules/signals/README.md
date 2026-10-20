@@ -26,6 +26,8 @@ Signals 不请求 Provider、不持有凭据，也不决定消息是否已读或
 
 ## 本地开发
 
+`signalContentReplicationDefinition` 公开声明已接受的 Signal 当前事实、全部固定修订和事件，校验稳定去重身份、逐版本原文与原 owner 相同的内容摘要；恢复不调用 submitDraft，不重排修订。正文引用由 `contentRefs` 明确提供，经同一 Feed 集合的受控 R2 通道恢复，不同步监听 raw delivery、游标或租约。
+
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash

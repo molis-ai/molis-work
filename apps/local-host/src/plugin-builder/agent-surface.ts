@@ -5,7 +5,6 @@ import { builtinRegistrations } from '../agent-definitions/builtin-registrations
 import { registeredInstructionBody } from '../agent-definitions/instructions.js';
 import { mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
-import { isDeepStrictEqual } from 'node:util';
 import type { PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
@@ -18,9 +17,9 @@ import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import { FRAME_QUERY, selectionPorts } from '../plugin-builder-surface.js';
 import { builderSkill } from './skill.js';
 import { buildSources, readPluginPrompts } from './prompts.js';
-import { STABLE_PREVIEW } from './storage.js';
+import { STABLE_PREVIEW,prepareStudioAction } from './storage.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
-import { buildManifest, canonical, createBuildProject, readBuildFile } from './build-project.js';
+import { buildManifest, createBuildProject, readBuildFile, copyBuildRevisionInputs, copyUnchangedBuildOperations } from './build-project.js';
 import { runPluginChecks } from './build-checks.js';
 import { runBuilderBrowserAcceptance, inspectBuilderPresentation } from './browser.js';
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from '@molis-ai/molis-work-ui-host';
@@ -30,6 +29,8 @@ import { capabilityLimits, latestCapability, slowOperations, type CapabilityImpl
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, standIn, type CatalogCapability, type ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
+import {withPassiveSyncExecution} from '../passive-sync-execution.js';
+import {publicBuild,publicRelease} from './authoring-view.js';
 
 export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
 export interface AgentStudioOptions {
@@ -208,7 +209,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       return runner;
     };
     const trials = new Map<string, { original: string; build: AgentBuild }>();
-    studio.callAcceptance = async (buildId, key, componentId, binding, payload) => {
+    studio.callAcceptance = async (buildId, key, componentId, binding, payload) => withPassiveSyncExecution(home,options.projectId,BUILDER_PLUGIN_ID,buildId,async()=>{
       const trial = trials.get(key);
       if (!trial || trial.original !== buildId) throw new Error('这轮界面验收已结束');
       const node = trial.build.nodes.find(node => node.id === componentId);
@@ -216,7 +217,7 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
       const call = resolvePluginComponentCall(node, binding, payload);
       const capabilities = await studio.catalog();
       return (await runnerFor(trial.build, slowOperations(trial.build.design!.contract, capabilities).has(call.operationId) ? 'slow' : 'quick', capabilities)).call(call.operationId, call.input);
-    };
+    });
     const inTrial = async <T,>(build: AgentBuild, signal: AbortSignal, run: (options: Parameters<typeof runBuilderBrowserAcceptance>[1]) => Promise<T>) => {
       if (!studio.origin) throw new Error('界面验收需要从创作台页面发起');
       const key = randomUUID(), trial = { ...build, id: build.id + ':acceptance:' + key };
@@ -267,28 +268,19 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
         // A revision keeps the implementation and tests of every operation whose contract did not change,
         // so only the parts that actually changed go back to the code agent.
         const before = previous.design, from = previous.directory;
-        if (before && from) for (const [index, operation] of design.contract.operations.entries()) {
-          const old = before.contract.operations.findIndex(item => item.id === operation.id);
-          if (old < 0 || !isDeepStrictEqual(canonical(before.contract.operations[old]), canonical(operation))) continue;
-          for (const kind of ['src', 'tests']) {
-            try {
-              const source = await readBuildFile(from, `${kind}/operations/${old}.ts`);
-              await writeFile(join(directory, kind, 'operations', index + '.ts'), source, { mode: 0o600 });
-              // It stays connected without another check, so it is settled as it was.
-              if (kind === 'src' && previous.connected.includes(operation.id)) { const settled = join(settledFor(directory), 'src/operations'); await mkdir(settled, { recursive: true, mode: 0o700 }); await writeFile(join(settled, index + '.ts'), source, { mode: 0o600 }); }
-            }
-            catch { /* a missing or unsafe previous file is simply written again by the code agent */ }
-          }
+        if (before && from) {
+          await copyBuildRevisionInputs(from, directory);
+          await copyUnchangedBuildOperations(from, directory, before.contract, design.contract, previous.connected, settledFor(directory));
         }
         return directory;
       },
       check: (build, operationIds, signal) => runPluginChecks({ root: build.directory!, contract: build.design!.contract, manifest: buildManifest(build.design!.contract),
         operationIds, services: previewFor(), mockServices: { capability: standIns, network }, grants: effects(build), signal, settled: settledFor(build.directory!),
         identity: { projectId: options.projectId, installationId: 'checks:' + build.id, pluginId: build.design!.contract.pluginId, namespace: 'preview' } }),
-      call: async (build, operationId, input) => {
+      call: async (build, operationId, input) => withPassiveSyncExecution(home,options.projectId,BUILDER_PLUGIN_ID,build.id,async()=>{
         const capabilities = await studio.catalog();
         return (await runnerFor(build, slowOperations(build.design!.contract, capabilities).has(operationId) ? 'slow' : 'quick', capabilities)).call(operationId, input);
-      },
+      }),
       async sources(build) {
         if (!build.directory) return [];
         const entries = await readdir(join(build.directory, 'src'), { withFileTypes: true }).catch(() => []);
@@ -325,18 +317,8 @@ async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   try { return await created; } catch (error) { boards.delete(options.projectId); throw error; }
 }
 
-/** What the browser sees of a build: no host paths (build directory, bundles, release folders). */
-function publicBuild(build: AgentBuild) {
-  const { directory: _directory, history, checks, ...rest } = build;
-  const publicChecks = (values: AgentBuild['checks']) => Object.fromEntries(Object.entries(values).map(([key, value]) => [key, { passed: value.passed, gates: value.gates }]));
-  return { ...rest, history: history.map(({ directory: _path, checks: previous, ...item }) => ({ ...item, ...(previous ? { checks: publicChecks(previous) } : {}) })), checks: publicChecks(checks) };
-}
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
-function publicRelease<T extends { directory?: string; bundlePath?: string; packagePath?: string }>(release: T) {
-  const { directory: _directory, bundlePath: _bundle, packagePath: _package, ...rest } = release;
-  return rest;
-}
 const literal = (value: unknown) => JSON.stringify(value).replaceAll('<', '\\u003c');
 function page(title: string, body: string, script: string, controlToken: string) {
   // Plugins are drawn with the UI catalog's components, so the page carries the product's own stylesheet, theme and select menu.
@@ -465,7 +447,7 @@ export async function handleAgentStudioHttp(request: IncomingMessage, response: 
       return true;
     }
     if (build && build[2] === '/action' && method === 'POST') {
-      const result = await workflow.action(build[1]!, await readLocalWebBody(request));
+      const body=await readLocalWebBody(request),result=await workflow.action(build[1]!,prepareStudioAction(workflow,options.homeDirectory!,options.projectId,build[1]!,body));
       sendLocalWebJson(response, 200, result === null ? { deleted: true } : 'buildId' in (result as object) ? { release: publicRelease(result as { directory?: string }) } : { build: publicBuild(result as AgentBuild) }); return true;
     }
     if (build && build[2] === '/call' && method === 'POST') {

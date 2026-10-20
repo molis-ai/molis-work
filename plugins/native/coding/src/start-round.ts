@@ -10,6 +10,7 @@ import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./histo
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { requireLocalPlanningRun } from "./plan-execution.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState, sessionTitle } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -65,6 +66,7 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
 export const startRound = async (a: CodingActivation, record: CodingSessionRecord, body: Record<string, unknown>, actorId: string,
   api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite = Object.assign(async () => {}, { assert_current: () => a.stopped.signal.throwIfAborted() })) => {
   const { context, projectId, ports } = a;
+  const savedInput=execution.sessions.inputs.read(projectId,record.session_id);
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
   if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
@@ -88,7 +90,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const workspace = workspaces.find(entry => entry.workspace_id === body.workspace_id);
   if (!workspace?.realpath_verified) throw new Error("请先为这个项目选择已授权的工作区目录");
   const directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
-  if (plan && directory.canonical_path !== plan.source.workspace_path) throw new Error("计划属于原工作区，请选择原工作区或重新规划，不能在另一目录执行");
+  if (plan) await requireLocalPlanningRun(api, record, plan, directory.canonical_path);
   // Files named with @ travel with the task, as they read at this moment.
   task = (await attachMentions(workspaceFileReader(context), workspace.workspace_id, task)).task;
   const subagent_workspaces: AgentSubagentWorkspace[] = [];
@@ -174,7 +176,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // The round has started either way; the delegation shows its own last recorded state.
     if (session.runtime_id === "prologue") await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
-    if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
+    const cleared_input_revision=!plan&&savedInput.draft===body.task&&execution.sessions.inputs.clearIfUnchanged(projectId,record.session_id,savedInput.revision)?savedInput.revision+1:undefined;
     // A session named by default takes its name from the first task, the way a person would label it.
     if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
     execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
@@ -187,7 +189,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
       origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
-    return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
+    return { run, history, ...(cleared_input_revision===undefined?{}:{cleared_input_revision}), ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
     // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.

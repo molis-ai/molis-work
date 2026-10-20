@@ -34,6 +34,7 @@ test("Jelly personal notes and calendar transfer as one validated workspace with
   const f = fixture(t), [a, b] = f.stores;
   const source = a!.execute({ type: "note.create", title: "计划", markdown: "准备交付" });
   a!.execute({ type: "item.create", item: { title: "评审", start_date: "2026-10-20" } });
+  assert.equal(f.replicas[0]!.hasProjectChanges!('unrelated-project'),false,'Home notes are not owned by a project');
   const event = f.take();
   assert.equal(f.replicas[0]!.next(), null);
   f.replicas[1]!.receive(event);

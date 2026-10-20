@@ -326,6 +326,8 @@ export interface PluginRouteBinding {
  */
 export interface PluginAppContribution {
   kind: "app";
+  /** Optional implemented collections; a declared but undelivered collection stays unavailable. */
+  sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */
@@ -364,6 +366,8 @@ export interface PluginStartContext {
   project_id?: string;
   /** Trusted local owner for HTTP entrypoint binding; never read from business arguments. */
   readonly actor_id?: string;
+  /** Trusted personal-space binding. Absent in local spaces and bare executors. */
+  readonly sync?: import('./plugin-sync.js').PluginSyncContext;
   /** Input group the Host validated at activation. Undefined means no selection; never the first group. */
   input_group?: string;
   /** Available when running through the application Host, not a bare reference executor. */

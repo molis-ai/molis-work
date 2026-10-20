@@ -181,12 +181,18 @@ export type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platfo
 export type { PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncCollection } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncIdentity } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncSnapshot } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginUiClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { ProjectCopyAsset } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyIdentity } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyOwner } from "@molis-ai/molis-work-contracts/services/placement";
+export type { ProjectCopyReference } from "@molis-ai/molis-work-contracts/services/placement";
 
 export declare const QUESTION_LIMITS: Readonly<{
     maxQuestions: 10;
@@ -211,7 +217,43 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export interface SyncDocument<T> {
+    read(): T;
+    update<R>(mutate: (data: T) => R): R;
+    replica: SyncReplicaAdapter;
+}
+
+export interface SyncDocumentOwner<T> {
+    spaceId: string;
+    storage: SyncDocumentStorage;
+    authorize(): void;
+    initial(): T;
+    validate(value: unknown): T;
+    observe(data: T): ReadonlyMap<string, string>;
+    read(data: T, key: string): unknown | null;
+    apply(data: T, key: string, value: unknown | null): void;
+    canUpload?(data: T, key: string): boolean;
+    locate?(data: T, key: string): string | null;
+    belongsToProject?(data: T, key: string, projectId: string, retained: readonly import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncMutation[]): boolean;
+}
+
+export interface SyncDocumentStorage {
+    read(): string | null;
+    compareAndSet(expected: string | null, value: string): boolean;
+    compareAndSetChecked?(expected: string | null, value: string, validate: () => void): boolean;
+    withReadLock?<R>(read: (current: string | null) => R): R;
+}
+
 export type { SyncEvent } from "@molis-ai/molis-work-contracts/platform/sync-transport";
+
+export interface SyncJsonContentOptions {
+    spaceId: string;
+    authorize(): void;
+    project?(key: string, value: unknown, put: (bytes: Uint8Array) => SyncBlobReference): unknown;
+    restore?(key: string, value: unknown, read: (reference: SyncBlobReference) => Promise<Uint8Array>): Promise<unknown>;
+}
+
 export type { SyncMutation } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export type { SyncReplicaAdapter } from "@molis-ai/molis-work-contracts/platform/sync-transport";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -265,6 +307,12 @@ export declare function comparePluginVersions(left: string, right: string): numb
 export declare function compareTexts(before: string, after: string): TextDiff;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
+
+export declare function createSyncConflictState(event: SyncEvent, local: unknown, localRevision: number): string;
+
+export declare function createSyncDocument<T>(owner: SyncDocumentOwner<T>): SyncDocument<T>;
+
+export declare function createSyncJsonContent(options: SyncJsonContentOptions): SyncContentCodec;
 
 export declare function defineAction<Input, Output>(definition: ActionDefinition<Input, Output>, handle: (context: ActionExecutionContext, input: Input) => Output | Promise<Output>): {
     readonly definition: ActionDefinition<Input, Output>;

@@ -13,12 +13,14 @@ test("W1-18-SHELF-FORMAT-01 current Shelf data reopens, while wrong version and 
     const filename = join(home, "shelf", "catalog.json"), current = readFileSync(filename, "utf8");
     assert.equal(openShelfStore(home, { disabled: true }).readFile(item.item_id).bytes.toString("utf8"), "Current copy");
     const changedVersion = JSON.parse(current); changedVersion.version = 99;
+    const missingDigest=JSON.parse(current);delete missingDigest.items[0].copy_hash;
     const missingArray = JSON.parse(current); delete missingArray.items[0].source_item_ids;
     const missingVerdict = JSON.parse(current); delete missingVerdict.items[0].status;
     const missingChildren = JSON.parse(current); delete missingChildren.items[0].children;
     const missingJobArray = JSON.parse(current);
     missingJobArray.jobs = [{ job_id: "retained-job", item_id: item.item_id, option_id: null, runtime: "", status: "succeeded" }];
-    for (const input of [changedVersion, missingArray, missingVerdict, missingChildren, missingJobArray]) {
+    const priorVersion=JSON.parse(readFileSync(new URL('./fixtures/home-store-schemas/shelf-v1.json',import.meta.url),'utf8'));
+    for (const input of [priorVersion,changedVersion,missingDigest, missingArray, missingVerdict, missingChildren, missingJobArray]) {
       const bytes = JSON.stringify(input); writeFileSync(filename, bytes);
       const reopened = openShelfStore(home, { disabled: true });
       assert.throws(() => reopened.snapshot(), error => isShelfFailure(error) && error.code === "shelf.invalid_file");

@@ -12,6 +12,8 @@
 
 ## 开发要求
 
+当前 Todo 库基线 v3 保留已删除待办的最后项目归属；不恢复正文、不上传该技术记录。项目未结算检查还通过 Storage 的受保护只读端口检查冻结上传和保留冲突，旧项目上传未确认而当前项已移动/删除时，两边均受保护；确认旧上传后不继续误阻塞旧项目。个人待办不归属某个项目。旧 v2 冻结结构只用于拒绝测试，不自动升级真实 Home。相关回归：`tests/personal-sync.test.ts`、`tests/home-store-baselines.test.ts`。
+
 - 负责：待办的记录、状态、三种日期（截止、计划处理、提醒）、归属（个人、项目、暂未归类）、来源与形成原因、关联、修改记录与撤销、视图、搜索与对象读取、批量处理；提醒的到期判断与首页事项；整理结果（候选、依据、与已有待办的关系、忽略与已处理的记忆）及其审阅与采用；整理方法（登记的指令 `todo.organize.basic`）。
 - 不负责：AI 整理与推进（系统 Assistant 经 Prologue 负责，Todo 只提供动作与对象读取）、Goal 与业务结果、提醒的送达渠道、材料正文（只存引用）。
 - 公开入口：`@molis-ai/molis-work-plugin-todo`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/todo`。

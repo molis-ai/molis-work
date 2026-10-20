@@ -82,14 +82,14 @@ test("Issue deletion and malformed payload are isolated to the authenticated own
   assert.throws(() => b!.read(original.id), /不存在/);
 });
 
-test("oversized inline Issue image stays local instead of being truncated", async t => {
+test("large Issue images remain exact portable content for the attachment transport", async t => {
   const f = fixture(t), a = f.stores[0]!;
   const png = Buffer.alloc(420 * 1024);
   Buffer.from("89504e470d0a1a0a0000000d494844520000000100000001", "hex").copy(png);
   const data_url = "data:image/png;base64," + png.toString("base64");
   const issue = await a.create({ title: "大截图", type: "bug", description: "保留原图",
     images: [{ name: "截图.png", data_url }] }, caller);
-  assert.throws(() => f.replicas[0]!.next(), /512 KiB/);
+  const next=f.replicas[0]!.next();assert.ok(next);assert.ok(Buffer.byteLength(JSON.stringify(next.value))>512*1024);
   assert.equal(a.read(issue.id).images[0]?.data_url, data_url);
   assert.equal(f.replicas[0]!.counts().pending, 1);
 });

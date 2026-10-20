@@ -4,7 +4,7 @@ import type { PluginSyncDeclaration } from "@molis-ai/molis-work-contracts/platf
 
 export const pptSync:PluginSyncDeclaration={protocol_version:1,collections:[{id:'presentations',title:'演示稿',schema_version:1,requires:[]}]};
 export const pptAggregates:readonly AggregateDefinition[]=[{
-  kind:'presentation',table:'presentations',columns:['id','project_id','title','description','color_primary','color_background','color_text','slides_json','created_at','updated_at','artifact_id','artifact_version'],children:[],versionColumn:'version',busyColumn:'publication_pending_json',
+  kind:'presentation',copy:{kind:'io.molis.work.ppt:presentation',references(value,projectId){return value.record.artifact_id?[{kind:'io.molis.work.artifacts:artifact',id:String(value.record.artifact_id),projectId}]:[];},rebase(value,identity){if(value.record.artifact_id)value.record.artifact_id=identity.id('io.molis.work.artifacts:artifact',String(value.record.artifact_id));}},table:'presentations',columns:['id','project_id','title','description','color_primary','color_background','color_text','slides_json','created_at','updated_at','artifact_id','artifact_version'],children:[],versionColumn:'version',busyColumn:'publication_pending_json',
   validate({record:r}){
     for(const k of ['id','project_id','title','description','slides_json','artifact_id'])check(typeof r[k]==='string');
     check(String(r.title).length>0&&String(r.title).length<=80&&String(r.description).length<=2000);

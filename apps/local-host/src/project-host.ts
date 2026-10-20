@@ -1,3 +1,4 @@
+import { assertPassiveProjectAvailable } from './passive-sync-execution.js';
 import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
 import { bindHomeSide, releaseHomeSide, type PluginFixture } from "./home-side.js";
@@ -40,7 +41,7 @@ import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
+import { ensureProjectPluginActions, prepareInstalledPlugins, withPreparedProject } from "./project-plugin-ports.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -66,6 +67,17 @@ import { withPreparedActions } from "./plugin-actions-client.js";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
+
+async function openProjectRuntime(reference: LocalHostProjectReference, options: MolisWorkLocalHostOptions, catalogRunner: LocalWebCatalogRunner | undefined, personalMethods: () => readonly PlanningMethodPack[]): Promise<MolisWorkProjectRuntime> {
+  if (catalogRunner) await catalogRunner({homeDirectory:options.homeDirectory}, catalog => {
+    if (catalog.recycle.isRecycled(reference.project_id)) throw hostErrors.project_closing('项目已回收，不能启动运行环境');
+  });
+  if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, reference.project_id);
+  options.onRuntimeOpen?.(reference);
+  const store = new LocalProjectDatabase(reference.storage_key);
+  const coordinator = new GoalProjectApplication(store, options.clock ?? (() => new Date()), personalMethods);
+  return {store, coordinator, project_id:reference.project_id};
+}
 
 export interface MolisWorkProjectRuntime {
   store: LocalProjectDatabase;
@@ -156,21 +168,16 @@ export class MolisWorkLocalHost {
     if (options.homeDirectory) this.callLog = new ActionCallLog(options.homeDirectory);
     this.host = new LocalHost({
       instanceId: options.instanceId,
+      assertProjectAvailable: projectId => { if (options.homeDirectory) assertPassiveProjectAvailable(options.homeDirectory, projectId); },
       actionSettled: this.settleAction,
       actionProvidersChanged: provider => this.search?.providerChanged(provider),
       actionAvailability: options.actionAvailability,
       sceneAvailability: options.sceneAvailability,
       runtimeFactory: {
         open: async (reference) => {
-          options.onRuntimeOpen?.(reference);
-          const store = new LocalProjectDatabase(reference.storage_key);
           const personalMethods = options.planningMethods ?? (() => this.personalPlanningHome ? readPersonalPlanningMethodPacks(this.personalPlanningHome) : []);
-          const coordinator = new GoalProjectApplication(
-            store,
-            options.clock ?? (() => new Date()),
-            personalMethods,
-          );
-          const runtime: MolisWorkProjectRuntime = { store, coordinator, project_id: reference.project_id };
+          const runtime = await openProjectRuntime(reference, options, this.webCatalog?.access.withCatalog ?? this.catalogRunner, personalMethods);
+          const {store} = runtime;
           try {
             const scenes = this.sceneClient(reference);
             const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);
@@ -392,10 +399,12 @@ export class MolisWorkLocalHost {
 
   withProject<Result>(
     reference: LocalHostProjectReference,
-    operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>,
+    operation: (runtime: MolisWorkProjectRuntime) => Result | Promise<Result>, options?: { activatePlugins?: boolean },
   ): Promise<Result> {
-    return this.host.withRuntime(reference, async runtime => { await prepareInstalledPlugins({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, runtime); return operation(runtime); });
+    return withPreparedProject({ host: this.host, options: this.options, agents: () => this.agents?.service }, reference, operation, options?.activatePlugins);
   }
+
+  isProjectBusy(storageKey: string): boolean { return this.host.isProjectBusy(storageKey); }
 
   closeProject(referenceOrStorageKey: LocalHostProjectReference | string): Promise<boolean> {
     return this.host.closeProject(referenceOrStorageKey);

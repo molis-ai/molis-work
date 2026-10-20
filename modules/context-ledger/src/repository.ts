@@ -51,6 +51,7 @@ function edge(row: Row): ContextEdge {
 export class ContextLedgerRepository {
   constructor(private readonly db: ContextLedgerDatabase, initializeSchema = true) {
     if (initializeSchema) createContextLedgerSchema(db);
+    else db.prepare('SELECT scope_kind,scope_id,edge_key,revision,relation_type,source_json,target_json,actor_id,cause,recorded_at,state FROM context_edges LIMIT 0').all();
   }
 
   transaction<T>(operation: () => T): T { return this.db.transaction(operation).immediate(); }

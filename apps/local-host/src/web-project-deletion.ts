@@ -1,3 +1,4 @@
+import {handleProjectRecycleHttp} from './web-project-recycle.js';
 import { randomBytes } from "node:crypto";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -37,6 +38,7 @@ export async function removeDemoThroughService(withCatalog: LocalWebCatalogRunne
  */
 export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebCatalogRunner) {
   return async function handle(request: IncomingMessage, response: ServerResponse, url: URL, homeDirectory: string | undefined, deletionPorts: ProjectDeletionPorts): Promise<boolean> {
+    if(await handleProjectRecycleHttp(request,response,url,homeDirectory??resolveConfiguredHome(),withMolisWorkProjectCatalog,deletionPorts))return true;
     const scopeMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete-scope$/);
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.

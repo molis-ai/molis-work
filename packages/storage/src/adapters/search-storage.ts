@@ -1,4 +1,5 @@
-import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { randomBytes } from "node:crypto";
+import {openLocalAead,sealLocalAead} from "./local-aead.js";
 import type { SqliteDatabase } from "../sqlite.js";
 
 import type {
@@ -10,9 +11,6 @@ import type {
 import type { SecretStore } from "./file-secret-store.js";
 
 const AEAD_PREFIX = "molis-work-feed-aead-v1";
-const AEAD_ALG = "aes-256-gcm" as const;
-const AEAD_IV_BYTES = 12;
-const AEAD_KEY_BYTES = 32;
 const SQLITE_NOW_MS = "CAST(unixepoch('now', 'subsec') * 1000 AS INTEGER)";
 
 type SqliteChanges = { changes?: number | bigint };
@@ -211,42 +209,8 @@ function inImmediate<T>(db: SqliteDatabase, fn: () => T): T {
 
 export function createSearchAead(): SearchAeadPort {
   return {
-    async seal(input) {
-      assertAeadParts(input);
-      const key = Buffer.from(input.key);
-      const iv = randomBytes(AEAD_IV_BYTES);
-      const cipher = createCipheriv(AEAD_ALG, key, iv);
-      cipher.setAAD(Buffer.from(input.aad));
-      const ciphertext = Buffer.concat([
-        cipher.update(Buffer.from(input.plaintext)),
-        cipher.final(),
-      ]);
-      const tag = cipher.getAuthTag();
-      return `${AEAD_PREFIX}.${iv.toString("base64url")}.${tag.toString("base64url")}.${ciphertext.toString("base64url")}`;
-    },
-
-    async open(input) {
-      if (typeof input.encrypted !== "string") {
-        throw new Error("Invalid AEAD sealed value");
-      }
-      assertAeadParts(input);
-      const parts = input.encrypted.split(".");
-      if (parts.length !== 4 || parts[0] !== AEAD_PREFIX) {
-        throw new Error("Invalid AEAD sealed value");
-      }
-      const iv = decodeB64Url(parts[1]);
-      const tag = decodeB64Url(parts[2]);
-      const ciphertext = decodeB64Url(parts[3]);
-      if (iv.byteLength !== AEAD_IV_BYTES) {
-        throw new Error("Invalid AEAD sealed value");
-      }
-      const decipher = createDecipheriv(AEAD_ALG, Buffer.from(input.key), iv);
-      decipher.setAAD(Buffer.from(input.aad));
-      decipher.setAuthTag(tag);
-      return new Uint8Array(
-        Buffer.concat([decipher.update(ciphertext), decipher.final()]),
-      );
-    },
+    async seal(input) { return sealLocalAead(AEAD_PREFIX,input); },
+    async open(input) { return openLocalAead(AEAD_PREFIX,input); },
   };
 }
 
@@ -317,33 +281,6 @@ function isScanCursorPayload(
     && typeof rec.lastKey === "string"
     && rec.lastKey.length > 0
   );
-}
-
-function assertAeadParts(input: {
-  readonly key: Uint8Array;
-  readonly aad: Uint8Array;
-  readonly plaintext?: Uint8Array;
-}): void {
-  if (!(input.key instanceof Uint8Array) || input.key.byteLength !== AEAD_KEY_BYTES) {
-    throw new Error("Invalid AEAD key");
-  }
-  if (!(input.aad instanceof Uint8Array)) {
-    throw new Error("Invalid AEAD aad");
-  }
-  if (input.plaintext !== undefined && !(input.plaintext instanceof Uint8Array)) {
-    throw new Error("Invalid AEAD plaintext");
-  }
-}
-
-function decodeB64Url(value: string | undefined): Buffer {
-  if (value === undefined || !/^[A-Za-z0-9_-]*$/u.test(value)) {
-    throw new Error("Invalid AEAD sealed value");
-  }
-  const decoded = Buffer.from(value, "base64url");
-  if (decoded.toString("base64url") !== value) {
-    throw new Error("Invalid AEAD sealed value");
-  }
-  return decoded;
 }
 
 // Deployed API aliases; ciphertext, cursor and database names remain unchanged.

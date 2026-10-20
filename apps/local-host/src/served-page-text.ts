@@ -77,10 +77,10 @@ export function dedentServedCss(source: string): string {
   return out;
 }
 
-/** Compact the original program with its binding names and literal text intact; parse failure leaves it unchanged. */
+/** Compact the original program with its public names and literal text intact; parse failure leaves it unchanged. */
 export function tightenServedJs(source: string): string {
   try {
-    const minified = transformSync(source, { loader: "js", minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" }).code;
+    const minified = transformSync(source, { loader: "js", minifyIdentifiers: true, minifyWhitespace: true, minifySyntax: true, legalComments: "none", charset: "utf8" }).code;
     return Buffer.byteLength(minified) < Buffer.byteLength(source) ? minified : source;
   } catch {
     // Non-program asset fixtures keep their exact content, as does any script the parser cannot handle.
@@ -88,7 +88,9 @@ export function tightenServedJs(source: string): string {
   }
 }
 
-/** Comments and line-leading indentation are not sent. Spaces inside a rule stay, so a selector keeps the gaps it was written with. */
+/** Parse-aware whitespace compaction preserves selector tokens, strings and custom-property values. */
 export function tightenServedCss(source: string): string {
-  return dedentServedCss(stripServedCssComments(source));
+  const original=dedentServedCss(stripServedCssComments(source));
+  try {const result=transformSync(original,{loader:"css",minifyWhitespace:true,legalComments:"none",charset:"utf8"}).code;return Buffer.byteLength(result)<Buffer.byteLength(original)?result:original;}
+  catch {return original;}
 }

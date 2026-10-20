@@ -1,9 +1,9 @@
 import { sessionErrors } from "@molis-ai/molis-work-contracts/modules/private-work-context";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 
-const scope = { kind: "personal", id: "private-work-context" } as const;
+import {SESSION_REFERENCE_SCOPE as scope,sessionReference} from './session-reference-scope.js';
 const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
-const source = (id: string): ObjectRef => ({ module: "private-work-context", object_type: "handoff", id, version: null, scope });
+const source = (id: string): ObjectRef => sessionReference(id,true);
 
 /** Only Handoff cross-module endpoints; content and delivery remain Work facts. */
 export class HandoffAssociationRepository {

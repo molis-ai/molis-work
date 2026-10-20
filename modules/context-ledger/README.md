@@ -48,6 +48,8 @@ node scripts/run-tests.mjs tests/context-ledger.test.ts tests/handoff-ledger.tes
 
 `createContextLedger` 默认准备原 schema；已完成 owner/schema 校验的 Host 可传 `initializeSchema: false`，只装配已有表，避免普通查询触发 DDL。该选项不省略引用或内容权限检查。
 
+`createContextHistoryReplication` 是同连接的被动同步端口，可信语义 owner 明确来源模块、分区和可携带关系/目标类型。它完整校验稳定键、来源、字段、逐键连续历史及归属，再在原事务内替换该来源的这些关系；不跨 owner 写 SQL，不借正常绑定命令重放历史，不授予被引用内容权限。外国来源/关系已占用的键和中途撤权均拒绝并回滚。普通 `commands` 仍只追加；显式选择同步分支后的保留与恢复由调用方的 replica 负责，不能用该端口绕过冲突确认或恢复执行。
+
 - 负责：对象引用、跨 owner 关系、发布与物化记录。
 - 不负责：被引用对象（Goal、Artifact、Feed、Session）的内容。
 - 公开入口：`@molis-ai/molis-work-module-context-ledger`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/context-ledger`。

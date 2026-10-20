@@ -36,8 +36,8 @@ function date(value: unknown, nullable = false): boolean {
   return nullable && value === null || typeof value === "string" && Number.isFinite(Date.parse(value));
 }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) {
-    throw syncError("limit", "定时任务超过当前同步上限（512 KiB）");
+  if (Buffer.byteLength(JSON.stringify(value)) > 100000000) {
+    throw syncError("limit", "定时任务超过账号容量上限（100 MB）");
   }
 }
 function validateTask(value: unknown, taskId: string): Row {
@@ -90,7 +90,7 @@ export function installScheduleReplication(db: ReplicaDatabase, projectId: strin
 
 /** Copies task content and history, never a scheduler lease or runnable job binding. */
 export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
-  spaceId: string; projectId: string; title: string; authorize(): void;
+  spaceId: string; projectId: string; title: string; authorize(): void; conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
   if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) {
@@ -105,6 +105,7 @@ export function createScheduleTaskReplica(db: ReplicaDatabase, context: {
   const ledger = namespacedReplicaDatabase(db, "schedule");
   return createSqliteReplica(ledger, {
     authorize: context.authorize,
+    conflictState: context.conflictState,
     read(key) {
       const id = keyId(key);
       const source = db.prepare("SELECT * FROM schedule_conversation_tasks WHERE task_id=?").get(id) as Row | undefined;

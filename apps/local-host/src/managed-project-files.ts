@@ -26,7 +26,7 @@ async createProject(input: CreateMolisWorkProjectInput, synced=false, beforeEffe
       const existing = this.projects.query.listProjects().find(p => p.project_id === record.project_id);
       if (existing) return existing;
       beforeEffect();
-      this.projects.lifecycle.register(record, "project.created", actorId);
+      this.projects.lifecycle.register(record, synced ? "project.sync_prepared" : "project.created", actorId);
       return record;
     });
   }

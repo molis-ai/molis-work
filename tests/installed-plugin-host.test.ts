@@ -203,7 +203,7 @@ test('missing publication or approval is reported without borrowing another Home
     assert.equal((await one.actions.client.discover(context)).filter(view => view.capability_id.startsWith('generated.')).length, 3, 'new consent repairs a missing approval without borrowing another installation');
     await releaseInstalledPlugins(stores[1]!, DEMO_PROJECT_ID);
     const secondStorage = studioStorage(stores[1]!.db, DEMO_PROJECT_ID);
-    secondStorage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases: [] }));
+    secondStorage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases: [],revisions:{} }));
     const missing = await ensureInstalledPlugins({ store: stores[1]!, projectId: DEMO_PROJECT_ID, homeDirectory: home });
     assert.match(missing.recoveryErrors.get(second.release.pluginId) ?? '', /发布记录/);
     assert.equal((await missing.actions.client.discover(context)).some(view => view.capability_id.startsWith('generated.')), false);
@@ -326,7 +326,7 @@ test('a reinstall that cannot read the data an uninstall kept is refused until t
   const home = await mkdtemp(join(tmpdir(), 'installed-discard-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8');
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases: [release] }));
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, release: AgentRelease) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases: [release],revisions:{} }));
   const kept = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id).length);
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
@@ -355,7 +355,7 @@ test('an install that fails over kept data puts the uninstalled record back exac
   const home = await mkdtemp(join(tmpdir(), 'installed-failed-over-kept-')), fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   const working = await readFile(fixture.release.bundlePath, 'utf8'), broken = "throw new Error('broken bundle');";
-  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ builds: [], releases }));
+  const only = (installed: Awaited<ReturnType<typeof rig.control>>, ...releases: AgentRelease[]) => installed.storage.set('plugin-builder:agent-built:v1', JSON.stringify({ format:2,builds: [], releases,revisions:{} }));
   const rows = () => rig.host.withProject(fixture.ref, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(fixture.install.install_id));
   const row = (installed: Awaited<ReturnType<typeof rig.control>>) => installed.platform.runtime.get(fixture.install.install_id);
   try {

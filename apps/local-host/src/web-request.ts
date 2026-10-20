@@ -315,7 +315,7 @@ export async function handleMolisWorkWebRequest(
           bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user",
             // Goal read lets a session association check the Goal through its owner; project settings cover the folder membership this page manages.
             project_id: hostReference.project_id, audience: "user", permissions: [...WORK_ACTION_PERMISSIONS, "goals:read", "projects:settings"] })))) return;
-        if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions)) return;
+        if (await goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, { homeDirectory: serverOptions.homeDirectory, store })) return;
         if (await planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient()))) return;
         if (request.method === "GET" && url.pathname === "/health") {
           sendJson(response, 200, {

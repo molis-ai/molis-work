@@ -12,6 +12,8 @@ export interface RssFetchReceipt {
     readonly home_url?: string;
 }
 
+export declare const SOURCE_CONTENT_REPLICA_ID = "sources_content";
+
 export interface SourceCommands {
     save(source: SourceRecord): SourceRecord;
     setEnabled(projectId: string, sourceId: string, enabled: boolean, at?: string): SourceRecord;

@@ -10,7 +10,7 @@ import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@moli
 
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id), Form answers that always keep their questions. */
-const STORE_VERSIONS: Record<string, number> = { pages: 3, memory: 2, assistant: 2, functions: 3, form: 3, dataset:2,ppt:2,lingguang:2,workflows:2,jelly:2,todo:2,characters:2 };
+const STORE_VERSIONS: Record<string, number> = { sync:5,images:2,cognia:2,pages: 3, memory: 2, assistant: 2, functions: 3, form: 3, dataset:2,ppt:2,lingguang:2,workflows:2,jelly:2,todo:3,characters:2 };
 /** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };
@@ -35,7 +35,8 @@ test("every library in the Home's store registry has a schema fixture or is name
 for (const [name, baseline] of [...libraries.filter(([name]) => !WITHOUT_REAL_HOME_FIXTURE.includes(name)), ["alchemist-search", ALCHEMIST_SEARCH_BASELINE] as const]) {
   test(`the ${name} store's baseline is version ${STORE_VERSIONS[name] ?? 1} and the structure existing stores have`, () => {
     assert.equal(baseline.version, STORE_VERSIONS[name] ?? 1);
-    const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${name}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
+    const fixture=name==='todo'?'todo-v3':name==='sync'?'sync-v5':['images','cognia'].includes(name)?name+'-v2':name;
+    const existing = shape(readFileSync(new URL(`./fixtures/home-store-schemas/${fixture}.sql`, import.meta.url), "utf8")), want = shape(baseline.schema);
     // Every table an existing store has is exactly the baseline's; a table made lazily on first use may be missing there.
     for (const [table, structure] of Object.entries(existing.tables)) assert.deepEqual(want.tables[table], structure, `${name}.${table}`);
     assert.deepEqual(Object.keys(want.tables).filter(table => !existing.tables[table]), LAZY_TABLES[name] ?? [], `${name}: tables only the baseline has`);

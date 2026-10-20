@@ -8,6 +8,8 @@ import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/pla
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import {sourceContentReplicationDefinition} from '@molis-ai/molis-work-module-sources';
+import {createProjectReplicaSection,replicaTransaction} from '@molis-ai/molis-work-storage';
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -101,11 +103,11 @@ test("W3-01 C the pull a page request starts, and every tick of the timer, is an
   }
 });
 
-for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "deleted", "cancelled", "revoked-provider-failure"] as const) {
+for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "deleted", "cancelled", "revoked-provider-failure", "replica-restored", "replica-restored-provider-failure"] as const) {
   test(`public RSS ${mode}: real Host dispatch cannot commit stale data or failure bookkeeping; a new authorized invocation recovers`, { timeout: 20_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "feed-public-authority-"));
     const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();
-    let enabled = true, upstreamFails = mode === "revoked-provider-failure", requests = 0;
+    let enabled = true, upstreamFails = mode === "revoked-provider-failure"||mode==='replica-restored-provider-failure', requests = 0;
     const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: () => enabled ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
     // Grants are made through the access settings of the served Home, before the test replaces global fetch for the upstream feed (the web client keeps its own).
@@ -129,7 +131,7 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       const pending = authorized.service.invoke({ ...authorized.context, signal: controller.signal }, feedSourceActions.sync, input);
       const error = mode === "cancelled" ? { name: "AbortError" } : code(mode === "disabled" ? "actions.plugin_disabled"
         : mode === "paused" ? "feed.source_paused" : mode === "reconfigured" ? "feed.source_configuration_changed"
-          : mode === "deleted" ? "feed.source_not_found" : "mcp.action_revoked");
+          : mode === "deleted" ? "feed.source_not_found" : mode.startsWith('replica-restored')?'feed.source_changed':"mcp.action_revoked");
       const rejected = assert.rejects(pending, error);
       await enteredOrFailure(entered.promise, pending);
       if (mode === "grant-revoked" || mode === "revoked-provider-failure") await served.revoke(mcpCaller.actor_id, PROJECT, [view]);
@@ -138,6 +140,12 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       if (mode === "reconfigured") sources.update(source.source_id, { scope: "Changed while fetching" });
       if (mode === "deleted") sources.delete(source.source_id, "retain_history");
       if (mode === "cancelled") controller.abort();
+      if(mode.startsWith('replica-restored')){
+        // Same visible description/configuration and numeric business state, but a newly adopted source branch.
+        // The owner restore invalidates the old read even when its provider subsequently fails.
+        const section=createProjectReplicaSection(store.replicationDatabase,sourceContentReplicationDefinition(),PROJECT),wire=section.validate(section.read());
+        replicaTransaction(store.replicationDatabase,()=>{section.clear();section.write(wire);});
+      }
       const before = sources.feed.snapshot(PROJECT);
       release.resolve(); await rejected;
       assert.deepEqual(sources.feed.snapshot(PROJECT), before, "original Feed content, cursor, source status, runs and Inbox stay exactly as they were at refusal");
@@ -148,7 +156,7 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       await served.grant(mcpCaller.actor_id, PROJECT, [view]);
       const restored = await authorizeMcpActions(host, mcpCaller, home, reference);
       // Intelligence retains cancellation/failure receipts. An explicit new pull uses a new key.
-      const retryInput = mode === "cancelled" || mode === "revoked-provider-failure" ? { ...input, idempotency_key: "public-authority-recovered" } : input;
+      const retryInput = mode === "cancelled" || mode === "revoked-provider-failure"||mode.startsWith('replica-restored') ? { ...input, idempotency_key: "public-authority-recovered" } : input;
       const recovered = await restored.service.invoke(restored.context, feedSourceActions.sync, retryInput);
       assert.equal(recovered.run.outcome, "completed");
       assert.equal(sources.feed.snapshot(PROJECT).feed_items.filter(item => item.source_id === source.source_id).length, 1);

@@ -6,7 +6,7 @@ import type {
 } from "./contract-aliases.js";
 
 export const SESSION_REGISTRY_OWNER = "molis-work-session-registry-v1";
-export const SESSION_REGISTRY_SCHEMA_VERSION = 7;
+export const SESSION_REGISTRY_SCHEMA_VERSION = 8;
 
 function isOwnedSessionRegistry(owner: unknown): boolean {
   return owner === SESSION_REGISTRY_OWNER;
@@ -14,7 +14,7 @@ function isOwnedSessionRegistry(owner: unknown): boolean {
 
 export const DEFAULT_CORRELATION_TTL_SECONDS = 15 * 60;
 
-export function initializeOrValidateSessionSchema(db: Database.Database): void {
+export function initializeOrValidateSessionSchema(db: Database.Database,replicationSchema:string): boolean {
   const meta = db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'session_meta'").get();
   if (!meta) {
     db.transaction(() => {
@@ -51,6 +51,7 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
         CREATE INDEX sessions_workspace_idx ON sessions(workspace_id, updated_at, session_id);
         ${sessionEventsSchema()}
         ${sessionHandoffsSchema()}
+        ${replicationSchema}
         CREATE TABLE session_messages (
         request_id TEXT PRIMARY KEY, actor_id TEXT NOT NULL, project_id TEXT NOT NULL,
         idempotency_key TEXT NOT NULL, session_id TEXT NOT NULL REFERENCES sessions(session_id),
@@ -64,11 +65,14 @@ export function initializeOrValidateSessionSchema(db: Database.Database): void {
       db.prepare("INSERT INTO session_meta (key, value) VALUES (?, ?)").run("owner", SESSION_REGISTRY_OWNER);
       db.prepare("INSERT INTO session_meta (key, value) VALUES (?, ?)").run("schema_version", String(SESSION_REGISTRY_SCHEMA_VERSION));
     })();
-    return;
+    return true;
   }
   validateSessionRegistryMeta(db);
-  db.exec(sessionEventsSchema());
-  db.exec(sessionHandoffsSchema());
+  db.prepare('SELECT session_id,runtime_id,native_runtime_session_id,correlation_token,correlation_expires_at,surface_id,project_id,current_goal_id,workspace_id,workspace_path,title,status,provenance,metadata_json,created_at,updated_at FROM sessions LIMIT 0').all();
+  db.prepare('SELECT event_id,session_id,source,kind,source_id,source_order,occurred_at,content_ref,metadata_json,created_at FROM session_events LIMIT 0').all();
+  db.prepare('SELECT package_id,source_session_id,content_ref,sync_passive,sync_destination_session_id FROM session_handoffs LIMIT 0').all();
+  db.prepare('SELECT request_id,session_id,state FROM session_messages LIMIT 0').all();
+  return false;
 }
 
 /** Refuses a database that is not this registry's, or that has another schema version; changes nothing. */
@@ -131,6 +135,8 @@ function sessionHandoffsSchema(): string {
       error_code TEXT,
       error_message TEXT,
       retryable INTEGER NOT NULL DEFAULT 1 CHECK (retryable IN (0, 1)),
+      sync_passive INTEGER NOT NULL DEFAULT 0 CHECK (sync_passive IN (0,1)),
+      sync_destination_session_id TEXT,
       created_by TEXT NOT NULL,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,

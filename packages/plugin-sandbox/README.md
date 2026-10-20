@@ -34,6 +34,12 @@ Unsupported schema keywords fail validation. Operations are explicitly `query` o
 queries cannot declare storage/artifact writes or events. Examples require exactly one of
 `output`, `outputIncludes`, or a declared `error`. The later build-gate host runs examples.
 
+`assertProposalContract` reuses the same pure envelope/schema/example validation for saved
+read-only proposals; their example arrays may be empty. It grants no execution authority:
+`assertContract` and the actual runner still require behavioral examples. It does not read
+a bundle, start a process or accept grants. Portable authoring also checks its own closed
+field representation and the design system's actual component/binding validators.
+
 On macOS, `/usr/bin/sandbox-exec` launches the same Node executable as the trusted host,
 with no inherited environment. Seatbelt denies process creation, network access, and all
 file writes. Read access covers only the staged bundle/worker, Node executable, macOS

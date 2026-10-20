@@ -2,7 +2,7 @@ import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { materialChoices, savedMaterials } from "./materials.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
-import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
+import { CODING_PLAN_SCHEMA_VERSION, confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference, portableCodingPlan } from "./plans.js";
 import { type CodingActivation, selected, sessionTitle, sessionOutputs } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
@@ -98,7 +98,7 @@ const ROUTES: RouteMaker[] = [
         if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("固定计划修订无效");
         return { plan: confirmedPlan(context, record.session_id, revision), fixed: true };
       }
-      return { plan: execution.sessions.plan(projectId, record.session_id) };
+      return { plan: execution.sessions.plan(projectId, record.session_id),plan_revision:execution.sessions.planRevision(projectId,record.session_id) };
     });
   },
   (a) => {
@@ -109,7 +109,7 @@ const ROUTES: RouteMaker[] = [
       const expected = body.expected_revision;
       if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw new Error("请先读取计划修订");
       const current = execution.sessions.plan(projectId, record.session_id);
-      if ((current?.revision ?? 0) !== expected) throw new Error("计划已变化，请重新打开后合并修改");
+      if (execution.sessions.planRevision(projectId,record.session_id) !== expected) throw new Error("计划已变化，请重新打开后合并修改");
       let proposal;
       if (body.run_id !== undefined) {
         if (!record.runtime_session_id) throw new Error("没有可读取的规划轮次");
@@ -149,11 +149,11 @@ const ROUTES: RouteMaker[] = [
       const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
       planMaterial(fixed);
       const artifacts = codingArtifacts(context);
-      if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: 1,
-        content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
+      if (!artifacts.read(reference)) context.services!.processItems!.record({ ...reference, artifact_type_id: CODING_PLAN_TYPE, schema_version: CODING_PLAN_SCHEMA_VERSION,
+        content: { kind: "inline", payload: JSON.parse(JSON.stringify(portableCodingPlan(fixed))) },
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);
-      if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
+      if (!isDeepStrictEqual(saved, portableCodingPlan(fixed))) throw new Error("固定计划与当前草稿不一致，不能确认");
       return { plan: execution.sessions.confirmPlan(projectId, record.session_id, fixed) };
     });
   },

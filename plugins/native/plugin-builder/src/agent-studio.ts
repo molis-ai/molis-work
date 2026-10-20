@@ -297,7 +297,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   root.querySelectorAll('[data-as-tab]').forEach(t=>{t.setAttribute('aria-selected',String(t.dataset.asTab===tab));t.disabled=t.dataset.asTab==='try'&&!(b?.connected.length);});
   if(active(b)||!previousVisual(b))comparePrevious=false;
   canvas.dataset.tab=tab;canvas.toggleAttribute('data-inspectable',!!b?.design&&!active(b));
-  $('[data-as-head-actions]').innerHTML=(previousVisual(b)&&!active(b)?'<button type="button" class="as-button" data-as-compare aria-pressed="'+comparePrevious+'">'+L(comparePrevious?'返回当前界面':'查看上次界面')+'</button><button type="button" class="as-icon" data-as-action="undo" title="'+L('撤回上次修订')+'" aria-label="'+L('撤回上次修订')+'">'+icon('undo')+'</button>':'')+(b&&!active(b)?'<button type="button" class="as-icon" data-as-remove title="'+L('删除这个草稿')+'" aria-label="'+L('删除这个草稿')+'">'+icon('trash')+'</button>':'');
+  $('[data-as-head-actions]').innerHTML=(previousVisual(b)&&!active(b)?'<button type="button" class="as-button" data-as-compare aria-pressed="'+comparePrevious+'">'+L(comparePrevious?'返回当前界面':'查看上次界面')+'</button><button type="button" class="as-icon" data-as-action="undo" title="'+L('撤回上次修订')+'" aria-label="'+L('撤回上次修订')+'">'+icon('undo')+'</button>':'')+(b&&!active(b)?'<button type="button" class="as-icon" data-as-remove disabled title="'+L('草稿删除暂未开放，完整创作及文件已保留')+'" aria-label="'+L('删除这个草稿')+'">'+icon('trash')+'</button>':'');
   const composer=$('[data-as-composer]'),send=composer.querySelector('.as-send');
   input.placeholder=L(!b?'描述你想要的插件，例如：记录读过的书和感受，按状态筛选':b.questions.length?'回答上面的问题':active(b)?'直接说要改什么：会先停下这一轮，再按你的意思改':b.design?'对整体或选中的组件提出修改':'补充你的需求');
   send.disabled=busy;
@@ -462,7 +462,6 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
    if(covered(v?.permissions,installed(current)?.effects))go();else consent(L('升级到 v{version} 需要新的权限',{version:v.version}),v?.permissions,L('确认并升级')).then(ok=>ok&&go(ok.secrets));return;}
   if(el.hasAttribute('data-as-install-enable')){const inst=installed(current);if(inst)run(async()=>{await act('enable',{version:inst.version});await refreshState();});return;}
   if(el.hasAttribute('data-as-uninstall')){const inst=installed(current);if(!inst)return;ask(L('卸载「{name}」',{name:current.design?.title||''}),L('卸载后它会从这个项目里移除。它保存的数据可以留着，以后重新安装还能看到。'),[['keep',L('卸载，保留数据'),true],['drop',L('卸载并删除数据')],['cancel',L('取消')]]).then(choice=>{if(choice==='keep'||choice==='drop')run(async()=>{await act('uninstall',{version:inst.version,grants:{keepData:choice==='keep'}});await refreshState();host.pluginRemoved('app-'+current.id);});});return;}
-  if(el.hasAttribute('data-as-remove')){ask(L('删除「{name}」这个草稿？',{name:current.design?.title||current.title}),L('构建目录和试用数据会一起删除，已发布并安装的插件不受影响。'),[['remove',L('删除'),true],['cancel',L('取消')]]).then(choice=>{if(choice==='remove')run(()=>act('remove'));});return;}
   if(el.hasAttribute('data-as-new')){run(()=>open(null));input.focus();}
  });
  lifetime.listen(feed,'click',e=>{const summary=e.target.closest?.('[data-as-steps] > summary');if(summary)openSteps=!summary.parentElement.open;});

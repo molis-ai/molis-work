@@ -30,10 +30,20 @@ export class PersonalProjectProvisioner {
     }
   }
 
+  /** Prepare missing original files while the existing tombstone continues hiding the project. No lifecycle state change. */
+  async prepareSyncedProjectRestore(input: CreateMolisWorkProjectInput, beforeEffect: () => void): Promise<ProjectRecord> {
+    beforeEffect();
+    if (ensureStorageSpace(this.home).kind !== 'personal' || !input.project_id || !this.projects.recycle.isRecycled(input.project_id)
+      || this.projects.query.listProjectDeletions().some(row => row.project_id === input.project_id)) throw new Error('此项目不能准备同步恢复');
+    try { this.projects.recycle.inspect(input.project_id); throw new Error('项目原件已存在，无需准备恢复'); }
+    catch(error) { if(!error || typeof error!=='object' || !('code' in error) || error.code!=='catalog.recycle_missing')throw error; }
+    const record=await this.files.createProject(input,true,beforeEffect);beforeEffect();return record;
+  }
+
   async ensureSyncedProject(input: CreateMolisWorkProjectInput, beforeEffect: () => void): Promise<ProjectRecord> {
     beforeEffect();
     if (ensureStorageSpace(this.home).kind !== 'personal') throw new Error('SYNC_PERSONAL_SPACE_REQUIRED');
-    if (this.projects.query.listProjectDeletions().some(row => row.project_id === input.project_id)) throw new Error('已删除的项目不会通过同步自动恢复');
+    if (this.projects.recycle.isRecycled(input.project_id ?? '') || this.projects.query.listProjectDeletions().some(row => row.project_id === input.project_id)) throw new Error('已删除的项目不会通过同步自动恢复');
     if (input.project_id === PERSONAL_SPACE_PROJECT_ID) return this.ensurePersonalSpace(input.actor_id, beforeEffect);
     return this.files.createProject(input, true, beforeEffect);
   }

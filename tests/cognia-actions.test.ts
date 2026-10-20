@@ -18,6 +18,18 @@ function fixture(t: { after(fn: () => Promise<void>): void }, completeText: Host
 }
 const file = (path: string, text: string) => ({ path, data: Buffer.from(text).toString("base64") });
 
+test("S-34 PCSYNC-15 Cognia v2 requires the read etag and refuses stale content without adding a version", async t => {
+  const f = fixture(t);
+  assert.equal(actions.read.version, 2); assert.equal(actions.updateMaterial.version, 2);
+  const { material } = await f.bound.invoke(actions.createMaterial, { title: "Original", body: "Original body" });
+  const opened = await f.bound.invoke(actions.read, { id: material.id });
+  await assert.rejects(f.service.invoke(f.caller, actions.updateMaterial, { id: material.id, title: "Missing token", body: "Must not save" }), { code: "actions.input_invalid" });
+  await f.bound.invoke(actions.updateMaterial, { id: material.id, etag: opened.etag, title: "Latest", body: "Changed elsewhere" });
+  await assert.rejects(f.bound.invoke(actions.updateMaterial, { id: material.id, etag: opened.etag, title: "Stale editor", body: "Must not overwrite" }), { code: "cognia.conflict" });
+  const current = await f.bound.invoke(actions.read, { id: material.id });
+  assert.equal(current.material.body, "Changed elsewhere"); assert.equal(current.material.revision, 2); assert.notEqual(current.etag, opened.etag);
+});
+
 test("Cognia Home capabilities are discovered without UI/project; grants and separate Homes constrain actual calls", async t => {
   const f = fixture(t), other = fixture(t);
   const directory = await f.bound.discover();
@@ -94,7 +106,7 @@ test("model wait permits real edits; generated draft uses selected fixed snapsho
   await f.bound.invoke(actions.createMaterial, { title: "Private", body: "UNSELECTED" });
   const pending = f.bound.invoke(actions.synthesize, { material_ids: [material.id] });
   await started.promise;
-  await f.bound.invoke(actions.updateMaterial, { id: material.id, title: "Changed title", body: "Latest evidence" });
+  await f.bound.invoke(actions.updateMaterial, { id: material.id,etag:(await f.bound.invoke(actions.read,{id:material.id})).etag, title: "Changed title", body: "Latest evidence" });
   assert.equal((await f.read()).drafts.length, 0);
   release.resolve("# Finding\nSelected evidence [S1]");
   const { draft } = await pending;
@@ -140,7 +152,7 @@ test("query filters evidence by domain; failure, cancellation and invalid citati
 test("explicit material versions select what the user saw, including deleted current records, and reject ambiguous selections", async t => {
   const f = fixture(t, async prompt => { assert.match(prompt, /Historical evidence/); assert.doesNotMatch(prompt, /Latest evidence/); return "# Historical answer\nSource at the selected revision [S1]"; });
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Source", body: "Historical evidence" });
-  await f.bound.invoke(actions.updateMaterial, { id: material.id, title: "Source", body: "Latest evidence" });
+  await f.bound.invoke(actions.updateMaterial, { id: material.id,etag:(await f.bound.invoke(actions.read,{id:material.id})).etag, title: "Source", body: "Latest evidence" });
   const material_refs = [{ id: material.id, revision: 1 }];
   await f.bound.invoke(actions.deleteMaterial, { id: material.id });
   const { draft } = await f.bound.invoke(actions.synthesize, { material_refs });

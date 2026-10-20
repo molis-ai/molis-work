@@ -7,6 +7,7 @@ const projectErrors = defineErrorCodes("catalog", {
   plugin_not_found: "invalid",
   project_not_found: "not_found",
   project_storage_invalid: "invalid",
+  project_name_conflict: "conflict",
 });
 const workspaceErrors = defineErrorCodes("catalog.context", {
   user_confirmation_required: "invalid",
@@ -231,7 +232,8 @@ export interface ProjectsQueryApi {
 export interface ProjectsCommandApi {
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
   removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
-  renameProject(projectId: string, displayName: string, actorId: string): ProjectRecord;
+  /** expectedDisplayName is the name observed by the editor, not a fresh server read. */
+  renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
   addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
   repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
   setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];

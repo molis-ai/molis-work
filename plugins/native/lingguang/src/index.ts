@@ -30,3 +30,5 @@ export { lingguangStreams, lingguangStreamOpening, lingguangStreamLine } from ".
 export type { LingguangStreamEvent } from "./reply-stream.js";
 export type { LingguangActionPorts } from "./actions.js";
 export type { LingguangConversationState } from "./store.js";
+
+export {openLingguangCopyOwner} from './copy.js';

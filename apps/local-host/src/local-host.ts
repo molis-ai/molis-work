@@ -32,6 +32,8 @@ export type ActionAvailabilityPolicy = ActionAvailabilityCheck & {
 
 export interface LocalHostOptions<Runtime> {
   runtimeFactory: LocalHostRuntimeFactory<Runtime>;
+  /** Synchronous Host lifecycle reservation check; does not grant project access. */
+  assertProjectAvailable?(projectId: string): void;
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   actionAvailability?: ActionAvailabilityPolicy;
@@ -52,8 +54,21 @@ interface RuntimeEntry<Runtime> {
   state: "opening" | "ready" | "closing";
   operationTail: Promise<void>;
   activeUses: number;
+  queuedUses: number;
   idleWaiters: Array<() => void>;
   actionDisposers: Set<() => void>;
+}
+
+async function enqueueRuntimeOperation<T>(entry: RuntimeEntry<unknown>, capability: {capability_id: string; version: number}, run: () => Promise<T>): Promise<T> {
+  entry.queuedUses += 1;
+  const operation = entry.operationTail.then(async () => {
+    const started = Date.now();
+    const watch = setInterval(() => hostLog.warn("actions", "project_queue_held", undefined, { capability: `${capability.capability_id}@${capability.version}`, project_id: entry.reference.project_id, seconds: Math.round((Date.now() - started) / 1000) }), HELD_IN_LINE_WARN_MS);
+    watch.unref?.();
+    try { return await run(); } finally { clearInterval(watch); }
+  });
+  entry.operationTail = operation.then(() => undefined, () => undefined);
+  try { return await operation; } finally { entry.queuedUses -= 1; }
 }
 
 function normalizeReference(reference: LocalHostProjectReference): LocalHostProjectReference {
@@ -506,6 +521,7 @@ export class LocalHost<Runtime> {
   }
 
   private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
+    if (caller.project_id) this.options.assertProjectAvailable?.(caller.project_id);
     const definition = this.capabilities.descriptor(capability, caller.project_id);
     if (!definition?.action || !definition.action_provider || definition.operation === "wait") return;
     const availability = this.capabilities.availability(caller, definition);
@@ -535,12 +551,6 @@ export class LocalHost<Runtime> {
     };
     // Everything else of the project waits while a queued operation runs, so one that holds the line for long is named
     // in the log (only its capability, never its input): a page that stops answering is otherwise a mystery.
-    const heldInLine = async () => {
-      const started = Date.now();
-      const watch = setInterval(() => hostLog.warn("actions", "project_queue_held", undefined, { capability: `${capability.capability_id}@${capability.version}`, project_id: reference.project_id, seconds: Math.round((Date.now() - started) / 1000) }), HELD_IN_LINE_WARN_MS);
-      watch.unref?.();
-      try { return await run(true); } finally { clearInterval(watch); }
-    };
     // A Plugin action may await another declared Host capability. Queueing it behind itself deadlocks, so a call nested in
     // one that holds the line runs on it. A concurrent call holds nothing: what it calls waits its turn like anything else,
     // except a scene run (`step`), which is part of the call that triggered it and takes that call's place.
@@ -553,9 +563,7 @@ export class LocalHost<Runtime> {
     // the registered descriptor, never from the caller's.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
     if (capability.operation === "wait" || registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
-    const operation = entry.operationTail.then(heldInLine);
-    entry.operationTail = operation.then(() => undefined, () => undefined);
-    return await operation;
+    return enqueueRuntimeOperation(entry, capability, () => run(true));
   }
 
   /** Direct composition port for Host code that works inside one project's runtime. */
@@ -612,6 +620,11 @@ export class LocalHost<Runtime> {
     }
   }
 
+  isProjectBusy(storageKey: string): boolean {
+    const entry = this.entries.get(storageKey.trim());
+    return !!entry && (entry.state !== 'ready' || entry.activeUses > 0 || entry.queuedUses > 0);
+  }
+
   async close(): Promise<void> {
     if (this.state === "closed") return;
     this.state = "closing";
@@ -624,6 +637,7 @@ export class LocalHost<Runtime> {
   private ensureEntry(reference: LocalHostProjectReference): RuntimeEntry<Runtime> {
     this.assertRunning();
     const normalized = normalizeReference(reference);
+    this.options.assertProjectAvailable?.(normalized.project_id);
     this.assertCompatibleReference(normalized);
     if (this.closingKeys.has(normalized.storage_key)) {
       throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
@@ -639,6 +653,7 @@ export class LocalHost<Runtime> {
       state: "opening",
       operationTail: Promise.resolve(),
       activeUses: 0,
+      queuedUses: 0,
       idleWaiters: [],
       actionDisposers: new Set(),
     };

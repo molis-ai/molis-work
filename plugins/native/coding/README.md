@@ -10,6 +10,7 @@
   每个都带产出它的那一轮执行，读的人总能回到「这是怎么来的」。
 - **目标输入快照**：`coding.goal-context.v1` 保存用户确认的 Goal 合同与事件事实。它不是新 Goal，不改变原目标状态；本轮通过精确引用消费，报告保留原目标归属。
 - **计划**：规划角色只读，提案可调整步骤、完成条件和阻塞。草稿采用修订冲突检查；用户确认后发布固定 `coding.plan.v1`，通过材料进入原工作区的一轮执行。后续改计划需重新确认，重复执行请求返回已有 Run，状态仍由原 Run 提供，执行结束不代表步骤验收。普通任务不必先规划。SubAgent 分派和 TaskBoard 步骤进度仍未接通。
+  固定计划现行 schema 为 2，只保留计划、任务与原会话/轮次引用，不记录本机目录。目录仍在本机草稿和原规划 Run 中；开始执行前通过当前授权读取本机原规划 Run，核对其完成状态、规划角色和已授权目录。新设备可读取和引用同步的固定版本，但没有原规划执行时须重新规划；不能从云端来源字段取得执行权限。schema 1 不作读取回退，真实 Home 的固定内容维护须另行批准。
 - **声明式落位**：导航、设置、端口全部写在 Manifest 里，宿主代码里不出现 `coding` 这个 id。
 
 ## 它不拥有什么
@@ -66,6 +67,10 @@ Directory candidates and browsing preferences come from the [current-project set
 
 ## 开发要求
 
+Coding 通过原项目内容目录声明“编码会话与草稿”集合，元数据、完整计划、未发送文本与待答内容作为同一项目一致性单元；不读取 Runtime 的私有存储。源端目录、执行 Session、状态、命令/步骤缓存和确认权限不传输。新设备仅得到可编辑的未确认草稿；已有设备保留自己的 Runtime 绑定。活动执行、待核对状态或未结束后台命令期间拒绝替换及删除，稍后重试，不运行云端任务。计划与输入的编辑高水位由 Coding 的同事务触发器维护，删除后保留；恢复只提高目标版本，旧编辑不能覆盖。项目库当前基线 v15，旧版拒绝，不就地补表。真实 Host/Rust/WASM/临时 D1/R2 的大正文往返与 owner 负例已有验证；正常输入路由和浏览器防覆盖已接入并有定向验证，SDK 会话正文沿唯一 Agent Host 的公开导出接口保存为派生只读历史，保持每个原 SDK Session 的独立来源；SDK 仍拥有原执行账本，接收不导入执行授权。新的会话可以保留之前设备的历史段。归档校验、展示和双 Home 往返正在定向验证，不能称真实设备或公网验收完成。
+
+`CodingSessionStore.inputs` 是未发送输入的唯一业务 owner。读取会话返回 `input_revision`；写入文本或待答字段使用 `coding.sessions.update@2`，必须携带原 `expected_input_revision`。旧 v1 不再解析，其他字段仍可独立编辑；动作仍仅 LOCAL，不新增 MCP 工具。窗口缓存保存原基线，后台刷新不能为旧编辑补上新版本。冲突在可见的提示中打开标准对比对话框，明确采用已保存内容或按所见版本保存当前输入；服务器在对比后又变化则再次拒绝。请求未返回时输入的新文本继续保留；已接受 Run 仅清除启动时捕获的同版本、同正文，不清除后来的输入与待答内容。验证：`tests/security-invariants-coding-inputs.test.ts`（真实 SDK、本机 HTTP 模型替身），`tests/coding-inputs.e2e.test.ts`（真实浏览器请求/ACK barrier、刷新和浅深色三宽度）。
+
 - 负责：参照 App：编码会话、每轮执行、委派，以及它们产出的变更集、报告与图。
 - 不负责：模型选择、凭据、批准决定、命令执行本身。
 - 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
@@ -91,3 +96,5 @@ Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏
 `coding.runs.control` 的现行合同是 version 4：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），以及文字、数字、日期、日期时间题的回答 `value`（version 4，T1）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 
 Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@molis-ai/molis-work-contracts/modules/goal-actions` 的五个完整合同；Goals 注册这些合同，Coding 不 import Goals 实现、不再消费四个旧 typed 协议。Manifest 声明 Goals 读写权限，实例资格取 Host 启动名单的真实 definition；每次路由调用传原取消、提交前复查与同步尾检。目录页仍取100项；固定报告的进展确认只读当前事实，创建给模型的目标材料才执行20k长度约束。
+
+保存的跨设备会话历史以 SDK 官方导出包的完整事件记录为派生快照；源端在选中上传后通过同一 Prologue Runtime 读取，真实运行未结算时保留队列。目标端只读，不导入批准、执行身份或检查点。`coding.runs.list@2` 的 `history_before` 对保存历史单独分页，`before` 对本机执行分页；两者不能混用，页面仍使用原 GET 路径，旧动作版本明确拒绝。

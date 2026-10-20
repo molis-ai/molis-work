@@ -20,22 +20,27 @@ test("Alchemist standard MCP shares persisted business state across processes wi
     return client;
   };
   const call = async (client: Client, name: string, args: Record<string, unknown> = {}) => {
-    const result = await client.callTool({ name: `alchemist.${name}__v1`, arguments: args });
+    const version=alchemistManifest.actions!.find(a=>a.capability_id===`alchemist.${name}`)!.version;
+    const result = await client.callTool({ name: `alchemist.${name}__v${version}`, arguments: args });
     assert.equal(result.isError, false, JSON.stringify(result)); return result.structuredContent as any;
   };
   try {
     const writer = await connect("a"), reader = await connect("a", "read"), other = await connect("b");
     const tools = (await writer.listTools()).tools;
     // MCP offers the actions that name it as an audience; choosing which GitHub account the market pulse uses stays with the person (user only).
-    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v1`).sort();
+    const offered = alchemistManifest.actions!.filter(action => action.action.audiences.includes("mcp")).map(action => `${action.capability_id}__v${action.version}`).sort();
     assert.deepEqual(tools.map(tool => tool.name).filter(name => name.startsWith("alchemist.")).sort(), offered);
     assert.deepEqual(alchemistManifest.actions!.filter(action => !action.action.audiences.includes("mcp")).map(action => action.capability_id).sort(), ["alchemist.pulse.github", "alchemist.pulse.github.configure"], "only the account choice is kept from MCP");
     const { direction } = await call(writer, "directions.create", { title: "外部 MCP 方向", description: "通过统一能力创建并跨进程读取方向" });
     assert.equal((await call(reader, "workspace.read")).directions[0].id, direction.id);
     assert.deepEqual((await call(other, "workspace.read")).directions, []);
+    assert.equal(tools.some(t=>t.name==='alchemist.directions.update__v1'||t.name==='alchemist.memory.playbook.revise__v1'),false);
+    assert.equal(tools.some(t=>t.name==='alchemist.directions.update__v2'),true);
+    const {etag}=await call(writer,'directions.editing',{id:direction.id});
     for (const [client, name, args] of [[reader, "directions.create", { description: "只读调用不能创建方向" }], [writer, "directions.create", { description: "身份不得来自调用参数", project_id: "b" }],
-      [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向" }]] as const) {
-      assert.equal((await client.callTool({ name: `alchemist.${name}__v1`, arguments: args })).isError, true);
+      [other, "directions.update", { id: direction.id, description: "不得修改其他项目已有方向",expectedEtag:etag }]] as const) {
+      const version=alchemistManifest.actions!.find(a=>a.capability_id===`alchemist.${name}`)!.version;
+      assert.equal((await client.callTool({ name: `alchemist.${name}__v${version}`, arguments: args })).isError, true);
     }
     const receipt = await call(writer, "explorations.start", { id: direction.id });
     let events: any;

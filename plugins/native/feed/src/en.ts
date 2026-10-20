@@ -1,4 +1,6 @@
 export const FEED_EN: Record<string, string> = {
+  '消息、材料与固定历史':'Messages, materials and fixed history',
+  "来源描述与历史":"Source descriptions and history",
   "管理 AI 连接": "Manage AI connection",
   "返回消息": "Back to messages",
   "AI 会按这段描述判断消息；试跑使用已配置的 Functions 服务。": "AI evaluates messages using this description and your configured Functions service.",

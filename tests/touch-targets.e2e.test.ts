@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { Script } from "node:vm";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { layoutFindings } from "./fixtures/layout-audit.js";
 import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
+import { CLIENT_SCRIPT, assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
+import { agentQuestionHtml } from "@molis-ai/molis-work-app-local-host";
 
 // DESIGN.md → Focus and accessibility: every target is 44px wherever the pointer is coarse (a phone, a phone held sideways, a
 // tablet) or the window is a phone's width, and the desktop window's chrome (the title bar's tab strip and the bottom bar) keeps
@@ -296,6 +299,15 @@ const NEXT_STEPS_HTML = renderInteractionNextSteps([
 ], "下一步", { max: 3, more: count => `还有 ${count} 项` });
 type BodyControl = { cls: string; w: number; h: number; hit?: boolean };
 type PanelBody = { real: Record<string, BodyControl[]>; made: BodyControl[]; kinds: number; overflow: number };
+// Minification may rename el and pool its strings. Enumerate the canonical public program and the real Host renderers;
+// the served program is still fetched and parsed below, and every discovered control is measured in the real browser.
+const PANEL_CLIENT_KINDS = [...CLIENT_SCRIPT.matchAll(/\bel\(\s*(["'])(button|summary|a|input|select|textarea|label)\1\s*,\s*(["'])((?:assistant|mw)-[^"']*)\3/g)]
+  .map(match => [match[2]!, match[4]!] as const);
+const PANEL_HOST_CONTROLS = assistantTextHtml('[link](https://example.test) 「固定资料」\n\n```ts\n' + 'const value = 1;\n'.repeat(20) + '```', [
+  { title: '固定资料', subject: { kind: 'page', id: 'fixed-page' }, relation: 'material', state: 'current',
+    open: { surface: 'pages', id: 'fixed-page' }, recorded_revision: null, current_revision: null, recorded_at: '' },
+], text => text) + agentQuestionHtml({ pending_id: 'touch-question', kind: 'clarify', prompt: '怎么继续？',
+  options: [{ value: 'one', label: '继续整理' }], allows_free_text: true }, text => text);
 const PANEL_BODY = `(async () => {
   const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   document.querySelector(".assistant-target-main")?.click(); await wait(800);
@@ -312,10 +324,16 @@ const PANEL_BODY = `(async () => {
   real["all works"] = sizes(panel.querySelector("[data-assistant-works]"));
   panel.querySelector("[data-assistant-works-toggle]").click(); await wait(200);
   const source = [...document.scripts].find(script => /molis-work-workbench\\.js/.test(script.src));
-  const text = source ? await fetch(source.src).then(response => response.text()) : "";
-  const kinds = new Map();
-  // RING-06: built clients remove JavaScript trivia; every control still gets measured.
-  for (const match of text.matchAll(/\\bel\\(\\s*"(button|summary|a|input|select|textarea|label)"\\s*,\\s*"((?:assistant|mw)-[^"]*)"/g)) kinds.set(match[1] + "." + match[2], [match[1], match[2]]);
+  if (!source) throw new Error('The actual workbench client must be present');
+  const response = await fetch(source.src); if (!response.ok) throw new Error('The workbench client must load');
+  const text = await response.text(); if (!text.trim()) throw new Error('The workbench client must not be empty');
+  const kinds = new Map(${JSON.stringify(PANEL_CLIENT_KINDS)}.map(([tag, classes]) => [tag + '.' + classes, [tag, classes]]));
+  const rendered = document.createElement('template'); rendered.innerHTML = ${JSON.stringify(PANEL_HOST_CONTROLS)};
+  for (const element of rendered.content.querySelectorAll('button, summary, a[href], input, select, textarea, label')) {
+    if (!element.className) continue;
+    const tag = element.tagName.toLowerCase(), classes = element.className;
+    kinds.set(tag + '.' + classes, [tag, classes]);
+  }
   const thread = panel.querySelector(".assistant-thread");
   if (panel.dataset.side === "open" && panel.dataset.layout === "drawer") panel.querySelector("[data-assistant-side-toggle]").click();
   await wait(300);
@@ -353,7 +371,7 @@ const PANEL_BODY = `(async () => {
     const hit = inline ? [hits(b.top + b.height / 2 - 21), hits(b.top + b.height / 2 + 21)].every(Boolean) : undefined;
     return { cls: tag + "." + classes.split(" ").join(".") + (hit === false ? " (hit " + seen.join(" / ") + ")" : ""), w: Math.round(b.width), h: Math.round(b.height), hit };
   });
-  const result = { real, made: out, kinds: kinds.size, overflow: thread.scrollWidth - thread.clientWidth };
+  const result = { real, made: out, kinds: kinds.size, overflow: thread.scrollWidth - thread.clientWidth, script: text };
   holder.remove();
   panel.querySelector("[data-assistant-panel-close]").click(); await wait(200);
   return result;
@@ -585,7 +603,12 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   /** The menus the strip opens (open plugin, layout, a tab, a tab group) and the opened Assistant panel's tab bar. */
   const stripMenus = () => evaluate<Record<string, StripMenu>>(STRIP_MENUS);
   const panelHeader = () => evaluate<PanelHeader>(PANEL_HEADER);
-  const panelBody = () => evaluate<PanelBody>(PANEL_BODY);
+  const panelBody = async () => {
+    const {script,...body} = await evaluate<PanelBody & {script:string}>(PANEL_BODY);
+    // Parse the exact bytes fetched by this browser without bypassing or relaxing its CSP.
+    new Script(script);
+    return body;
+  };
 
   /** The heights of the `mw-menu` items on the specimen board, which shows the menu as the plugin pages use it. */
   const menuRows = async (width: number, height: number) => {

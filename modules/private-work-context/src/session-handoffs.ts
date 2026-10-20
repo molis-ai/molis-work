@@ -11,8 +11,13 @@ import type {
 
 import { optionalAbsolutePath, optionalText, requiredText } from "./session-schema.js";
 import type { HandoffAssociationRepository } from "./handoff-associations.js";
+import {projectSessionHandoff} from './session-handoff-projection.js';
 
 const HANDOFF_SEND_LEASE_MS = 5 * 60 * 1000;
+function assertLocalHandoff(db:Database.Database,id:string):void {
+  const row=db.prepare('SELECT sync_passive FROM session_handoffs WHERE package_id=?').get(id) as {sync_passive:number}|undefined;
+  if(row?.sync_passive===1)throw sessionErrors.handoff_invalid_state('同步交接仅供查看，不能继承发送或恢复授权');
+}
 
 export interface HandoffSessionLookup {
   get(sessionId: string): MolisWorkSessionRecord;
@@ -87,7 +92,7 @@ export class SessionHandoffRepository {
     this.recoverInterrupted();
     const row = this.db.prepare(`
       SELECT * FROM session_handoffs
-      WHERE source_session_id = ? AND state IN ('draft', 'sending', 'failed')
+      WHERE source_session_id = ? AND sync_passive=0 AND state IN ('draft', 'sending', 'failed')
       ORDER BY updated_at DESC, package_id DESC
       LIMIT 1
     `).get(requiredText(sourceSessionId, "来源 Session 不能为空")) as Record<string, unknown> | undefined;
@@ -108,6 +113,7 @@ export class SessionHandoffRepository {
   }
 
   private updateDraftRecord(input: UpdateSessionHandoffDraftInput): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,input.package_id);
     const current = this.get(input.package_id);
     if (current.state !== "draft" && current.state !== "failed") {
       throw sessionErrors.handoff_invalid_state("只有草稿或失败的 Handoff 可以修改");
@@ -154,6 +160,7 @@ export class SessionHandoffRepository {
   }
 
   markSending(packageId: string): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,packageId);
     const current = this.get(packageId);
     if (current.state === "sent") return current;
     if (current.state !== "draft" && current.state !== "failed") {
@@ -178,6 +185,7 @@ export class SessionHandoffRepository {
     destination_session_id: string;
     delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
   }): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,input.package_id);
     const current = this.get(input.package_id);
     if (current.state !== "sending") {
       throw sessionErrors.handoff_invalid_state("只有发送中的 Handoff 可以记录目标 Session");
@@ -216,6 +224,7 @@ export class SessionHandoffRepository {
     destination_session_id?: string | null;
     delivery_mode?: MolisWorkSessionHandoffRecord["delivery_mode"];
   }): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,input.package_id);
     const current = this.get(input.package_id);
     if (current.state !== "sending") {
       throw sessionErrors.handoff_invalid_state("只有发送中的 Handoff 可以记录失败");
@@ -247,6 +256,7 @@ export class SessionHandoffRepository {
     destination_session_id: string;
     delivery_mode: NonNullable<MolisWorkSessionHandoffRecord["delivery_mode"]>;
   }): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,input.package_id);
     const current = this.get(input.package_id);
     if (current.state === "sent") return current;
     if (current.state !== "sending") {
@@ -270,6 +280,7 @@ export class SessionHandoffRepository {
   }
 
   cancel(packageId: string): MolisWorkSessionHandoffRecord {
+    assertLocalHandoff(this.db,packageId);
     const current = this.get(packageId);
     if (current.state === "cancelled") return current;
     if (current.state !== "draft" && current.state !== "failed") {
@@ -295,39 +306,11 @@ export class SessionHandoffRepository {
       SET state = 'failed', error_code = 'work.handoff.interrupted',
           error_message = 'Handoff 发送租约已过期；请检查目标 Runtime 后重试。',
           retryable = 1, updated_at = ?
-      WHERE state = 'sending' AND updated_at <= ?
+      WHERE sync_passive=0 AND state = 'sending' AND updated_at <= ?
     `).run(now, staleBefore);
   }
 
   private map(row: Record<string, unknown>): MolisWorkSessionHandoffRecord {
-    let content: string | null = null;
-    try {
-      content = this.contentStore.read(String(row.content_ref));
-    } catch {
-      content = null;
-    }
-    return {
-      package_id: String(row.package_id),
-      source_session_id: String(row.source_session_id),
-      ...this.associations.read(String(row.package_id)),
-      target_runtime_id: String(row.target_runtime_id),
-      target_workspace_path: row.target_workspace_path == null ? null : String(row.target_workspace_path),
-      destination_session_id: row.destination_session_id == null ? null : String(row.destination_session_id),
-      state: String(row.state) as MolisWorkSessionHandoffRecord["state"],
-      delivery_mode: row.delivery_mode == null
-        ? null
-        : String(row.delivery_mode) as MolisWorkSessionHandoffRecord["delivery_mode"],
-      content,
-      content_available: content !== null,
-      content_digest: String(row.content_digest),
-      attempt_count: Number(row.attempt_count),
-      error_code: row.error_code == null ? null : String(row.error_code),
-      error_message: row.error_message == null ? null : String(row.error_message),
-      retryable: Number(row.retryable) === 1,
-      created_by: String(row.created_by),
-      created_at: String(row.created_at),
-      updated_at: String(row.updated_at),
-      sent_at: row.sent_at == null ? null : String(row.sent_at),
-    };
+    return projectSessionHandoff(row,this.contentStore,this.associations);
   }
 }

@@ -6,11 +6,32 @@ import { mapReplicaSequences } from './replica-sequences.js';
 const eventColumns = ['event_id', 'project_id', 'actor_id', 'type', 'object_type', 'object_id', 'reason', 'payload_json', 'at'];
 const receiptColumns = ['project_id', 'actor_id', 'operation', 'idempotency_key', 'request_hash', 'outcome_json', 'created_at'];
 
+/** Pure current-format check before a Host creates a missing project. Target identity checks still run on apply. */
+export function validateProjectReplicaJournal(value: unknown, projectId: string, definitions: readonly ProjectReplicaDefinition[]): { events: ProjectReplicaRow[]; receipts: ProjectReplicaRow[] } {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 2) invalid();
+  const wire = value as Record<string, unknown>;
+  const types = definitions.flatMap(d => d.journalTypes), operations = definitions.flatMap(d => d.receiptOperations);
+  const events = parseList(wire.events, eventColumns, projectId), receipts = parseList(wire.receipts, receiptColumns, projectId);
+  const seen = new Set<string>();
+  for (const row of events) {
+    if (!types.some(pattern => like(String(row.type), pattern))) invalid();
+    const id = String(row.event_id);
+    if (seen.has(id)) invalid(); seen.add(id);
+  }
+  const receiptsSeen = new Set<string>();
+  for (const row of receipts) {
+    if (!operations.includes(String(row.operation))) invalid();
+    const key = JSON.stringify([row.actor_id, row.operation, row.idempotency_key]);
+    if (receiptsSeen.has(key)) invalid(); receiptsSeen.add(key);
+  }
+  return { events, receipts };
+}
+
 /** Storage owns Journal and receipts. The business owners supply exact families and operations. */
 export function createProjectReplicaJournal(db: ReplicaDatabase, projectId: string, definitions: readonly ProjectReplicaDefinition[]) {
   const types = definitions.flatMap(d => d.journalTypes), operations = definitions.flatMap(d => d.receiptOperations);
   const fields = [...new Set(definitions.flatMap(d => d.sequenceFields))];
-  const condition = types.map(() => 'type LIKE ?').join(' OR ');
+  const condition = types.length?types.map(() => 'type LIKE ?').join(' OR '):'0';
   const receiptCondition = `operation IN (${operations.map(() => '?').join(',')})`;
   const source = (): ProjectReplicaRow[] => db.prepare(`SELECT seq,${eventColumns.join(',')} FROM events WHERE project_id=? AND (${condition}) ORDER BY seq`).all(projectId, ...types).map(portableJournalRow);
   const read = () => {
@@ -25,32 +46,24 @@ export function createProjectReplicaJournal(db: ReplicaDatabase, projectId: stri
     return { value: mapReplicaSequences({ events: rows, receipts }, fields, encode), encode };
   };
   const validate = (value: unknown): { events: ProjectReplicaRow[]; receipts: ProjectReplicaRow[] } => {
-    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length !== 2) invalid();
-    const wire = value as Record<string, unknown>;
-    const events = parseList(wire.events, eventColumns, projectId), receipts = parseList(wire.receipts, receiptColumns, projectId);
-    const seen = new Set<string>();
+    const { events, receipts } = validateProjectReplicaJournal(value, projectId, definitions);
     for (const row of events) {
-      if (!types.some(pattern => like(String(row.type), pattern))) invalid();
       const id = String(row.event_id);
-      if (seen.has(id)) invalid(); seen.add(id);
       const existing = db.prepare('SELECT project_id,type FROM events WHERE event_id=?').get(id);
       if (existing && (existing.project_id !== projectId || !types.some(pattern => like(String(existing.type), pattern)))) invalid();
-    }
-    const receiptsSeen = new Set<string>();
-    for (const row of receipts) {
-      if (!operations.includes(String(row.operation))) invalid();
-      const key = JSON.stringify([row.actor_id, row.operation, row.idempotency_key]);
-      if (receiptsSeen.has(key)) invalid(); receiptsSeen.add(key);
     }
     return { events, receipts };
   };
   return {
     read, validate,
     installJournal(mark: (expression: string) => string) {
-      const name = 'project_goal_journal_sync';
+      const kind=definitions[0]?.assetKind;
+      if(!kind||!/^[a-z][a-z0-9_]*$/.test(kind)||definitions.some(d=>d.assetKind!==kind))invalid();
+      if(!types.length)return;
+      const name = kind+'_journal_sync';
       if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(name)) return;
       const filter = types.map(pattern => `NEW.type LIKE '${pattern.replaceAll("'", "''")}'`).join(' OR ');
-      db.exec(`CREATE TRIGGER ${name} AFTER INSERT ON events WHEN NEW.type<>'board.created' AND (${filter}) BEGIN ${mark("json_array(NEW.project_id,'project_goals',NEW.project_id)")} END`);
+      db.exec(`CREATE TRIGGER ${name} AFTER INSERT ON events WHEN NEW.type<>'board.created' AND (${filter}) BEGIN ${mark(`json_array(NEW.project_id,'${kind}',NEW.project_id)`)} END`);
     },
     apply(value: unknown) {
       const { events, receipts } = validate(value);

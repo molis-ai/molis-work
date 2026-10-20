@@ -1,3 +1,4 @@
+import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
@@ -382,7 +383,7 @@ export const FORM_DATABASE: PluginDatabaseDeclaration = { store_name: "form", ve
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
 /** A store on its own connection, for the project's deletion and for tests; the running plugin uses the library the Runtime gives it. */
-export function openFormStore(homeDirectory: string): FormStore & { replica(context: AggregateReplicaContext): ReturnType<typeof createAggregateReplica> } {
+export function openFormStore(homeDirectory: string): FormStore & { replica(context: AggregateReplicaContext): ReturnType<typeof createAggregateReplica>;copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy> } {
   const db = openBaselineHomeSqlite(homeDirectory, FORM_HOME_STORE.path, FORM_DATABASE);
   initializeAggregateReplication(db, formAggregates);
   const sql: FormSql = {
@@ -391,6 +392,7 @@ export function openFormStore(homeDirectory: string): FormStore & { replica(cont
     run: (text, parameters = []) => db.prepare(text).run(...parameters),
   };
   return Object.assign(new FormStore(sql, run => immediate(db, run), () => db.close()), {
+    copy:(context:AggregateCopyContext)=>createAggregateCopy(db,formAggregates,context),
     replica: (context: AggregateReplicaContext) => createAggregateReplica(db, formAggregates, context),
   });
 }

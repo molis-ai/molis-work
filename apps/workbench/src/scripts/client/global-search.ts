@@ -27,8 +27,8 @@ export function takeSearchHits(
   return matched.slice(0, limit);
 }
 
-/** Surfaces whose tab opens one object by id (they handle `molis-work:select-item` or a dedicated selector). */
-export const SEARCH_ITEM_TAB_SURFACES = ["goals", "sessions", "inbox", "feed", "pages", "lingguang", "workflows", "coding", "shelf", "artifacts"] as const;
+import { SEARCH_ITEM_TAB_SURFACES } from '../../search-navigation.js';
+export { SEARCH_ITEM_TAB_SURFACES } from '../../search-navigation.js';
 
 export const GLOBAL_SEARCH_FACTORY_SCRIPT = `(host) => {
   const { translate: L, setMobileView, noteSearchActivity, openTabItem, openPlugin, openPluginRecord, expandDirectory, askAssistant, route, headers, projectId } = host;

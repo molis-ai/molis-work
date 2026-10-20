@@ -41,3 +41,7 @@
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/plugin-small-ux.e2e.test.ts`
 - 编辑基准定向回归（需要本机 Chrome）：`node scripts/run-tests.mjs tests/content-editing-regressions.e2e.test.ts`。
 - 相关手册：[skills/molis-prologue-ai/SKILL.md](../../../skills/molis-prologue-ai/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+公开 `openLingguangStore(home).copy(context)` 兑现完整保存图的 owner 复制端口，与 `replica()` 的个人同步准入分开。方向、账号/项目范围和最终授权由可信调用上下文固定；源本地读取不记录同步变化，目标新标识稳定重试，不覆盖已编辑副本。跨 owner 只声明具体依赖，只有已选择图中的内部引用由 owner 重映射；不执行源任务或沿正文猜 ID。整项目多选编排尚未完成。
+
+同一集合目录也提供 `openLingguangCopyOwner`：源读取使用现有库的只读连接，缺文件返回未发现且不创建；错版、错误空间和链接拒绝。目标只向当前个人空间导入；关闭接口后旧句柄拒绝。项目复制预览不得用会初始化库的普通写连接代替它。

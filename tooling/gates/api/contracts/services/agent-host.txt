@@ -1027,6 +1027,21 @@ export interface AgentRuntimeHealth {
 
 export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
 
+export interface AgentSavedHistoryMessage {
+    role: 'user' | 'assistant' | 'system' | 'tool' | 'event';
+    text: string;
+}
+
+export interface AgentSavedHistoryRun {
+    run_id: string;
+    outcome: string;
+    messages: AgentSavedHistoryMessage[];
+}
+
+export interface AgentSavedHistoryView {
+    runs: AgentSavedHistoryRun[];
+}
+
 export interface AgentScheduleCapability {
     claim(): {
         survives_window_close: boolean;

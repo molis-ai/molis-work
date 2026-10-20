@@ -80,8 +80,11 @@ for (const width of [1440, 1024, 390]) {
     const fixture = await openSlice(t); if (!fixture) return;
     const { page, origin } = fixture, phone = width === 390;
     await page.viewport(width, 950, phone);
+    // viewport sets reduced motion and replaces media features, so pin both features after it.
+    await page.command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }, { name: "prefers-color-scheme", value: "light" }] });
     await page.command("Page.navigate", { url: origin });
     await page.wait("document.querySelector('[data-w0-editor] .ProseMirror') && document.querySelectorAll('[data-w0-material]').length === 3");
+    assert.equal(await page.evaluate("document.documentElement.dataset.resolvedTheme"), "light");
     const readDoc = async () => (await fetch(`${origin}/api/docs/doc-q4-plan`)).json();
 
     // T01 / T06: a left selection gets one bar beside it, keyboard in with ⌘., out with Esc.

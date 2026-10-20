@@ -2359,6 +2359,7 @@ export interface PlacementResult {
 
 export interface PluginAppContribution {
     kind: "app";
+    sync?: readonly import('./plugin-sync.js').PluginSyncBinding[];
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
@@ -3102,9 +3103,16 @@ export interface PluginStartContext {
     grants: readonly string[];
     project_id?: string;
     readonly actor_id?: string;
+    readonly sync?: import('./plugin-sync.js').PluginSyncContext;
     input_group?: string;
     readonly services?: PluginHostServices;
     requireGrant(permission: string): void;
+}
+
+export interface PluginSyncBinding {
+    readonly collection_id: string;
+    readonly replica: import('./sync-transport.js').SyncReplicaAdapter;
+    readonly content?: import('./sync-transport.js').SyncContentCodec;
 }
 
 export interface PluginSyncCollection {
@@ -3112,6 +3120,11 @@ export interface PluginSyncCollection {
     readonly title: string;
     readonly schema_version: number;
     readonly requires: readonly string[];
+}
+
+export interface PluginSyncContext {
+    readonly spaceId: string;
+    assertActive(): void;
 }
 
 export interface PluginSyncDeclaration {
@@ -3803,7 +3816,7 @@ export interface SyncActionClient {
     invokeSync(context: ActionCallContext, reference: ActionReference, input: unknown): unknown;
 }
 
-export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit";
+export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";
 
 export declare const WORKFLOW_CONTENT_SCHEMAS: {
     readonly list: {

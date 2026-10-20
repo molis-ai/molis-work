@@ -56,7 +56,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     // A coded refusal answers by its kind (D26): another person's material is forbidden (403, was 400); the rest stay 400.
     for (const [id, status] of [["large", 400], ["other-user", 403], ["other-project", 400], ["missing", 400]] as const) { const result = await start([{ artifact_id: id, version: 1 }]); assert.equal(result.status, status, id + JSON.stringify(result.body)); }
     assert.equal(created, 0); assert.equal(starts.length, 0);
-    assert.equal((await request("", "PATCH", { materials: refs, draft: "保留草稿" })).status, 200);
+    assert.equal((await request("", "PATCH", { materials: refs, draft: "保留草稿",expected_input_revision:0 })).status, 200);
     const choices = await request("/materials"); assert.equal(choices.status, 200, JSON.stringify(choices));
     assert.equal(choices.body.materials.length, 1); assert.equal(choices.body.materials[0].reference.version, 1);
     assert.equal(choices.body.materials[0].text, "旧版🌲\r\nconst quantity = -1;\n");
@@ -71,7 +71,7 @@ test("Coding formal material routes preserve exact versions, resolve trusted bod
     artifacts().commands.archiveVersion({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", ...refs[0] });
     assert.equal((await start(refs)).status, 400); assert.equal(starts.length, 1);
     assert.ok((await request("/materials")).body.materials[0].error);
-    assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续" })).status, 200);
+    assert.equal((await request("", "PATCH", { materials: [], draft: "不用材料也能继续",expected_input_revision:1 })).status, 200);
     assert.equal((await start([])).status, 200); assert.deepEqual(starts[1].text_materials, []);
     assert.deepEqual(starts.map(request => request.queued), ["carry", "carry"], "RC-09: every round takes the supplements waiting in its session (§4.8)");
     assert.equal((await request("", "PATCH", { materials: [...refs, ...refs] })).status, 400);

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import {
   MolisWorkSessionRegistry,
+  SESSION_REGISTRY_OWNER,
   RuntimeContextBindingRepository,
   createRuntimeContextBindingTables,
   createRuntimeContextSetupRequestTable,
@@ -120,4 +121,38 @@ test("Runtime context binding facts are stored by the Private Work Context repos
     db.close();
   }
 });
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { openWorkSessionRegistry,createSessionReplicationSupport } from "@molis-ai/molis-work-app-local-host";
+
+test('PCSYNC-23 Session owner opening rolls back schema and association setup together without writing private content', async t => {
+  const home=await mkdtemp(path.join(os.tmpdir(),'session-open-refusal-'));t.after(()=>rm(home,{recursive:true,force:true}));
+  await assert.rejects(MolisWorkSessionRegistry.open({homeDirectory:home,replication:createSessionReplicationSupport(),createLedger(db){
+    createContextLedger(db,{authorize:()=>true});throw new Error('ASSOCIATION_SETUP_REFUSED');
+  }}),/ASSOCIATION_SETUP_REFUSED/);
+  const db=new Database(path.join(home,'sessions','sessions.db'));
+  try{assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").all(),[]);}
+  finally{db.close();}
+  const registry=await openWorkSessionRegistry({homeDirectory:home});try{assert.deepEqual(registry.list(),[]);}finally{registry.close();}
+});
+
+test('PCSYNC-12 Session owner refuses a foreign version before WAL, private keys or association writes', async t => {
+  const home=await mkdtemp(path.join(os.tmpdir(),'session-readonly-refusal-'));t.after(()=>rm(home,{recursive:true,force:true}));
+  const directory=path.join(home,'sessions');await mkdir(directory);
+  const file=path.join(directory,'sessions.db'),db=new Database(file);
+  db.exec('CREATE TABLE session_meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)');
+  db.prepare('INSERT INTO session_meta VALUES (?,?)').run('owner',SESSION_REGISTRY_OWNER);
+  db.prepare('INSERT INTO session_meta VALUES (?,?)').run('schema_version','6');db.close();
+  const before=await readFile(file);
+  await assert.rejects(MolisWorkSessionRegistry.open({homeDirectory:home,replication:createSessionReplicationSupport(),createLedger(){assert.fail('a refused version cannot initialize associations')}}), {code:'work.session.registry_reader_too_old'});
+  assert.deepEqual(await readFile(file),before);
+  assert.deepEqual(await readdir(directory),['sessions.db'],'refusal must not create WAL, SHM or private content files');
+});
+
+test('PCSYNC-12 Session owner does not adopt a nonempty unowned database', async t => {
+  const home=await mkdtemp(path.join(os.tmpdir(),'session-unowned-refusal-'));t.after(()=>rm(home,{recursive:true,force:true}));
+  const directory=path.join(home,'sessions');await mkdir(directory);
+  const file=path.join(directory,'sessions.db'),db=new Database(file);
+  db.exec('CREATE TABLE someone_elses_data(value TEXT); INSERT INTO someone_elses_data VALUES (\'original\')');db.close();
+  const before=await readFile(file);
+  await assert.rejects(openWorkSessionRegistry({homeDirectory:home}),{code:'work.session.registry_unknown'});
+  assert.deepEqual(await readFile(file),before);assert.deepEqual(await readdir(directory),['sessions.db']);
+});

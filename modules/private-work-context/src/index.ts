@@ -45,3 +45,7 @@ export { createRuntimeProjectBindingValidation, type RuntimeProjectBindingValida
 export { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "./project-binding-commands.js";
 
 export { createRuntimeProjectSetup, type RuntimeProjectSetupPorts } from "./project-setup.js";
+export type {SessionReplicationSupport,SessionReplicaJournal,SessionReplicaOwner} from './session-replication-journal.js';
+export {sessionSyncReferenceDeclaration} from './session-reference-scope.js';
+export {hasSessionSyncProtectedData} from './session-database.js';
+export {withWorkSessionReplica,type WorkSessionReplicationOptions} from './session-sync.js';

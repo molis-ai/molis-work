@@ -6,9 +6,10 @@ import { type Capabilities, type CodingActivation, selected, sessionState, prior
 import { codingActionControl } from "./route-entry.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
-import { nextConfiguration, runControl, text } from "./run-inputs.js";
+import { codingBudgetSelection, nextConfiguration, runControl, text } from "./run-inputs.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
 import { startRound } from "./start-round.js";
+import {codingInputPatch} from './inputs.js';
 import type { CodingSessionRecord } from "./store.js";
 import type { CodingWaitView } from "./waits.js";
 import { projectsCapabilities, projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -190,40 +191,31 @@ const ROUTES: RouteMaker[] = [
         return { session: execution.sessions.archive(projectId, record.session_id, new Date().toISOString()) };
       }
       if (record.archived) throw new Error("会话已归档，不能再修改");
+      const inputPatch=codingInputPatch(execution.sessions.inputs.read(projectId,record.session_id),body);
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
       if (materials && busy.has(record.session_id)) throw new Error("正在提交任务或收下交付，请稍后修改材料");
       const configuration = body.configuration === undefined ? undefined : nextConfiguration(body.configuration);
       const character = body.character === undefined ? undefined : characterSelection(body.character);
       const characterSkills = body.character_skill_ids === undefined ? undefined : characterSkillSelection(body.character_skill_ids);
       const actionTools = body.action_tools === undefined ? undefined : parseExactActionReferences(body.action_tools);
+      const sources = body.mcp_sources === undefined ? undefined : mcpSources(body.mcp_sources);
+      const tools = body.mcp_tools === undefined ? undefined : mcpSelection(body.mcp_tools);
+      const methods = body.methods === undefined ? undefined : methodSelection(body.methods);
+      const budget = body.budget === undefined ? undefined : codingBudgetSelection(body.budget);
+      const title = body.title === undefined ? undefined : text(body.title, "会话名称");
+      const savedInputs=inputPatch?execution.sessions.inputs.write(projectId,record.session_id,inputPatch.expected,inputPatch.value):null;
       if (actionTools !== undefined) context.services!.storage!.set(`actions:${record.session_id}`, JSON.stringify(actionTools));
       if (configuration) context.services!.storage!.set(`configuration:${record.session_id}`, JSON.stringify(configuration));
-      if (body.mcp_sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(mcpSources(body.mcp_sources)));
-      if (body.mcp_tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(mcpSelection(body.mcp_tools)));
-      if (body.methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methodSelection(body.methods)));
+      if (sources !== undefined) context.services!.storage!.set(`mcp-sources:${record.session_id}`,JSON.stringify(sources));
+      if (tools !== undefined) context.services!.storage!.set(`mcp:${record.session_id}`, JSON.stringify(tools));
+      if (methods !== undefined) context.services!.storage!.set(`methods:${record.session_id}`, JSON.stringify(methods));
       if (character !== undefined) context.services!.storage!.set(`character:${record.session_id}`, JSON.stringify(character));
       if (characterSkills !== undefined) context.services!.storage!.set(`character-skills:${record.session_id}`, JSON.stringify(characterSkills));
-      if (body.question_drafts !== undefined) {
-        if (!body.question_drafts || typeof body.question_drafts !== "object" || Array.isArray(body.question_drafts)
-          || Object.keys(body.question_drafts).length > 20) throw new Error("待答草稿格式无效");
-        const encoded = JSON.stringify(body.question_drafts);
-        if (encoded.length > 100_000) throw new Error("待答草稿超过长度限制");
-        context.services!.storage!.set(`question-drafts:${record.session_id}`, encoded);
-      }
-      if (body.draft !== undefined) {
-        if (typeof body.draft !== "string" || body.draft.length > 100_000) throw new Error("草稿格式无效或超过长度限制");
-        context.services!.storage!.set(`draft:${record.session_id}`, body.draft);
-      }
       // The person's budget for this session: reaching it is reported, never enforced (the person's choice).
-      if (body.budget !== undefined) {
-        const tokens = (body.budget as { tokens?: unknown } | null)?.tokens;
-        if (body.budget === null || tokens === null) context.services!.storage!.delete(`budget:${record.session_id}`);
-        else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw new Error("预算须为 1000 到 100 亿之间的 token 数");
-        else context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify({ tokens }));
-      }
-      const title = body.title === undefined ? undefined : text(body.title, "会话名称");
+      if (budget === null) context.services!.storage!.delete(`budget:${record.session_id}`);
+      else if (budget !== undefined) context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify(budget));
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
-      return { session: title === undefined ? record : execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString()) };
+      return { session: title === undefined ? record : execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString()),input_revision:savedInputs?.revision??execution.sessions.inputs.read(projectId,record.session_id).revision };
     });
   },
   (a) => {

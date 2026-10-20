@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
-import { actionsInFlight, bindAlchemistActor } from "./actor-actions.js";
+import { bindAlchemistActor } from "./actor-actions.js";
+import {studioRuntimeLifetime} from './runtime-lifetime.js';
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { Hono } from "hono";
@@ -15,8 +16,10 @@ import { SqliteDirectionRepository } from "../db/direction-repository.js";
 import { SqliteExplorationRepository } from "../db/exploration-repository.js";
 import { SqliteIdeaRepository } from "../db/idea-repository.js";
 import { SqliteMemoryRepository } from "../db/memory-repository.js";
-import { applyStudioBaseline } from "../db/schema.js";
-import { openDatabase, type SqliteDatabase } from "../db/open-database.js";
+import type { SqliteDatabase } from "../db/open-database.js";
+import type {StorageSpace} from '@molis-ai/molis-work-storage';
+import {openStudioDatabase} from '../sync/open.js';
+import {initializeStudioReplication} from '../sync/journal.js';
 import { SqlitePulseRepository } from "../db/pulse-repository.js";
 import { SqliteResearchRepository } from "../db/research-repository.js";
 import { SqliteSettingsRepository } from "../db/settings-repository.js";
@@ -50,6 +53,8 @@ import { WorkReuseService } from "../../../work-reuse/service.js";
 import type { WorkReuseHostPort } from "../../../work-reuse/contracts.js";
 
 export interface LocalRuntimeOptions {
+  /** Supplied by the trusted Host; never taken from action or sync JSON. */
+  storage?:{space:StorageSpace;projectId:string};
   workReuse?: WorkReuseHostPort;
   databasePath: string;
   ai: AlchemistAiPort;
@@ -82,8 +87,8 @@ export interface LocalRuntime {
 
 export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   mkdirSync(dirname(options.databasePath), { recursive: true });
-  const database = openDatabase(options.databasePath);
-  applyStudioBaseline(database, options.databasePath);
+  const database = openStudioDatabase(options.databasePath);
+  try{if(options.storage)initializeStudioReplication(database,options.storage.space,options.storage.projectId);}catch(error){database.close();throw error;}
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
   seedLocalIdentity(database, clock.now());
@@ -273,44 +278,17 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     workReuse,
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
-  const actions = createAlchemistOperationExecutor(dependencies);
+  const lifetime=studioRuntimeLifetime({database,databasePath:options.databasePath,jobs,worker,workerIntervalMs:options.workerIntervalMs});
+  const actions = lifetime.track(createAlchemistOperationExecutor(dependencies));
   const app = createApp(dependencies, options.actions ?? actions);
-
-  let interval: NodeJS.Timeout | undefined, draining: Promise<void> | undefined, closing: Promise<void> | undefined, closed = false;
-  const inFlight = actionsInFlight();
-  const runPending = (): Promise<void> => {
-    if (draining) return draining;
-    if (closed) return Promise.resolve();
-    draining = (async () => {
-      // A restart can precede the former lease deadline; recover on each idle tick.
-      jobs.recoverExpired();
-      while (!closed && await worker.runNext()) { /* drain sequentially */ }
-    })().finally(() => { draining = undefined; });
-    return draining;
-  };
 
   return {
     app,
     actions,
-    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed })); },
+    actionsFor(owner) { return lifetime.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed: lifetime.isClosed })); },
     database,
     worker,
-    runPending,
-    idle: () => !closed && !draining && inFlight.none() && !jobs.hasActive(),
-    start() {
-      if (interval || closed) return;
-      void runPending();
-      interval = setInterval(() => void runPending(), options.workerIntervalMs ?? 250);
-      interval.unref();
-    },
-    close() {
-      if (closing) return closing;
-      closed = true;
-      if (interval) clearInterval(interval);
-      worker.stop();
-      closing = (async () => { try { await draining; await worker.whenIdle(); } finally { database.close(); } })();
-      return closing;
-    },
+    runPending:lifetime.runPending,idle:lifetime.idle,start:lifetime.start,close:lifetime.close,
   };
 }
 

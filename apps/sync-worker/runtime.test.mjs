@@ -1,0 +1,82 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
+import { withMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
+import { MolisWorkLocalHost, createPersonalSync, discoverRuntimeSyncCollections } from '@molis-ai/molis-work-app-local-host';
+import { syncNamespace } from '@molis-ai/molis-work-module-sync-replication';
+import { createPersonalNotesSample } from '../../examples/personal-sync-plugin/plugin.ts';
+import { cloudFixture } from './testing.mjs';
+
+test('PCSYNC-01/11/15/25 independent public-SDK owner is discovered by actual Host and transfers bytes via Rust/D1/R2', async t => {
+  const cloud = await cloudFixture(t), root = mkdtempSync(join(tmpdir(), 'molis-runtime-cloud-'));
+  const space = personalStorageSpace('https://auth.example.test', 'work', 'alice'), homes = ['a', 'b', 'c'].map(name => join(root, name));
+  homes.forEach(home => ensureStorageSpace(home, space));
+  const samples = homes.map(() => createPersonalNotesSample()), hosts = homes.map((home, i) => new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { home: [samples[i].definition] } }));
+  const previous = { origin: process.env.MOLIS_WORK_SYNC_ORIGIN, local: process.env.MOLIS_WORK_SYNC_LOCAL };
+  process.env.MOLIS_WORK_SYNC_ORIGIN = 'https://sync.example.test'; delete process.env.MOLIS_WORK_SYNC_LOCAL;
+  t.after(async () => {
+    try { for (const host of hosts) await host.close(); }
+    finally {
+      rmSync(root, { recursive: true, force: true });
+      for (const [key, value] of [['MOLIS_WORK_SYNC_ORIGIN', previous.origin], ['MOLIS_WORK_SYNC_LOCAL', previous.local]]) if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  t.mock.method(globalThis, 'fetch', cloud.transport);
+  const check = () => {}, lease = { userId: 'alice', applicationId: 'work', authOrigin: 'https://auth.example.test', signal: new AbortController().signal, assertCurrent: check, accessToken: async () => 'alice' };
+  const clients = await Promise.all(homes.map((home, i) => createPersonalSync(home, space, lease, withMolisWorkProjectCatalog, check,
+    authorize => discoverRuntimeSyncCollections(home, space.spaceId, hosts[i], withMolisWorkProjectCatalog, authorize))));
+  t.after(() => clients.forEach(client => client.close()));
+  assert.equal(clients[0].status().collections.some(row => row.selection.plugin_id === samples[0].definition.manifest.plugin_id), false, 'construction does not activate or approve an independent collection');
+  await clients[0].run(); await clients[1].run();
+  const selection = clients[0].status().collections.find(row => row.selection.plugin_id === samples[0].definition.manifest.plugin_id).selection;
+  assert.deepEqual(clients[0].policy().selections, []);
+  const bytes = Buffer.alloc(700_001, 173); bytes[0] = 0; bytes[1] = 255;
+  samples[0].edit('portable', { text: '完整笔记'.repeat(30_000), attachment: bytes.toString('base64') });
+  await clients[0].save({ ...clients[0].policy(), selections: [selection] });
+  await clients[0].run(); await clients[1].run();
+  clients.forEach(client => assert.equal(client.status().error, null));
+  assert.deepEqual(samples[1].read(), samples[0].read()); assert.ok((await cloud.bucket.list()).objects.length > 0);
+  const namespace = syncNamespace(selection), key = JSON.stringify([null, 'portable']);
+  const before = (await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;
+  await clients[0].run(); await clients[1].run();
+  assert.equal((await cloud.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n, before, 'restoration and ACK do not echo');
+  samples[0].edit('portable', { text: 'source edit', attachment: null }); samples[1].edit('portable', { text: 'target unique edit', attachment: null });
+  await clients[0].run(); await clients[1].run();
+  const comparison = clients[1].inspectConflict(namespace, key);
+  assert.deepEqual(comparison.local,{sync_runtime:1,spaceId:space.spaceId,projectId:null,value:{text:'target unique edit',attachment:null}});
+  assert.deepEqual(comparison.remote,{sync_runtime:1,spaceId:space.spaceId,projectId:null,value:{text:'source edit',attachment:null}});
+  samples[1].edit('portable', { text: 'newer unique target edit', attachment: bytes.toString('base64') });
+  await assert.rejects(() => clients[1].resolve(namespace, key, 'remote', comparison.revision, comparison.state), /比较内容已变化/);
+  const current = clients[1].inspectConflict(namespace, key); await clients[1].resolve(namespace, key, 'remote', current.revision, current.state);
+  assert.equal(samples[1].read().notes.portable.text, 'source edit');
+  const retained = clients[1].recoveries(namespace)[0]; assert.deepEqual(clients[1].inspectRecovery(namespace, retained.id).local,current.local);
+  const archived=await cloud.db.prepare("SELECT revision,value FROM sync_events WHERE namespace=? AND key=? AND action='archive'").bind(namespace,key).all();assert.equal(archived.results.length,1);
+  const wire=JSON.parse(archived.results[0].value);assert.equal(wire.sync_runtime,1);assert.equal(wire.spaceId,space.spaceId);assert.equal(wire.projectId,null);
+  assert.ok(!archived.results[0].value.includes(bytes.toString('base64')),'R2 projection does not expand raw attachment bytes in D1');
+  const downloaded=await(await cloud.call('/v1/changes?namespace='+encodeURIComponent(namespace)+'&after='+current.revision,'alice')).json();assert.ok(!downloaded.events.some(event=>event.revision===archived.results[0].revision),'cloud backup is not a new normal head');
+  const platform = await hosts[1].homePlugins.ready();
+  platform.supervisor.revoke(selection.plugin_id); await clients[1].run();
+  assert.deepEqual(clients[1].status().unavailable, [selection]);
+  samples[0].edit('portable', null); await clients[0].run(); assert.equal(clients[0].status().error, null); assert.equal(clients[0].status().collections.find(row => syncNamespace(row.selection) === namespace).pending, 0);
+  await platform.supervisor.enable(selection.plugin_id); await clients[1].run();
+  assert.equal(clients[1].status().error, null); assert.deepEqual(clients[1].status().collections.find(row => syncNamespace(row.selection) === namespace).conflicts, []);
+  assert.equal(samples[1].read().notes.portable, undefined, 'explicitly re-enabled installation receives a tombstone without auto-running work');
+  assert.equal((await cloud.call('/v1/changes?namespace=' + encodeURIComponent(namespace) + '&after=0', 'bob')).status, 403);
+  await clients[2].run();assert.equal(clients[2].status().error,null);assert.deepEqual(clients[2].recoveries(namespace),[],'a new device has no local resolution journal');
+  assert.deepEqual(samples[2].read(),{notes:{}});
+  const keys=await clients[2].history.keys(namespace);assert.deepEqual(keys.items.map(row=>row.key),[key]);
+  const versions=await clients[2].history.versions(namespace,key);assert.ok(versions.items.some(row=>row.revision===archived.results[0].revision&&row.retained));
+  const inspected=await clients[2].history.inspect(namespace,key,archived.results[0].revision);assert.deepEqual(inspected.value,current.local);
+  assert.deepEqual(samples[2].read(),{notes:{}},'read-only inspection must not prepare or write owner data');
+  assert.deepEqual(Buffer.from(inspected.value.value.attachment,'base64'),bytes);
+  const restored=await clients[2].history.restore(namespace,key,inspected.revision,inspected.currentRevision,'third-device-history');assert.ok(restored.revision>inspected.currentRevision);
+  assert.deepEqual(samples[2].read().notes.portable,current.local.value);assert.equal(clients[2].status().error,null,'normal dynamic discovery can refresh while a manual recovery runs');
+  await clients[0].run();await clients[1].run();assert.deepEqual(samples[0].read(),samples[2].read());assert.deepEqual(samples[1].read(),samples[2].read());
+  await assert.rejects(()=>clients[2].history.purge(namespace,key,inspected.revision,restored.revision,false),/确认/);
+  await assert.rejects(()=>clients[2].history.restore(namespace,key,inspected.revision,inspected.currentRevision,'stale-third-device'),/版本已变化/);
+  await clients[2].history.purge(namespace,key,inspected.revision,restored.revision,true);
+  await assert.rejects(()=>clients[2].history.inspect(namespace,key,inspected.revision));assert.deepEqual(samples[2].read().notes.portable,current.local.value,'purging a backup never deletes the restored head');
+});

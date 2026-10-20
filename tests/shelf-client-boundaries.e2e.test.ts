@@ -8,6 +8,7 @@ import test, { type TestContext } from "node:test";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
+import { hashBytes } from "@molis-ai/molis-work-module-shelf";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
 import { ShelfPluginRouteTable } from "@molis-ai/molis-work-plugin-shelf";
@@ -205,7 +206,7 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('ORIGINAL_END')");
   const delayed = delayFile(); t.after(() => delayed.release());
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
-  shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END");
+  shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END", hashBytes(shelf.readFile(item.item_id).bytes));
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('CURRENT_END')");
   delayed.release(); await new Promise(resolve => setTimeout(resolve, 100));
@@ -213,9 +214,30 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
   assert.ok(text.includes("CURRENT_END")); assert.ok(!text.includes("ORIGINAL_END"));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');shelfRoot.hidden=true");
   await new Promise(resolve => setTimeout(resolve, 50));
-  shelf.writeCopy(item.item_id, "# Return\nRETURN_END");
+  shelf.writeCopy(item.item_id, "# Return\nRETURN_END", hashBytes(shelf.readFile(item.item_id).bytes));
   await evaluate("shelfRoot.hidden=false");
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('RETURN_END')");
+});
+
+test("PCSYNC-15: Shelf stale browser draft is retained and cannot overwrite the new full bytes", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { shelf, evaluate, waitFor } = browser;
+  const original = "# Same prefix\n" + "a".repeat(25_000) + "OLD_TAIL";
+  const item = shelf.admit({ filename: "concurrent.md", bytes: Buffer.from(original), mime: "text/markdown" });
+  await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
+  await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('OLD_TAIL')");
+  await evaluate("document.querySelector('[data-shelf-edit]').click()");
+  await waitFor("Boolean(document.querySelector('[data-shelf-editor]'))");
+  const changed = original.replace("OLD_TAIL", "NEW_TAIL");
+  shelf.writeCopy(item.item_id, changed, hashBytes(shelf.readFile(item.item_id).bytes));
+  await evaluate("window.shelfDraft=document.querySelector('[data-shelf-editor]');shelfDraft.value='UNSAVED_BROWSER_DRAFT';shelfDraft.dispatchEvent(new Event('input',{bubbles:true}))");
+  await waitFor("!document.querySelector('[data-shelf-edit-status]').hidden");
+  assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), changed);
+  assert.equal(await evaluate("shelfDraft.value"), "UNSAVED_BROWSER_DRAFT");
+  // Finishing/retrying does not silently fetch a new token for the old text.
+  await evaluate("document.querySelector('[data-shelf-edit]').click()");
+  await waitFor("!document.querySelector('[data-shelf-edit-status]').hidden");
+  assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), changed);
 });
 
 test("W2-18-SHELF-LIFETIME-01: admission belongs to one live mount and publishes no detached failure", { timeout: 35_000 }, async t => {

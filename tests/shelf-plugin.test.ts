@@ -198,7 +198,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
       origin_realpath: originPath,
     });
     assert.equal(isEditableShelfItem(item), true);
-    const edited = store.writeCopy(item.item_id, "# edited\n");
+    const edited = store.writeCopy(item.item_id, "# edited\n", hashBytes(store.readFile(item.item_id).bytes));
     assert.equal(edited.preview_text, "# edited\n");
     assert.equal(edited.origin_hash, item.origin_hash);
     assert.equal(readFileSync(originPath, "utf8"), "# keep\n");
@@ -213,7 +213,7 @@ test("writeCopy edits the shelf copy and leaves the original file hash untouched
     const pdf = store.admit({ filename: "locked.pdf", bytes: pdfBytes, mime: "application/pdf" });
     assert.equal(isEditableShelfItem(pdf), false);
     assert.throws(
-      () => store.writeCopy(pdf.item_id, "nope"),
+      () => store.writeCopy(pdf.item_id, "nope", hashBytes(store.readFile(pdf.item_id).bytes)),
       (error: unknown) => isShelfFailure(error) && error.code === "shelf.not_text",
     );
   });
@@ -516,10 +516,13 @@ test("local host /api/shelf admits, extracts, and does not expose origin paths",
   assert.equal(extracted.origin_hash, first.materials[0]?.origin_hash);
   assert.match(extracted.result.preview_text, new RegExp(SAMPLE_PDF_TEXT));
   assert.equal(extracted.snapshot.results[0]?.name, "pdf.md");
+  const beforeEdit = await fetch(`${origin}/api/shelf/items/${encodeURIComponent(extracted.result.item_id)}/file`);
+  const expectedContentHash = beforeEdit.headers.get("etag")?.replaceAll('"', "");
+  assert.equal(expectedContentHash, hashBytes(Buffer.from(await beforeEdit.arrayBuffer())));
   const editedResponse = await fetch(`${origin}/api/shelf/items/${encodeURIComponent(extracted.result.item_id)}/edit`, {
     method: "POST",
     headers: headers(),
-    body: JSON.stringify({ text: `${extracted.result.preview_text}\n编辑过的副本` }),
+    body: JSON.stringify({ text: `${extracted.result.preview_text}\n编辑过的副本`, expected_content_hash: expectedContentHash }),
   });
   assert.equal(editedResponse.status, 200);
   const edited = await editedResponse.json() as { item: { preview_text: string; origin_hash: string } };

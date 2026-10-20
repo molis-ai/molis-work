@@ -1,11 +1,14 @@
-import { applySqliteBaseline, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { applySqliteBaseline, replicaSchemaSql, STORAGE_SPACE_SCHEMA_SQL, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { SqliteDatabase } from "./open-database.js";
 
 /**
  * The studio database as one current schema (repository-anti-corruption §4.1): what the ten former migrations added up
  * to. A new database gets it with the version; one at another version is refused, never upgraded in place.
  */
-export const ALCHEMIST_STUDIO_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const ALCHEMIST_STUDIO_BASELINE: SqliteBaseline = { version: 2, schema: `
+  ${STORAGE_SPACE_SCHEMA_SQL}
+  ${replicaSchemaSql()}
+  CREATE TABLE studio_sync_identity (singleton INTEGER PRIMARY KEY CHECK(singleton=1),project_id TEXT NOT NULL);
   CREATE TABLE workspaces (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,

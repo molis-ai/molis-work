@@ -53,7 +53,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
           error.hidden = true;
           try {
             await molisWorkRequest("/api/settings/projects/" + encodeURIComponent(form.dataset.projectRename) + "/rename", {
-              body: { display_name: String(new FormData(form).get("display_name") || "").trim() }, fallback: L("项目改名失败"),
+              body: { display_name: String(new FormData(form).get("display_name") || "").trim(), expected_display_name: form.dataset.projectObservedName }, fallback: L("项目改名失败"),
             });
             location.reload();
           } catch (caught) {

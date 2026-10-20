@@ -5,7 +5,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const parseCodingPlan=${parseCodingPlan.toString()};
   const parseCodingPlanAnswer=${parseCodingPlanAnswer.toString()};
   const {q,api,current,execute,status}=ports;
-  let plan=null,runs=[],owner='',busy=false,editor=null,renderKey='';
+  let plan=null,runs=[],owner='',busy=false,editor=null,renderKey='',revision=0;
   const region=q('[data-coding-plan]'),dialog=q('[data-coding-plan-dialog]');
   const element=(tag,text,className)=>{const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;};
   const button=(text,action,disabled=false)=>{const node=element('button',text,'mw-btn');node.type='button';node.disabled=disabled;lifetime.listen(node,'click',()=>void action());return node;};
@@ -19,8 +19,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     if(content.change_reason)parent.append(element('p','变更说明：'+content.change_reason));
   };
   const storedKey=id=>'molis-coding-plan-editor:'+location.pathname+':'+id;
-  // Only real edits are kept for later: an editor opened and left as it was must not outlive the revision it showed,
-  // or a newer revision would open under a stale copy presented as the person's own unsaved changes.
+  // Keep real edits, not an untouched form that could mask a newer saved revision.
   const shape=(content)=>JSON.stringify({title:content?.title||'',steps:(content?.steps||[]).map(step=>({title:step.title||'',acceptance:step.acceptance||'',...(step.after?{after:step.after}:{})})),blockers:content?.blockers||'',change_reason:content?.change_reason||''});
   const remember=()=>{if(!editor)return;try{const now=values();if(shape(now)===editor.base)sessionStorage.removeItem(storedKey(editor.id));else sessionStorage.setItem(storedKey(editor.id),JSON.stringify({revision:editor.revision,content:now}));}catch{}};
   // A step's waits are typed as earlier step numbers: empty keeps the default (the step before), 无 means none.
@@ -51,7 +50,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     body.append(button('添加步骤',()=>{if(editor.steps.length<20){add();remember();}else q('[data-coding-plan-error]').textContent='最多 20 步，请合并相关工作。';}));
     const blockers=field('尚未解决的阻塞（没有则留空）',draft.blockers,true),reason=field('变更理由（调整已确认计划时必填）',draft.change_reason,true);
     editor.blockers=blockers.input;editor.reason=reason.input;body.append(blockers.node,reason.node);
-    q('[data-coding-plan-error]').textContent=saved && saved.revision!==plan.revision?'计划已有新修订。下方保留你的未保存修改，请先对照当前已保存版本再合并保存。':'';
+    q('[data-coding-plan-error]').textContent=saved && saved.revision!==plan.revision?'计划更新，修改已保留。':'';
     if(!dialog.open)dialog.showModal();
   };
   const fixed=async(revision)=>{
@@ -76,7 +75,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
     region.append(element('h3','计划'));
     if(plan){
       region.append(element('p','修订 '+plan.revision+' · '+(plan.confirmed?'已确认':'待确认')));describe(region,plan.content);
-      const origin=element('details'),label=element('summary','原任务与工作区');origin.append(label,element('p',plan.source.task),element('p',plan.source.workspace_path));region.append(origin);
+      const origin=element('details'),label=element('summary','原任务');origin.append(label,element('p',plan.source.task));region.append(origin);
       region.append(button('查看并调整计划',edit,busy));
       const execution=plan.confirmed?runs.find(run=>run.frozen.text_materials.some(item=>item.source_artifact_id===plan.confirmed.artifact_id && item.source_version===plan.confirmed.version)):null;
       if(execution){
@@ -85,7 +84,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
         region.append(button('查看计划执行',()=>{const block=[...q('[data-coding-turns]').children].find(node=>node.dataset.run===execution.ref.run_id);if(block){block.scrollIntoView({block:'start'});block.tabIndex=-1;block.focus({preventScroll:true});}}));
       }else if(plan.confirmed)region.append(button('按此计划执行',()=>action(()=>execute(plan.revision)),busy || active));
       else{region.append(button('确认此计划版本',()=>action(async id=>{const data=await api(path()+'/confirm','POST',{expected_revision:plan.revision});if(id===current()){plan=data.plan;status('已确认修订 '+plan.revision+'，可以按此计划执行。');}}),busy || Boolean(plan.content.blockers)));
-        if(plan.content.blockers)region.append(element('p','计划写着尚未解决的阻塞，确认前请先解决，或在「查看并调整计划」里说明并清空。'));}
+        if(plan.content.blockers)region.append(element('p','计划仍有阻塞，请先解决，或在「查看并调整计划」里说明并清空。'));}
       region.append(element('p','确认计划不批准修改或命令；执行结束不等于步骤通过。'));
     }
     for(const [index,run] of runs.entries())for(const material of run.frozen.text_materials){
@@ -95,7 +94,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
       if(plan && revision!==plan.revision)region.append(element('p','第 '+(index+1)+' 轮使用修订 '+revision+'；当前草稿修改不改变这轮执行。'));
     }
     for(const run of planners.filter(run=>run.ref.run_id!==plan?.source.run_id))region.append(button('查看第 '+(runs.indexOf(run)+1)+' 轮计划提案',()=>action(async id=>{
-      const data=await api(path(),'POST',{run_id:run.ref.run_id,expected_revision:plan?.revision ?? 0});if(id===current()){plan=data.plan;edit();}
+      const data=await api(path(),'POST',{run_id:run.ref.run_id,expected_revision:plan?.revision ?? revision});if(id===current()){plan=data.plan;edit();}
     }),busy));
   };
   lifetime.listen(q('[data-coding-plan-form]'),'input',remember);
@@ -112,7 +111,7 @@ export const CODING_PLANS_CLIENT_FACTORY_SCRIPT = `(ports) => {
   return {
     prepareStepRework(reason){if(!plan)throw new Error('当前计划暂不可读');edit();editor.reason.value=[editor.reason.value,reason].filter(Boolean).join('\\n');remember();q('[data-coding-plan-error]').textContent='已把原步骤返工说明带入变更理由。请调整步骤，保存并重新确认后执行；原评价不会被覆盖。';},
     openFixed:fixed,
-    update(id,value,nextRuns){if(owner!==id){remember();dialog.close();editor=null;renderKey='';plan=null;}owner=id;if(!plan || value?.revision>plan.revision || value?.revision===plan.revision && (!plan.confirmed || value.confirmed))plan=value;runs=nextRuns;render();},
+    update(id,value,nextRuns,epoch=0){if(owner!==id){remember();dialog.close();editor=null;renderKey='';plan=null;}owner=id;revision=epoch;if(!plan || !value || value.revision>plan.revision || value.revision===plan.revision && (!plan.confirmed || value.confirmed))plan=value;runs=nextRuns;render();},
     renderTurn(node,run,turn){
       if(run.frozen.role_id!=='planner' || turn.kind!=='assistant' || !(/^\\s*\\{/.test(turn.text) || turn.text.includes('\\n{') || turn.text.includes('\x60\x60\x60')))return false;
       node.replaceChildren();

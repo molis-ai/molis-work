@@ -151,7 +151,7 @@ shelf.files.entries	1	io.molis.work.shelf	query	query	home	read	concurrent	user	
 shelf.items.admit	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	16a8ba4611a1	67ac7d2da11b	-
 shelf.items.admit-folder	1	io.molis.work.shelf	command	operation	home	write	concurrent	user	shelf:write	shelf_item	-	-	eca36aa8b8b0	67ac7d2da11b	-
 shelf.items.delete	1	io.molis.work.shelf	command	operation	home	irreversible	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	e7b581b16414	07a9ad95ba37	-
-shelf.items.edit	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	e740faa7c1e5	67ac7d2da11b	-
+shelf.items.edit	2	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	c57ba7b451af	5adc2c3c5d93	-
 shelf.items.file	1	io.molis.work.shelf	query	query	home	read	concurrent	user	shelf:read	shelf_item	-	-	1bbda887db76	adfc29c8fac7	-
 shelf.items.hide	1	io.molis.work.shelf	command	operation	home	write	concurrent	agent,mcp,user,workflow	shelf:write	shelf_item	-	-	e7b581b16414	711ed75c6bfc	-
 shelf.items.list	1	io.molis.work.shelf	query	query	home	read	concurrent	agent,mcp,user,workflow	shelf:read	shelf_item	-	-	d746974fa9af	d5e0651a7515	-

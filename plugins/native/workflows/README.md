@@ -18,6 +18,8 @@
 
 ## 开发要求
 
+项目变更观察由 owner 解码稳定日志键，覆盖已删除记录、冻结上传与保留冲突，未启用上传也不能冒充无本机修改；`hasProjectChanges` 不读取或导出正文，不跨其他 owner 查询。
+
 - 负责：把已有插件按顺序串起来的项目流程与类型化交接。
 - 不负责：插件的内容存储、模型提供方、Feed/Inbox/Pages 的内部实现。
 - 公开入口：`@molis-ai/molis-work-plugin-workflows`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。

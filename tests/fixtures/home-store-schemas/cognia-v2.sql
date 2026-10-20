@@ -1,0 +1,13 @@
+CREATE TABLE cognia_domains (id TEXT PRIMARY KEY,name TEXT NOT NULL UNIQUE);
+CREATE TABLE cognia_sources (id TEXT PRIMARY KEY,body TEXT NOT NULL);
+CREATE TABLE cognia_materials (id TEXT PRIMARY KEY,source_id TEXT NOT NULL,path TEXT NOT NULL,updated_at TEXT NOT NULL,body TEXT NOT NULL,UNIQUE(source_id,path));
+CREATE TABLE cognia_versions (material_id TEXT NOT NULL,revision INTEGER NOT NULL,body TEXT NOT NULL,data TEXT NOT NULL,PRIMARY KEY(material_id,revision));
+CREATE TABLE cognia_previews (id TEXT PRIMARY KEY,body TEXT NOT NULL,expires_at INTEGER NOT NULL,receipt TEXT);
+CREATE TABLE cognia_drafts (id TEXT PRIMARY KEY,body TEXT NOT NULL,archived INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE replica_state (id INTEGER PRIMARY KEY CHECK(id=1),device TEXT NOT NULL,cursor INTEGER NOT NULL DEFAULT 0,applying INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL);
+CREATE INDEX replica_changes_key ON replica_changes(key);
+CREATE TABLE replica_heads (key TEXT PRIMARY KEY,revision INTEGER NOT NULL);
+CREATE TABLE replica_outbox (key TEXT PRIMARY KEY,through_seq INTEGER NOT NULL,operation TEXT NOT NULL);
+CREATE TABLE replica_conflicts (key TEXT PRIMARY KEY,event TEXT NOT NULL,reason TEXT NOT NULL,waiting INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT,key TEXT NOT NULL,choice TEXT NOT NULL,local_json TEXT NOT NULL,remote_json TEXT NOT NULL);

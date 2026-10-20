@@ -27,3 +27,5 @@
   - 仅空的版本 0 库初始化为当前版本 1；已有结构的版本 0 库和未来版本拒绝打开，保留原库的结构、数据、版本及文件权限，不盖章升级。
 - 改动后必跑：`node scripts/run-tests.mjs tests/characters-module.test.ts tests/characters-actions.test.ts tests/characters-import.test.ts tests/characters-schema.test.ts`
 - 相关手册：[docs/system/PACKAGE-BOUNDARIES.md](../../docs/system/PACKAGE-BOUNDARIES.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

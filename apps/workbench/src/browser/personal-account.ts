@@ -1,4 +1,5 @@
 /** Browser-only account and space controls. No credentials are stored in this page. */
+import { createSyncConsent } from './sync-consent.js';
 interface AccountIdentity { userId: string; applicationId?: string; displayName?: string; emails?: string[] }
 interface AccountStatus {
   identity: AccountIdentity | null; space?: string; configured: boolean; viewToken?: string;
@@ -56,8 +57,9 @@ const init = () => {
   let loginWindow: Window | null = null;
   let identity: AccountIdentity | null = null;
   let trigger: HTMLElement | null = null;
-  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0, lastCheck = 0;
+  let space = 'local', configured = true, loaded = false, busy = false, checking = false, attempt = '', expires = 0;
   const { menu, toast } = createAccountMenu();
+  const syncConsent=createSyncConsent();
   const L = globalThis.L || (text => text);
   const spaceChoices = document.createElement('div');
   for (const [action, label] of [['local', '本地空间'], ['space', '个人空间']]) {
@@ -150,7 +152,6 @@ const init = () => {
     if ((document.hidden && !attempt) || checking) return;
     if (attempt && Date.now() > expires) { attempt = ''; feedback('登录等待已结束，可重新登录。', true); }
     checking = true;
-    lastCheck = Date.now();
     try {
       const statusQuery = new URLSearchParams();
       if (desktop) statusQuery.set('desktop','1');
@@ -165,6 +166,7 @@ const init = () => {
       const pageToken = document.querySelector<HTMLMetaElement>('meta[name="molis-work-control-token"]')?.content;
       const changed = (state.viewToken && pageToken && state.viewToken !== pageToken) || (loaded && space !== (state.space || 'local'));
       identity = state.identity; space = state.space || 'local'; configured = state.configured; loaded = true; paint();
+      if(!changed)void syncConsent.update(space);
       if (changed) {
         if (attempt && state.loginCompleted) { try { sessionStorage.setItem('molis-work-account-toast', '登录成功'); } catch { /* Storage may be unavailable; a toast is presentation only. */ } }
         loginWindow?.close(); location.assign(desktop ? '/?desktop=1' : '/'); return;
@@ -181,7 +183,8 @@ const init = () => {
     finally { checking = false; }
   };
   void update();
-  const tick = () => { if (attempt || Date.now() - lastCheck > 60000) void update(); };
+  // Initial load, menu opening and focus refresh account state; only an in-progress login needs a polling loop.
+  const tick = () => { if (attempt) void update(); };
   let timer = setInterval(tick, 3000);
   addEventListener('focus', update);
   addEventListener('pagehide', () => clearInterval(timer));

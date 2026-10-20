@@ -19,7 +19,7 @@ import {LocalProjectDatabase,GoalProjectApplication,createPersonalGoalRegistrati
 test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and isolation',{timeout:120000},async()=>{
   const {Miniflare,Response:RuntimeResponse,convertV4MiniflareOptions}=await import(process.env.MOLIS_SYNC_MINIFLARE_MODULE||'miniflare');
   const root=mkdtempSync(join(tmpdir(),'molis-rust-sync-'));
-  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,d1Databases:{DB:'rust-isolated-test'},bindings:{AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
+  const mf=new Miniflare(convertV4MiniflareOptions({modulesRoot:fileURLToPath(new URL('./dist/',import.meta.url)),modules:[{type:'ESModule',path:fileURLToPath(new URL('./dist/index.js',import.meta.url))},{type:'CompiledWasm',path:fileURLToPath(new URL('./dist/index_bg.wasm',import.meta.url))}],compatibilityDate:'2026-09-19',d1Persist:false,r2Persist:false,r2Buckets:{BLOBS:"isolated-blobs"},d1Databases:{DB:'rust-isolated-test'},bindings:{DEPLOYMENT_MODE:'local',AUTH_ORIGIN:'http://127.0.0.1:8787',APPLICATION_ID:'work'},outboundService:async request=>{
     assert.equal(new URL(request.url).origin,'http://127.0.0.1:8787');
     const token=request.headers.get('Authorization')?.replace('Bearer ','');
     if(!['alice','bob','wrong-app'].includes(token))return RuntimeResponse.json({error:'UNAUTHORIZED'},{status:401});
@@ -29,7 +29,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
   try{
     const db=await mf.getD1Database('DB');
     const sql=readFileSync(new URL('./migrations/0001_sync.sql',import.meta.url),'utf8');
-    for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;/g))await db.prepare(statement).run();
+    for(const [statement] of sql.matchAll(/CREATE TRIGGER[\s\S]*?\nEND;|CREATE (?:TABLE|INDEX)[\s\S]*?;|INSERT INTO sync_schema[\s\S]*?;/g))await db.prepare(statement).run();
     const call=(path,token,body,method=body===undefined?'GET':'POST')=>mf.dispatchFetch('http://local'+path,{method,headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},...(body===undefined?{}:{body:JSON.stringify(body)})});
     assert.equal((await call('/v1/policy','invalid')).status,401);
     assert.equal((await call('/v1/policy','wrong-app')).status,403);
@@ -55,7 +55,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
     assert.equal((await call('/v1/policy','bob',forged,'PUT')).status,403);
     assert.equal((await call('/v1/changes?namespace='+encodeURIComponent(namespace)+'&after=0','bob')).status,403);
     const mutation={operationId:'stale',key:JSON.stringify(['project','document',page.id]),base:0,value:null};
-    assert.equal((await call('/v1/changes','alice',{namespace,policyRevision:1,mutation})).status,409);
+    assert.equal((await call('/v1/changes','alice',{namespace,policyRevision:1,mutation,attachments:[]})).status,409);
     withStore(0,s=>s.delete(page.id));await clients[0].run();await clients[1].run();
     assert.equal(withStore(1,s=>s.list('project').length),0);
     // Actual artifact owner -> WASM/D1 opaque transport -> another owner, not a JSON-only mock.
@@ -75,7 +75,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
       for(const version of [1,2])replicas[0].owner.commands.registerVersion({project_id:replicas[0].board,artifact_id:'artifact-rust',version,actor_id:'alice',artifact_type_id:'io.example.result',schema_version:1,origin:{kind:'imported',file_name:'result.json'},title:'完整成果',media_type:'application/json',producer:{plugin_id:'io.example.writer',plugin_version:'1.0.0',binding_signature:'synthetic-writer'},content:{kind:'inline',payload:{title:'完整成果',version,text:'Body preserved through D1'}}});
       const snapshot=replicas[0].replica.read('artifact-rust');
       const value={project:{id:'project-artifact',title:'Synthetic'},artifact:snapshot};
-      const upload=await call('/v1/changes','alice',{namespace:artifactNamespace,policyRevision:2,mutation:{operationId:'artifact-op-1',key:JSON.stringify(['project-artifact','artifact','artifact-rust']),base:0,value}});assert.equal(upload.status,200);
+      const upload=await call('/v1/changes','alice',{namespace:artifactNamespace,policyRevision:2,mutation:{operationId:'artifact-op-1',key:JSON.stringify(['project-artifact','artifact','artifact-rust']),base:0,value},attachments:[]});assert.equal(upload.status,200);
       const response=await call('/v1/changes?namespace='+encodeURIComponent(artifactNamespace)+'&after=0','alice');assert.equal(response.status,200);
       const downloaded=await response.json();assert.equal(downloaded.events.length,1);replicas[1].replica.apply(downloaded.events[0].value.artifact);
       assert.deepEqual(replicas[1].replica.read('artifact-rust'),snapshot);
@@ -90,7 +90,7 @@ test('real Rust WASM + isolated D1: two-device sync, authentication, CAS and iso
         const context={spaceId:space.spaceId,authorize:check,canUploadProject:()=>true,project:()=>({title:'Synthetic'}),hasArtifact:()=>true};
         const record=a.create({project_id:'creative-project',title:manifest.name+' through Rust/D1'}),ra=a.replica(context),rb=b.replica(context),mutation=ra.next();assert.ok(mutation);
         const s=selections[index],ns=JSON.stringify([s.plugin_id,s.publisher_id,s.publisher_signature,s.collection_id,1]);
-        assert.equal((await call('/v1/changes','alice',{namespace:ns,policyRevision:3,mutation})).status,200);
+        assert.equal((await call('/v1/changes','alice',{namespace:ns,policyRevision:3,mutation,attachments:[]})).status,200);
         const response=await call('/v1/changes?namespace='+encodeURIComponent(ns)+'&after=0','alice');assert.equal(response.status,200);
         for(const e of (await response.json()).events){ra.receive(e);rb.receive(e);}
         assert.equal(b.get(record.id).title,record.title);assert.equal(ra.next(),null);assert.equal(rb.next(),null);

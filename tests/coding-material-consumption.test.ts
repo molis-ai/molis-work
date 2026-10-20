@@ -12,9 +12,9 @@ test("Coding actually consumes Shelf's fixed original bytes after an edit, and r
   const admitted = await call<{ item: { item_id: string } }>(project.project_id, "/api/shelf/items", { filename: "notes.md", bytes_base64: Buffer.from(original).toString("base64") });
   assert.equal(admitted.status, 200, JSON.stringify(admitted.body)); const item = admitted.body.item.item_id;
   const path = `/api/shelf/items/${item}/project-material`;
-  const preview = await call<{ fingerprint: string }>(project.project_id, path);
+  const preview = await call<{ fingerprint: string; payload: { content_hash: string } }>(project.project_id, path);
   const pinned = await call<{ reference: ArtifactReference }>(project.project_id, path, { expected_fingerprint: preview.body.fingerprint }); assert.equal(pinned.status, 200);
-  assert.equal((await call(project.project_id, `/api/shelf/items/${item}/edit`, { text: "后来改写：不能替代原件" })).status, 200);
+  assert.equal((await call(project.project_id, `/api/shelf/items/${item}/edit`, { text: "后来改写：不能替代原件", expected_content_hash: preview.body.payload.content_hash })).status, 200);
   const session = await call<{ session: { session_id: string } }>(project.project_id, prefix + "/sessions", {}); assert.equal(session.status, 200);
   const start = { task: "说明这份固定材料。", intent: "discuss", workspace_id: workspaceId, provider_id: "fixture", model_id: "fixture-model", materials: [pinned.body.reference] };
   const started = await call<{ run: { ref: AgentRunRef } }>(project.project_id, prefix + `/sessions/${session.body.session.session_id}/runs`, start);

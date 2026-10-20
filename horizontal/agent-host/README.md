@@ -125,3 +125,5 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 等外面的结果（P3c）：`board-wait` 的 `external` 条件由 `prologue-checkers.ts` 里的两个检查器去看，不经模型。`molis.action-query@1` 只查这一轮此刻能调用的只读查询（`operation` 与 `kind` 都是 `query`、effect 是 `read`）；模型给的是动作工具名，`remember()` 时用 `prologue-action-tools.ts` 的 `actionToolRefs` 按这一轮的冻结动作建好名字到引用的表，检查器不自己算名字；`molis.file-present@1` 只看这一轮授权目录里的相对路径。登记时一个 `tool-before` 钩子先拒掉写类、判断、声明了 `model:invoke` 的查询、导航和这一轮没给的动作；之后每次看都重新复核：轮次还被记得、这一轮自己的 `beforeDispatch` 通过、动作经统一动作服务用这一轮的授权重新发现，目录经宿主的 `checks.directoryAuthorized` 端口确认仍授权。不过就回 `refused`，等待停下（`docs/system/SECURITY-INVARIANTS.md` S-27，`tests/prologue-external-checks.test.ts`、`tests/security-invariants-external-checks.test.ts`）。
 
 信的规则：agents 受众的信只在同一张板相邻的步骤之间走，宿主负责把信交给收件人正在跑的那一轮。同一项目的会话可以互相请求、答复、通知、交接计划步骤；跨项目的会话不在同一张板上，照旧拒绝。几个会话同写一张板靠 SDK 按节点判冲突（P2k）：只有要改的那一步在模型读过之后被人改过，才报冲突。
+
+个人同步的 `savedHistory` 端口只读取当前 Home 唯一 Runtime 的原 Session。导出复核项目、插件、用户、未结算工作及原始轮次归属，使用 SDK 公开 replay/buildExport/readExport，保留错误正文后再按 SDK 规则脱敏和封装。`savedAgentHistoryView` 是无需 Runtime 的只读投影；没有导入、恢复执行或审批的方法。Coding 在自己的 SQL 中保存派生导出，历史不成为另一份可执行账本。

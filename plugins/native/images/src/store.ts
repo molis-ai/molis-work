@@ -1,4 +1,6 @@
-import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import {collectImageFiles} from './file-gc.js';
+import {deleteRetainingImage} from './local-deletion.js';
+import { applySqliteBaseline, clearInExistingHomeSqlite, homeSqlitePath, openHomeSqliteDatabase, replicaSchemaSql, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "@molis-ai/molis-work-contracts/modules/images";
 import { DatabaseSync } from "node:sqlite";
 import { randomUUID } from "node:crypto";
@@ -14,7 +16,7 @@ type Row = Record<string, unknown>;
  * The images store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing ones
  * must already be at its version.
  */
-export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
+export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
   CREATE TABLE connections (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, api_format TEXT NOT NULL,
     base_url TEXT NOT NULL, model TEXT NOT NULL,
@@ -30,7 +32,7 @@ export const IMAGES_STORE_BASELINE: SqliteBaseline = { version: 1, schema: `
     UNIQUE (project_id, request_id)
   );
   CREATE INDEX jobs_project_created ON jobs(project_id, created_at DESC);
-` };
+` + replicaSchemaSql() };
 
 /** A runner's lock file is its id plus `.db`; a process killed with a transaction open also leaves the `-journal` beside it. */
 const RUNNER_FILE = /^([a-f0-9-]{36})\.db(?:-journal)?$/u;
@@ -43,7 +45,7 @@ export class ImagesStore {
   private readonly runnerId = randomUUID();
   private readonly runnerDirectory: string;
 
-  constructor(homeDirectory: string) {
+  constructor(private readonly homeDirectory: string) {
     const directory = join(homeDirectory, IMAGES_HOME_STORE.path);
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     this.runnerDirectory = join(directory, "runners");
@@ -163,10 +165,11 @@ export class ImagesStore {
   deleteJob(projectId: string, id: string): ImageJob {
     const job = this.getJob(projectId, id);
     if (job.status === "running") throw imagesErrors.running("请先停止生成，再删除记录。");
-    const result = this.db.prepare("DELETE FROM jobs WHERE project_id = ? AND id = ? AND status != 'running'").run(projectId, id);
-    if (Number(result.changes) !== 1) throw imagesErrors.running("请先停止生成，再删除记录。");
+    deleteRetainingImage(this.db,this.homeDirectory,job);
     return job;
   }
+
+  collectUnreferencedAssets():number { return collectImageFiles(this.db,this.homeDirectory); }
 
   findRequest(projectId: string, requestId: string, inputHash: string): ImageJob | null {
     this.recoverInterrupted();

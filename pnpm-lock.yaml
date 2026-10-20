@@ -1242,6 +1242,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../../../packages/design-system
+      '@molis-ai/molis-work-plugin-sandbox':
+        specifier: workspace:*
+        version: link:../../../packages/plugin-sandbox
 
   plugins/native/ppt:
     dependencies:

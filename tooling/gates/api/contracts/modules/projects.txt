@@ -140,7 +140,7 @@ export interface ProjectsApplicationApi {
 export interface ProjectsCommandApi {
     addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[];
     removeProjectPlugin(input: RemoveProjectPluginInput): ProjectPluginMembership;
-    renameProject(projectId: string, displayName: string, actorId: string): ProjectRecord;
+    renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord;
     addWorkspaceProject(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     repairWorkspaceProject(input: RepairWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord;
     setWorkspaceDefault(input: ChangeWorkspaceProjectInput): ProjectWorkspaceMembership[];
@@ -188,6 +188,7 @@ export declare const projectCatalogErrors: {
     plugin_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_not_found: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
     project_storage_invalid: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
+    project_name_conflict: (message: string, details?: Readonly<Record<string, unknown>>) => import("platform/action-errors").ActionError;
 };
 
 export declare const projectSettingsCapabilities: {

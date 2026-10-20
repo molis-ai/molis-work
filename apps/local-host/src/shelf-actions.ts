@@ -1,7 +1,8 @@
 import { shelfAiPorts } from "./shelf-ai.js";
 import type { ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS, createShelfActionHandlers, createShelfProjectActionHandlers, shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
-import { openShelfStore, shelfErrors } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, shelfErrors, SHELF_DOCUMENT_PATH } from "@molis-ai/molis-work-module-shelf";
+import { personalDocumentOptions } from './personal-document-options.js';
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { SHELF_TEXT_MATERIAL_TYPE, type ShelfTextMaterial, type ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
 import type { ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -16,7 +17,7 @@ const provider = (projectId?: string) => ({ provider_id: shelfManifest.plugin_id
 /** The personal Shelf belongs to this Home. Each call reads the current store and agent PATH, as the HTTP panel did. */
 export function shelfActionProvider(home: string, materials: ShelfMaterialPorts = { readWebsite: readMaterialWebsite, extract: extractMaterial, imageTextAvailable: materialImageTextAvailable }): ActionProviderRegistration {
   const ai = shelfAiPorts(home, materials);
-  const store = () => openShelfStore(home, shelfRuntimeProbe(), materials, ai);
+  const store = () => openShelfStore(home, shelfRuntimeProbe(), materials, ai,personalDocumentOptions(home,SHELF_DOCUMENT_PATH));
   return { provider: provider(), definitions: SHELF_ACTIONS, handlers: createShelfActionHandlers({
     aiStatus: () => ai.status(store().settings().model_selection),
     snapshot: () => store().snapshot(),
@@ -35,7 +36,7 @@ export function shelfActionProvider(home: string, materials: ShelfMaterialPorts 
     addClipboard: (text, extra) => store().addClipboard(text, extra),
     clipboardToMaterial: (clipId, control) => store().clipboardToMaterial(clipId, control),
     deleteClipboard: clipId => store().deleteClipboard(clipId),
-    writeCopy: (itemId, text) => store().writeCopy(itemId, text),
+    writeCopy: (itemId, text, expectedContentHash) => store().writeCopy(itemId, text, expectedContentHash),
     readFile: itemId => store().readFile(itemId),
   }) };
 }
@@ -43,7 +44,7 @@ export function shelfActionProvider(home: string, materials: ShelfMaterialPorts 
 /** Saving a personal copy into a project goes through that project's Artifact store, owned by the confirming caller. */
 export function shelfProjectActionProvider(runtime: MolisWorkProjectRuntime, home: string): ActionProviderRegistration {
   return { provider: provider(runtime.project_id), definitions: SHELF_PROJECT_ACTIONS, handlers: createShelfProjectActionHandlers(runtime.project_id, {
-    readFile: itemId => openShelfStore(home, shelfRuntimeProbe()).readFile(itemId),
+    readFile: itemId => openShelfStore(home, shelfRuntimeProbe(),{},undefined,personalDocumentOptions(home,SHELF_DOCUMENT_PATH)).readFile(itemId),
     publish: (payload, actorId) => publishShelfMaterial(runtime.coordinator.processItems, runtime.project_id, actorId, payload),
   }) };
 }

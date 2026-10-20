@@ -28,6 +28,8 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 
 ## 本地开发
 
+`attentionContentReplicationDefinition` 声明注意事项和固定事件的项目一致单元，只携带引用、原因、处置和历史；恢复不调用对象解析、判断或执行。引用对象暂不可用时保留定位，不复制正文。恢复既有记录时抬高目标端编辑版本，旧数字修订也不能覆盖已选择的另一内容分支。Inbox 集合通过唯一目录的 owner 描述符接入。
+
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash

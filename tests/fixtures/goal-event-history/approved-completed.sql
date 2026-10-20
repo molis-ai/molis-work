@@ -1,4 +1,4 @@
-PRAGMA user_version = 8;
+PRAGMA user_version = 15;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE boards (
@@ -1309,4 +1309,120 @@ CREATE INDEX coding_sessions_project_updated_idx
     CREATE TABLE IF NOT EXISTS feed_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS feed_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
 
+CREATE TABLE IF NOT EXISTS molis_storage_space (singleton INTEGER PRIMARY KEY CHECK(singleton=1), space_id TEXT NOT NULL, descriptor TEXT NOT NULL);
+
+    CREATE TABLE IF NOT EXISTS sources_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sources_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS sources_replica_changes_key ON sources_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS sources_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS sources_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS sources_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS sources_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS attention_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS attention_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS attention_replica_changes_key ON attention_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS attention_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS attention_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS attention_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS attention_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS messages_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS messages_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS messages_replica_changes_key ON messages_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS messages_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS messages_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS messages_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS messages_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS process_items_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS process_items_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS process_items_replica_changes_key ON process_items_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS process_items_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS process_items_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS process_items_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS process_items_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS coding_sessions (
+      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      session_id TEXT NOT NULL,
+      title TEXT NOT NULL,
+      state TEXT NOT NULL,
+      archived INTEGER NOT NULL DEFAULT 0 CHECK (archived IN (0, 1)),
+      goal_id TEXT,
+      runtime_id TEXT NOT NULL,
+      runtime_session_id TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      -- Who holds the unfinished plan steps, as last read: lets a list across projects show what waits on the person.
+      steps_json TEXT,
+      -- Background commands the session left running, as last read: lets the list across projects show and stop them.
+      background_json TEXT,
+      PRIMARY KEY (project_id, session_id)
+    );
+    CREATE INDEX IF NOT EXISTS coding_sessions_project_updated_idx
+      ON coding_sessions(project_id, updated_at DESC, session_id);
+    CREATE TABLE IF NOT EXISTS coding_plan_drafts (
+      project_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL,
+      draft_json TEXT NOT NULL,
+      PRIMARY KEY (project_id, session_id),
+      FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
+    );
+    CREATE TABLE IF NOT EXISTS coding_plan_versions (
+      project_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      PRIMARY KEY (project_id, session_id)
+    );
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_insert AFTER INSERT ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
+    END;
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_update AFTER UPDATE OF revision ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
+    END;
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_delete BEFORE DELETE ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (OLD.project_id,OLD.session_id,OLD.revision+1)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,OLD.revision)+1;
+    END;
+
+    CREATE TABLE IF NOT EXISTS coding_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS coding_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS coding_replica_changes_key ON coding_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS coding_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS coding_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS coding_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS coding_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+
+ CREATE TABLE IF NOT EXISTS coding_inputs (
+  project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0),
+  draft TEXT NOT NULL, questions_json TEXT NOT NULL,
+  PRIMARY KEY(project_id,session_id),
+  FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE
+ );
+ CREATE TABLE IF NOT EXISTS coding_input_versions (
+  project_id TEXT NOT NULL, session_id TEXT NOT NULL, revision INTEGER NOT NULL CHECK(revision>0), PRIMARY KEY(project_id,session_id)
+ );
+ CREATE TRIGGER IF NOT EXISTS coding_input_version_insert AFTER INSERT ON coding_inputs BEGIN
+  INSERT INTO coding_input_versions VALUES(NEW.project_id,NEW.session_id,NEW.revision)
+  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,NEW.revision);
+ END;
+ CREATE TRIGGER IF NOT EXISTS coding_input_version_update AFTER UPDATE OF revision ON coding_inputs BEGIN
+  INSERT INTO coding_input_versions VALUES(NEW.project_id,NEW.session_id,NEW.revision)
+  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,NEW.revision);
+ END;
+ CREATE TRIGGER IF NOT EXISTS coding_input_version_delete BEFORE DELETE ON coding_inputs BEGIN
+  INSERT INTO coding_input_versions VALUES(OLD.project_id,OLD.session_id,OLD.revision+1)
+  ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,OLD.revision)+1;
+ END;
 COMMIT;
+CREATE TABLE IF NOT EXISTS builder_replica_state (id INTEGER PRIMARY KEY CHECK(id=1), device TEXT NOT NULL, cursor INTEGER NOT NULL DEFAULT 0, applying INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS builder_replica_changes (seq INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS builder_replica_changes_key ON builder_replica_changes(key);
+    CREATE TABLE IF NOT EXISTS builder_replica_heads (key TEXT PRIMARY KEY, revision INTEGER NOT NULL);
+    CREATE TABLE IF NOT EXISTS builder_replica_outbox (key TEXT PRIMARY KEY, through_seq INTEGER NOT NULL, operation TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS builder_replica_conflicts (key TEXT PRIMARY KEY, event TEXT NOT NULL, reason TEXT NOT NULL, waiting INTEGER NOT NULL DEFAULT 0);
+    CREATE TABLE IF NOT EXISTS builder_replica_resolutions (id INTEGER PRIMARY KEY AUTOINCREMENT, key TEXT NOT NULL, choice TEXT NOT NULL, local_json TEXT NOT NULL, remote_json TEXT NOT NULL);
+
+CREATE TABLE coding_saved_history (
+ project_id TEXT NOT NULL,session_id TEXT NOT NULL,source_id TEXT NOT NULL,archive_json TEXT NOT NULL,
+ PRIMARY KEY(project_id,session_id,source_id),FOREIGN KEY(project_id,session_id) REFERENCES coding_sessions(project_id,session_id) ON DELETE CASCADE);

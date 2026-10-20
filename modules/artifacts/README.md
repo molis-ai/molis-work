@@ -27,7 +27,9 @@ ArtifactsModule（成果库）与 ProcessItemsModule（过程项）通过 query/
 
 平台不解释 Plugin 自定义 payload，也不凭旧字符串虚构 Artifact。个人范围是默认路径，Team 共享需要授权；缺少兼容消费者时仍可作为 opaque 数据读取。
 
-本机个人同步试点支持按 Artifact 身份打包固定 inline 版本；同版本正文不可覆盖，归档/不可用变更经过 owner 命令并记录事件。外部内容引用、设备 file/blob 链接及超限包会拒绝，不冒充已经同步的附件。数据库收发游标与队列仍归通用同步层；本 Module 不发网络请求，也不解释其他插件的私有状态。
+个人同步按身份打包全部固定 inline 版本。`createArtifactReplication` 与 `createProcessItemReplication` 复用同一个私有版本引擎，分别读写成果库和过程项的原 owner 表；过程项不因同步进入成果库。`validateArtifactReplication` / `validateProcessItemReplication` 为可信 Host 在创建目标项目之前校验完整内容，校验本身不写库。两集合各自选择、各有日志和游标，不使用生产者名单猜测覆盖。
+
+成果的 `createArtifactSyncContent` 把导入文件原始字节和较大正文投影为私有 R2 引用；过程项经共同 JSON/R2 codec 携带完整正文，最终均交回本 owner 事务恢复。同版本正文、来源身份和历史时间不能覆盖，归档/不可用变更经过 owner 命令并记录事件。外部内容引用和设备 file/blob 链接仍拒绝；完整聚合最多 100000000 字节，网络元信息仍受 512 KiB 限制。恢复不安装或启动生产者，不为固定计划补审批。数据库收发游标与队列仍归通用同步层；本 Module 不发网络请求，也不解释插件私有草稿。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -62,7 +64,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
   - 只有用户在插件里明确共享，或 Team 插件已获授权，才能注册 `team_project` 版本。
   - 事件日志（`events` 表）是 storage 的：事件追加和读游标都经装配时传入的 `appendEvent`、`eventCursor`（宿主传 storage 的日志函数），包内不写 `events` 的 SQL，`pnpm health:check` 的 `table-owners` 门禁守着。
   - 写入一个成果或过程项版本后，本进程里看同一个库文件的观察者会被告知（`committed.ts` 的 `onVersionStoreWrite`，W4-09）；写在别人开的事务里时，等那个事务结束（提交或回滚）再告知，观察者自己读日志判断有没有新东西。别的进程写的不告知，由观察者的低频兜底读到。
-- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts tests/plugin-platform-composition.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/artifacts-module.test.ts tests/artifacts-actions.test.ts tests/plugin-artifact-client.test.ts tests/personal-artifact-owner.test.ts tests/plugin-platform-composition.test.ts tests/security-invariants-process-items-sync.test.ts`
 - 相关手册：[docs/modules/artifacts.md](../../docs/modules/artifacts.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

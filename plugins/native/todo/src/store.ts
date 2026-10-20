@@ -480,7 +480,7 @@ function assertLocalUndo(db: DatabaseSync, changes: readonly TodoChange[]): void
  * The Todo store's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
  * created from it, existing ones must already be at its version.
  */
-export const TODO_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
+export const TODO_STORE_BASELINE: SqliteBaseline = { version: 3, schema: (`
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,
@@ -505,6 +505,11 @@ export const TODO_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
     reminder_acknowledged_at TEXT
   );
   CREATE INDEX todo_items_project ON todo_items (project_id);
+  CREATE TABLE todo_deleted_projects (id TEXT PRIMARY KEY, project_id TEXT);
+  CREATE TRIGGER todo_deleted_project AFTER DELETE ON todo_items BEGIN
+    INSERT INTO todo_deleted_projects(id,project_id) VALUES(OLD.id,OLD.project_id)
+      ON CONFLICT(id) DO UPDATE SET project_id=excluded.project_id;
+  END;
   CREATE TABLE todo_changes (
     change_id TEXT PRIMARY KEY,
     item_id TEXT NOT NULL,

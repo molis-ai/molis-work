@@ -90,7 +90,7 @@ test("Cognia 路由更新和删除资料后，固定版本仍可通过路由读�
   const material = store.createMaterial({ title: "旧标题", body: "旧正文" });
   const call = (method: "GET" | "POST", pathname: string, body: Record<string, unknown> = {}) =>
     table.handle({ method, pathname, query: new URLSearchParams(), body });
-  const updated = await call("POST", `/api/cognia/materials/${material.id}/update`, { title: "新标题", body: "新正文" });
+  const updated = await call("POST", `/api/cognia/materials/${material.id}/update`, { title: "新标题", body: "新正文",etag:store.detail(material.id).etag });
   assert.equal((updated?.body as { material: { revision: number } }).material.revision, 2);
   assert.equal((await call("POST", `/api/cognia/materials/${material.id}/delete`))?.status, 200);
   assert.equal((await call("GET", "/api/cognia"))?.status, 200);

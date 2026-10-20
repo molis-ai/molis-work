@@ -58,7 +58,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.equal((await request()).body.character, null);
     const choices = await request("/characters");assert.equal(choices.status, 200, JSON.stringify(choices.body));
     assert.equal(choices.body.characters.length, 2);assert.ok(choices.body.characters.every((item: any) => item.available));
-    assert.equal((await request("", "PATCH", { character: { ...ref, instructions: "伪造正文" }, draft: "不要丢失任务" })).status, 200);
+    assert.equal((await request("", "PATCH", { character: { ...ref, instructions: "伪造正文" }, draft: "不要丢失任务",expected_input_revision:0 })).status, 200);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.character_title, "原角色");
     await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.draft, "不要丢失任务");
@@ -66,7 +66,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     for (const character of [{ ...ref, version: 99 }, { ...ref, artifact_id: "foreign-project" }]) assert.equal((await start({ character }, "new")).status, 400);
     assert.equal(created, 1);
     personal.service.setState(draft.character_id, 3, "disabled");
-    assert.equal((await request("", "PATCH", { character: ref, draft: "来源停用仍能保存" }, "new")).status, 200);
+    assert.equal((await request("", "PATCH", { character: ref, draft: "来源停用仍能保存",expected_input_revision:0 }, "new")).status, 200);
     assert.equal((await start({}, "new")).status, 400);assert.equal(created, 1);assert.equal(starts.length, 1);
     assert.equal((await request("", "GET", undefined, "new")).body.draft, "来源停用仍能保存");
     assert.ok((await request("/characters")).body.characters.every((item: any) => !item.available && /停用/.test(item.reason)));

@@ -18,6 +18,19 @@ export interface PluginSyncIdentity {
   readonly publisher_signature: string;
 }
 
+/** Delivered by an active installation; identity and authorization come from the Host, not the payload. */
+export interface PluginSyncBinding {
+  readonly collection_id: string;
+  readonly replica: import('./sync-transport.js').SyncReplicaAdapter;
+  readonly content?: import('./sync-transport.js').SyncContentCodec;
+}
+
+/** Only a trusted personal Home activation provides this context. It grants no network access. */
+export interface PluginSyncContext {
+  readonly spaceId: string;
+  assertActive(): void;
+}
+
 /** A replica-local revision is a CAS token, never a globally ordered version. */
 export interface PluginSyncSnapshot extends PluginSyncIdentity {
   readonly protocol_version: 1;
@@ -37,4 +50,4 @@ export interface PluginSyncSnapshotAdapter {
   apply(snapshot: PluginSyncSnapshot, expectedRevision: string): { status: "applied" | "unchanged"; revision: string };
 }
 
-export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit";
+export type SyncFailureReason = "invalid" | "unsupported" | "scope" | "conflict" | "dependencies" | "busy" | "limit" | "unavailable";

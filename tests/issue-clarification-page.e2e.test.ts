@@ -10,7 +10,9 @@ type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 async function capture(b: Browser, description: string) {
   const v = issueView(b);
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.send();
+  await v.press("[data-issue-composer] [name=description]"); await v.type(description);
+  // The business list can be ready before the saved screenshot draft has finished opening.
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   return v;
 }
 

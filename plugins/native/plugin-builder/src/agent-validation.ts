@@ -4,7 +4,7 @@ import { validateExperience } from './agent-experience.js';
 import type { SandboxEffects, SandboxSchema } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 const object = (value: unknown): value is Record<string, unknown> => !!value && typeof value === 'object' && !Array.isArray(value);
 export function parseBuilderJson(text: string): unknown { const clean = text.trim().replace(/^```(?:json)?\s*/u, '').replace(/\s*```$/u, ''); return JSON.parse(clean); }
-export function contractEffects(design: AgentDesign): SandboxEffects {
+export function contractEffects(design: Pick<AgentDesign, 'contract'>): SandboxEffects {
   const effects: SandboxEffects = {};
   for (const operation of design.contract.operations) for (const [key, values] of Object.entries(operation.effects)) {
     const field = key as keyof SandboxEffects; (effects as Record<string, string[]>)[field] = [...new Set([...(effects[field] ?? []), ...values])].sort();

@@ -2,9 +2,9 @@ import { randomUUID } from "node:crypto";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { MolisWorkSessionGoalLink } from "./contract-aliases.js";
 
-const scope = { kind: "personal", id: "private-work-context" } as const;
+import {SESSION_REFERENCE_SCOPE as scope,sessionReference} from './session-reference-scope.js';
 const access = (actor = "module:private-work-context"): ContextAccess => ({ actor_id: actor, scope });
-const source = (sessionId: string): ObjectRef => ({ module: "private-work-context", id: sessionId, version: null, scope });
+const source = (sessionId: string): ObjectRef => sessionReference(sessionId);
 const target = (module: "goals" | "projects", id: string, projectId: string | null, objectType?: string): ObjectRef =>
   ({ module, id, version: null, scope, project_id: projectId, ...(objectType ? { object_type: objectType } : {}) });
 

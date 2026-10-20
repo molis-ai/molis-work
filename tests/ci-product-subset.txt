@@ -273,6 +273,7 @@ tests/project-deletion-memory.test.ts
 tests/project-deletion-owners.test.ts
 tests/project-plugin-registry.test.ts
 tests/project-policy-save.test.ts
+tests/project-recycle.test.ts
 tests/project-settings-accordion.test.ts
 tests/project-settings-stage.test.ts
 
@@ -397,6 +398,23 @@ tests/search-evidence-runtime.test.ts
 tests/search-references.test.ts
 tests/secret-store-format.test.ts
 tests/personal-goals-sync.test.ts
+tests/sync-device.test.ts
+tests/security-invariants-personal-sync.test.ts
+tests/security-invariants-sync-attachments.test.ts
+tests/security-invariants-goal-content.test.ts
+tests/sync-json-content.test.ts
+tests/sync-item-isolation.test.ts
+tests/security-invariants-sync-recovery.test.ts
+tests/security-invariants-images-sync.test.ts
+tests/security-invariants-cognia-sync.test.ts
+tests/security-invariants-alchemist-sync.test.ts
+tests/security-invariants-source-sync.test.ts
+tests/security-invariants-attention-sync.test.ts
+tests/security-invariants-feed-sync.test.ts
+tests/security-invariants-sync-diagnostics.test.ts
+tests/sync-selection-dependencies.test.ts
+tests/workbench-client-compression.test.ts
+tests/builtin-sync-bindings.test.ts
 tests/server-database-baseline.test.ts
 tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts
@@ -433,3 +451,11 @@ tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/security-invariants-sync-document.test.ts
+tests/security-invariants-runtime-sync.test.ts
+tests/security-invariants-runtime-host-sync.test.ts
+tests/security-invariants-file-document.test.ts
+tests/security-invariants-sync-discovery.test.ts
+tests/security-invariants-shelf-sync.test.ts
+
+tests/replica-dependencies.test.ts

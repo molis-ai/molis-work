@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   PERSONAL_PLUGIN_IDS,
+  CLIENT_SCRIPT,
   PROJECT_SCOPED_PLUGIN_IDS,
   pluginMarketCards,
   railEntries,
@@ -200,7 +201,8 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
 test("工作台客户端脚本在挂上三个创作插件后仍能解析", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.ok(script.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
+  // Public source retains names; the served program is compressed and separately parsed above.
+  assert.ok(CLIENT_SCRIPT.includes("const PERSONAL_PLUGIN_IDS = " + JSON.stringify([...PERSONAL_PLUGIN_IDS])));
   assert.doesNotMatch(formSource("save.ts"), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(DATASET_CLIENT_FACTORY_SCRIPT), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(PPT_CLIENT_FACTORY_SCRIPT), /fillEditor/);

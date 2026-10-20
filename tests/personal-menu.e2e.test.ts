@@ -3,6 +3,62 @@ import test from 'node:test';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { mkdirSync, writeFileSync } from 'node:fs';
 
+test('an idle closed account menu does not poll, but focus, opening and a pending login still refresh', { timeout: 90_000 }, async t => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = browser;
+  // Identity presentation only: the separate personal HTTP tests retain the real PKCE/session exchange.
+  await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
+    const original = window.fetch.bind(window), interval = window.setInterval.bind(window), now = Date.now.bind(Date);
+    window.accountPollProbe = { calls: [], ticks: [], offset: 0, complete: false, loginUrl: '', popupClosed: false };
+    const probe = window.accountPollProbe;
+    Date.now = () => now() + probe.offset;
+    window.setInterval = (callback, delay, ...args) => {
+      if (delay === 3000) { probe.ticks.push(() => callback(...args)); return interval(() => {}, delay); }
+      return interval(callback, delay, ...args);
+    };
+    window.open = () => ({ closed: false, opener: null,
+      location: { replace(url) { probe.loginUrl = url; } },
+      close() { this.closed = true; probe.popupClosed = true; } });
+    window.fetch = (input, init) => {
+      const url = new URL(String(input), location.href);
+      if (url.pathname === '/api/personal/status') {
+        probe.calls.push(url.search);
+        return Promise.resolve(Response.json({ configured: true, space: 'local',
+          identity: probe.complete ? { userId: 'test-alice', displayName: '测试用户', emails: ['alice@example.test'] } : null,
+          loginCompleted: probe.complete }));
+      }
+      if (url.pathname === '/api/personal/login') return Promise.resolve(Response.json({
+        loginUrl: location.origin + '/health', loginAttempt: 'presentation-only-attempt' }));
+      return original(input, init);
+    };
+  }` }, sessionId);
+  await navigate(() => command('Page.navigate', { url: origin + '/projects/' + projectId + '/' }, sessionId));
+  await waitFor("window.accountPollProbe?.calls.length > 0 && window.accountPollProbe.ticks.length > 0 && document.querySelector('#mw-account-menu')");
+  await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+  const initial = await evaluate<number>('window.accountPollProbe.calls.length');
+  assert.equal(await evaluate("document.querySelector('#mw-account-menu').hidden"), true);
+  await evaluate("(async () => { window.accountPollProbe.offset += 61000; window.accountPollProbe.ticks.forEach(tick => tick()); await new Promise(resolve => setTimeout(resolve, 0)); })()");
+  assert.equal(await evaluate('window.accountPollProbe.calls.length'), initial, 'a full idle minute must not add an account HTTP request');
+  await evaluate("window.dispatchEvent(new Event('focus'))");
+  await waitFor(`window.accountPollProbe.calls.length > ${initial}`);
+  await click('[data-project-menu] > summary');
+  const beforeOpen = await evaluate<number>('window.accountPollProbe.calls.length');
+  await click('[data-personal-menu] [data-account-link]');
+  await waitFor(`!document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.calls.length > ${beforeOpen}`);
+  await click('[data-personal-action=login]');
+  await waitFor("window.accountPollProbe.loginUrl.endsWith('/health') && !document.querySelector('[data-personal-action=login]').disabled");
+  await evaluate("window.accountPollProbe.ticks.forEach(tick => tick())");
+  await waitFor("window.accountPollProbe.calls.some(query => new URLSearchParams(query).get('attempt') === 'presentation-only-attempt')");
+  await evaluate("new Promise(resolve => setTimeout(resolve, 0))");
+  await evaluate("window.accountPollProbe.complete = true; window.accountPollProbe.ticks.forEach(tick => tick())");
+  await waitFor("document.querySelector('[data-personal-name]')?.textContent === '测试用户' && document.querySelector('#mw-account-menu').hidden && window.accountPollProbe.popupClosed");
+  assert.equal(await evaluate("document.querySelector('.mw-account-toast:not([hidden])')?.textContent"), '登录成功');
+  const completed = await evaluate<number>('window.accountPollProbe.calls.length');
+  await evaluate("(async () => { window.accountPollProbe.offset += 61000; window.accountPollProbe.ticks.forEach(tick => tick()); await new Promise(resolve => setTimeout(resolve, 0)); })()");
+  assert.equal(await evaluate('window.accountPollProbe.calls.length'), completed, 'completion stops the login poll again');
+});
+
 test('Auth entry works by keyboard inside the new project menu at desktop and phone widths', { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;

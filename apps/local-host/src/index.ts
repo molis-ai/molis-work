@@ -1,4 +1,5 @@
 export { installMolisWorkHome } from "./installer/home.js";
+export {openProjectCopyJournal} from './project-copy-journal.js';
 
 export type { MolisWorkHomeInstallOptions, MolisWorkHomeInstallResult, MolisWorkHomeInstallStatus, MolisWorkHomeInstallStep } from "./installer/home-contract.js";
 export { computeBuildSourceDigest, writeMolisWorkBuildManifest, digestPaths } from "./installer/fingerprint.js";
@@ -6,7 +7,7 @@ export type { MolisWorkBuildManifest } from "./installer/fingerprint.js";
 export { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 export { SUPPORTED_RUNTIME_IDS, isSupportedRuntimeId } from "./installer/runtime-integration-contract.js";
 export type { SupportedRuntimeId, RuntimeIntegrationAction, RuntimeConnectionState, RuntimeIntegrationDetection, RuntimeIntegrationChange, RuntimeIntegrationPlan, RuntimeIntegrationConfirmation, RuntimeIntegrationResultStatus, RuntimeIntegrationResult, RuntimeIntegrationValidationContext, RuntimeIntegrationServiceOptions } from "./installer/runtime-integration-contract.js";
-export { openWorkSessionRegistry } from "./session-registry.js";
+export { openWorkSessionRegistry,createSessionReplicationSupport } from "./session-registry.js";
 export { RuntimeSessionHost } from "./runtime-session.js";
 export { RuntimeProjectConnection } from "./runtime-project-connection.js";
 export { createRuntimePanelSessionLinker } from "./runtime-panel-session.js";
@@ -50,8 +51,12 @@ export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js"
 
 export { LocalProjectDatabase } from "./project-database.js";
 export { createProjectGoalReplica } from './project-replication.js';
+export { createProjectEvidenceContent } from './project-replication-content.js';
 export { createPersonalGoalRegistration } from './personal-project-sync.js';
 export { createPersonalSync } from './personal-sync.js';
+export {createPersonalPluginRegistrations} from './personal-plugin-sync.js';
+export {createPersonalCatalogRegistration} from './personal-catalog-sync.js';
+export { discoverRuntimeSyncCollections } from './runtime-sync-discovery.js';
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
 export * from "./goal-project-application.js";
@@ -278,3 +283,7 @@ export { handleBrowserHttp } from "./browser/browser-http.js";
 export { codingBackgroundTasks } from "./coding-background-tasks.js";
 export { homeBackgroundTasks } from "./web-catalog.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
+
+export {handleProjectRecycleHttp} from './web-project-recycle.js';
+
+export {bindSavedHistory} from './saved-history-host.js';

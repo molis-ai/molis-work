@@ -52,7 +52,7 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     busy: 400, cancelled: 400, configuration_changed: 409, conflict: 409, empty_file: 400, empty_selection: 400, extraction_unavailable: 400, hash_changed: 400,
     image_unsupported: 400, invalid: 400, invalid_file: 400, invalid_result: 400, item_not_found: 404, job_failed: 400, job_timeout: 400, missing_output: 400,
     no_model: 409, no_ocr: 400, no_text: 400, not_found: 404, not_result: 400, not_text: 400, origin_changed: 400, path_invalid: 400, recipe_unavailable: 409,
-    source_conflict: 400, too_large: 400, unavailable: 400,
+    source_conflict: 400, sync_unavailable: 503, too_large: 400, unavailable: 400,
   } },
   jelly: { holder: jellyPlugin, status: {
     ai_invalid: 400, ai_unavailable: 400, cancelled: 499, confirmation_required: 409, conflict: 409, corrupt: 500, import_conflict: 409, invalid: 400,
@@ -62,9 +62,9 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     cancelled: 499, conflict: 409, invalid: 400, model_invalid: 502, model_unavailable: 503, not_found: 404, too_large: 413,
   } },
   images: { holder: imagesPlugin, status: {
-    already_open: 409, busy: 429, cancelled: 409, closed: 503, connection_changed: 409, connection_invalid: 409, internal: 500, invalid: 400, invalid_image: 502,
+    already_open: 409, busy: 429, cancelled: 409, closed: 503, connection_changed: 409, connection_invalid: 409, copy_conflict: 409, internal: 500, invalid: 400, invalid_image: 502,
     invalid_url: 400, key_required: 409, no_image: 502, not_found: 404, not_sent: 409, provider_http: 502, request_conflict: 409, response_too_large: 502,
-    running: 409, runtime_unavailable: 503, save_failed: 500, timeout: 504,
+    running: 409, runtime_unavailable: 503, save_failed: 500, sync_busy: 503, sync_limit: 413, timeout: 504,
   } },
 };
 

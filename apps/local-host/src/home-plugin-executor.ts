@@ -7,6 +7,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import { pluginHomeFor } from "./home-side.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { syncActivation } from './sync-activation.js';
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -67,7 +68,7 @@ export class HomePluginExecutor implements PluginExecutor {
       const model = pluginModelFor(home, definition, authorized, assertActive);
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
-      const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
+      const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, sync: syncActivation(this.options.home, manifest, authorized, assertActive), services: Object.freeze({
         ui: ui.client, database: database?.client, ...(model ? { model } : {}), ...(storage ? { storage } : {}),
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),

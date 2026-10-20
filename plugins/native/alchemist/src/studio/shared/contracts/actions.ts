@@ -98,11 +98,11 @@ const homeChoices = new Set(["pulse.github", "pulse.github.configure"]);
 export const ALCHEMIST_GENERATE_PERMISSION = "alchemist:generate";
 
 function operation<I extends z.ZodType, O extends z.ZodType>(name: string, title: string, description: string, kind: "query" | "command", input: I, output: O,
-  extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>) {
+  extraPermissions: readonly string[] = [], execution?: ActionDefinition["action"]["execution"], scheduling?: "concurrent", job?: ReturnType<typeof followedJob>, contractVersion=1) {
   const home = homeChoices.has(name);
   const permissions = home ? [kind === "query" ? "alchemist:connections:read" : "alchemist:connections:write"] : ["alchemist:read", ...(kind === "command" ? ["alchemist:write"] : [])];
   const definition: ActionDefinition<z.input<I>, z.output<O>> = {
-    capability_id: `alchemist.${name}`, version: 1, operation: kind,
+    capability_id: `alchemist.${name}`, version: contractVersion, operation: kind,
     action: { title, description, ...(execution ? { execution } : {}), kind: kind === "query" ? "query" : "operation", scope: home ? "home" : "project", audiences: home ? ["user"] : ["user", "workflow", "agent", "mcp"],
       subject_kinds: ["alchemist"], permissions: [...permissions, ...extraPermissions],
       input_schema: z.toJSONSchema(input, { target: "draft-7", io: "input" }),
@@ -147,7 +147,8 @@ export const alchemistOperations = {
   reuseReceipt: operation("reuse.receipt", "读取实际复用记录", "区分已选择、已实际消费和关系补写状态，返回固定方法及成果版本", "query", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseReconcile: operation("reuse.reconcile", "补写复用关系", "仅补写已实际消费的 Context Ledger 关系，不重复模型调用", "command", object({ planId: id }), object({ receipt: reuseReceiptSchema.nullable() })),
   reuseFeedback: operation("reuse.feedback", "记录复用效果", "如实记录解释、准备、修正和结果，不推算节省比例", "command", reuseFeedbackSchema, object({ receipt: reuseReceiptSchema })),
-  playbookRevise: operation("memory.playbook.revise", "修改研究方法", "确认保存方法新版本；旧计划和实际采用版本保留，已创建未执行计划需重核", "command", reuseReviseSchema, object({ rule: playbookRule })),
+  playbookEditing: operation("memory.playbook.editing", "读取研究方法编辑内容", "读取当前研究方法与保存前提；不改变已有内容", "query", identity, object({rule:playbookRule,etag:text.regex(/^[a-f0-9]{64}$/)})),
+  playbookRevise: operation("memory.playbook.revise", "修改研究方法", "携带读取时内容指纹保存方法新版本；旧计划和实际采用版本保留", "command", reuseReviseSchema, object({ rule: playbookRule }),[],undefined,undefined,undefined,2),
   conversationList: operation("conversation.list", "读取炼金术士讨论", "读取当前项目的讨论消息、关联对象及实际回复状态", "query", empty, object({ messages: z.array(conversationMessage) })),
   conversationSend: operation("conversation.send", "与炼金术士讨论", "保存消息，使用所选对象、历史与启用的 Taste 生成回复；不可用或失败时保留消息并明确状态", "command",
     createConversationMessageSchema.extend({ context: conversationContext }), z.union([object({ message: conversationMessage, assistantMessage: conversationMessage }),
@@ -188,7 +189,8 @@ export const alchemistOperations = {
     object({ workspace: object({ id, name: text }), actor: object({ id, name: text }), directions: z.array(directionSchema), explorations: z.array(explorationSchema),
       ideas: z.array(object({ id, directionId: id, title: text, lifecycle, currentVersion: version, updatedAt: text })) })),
   directionCreate: operation("directions.create", "创建探索方向", "保存方向描述，尚不启动模型生成", "command", createDirectionInputSchema, object({ direction: directionSchema })),
-  directionUpdate: operation("directions.update", "编辑探索方向", "修改已有方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id }), object({ direction: directionSchema })),
+  directionEditing: operation("directions.editing", "读取探索方向编辑内容", "读取当前方向与保存前提；不启动模型或改变内容", "query", identity, object({direction:directionSchema,etag:text.regex(/^[a-f0-9]{64}$/)})),
+  directionUpdate: operation("directions.update", "编辑探索方向", "携带读取时内容指纹修改方向，保留已生成的卡片和 Idea", "command", createDirectionInputSchema.extend({ id,expectedEtag:text.regex(/^[a-f0-9]{64}$/) }), object({ direction: directionSchema }),[],undefined,undefined,undefined,2),
   directionStatus: operation("directions.status", "归档或恢复方向", "归档后保留历史，并停止从该方向启动新炼化", "command", object({ id, status: z.enum(["active", "archived"]) }), object({ direction: directionSchema })),
   explorationStart: operation("explorations.start", "启动炼化", "将方向加入后台生成任务；reuseExisting 为 true 时返回最近一次炼化", "command", object({ id, reuseExisting: z.boolean().optional() }),
     object({ runId: id, jobId: id.optional(), reused: z.boolean().optional() }), [ALCHEMIST_GENERATE_PERMISSION], { cost: "metered" }, undefined, followedJob("jobId")),

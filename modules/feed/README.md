@@ -28,6 +28,8 @@ Provider 同步和 HTTP/UI 组合归 Native Feed/Host。该 Module 不直接创�
 
 ## 本地开发
 
+`feedContentReplicationDefinition` 明确消息、材料、处置和固定事件的可携带字段。原始证据正文通过 owner 的 `contentRefs` 声明交给共同受控传输，目标重新加密，不复制密钥或本机路径。Feed/Signal 同属一个项目一致集合，但各自只声明和验证自己的表；接收不生成 Attention、调 Provider、模型或执行。既有目标消息的本机编辑修订在恢复后递增，旧编辑仍被拒绝。
+
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash

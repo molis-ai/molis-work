@@ -88,13 +88,8 @@ export class ImagesService {
 
   deleteJob(projectId: string, id: string): void {
     this.assertOpen();
-    const job = this.store.deleteJob(project(projectId), textField(id, "任务 ID", 128));
-    for (const image of job.images) {
-      if (/^[a-f0-9-]+\.(png|jpg|webp)$/u.test(image.filename)) {
-        try { rmSync(join(this.assets, image.filename), { force: true }); }
-        catch { /* The record is already gone; a failed disk cleanup must not claim the delete failed. */ }
-      }
-    }
+    this.store.deleteJob(project(projectId), textField(id, "任务 ID", 128));
+    try{this.store.collectUnreferencedAssets();}catch{/* Cleanup failure retains the unreferenced candidate for a later owner pass; deletion is already committed. */}
   }
 
   start(projectId: string, input: ImageGenerateInput): ImageJob {

@@ -34,6 +34,7 @@ export {
   type ShelfActionPorts, type ShelfAdmitActionInput, type ShelfMaterialPreview, type ShelfProjectActionPorts, type ShelfTextView,
 } from "./actions.js";
 export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manifest.js";
+export { shelfSyncDocument } from './sync.js';
 
 export type { ShelfResultPorts } from "./plugin.js";
 export { SHELF_RUNTIME_ACTIONS, shelfRuntimeActions } from "./runtime-actions.js";

@@ -1,3 +1,4 @@
+import { ProjectRecycle } from "./recycle.js";
 import {wasProjectPluginRemoved} from "./plugin-removal.js";
 import { randomUUID } from "node:crypto";
 
@@ -60,6 +61,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
   readonly records: ProjectService;
   readonly workspaces: ProjectWorkspaceService;
   readonly deletionSteps: ProjectDeletionSteps;
+  readonly recycle: ProjectRecycle;
 
   readonly query: ProjectsQueryApi;
   readonly commands: ProjectsCommandApi;
@@ -102,6 +104,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
     this.repository = new ProjectsRepository(options.db, options.spaceId);
+    this.recycle = new ProjectRecycle(options.db, now);
     this.records = new ProjectService(this.repository, now, id, options.plugins);
     this.workspaces = new ProjectWorkspaceService(this.repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
@@ -122,7 +125,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.commands = {
       addProjectPlugin: (input) => this.records.addPlugin(input),
       removeProjectPlugin: (input) => this.records.removePlugin(input),
-      renameProject: (projectId, displayName, actorId) => this.records.rename(projectId, displayName, actorId),
+      renameProject: (projectId, displayName, actorId, expectedDisplayName) => this.records.rename(projectId, displayName, actorId, expectedDisplayName),
       addWorkspaceProject: (input) => this.workspaces.add(input),
       repairWorkspaceProject: (input) => this.workspaces.repair(input),
       setWorkspaceDefault: (input) => this.workspaces.setDefault(input),
@@ -175,3 +178,8 @@ export type {
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export {projectReplicationOwner,validatePortableProject,validateProjectSyncKey,projectPluginRequirements,installProjectReplicationJournal} from './portable-project.js';
+export type {PortableProject,ProjectReplicationOptions} from './portable-project.js';
+
+export { ProjectRecycle } from "./recycle.js";
+export type { ProjectRecycleInput, ProjectRecycleObservation } from "./recycle.js";

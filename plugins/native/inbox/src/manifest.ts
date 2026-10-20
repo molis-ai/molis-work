@@ -31,6 +31,7 @@ export const inboxManifest: PluginManifest = {
   action_scenes: [inboxNextScene],
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },
+  sync:{protocol_version:1,collections:[{id:'attention',title:'注意事项与处理历史',schema_version:1,requires:[]}]},
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [

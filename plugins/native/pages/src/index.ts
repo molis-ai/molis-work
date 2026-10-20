@@ -176,3 +176,4 @@ export { pageAnnotations } from "./comments-store.js";
 export type { PagesReplicationContext } from './replication.js';
 
 export {openPagesReplicationBinding} from "./store.js";
+export {createPagesSyncContent} from './sync-content.js';

@@ -20,6 +20,7 @@
 - [context-toolbar](context-toolbar/spec.md)：选区/对象浮条、面板槽、能力家族及存量接入；完整需求保留。
 - [quick-create](quick-create/spec.md)：推荐创建、一句话新建、追加/批量与工作流；完整需求保留。
 - [side-shelf](side-shelf/spec.md)：右栏、Shelf、落点、拖放与助理接入；完整需求保留。
+- [personal-cloud-sync](personal-cloud-sync/spec.md)：联网个人版同步总规格与分阶段计划；15 项决定、每账号 100 MB、删除保留 30 天已确认，新增功能待实施。
 - [personal-goals-sync](personal-goals-sync/spec.md)：Goal、关系、工作记录与可信决定的项目一致性同步。
 - [personal-linked-assets-sync](personal-linked-assets-sync/spec.md)：关联成果的个人空间同步。
 - [personal-pages-sync](personal-pages-sync/spec.md)：Pages 增量同步与冲突处理。

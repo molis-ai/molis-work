@@ -47,7 +47,7 @@ export async function generateProviderImages(input: ImageProviderRequest, signal
   return outputs.slice(0, 4).map(image => checkedImage(Buffer.from(image.bytes), image.mime));
 }
 
-function checkedImage(bytes: Buffer, advertisedMime?: string): ProviderImage {
+export function checkedImage(bytes: Buffer, advertisedMime?: string): ProviderImage {
   if (bytes.length > MAX_IMAGE_BYTES) throw tooLarge();
   let mime: GeneratedImage["mime_type"];
   if (bytes.length >= 24 && bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) && bytes.toString("ascii", 12, 16) === "IHDR") mime = "image/png";

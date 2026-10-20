@@ -21,3 +21,4 @@ export { CONTEXT_LEDGER_SCHEMA, createContextLedgerSchema, type ContextLedgerDat
 export { type ContextLedgerOptions } from "./service.js";
 export { createContextMaterializer } from "./materialization.js";
 export { goalContextReplicationDefinition } from './replication.js';
+export {createContextHistoryReplication,type ContextHistoryReplicationOptions} from './history-replication.js';

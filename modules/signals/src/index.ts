@@ -1,5 +1,7 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import {assertSignalDraft as assertDraft,signalContentHash,signalDigest as sha256} from './content.js';
+export {signalContentReplicationDefinition} from './replication.js';
 
 import type {
   SignalDraft,
@@ -32,7 +34,7 @@ export interface SignalsSqliteDatabase {
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
 }
 
-const signalErrors = defineErrorCodes("signals", { not_found: "invalid", invalid_draft: "invalid" });
+const signalErrors = defineErrorCodes("signals", { not_found: "invalid" });
 
 /** The signal tables, as one current schema; the host composes them into the project database baseline. */
 export const SIGNALS_SCHEMA_SQL = `
@@ -129,14 +131,7 @@ export class SignalsModule implements SignalsApi {
   private submitDraft(draft: SignalDraft): SignalReceipt {
     assertDraft(draft);
     const normalized = structuredClone(draft);
-    const contentHash = sha256(stableJson({
-      kind: normalized.kind,
-      occurred_at: normalized.occurred_at,
-      payload: normalized.payload,
-      content_refs: normalized.content_refs ?? [],
-      adapter: normalized.adapter,
-      provenance: normalized.provenance,
-    }));
+    const contentHash = signalContentHash(normalized);
     return this.db.transaction(() => {
       const existingRow = this.db.prepare(`
         SELECT * FROM signals
@@ -284,29 +279,6 @@ export class SignalsModule implements SignalsApi {
   }
 }
 
-function assertDraft(draft: SignalDraft): void {
-  const required = [
-    draft.project_id,
-    draft.source_id,
-    draft.provider_dedupe_id,
-    draft.kind,
-    draft.occurred_at,
-    draft.observed_at,
-    draft.raw_event_id,
-    draft.adapter.plugin_id,
-    draft.adapter.version,
-  ];
-  if (
-    required.some((value) => typeof value !== "string" || value.trim().length === 0)
-    || !Number.isFinite(Date.parse(draft.occurred_at))
-    || !Number.isFinite(Date.parse(draft.observed_at))
-    || !isObject(draft.payload)
-    || !isObject(draft.provenance)
-  ) {
-    throw signalErrors.invalid_draft("Signal Draft 缺少可信身份、时间或结构化内容");
-  }
-}
-
 function mapSignal(row: Row): SignalRecord {
   return {
     project_id: text(row.project_id),
@@ -332,22 +304,6 @@ function mapSignal(row: Row): SignalRecord {
     created_at: text(row.created_at),
     updated_at: text(row.updated_at),
   };
-}
-
-function stableJson(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(stableJson).join(",")}]`;
-  if (isObject(value)) {
-    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`).join(",")}}`;
-  }
-  return JSON.stringify(value);
-}
-
-function isObject(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function sha256(value: string): string {
-  return createHash("sha256").update(value).digest("hex");
 }
 
 function text(value: unknown): string {

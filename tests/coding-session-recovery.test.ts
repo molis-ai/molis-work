@@ -14,9 +14,9 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
   for (const id of ["broken", "safe"]) sessions.create({ project_id: "board", session_id: id, title: id, runtime_id: "prologue", at });
   sessions.setRuntimeSession("board", "broken", "sdk-broken", at);
   sessions.setState("board", "broken", "done", at);
-  const drafts = new Map([["draft:broken", "不要丢掉未提交的要求"]]);
+  const draft="不要丢掉未提交的要求";sessions.inputs.write('board','broken',0,{draft});
   const context = { project_id: "board", plugin_id: "io.molis.work.coding", services: {
-    storage: { get: (key: string) => drafts.get(key) },
+    storage: { get: () => null },
     capabilities: { invoke: async (definition: { capability_id: string }) => {
       if (definition.capability_id === agent.readSession.capability_id) throw new Error("SESSION_HISTORY_UNAVAILABLE");
       return [];
@@ -36,7 +36,7 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
     assert.equal(rows.find(row => row.session_id === "safe")?.state, "idle");
     const read = await call("coding.read-session", { sessionId: "broken" });
     assert.equal(read.status, 200);
-    assert.equal((read.body as {draft:string}).draft, drafts.get("draft:broken"));
+    assert.equal((read.body as {draft:string}).draft, draft);
     assert.equal((read.body as {recovery_required:boolean}).recovery_required, true);
     assert.equal(sessions.get("board", "broken").runtime_session_id, "sdk-broken");
     assert.equal(sessions.get("board", "broken").updated_at, at);

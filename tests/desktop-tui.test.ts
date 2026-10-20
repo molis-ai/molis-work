@@ -337,6 +337,14 @@ async function catalogFixture() {
   }
 }
 
+async function terminalPanel(fixture: Awaited<ReturnType<typeof catalogFixture>>, title: string): Promise<string> {
+  const catalog = await openMolisWorkProjectCatalog({homeDirectory:fixture.homeDirectory});
+  try {
+    return catalog.openDesktopPanel({project_id:fixture.project.project_id, goal_id:title, runtime_kind:'generic',
+      launch_command:'/bin/sh', cwd:fixture.homeDirectory, title, actor_id:'test-user', user_confirmed:true}).panel_id;
+  } finally {catalog.close();}
+}
+
 test("desktop Skill reads MOLIS_WORK_GOAL_ID and does not auto-claim", () => {
   const projectConnection = readFileSync(
     join(process.cwd(), "skills/goal-advance/references/project-connection.md"),
@@ -679,9 +687,11 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(desktop, /data-workspace-mode="graph"/);
     assert.doesNotMatch(desktop, /data-workbench-view="graph"/);
     assert.match(desktop, /data-navigator-view="graph"/);
-    assert.match(desktop, /if \(mobileView === "document"\) setWorkspaceMode\("focus", false\)/);
-    assert.match(desktop, /if \(mobileView === "tui"\) setWorkspaceMode\("runtime", false\)/);
-    assert.match(desktop, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    // Identifier/whitespace checks belong to the public source, not its equivalent compressed asset.
+    assert.match(CLIENT_SCRIPT, /if \(mobileView === "document"\) setWorkspaceMode\("focus", false\)/);
+    assert.match(CLIENT_SCRIPT, /if \(mobileView === "tui"\) setWorkspaceMode\("runtime", false\)/);
+    assert.match(CLIENT_SCRIPT, /if \(matchMedia\("\(max-width: 760px\)"\)\.matches\) setMobileView\("document"\)/);
+    assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
     assert.match(desktop, /data-tauri-drag-region/);
     assert.match(desktop, /\.tui-terminal \{ grid-area: terminal;/);
     assert.match(desktop, /\.tui-terminal \.tui-xterm \{[^}]*inset: 10px 12px 12px/);
@@ -694,8 +704,8 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop, /molis-work:tui-collapse/);
     assert.match(desktop, /\.document-pane::-webkit-scrollbar/);
     assert.match(desktop, /在这个 Goal 上打开终端/);
-    assert.match(desktop, /querySelector\("\[data-tree-resizer\]"\)/);
-    assert.match(desktop, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
+    assert.match(CLIENT_SCRIPT, /querySelector\("\[data-tree-resizer\]"\)/);
+    assert.match(CLIENT_SCRIPT, /treeWidth: parseFloat\(workspace\.style\.getPropertyValue\("--tree-width"\)\)/);
     assert.match(desktop, /\.workspace\.is-desktop-tui \{ grid-template-columns: var\(--tree-width, 240px\)/);
     assert.match(desktop, /class="immersive-workspace is-desktop-tui is-plugin-directory-empty"/);
     assert.match(desktop, /src="\/desktop\/pty-client\.js"/);
@@ -802,22 +812,22 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.doesNotMatch(desktop.slice(0, desktop.indexOf("<style>")), /class="navigator-view-switch"/);
     assert.match(desktop, /data-goal-frame-surface/);
     assert.doesNotMatch(desktop, /data-task-frame-surface|data-plugin-id="task"|openTaskForGoal/);
-    assert.match(desktop, /openWorkbenchSurface/);
+    assert.match(CLIENT_SCRIPT, /openWorkbenchSurface/);
     assert.match(desktop, /data-container-tabs/);
     assert.match(desktop, /molis-work-tab-workspace:/);
     assert.doesNotMatch(desktop, /molis-work-work-tabs:|goalboard-work-tabs:/);
-    assert.doesNotMatch(desktop, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
-    assert.match(desktop, /const desktopNavigationStateVersion = 4/);
-    assert.match(desktop, /navigationVersion: desktopNavigationStateVersion/);
-    assert.match(desktop, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
-    assert.match(desktop, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
-    assert.match(desktop, /setDesktopWorkSurface\("goal", false, false\)/);
-    assert.match(desktop, /pluginForSurface = \(surface\) => surface === "goal" \? "goals"/);
-    assert.match(desktop, /directoryPanelFor/);
-    assert.match(desktop, /let desktopDirectoryOrigin = null/);
-    assert.match(desktop, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
-    assert.match(desktop, /setDesktopDirectory\(restoredDirectory, false, false\)/);
-    assert.match(desktop, /const directGoalRequested = .*localPathname\(\)/);
+    assert.doesNotMatch(CLIENT_SCRIPT, /goalUiStorageKey \+ ":inbox"/, "the Goal-era decisions page, which had its own saved state, is gone");
+    assert.match(CLIENT_SCRIPT, /const desktopNavigationStateVersion = 4/);
+    assert.match(CLIENT_SCRIPT, /navigationVersion: desktopNavigationStateVersion/);
+    assert.match(CLIENT_SCRIPT, /const setDesktopWorkSurface = \(surface, persist = true, restoreScroll = true\) =>/);
+    assert.match(CLIENT_SCRIPT, /surfaceScroll: \{ \.\.\.desktopSurfaceScroll, \[activeDesktopSurface\]:/);
+    assert.match(CLIENT_SCRIPT, /setDesktopWorkSurface\("goal", false, false\)/);
+    assert.match(CLIENT_SCRIPT, /pluginForSurface = \(surface\) => surface === "goal" \? "goals"/);
+    assert.match(CLIENT_SCRIPT, /directoryPanelFor/);
+    assert.match(CLIENT_SCRIPT, /let desktopDirectoryOrigin = null/);
+    assert.match(CLIENT_SCRIPT, /ui\?\.navigationVersion === desktopNavigationStateVersion/);
+    assert.match(CLIENT_SCRIPT, /setDesktopDirectory\(restoredDirectory, false, false\)/);
+    assert.match(CLIENT_SCRIPT, /const directGoalRequested = .*localPathname\(\)/);
     assert.match(desktop, /data-directory-back/);
     assert.doesNotMatch(desktop, /class="desktop-project-context"/);
     assert.doesNotMatch(desktop, /class="project-decisions/);
@@ -1602,6 +1612,7 @@ test("PTY host attaches live sessions and refuses to spawn without a working dir
 
 test("local PTY socket auths with the page token and can spawn a process", async () => {
   const fixture = await catalogFixture();
+  const panel0 = await terminalPanel(fixture, "pty-smoke");
   const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
@@ -1629,13 +1640,13 @@ test("local PTY socket auths with the page token and can spawn a process", async
 
     const socket = await openAuthedPty(address.port);
     sockets.push(socket);
-    const spawned = waitForPtyMessage(socket, (value) => value.type === "spawned" && value.panelId === "pty-smoke" && value.attached !== true, "spawned");
+    const spawned = waitForPtyMessage(socket, (value) => value.type === "spawned" && value.panelId === panel0 && value.attached !== true, "spawned");
     const echoed = waitForPtyMessage(socket, (value) => (
-      value.type === "data" && value.panelId === "pty-smoke" && String(value.data).includes("hello")
+      value.type === "data" && value.panelId === panel0 && String(value.data).includes("hello")
     ), "echo");
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-smoke",
+      panelId: panel0,
       command: "/bin/sh",
       args: ["-c", "printf hello; exec cat"],
       cwd: fixture.homeDirectory,
@@ -1646,12 +1657,12 @@ test("local PTY socket auths with the page token and can spawn a process", async
     await echoed;
     const attached = waitForPtyMessage(
       socket,
-      (value) => value.type === "spawned" && value.panelId === "pty-smoke" && value.attached === true,
+      (value) => value.type === "spawned" && value.panelId === panel0 && value.attached === true,
       "attached",
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-smoke",
+      panelId: panel0,
       command: "/bin/sh",
       args: ["-c", "printf hello"],
       cwd: fixture.homeDirectory,
@@ -1660,7 +1671,7 @@ test("local PTY socket auths with the page token and can spawn a process", async
     }));
     const attachedPayload = await attached;
     assert.match(String(attachedPayload.replay), /hello/);
-    socket.send(JSON.stringify({ type: "kill", panelId: "pty-smoke" }));
+    socket.send(JSON.stringify({ type: "kill", panelId: panel0 }));
   } finally {
     for (const socket of sockets) socket.close();
     await new Promise<void>((resolve, reject) =>
@@ -1671,6 +1682,8 @@ test("local PTY socket auths with the page token and can spawn a process", async
 
 test("PTY spawn preflight reports missing commands and missing working directories", async () => {
   const fixture = await catalogFixture();
+  const panel0 = await terminalPanel(fixture, "pty-missing");
+  const panel1 = await terminalPanel(fixture, "pty-bad-cwd");
   const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
@@ -1692,14 +1705,14 @@ test("PTY spawn preflight reports missing commands and missing working directori
       socket,
       (value) => (
         value.type === "error" &&
-        value.panelId === "pty-missing" &&
+        value.panelId === panel0 &&
         /找不到命令/.test(String(value.message ?? ""))
       ),
       "missing-command",
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-missing",
+      panelId: panel0,
       command: "molis-work-no-such-command",
       cwd: fixture.homeDirectory,
       cols: 80,
@@ -1711,14 +1724,14 @@ test("PTY spawn preflight reports missing commands and missing working directori
       socket,
       (value) => (
         value.type === "error" &&
-        value.panelId === "pty-bad-cwd" &&
+        value.panelId === panel1 &&
         /工作目录不存在/.test(String(value.message ?? ""))
       ),
       "bad-cwd",
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-bad-cwd",
+      panelId: panel1,
       command: "/bin/sh",
       cwd: "/molis-work/definitely/not/here",
       cols: 80,
@@ -1787,6 +1800,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
   assert.notEqual(grok, "grok");
 
   const fixture = await catalogFixture();
+  const panel0 = await terminalPanel(fixture, "grok-help");
   const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
@@ -1797,7 +1811,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
     sockets.push(socket);
     const spawned = waitForPtyMessage(
       socket,
-      (value) => value.type === "spawned" && value.panelId === "grok-help",
+      (value) => value.type === "spawned" && value.panelId === panel0,
       "grok-spawned",
     );
     const help = waitForPtyMessage(
@@ -1808,7 +1822,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "grok-help",
+      panelId: panel0,
       command: "grok",
       args: ["--help"],
       cwd: fixture.homeDirectory,
@@ -1817,7 +1831,7 @@ test("isolated PTY PATH can start Grok Build help", async (t) => {
     }));
     await spawned;
     await help;
-    socket.send(JSON.stringify({ type: "kill", panelId: "grok-help" }));
+    socket.send(JSON.stringify({ type: "kill", panelId: panel0 }));
   } finally {
     for (const socket of sockets) socket.close();
     await new Promise<void>((resolve, reject) =>
@@ -1893,6 +1907,8 @@ test("opening a terminal without a project workspace is rejected", async () => {
 
 test("PTY spawn sets PWD to the working directory and attach-only does not start a new process", async () => {
   const fixture = await catalogFixture();
+  const panel0 = await terminalPanel(fixture, "pty-attach");
+  const panel1 = await terminalPanel(fixture, "pty-pwd");
   const server = createMolisWorkWebServer({ homeDirectory: fixture.homeDirectory });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const sockets: WebSocket[] = [];
@@ -1904,12 +1920,12 @@ test("PTY spawn sets PWD to the working directory and attach-only does not start
 
     const attachedMiss = waitForPtyMessage(
       socket,
-      (value) => value.type === "spawned" && value.panelId === "pty-attach" && value.attached === false && value.started === false,
+      (value) => value.type === "spawned" && value.panelId === panel0 && value.attached === false && value.started === false,
       "attach-miss",
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-attach",
+      panelId: panel0,
       attachOnly: true,
       cols: 80,
       rows: 24,
@@ -1923,7 +1939,7 @@ test("PTY spawn sets PWD to the working directory and attach-only does not start
     );
     socket.send(JSON.stringify({
       type: "spawn",
-      panelId: "pty-pwd",
+      panelId: panel1,
       command: "/bin/sh",
       args: ["-c", 'printf "%s" "$PWD"'],
       cwd: fixture.homeDirectory,

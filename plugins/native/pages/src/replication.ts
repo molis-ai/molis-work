@@ -6,6 +6,7 @@ import { parsePayload, type PagesSyncContext } from './sync.js';
 
 export interface PagesReplicationContext {
   authorize(): void;
+  conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
   canUploadProject?(projectId: string): boolean;
   project(projectId: string): { title: string; context: PagesSyncContext };
 }
@@ -40,7 +41,8 @@ export function createPagesReplica(db: DatabaseSync, space: StorageSpace | undef
     return parts as [string,'folder'|'document',string];
   };
   return createSqliteReplica(db,{
-    authorize:()=>caller.authorize(),
+    authorize:()=>caller.authorize(),conflictState:caller.conflictState,
+    belongsToProject:(key,projectId)=>decode(key)[0]===projectId,
     canUpload:key=>caller.canUploadProject?.(decode(key)[0])!==false,
     read(key){
       const [projectId,kind,id]=decode(key),project=caller.project(projectId);
@@ -102,10 +104,10 @@ function readRecord(db:DatabaseSync,projectId:string,kind:'folder'|'document',id
  const {body_json,starred,publication_pending_json:_pending,...record}=row;
  return parsePayload({folders:dependencyFolder(db,projectId,row.folder_id),documents:[{...record,body:JSON.parse(String(body_json)),starred:!!starred}]}).documents[0];
 }
-function limit(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>512*1024)throw syncError('limit','文档超过当前同步上限（512 KiB），原数据仍保留在本机');}
+function limit(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>100000000)throw syncError('limit','文档超过账号容量上限（100 MB），原数据仍保留在本机');}
 
 export function bindPagesReplication(store:{close():void;replica(context:PagesReplicationContext):ReturnType<typeof createPagesReplica>}){
  return {close:()=>store.close(),replica(context:import('@molis-ai/molis-work-storage').AggregateReplicaContext){
-  return store.replica({authorize:context.authorize,canUploadProject:context.canUploadProject,project(projectId){return {title:context.project(projectId).title,context:{spaceId:context.spaceId,projectId,authorize:context.authorize,hasReference:ref=>context.hasReference?.(projectId,ref)===true}};}});
+  return store.replica({authorize:context.authorize,conflictState:context.conflictState,canUploadProject:context.canUploadProject,project(projectId){return {title:context.project(projectId).title,context:{spaceId:context.spaceId,projectId,authorize:context.authorize,hasReference:ref=>context.hasReference?.(projectId,ref)===true}};}});
  }};
 }

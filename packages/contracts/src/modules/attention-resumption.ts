@@ -10,6 +10,7 @@ export const modulesAttentionResumptionContract = {
 } as const satisfies ContractDescriptor;
 
 export type AttentionSubjectType = "feed_item" | "goal_decision" | "source_fault";
+export const ATTENTION_CONTENT_REPLICA_ID = 'attention_content';
 export type AttentionReason = "manual" | "source_rule" | "goal_decision" | "source_fault" | "artifact_out_failed";
 export type AttentionStatus = "open" | "in_progress" | "done" | "dismissed";
 

@@ -23,9 +23,11 @@ export function registerAlchemistActionRoutes(app: Hono, actions: AlchemistActio
   route("POST", "/reuse/receipts/:id/reconcile", "reuseReconcile", c => ({ planId: c.req.param("id") }));
   route("POST", "/reuse/feedback", "reuseFeedback", body);
   route("POST", "/memory/playbook/:id/revise", "playbookRevise", c => body(c, identity(c)));
+  route("GET", "/memory/playbook/:id/editing", "playbookEditing", identity);
   route("GET", "/bootstrap", "bootstrap", none);
   route("POST", "/directions", "directionCreate", body, 201);
   route("PATCH", "/directions/:id", "directionUpdate", c => body(c, identity(c)));
+  route("GET", "/directions/:id/editing", "directionEditing", identity);
   route("PATCH", "/directions/:id/status", "directionStatus", c => body(c, identity(c)));
   route("POST", "/directions/:id/explorations", "explorationStart", c => ({ ...identity(c), reuseExisting: c.req.query("reuse") === "existing" }), 202);
   route("GET", "/explorations/:id", "explorationGet", identity);

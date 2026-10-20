@@ -1,3 +1,4 @@
+import {CODING_SAVED_HISTORY_CLIENT} from './saved-history-client.js';
 import { CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT } from "./writer-integration-client.js";
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "./taskboard-client.js";
 import { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
@@ -24,7 +25,8 @@ import { createCodingTimeline } from "./timeline.js";
 import { codingTimelineWords } from "./timeline-words.js";
 import { createCodingTurnChanges } from "./turn-changes-client.js";
 import { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-client.js";
-
+import {CODING_INPUTS_CLIENT_FACTORY_SCRIPT} from './inputs-client.js';
+import {CODING_INPUT_CACHE_FACTORY_SCRIPT} from './input-cache-client.js';
 /** Host supplies navigation; this client only handles Coding's own surface. */
 export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const root = document.querySelector('[data-coding-workbench]');
@@ -35,8 +37,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const showReviews=(container,refs,sessionId,workspaceId,scope)=>host.showReviews?.(container,refs,sessionId,workspaceId,scope,{lifetime,signal:viewSignal});
   const make = tag => document.createElement(tag); const q = (selector) => root.querySelector(selector); const phaseRing = phase => ({starting:'starting',running:'running',compacting:'running',pausing:'paused',paused:'paused','awaiting-input':'answer','awaiting-review':'approval',completed:'round-ended',failed:'failed',stopped:'stopped',cancelled:'cancelled','reconcile-required':'verify'})[phase] || 'idle';
   const turns = q('[data-coding-turns]'), input = q('[data-coding-task]');
-  // The results panel's index: one chip per section on show, to jump to it. It is rebuilt only when the set of
-  // sections changes, so its own writes never loop back through the observer that schedules it.
+  const savedHistory=(${CODING_SAVED_HISTORY_CLIENT});
+  const showSavedHistory=(value,force)=>savedHistory(turns,value,async before=>{const id=current,response=await api(sessionPath(id)+'/runs?history_before='+before+'&limit=20');if(current===id)showSavedHistory(response.saved_history,true);},force);
+  // Rebuild the results index only when its sections change; its writes must not retrigger the observer.
   const SECTION_SHORT={'协作与相关会话':'协作','文件检查点':'检查点','中断恢复':'恢复','本轮概况':'概况','每轮成果':'成果','本轮变更':'变更','命令回执':'命令','后台命令':'后台'};
   let indexed=[],indexSignature='',indexTimer=0;
   const sectionLabel=(section)=>{const own=section.getAttribute('aria-label');if(own)return own;const by=section.getAttribute('aria-labelledby'),named=by?document.getElementById(by):null;
@@ -116,7 +119,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const response = await lifetime.fetch(prefix + path, { method, cache:'no-store', signal,
       ...(method === 'GET' ? {} : { headers:molisWorkControlHeaders(), body:JSON.stringify(body ?? {}) }) });
     const result = await response.json();lifetime.assertCurrent(signal);
-    if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{details:result.details});
+    if (!response.ok) throw Object.assign(new Error(result.error || '无法完成 Coding 操作'),{code:result.code,details:result.details});
     return result;
   };
   const integrations = (${CODING_WRITER_INTEGRATION_CLIENT_FACTORY_SCRIPT})({lifetime,q,api,host,status});
@@ -222,11 +225,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       await refreshState();if(id===current)await readCurrent();
     }finally{sending=false;controls();}
   }});
-  const localDraft = (id) => {
-    if (drafts.has(id)) return drafts.get(id);
-    try { const value = sessionStorage.getItem(draftKey(id)); if (value !== null) return value; } catch {}
-    return undefined;
-  };
+  const {localDraft,rememberDraft,localQuestions,replaceCachedInput}=(${CODING_INPUT_CACHE_FACTORY_SCRIPT})({drafts,questionDrafts,storageKey:draftKey,translate:host.translate});
   const renderGoalPreview = () => {
     const region=q('[data-coding-goal-preview]');region.replaceChildren();
     if(!goalChoice){region.textContent='下一轮不关联目标。';return;}
@@ -292,15 +291,19 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       q('[data-coding-goal-save]').disabled=Boolean(saved.goal_id && !saved.selected);await loadGoals(ticket);
     }catch(error){if(!lifetime.alive)return;if(ticket===goalTicket)q('[data-coding-goal-error]').textContent=error.message;}
   };
-  const rememberDraft = (id, value) => {
-    drafts.set(id, value);
-    try { sessionStorage.setItem(draftKey(id), value); } catch {}
-  };
+  const inputEditor=(${CODING_INPUTS_CLIENT_FACTORY_SCRIPT})({lifetime,root,current:()=>current,api,path:sessionPath,storageKey:draftKey,note:q('[data-coding-input-status]'),status,translate:host.translate,localDraft,localQuestions,
+    editing:id=>id===current&&draftOwner===id&&(document.activeElement===input||!!document.activeElement?.closest('[data-coding-question]')||q('[data-coding-input-status]').contains(document.activeElement)||!!root.querySelector('[data-coding-input-dialog][open]')),
+    replace:(id,value)=>{
+      const changed=replaceCachedInput(id,value);
+      if(id===current&&draftOwner===id){input.value=value.draft;if(changed){for(const form of root.querySelectorAll('[data-coding-question]')){form.ix?.destroy();form.remove();}if(lastData)renderRuns(lastData.runs,allRuns);}}
+    },
+  });
   const saveDraft = (id, value, selectedMethods = methodSelections.get(id), selectedMaterials = materialSelections.get(id)) => {
     if (!id) return Promise.resolve();
+    const premise=inputEditor.premise(id);
     rememberDraft(id,value);
     const body={draft:value, ...(actionSelections.has(id)?{action_tools:structuredClone(actionSelections.get(id))}:{}), ...(characterSkills.has(id)?{character_skill_ids:characterSkills.get(id)}:{}), ...(characterSelections.has(id)?{character:structuredClone(characterSelections.get(id))}:{}), ...(selectedMaterials ? {materials:structuredClone(selectedMaterials)} : {}), ...(mcpSourceSelections.has(id)?{mcp_sources:structuredClone(mcpSourceSelections.get(id))}:{}), ...(mcpSelections.has(id)?{mcp_tools:structuredClone(mcpSelections.get(id))}:{}), ...(configurations.get(id) ? {configuration:structuredClone(configurations.get(id))} : {}), ...(selectedMethods ? {methods:structuredClone(selectedMethods)} : {}), ...(questionDrafts.has(id) ? {question_drafts:structuredClone(questionDrafts.get(id))} : {})};
-    const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => api('/sessions/' + encodeURIComponent(id),'PATCH',body));
+    const next = (draftWrites.get(id) || Promise.resolve()).catch(() => {}).then(() => inputEditor.write(id,body,undefined,premise));
     draftWrites.set(id,next);
     return next.then(() => { if (current === id && input.value === value) q('[data-coding-draft-status]').textContent = '草稿已保存；模型与方式用于下一轮。'; });
   };
@@ -679,7 +682,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         };
         const client=card.ix=host.interaction(card,{
           onChange:()=>{remember();lifetime.clearTimeout(draftTimer);
-            draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
+            if(!inputEditor.notice(id))draftTimer=lifetime.timeout(()=>{void saveDraft(id,localDraft(id) || '').catch(error=>{note.textContent='答案暂未写入服务，当前窗口仍保留：'+error.message;});},400);},
           onSubmit:async()=>{
             if(card.dataset.busy==='true' || card.dataset.answerable!=='true') return;
             remember();
@@ -806,8 +809,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(document.activeElement?.matches?.('input,textarea,select,[contenteditable=""],[contenteditable=true]') || document.querySelector('dialog[open]'))return;
     approve.focus({preventScroll:true});
   };
-  // runs: the rounds to (re)draw, a contiguous stretch. all: the whole session in order, where rounds that are not
-  // loaded are summaries. Numbering and "latest" are always read against the whole session.
+  // Draw a contiguous window; number rounds and choose the latest against the whole session, including summaries.
   const renderRuns = (runs, all=runs) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
     const follow = !reportRun && onContentAppended({position:position(),pinned}).follow;
@@ -1132,17 +1134,13 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(!materialSelections.has(id)) materialSelections.set(id,data.materials || []);
       if(!characterSelections.has(id)){characterSelections.set(id,data.character ?? null);characterTitles.set(id,data.character_title || '');if(data.character_skill_ids!==undefined)characterSkills.set(id,data.character_skill_ids);}
       if(!methodSelections.has(id)) methodSelections.set(id,data.methods || []);
-      if(!questionDrafts.has(id)) {
-        let saved;try{saved=JSON.parse(sessionStorage.getItem(draftKey(id)+':questions') || 'null');}catch{}
-        questionDrafts.set(id,saved && typeof saved==='object' && !Array.isArray(saved) ? saved : data.question_drafts || {});
-      }
-      // This window's copy wins while it holds something; an empty copy never hides a draft the service kept.
-      if(fresh) { input.value=localDraft(id) || data.draft || ''; rememberDraft(id,input.value); draftOwner=id; q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
-      runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
+      inputEditor.observe(id,data);
+      if(fresh) { input.value=localDraft(id)??'';draftOwner=id;if(!inputEditor.notice(id))q('[data-coding-draft-status]').textContent='草稿已恢复；模型与方式用于下一轮。'; turns.replaceChildren(); pinned=!offsets.has(id); }
+      if(data.saved_history?.total&&!data.runs.length)pinned=false;runtimeSessionId=data.session.runtime_session_id;planEntries=[...olderPlanEntries,...(data.taskboard_plans || [])];subagentGroups=[...olderSubagents,...(data.subagents || [])];renderRuns(data.runs,allRuns);renderEarlier();showSavedHistory(data.saved_history);lastData=data;usageMeter.render(data,lastRun);void cooperationUi.refresh();
       if(lastRun && !terminal(lastRun.phase))void followLive(id,lastRun.ref.run_id);
       renderQueued(id,data.session.queued);
       renderPriority(id,data.session.priority===true);
-      plans.update(id,data.plan ?? null,allRuns);
+      plans.update(id,data.plan ?? null,allRuns,data.plan_revision);
       subagents.update(id,subagentGroups);
       boardUpdate(id,data);
       stepReports.sync(id);
@@ -1230,8 +1228,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     creatingCharacterSession=true;
     void (async()=>{
       const result=await api('/sessions','POST',{title:selected.title});const id=result.session.session_id;
+      rememberDraft(id,selected.task||'');questionDrafts.set(id,{});
       // Persist the exact publication and task before navigation; never start a paid run automatically.
-      await api(sessionPath(id),'PATCH',{draft:selected.task || '',character:selected.reference,character_skill_ids:selected.skill_ids || []});
+      await inputEditor.write(id,{draft:selected.task || '',question_drafts:{},character:selected.reference,character_skill_ids:selected.skill_ids || []},0);
       await refreshState();host.openItem('coding',id,selected.title);await select(id);
       if(selected.workspace_id){workspaceId=selected.workspace_id;rememberConfiguration();await flushDraft();await refreshState();}
       input.focus();status('已带入角色固定版本。选择模型和执行方式后开始任务。');
@@ -1413,7 +1412,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let followFrame=0;lifetime.observe(new MutationObserver(()=>{if(!pinned || reportRun || followFrame)return;followFrame=lifetime.frame(()=>{followFrame=0;if(pinned && !reportRun)turns.scrollTop=turns.scrollHeight;});}),turns,{childList:true,subtree:true,characterData:true});
   // Browsers without field-sizing still grow the field as the person writes.
   if(!globalThis.CSS?.supports?.('field-sizing','content'))lifetime.listen(input,'input',()=>{input.style.height='auto';input.style.height=Math.min(input.scrollHeight,Math.min(innerHeight*0.4,320))+'px';});
-  lifetime.listen(input,'input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';lifetime.clearTimeout(draftTimer);const id=current,value=input.value;draftTimer=lifetime.timeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
+  lifetime.listen(input,'input',()=>{rememberDraft(current,input.value);q('[data-coding-draft-status]').textContent='正在保存草稿…';lifetime.clearTimeout(draftTimer);const id=current,value=input.value;if(!inputEditor.notice(id))draftTimer=lifetime.timeout(()=>{void saveDraft(id,value).catch(error=>status('草稿暂未写入服务，当前窗口仍保留：'+error.message,true));},400);});
   for(const field of [q('[data-coding-intent]'),q('[data-coding-model]'),q('[data-coding-effort]')])lifetime.listen(field,'change',()=>{
     const id=current;rememberConfiguration();controls();void flushDraft().then(()=>surfaceChanged(id)).catch(error=>status('配置暂未保存：'+error.message,true));
   });
@@ -1551,6 +1550,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
     if(id===current && lastData?.next_history?.history==='digest')status('正在请模型把前面的对话整理成摘要，写好后开始这一轮…');
     const started=await api(sessionPath(id)+'/runs','POST',{...extra,task,intent,provider_id,model_id,...composerModels.effort(),workspace_id:selection.workspace_id,methods:selection.methods,...(selection.action_tools===undefined?{}:{action_tools:selection.action_tools}),mcp_tools:selection.mcp_tools,mcp_sources:selection.mcp_sources,materials:selection.materials,character:selection.character,character_skill_ids:characterSkills.get(id),...(intent==='parallel'?{writer_assignments:selection.writer_assignments}:{})});
+    inputEditor.accepted(id,started.cleared_input_revision,task);
     const digest=started?.digest;
     if(digest && id===current)status(digest.source==='model'?'前面的对话已由模型整理成摘要带入'+(digest.usage?'（用了 '+(digest.usage.input+digest.usage.output).toLocaleString()+' tokens）':'')+'，展开这一轮开头的摘要可以看全文。'
       :'模型没能写出摘要（'+digest.problem+'），这一轮带入的是宿主按执行记录整理的摘要。',digest.source!=='model');

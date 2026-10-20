@@ -17,6 +17,7 @@ import type { createSessionProjectOperations } from "./web-session.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { L } from "./web-locale.js";
+import { listPluginInstallationRecords } from "@molis-ai/molis-work-plugin-runtime";
 import {
   codingCompanionStages,
   codingWorkbenchPanel,
@@ -27,58 +28,70 @@ import {
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
-export function createLocalGoalsReadHttp(ports: {
+
+async function projectSettingsRequirements(homeDirectory: string | undefined, store: LocalProjectDatabase, projectId: string, withCatalog: LocalWebCatalogRunner) {
+  const installed = new Set(listPluginInstallationRecords(store.db).filter(record => record.state !== "uninstalled").map(record => record.plugin_id));
+  return withCatalog({ homeDirectory }, catalog => catalog.projectPluginRequirements(projectId)
+    .map(plugin => ({ plugin_id: plugin.plugin_id, installed: plugin.installed || installed.has(plugin.plugin_id) })));
+}
+type LocalGoalsReadPorts = {
   withCatalog: LocalWebCatalogRunner;
   renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
   isDesktopShellRequest(request: IncomingMessage, url: URL): boolean;
   pageCsp: string;
   sessionProjectOperationsData: ReturnType<typeof createSessionProjectOperations>;
-}) {
-  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
-  const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
-  async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
-    readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
-  ): Promise<boolean> {
-    const open = url.pathname === "/settings/workspaces" ? "workspaces"
-      : url.pathname === "/settings/guidance" ? "guidance"
-      : url.pathname === "/settings/memory" ? "memory"
-      : url.pathname === "/settings/rules" ? "rules"
-      : url.pathname === "/settings/planning" ? "planning"
-      : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"
-      : null;
-    if (request.method === "GET" && open) {
-      const view = await readWebView();
-      if (!view.project) {
-        sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
-        return true;
-      }
-      const embed = url.searchParams.get("embed") === "1";
-      let methods, guidance, policy;
-      try {
-        [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-          actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
-      }
-      catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
-      const html = renderMolisWorkProjectSettingsHub(
-        { ...view, policy_bindings: policy.bindings },
-        guidance,
-        methods,
-        controlToken,
-        isDesktopShellRequest(request, url),
-        open,
-        embed ? open : null,
-      );
-      response.writeHead(200, {
-        "content-type": "text/html; charset=utf-8",
-        "cache-control": "no-store",
-        "content-security-policy": PAGE_CSP,
-        "x-content-type-options": "nosniff",
-      });
-      response.end(html);
+};
+
+async function readProjectSettings(ports: LocalGoalsReadPorts, request: IncomingMessage, response: ServerResponse, url: URL,
+  readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
+  context: { homeDirectory: string | undefined; store: LocalProjectDatabase },
+): Promise<boolean> {
+  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP } = ports;
+  const { renderMolisWorkProjectSettingsHub } = ports.renderer;
+  const open = url.pathname === "/settings/workspaces" ? "workspaces"
+    : url.pathname === "/settings/guidance" ? "guidance"
+    : url.pathname === "/settings/memory" ? "memory"
+    : url.pathname === "/settings/rules" ? "rules"
+    : url.pathname === "/settings/planning" ? "planning"
+    : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"
+    : null;
+  if (request.method === "GET" && open) {
+    const view = await readWebView();
+    if (!view.project) {
+      sendJson(response, 404, { error: "找不到这个 Molis Work 项目" });
       return true;
     }
-    return false;
+    const embed = url.searchParams.get("embed") === "1";
+    let methods, guidance, policy;
+    try {
+      [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
+        actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+    }
+    catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
+    const html = renderMolisWorkProjectSettingsHub(
+      { ...view, project: { ...view.project, plugin_requirements: await projectSettingsRequirements(context.homeDirectory, context.store, view.project.project_id, withMolisWorkProjectCatalog) }, policy_bindings: policy.bindings },
+      guidance,
+      methods,
+      controlToken,
+      isDesktopShellRequest(request, url),
+      open,
+      embed ? open : null,
+    );
+    response.writeHead(200, {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store",
+      "content-security-policy": PAGE_CSP,
+      "x-content-type-options": "nosniff",
+    });
+    response.end(html);
+    return true;
   }
+  return false;
+}
+export function createLocalGoalsReadHttp(ports: LocalGoalsReadPorts) {
+  const { withCatalog: withMolisWorkProjectCatalog, isDesktopShellRequest, pageCsp: PAGE_CSP, sessionProjectOperationsData } = ports;
+  const { renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment } = ports.renderer;
+  const settings = readProjectSettings.bind(null, ports);
   async function fragments(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, goalActions: BoundActionClient, actions: BoundActionClient,
   ): Promise<boolean> {
@@ -123,7 +136,8 @@ export function createLocalGoalsReadHttp(ports: {
           hidden: catalog.listHiddenPlugins(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,
+          project: view.project && store ? { ...view.project, plugin_requirements: await projectSettingsRequirements(homeDirectory, store, view.project.project_id, withMolisWorkProjectCatalog) } : view.project };
         // Ask the running Coding Plugin for its own directory panel. A Plugin
         // that is not running, or that fails, simply contributes nothing and the
         // shell renders exactly as before.

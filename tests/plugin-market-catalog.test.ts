@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { icon } from "@molis-ai/molis-work-design-system";
+import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
@@ -50,8 +51,8 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(PLUGIN_WORKBENCH_FACTORY_SCRIPT, /api\/plugins\/"\s*\+\s*encodeURIComponent\(pluginId\)\s*\+\s*"\/upgrade/);
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
-  assert.match(script, /grey: "var\(--hue-gray\)"/);
-  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^\n]+\});/)![1]!);
+  assert.match(CLIENT_SCRIPT, /grey: "var\(--hue-gray\)"/);
+  const tabIcons = JSON.parse(CLIENT_SCRIPT.match(/const PLUGIN_TAB_ICON = (\{[^\n]+\});/)![1]!);
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).

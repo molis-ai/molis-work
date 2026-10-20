@@ -38,9 +38,9 @@ import { RENDERER_GAP_EN } from "./renderer-gap-en.js";
 import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
-
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
+
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
   ...CONTEXTUAL_EN,

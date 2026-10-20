@@ -27,7 +27,7 @@ const changeColumns = [
   "after_json", "revision_after", "reverted_by",
 ] as const;
 const requestColumns = ["request_id", "item_id", "created_at"] as const;
-const LIMIT = 512 * 1024;
+const LIMIT = 100000000;
 
 /** Journal the item's transaction; its history and request receipts are written in that same transaction. */
 export function initializeTodoReplication(db: DatabaseSync): void {
@@ -67,6 +67,17 @@ export function createTodoReplica(db: DatabaseSync, context: AggregateReplicaCon
   };
   return createSqliteReplica(db, {
     authorize: context.authorize,
+    conflictState: context.conflictState,
+    belongsToProject(key,projectId,retained){
+      const id=decode(key);
+      const current=db.prepare('SELECT project_id FROM todo_items WHERE id=?').get(id)
+        ?? db.prepare('SELECT project_id FROM todo_deleted_projects WHERE id=?').get(id);
+      if(current?.project_id===projectId)return true;
+      return retained().some(event=>{
+        if(event.key!==key)invalid('待办保留记录标识不一致');
+        return event.value!==null&&validate(event.value,id,context.spaceId).project?.id===projectId;
+      });
+    },
     read(key) {
       const id = decode(key);
       const item = db.prepare("SELECT * FROM todo_items WHERE id=?").get(id) as Row | undefined;
@@ -193,7 +204,7 @@ function optionalInstant(value: unknown): boolean { return value === null || typ
 function optionalDate(value: unknown): boolean { return value === null || typeof value === "string" && isTodoDate(value); }
 function optionalTime(value: unknown): boolean { return value === null || typeof value === "string" && isTodoTime(value); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("待办及历史超过当前同步上限（512 KiB），原数据仍保留在本机", "limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > LIMIT) invalid("待办及历史超过账号容量上限（100 MB），原数据仍保留在本机", "limit");
 }
 function invalid(message = "待办同步数据不合法", code: Parameters<typeof syncError>[0] = "invalid"): never {
   throw syncError(code, message);

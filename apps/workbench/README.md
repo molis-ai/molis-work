@@ -27,9 +27,13 @@ Local Host 提供页面模型和操作端口；Workbench renderer 组合公共�
 
 本包处理页面结构和交互装配，不打开数据库。目标状态解释、关系/规划等专属界面由 Goals Plugin 提供；通用主题和图标由 Design System 提供。
 
+项目常规设置保留最初名称观察值，保存冲突时留住输入草稿，不以后台新读值替旧编辑授权。缺失插件区仅显示 Host 核对后尚未安装的依赖；已安装但停用的插件不报缺失，原始标识可换行，提示不触发下载、安装、启用或授予权限。真实 Chrome 动线在 `tests/project-settings-standalone.e2e.test.ts`。
+
 本包的装配依赖见 [package.json](package.json)；包之间的允许方向由仓库边界检查约束。
 
 ## 本地开发
+
+内置同步集合只在 `BUILTIN_PLUGIN_CATALOG` 登记。Module 项目内容用 `project-sections` 描述符列出公开 owner 身份、资产种类和技术日志命名，不在工作台导入 Module 实现；Host 在既有项目库组合根解析 owner 定义，调用公共 Storage 的事务组装。声明与发现本身不打开库、不授予同步权限。
 
 改共享控件或列表交互时，建议对照 `/__ui/catalog`（见 [CLI 与开发 · 前端与控件板](../../docs/cli-and-development.md#前端与控件板)），达标标本补进 Design System Catalog。
 
@@ -117,7 +121,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 - 负责：工作台界面的组合根：导航、插件选择、设置页、Functions 编辑器，以及进入工作台之前的页面——项目选择页与简介、开场与 Welcome、新建项目引导、更新页（`src/arrival/`、`src/context-onboarding-renderer.ts`、`src/scripts/context-onboarding.ts`）。
 - 不负责：业务 Store、Node 专用实现、Tauri 命令。
-- 公共工作台脚本由 `tooling/build-client.mjs` 在构建时生成：请求助手 bootstrap 保持原样在最前，其余程序经 esbuild 压缩空白和局部绑定名，不改属性名、事件名和公开全局。运行时只读取生成的 dist 资源；修改后先构建再跑浏览器回归，页面资源预算只能下调。
+- 公共工作台脚本由 `tooling/build-client.mjs` 在构建时生成：请求助手 bootstrap 保持原样在最前，其余程序在已有函数作用域内复用重复的表达式字符串，再经 esbuild 压缩空白、局部绑定名及等价语法；字面量值、指令序言、属性名、事件名和公开全局不变。字符串池的语义测试为 `node --test apps/workbench/tooling/client-literals.test.mjs`。运行时只读取生成的 dist 资源；修改后先构建再跑浏览器回归，页面资源预算只能下调。
 - 账号与空间菜单的浏览器入口在 `src/browser/personal-account.ts`，由 `tsconfig.browser.json` 独立做 DOM 类型检查；包的构建命令用 esbuild 先打包，再参与公共工作台脚本组合。服务器端 `src/scripts/personal-account.ts` 只读取构建资源，不再保存程序字符串。
 - 公开入口：`@molis-ai/molis-work-app-workbench`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。
 - 依赖：组合根：按 `package.json` 装配已登记的包，只做装配与 IO，不写业务规则。方向见[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节。
@@ -164,3 +168,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 
 引导、项目选择、Functions与MCP授权/连接页面共用`globalThis.molisWorkRequest`：Host请求保留code/status/callId/body，错误位置用同一failure view提供可查询的诊断编号。Functions的项目feed adapter仍以有没有project决定是否提供；未保存字段、选择序号、取消与旧DOM检查保留。原已授权但刷新失败的连接恢复入口继续只重载信息，不重新授权。定向验证：`tests/workbench-request-pages.e2e.test.ts`、`tests/workbench-functions-late.e2e.test.ts`、`tests/functions-draft-retention.test.ts`、`tests/context-onboarding-blank.e2e.test.ts`、`tests/request-failure-call-id.e2e.test.ts`。
+
+同步设置的冲突比较按变化字段展示，较长内容可展开或导出完整版本；位置由同步绑定声明，前端拒绝跨源定位。常驻底栏入口区分同步中、上次检查完成、等待、冲突、失败及离线，并链接到同一设置详情。个人项目回收入口沿原请求保护，绑定观察版本及操作标识；失败重试不生成新操作，恢复不启动执行。
+
+个人版首用试用界面保留云端回收与历史恢复；永久清理暂不开放，保留内容仍计入容量。

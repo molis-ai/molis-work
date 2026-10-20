@@ -17,6 +17,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
+import { syncActivation } from './sync-activation.js';
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -108,6 +109,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
   return Object.freeze({ ...context,
     project_id: options.project_id,
     actor_id: options.actor_id,
+    sync: syncActivation(options.home?.directory, manifest, context, assertActive),
     ...(wiring === undefined ? {} : { input_group: wiring.selectedGroup(manifest.plugin_id) }),
     services: Object.freeze({
       ...(actions ? { actions } : {}),

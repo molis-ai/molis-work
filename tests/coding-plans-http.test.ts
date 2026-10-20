@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
+import { ProcessItemsModule, createProcessItemReplication } from "@molis-ai/molis-work-module-artifacts";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -15,6 +15,7 @@ import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.j
 
 test("Plan formal routes preserve confirmed revisions, reject stale/blocked/foreign proposals, and do not replay execution", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-plans-")), dbPath = join(home, "board.db");
+  let activeHome = home;
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
   const sessions = new CodingSessionStore(store.db);
   for (const id of ["app", "other"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString()); }
@@ -28,7 +29,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const runs = [makeRun("proposal", "planner", "已核对文件，计划如下：\n" + JSON.stringify({ ...content, blockers: "无" })), makeRun("ambiguous", "planner", "```json\n" + JSON.stringify(content) + "\n```\n```json\n" + JSON.stringify(content) + "\n```"), makeRun("malformed", "planner", "我会改代码"), makeRun("ordinary", "reader")];
   runs.push(makeRun("ambiguous-prose", "planner", "说明\n" + JSON.stringify(content) + "\n" + JSON.stringify(content)), makeRun("trailing", "planner", "说明\n" + JSON.stringify(content) + "\n不是唯一正文"));
   const starts: AgentStartRequest[] = [];
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: activeHome, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
@@ -68,18 +69,62 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal((await start()).status, 400, "draft is not executable");
     assert.equal((await request("/plan/confirm", "POST", { expected_revision: 0 })).status, 400);
     response = await request("/plan/confirm", "POST", { expected_revision: 1 });assert.equal(response.status, 200, JSON.stringify(response.body));
-    const fixed = structuredClone(response.body.plan);
-    assert.deepEqual((await request("/plan/confirm", "POST", { expected_revision: 1 })).body.plan, fixed);
-    assert.equal((await start({ workspace_id: "foreign" })).status, 400);
-    assert.equal((await start({ intent: "discuss" })).status, 400);
-    await request("", "PATCH", { draft: "未发送的独立要求" });
+    const localFixed = structuredClone(response.body.plan);
+    const { workspace_path: localPath, ...portableSource } = localFixed.source;
+    const fixed = { ...localFixed, source: portableSource };
+    assert.equal(localPath, home);
+    assert.deepEqual((await request("/plan/confirm", "POST", { expected_revision: 1 })).body.plan, localFixed);
+    // S-50 PCSYNC-22/23: use the actual confirmation producer, not a hand-written plan-shaped transport fixture.
+    const originalStore = store, targetHome = join(home, "second-device"), targetPath = join(targetHome, "board.db");
+    seedDemoBoard(targetPath); const targetStore = new LocalProjectDatabase(targetPath);
+    const replication = (database: LocalProjectDatabase) => createProcessItemReplication(database.db,
+      { spaceId: "space-alice", projectId: DEMO_PROJECT_ID, authorize() {} },
+      { appendEvent: event => database.appendEvent(event), eventCursor: id => database.eventCursor(id) });
+    try {
+      const bundle = replication(store).read(fixed.confirmed.artifact_id)!;
+      assert.equal(bundle.versions[0]!.schema_version, 2);
+      assert.deepEqual(bundle.versions[0]!.payload, fixed);
+      assert.equal(JSON.stringify(bundle).includes(home), false, "the owner's fixed bytes contain no original directory");
+      replication(targetStore).apply(bundle);
+      assert.deepEqual(replication(targetStore).read(fixed.confirmed.artifact_id), bundle);
+      assert.equal(new CodingSessionStore(targetStore.db).list(DEMO_PROJECT_ID).length, 0, "restoring a process item starts no session");
+      new CodingSessionStore(targetStore.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Observed plan", runtime_id: "prologue", at: new Date().toISOString() });
+      // Devices do not share a running JS plugin activation. Close the source before opening the target in this process.
+      await releaseCodingSurface(originalStore, DEMO_PROJECT_ID);
+      store = targetStore; activeHome = targetHome;
+      assert.deepEqual((await request("/plan?revision=1")).body.plan, fixed);
+      const denied = await start({ continue_step_board_of: "untrusted-run" });
+      assert.equal(denied.status, 503); assert.equal(denied.body.code, "coding.plan_origin_unavailable");
+      assert.equal(starts.length, 0, "a synced plan and a guessed continuation cannot start a Run");
+    } finally { await releaseCodingSurface(targetStore, DEMO_PROJECT_ID); store = originalStore; activeHome = home; targetStore.close(); }
+    const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) });
+    for (const [revision, schema_version] of [[900, 1], [901, 2]] as const) {
+      const reference = { artifact_id: `coding-plan:app:${revision}`, version: 1 };
+      processItems.commands.registerVersion({ project_id: DEMO_PROJECT_ID, ...reference, schema_version,
+        artifact_type_id: "coding.plan.v1", actor_id: "web-user", producer: { plugin_id: "io.molis.work.coding", plugin_version: "0.3.0", binding_signature: "official-coding-binding" },
+        content: { kind: "inline", payload: { ...localFixed, revision, confirmed: reference } } });
+      const refused=await request(`/plan?revision=${revision}`);
+      assert.equal(refused.status,400,JSON.stringify(refused.body));
+      if(schema_version===1)assert.equal(refused.body.code,"artifacts.plugin_incompatible");
+      else assert.match(refused.body.error,/计划来源与当前会话不一致/);
+      assert.equal(Object.hasOwn(refused.body,"plan"),false,"old schema and native-path-shaped fixed plans are not portable facts");
+    }
+    assert.equal((await start({ workspace_id: "foreign" })).status, 409);
+    const wrongIntent = await start({ intent: "discuss" }); assert.equal(wrongIntent.status, 400, JSON.stringify(wrongIntent.body));
+    const planning = runs.find(run => run.ref.run_id === "proposal")!;
+    planning.phase = "running"; assert.equal((await start()).body.code, "coding.plan_origin_unavailable"); planning.phase = "completed";
+    planning.frozen.role_id = "reader"; assert.equal((await start()).body.code, "coding.plan_origin_unavailable"); planning.frozen.role_id = "planner";
+    const originRef = planning.ref; planning.ref = { ...originRef, session_id: "different-runtime-session" };
+    assert.equal((await start()).body.code, "coding.plan_origin_unavailable"); planning.ref = originRef;
+    assert.equal(starts.length, 0, "an authorized directory alone cannot replace the original planning Run");
+    assert.equal((await request("", "PATCH", { draft: "未发送的独立要求",expected_input_revision:0 })).status,200);
     response = await start();assert.equal(response.status, 200, JSON.stringify(response.body));assert.equal(starts.length, 1);
     assert.deepEqual(starts[0].budget, {max_turns:60});assert.equal(starts[0].task, "检查并修复边界");assert.equal(starts[0].role_id, "builder");
     assert.match(starts[0].text_materials![0].text, /10000 分免运费/);assert.match(starts[0].text_materials![0].text, /不批准任何文件修改或命令/);
     assert.equal((await request()).body.draft, "未发送的独立要求");
     assert.equal((await start()).body.existing, true);assert.equal(starts.length, 1, "lost-response retry does not start a second Run");
     await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
-    assert.deepEqual((await request("/plan")).body.plan, fixed);assert.equal((await start()).body.existing, true);
+    assert.deepEqual((await request("/plan")).body.plan, localFixed);assert.equal((await start()).body.existing, true);
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content: { ...content, title: "新计划" } })).status, 400);
     const adjusted = { ...content, title: "新计划", change_reason: "增加边界检查", blockers: "尚缺折扣约定" };
     response = await request("/plan", "POST", { expected_revision: 1, content: adjusted });assert.equal(response.status, 200, JSON.stringify(response.body));assert.equal(response.body.plan.revision, 2);

@@ -1,6 +1,7 @@
 import type { PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import {agentHostCapabilities as agent} from '@molis-ai/molis-work-contracts/services/agent-host';
 import {projectSettingsCapabilities} from '@molis-ai/molis-work-contracts/modules/projects';
+import {builderSync} from './sync-owner.js';
 export const BUILDER_PLUGIN_ID='io.molis.work.plugin-builder';
 export const BUILDER_PROJECT_PLUGIN_ID='plugin-builder';
 export const BUILDER_UI_ID='io.molis.work.plugin-builder.ui.v1';
@@ -10,5 +11,6 @@ export const builderManifest:PluginManifest={
  permissions:[{permission:'storage:private',required:true,reason:'保存创作草稿、已发布定义和隔离的试用数据'}],
  capabilities:{provides:[],consumes:[agent.listRuntimes,agent.createSession,agent.readSession,agent.startRun,agent.readRun,agent.controlRun,projectSettingsCapabilities.workspaces].map(x=>x.capability_id)},
  artifacts:{produces:[],consumes:[]},
+ sync:builderSync,
  ui:{contributions:[BUILDER_UI_ID],views:[{view_id:'directory',slot:'navigator',title:'插件创作工作台',contribution_id:BUILDER_UI_ID,icon:'wand',order:57}]},
 };

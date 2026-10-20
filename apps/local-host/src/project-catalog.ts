@@ -4,6 +4,7 @@ import { createFileSecretStore, runWithMolisWorkHome, ensureStorageSpace, bindDa
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
 import { PersonalProjectProvisioner } from './personal-project-provisioner.js';
+import {preflightProjectCatalog,projectPluginRequirements} from './project-catalog-replication.js';
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
@@ -154,6 +155,7 @@ export class MolisWorkProjectCatalog {
   readonly databasePath: string;
   private readonly projectFiles: ManagedProjectFiles;
   readonly projectDeletion: ManagedProjectDeletion;
+  readonly recycle: ProjectsModule['recycle'];
   private readonly demoProjects: DemoProjectLifecycle;
   private readonly projects: ProjectsModule;
   private readonly workContexts: RuntimeContextBindingRepository;
@@ -167,6 +169,8 @@ export class MolisWorkProjectCatalog {
   private readonly personalProjects: PersonalProjectProvisioner;
   readonly wasProjectPluginRemoved:(projectId:string,pluginId:string)=>boolean;
   readonly ensureSyncedProject: PersonalProjectProvisioner['ensureSyncedProject'];
+  readonly prepareSyncedProjectRestore: PersonalProjectProvisioner['prepareSyncedProjectRestore'];
+  readonly projectPluginRequirements:(projectId:string)=>ReturnType<typeof projectPluginRequirements>;
 
   private constructor(
     private readonly storage: LocalSqliteStorage,
@@ -201,8 +205,10 @@ export class MolisWorkProjectCatalog {
     );
     this.projectFiles = new ManagedProjectFiles(this.projects, this.projectsDirectory, contextBindingValidation, this.commit);
     this.personalProjects = new PersonalProjectProvisioner(homeDirectory, this.projectFiles, this.projects);
-    this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
+    this.recycle=this.projects.recycle;this.wasProjectPluginRemoved=this.projects.query.wasProjectPluginRemoved;
     this.ensureSyncedProject = this.personalProjects.ensureSyncedProject.bind(this.personalProjects);
+    this.prepareSyncedProjectRestore = this.personalProjects.prepareSyncedProjectRestore.bind(this.personalProjects);
+    this.projectPluginRequirements=id=>{this.projects.query.getProject(id);return projectPluginRequirements(db,id,p=>BUILTIN_PLUGIN_REGISTRY.has(p)||BUILTIN_PLUGIN_REGISTRY.isPersonal?.(p)===true);};
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.workContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
@@ -249,6 +255,7 @@ export class MolisWorkProjectCatalog {
     await fs.mkdir(projectsDirectory, { recursive: true });
     const databasePath = path.join(projectsDirectory, "catalog.db");
     const existed = await exists(databasePath);
+    if(existed)preflightProjectCatalog(databasePath);
     const storage = new LocalSqliteStorage(databasePath);
     const db = storage.db;
     try {
@@ -273,7 +280,7 @@ export class MolisWorkProjectCatalog {
           initializeSchema: !initialized,
           authorize: (access) => access.scope.kind === "personal" && access.scope.id === "private-work-context",
         });
-        if (!initialized) initializeCatalog(storage, platform.createPanelSchema);
+        if (!initialized) {bindDatabaseSpace(db,ensureStorageSpace(homeDirectory));initializeCatalog(storage, platform.createPanelSchema);}
         return new MolisWorkProjectCatalog(storage, homeDirectory, ledger, platform);
       }).immediate();
       return catalog;
@@ -418,9 +425,9 @@ export class MolisWorkProjectCatalog {
     return this.projectDeletion.deleteProject(input);
   }
 
-  renameProject(projectId: string, displayName: string, actorId: string): MolisWorkProjectRecord {
+  renameProject(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): MolisWorkProjectRecord {
     if (projectId === PERSONAL_SPACE_PROJECT_ID) throw catalogErrors.personal_space("个人空间不能改名");
-    return this.projects.commands.renameProject(projectId, displayName, actorId);
+    return this.projects.commands.renameProject(projectId, displayName, actorId, expectedDisplayName);
   }
 
   private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {

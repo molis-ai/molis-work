@@ -2,12 +2,14 @@ import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
 import { codingShelfMaterial } from "./coding-shelf-material.js";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, SHELF_DOCUMENT_PATH } from "@molis-ai/molis-work-module-shelf";
+import { personalDocumentOptions } from './personal-document-options.js';
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import {savedAgentHistoryView} from '@molis-ai/molis-work-service-agent-host';
 import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
@@ -139,12 +141,12 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
         preview: record => codingShelfMaterial(record, ports.projectId, ports.routePrefix ?? ""),
         receive: preview => {
-          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe(),{},undefined,personalDocumentOptions(ports.homeDirectory!,SHELF_DOCUMENT_PATH));
           const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
           return { item, snapshot: shelf.snapshot() };
         },
       } : undefined;
-    const codingPorts: CodingPluginPorts = { execution: {
+    const codingPorts: CodingPluginPorts = { execution: { savedHistoryView:savedAgentHistoryView,
         ready: async () => {
           if (!ports.execution) throw new Error("Agent 执行服务尚未接通");
           await ports.execution.ready();

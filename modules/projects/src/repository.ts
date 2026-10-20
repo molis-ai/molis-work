@@ -8,6 +8,7 @@ import type {
   ProjectWorkspaceRef,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
+import { createProjectRecycleSchema } from "./recycle.js";
 import { createDeletionStepsSchema } from "./deletion-steps.js";
 
 type Row = Record<string, unknown>;
@@ -40,12 +41,12 @@ export class ProjectsRepository {
 
   listProjects(): ProjectRecord[] {
     return (this.db.prepare(
-      "SELECT * FROM projects ORDER BY display_name COLLATE NOCASE, created_at, project_id",
+      "SELECT * FROM projects WHERE project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1) ORDER BY display_name COLLATE NOCASE, created_at, project_id",
     ).all() as Row[]).map(row=>ownedProject(row,this.spaceId));
   }
 
   getProject(projectId: string): ProjectRecord | null {
-    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ?").get(projectId) as Row | undefined;
+    const row = this.db.prepare("SELECT * FROM projects WHERE project_id = ? AND project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)").get(projectId) as Row | undefined;
     return row ? ownedProject(row,this.spaceId) : null;
   }
 
@@ -61,13 +62,17 @@ export class ProjectsRepository {
   }
 
   addProjectPlugin(projectId: string, pluginId: ProjectPluginId, at: string): boolean {
-    return Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
+    const portableChanged=Number(this.db.prepare('INSERT INTO project_portable_plugins(project_id,plugin_id) VALUES(?,?) ON CONFLICT DO NOTHING').run(projectId,pluginId).changes)>0;
+    const activeChanged=Number(this.db.prepare("INSERT INTO project_plugins (project_id, plugin_id, added_at) VALUES (?, ?, ?) ON CONFLICT DO NOTHING")
       .run(projectId, pluginId, at).changes) > 0;
+    return portableChanged||activeChanged;
   }
 
   removeProjectPlugin(projectId: string, pluginId: ProjectPluginId): boolean {
-    return Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
+    const portableChanged=Number(this.db.prepare('DELETE FROM project_portable_plugins WHERE project_id=? AND plugin_id=?').run(projectId,pluginId).changes)>0;
+    const activeChanged=Number(this.db.prepare("DELETE FROM project_plugins WHERE project_id = ? AND plugin_id = ?")
       .run(projectId, pluginId).changes) > 0;
+    return portableChanged||activeChanged;
   }
 
   listHiddenPlugins(projectId: string): ProjectPluginId[] {
@@ -128,6 +133,7 @@ export class ProjectsRepository {
         membership.created_at, membership.updated_at
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
+      WHERE membership.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       ORDER BY workspace.display_name COLLATE NOCASE, membership.is_default DESC,
         membership.updated_at DESC, membership.project_id
     `).all() as Row[]).map(mapWorkspaceMembership);
@@ -162,7 +168,7 @@ export class ProjectsRepository {
       SELECT workspace.canonical_path AS canonical_path
       FROM workspace_project_memberships AS membership
       INNER JOIN workspaces AS workspace ON workspace.workspace_id = membership.workspace_id
-      WHERE membership.project_id = ?
+      WHERE membership.project_id = ? AND membership.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       ORDER BY membership.is_default DESC, membership.updated_at DESC, membership.membership_id
       LIMIT 1
     `).get(projectId) as Row | undefined;
@@ -174,7 +180,7 @@ export class ProjectsRepository {
       SELECT project.project_id, project.display_name
       FROM workspace_project_memberships AS membership
       INNER JOIN projects AS project ON project.project_id = membership.project_id
-      WHERE membership.workspace_id = ?
+      WHERE membership.workspace_id = ? AND project.project_id NOT IN (SELECT project_id FROM project_recycle WHERE recycled=1)
       ORDER BY membership.updated_at DESC, project.display_name COLLATE NOCASE
     `).all(workspaceId) as Row[]).map((row) => ({
       project_id: text(row.project_id),
@@ -324,6 +330,11 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
       added_at TEXT NOT NULL,
       PRIMARY KEY (project_id, plugin_id)
     );
+    CREATE TABLE IF NOT EXISTS project_portable_plugins (
+      project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
+      plugin_id TEXT NOT NULL,
+      PRIMARY KEY (project_id, plugin_id)
+    );
     CREATE TABLE IF NOT EXISTS project_plugin_exclusions (
       project_id TEXT NOT NULL REFERENCES projects(project_id) ON DELETE CASCADE,
       plugin_id TEXT NOT NULL,
@@ -380,6 +391,7 @@ export function createProjectsSchema(db: ProjectsSqliteDatabase): void {
     CREATE INDEX IF NOT EXISTS project_deletions_project_idx
       ON project_deletions(project_id, deleted_at, deletion_id);
   `);
+  createProjectRecycleSchema(db);
 }
 
 /**

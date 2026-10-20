@@ -14,6 +14,8 @@ type ClientMessage =
   | { type: "kill"; panelId: string };
 
 export interface MolisWorkPtySocketHandlers {
+  /** Trusted synchronous final lifecycle check, including direct Host spawns. */
+  beforeSpawn?(request: PtySpawnRequest): void;
   /** Trusted Host scope overrides caller-supplied environment variables. */
   environment?: Record<string,string>;
   onData?: (panelId: string, sessionId: string, data: string) => void;
@@ -61,6 +63,7 @@ export function attachMolisWorkPtySocket(
   const panelSessionIds = new Map<string, string>();
   class RecordedPtyHost extends MolisWorkPtyHost {
     override spawn(request: PtySpawnRequest) {
+      handlers.beforeSpawn?.(request);
       if (request.sessionId) panelSessionIds.set(request.panelId, request.sessionId);
       return super.spawn({...request,env:{...request.env,...handlers.environment}});
     }
@@ -144,8 +147,6 @@ export function attachMolisWorkPtySocket(
           if (!message.panelId) throw new Error("缺少面板标识");
           if (!message.attachOnly && !message.command?.trim()) throw new Error("缺少启动命令");
           try {
-            const sessionId = typeof message.sessionId === "string" ? message.sessionId.trim() : "";
-            if (sessionId) panelSessionIds.set(message.panelId, sessionId);
             const result = host.spawn(message);
             send(ws, {
               type: "spawned",

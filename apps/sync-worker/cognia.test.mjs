@@ -1,0 +1,35 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { openCogniaStore, openCogniaSyncStore, cogniaManifest } from '@molis-ai/molis-work-plugin-cognia';
+import { builtinSyncBindings } from '@molis-ai/molis-work-app-workbench';
+import { ensureStorageSpace, personalStorageSpace } from '@molis-ai/molis-work-storage';
+import { PersonalSync } from '@molis-ai/molis-work-module-sync-replication';
+import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
+import { cloudFixture } from './testing.mjs';
+
+test('PCSYNC-11/15/22/23 Cognia knowledge graph retains bytes, historical citations, source descriptions and explicit conflicts',async t=>{
+ const f=await cloudFixture(t),root=mkdtempSync(join(tmpdir(),'molis-cognia-sync-'));t.after(()=>rmSync(root,{recursive:true,force:true}));
+ const space=personalStorageSpace('https://auth.example.test','work','alice'),homes=['a','b'].map(n=>join(root,n));homes.forEach(h=>ensureStorageSpace(h,space));
+ const stores=homes.map(openCogniaStore);t.after(()=>stores.forEach(s=>s.close()));
+ const domain=stores[0].createDomain('Notes'),original=stores[0].createMaterial({title:'Original',body:'Original evidence🙂',domain_id:domain.id});
+ stores[0].updateMaterial(original.id,{title:'Current',body:'Current evidence🙂',domain_id:domain.id});
+ const binary=Buffer.alloc(600000,43),preview=stores[0].preview({kind:'markdown',name:'Vault',locator:'local:/never-upload-this-machine-directory',files:[{path:'files/saved.pdf',data:binary.toString('base64')}]});
+ const imported=stores[0].commit(preview.id),file=imported.material_ids[0];
+ stores[0].addDraft({id:'draft',title:'Synthesis',body:'Fixed evidence [S1]',domain_id:domain.id,mode:'synthesize',saved_id:null,created_at:'2026-10-18T00:00:00Z',references:[{label:'S1',material_id:original.id,revision:1,title:original.title,path:original.path,body:original.body}]});
+ const selection={plugin_id:cogniaManifest.plugin_id,publisher_id:cogniaManifest.publisher.publisher_id,publisher_signature:cogniaManifest.publisher.signature,collection_id:cogniaManifest.sync.collections[0].id,schema_version:1};
+ const ns=JSON.stringify([selection.plugin_id,selection.publisher_id,selection.publisher_signature,selection.collection_id,selection.schema_version]);
+ const binding=builtinSyncBindings().find(row=>row.entry.manifest.plugin_id===selection.plugin_id&&row.collection.id===selection.collection_id).binding;
+ const clients=homes.map(home=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'https://sync.example.test',authority:{signal:new AbortController().signal,assertCurrent(){},async accessToken(){return 'alice';}},fetch:f.transport,registrations:[{selection,title:'Knowledge',content:binding.content({spaceId:space.spaceId,authorize(){}}),async refresh(){},async prepare(){},withReplica(run){const store=openCogniaSyncStore(home);try{return run(store.replica({spaceId:space.spaceId,authorize(){},conflictState:createSyncConflictState,canUploadProject:()=>false,project(){throw new Error('Home knowledge cannot ask for a project');},hasArtifact:()=>false}));}finally{store.close();}}}]}));t.after(()=>clients.forEach(c=>c.close()));
+ await clients[0].save({spaceId:space.spaceId,revision:0,selections:[selection]});await clients[0].run();await clients[1].run();clients.forEach(c=>assert.equal(c.status().error,null));
+ assert.equal(stores[1].read(original.id).body,'Current evidence🙂');assert.equal(stores[1].read(original.id,1).body,'Original evidence🙂');assert.deepEqual(stores[1].download(file).bytes,binary);assert.equal(stores[1].drafts()[0].references[0].revision,1);assert.equal(stores[1].sources().find(s=>s.id===preview.source.id).locator,'upload');assert.equal(stores[0].sources().find(s=>s.id===preview.source.id).locator,'local:/never-upload-this-machine-directory');
+ const objects=await f.bucket.list();for(const object of objects.objects){const bytes=Buffer.from(await (await f.bucket.get(object.key)).arrayBuffer());assert.doesNotMatch(bytes.toString('utf8'),/never-upload-this-machine-directory/);}assert.ok(objects.objects.length>1);
+ stores[0].updateMaterial(original.id,{title:'Source edit',body:'Source edit',domain_id:domain.id});stores[1].updateMaterial(original.id,{title:'Target edit',body:'Target edit',domain_id:domain.id});const staleEdit=stores[1].detail(original.id);await clients[0].run();await clients[1].run();
+ const key=clients[1].status().collections[0].conflicts[0].key,comparison=clients[1].inspectConflict(ns,key);assert.equal(comparison.local.graph.materials.find(m=>m.id===original.id).body,'Target edit');await clients[1].resolve(ns,key,'remote',comparison.revision,comparison.state);assert.equal(stores[1].read(original.id).body,'Source edit');assert.equal(clients[1].recoveries(ns).length,1);
+ assert.equal(staleEdit.material.revision,stores[1].read(original.id).revision,'concurrent branches can have the same numeric revision');assert.throws(()=>stores[1].updateMaterial(original.id,{title:'Stale editor',body:'Must not overwrite synchronized content'},staleEdit.etag),{code:'cognia.conflict'});assert.equal(stores[1].read(original.id).body,'Source edit');
+ stores[0].deleteMaterial(original.id);await clients[0].run();await clients[1].run();assert.ok(!stores[1].materials().some(m=>m.id===original.id));assert.equal(stores[1].read(original.id,1).body,'Original evidence🙂','fixed citations survive removal from current materials');
+ stores[0].archiveDraft('draft');await clients[0].run();await clients[1].run();assert.equal(stores[1].drafts().length,0);assert.deepEqual(stores[1].download(file).bytes,binary);
+ const count=(await f.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n;await clients[0].run();await clients[1].run();assert.equal((await f.db.prepare('SELECT COUNT(*) AS n FROM sync_events').first()).n,count);
+});

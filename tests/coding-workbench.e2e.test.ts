@@ -232,3 +232,16 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   assert.equal(await evaluate("document.scrollingElement.scrollWidth <= innerWidth"), true);
   assert.deepEqual(await evaluate("window.codingTestErrors"), []);
 });
+
+// PCSYNC-22/23: browser display evidence only; canonical SDK/digest/SQL behavior is exercised in coding-sync safety tests.
+test('received saved history is readable on a narrow new-device page without reviving old approvals',{timeout:60000},async t=>{
+ const b=await openGoalBrowser(t,'seeded');if(!b)return;
+ await b.command('Page.addScriptToEvaluateOnNewDocument',{source:`(()=>{const original=fetch.bind(window);window.historyCalls=[];window.fetch=async(url,init)=>{const response=await original(url,init),path=new URL(String(url),location.href).pathname;
+ if((init?.method||'GET')==='GET'&&/\\/api\\/plugins\\/io\\.molis\\.work\\.coding\\/sessions\\/[^/]+(?:\\/runs)?$/.test(path)&&(response.ok||path.endsWith('/runs'))){const value=await response.json();window.historyCalls.push(path);value.runs=[];value.saved_history={total:25,offset:path.endsWith('/runs')?0:5,runs:[{run_id:path.endsWith('/runs')?'earlier-source-run':'saved-source-run',outcome:'completed',messages:[{role:'user',text:'原设备的完整请求 <script>window.historyXss=true</script>'},{role:'assistant',text:'已保存的完整答复 — 尾部标记'},{role:'tool',text:'原执行回执只供阅读'}]}]};return Response.json(value);}return response;};})();`},b.sessionId);
+ await b.navigate(()=>b.command('Page.navigate',{url:b.origin+'/projects/'+b.projectId+'/'},b.sessionId));await b.click('[data-plugin-strip] [data-plugin-id="coding"]');await b.surfaceReady('coding');await b.click('[data-coding-new]');
+ await b.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('尾部标记')");assert.equal(await b.evaluate('Boolean(window.historyXss)'),false);
+ assert.equal(await b.evaluate("document.querySelector('[data-coding-saved-history]').querySelectorAll('[data-coding-continue], [data-coding-approve], [data-coding-question], [data-coding-nudge]').length"),0);
+ await b.command('Emulation.setDeviceMetricsOverride',{width:390,height:900,deviceScaleFactor:1,mobile:false},b.sessionId);assert.equal(await b.evaluate('document.documentElement.scrollWidth<=innerWidth'),true);
+ const shot=await b.command<{data:string}>('Page.captureScreenshot',{format:'png'},b.sessionId);await mkdir('.impeccable/qa/review',{recursive:true});await writeFile('.impeccable/qa/review/coding-saved-history-390.png',Buffer.from(shot.data,'base64'));
+ const box=await b.evaluate<{x:number;y:number}>("(()=>{const rect=document.querySelector('[data-coding-turns]').getBoundingClientRect();return{x:rect.x+rect.width/2,y:rect.y+rect.height/2};})()");await b.command('Input.dispatchMouseEvent',{type:'mouseWheel',x:box.x,y:box.y,deltaX:0,deltaY:-2000},b.sessionId);await b.waitFor("document.querySelector('[data-coding-saved-history] button').getBoundingClientRect().top>=0");await b.click('[data-coding-saved-history] button');await b.waitFor("document.querySelector('[data-coding-saved-history]')?.textContent.includes('earlier-source-run')");
+});

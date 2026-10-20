@@ -14,10 +14,16 @@
 
 ## 开发要求
 
+创作 owner 的当前私有 KV 文档格式为 2：草稿、发布记录及草稿编辑高水位在同一个原子 CAS 中保存。删除保留高水位，旧编辑不能重新写入；修订溢出在业务回调之前拒绝。旧文档、坏 JSON、重复身份或不匹配高水位明确拒绝并保留原字节，不清空或就地转换。真实 Home 的备份与维护仍须单独批准。这只是个人同步接入的 owner 前置保护，不表示源码、发布文件、同步目录或公网验收已完成。
+
+`builderPrivateValueReplicationOwner` 显式选择逐份创作的完整草稿/设计/历史、作者源码/测试/辅助文件及五个发布文件，由 Runtime 在同一 CAS 事务记逐项日志。唯一目录的 `authoring` 集合通过 `project-private-values` 注册，默认未选；`builderSyncProjection` 把明确的文件原字节交给共同 R2 codec，空文件不创建零字节对象。不传目录、运行 token、批准或其他私有 key；独立创作不因共用一个文档而相互覆盖。被动导入提高目标本机编辑高水位，不执行 JS 或自动安装。固定发布版本不同内容、发布 JSON 与元数据不符、越界/符号链接、坏摘要、缺件及迟到撤权拒绝。真实 Host/编译 Rust/WASM/临时 D1/R2 已验证一份原 KV 草稿的大文件及空文件、无回传和后续编辑；实际浏览器创作/发布旅程另外验证完整生成文件恢复、真实预览活动时拒绝覆盖，以及选用目标模型后明确继续和撤回。模型答复是标明的替身，不是真实厂商模型证据；合同、组件、历史与待继续决策的深层纯校验已有隔离验证；文件 GC 和真实设备上线验收仍未完成。项目库当前 v14，旧库拒绝且不改写，真实 Home 维护须另行批准。
+
+收到的源码与历史文件是不可变原件。明确继续/撤回时，Host 创建本机可编辑副本；没有本机 bundle 的历史和待调整界面先重跑原 G1–G6，不能把源设备的通过记录当执行许可。公共 SDK 类型只是构建输入，G1 仍与目标自己的 SDK 比较；不携带能力授权快照。正常修订保留共享源码/测试及依赖声明，再由原安装器重新校验依赖，不复制 node_modules。门禁后的落盘失败仍须返回失败及真实原因，不能保留误导的通过结果。
+
 - 负责：插件创作台：用自然语言设计、生成、试用并发布独立插件。
 - 不负责：模型凭据、运行时所有权、任意代码执行。
 - 公开入口：`@molis-ai/molis-work-plugin-builder`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、平台基础包 `@molis-ai/molis-work-plugin-sandbox`（复用严格合同校验，不启动沙箱）。不导入另一个插件、App、Horizontal Service 或 Module 的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - resetPreview 的旧 job 在 stopRunner 等待后再次核原 token，才能清预览数据或改构建。升级的授权表单传秘密值到 Host；只对本 release 声明的名称分批验证后切换，失败恢复本次秘密与原版本，较新的安装或启停选择优先。公开清单和批准记录不含秘密正文。
   - 执行只经 Host 的 Prologue 能力；Agent 挂载的规范来自 `skills/molis-plugin-dev`（设计、体验、界面、复查与代码按阶段挂载，各不超过 20000 字）。
@@ -54,3 +60,5 @@ G7 与截图复查使用独立验收存储，不读取或清空人的试用内�
 截图评审返回范围、截图、目标、证据、影响与改法；可定位且属性受支持的 presentation 意见才触发自动修订，design/host/unverified 意见保留显示。未知截图、部件或属性也保留为未自动修改；这只能防止部分错误返工，不证明模型判断正确。旧 visualResult 字符串结果继续可读。
 
 体验草图的 uses 可引用一个或多个既有操作，由 detail 再落实为运行时部件及绑定。G7 失败诊断读取渲染器已接受的结果/错误，保留当时选择和筛选，不再发空输入查询；填写了不存在的枚举选项时交回设计修改验收或显示映射，复用业务实现。
+
+首用试用版暂不开放草稿删除：owner 直接拒绝并保留完整草稿及文件，界面禁用删除入口；完整删除恢复机制验收前不开放。

@@ -1,3 +1,4 @@
+import {codingSavedHistoryPage} from './saved-history-view.js';
 import { runsWithCards } from "./action-cards.js";
 import { characterTitle, savedCharacter, savedCharacterSkills } from "./characters.js";
 import { codingContinuation } from "./continuation.js";
@@ -108,7 +109,8 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       const character = savedCharacter(context, record.session_id), character_title = characterTitle(context, character);
       const plan = execution.sessions.plan(projectId, record.session_id);
-      const draft = context.services?.storage?.get(`draft:${record.session_id}`) ?? "";
+      const plan_revision=execution.sessions.planRevision(projectId,record.session_id);
+      const savedInputs=execution.sessions.inputs.read(projectId,record.session_id),draft=savedInputs.draft,input_revision=savedInputs.revision;
       const savedConfiguration = context.services?.storage?.get(`configuration:${record.session_id}`);
       const configuration = typeof savedConfiguration === "string" ? nextConfiguration(JSON.parse(savedConfiguration)) : null;
       const savedMcp = context.services?.storage?.get(`mcp:${record.session_id}`);
@@ -119,10 +121,9 @@ const ROUTES: RouteMaker[] = [
       const materials = savedMaterials(context, record.session_id);
       const savedMethods = context.services?.storage?.get(`methods:${record.session_id}`);
       const methods = typeof savedMethods === "string" ? methodSelection(JSON.parse(savedMethods)) : [];
-      const questionDrafts = context.services?.storage?.get(`question-drafts:${record.session_id}`);
-      const question_drafts = typeof questionDrafts === "string" ? JSON.parse(questionDrafts) : {};
+      const question_drafts=savedInputs.question_drafts;
       const wait = await a.waits.openWaitOf(record).catch(() => undefined), queuedView = wait ? a.waits.waitView(wait) : null, priority = priorityOf(a, record.session_id);
-      if (!record.runtime_session_id) return { session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan };
+      if (!record.runtime_session_id) return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...record, queued: queuedView, priority, goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null }, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       try {
         const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -141,7 +142,7 @@ const ROUTES: RouteMaker[] = [
         const state = snapshot.recovery ? "reconcile-required" : last ? sessionState(last) : "idle";
         const updated = state === record.state ? record : execution.sessions.setState(projectId, record.session_id, state, record.updated_at);
         const compactRequested = context.services?.storage?.get(`compact-next:${record.session_id}`) === "1";
-        return { session: { ...updated, queued: queuedView, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, checkpoint_busy: snapshot.checkpoint_busy === true,
+        return { saved_history:codingSavedHistoryPage(execution,projectId,record.session_id,undefined,Number(request.query?.window??20)), session: { ...updated, queued: queuedView, priority, checkpoint_busy: snapshot.checkpoint_busy === true, goal_title: updated.goal_id ? execution.goalTitle(updated.goal_id) ?? null : null }, runs: shown, subagents: await subagentGroups(a, api!, record.session_id, session, runs), taskboard_plans: codingTaskBoardPlans(context, record.session_id, runs), draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, checkpoint_busy: snapshot.checkpoint_busy === true,
           run_count: snapshot.runs.length, runs_offset: offset,
           ...(size === undefined ? {} : { earlier_fingerprint: earlierFingerprint, ...(request.query?.earlier === earlierFingerprint ? {} : { earlier }) }),
           usage_total: codingSessionUsage([...earlier.map(summary => summary.usage), ...runs.map(run => run.usage)], savedDigestUsage(a, record.session_id)),
@@ -151,7 +152,7 @@ const ROUTES: RouteMaker[] = [
         // Never replace a lost runtime reference with a new session: that would
         // silently lose history and could repeat effects after a restart.
         const session = execution.sessions.setState(projectId, record.session_id, "reconcile-required", record.updated_at);
-        return { session, runs: [], draft, question_drafts, materials, methods, configuration, action_tools, mcp_tools, mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan, recovery_required: true,
+        return { session, runs: [], draft, question_drafts,input_revision, materials, methods, configuration, action_tools, mcp_tools,mcp_sources, character, character_title, character_skill_ids: savedCharacterSkills(context, record.session_id), plan,plan_revision, recovery_required: true,
           error: (error as { code?: string }).code === "agent.session_unknown"
             ? "此会话的执行记录尚未恢复，不能把它当新任务重跑。原会话与草稿已保留。"
             : "此会话的执行记录暂时无法读取，不能将未知结果当作已完成。原会话与草稿已保留，请稍后重试。" };
@@ -176,7 +177,8 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.read-runs", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      if (!record.runtime_session_id) return { runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
+      if(request.query?.history_before!==undefined&&request.query.before!==undefined)throw new Error("读取范围无效");
+      if (!record.runtime_session_id||request.query?.history_before!==undefined) return { saved_history:codingSavedHistoryPage(execution,a.projectId,record.session_id,request.query?.history_before??request.query?.before,Number(request.query?.limit??20)), runs: [], runs_offset: 0, subagents: [], taskboard_plans: [] };
       const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
       const snapshot = await api!.invoke(agent.readSession, [session]);
       const before = Number(request.query?.before ?? snapshot.runs.length), limit = Number(request.query?.limit ?? SESSION_PAGE);

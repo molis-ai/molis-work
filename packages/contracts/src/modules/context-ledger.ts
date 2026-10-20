@@ -77,6 +77,13 @@ export interface ContextLedgerApi {
   };
 }
 
+/** Trusted same-connection replica port. Replacing reference history never grants access or executes referenced objects. */
+export interface ContextHistoryReplication {
+  read(source:ObjectRef):ContextEdge[];
+  validate(source:ObjectRef,input:unknown):ContextEdge[];
+  replace(source:ObjectRef,history:readonly ContextEdge[]):void;
+}
+
 export type ContextObjectRead<T> =
   | { state: "resolved"; ref: ObjectRef; value: T }
   | { state: "missing" | "denied" | "unavailable" };

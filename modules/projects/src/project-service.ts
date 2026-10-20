@@ -149,18 +149,22 @@ export class ProjectService {
     });
   }
 
-  rename(projectId: string, displayName: string, actorId: string): ProjectRecord {
-    const existing = this.get(projectId);
+  rename(projectId: string, displayName: string, actorId: string, expectedDisplayName: string): ProjectRecord {
     const nextName = this.requiredName(displayName);
-    if (existing.display_name === nextName) return existing;
-    this.repository.transaction(() => {
+    const actor = this.requiredActorId(actorId);
+    return this.repository.transaction(() => {
+      const existing = this.get(projectId);
+      if (typeof expectedDisplayName !== "string" || existing.display_name !== expectedDisplayName) {
+        throw catalogErrors.project_name_conflict("Project name changed. Reopen project settings before saving; your draft was not applied.");
+      }
+      if (existing.display_name === nextName) return existing;
       this.repository.renameProject(existing.project_id, nextName, this.now());
-      this.appendEvent(existing.project_id, "project.renamed", this.requiredActorId(actorId), {
+      this.appendEvent(existing.project_id, "project.renamed", actor, {
         previous_display_name: existing.display_name,
         display_name: nextName,
       });
+      return this.get(existing.project_id);
     });
-    return this.get(existing.project_id);
   }
 
   updateDatabasePath(projectId: string, databasePath: string): ProjectRecord {

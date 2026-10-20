@@ -35,6 +35,12 @@ export interface ContextEdgeQuery {
     target?: ObjectRef;
 }
 
+export interface ContextHistoryReplication {
+    read(source: ObjectRef): ContextEdge[];
+    validate(source: ObjectRef, input: unknown): ContextEdge[];
+    replace(source: ObjectRef, history: readonly ContextEdge[]): void;
+}
+
 export interface ContextLedgerApi {
     query: {
         get(access: ContextAccess, key: string): ContextEdge | null;

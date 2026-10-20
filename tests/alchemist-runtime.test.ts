@@ -66,7 +66,7 @@ async function createIdea(runtime: LocalRuntime) {
 test("Alchemist: 方向可编辑、归档和恢复，关联想法保持可读", async () => {
   await withRuntime(async (runtime) => {
     const { direction, ideaId } = await createIdea(runtime);
-    const updated = await api(runtime, `/directions/${direction.id}`, "PATCH", { title: "新方向", description: "让独立创始人按访谈场景整理证据与判断" });
+    const updated = await api(runtime, `/directions/${direction.id}`, "PATCH", { title: "新方向", description: "让独立创始人按访谈场景整理证据与判断",expectedEtag:(await api(runtime,`/directions/${direction.id}/editing`)).etag });
     assert.equal(updated.direction.title, "新方向");
     await api(runtime, `/directions/${direction.id}/status`, "PATCH", { status: "archived" });
     const bootstrap = await api(runtime, "/bootstrap");

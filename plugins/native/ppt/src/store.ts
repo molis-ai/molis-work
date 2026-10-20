@@ -1,3 +1,4 @@
+import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import type { DatabaseSync } from "node:sqlite";
@@ -239,10 +240,10 @@ export const PPT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   CREATE TABLE presentation_copies (project_id TEXT NOT NULL, request_id TEXT NOT NULL, source_id TEXT NOT NULL, target_id TEXT NOT NULL, created_at TEXT NOT NULL, PRIMARY KEY (project_id, request_id));
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
-export function openPptStore(homeDirectory: string): PptStore {
+export function openPptStore(homeDirectory: string): PptStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
   const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_STORE_BASELINE);
   initializeAggregateReplication(db,pptAggregates);
-  return new PptStore(db);
+  return Object.assign(new PptStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,pptAggregates,context)});
 }
 
 function fromRow(row: PptRow): PptRecord {

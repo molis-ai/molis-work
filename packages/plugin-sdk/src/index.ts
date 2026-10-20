@@ -6,7 +6,10 @@ import { parsePluginManifest } from "./manifest.js";
 
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
 export { parsePluginSyncDeclaration, expandPluginSyncSelection } from "./plugin-sync.js";
-export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { createSyncJsonContent, type SyncJsonContentOptions } from './sync-content.js';
+export { createSyncDocument, type SyncDocument, type SyncDocumentOwner, type SyncDocumentStorage } from './sync-document.js';
+export { createSyncConflictState } from './sync-conflict.js';
+export type { PluginSyncDeclaration, PluginSyncCollection, PluginSyncIdentity, PluginSyncSnapshot, PluginSyncSnapshotAdapter, PluginSyncBinding, PluginSyncContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { inspectActionDeclarations } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
@@ -234,3 +237,5 @@ const manifestFailures = {
   "plugin.declaration_invalid": pluginErrors.declaration_invalid,
 } as const;
 export type { SyncMutation, SyncEvent, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
+
+export type {ProjectCopyAsset,ProjectCopyReference,ProjectCopyIdentity,ProjectCopyOwner} from '@molis-ai/molis-work-contracts/services/placement';

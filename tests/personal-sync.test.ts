@@ -1,3 +1,4 @@
+import { syncRoundResponse } from './fixtures/sync-round.js';
 import type {TestContext} from "node:test";
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -5,7 +6,7 @@ import { mkdtempSync,rmSync,readFileSync } from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {DatabaseSync} from 'node:sqlite';
-import {ensureStorageSpace,personalStorageSpace,homeSqlitePath} from '@molis-ai/molis-work-storage';
+import {ensureStorageSpace,personalStorageSpace,homeSqlitePath,openBaselineHomeSqlite} from '@molis-ai/molis-work-storage';
 import {openPagesStore} from '@molis-ai/molis-work-plugin-pages';
 import {PersonalSync,syncNamespace,type SyncRegistration} from '@molis-ai/molis-work-module-sync-replication';
 import type {SyncEvent,SyncMutation} from '@molis-ai/molis-work-contracts/platform/sync-transport';
@@ -14,19 +15,21 @@ import {availableProjectPluginIds} from '@molis-ai/molis-work-app-workbench';
 import {createPersonalSync} from '@molis-ai/molis-work-app-local-host';
 import {artifactSyncSelection,createPersonalArtifactRegistration} from '@molis-ai/molis-work-app-local-host';
 import {LocalProjectDatabase} from '@molis-ai/molis-work-app-local-host';
-import {ArtifactsModule} from '@molis-ai/molis-work-module-artifacts';
+import {ArtifactsModule,createArtifactReplication} from '@molis-ai/molis-work-module-artifacts';
 import {openFormStore,formManifest} from '@molis-ai/molis-work-plugin-form';
 import {openDatasetStore,datasetManifest} from '@molis-ai/molis-work-plugin-dataset';
 import {openPptStore,pptManifest} from '@molis-ai/molis-work-plugin-ppt';
 import {openLingguangStore,lingguangManifest} from '@molis-ai/molis-work-plugin-lingguang';
 import {openWorkflowsStore,workflowsManifest,newStation,manualLink} from '@molis-ai/molis-work-plugin-workflows';
 import {openJellyStore,jellyManifest} from '@molis-ai/molis-work-plugin-jelly';
-import {openTodoStore,todoManifest} from '@molis-ai/molis-work-plugin-todo';
+import {openTodoStore,openTodoSyncStore,todoManifest} from '@molis-ai/molis-work-plugin-todo';
 import {scheduleManifest} from '@molis-ai/molis-work-plugin-schedule';
 import {feedManifest,FeedOutRuleStore} from '@molis-ai/molis-work-plugin-feed';
+import {SourcesModule} from '@molis-ai/molis-work-module-sources';
 import {charactersManifest} from '@molis-ai/molis-work-plugin-characters';
 import {openCharacters} from '@molis-ai/molis-work-module-characters';
 import {LOCAL_PERSON_ACTOR_ID} from '@molis-ai/molis-work-contracts/platform/actions';
+import {createSyncConflictState} from '@molis-ai/molis-work-plugin-sdk';
 
 const selection={plugin_id:'io.molis.work.pages',publisher_id:'molis',publisher_signature:'official-pages-binding',collection_id:'documents',schema_version:1};
 const body=(text:string)=>({type:'doc' as const,content:[{type:'paragraph',content:[{type:'text',text}]}]});
@@ -54,12 +57,13 @@ test('Host exposes and transfers all registered creative collections through the
   try{
     scheduleStore.db.prepare(`INSERT INTO schedule_conversation_tasks (task_id,title,instructions,hour,minute,notify_important,enabled,archived,unread,job_id,last_run_at,last_error,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run('sync-task','跨设备提醒','检查进展',9,0,1,1,0,0,'origin-job',null,null,'2026-10-14T00:00:00.000Z','2026-10-14T00:00:00.000Z');
     feedRuleId=new FeedOutRuleStore(scheduleStore.db).create(project.project_id,{name:'跨设备捕捉',match:{contains:'发布'},enabled:true}).rule_id;
+    new SourcesModule(scheduleStore.db).commands.save({project_id:project.project_id,source_id:'portable-source',kind:'github',definition_id:'github.notifications',sync_kind:'github',name:'跨设备来源',description:'只同步描述与历史',status:'active',enabled:true,origin:'molis_work',config:{connection_id:'this-device-only-connection'},schedule:{mode:'interval',enabled:true,interval_minutes:30,next_pull_at:null},connection_ref:'this-device-only-reference',account_label:'This device',last_sync_at:null,last_outcome:null,last_error_code:null,imported_at:'2026-10-18T00:00:00.000Z',updated_at:'2026-10-18T00:00:00.000Z'});
   }finally{scheduleStore.close();}
   const check=()=>{};const lease={userId:'alice',applicationId:'work',authOrigin:'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
   const a=(await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check))!,b=(await createPersonalSync(f.homes[1],f.space,lease,withMolisWorkProjectCatalog,check))!;t.after(()=>{a.close();b.close();});
-  const selections=[formManifest,datasetManifest,pptManifest,lingguangManifest,workflowsManifest,jellyManifest,todoManifest,scheduleManifest,charactersManifest,feedManifest].map(m=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync!.collections[0]!.id,schema_version:1}));
-  assert.equal(a.status().collections.length,14);assert.equal(a.policy().selections.length,0,'new collections are opt-in');
-  await a.save({...a.policy(),selections});assert.equal(a.status().error,null);await b.run();assert.equal(b.status().error,null);
+  const selections=[formManifest,datasetManifest,pptManifest,lingguangManifest,workflowsManifest,jellyManifest,todoManifest,scheduleManifest,charactersManifest,feedManifest].flatMap(m=>m.sync!.collections.map(c=>({plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:c.id,schema_version:c.schema_version})));
+  assert.equal(a.status().collections.length,26);assert.ok(a.status().collections.some(c=>c.selection.plugin_id==='io.molis.work.module.projects.v1'));assert.equal(a.policy().selections.length,0,'new collections are opt-in, including Projects, Work, Coding and Builder');
+  await a.save({...a.policy(),selections});await a.run();assert.equal(a.status().error,null);await b.run();assert.equal(b.status().error,null);
   factories.forEach((open,i)=>{const s=open(f.homes[1]);try{assert.equal(s.get(ids[i]!,project.project_id).title,'跨设备业务内容');}finally{s.close();}});
   const received=openWorkflowsStore(f.homes[1]);try{
     assert.equal(received.get(workflow.id,project.project_id).title,'跨设备流程');
@@ -81,8 +85,10 @@ test('Host exposes and transfers all registered creative collections through the
     assert.equal(task.title,'跨设备提醒');assert.equal(task.enabled,0);assert.equal(task.job_id,null);
     const rule=new FeedOutRuleStore(receivedSchedule.db).get(project.project_id,feedRuleId);
     assert.equal(rule.name,'跨设备捕捉');assert.equal(rule.enabled,false,'received capture rules cannot run before local opt-in');
+    const source=new SourcesModule(receivedSchedule.db).query.get(project.project_id,'portable-source');assert.equal(source.name,'跨设备来源');assert.equal(source.enabled,false);assert.equal(source.connection_ref,null);assert.deepEqual(source.config,{});assert.deepEqual(source.schedule,{mode:'manual'});
   }finally{receivedSchedule.close();}
   const before=f.events.length;await a.run();await b.run();assert.equal(f.events.length,before,'no replication echo');
+  assert.doesNotMatch(JSON.stringify(f.events),/this-device-only-connection|this-device-only-reference/,'source setup never enters the transport');
 });
 test('PERSAF-05 incoming content does not silently re-enable an explicitly removed plugin',async t=>{
   const f=fixture(t),previous=process.env.MOLIS_WORK_SYNC_LOCAL;process.env.MOLIS_WORK_SYNC_LOCAL='1';
@@ -92,7 +98,7 @@ test('PERSAF-05 incoming content does not silently re-enable an explicitly remov
   const store=new LocalProjectDatabase(p.database_path);let id:string;try{id=new FeedOutRuleStore(store.db).create(p.project_id,{name:'User choice is retained',match:{contains:'fact'},enabled:false}).rule_id;}finally{store.close();}
   const check=()=>{},lease={userId:'alice',applicationId:'work',authOrigin:'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
   const a=(await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check))!,b=(await createPersonalSync(f.homes[1],f.space,lease,withMolisWorkProjectCatalog,check))!;t.after(()=>{a.close();b.close();});
-  const m=feedManifest;await a.save({...a.policy(),selections:[{plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync!.collections[0]!.id,schema_version:1}]});await b.run();
+  const m=feedManifest;await a.save({...a.policy(),selections:[{plugin_id:m.plugin_id,publisher_id:m.publisher.publisher_id,publisher_signature:m.publisher.signature,collection_id:m.sync!.collections[0]!.id,schema_version:1}]});await a.run();await b.run();
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>{assert.equal(availableProjectPluginIds(c.listProjectPlugins(p.project_id)).has('feed'),false);c.addProjectPlugin({project_id:p.project_id,plugin_id:'feed',actor_id:'alice'});});
   await b.run();assert.equal(b.status().error,null);
   const target=await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.listProjects().find(row=>row.project_id===p.project_id)!);const received=new LocalProjectDatabase(target.database_path);try{assert.equal(new FeedOutRuleStore(received.db).get(p.project_id,id).name,'User choice is retained');}finally{received.close();}
@@ -116,24 +122,42 @@ function fixture(t:TestContext){
   const homes=['a','b'].map(name=>join(root,name));homes.forEach(h=>ensureStorageSpace(h,space));
   let active=true;
   const authorize=()=>{if(!active)throw new Error('REVOKED');};
-  const context={authorize,project:()=>({title:'文档项目',context:{spaceId:space.spaceId,projectId:'project',authorize,hasReference:()=>true}})};
+  const context={authorize,conflictState:createSyncConflictState,project:()=>({title:'文档项目',context:{spaceId:space.spaceId,projectId:'project',authorize,hasReference:()=>true}})};
   const withStore=<T>(i:number,run:(store:ReturnType<typeof openPagesStore>)=>T)=>{const store=openPagesStore(homes[i]);try{return run(store);}finally{store.close();}};
   const withReplica=<T>(i:number,run:(r:ReturnType<ReturnType<typeof openPagesStore>['replica']>)=>T)=>withStore(i,s=>run(s.replica(context)));
   const registrations=homes.map((_,i):SyncRegistration=>({selection,title:'文档与文件夹',refresh:async()=>{},prepare:async()=>{},withReplica:run=>withReplica(i,run)}));
-  const events:SyncEvent[]=[];const namespaces=new WeakMap<SyncEvent,string>();let revision=0,online=true,drop=false;
+  const events:SyncEvent[]=[];const namespaces=new WeakMap<SyncEvent,string>();let revision=0,online=true,drop=false,usedBytes=0;
+  const retained:Array<{namespace:string;mutation:SyncMutation;revision:number}>=[];
+  let retentionHook:(route:string,payload:unknown)=>Promise<Response|undefined>=async()=>undefined;
   let beforeDownload:()=>void=()=>{};
+  let afterQuotaSnapshot:()=>void=()=>{};
   let policy={spaceId:space.spaceId,revision:0,selections:[] as typeof selection[]};
   const transport:typeof fetch=async(input,init)=>{
     if(!online)throw new Error('OFFLINE');
     const url=new URL(String(input));const payload=init?.body?JSON.parse(String(init.body)):null;
+    if(url.pathname==='/v1/round'){const snapshot=syncRoundResponse(policy,s=>events.filter(event=>namespaces.get(event)===syncNamespace(s)).at(-1)?.revision??0,usedBytes);afterQuotaSnapshot();return snapshot;}
+    if(url.pathname==='/v1/quota')return Response.json({limitBytes:100000000,usedBytes});
     if(url.pathname==='/v1/policy'){
       if(init?.method==='PUT'){
         if(payload.revision!==policy.revision)return Response.json({error:'CONFLICT'},{status:409});
         policy={...payload,revision:policy.revision+1};
       }return Response.json(policy);
     }
+    if(url.pathname==='/v1/history/pin'||url.pathname==='/v1/history/archive'){
+      assert.equal(init?.method,'POST');const intercepted=await retentionHook(url.pathname,payload);if(intercepted)return intercepted;
+      const key=payload.key??payload.mutation?.key,head=events.filter(e=>namespaces.get(e)===payload.namespace&&e.key===key).at(-1);
+      if(!head||head.revision!==(payload.revision??payload.mutation?.base))return Response.json({error:'CONFLICT'},{status:409});
+      assert.equal(payload.policyRevision,policy.revision);
+      if(url.pathname==='/v1/history/pin')return Response.json({accepted:true,revision:head.revision});
+      if(usedBytes>=100000000)return Response.json({error:'SYNC_QUOTA_EXCEEDED'},{status:413});
+      const prior=retained.find(row=>row.namespace===payload.namespace&&row.mutation.operationId===payload.mutation.operationId);
+      if(prior)assert.deepEqual(prior.mutation,payload.mutation);else retained.push({namespace:payload.namespace,mutation:payload.mutation,revision:++revision});
+      return Response.json({accepted:true,revision:(prior??retained.at(-1))!.revision});
+    }
     if(init?.method==='POST'){
+      assert.equal(url.pathname,'/v1/changes');
       const m=payload.mutation as SyncMutation;
+      if(m.value!==null&&usedBytes>=100000000)return Response.json({error:'SYNC_QUOTA_EXCEEDED'},{status:413});
       const previous=events.find(e=>namespaces.get(e)===payload.namespace&&e.operationId===m.operationId);
       if(!previous){
         const head=events.filter(e=>namespaces.get(e)===payload.namespace&&e.key===m.key).at(-1)?.revision??0;
@@ -141,7 +165,7 @@ function fixture(t:TestContext){
         assert.ok(policy.selections.some(s=>syncNamespace(s)===payload.namespace));const event={...m,revision:++revision};events.push(event);namespaces.set(event,payload.namespace);
       }
       if(drop){drop=false;throw new Error('RECEIPT_LOST');}
-      return Response.json({accepted:true});
+      return Response.json({accepted:true,revision:events.find(e=>namespaces.get(e)===payload.namespace&&e.operationId===m.operationId)!.revision});
     }
     const rows=events.filter(e=>namespaces.get(e)===url.searchParams.get('namespace')&&e.revision>Number(url.searchParams.get('after')));
     beforeDownload();
@@ -151,8 +175,22 @@ function fixture(t:TestContext){
   const clients=homes.map((home,i)=>new PersonalSync({home,spaceId:space.spaceId,endpoint:'http://127.0.0.1:8788',authority:{signal:controller.signal,assertCurrent:authorize,accessToken:async()=>{authorize();return 'synthetic-only';}},registrations:[registrations[i]],fetch:transport}));
   const enable=async()=>{await clients[0].save({spaceId:space.spaceId,revision:policy.revision,selections:[selection]});await clients[0].run();};
   t.after(()=>{clients.forEach(c=>c.close());rmSync(root,{recursive:true,force:true});});
-  return {space,homes,clients,events,withStore,withReplica,enable,transport,beforeDownload:(run:()=>void)=>beforeDownload=run,offline:()=>online=false,online:()=>online=true,drop:()=>drop=true,revoke:()=>{active=false;controller.abort();}};
+  return {space,homes,clients,events,retained,withStore,withReplica,enable,transport,onRetention:(hook:typeof retentionHook)=>retentionHook=hook,used:(bytes:number)=>usedBytes=bytes,beforeDownload:(run:()=>void)=>beforeDownload=run,afterQuotaSnapshot:(run:()=>void)=>afterQuotaSnapshot=run,offline:()=>online=false,online:()=>online=true,drop:()=>drop=true,revoke:()=>{active=false;controller.abort();}};
 }
+
+for(const concurrent of [false,true])test('PCSYNC-10 full quota keeps uploads queued while independent deletes and downloads continue '+concurrent,async t=>{
+  const f=fixture(t),old=f.withStore(0,s=>s.create({project_id:'project',title:'delete me'}));
+  await f.enable();await f.clients[1].run();
+  const pending=f.withStore(0,s=>s.create({project_id:'project',title:'retained locally'}));
+  f.withStore(0,s=>s.delete(old.id));
+  if(concurrent)f.afterQuotaSnapshot(()=>f.used(100000000));else f.used(100000000);
+  await f.clients[0].run();assert.match(f.clients[0].status().error??'',/100 MB/);
+  assert.equal(f.clients[0].status().collections[0].pending,1);
+  assert.equal(f.withStore(0,s=>s.get(pending.id).title),'retained locally');
+  await f.clients[1].run();assert.equal(f.withStore(1,s=>s.list('project').length),0);
+  f.afterQuotaSnapshot(()=>{});f.used(0);await f.clients[0].run();await f.clients[1].run();
+  assert.equal(f.clients[0].status().error,null);assert.equal(f.withStore(1,s=>s.get(pending.id).title),'retained locally');
+});
 
 for (const reserved of [false, true]) test('Host binding receives Pages in '+(reserved?'the reserved personal partition':'a managed project'),{timeout:30000},async t=>{
   const f=fixture(t);
@@ -169,7 +207,7 @@ for (const reserved of [false, true]) test('Host binding receives Pages in '+(re
   const a=await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check);
   const b=await createPersonalSync(f.homes[1],f.space,lease,withMolisWorkProjectCatalog,check);
   assert.ok(a&&b);t.after(()=>{a.close();b.close();});
-  await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});assert.equal(a.status().error,null);
+  await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'完整正文');
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},catalog=>{
@@ -196,21 +234,23 @@ test('Host sync: delayed fixed Artifact versions restore a waiting document with
   const check=()=>{};const lease={userId:'alice',applicationId:'work',authOrigin:'http://127.0.0.1:8787',signal:new AbortController().signal,assertCurrent:check,accessToken:async()=>'synthetic-only'};
   const a=(await createPersonalSync(f.homes[0],f.space,lease,withMolisWorkProjectCatalog,check))!;
   const b=(await createPersonalSync(f.homes[1],f.space,lease,withMolisWorkProjectCatalog,check))!;t.after(()=>{a.close();b.close();});
-  await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await b.run();assert.equal(b.status().error,null);
+  await a.save({spaceId:f.space.spaceId,revision:0,selections:[selection]});await a.run();await b.run();assert.equal(b.status().error,null);
   const waiting=b.status().collections.find(c=>c.selection.plugin_id===selection.plugin_id)!.conflicts;
   assert.equal(waiting.length,1);assert.equal(waiting[0].waiting,true);assert.match(waiting[0].reason,/成果/);
   assert.equal(f.withStore(1,s=>s.list(project.project_id).length),0);
   await assert.rejects(()=>b.resolve(syncNamespace(selection),waiting[0].key,'local'),/尚未到达/);
   // The project was created by Pages first: explicit user activation on this device is retained.
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'alice'}));
-  await a.save({...a.policy(),selections:[selection,artifactSyncSelection]});assert.equal(a.status().error,null);
+  await a.save({...a.policy(),selections:[selection,artifactSyncSelection]});await a.run();assert.equal(a.status().error,null);
   await b.run();assert.equal(b.status().error,null);
   const restored=f.withStore(1,s=>s.get(page.id));assert.equal(restored.artifact_id,'linked-artifact');assert.equal(restored.artifact_version,1);assert.deepEqual(restored.body,body('完整正文'));
   await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>{
     const p=c.listProjects().find(p=>p.project_id===project.project_id)!;const db=new LocalProjectDatabase(p.database_path);
     try{const owner=new ArtifactsModule({db:db.db,appendEvent:e=>db.appendEvent(e)});assert.equal(owner.query.listArtifactVersions(p.project_id,'linked-artifact').length,2);assert.equal(owner.query.getArtifactVersion(p.project_id,{artifact_id:'linked-artifact',version:1})!.lifecycle_state,'archived');}finally{db.close();}
   });
-  assert.ok(b.status().collections.every(c=>c.conflicts.length===0&&c.pending===0));
+  assert.ok(b.status().collections.filter(c=>b.policy().selections.some(s=>syncNamespace(s)===syncNamespace(c.selection))).every(c=>c.conflicts.length===0&&c.pending===0));
+  assert.equal(b.status().collections.find(c=>c.selection.plugin_id==='io.molis.work.module.projects.v1')!.pending,1,'the explicit local activation retains its unselected project metadata change without uploading it');
+  assert.equal(b.status().progress.pending,0,'PCSYNC-27 aggregate progress excludes unselected local queues');assert.equal(b.status().progress.complete,true);
   const n=f.events.length;await b.run();await a.run();assert.equal(f.events.length,n,'receipt/apply must not create a replication echo');
 });
 
@@ -234,8 +274,30 @@ test('an unavailable collection does not block unrelated selected collections',a
 
 test('Artifact Host refuses an account or space that does not own its Home',t=>{
   const f=fixture(t);
-  assert.throws(()=>createPersonalArtifactRegistration(f.homes[0],f.space.spaceId,'bob',()=>{},withMolisWorkProjectCatalog),/OWNERSHIP/);
-  assert.throws(()=>createPersonalArtifactRegistration(f.homes[0],'foreign-space','alice',()=>{},withMolisWorkProjectCatalog),/OWNERSHIP/);
+  assert.throws(()=>createPersonalArtifactRegistration(f.homes[0],f.space.spaceId,'bob',()=>{},withMolisWorkProjectCatalog),{code:'host.version_sync_scope'});
+  assert.throws(()=>createPersonalArtifactRegistration(f.homes[0],'foreign-space','alice',()=>{},withMolisWorkProjectCatalog),{code:'host.version_sync_scope'});
+});
+
+test('S-44 PCSYNC-14 Host refuses malformed fixed content before creating any target project',async t=>{
+  const f=fixture(t),check=()=>{};
+  const project=await withMolisWorkProjectCatalog({homeDirectory:f.homes[0]},c=>c.createProject({display_name:'Validated before creation',actor_id:'alice'}));
+  const source=new LocalProjectDatabase(project.database_path);t.after(()=>source.close());
+  new ArtifactsModule({db:source.db,appendEvent:e=>source.appendEvent(e)}).commands.registerVersion({
+    project_id:project.project_id,artifact_id:'fixed-report',version:1,actor_id:'alice',artifact_type_id:'io.example.report',schema_version:1,
+    origin:{kind:'imported',file_name:'report.json'},title:'Report',media_type:'application/json',
+    producer:{plugin_id:'io.example.writer',plugin_version:'1.0.0',binding_signature:'writer-signature'},content:{kind:'inline',payload:{text:'Complete report'}},
+  });
+  const artifact=createArtifactReplication(source.db,{spaceId:f.space.spaceId,projectId:project.project_id,authorize:check},{appendEvent:e=>source.appendEvent(e)}).read('fixed-report')!;
+  const target=createPersonalArtifactRegistration(f.homes[1],f.space.spaceId,'alice',check,withMolisWorkProjectCatalog).registration;
+  const value={project:{id:project.project_id,title:project.display_name},artifact};
+  const event={key:JSON.stringify([project.project_id,'artifact','fixed-report']),operationId:'malformed-operation',deviceId:'source',revision:1,value};
+  const tampered=structuredClone(event);tampered.value.artifact.versions[0]!.payload={text:'Tampered'};
+  await assert.rejects(()=>target.prepare!(tampered),{code:'artifacts.sync_invalid'});
+  const wrong=structuredClone(event);wrong.value.artifact.identity.artifact_id='another-report';
+  await assert.rejects(()=>target.prepare!(wrong));
+  assert.deepEqual(await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.listProjects()),[]);
+  await target.prepare!(event);
+  assert.equal((await withMolisWorkProjectCatalog({homeDirectory:f.homes[1]},c=>c.listProjects())).length,1,'valid complete content may provision its target');
 });
 
 test('two devices: durable offline edits, per-item deltas, folders, deletion and no echo',async t=>{
@@ -275,9 +337,59 @@ test('simultaneous same-item edits preserve both versions and explicit resolutio
   await f.clients[0].run();await f.clients[1].run();
   assert.equal(f.withStore(1,s=>s.get(page.id).title),'B');
   const conflict=f.withReplica(1,r=>r.conflicts()[0]);assert.ok(conflict);
+  let pinned=false;f.onRetention(async route=>{assert.equal(route,'/v1/history/pin');assert.equal(f.withStore(1,s=>s.get(page.id).title),'B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);pinned=true;return undefined;});
   await f.clients[1].resolve(syncNamespace(selection),conflict.key,'local');await f.clients[1].run();await f.clients[0].run();
+  assert.equal(pinned,true);assert.deepEqual(f.retained,[],'the already-uploaded remote branch is pinned, not duplicated');
   assert.equal(f.withStore(0,s=>s.get(page.id).title),'B');
   const db=new DatabaseSync(homeSqlitePath(f.homes[1],'pages'));try{assert.equal(db.prepare('SELECT COUNT(*) AS n FROM replica_resolutions').get()!.n,1);}finally{db.close();}
+});
+
+async function conflictedPages(t:TestContext){
+  const f=fixture(t),page=f.withStore(0,s=>s.create({project_id:'project',title:'base'}));
+  await f.enable();await f.clients[1].run();
+  f.withStore(0,s=>s.update(page.id,{title:'remote A'}));f.withStore(1,s=>s.update(page.id,{title:'local B'}));
+  await f.clients[0].run();await f.clients[1].run();
+  const namespace=syncNamespace(selection),conflict=f.clients[1].inspectConflict(namespace,f.withReplica(1,r=>r.conflicts()[0]!.key));assert.ok(conflict);
+  return {f,page,namespace,conflict};
+}
+
+test('PCSYNC-15 choosing remote archives the exact inspected local branch before the original owner transaction',async t=>{
+  const {f,page,namespace,conflict}=await conflictedPages(t),before=f.events.length;
+  f.onRetention(async route=>{assert.equal(route,'/v1/history/archive');assert.equal(f.withStore(1,s=>s.get(page.id).title),'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);return undefined;});
+  await f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state);
+  assert.equal(f.withStore(1,s=>s.get(page.id).title),'remote A');assert.equal(f.withReplica(1,r=>r.conflicts().length),0);
+  assert.equal(f.retained.length,1);assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);assert.equal(f.retained[0]!.mutation.base,conflict.revision);
+  assert.equal(f.events.length,before,'an archive is not a new business head or an acknowledgement');
+  assert.equal(f.clients[1].recoveries(namespace).length,1,'the original atomic local journal also remains available');
+});
+
+for(const failure of ['quota','offline','invalid-receipt','remote-changed'] as const)test('PCSYNC-15 failed cloud retention keeps original and conflict: '+failure,async t=>{
+  const {f,page,namespace,conflict}=await conflictedPages(t);
+  if(failure==='quota')f.used(100000000);
+  else if(failure==='offline')f.offline();
+  else f.onRetention(async()=>Response.json(failure==='invalid-receipt'?{accepted:true,revision:conflict.revision}:{error:'CONFLICT'},{status:failure==='invalid-receipt'?200:409}));
+  await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state));
+  assert.equal(f.withStore(1,s=>s.get(page.id).title),'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);assert.equal(f.clients[1].recoveries(namespace).length,0);assert.deepEqual(f.retained,[]);
+});
+
+test('PCSYNC-15 a stale inspected revision or state is rejected before any history request',async t=>{
+  const {f,namespace,conflict}=await conflictedPages(t);let calls=0;f.onRetention(async()=>{calls++;return undefined;});
+  await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision+1,conflict.state),/版本已变化/);
+  await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'local',conflict.revision,conflict.state+'stale'),/比较内容已变化/);
+  assert.equal(calls,0);assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
+});
+
+for(const change of ['edit','device-stop'] as const)test('PCSYNC-15 delayed retention never authorizes a newer local state: '+change,async t=>{
+  const {f,page,namespace,conflict}=await conflictedPages(t);
+  f.onRetention(async()=>{if(change==='edit')f.withStore(1,s=>s.update(page.id,{title:'newer local C'}));else await f.clients[1].setDevice(false);return undefined;});
+  await assert.rejects(()=>f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state),/内容已变化|状态已变化/);
+  assert.equal(f.withStore(1,s=>s.get(page.id).title),change==='edit'?'newer local C':'local B');assert.equal(f.withReplica(1,r=>r.conflicts().length),1);
+  assert.equal(f.retained.length,1,'a retained backup does not claim that the user choice committed');assert.deepEqual(f.retained[0]!.mutation.value,conflict.local);
+  assert.equal(f.clients[1].recoveries(namespace).length,0);
+  if(change==='device-stop'){
+    f.onRetention(async()=>undefined);await f.clients[1].resolve(namespace,conflict.key,'remote',conflict.revision,conflict.state);
+    assert.equal(f.retained.length,1,'manual retry uses the same operation identity after a cancelled response');assert.equal(f.withStore(1,s=>s.get(page.id).title),'remote A');
+  }
 });
 
 test('disable retains data; stale policy fails; account revocation blocks late writes',async t=>{
@@ -301,7 +413,7 @@ test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled p
     db.exec(readFileSync('apps/sync-worker/migrations/0001_sync.sql','utf8'));
     const ns=syncNamespace(selection);
     db.prepare('INSERT INTO sync_policy VALUES (?,1,?,?)').run('alice','{}',JSON.stringify([ns]));
-    const insert=db.prepare('INSERT INTO sync_events(space,namespace,operation,key,base,value,policy_revision) VALUES (?,?,?,?,?,?,?)');
+    const insert=db.prepare("INSERT INTO sync_events(space,namespace,operation,key,base,value,attachments,policy_revision,fingerprint) VALUES (?,?,?,?,?,?,'[]',?,'schema-fixture')");
     insert.run('alice',ns,'one','doc',0,'{}',1);
     assert.throws(()=>insert.run('alice',ns,'two','doc',0,'{}',1),/SYNC_VERSION_CONFLICT/);
     assert.throws(()=>insert.run('bob',ns,'one','doc',0,'{}',1),/SYNC_POLICY_CONFLICT/);
@@ -309,4 +421,59 @@ test('D1 schema: atomic CAS, owner isolation, idempotency constraint, disabled p
     assert.throws(()=>insert.run('alice',ns,'three','doc',1,'{}',1),/SYNC_POLICY_CONFLICT/);
     assert.equal(db.prepare('SELECT COUNT(*) AS n FROM sync_events').get()!.n,1);
   }finally{db.close();}
+});
+
+test('PCSYNC-20 aggregate and workflow owners report only their own project changes without exporting content',t=>{
+ const f=fixture(t),context={spaceId:f.space.spaceId,authorize(){},project:(id:string)=>({title:id}),canUploadProject:()=>false,hasArtifact:()=>false};
+ for(const open of [openFormStore,openDatasetStore,openPptStore,openLingguangStore]){
+  const store=open(f.homes[0]);try{
+   store.create({project_id:'project-a',title:'Unsent'});const replica=store.replica(context);
+   assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
+   assert.equal(replica.next(),null,'disabled upload must not hide unsynced project content from lifecycle inspection');
+  }finally{store.close();}
+ }
+ const store=openWorkflowsStore(f.homes[0]);try{
+  store.create({project_id:'project-a',title:'Unsent workflow',chain:{stations:[newStation('pages')],links:[]}});
+  const replica=store.replica(context);assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),false);
+ }finally{store.close();}
+});
+
+
+test('PCSYNC-20 Todo preserves deleted project scope across restart and protects both sides of an uncertain move until ACK',t=>{
+ const f=fixture(t),home=f.homes[0],access=(projectId:string|null)=>({projectId,everything:true,actor:'user' as const,actorId:'alice'});
+ let store=openTodoStore(home),sync=openTodoSyncStore(home);t.after(()=>{store.close();sync.close();});
+ const context={spaceId:f.space.spaceId,authorize(){},project:(id:string)=>({title:id}),canUploadProject:()=>true,hasArtifact:()=>false};
+ let replica=sync.replica(context);
+ const initial=store.create({title:'Retain scope',placement:'project'},access('project-a')).item;
+ const frozen=replica.next()!;assert.equal(replica.hasProjectChanges!('project-a'),true);
+ const personal=store.update(initial.id,{placement:'personal'},initial.revision,access('project-a')).item;
+ const moved=store.update(initial.id,{placement:'project'},personal.revision,access('project-b')).item;
+ assert.equal(moved.project_id,'project-b');assert.equal(replica.hasProjectChanges!('project-a'),true);assert.equal(replica.hasProjectChanges!('project-b'),true);
+ store.delete(moved.id,moved.revision,access('project-b'));assert.throws(()=>store.get(moved.id,access('project-b')),/找不到/);
+ store.close();sync.close();store=openTodoStore(home);sync=openTodoSyncStore(home);replica=sync.replica(context);
+ assert.equal(replica.hasProjectChanges!('project-a'),true,'uncertain old upload retains old project scope');
+ assert.equal(replica.hasProjectChanges!('project-b'),true,'deleted row retains its last project across restart');
+ assert.equal(replica.hasProjectChanges!('unrelated'),false);
+ replica.acknowledge(frozen.key,frozen.operationId,1);assert.equal(replica.hasProjectChanges!('project-a'),false,'settled old scope must not block forever');
+ assert.equal(replica.hasProjectChanges!('project-b'),true);const deletion=replica.next()!;assert.equal(deletion.value,null);
+ replica.acknowledge(deletion.key,deletion.operationId,2);assert.equal(replica.hasProjectChanges!('project-b'),false);
+});
+
+test('PCSYNC-20 frozen Todo v2 is refused without changing original rows or bytes',t=>{
+ const f=fixture(t),home=f.homes[0],old=openBaselineHomeSqlite(home,'todo',{version:2,schema:readFileSync(new URL('./fixtures/home-store-schemas/todo-v2.sql',import.meta.url),'utf8')});
+ old.prepare("INSERT INTO todo_source_memory VALUES('source','original','keep',NULL,'preserve original','2026-10-19T00:00:00Z')").run();old.close();
+ const file=join(home,'todo','todo.db'),before=readFileSync(file);
+ assert.throws(()=>openTodoSyncStore(home),{code:'storage.schema_version_mismatch'});assert.deepEqual(readFileSync(file),before);
+});
+
+// PCSYNC-14/23: source-only derived exports do not block incoming records or another healthy project/key.
+test('upload preparation runs only for selected uploads and isolates an unavailable derived-history key',async t=>{
+ const f=fixture(t),a=f.withStore(0,store=>store.create({project_id:'project',title:'waiting archive'})),b=f.withStore(0,store=>store.create({project_id:'project',title:'healthy archive'}));let preparations=0,maintenance=0,waiting=true;
+ const key=JSON.stringify(['project','document',a.id]);
+ const registration:SyncRegistration={selection,title:'derived exports',refresh:async()=>{},prepare:async()=>{},withReplica:run=>f.withReplica(0,replica=>run({...replica,maintain(){maintenance++;}})),prepareUploads:async()=>{preparations++;return waiting?[{key,error:new Error('SDK history still active')}]:[];}};
+ const client=new PersonalSync({home:f.homes[0],spaceId:f.space.spaceId,endpoint:'http://127.0.0.1:8788',fetch:f.transport,authority:{signal:new AbortController().signal,assertCurrent(){},accessToken:async()=>'synthetic-only'},registrations:[registration]});t.after(()=>client.close());
+ await client.run();assert.equal(preparations,0,'an unselected owner does not export histories or initialize a Runtime');assert.equal(maintenance,0,'unselected owners do not collect files');
+ await client.save({...client.policy(),selections:[selection]});await client.run();assert.ok(preparations>0);assert.ok(maintenance>0,'selected owners run bounded cleanup after processing uploads');assert.match(client.status().error!,/SDK history still active/);await f.clients[1].run();
+ assert.equal(f.withStore(1,store=>store.get(b.id).title),'healthy archive');assert.equal(f.withStore(1,store=>store.list('project').some(page=>page.id===a.id)),false);assert.ok(f.withReplica(0,replica=>replica.counts().pending)>0);
+ waiting=false;await client.run();await f.clients[1].run();assert.equal(f.withStore(1,store=>store.get(a.id).title),'waiting archive');
 });

@@ -1,4 +1,5 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { syncContributionProblems } from './sync-contribution.js';
 import type {
   PluginAppContribution,
   PluginContribution,
@@ -116,6 +117,7 @@ export function assertContributionMatchesManifest(
     ...assertViews(manifest, contribution),
     ...assertRoutes(manifest, contribution),
     ...assertHandlers(manifest, contribution),
+    ...syncContributionProblems(manifest, contribution),
   );
   if (problems.length > 0) {
     throw pluginErrors.contribution_unredeemed(problems.join("；"));

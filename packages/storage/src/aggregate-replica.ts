@@ -1,4 +1,6 @@
+import {readDatabaseSpace} from './space.js';
 import { syncError } from './project-replica-sync-errors.js';
+import type {ProjectCopyIdentity,ProjectCopyReference} from '@molis-ai/molis-work-contracts/services/placement';
 import type { SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { createSqliteReplica, initializeReplica, replicaMarkSql, replicaTransaction, type ReplicaDatabase } from './replica.js';
 
@@ -16,9 +18,12 @@ export interface AggregateDefinition {
   busyColumn?: string;
   validate(value: AggregateRecords): void;
   dependencies?(value: AggregateRecords, context: AggregateReplicaContext, projectId: string): void;
+  /** Explicit copy identity and typed references; free text and opaque user JSON are never searched for IDs. */
+  copy?:{kind:string;references?(value:AggregateRecords,projectId:string):readonly ProjectCopyReference[];rebase?(value:AggregateRecords,identity:ProjectCopyIdentity):void};
 }
 export interface AggregateReplicaContext {
   spaceId: string;
+  conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
   authorize(): void;
   canUploadProject(projectId: string): boolean;
   project(projectId: string): { title: string };
@@ -60,6 +65,11 @@ export function initializeAggregateReplication(db: ReplicaDatabase, definitions:
 export function createAggregateReplica(db: ReplicaDatabase, definitions: readonly AggregateDefinition[], context: AggregateReplicaContext): SyncReplicaAdapter {
   const binding=db.prepare('SELECT space_id,descriptor FROM molis_storage_space WHERE singleton=1').get();
   if(!binding||JSON.parse(String(binding.descriptor)).kind!=='personal'||binding.space_id!==context.spaceId)throw syncError("scope",'同步空间不匹配');
+  return createSqliteReplica(db,createAggregatePortableOwner(db,definitions,context));
+}
+/** Owner-declared portable facts; local-copy readers do not acquire personal sync permission or technical journals. */
+export function createAggregatePortableOwner(db:ReplicaDatabase,definitions:readonly AggregateDefinition[],context:AggregateReplicaContext){
+  const binding=readDatabaseSpace(db);context.authorize();if(!binding||binding.spaceId!==context.spaceId)throw syncError('scope','保存内容不属于当前空间');
   const decode=(key:string) => {
     const parts:unknown=JSON.parse(key);
     if(!Array.isArray(parts)||parts.length!==3||!parts.every(v=>typeof v==='string'&&v.length>0&&v.length<=80))invalid();
@@ -73,18 +83,20 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
     if(row&&d.busyColumn&&row[d.busyColumn])throw syncError("busy",'请先恢复本机尚未完成的发布');
     return row;
   };
-  return createSqliteReplica(db,{
+  return {
     authorize:context.authorize,
-    canUpload:key=>context.canUploadProject(decode(key).projectId),
-    read(key) {
+    belongsToProject:(key:string,projectId:string)=>decode(key).projectId===projectId,
+    conflictState:context.conflictState,
+    canUpload:(key:string)=>context.canUploadProject(decode(key).projectId),
+    read(key:string) {
       const {projectId,id,definition:d}=decode(key),project=context.project(projectId),row=local(d,id,projectId);
       if(!row)return null;
-      const value:AggregateRecords={record:pick(row,d.columns),children:Object.fromEntries(d.children.map(c=>[c.table,db.prepare(`SELECT ${c.columns.join(',')} FROM ${c.table} WHERE ${c.parent}=? ORDER BY ${c.orderBy}`).all(id).map(row=>portableRow(row,c.columns))]))};
+      const value:AggregateRecords={record:pick(row,d.columns),children:Object.fromEntries(d.children.map(c=>[c.table,db.prepare(`SELECT ${c.columns.join(',')} FROM ${c.table} WHERE ${c.parent}=? ORDER BY ${c.orderBy}`).all(id).map(row=>validateAggregatePortableRow(row,c.columns))]))};
       d.validate(value);
       const envelope={format:1,spaceId:context.spaceId,project:{id:projectId,title:project.title},...value};
       size(envelope);return envelope;
     },
-    apply(key,value) {
+    apply(key:string,value:unknown) {
       const {projectId,id,definition:d}=decode(key);context.project(projectId);
       const current=local(d,id,projectId);
       if(value===null){
@@ -94,14 +106,14 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
       size(value);const wire=object(value);exact(wire,['format','spaceId','project','record','children']);
       const project=object(wire.project);exact(project,['id','title']);
       if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==projectId||typeof project.title!=='string'||project.title.length>120)invalid();
-      const record=portableRow(wire.record,d.columns),children=object(wire.children);exact(children,d.children.map(c=>c.table));
+      const record=validateAggregatePortableRow(wire.record,d.columns),children=object(wire.children);exact(children,d.children.map(c=>c.table));
       if(record.id!==id||record.project_id!==projectId)invalid();
       const parsed:AggregateRecords={record,children:{}};
       for(const c of d.children){
         const rows=children[c.table];if(!Array.isArray(rows)||rows.length>10000)invalid();
         const seen=new Set<string>();
         parsed.children[c.table]=rows.map(row=>{
-          const result=portableRow(row,c.columns);
+          const result=validateAggregatePortableRow(row,c.columns);
           const identity=c.identityColumns??['id'],values=identity.map(k=>result[k]);
           if(result[c.parent]!==id||values.some(v=>typeof v!=='string'||!v||v.length>200)||seen.has(JSON.stringify(values)))invalid();
           seen.add(JSON.stringify(values));
@@ -122,12 +134,12 @@ export function createAggregateReplica(db: ReplicaDatabase, definitions: readonl
       for(const c of [...d.children].reverse())db.prepare(`DELETE FROM ${c.table} WHERE ${c.parent}=?`).run(id);
       for(const c of d.children)for(const row of parsed.children[c.table]!)db.prepare(`INSERT INTO ${c.table} (${c.columns.join(',')}) VALUES (${c.columns.map(()=>'?').join(',')})`).run(...c.columns.map(k=>row[k]));
     },
-  });
+  };
 }
 
-function pick(row:Readonly<Record<string,unknown>>,columns:readonly string[]):PortableRow{return portableRow(Object.fromEntries(columns.map(k=>[k,row[k]!])),columns);}
+function pick(row:Readonly<Record<string,unknown>>,columns:readonly string[]):PortableRow{return validateAggregatePortableRow(Object.fromEntries(columns.map(k=>[k,row[k]!])),columns);}
 function object(value:unknown):Record<string,unknown>{if(!value||typeof value!=='object'||Array.isArray(value))invalid();return value as Record<string,unknown>;}
 function exact(row:Record<string,unknown>,columns:readonly string[]){if(Object.keys(row).length!==columns.length||columns.some(k=>!Object.hasOwn(row,k)))invalid();}
-function portableRow(value:unknown,columns:readonly string[]):PortableRow{const row=object(value);exact(row,columns);if(Object.values(row).some(v=>v!==null&&typeof v!=='string'&&(typeof v!=='number'||!Number.isFinite(v))))invalid();return row as PortableRow;}
-function size(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>512*1024)throw syncError("limit",'此资产超过当前同步上限（512 KiB），原数据仍保留在本机');}
+export function validateAggregatePortableRow(value:unknown,columns:readonly string[]):PortableRow{const row=object(value);exact(row,columns);if(Object.values(row).some(v=>v!==null&&typeof v!=='string'&&(typeof v!=='number'||!Number.isFinite(v))))invalid();return row as PortableRow;}
+function size(value:unknown){if(Buffer.byteLength(JSON.stringify(value))>100000000)throw syncError("limit",'此资产超过账号容量上限（100 MB），原数据仍保留在本机');}
 function invalid():never{throw syncError("invalid",'同步资产格式不合法');}

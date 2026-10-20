@@ -61,7 +61,7 @@ test("a real catalog mutation waits asynchronously, commits once and keeps healt
   const timer = setInterval(() => { const now = performance.now(); maxGap = Math.max(maxGap, now - last); last = now; }, 20);
   const changing = fetch(origin + `/api/settings/projects/${project.project_id}/rename`, { method: "POST",
     headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token,
-      "x-molis-work-idempotency-key": "catalog-rename-contention" }, body: JSON.stringify({ display_name: "已提交一次" }) });
+      "x-molis-work-idempotency-key": "catalog-rename-contention" }, body: JSON.stringify({ display_name: "已提交一次", expected_display_name: project.display_name }) });
   try {
     for (let i = 0; i < 8; i++) {
       const at = performance.now(), health = await fetch(origin + "/health");
@@ -76,7 +76,7 @@ test("a real catalog mutation waits asynchronously, commits once and keeps healt
   const verified = await openMolisWorkProjectCatalog({ homeDirectory: home });
   try {
     assert.equal(verified.getProject(project.project_id).display_name, "已提交一次");
-    await assert.rejects(verified.commit(() => { verified.renameProject(project.project_id, "必须回滚", "user"); throw new Error("fixture rollback"); }), /fixture rollback/);
+    await assert.rejects(verified.commit(() => { verified.renameProject(project.project_id, "必须回滚", "user", "已提交一次"); throw new Error("fixture rollback"); }), /fixture rollback/);
     assert.equal(verified.getProject(project.project_id).display_name, "已提交一次");
     let effects = 0;
     await assert.rejects(verified.commit(() => { effects++; }, async () => { throw new Error("authority revoked"); }), /authority revoked/);
@@ -101,7 +101,7 @@ test("catalog commit rechecks authority after real lock waits and keeps queued c
   try {
     await assert.rejects(catalog.commit(() => {
       effects++;
-      catalog.renameProject(project.project_id, "撤权后的迟到写入", "user");
+      catalog.renameProject(project.project_id, "撤权后的迟到写入", "user", project.display_name);
     }, async () => { checked++; if (!allowed) throw new Error("authority revoked while waiting"); }), /authority revoked while waiting/);
     assert.ok(checked > 1, "the authority check must run again after asynchronous waiting");
     assert.equal(effects, 0);
@@ -111,7 +111,7 @@ test("catalog commit rechecks authority after real lock waits and keeps queued c
   const order: number[] = [];
   const writes = [1, 2].map(value => catalog.commit(() => {
     order.push(value); effects++;
-    return catalog.renameProject(project.project_id, "顺序 " + value, "user");
+    return catalog.renameProject(project.project_id, "顺序 " + value, "user", value === 1 ? project.display_name : "顺序 1");
   }));
   await Promise.all(writes);
   assert.deepEqual(order, [1, 2]); assert.equal(effects, 2);

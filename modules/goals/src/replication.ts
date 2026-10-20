@@ -5,6 +5,7 @@ import { validateGoalReplication } from './replication-validation.js';
 export function goalReplicationDefinition(): ProjectReplicaDefinition {
   return {
     id: 'goals',
+    assetKind:'project_goals',
     tables: [
       {"name":"boards","columns":["project_id","title","active_goal_id","created_at","updated_at"],"keys":["project_id"],"keepRoot":true,"journalCondition":"EXISTS (SELECT 1 FROM goals WHERE project_id=$row.project_id) OR EXISTS (SELECT 1 FROM project_guidance_entries WHERE project_id=$row.project_id)"},
       {"name":"goals","columns":["goal_id","project_id","title","outcome","why","business_logic","in_scope_json","out_of_scope_json","constraints_json","required_inputs_json","promised_outputs_json","decomposition_review_json","definition_state","decomposition_state","validity_state","fulfillment_state","trashed_at","trashed_by","archived_at","archived_by","priority","accepted_by","accepted_at","created_at","updated_at"],"keys":["goal_id"]},

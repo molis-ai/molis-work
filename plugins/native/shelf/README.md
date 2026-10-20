@@ -4,6 +4,8 @@
 
 把 DropAgent 的材料 / 结果 / 剪贴板工作台挂进 Molis 目录与主工作面，视觉与交互跟 DropAgent。
 
+内置 Manifest 跟随产品 0.3.0，`copies` 集合同步明确选中的材料、结果和终态任务。`shelfSyncDocument` 复用 Module 的当前 v2 目录与原子文件端口，不自行联网或另建业务库；设置和剪贴板仍只在设备。实际 Home 动作与共同 Host 目录接线、临时 Rust/D1/R2 往返见 `tests/security-invariants-shelf-sync.test.ts` 与 `apps/sync-worker/shelf.test.mjs`。这些是隔离验证，不代表公网部署或真实双设备验收。
+
 包名：`@molis-ai/molis-work-plugin-shelf`。工作区内部包，通过仓库构建和 Host 装配使用。
 
 ## 一次典型调用
@@ -75,3 +77,5 @@ Shelf 和结果面板使用 Host 注入的 UI 生命周期。卸载释放全局�
 搜索打开材料或剪贴板 ID 时选择对应正文；剪贴板仍只对本人提供。权威快照刷新会让完整正文缓存失效，较早的文件回包不能覆盖新正文，比较视图采用同样规则。跨插件文件入库事件也随挂载释放，卸载后不再发请求或发布过期成功/失败通知。
 
 这些客户端边界的回归在 `tests/shelf-client-boundaries.e2e.test.ts`，正式搜索与剪贴板隐私断言在 `tests/system-search-host.test.ts`；依次用 `node scripts/run-tests.mjs` 运行相应文件，浏览器批次需排时段。
+
+文字编辑为 `shelf.items.edit@2`，强制携带 `items.read@1` 的 `content_hash` 作为 `expected_content_hash`；对应 MCP 名为 shelf.items.edit__v2，不保留旧名。网页编辑从同一次原文件响应的 ETag 取得完整字节指纹，并只在成功保存后更新；冲突保留输入，不重读新指纹强行覆盖。文件读取和项目材料预览的现有合同不变。

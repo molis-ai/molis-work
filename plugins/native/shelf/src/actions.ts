@@ -3,7 +3,7 @@ import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
   ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAiStatus,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
+import { hashBytes, parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
 
@@ -24,9 +24,9 @@ const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
 
 function define<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
-  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView): ActionDefinition<I, O> {
+  output: ActionSchema, permissions: readonly string[], audiences: readonly ActionAudience[], resultView?: ActionResultView, version = 1): ActionDefinition<I, O> {
   // The existing HTTP surface never serialized Shelf: recipes run for minutes while the panel keeps reading and cancelling.
-  return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
+  return { capability_id: `shelf.${name}`, version, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",
     scope: "home", scheduling: "concurrent", audiences, permissions, subject_kinds: ["shelf_item"], input_schema: input, output_schema: output, ...(resultView ? { result_view: resultView } : {}) } };
 }
 
@@ -72,8 +72,8 @@ export const shelfActions = {
   hide: define<{ item_id: string }, { hidden: true }>("items.hide", "从 Shelf 收起", "从列表收起一份材料，保留副本以便再次接收", "command", itemId, object({ hidden: { const: true } }), write, SHARED),
   delete: define<{ item_id: string }, { deleted: true }>("items.delete", "删除 Shelf 副本", "删除置物架里的副本；运行中的材料不能删除，原件不受影响", "command", itemId, object({ deleted: { const: true } }), write, SHARED),
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
-  edit: define<{ item_id: string; text: string }, { item: ShelfItemRecord }>("items.edit", "修改 Shelf 文字", "用新的正文覆盖置物架里一份文字材料的副本，原件不受影响，旧正文不保留；只有可编辑的文字材料能改，正文最多 512 KB", "command",
-    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
+  edit: define<{ item_id: string; text: string; expected_content_hash: string }, { item: ShelfItemRecord; content_hash: string }>("items.edit", "修改 Shelf 文字", "按读取时的完整内容指纹修改文字副本；内容已改变时拒绝，原件不受影响，正文最多 512 KB", "command",
+    object({ item_id: id, text: { type: "string", maxLength: 2_000_000 }, expected_content_hash: { type: "string", pattern: "^[a-f0-9]{64}$" } }), object({ item, content_hash: text }), write, SHARED, undefined, 2),
   generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke"]),
   extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", write),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
@@ -113,7 +113,7 @@ export interface ShelfActionPorts {
   addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
   clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
   deleteClipboard(clipId: string): void;
-  writeCopy(itemId: string, text: string): ShelfItemRecord;
+  writeCopy(itemId: string, text: string, expectedContentHash: string): ShelfItemRecord;
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
 }
 
@@ -160,7 +160,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
     bind(shelfActions.hide, input => { ports.hide(input.item_id); return { hidden: true as const }; }),
     bind(shelfActions.delete, input => { ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
     bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
-    bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
+    bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text, input.expected_content_hash), content_hash: hashBytes(Buffer.from(input.text, "utf8")) })),
     ...[shelfActions.generate, shelfActions.extract].map(definition => bind(definition, async (input, caller) => {
       if (!input.item_id && !input.item_ids?.length) throw shelfErrors.invalid("请选择动作和材料");
       const beforeEffect = () => caller.beforeEffect();

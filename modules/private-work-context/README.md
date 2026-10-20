@@ -6,7 +6,7 @@
 
 ## 一次典型调用
 
-应用通常通过 Local Host 的 openWorkSessionRegistry 打开 Registry。直接装配 MolisWorkSessionRegistry.open 时必须提供 createLedger，并复用事务连接；跨模块关联交给 Ledger，私人内容仍由本模块维护。
+应用通常通过 Local Host 的 openWorkSessionRegistry 打开 Registry。直接装配 MolisWorkSessionRegistry.open 时必须提供 createLedger 与可信 replication 技术端口，均复用事务连接；跨模块关联交给 Ledger，私人内容仍由本模块维护。Host 的 `createSessionReplicationSupport` 复用公开 Storage，不使本模块依赖 Storage 或 SDK。
 
 ## 从哪里读代码
 
@@ -15,6 +15,7 @@
 | 文件 | 用途 |
 | --- | --- |
 | [src/session-registry.ts](src/session-registry.ts) | Registry 与资源生命周期 |
+| [src/session-database.ts](src/session-database.ts) | 唯一当前库打开事务及同目录加密内容存储；不恢复交接或发送消息 |
 | [src/content-store.ts](src/content-store.ts) | 加密内容引用 |
 | [src/session-surfaces.ts](src/session-surfaces.ts) | 终端面板与 Runtime 绑定写入时记下的会话 |
 | [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
@@ -24,6 +25,14 @@
 ## 接入与边界
 
 私人的恢复包不会自动发布为 Artifact 或 Team 内容。历史未知 Project/Goal revision 保持未知。环境变量解析和 Runtime 进程启动由 Host 完成。
+
+现有 Session 库先以只读连接核对 owner 和当前版本，重新打开后再次检查，之后才允许 WAL、内容目录或关联初始化；拒绝旧版或未知库时不改原字节、不创建私密内容。空库仍在同一事务里创建 owner 结构与关联。这是被动同步打开的前置保护，不代表会话同步已经完成。
+
+当前库 v8 在新库基线中加入同事务变更日志及被动交接标志；个人空间从正常写入开始记录，普通本地空间不记录或传输。当前 v7 结构冻结保存并拒绝打开，不在同步时补表或升级真实 Home。被动交接保持观察状态和逻辑目标引用，不进入待发送列表、不做中断恢复；修改、发送、确认结果及取消均拒绝，不能从历史继承执行授权。实际 Session owner 已有两临时 Home 的私密正文与授权分项验证；Host/Rust/R2 接线的组合验收仍在进行，不将此视为全部同步已交付。
+
+`withWorkSessionReplica` 用同一被动打开器借用 owner 连接，不构造正常 Registry、不恢复交接。可信组合根必须提供同空间的保护、比较指纹和 Ledger 历史端口；完整 Session 及其事件/交接作为一个冲突单元，密钥、原生 ID、correlation、surface、工作目录与未决发送控制不携带。事件元数据仅含既有的 `tool`、`goal_id`、`state`、`partial_terminal_history` 观察字段，其余本机提示与自由诊断不上传。原正文缺失时拒绝，不使用界面的 null 占位。目标活动会话、未决发送及本机绑定不兼容时等待，导入交接始终被动；Host 集合及 Rust/R2 的实现已接线，验收尚未完成，不能据此称会话已上线同步。
+
+`hasSessionSyncProtectedData(home,support)` 只读核对当前 owner，再向公开 Storage 技术端口询问正文是否仍被保留；缺失的库不创建，不获取凭据。已有 v8 正常打开不重建丢失的业务表、Ledger 或个人日志状态；`createLedger` 的第二个参数由 owner 给出是否首次初始化，可信 Host 遵守此区别。
 
 由 Local Host 装配数据库与协作端口；跨 Module 协作使用公开 Contract，不从另一 Module 深层导入实现。完整依赖见 [package.json](package.json)。
 
@@ -71,3 +80,5 @@ node scripts/run-tests.mjs tests/private-work-context-module.test.ts tests/sessi
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 
 当前 Session、消息和交接错误使用 `work.session.*`、`work.sessions.*` 或 `work.handoff.*`；业务关系、动作 ID 和数据库文件名沿用各自合同。已经写入的历史错误由防腐维护步骤处理，不在读取时翻译旧码。
+
+个人同步的项目未结算检查遵循同一 `work.project` 归属；Goal 引用和交接目标不成为额外归属。现存会话只认当前有效关系，已删除会话通过 Ledger 最后关系保留归属；冻结上传和保留冲突通过 Storage 受保护只读端口补充尚未结算的旧归属，不读取正文块、不启动 Runtime。回执结算后旧归属不再阻塞项目。相关回归：`tests/security-invariants-work-sync-content.test.ts`。这不是项目回收或会话恢复实现。

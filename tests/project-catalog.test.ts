@@ -189,7 +189,7 @@ test("managed projects have immutable identities, duplicate names, and isolated 
         secondStore.close();
       }
 
-      const renamed = catalog.renameProject(first.project_id, "重命名后", "user");
+      const renamed = catalog.renameProject(first.project_id, "重命名后", "user", first.display_name);
       assert.equal(renamed.project_id, first.project_id);
       assert.equal(renamed.database_path, first.database_path);
       assert.equal(await readFile(userProjectFile, "utf8"), "untouched");
@@ -445,7 +445,7 @@ test("runtime Session/work-entry contexts reconnect only after an explicit bindi
         ],
       );
 
-      catalog.renameProject(second.project_id, "改过显示名也不影响绑定", "user");
+      catalog.renameProject(second.project_id, "改过显示名也不影响绑定", "user", second.display_name);
       assert.equal(catalog.resolveRuntimeContext(codexEntry).connection?.project_id, second.project_id);
     } finally {
       catalog.close();

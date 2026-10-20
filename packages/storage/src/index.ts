@@ -15,10 +15,11 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
-export { LocalCatalogMetadata } from "./catalog-metadata.js";
+export { LocalCatalogMetadata,inspectCatalogFile } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
-export { ensureStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
+export { createAtomicFileDocument } from './adapters/file-document.js';
+export { ensureStorageSpace, readStorageSpace, personalStorageSpace, bindDatabaseSpace, readDatabaseSpace, spaceAssetRef, STORAGE_SPACE_SCHEMA_SQL, type StorageSpace, type SpaceAssetRef } from './space.js';
 
 export {
   homeSqlitePath,
@@ -53,10 +54,21 @@ export { type SecretStore, type SecretStoreBackendKind, type SecretStoreBackendI
 export * from "./adapters/search-storage.js";
 
 export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createLocalPayloadProtection } from './adapters/local-payload-protection.js';
+export { replicaSerialization as createSyncBodySerialization } from './replica-serialization.js';
+export {borrowedReplicaDatabase,hasReplicaBodies} from './borrowed-replica.js';
 export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";
-export { replicaApplyingSql, replicaSchemaSql, initializeReplica, replicaMarkSql, queueReplicaChange, replicaTransaction, createSqliteReplica, namespacedReplicaDatabase, type ReplicaInputValue,type ReplicaOutputValue,type ReplicaDatabase } from './replica.js';
+export { hasReplicaHistory,replicaApplyingSql, replicaSchemaSql, initializeReplica, replicaMarkSql, replicaMarkRowsSql, queueReplicaChange, replicaTransaction, createSqliteReplica, namespacedReplicaDatabase, type ReplicaInputValue,type ReplicaOutputValue,type ReplicaDatabase, type SqliteReplica, type ReplicaReceiveDisposition } from './replica.js';
 export { AGGREGATE_REPLICA_SCHEMA_SQL, initializeAggregateReplication, createAggregateReplica, type AggregateDefinition, type AggregateRecords, type AggregateReplicaContext, type PortableRow } from './aggregate-replica.js';
-export { createProjectReplicaSection, installProjectReplicaJournal } from './project-replica.js';
-export { createProjectReplicaJournal } from './project-replica-journal.js';
+export { createProjectReplicaSection, installProjectReplicaJournal, validateProjectReplicaRows } from './project-replica.js';
+export { createProjectContentReplicaFactory, validateProjectContentReplication } from './project-replica-content.js';
+export { createProjectReplicaJournal, validateProjectReplicaJournal } from './project-replica-journal.js';
 export { mapReplicaSequences } from './replica-sequences.js';
+
+export {retainLocalReplicaSnapshot} from './replica.js';
+
+export {createAggregateCopy} from './aggregate-copy.js';
+export type {AggregateCopyContext} from './aggregate-copy.js';
+
+export {openAggregateCopyOwner,openOwnerCopyStore} from './aggregate-copy-store.js';

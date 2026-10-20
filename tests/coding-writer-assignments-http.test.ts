@@ -48,7 +48,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
       assert.equal((await start(invalid)).status, 400, JSON.stringify(invalid));
     }
     assert.equal(created, 0); assert.equal(starts.length, 0);
-    assert.equal((await request("", "PATCH", { draft: "主任务草稿", configuration })).status, 200);
+    assert.equal((await request("", "PATCH", { draft: "主任务草稿", configuration,expected_input_revision:0 })).status, 200);
     await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     const restored = (await request()).body; assert.deepEqual(restored.configuration, configuration); assert.equal(restored.draft, "主任务草稿");
     grants = roots.filter(root => root.workspace_id !== "writer-b");

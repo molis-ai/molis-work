@@ -18,7 +18,8 @@ test("ISSUE-25 ISSUE-36 a malformed save receives its contract and is corrected 
   await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
   const issues = new DatabaseSync(join(b.homeDirectory, "issues", "issues.db")); t.after(() => issues.close());
   const description = "切换页面回来，刚才输入的文字丢失了。";
-  await v.press("[data-issue-composer] [name=description]"); await v.type(description); await v.send();
+  await v.press("[data-issue-composer] [name=description]"); await v.type(description);
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-issue-list] .issues-row:not([data-state])')", 20_000);
   const turns = requests as Turn[];
   for (const name of ["change-reversible", "suggest-action", "read-capability", "change-capability"]) {
@@ -50,7 +51,8 @@ test("ISSUE-34 ISSUE-37 a save that stays malformed ends at the runtime's repeat
   const { requests } = await issueModel(t, b.homeDirectory, { malformedCaptureAlways: true });
   const v = issueView(b);
   await v.viewport(1280); await v.go("/plugins/issues"); await v.until("$('[data-issues=workbench]')?.dataset.ready === 'true'");
-  await v.press("[data-issue-composer] [name=description]"); await v.type("点保存没反应"); await v.send();
+  await v.press("[data-issue-composer] [name=description]"); await v.type("点保存没反应");
+  await v.until("!$('[data-issue-submit]').disabled"); await v.send();
   await v.until("$('[data-state=attention]')?.textContent.includes('没能自动整理')", 20_000);
   const { works } = await v.assistant(true);
   assert.equal(works.length, 1); const [view] = works;

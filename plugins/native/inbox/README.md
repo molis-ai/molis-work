@@ -43,6 +43,8 @@ Feed 创建 Attention 时，通过注入的 `createInboxJudgmentTrigger` 使用�
 
 ## 本地开发
 
+个人同步的 `attention` 集合由 Attention owner 的公开声明实现，保留事项引用、处置与固定历史，不复制 Feed/Goal 内容或调用判断；新集合需用户明确勾选。关联对象暂不可读时保留原记录和已有不可用提示，不自动获取或执行。
+
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 
 ```bash

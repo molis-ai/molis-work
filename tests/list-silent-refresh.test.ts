@@ -1,4 +1,5 @@
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -90,7 +91,8 @@ test("Functions 静默刷新当前草稿时不重挂编辑器，保存失败保�
 });
 
 test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh helpers", () => {
-  const script = renderMolisWorkWorkbenchClientScript();
+  const script = CLIENT_SCRIPT;
+  assert.doesNotThrow(() => new Function(renderMolisWorkWorkbenchClientScript()));
   assert.match(script, /const refreshFeedStage = async/);
   assert.match(script, /const refreshInboxStage = async/);
   assert.match(CLIENT_NAVIGATION_FEED_SCRIPT, /const refreshFeedStage = async/);

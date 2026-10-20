@@ -12,3 +12,4 @@ export * from "./en.js";
 export { COGNIA_INSTRUCTIONS } from "./prompts.js";
 
 export * from "./actions.js";
+export { cogniaSync, openCogniaSyncStore, cogniaSyncProjection } from './replication.js';

@@ -28,11 +28,17 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
     assert.equal(created.session.title, "修复登录");
     const state = await client.invoke(owner, find("coding.state"), {}) as { sessions: Array<{ session_id: string }> };
     assert.ok(state.sessions.some(row => row.session_id === created.session.session_id));
-    const read = await client.invoke(owner, find("coding.read-session"), { session_id: created.session.session_id }) as { session: { session_id: string }; runs: unknown[] };
+    const read = await client.invoke(owner, find("coding.read-session"), { session_id: created.session.session_id }) as { session: { session_id: string }; runs: unknown[]; input_revision:number };
     assert.equal(read.session.session_id, created.session.session_id);
     assert.deepEqual(read.runs, []);
     const renamed = await client.invoke(owner, find("coding.update-session"), { session_id: created.session.session_id, title: "修复登录超时" }) as { session: { title: string } };
     assert.equal(renamed.session.title, "修复登录超时");
+    const update=find("coding.update-session");assert.equal(update.version,2);
+    await assert.rejects(client.invoke(owner,{...update,version:1},{}),(error:unknown)=>error instanceof ActionError&&error.code==='actions.missing');
+    for(const premise of [{},{expected_input_revision:1}])await assert.rejects(client.invoke(owner,update,{session_id:created.session.session_id,draft:'stale',...premise}),
+      (error:{code?:string})=>error.code==='coding.inputs_changed');
+    const saved=await client.invoke(owner,update,{session_id:created.session.session_id,draft:'留存当前输入',expected_input_revision:read.input_revision}) as {input_revision:number};
+    assert.equal(saved.input_revision,1);
     await assert.rejects(client.invoke(owner, find("coding.read-session"), { session_id: "missing" }), (error: { code?: string }) => error.code === "coding.session_unknown");
 
     // W2-18-CODING-CONTROL-VERSION-01, RC-01, AC-27-4: the expanded control schema has one current version (4: typed answers carry a value).

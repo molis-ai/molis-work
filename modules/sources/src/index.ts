@@ -316,6 +316,7 @@ export class SourcesModule implements SourcesApi {
 }
 
 export { sourceDeletedAt } from "@molis-ai/molis-work-contracts/modules/sources";
+export {sourceContentReplicationDefinition} from './replication.js';
 
 function mapSource(row: Row): SourceRecord {
   const schedule = parseJson<SourceSchedule>(row.schedule_json, { mode: "manual" });

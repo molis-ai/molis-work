@@ -14,6 +14,12 @@ export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
 `;
 
+/** Read the already-validated installation store without constructing, repairing or starting a Runtime. */
+export function listPluginInstallationRecords(db: Pick<PluginRuntimeDatabase, "prepare">): PluginInstanceRecord[] {
+  return db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
+    .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+}
+
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
 export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
   constructor(private readonly db: PluginRuntimeDatabase) {
@@ -24,8 +30,7 @@ export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
     return row ? JSON.parse(row.record_json) as PluginInstanceRecord : null;
   }
   list(): PluginInstanceRecord[] {
-    return this.db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
-      .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+    return listPluginInstallationRecords(this.db);
   }
   save(record: PluginInstanceRecord): void {
     this.db.prepare(`INSERT INTO plugin_runtime_installs (install_id, record_json) VALUES (?, ?)

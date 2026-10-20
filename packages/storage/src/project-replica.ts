@@ -5,9 +5,11 @@ import { initializeReplica, namespacedReplicaDatabase, replicaMarkSql, replicaTr
 import { createProjectReplicaJournal } from './project-replica-journal.js';
 
 /** Installs the technical journal from owner declarations, without granting upload permission. */
-export function installProjectReplicaJournal(db: ReplicaDatabase, namespace: string, definitions: readonly ProjectReplicaDefinition[]): void {
+export function installProjectReplicaJournal(db: ReplicaDatabase, namespace: string, definitions: readonly ProjectReplicaDefinition[], projectIds?:readonly string[]): void {
   replicaTransaction(db, () => {
     initializeReplica(namespacedReplicaDatabase(db, namespace));
+    const kind=definitions[0]?.assetKind;
+    if(!kind||definitions.some(d=>d.assetKind!==kind)||!/^[a-z][a-z0-9_]*$/.test(kind))throw replicaError('replica_identifier_invalid');
     const marker = `${definitions[0]!.id}_sync_${definitions[0]!.tables.find(t => !t.keepRoot)!.name}_insert`;
     const initialized = db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(marker);
     const mark = (key: string) => replicaMarkSql(key).replace(/\breplica_/g, namespace + '_replica_');
@@ -15,12 +17,13 @@ export function installProjectReplicaJournal(db: ReplicaDatabase, namespace: str
     createProjectReplicaJournal(db, '', definitions).installJournal(mark);
     if (initialized) return;
     const root = definitions.flatMap(d => d.tables).find(t => t.keepRoot);
-    if (!root || root.keys.length !== 1) throw replicaError('replica_root_invalid');
-    for (const row of db.prepare(`SELECT ${root.keys[0]} AS id FROM ${root.name}`).all()) {
-      const projectId = String(row.id);
+    if (!projectIds&&(!root||root.keys.length!==1))throw replicaError('replica_root_invalid');
+    const ids=projectIds??db.prepare(`SELECT ${root!.keys[0]} AS id FROM ${root!.name}`).all().map(row=>String(row.id));
+    for (const projectId of ids) {
+      if(typeof projectId!=='string'||!projectId||projectId.length>80)throw replicaError('replica_identifier_invalid');
       const sections = definitions.map(d => createProjectReplicaSection(db, d, projectId).read());
-      if (!sections.some(section => Object.entries(section).some(([table, rows]) => table !== root.name && rows.length > 0))) continue;
-      namespacedReplicaDatabase(db, namespace).prepare('INSERT INTO replica_changes(key) VALUES (?)').run(JSON.stringify([projectId, 'project_goals', projectId]));
+      if (!sections.some(section => Object.entries(section).some(([table, rows]) => table !== root?.name && rows.length > 0))) continue;
+      namespacedReplicaDatabase(db, namespace).prepare('INSERT INTO replica_changes(key) VALUES (?)').run(JSON.stringify([projectId, kind, projectId]));
     }
   });
 }
@@ -28,18 +31,31 @@ export function installProjectReplicaJournal(db: ReplicaDatabase, namespace: str
 /** SQL is derived exclusively from owner declarations. This layer does not discover business tables. */
 export function createProjectReplicaSection(db: ReplicaDatabase, definition: ProjectReplicaDefinition, projectId: string): ProjectReplicaSection {
   for (const table of definition.tables) {
-    for (const identifier of [definition.id, table.name, ...table.columns, ...table.keys]) {
-      if (!/^[a-z][a-z0-9_]*$/.test(identifier)) throw replicaError('replica_identifier_invalid');
+    for (const identifier of [definition.id, definition.assetKind, table.name, ...table.columns, ...table.keys]) {
+      if (typeof identifier!=='string'||!/^[a-z][a-z0-9_]*$/.test(identifier)) throw replicaError('replica_identifier_invalid');
     }
+    if(table.journalColumns&&(!table.journalColumns.length||new Set(table.journalColumns).size!==table.journalColumns.length||table.journalColumns.some(column=>!table.columns.includes(column))))throw replicaError('replica_identifier_invalid');
   }
   const where = (table: ProjectReplicaDefinition['tables'][number]) => table.where ?? `${table.projectColumn ?? 'project_id'} = ?`;
-  const read = (): ProjectReplicaRows => Object.fromEntries(definition.tables.map(table => [table.name,
+  const local = (): ProjectReplicaRows => Object.fromEntries(definition.tables.map(table => [table.name,
     db.prepare(`SELECT ${table.columns.join(',')} FROM ${table.name} WHERE ${where(table)} ORDER BY ${table.keys.join(',')}`).all(projectId) as ProjectReplicaRow[],
   ]));
+  const read=()=>{const rows=local();return definition.project?.(rows,projectId)??rows;};
+  let beforeClear:ProjectReplicaRows|undefined;
+  const writeRows=(incoming:ProjectReplicaRows)=>{
+    let rows=incoming;
+    if(definition.restore){const captured=beforeClear;beforeClear=undefined;if(!captured)throw replicaError('replica_rows_invalid');rows=validateProjectReplicaRows(definition.restore(rows,captured,projectId),definition,projectId);}
+    beforeClear=undefined;
+    for (const table of definition.tables) for (const row of rows[table.name]!) {
+      const columns = table.columns;
+      const update = table.keepRoot ? ` ON CONFLICT(${table.keys.join(',')}) DO UPDATE SET ${columns.filter(c => !table.keys.includes(c)).map(c => `${c}=excluded.${c}`).join(',')}` : '';
+      db.prepare(`INSERT INTO ${table.name} (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})${update}`).run(...columns.map(c => row[c]));
+    }
+  };
   return {
     read,
     validate(value) {
-      const rows = parseRows(value, definition, projectId);
+      const rows = validateProjectReplicaRows(value, definition, projectId);
       for (const table of definition.tables) for (const row of rows[table.name]!) {
         const identity = table.keys.map(key => row[key]);
         const clause = table.keys.map(key => `${key}=?`).join(' AND ');
@@ -52,31 +68,31 @@ export function createProjectReplicaSection(db: ReplicaDatabase, definition: Pro
       return rows;
     },
     clear() {
+      beforeClear=undefined;
+      const captured=definition.restore||definition.beforeClear?local():undefined;
+      if(captured)definition.beforeClear?.(captured,projectId);
+      beforeClear=definition.restore?captured:undefined;
       for (const table of [...definition.tables].reverse()) {
         if (!table.keepRoot) db.prepare(`DELETE FROM ${table.name} WHERE ${where(table)}`).run(projectId);
       }
     },
-    write(rows) {
-      for (const table of definition.tables) for (const row of rows[table.name]!) {
-        const columns = table.columns;
-        const update = table.keepRoot ? ` ON CONFLICT(${table.keys.join(',')}) DO UPDATE SET ${columns.filter(c => !table.keys.includes(c)).map(c => `${c}=excluded.${c}`).join(',')}` : '';
-        db.prepare(`INSERT INTO ${table.name} (${columns.join(',')}) VALUES (${columns.map(() => '?').join(',')})${update}`).run(...columns.map(c => row[c]));
-      }
-    },
+    write:writeRows,
     installJournal(mark) {
       for (const table of definition.tables) for (const operation of ['INSERT', 'UPDATE', 'DELETE']) {
         const name = `${definition.id}_sync_${table.name}_${operation.toLowerCase()}`;
         if (db.prepare("SELECT 1 FROM sqlite_master WHERE type='trigger' AND name=?").get(name)) continue;
         const row = operation === 'DELETE' ? 'OLD' : 'NEW';
         const project = table.projectExpression?.replaceAll('$row', row) ?? `${row}.${table.projectColumn ?? 'project_id'}`;
-        const condition = table.journalCondition ? ` WHEN ${table.journalCondition.replaceAll('$row', row)}` : '';
-        db.exec(`CREATE TRIGGER ${name} ${operation === 'DELETE' ? 'BEFORE' : 'AFTER'} ${operation} ON ${table.name}${condition} BEGIN ${mark(`json_array(${project},'project_goals',${project})`)} END`);
+        const predicate=operation==='UPDATE'&&table.journalUpdateCondition?table.journalUpdateCondition.replaceAll('$old','OLD').replaceAll('$new','NEW'):table.journalCondition?.replaceAll('$row',row);
+        const condition=predicate?' WHEN '+predicate:'';
+        const updated=operation==='UPDATE'&&table.journalColumns?' OF '+table.journalColumns.join(','):'';
+        db.exec(`CREATE TRIGGER ${name} ${operation === 'DELETE' ? 'BEFORE' : 'AFTER'} ${operation}${updated} ON ${table.name}${condition} BEGIN ${mark(`json_array(${project},'${definition.assetKind}',${project})`)} END`);
       }
     },
   };
 }
 
-function parseRows(value: unknown, definition: ProjectReplicaDefinition, projectId: string): ProjectReplicaRows {
+export function validateProjectReplicaRows(value: unknown, definition: ProjectReplicaDefinition, projectId: string): ProjectReplicaRows {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw replicaError('replica_rows_invalid');
   const input = value as Record<string, unknown>;
   if (Object.keys(input).length !== definition.tables.length) throw replicaError('replica_tables_invalid');

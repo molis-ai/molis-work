@@ -1,3 +1,4 @@
+import {createAggregateCopy,type AggregateCopyContext} from '@molis-ai/molis-work-storage';
 import { AGGREGATE_REPLICA_SCHEMA_SQL, replicaSchemaSql } from "@molis-ai/molis-work-storage";
 import { createHash } from "node:crypto";
 import { openBaselineHomeSqlite, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
@@ -312,10 +313,10 @@ export const LINGGUANG_STORE_BASELINE: SqliteBaseline = { version: 2, schema: (`
   );
 `)+replicaSchemaSql()+AGGREGATE_REPLICA_SCHEMA_SQL };
 
-export function openLingguangStore(homeDirectory: string): LingguangStore {
+export function openLingguangStore(homeDirectory: string): LingguangStore & {copy(context:AggregateCopyContext):ReturnType<typeof createAggregateCopy>} {
   const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_STORE_BASELINE);
   initializeAggregateReplication(db,lingguangAggregates(db));
-  return new LingguangStore(db);
+  return Object.assign(new LingguangStore(db),{copy:(context:AggregateCopyContext)=>createAggregateCopy(db,lingguangAggregates(db),context)});
 }
 
 function insertConversation(

@@ -8,6 +8,7 @@ const errors = defineErrorCodes('context_ledger', { replica_invalid: 'invalid' }
 export function goalContextReplicationDefinition(): ProjectReplicaDefinition {
   return {
     id: 'goal_context',
+    assetKind:'project_goals',
     tables: [{ name: 'context_edges', columns: ['scope_kind', 'scope_id', 'edge_key', 'revision', 'relation_type', 'source_json', 'target_json', 'actor_id', 'cause', 'recorded_at', 'state'],
       keys: ['scope_kind', 'scope_id', 'edge_key', 'revision'], projectColumn: 'scope_id',
       journalCondition: "$row.scope_kind='personal' AND (json_extract($row.source_json,'$.module')='goals' OR json_extract($row.target_json,'$.module')='goals')",

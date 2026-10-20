@@ -12,7 +12,7 @@ import type { WebServerOptions } from './web-types.js';
 import { ACTION_GATEWAY_PATH, actionGatewayHomeId } from './action-gateway.js';
 import { createPersonalSync } from './personal-sync.js';
 import type { LocalWebCatalogRunner } from './web-project-settings.js';
-import { readLocalWebBody } from './web-http.js';
+import {serveSpaceSync} from './space-sync-http.js';
 
 interface Surface {
   home:string; space:StorageSpace; token:string; server:SpaceWebSurface;
@@ -22,6 +22,8 @@ interface Surface {
 export interface SpaceWebSurface extends http.Server {
   /** Resolves after the runtime and background writers have released their Home. */
   spaceDisposed?:Promise<void>;
+  projectSyncLifecycle?:import('./project-deletion-service.js').ProjectDeletionService;
+  discoverSync?(authorize:()=>void):Promise<readonly import('@molis-ai/molis-work-module-sync-replication').SyncRegistration[]>;
 }
 
 function createSpaceContext(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog:LocalWebCatalogRunner|undefined,address:()=>ReturnType<http.Server["address"]>){
@@ -45,9 +47,11 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     const lease=selected.session!.auth.accountLease();
     const active=()=>{try{lease.assertCurrent();return !stopping&&selection(request).space.spaceId===id;}catch{return false;}};
     const start=(async()=>{
-      const service=await createPersonalSync(selected.directory,selected.space,lease,withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');});
+      const entry=await surface(selected);attach(entry,request);const core=entry.server;
+      const service=await createPersonalSync(selected.directory,selected.space,lease,withCatalog,()=>{if(!active())throw new Error('SYNC_ACCOUNT_CHANGED');},core.discoverSync,core.projectSyncLifecycle);
       if(!active()){service?.close();return;}
       syncs.set(id,{active,service});
+      lease.signal.addEventListener('abort',()=>service?.close(),{once:true});
     })();
     syncStarts.set(id,start);try{await start;}finally{syncStarts.delete(id);}
     return syncs.get(id)?.service??null;
@@ -121,14 +125,18 @@ function createSpaceContext(options:WebServerOptions,createCore:(options:WebServ
     return valid;
   };
   const stop=()=>{stopping=true;account.close();for(const entry of syncs.values())entry.service?.close();for(const entry of [...surfaces.values()])retire(entry);};
-  return {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,surfaces,retiring,openSurface,stop,isStopping:()=>stopping};
+  const resume=async(request:IncomingMessage)=>{
+    try{(await syncFor(selection(request),request))?.start();}
+    catch{ /* Sync settings report the failure; unavailable sync must not prevent local work. */ }
+  };
+  return {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping:()=>stopping};
 }
 
 /** One public listener. Each scope owns its Host, databases, caches and timers.
  * Child servers are in-process dispatchers: no extra port and no browser-selected Home.
  */
 export function createSpaceWebServer(options:WebServerOptions,createCore:(options:WebServerOptions)=>SpaceWebSurface,withCatalog?:LocalWebCatalogRunner):http.Server {
-  const {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server.address());
+  const {home,local,native,account,rootToken,mutations,surface,selection,attach,sweep,syncFor,resume,surfaces,retiring,openSurface,stop,isStopping}=createSpaceContext(options,createCore,withCatalog,()=>server.address());
   const server=http.createServer((request,response)=>{
     void runWithMolisWorkHome(home,async()=>{
       try {
@@ -156,24 +164,17 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         const address=server.address();
         const origin=`http://127.0.0.1:${address&&typeof address==='object'?address.port:4173}`;
         if(url.pathname.startsWith('/api/sync')){
+          const expectedSpace=request.headers['x-molis-sync-space'];
+          if(expectedSpace&&expectedSpace!==selected.space.spaceId){sendLocalWebJson(response,409,{error:'空间已切换，请刷新页面。'});return;}
           if(request.headers['x-molis-work-control-token']!==token){sendLocalWebJson(response,403,{error:'空间已切换，请刷新页面。'});return;}
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
-          try{
-            const service=await syncFor(selected,request);
-            if(!service){sendLocalWebJson(response,200,{available:false,reason:selected.space.kind==='local'?'本地空间不参与同步，请先切换到个人空间。':'尚未启用本机同步联调。'});return;}
-            if(request.method==='GET'&&url.pathname==='/api/sync'){await service.loadPolicy();sendLocalWebJson(response,200,{available:true,...service.status()});return;}
-            if(request.method==='POST'&&url.pathname==='/api/sync/run'){await service.run();service.start();}
-            else if(request.method==='PUT'&&url.pathname==='/api/sync/policy'){await service.save(await readLocalWebBody(request));service.start();}
-            else if(request.method==='POST'&&url.pathname==='/api/sync/resolve'){const body=await readLocalWebBody(request);await service.resolve(String(body.namespace),String(body.key),body.choice as 'local'|'remote');}
-            else {sendLocalWebJson(response,404,{error:'接口不存在。'});return;}
-            sendLocalWebJson(response,200,{available:true,...service.status()});
-          }catch(error){sendLocalWebJson(response,409,{error:error instanceof Error?error.message:'同步暂时不可用'});}
+          await serveSpaceSync({request,response,url,local:selected.space.kind==='local',service:()=>syncFor(selected,request)});
           return;
         }
         if(accountPath){
           if(!authorizeLocalWebRequest(request,response,url,native(request)?rootToken:token,mutations))return;
           if(!await account(request,response,url,origin,token,''))sendLocalWebJson(response,404,{error:'接口不存在。'});
-          sweep();return;
+          sweep();await resume(request);return;
         }
         if(url.pathname==='/api/spaces'){
           if(!authorizeLocalWebRequest(request,response,url,token,mutations))return;
@@ -198,6 +199,8 @@ export function createSpaceWebServer(options:WebServerOptions,createCore:(option
         response.once('close',()=>entry.responses.delete(response));
         if(!valid()){sendLocalWebJson(response,401,{error:'账号已切换。'});return;}
         entry.server.emit('request',request,response);
+        // Do not yield before the core's synchronous HTTP guards (including malformed mutation bodies).
+        void resume(request);
       }catch(error){
         if(!response.headersSent)sendLocalWebJson(response,403,{code:'space.unavailable',error:'无法访问当前空间，请重新登录或返回本地空间。'});
         else response.destroy();

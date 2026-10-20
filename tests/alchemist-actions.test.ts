@@ -24,7 +24,7 @@ test("Alchemist unified operations preserve direction → cards → research →
   assert.deepEqual((await call(a.bootstrap, {})).directions, []);
   const { direction } = await call(a.directionCreate, { title: "访谈证据", description: "让独立创始人整理访谈中的真实证据" });
   assert.equal((await f.api("/bootstrap")).directions[0].id, direction.id);
-  await f.api(`/directions/${direction.id}`, "PATCH", { title: "修改后的方向", description: "让独立创始人整理访谈中的真实证据" });
+  await f.api(`/directions/${direction.id}`, "PATCH", { title: "修改后的方向", description: "让独立创始人整理访谈中的真实证据",expectedEtag:(await call(a.directionEditing,{id:direction.id})).etag });
   assert.equal((await call(a.bootstrap, {})).directions[0]!.title, "修改后的方向");
   await call(a.directionStatus, { id: direction.id, status: "archived" });
   await assert.rejects(call(a.explorationStart, { id: direction.id }), { code: "alchemist.direction_archived" });

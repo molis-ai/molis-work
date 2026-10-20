@@ -10,6 +10,8 @@ export const packageDescriptor = {
 } as const;
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+export { SHELF_DOCUMENT_PATH, type ShelfSyncOptions } from './catalog.js';
+export { createShelfSyncContent } from './sync-content.js';
 
 export { shelfErrors, isShelfFailure, type ShelfFailure } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";

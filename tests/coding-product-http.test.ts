@@ -66,7 +66,15 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const draft='保留需求、证据与未解决问题\n不要假装已经执行。';
     const configuration={intent:'execute',provider_id:'saved-provider',model_id:'saved-model',workspace_id:'saved-workspace'};
     const question_drafts={ '["run-1","question-1",1]': { answers: [{question:1,indexes:[2],other:'保留原输入'}] } };
-    assert.equal((await request(a+'/sessions/'+session,'PATCH',{draft,question_drafts,configuration,mcp_sources:[{server:'docs-service',configuration_version:3}],mcp_tools:[{server:'retained-server',tool:'retained-tool',version:'schema-1',configuration_version:2}],methods:[{skill_id:'coding-review-change',version:1}]})).status,200);
+    assert.equal((await request(a+'/sessions/'+session,'PATCH',{draft,question_drafts,expected_input_revision:0,configuration,mcp_sources:[{server:'docs-service',configuration_version:3}],mcp_tools:[{server:'retained-server',tool:'retained-tool',version:'schema-1',configuration_version:2}],methods:[{skill_id:'coding-review-change',version:1}]})).status,200);
+    for (const premise of [{}, {expected_input_revision:0}]) {
+      const stale = await request(a+'/sessions/'+session,'PATCH',{...premise,draft:'outdated input',configuration:{...configuration,provider_id:'must-not-save'},title:'must-not-rename'});
+      assert.equal(stale.status,409); assert.equal(stale.body.code,'coding.inputs_changed');
+    }
+    const unchanged=await request(a+'/sessions/'+session);
+    assert.equal(unchanged.body.draft,draft);assert.equal(unchanged.body.session.title,'待检查的任务');assert.deepEqual(unchanged.body.configuration,configuration);
+    const noOp=await request(a+'/sessions/'+session,'PATCH',{draft,question_drafts,expected_input_revision:1});
+    assert.equal(noOp.status,200);assert.equal(noOp.body.input_revision,1,'unchanged saves do not create synchronization edits');
     assert.equal((await request(b+'/sessions/'+session)).status,404);
     assert.equal((await request(b+'/sessions/'+session+'/recovery')).status,404);
     assert.equal((await request(b+'/sessions/'+session+'/runs/other/recover','POST',{expected_version:1})).status,404);
@@ -79,7 +87,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
 
     assert.equal((await request(b+'/sessions/'+session,'PATCH',{draft:'wrong project'})).status,404);
     assert.equal((await request(b+'/sessions/'+session,'PATCH',{question_drafts:{wrong:'project'}})).status,404);
-    assert.equal((await request(a+'/sessions/'+session,'PATCH',{question_drafts:[]})).status,400);
+    assert.equal((await request(a+'/sessions/'+session,'PATCH',{question_drafts:[],expected_input_revision:1})).status,400);
     assert.equal((await request(a+'/sessions/'+session+'/runs','POST',{task:'read',intent:'discuss',workspace_id:'invented'})).status,400);
     assert.equal((await request(a+'/sessions/'+session)).body.session.runtime_session_id,null);
     const state=await request(a+'/state');assert.equal(state.status,200);assert.deepEqual(state.body.workspaces,[]);
@@ -122,6 +130,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     const reopened=await request(a+'/sessions/'+session);
     assert.equal(reopened.status,200);assert.equal(reopened.body.draft,draft);assert.deepEqual(reopened.body.runs,[]);
     assert.deepEqual(reopened.body.question_drafts,question_drafts);
+    assert.equal(reopened.body.input_revision,1);
     assert.deepEqual(reopened.body.configuration,configuration);
     assert.deepEqual(reopened.body.mcp_sources,[{server:"docs-service",configuration_version:3}]);
     assert.deepEqual(reopened.body.mcp_tools,[{server:"retained-server",tool:"retained-tool",version:"schema-1",configuration_version:2}]);

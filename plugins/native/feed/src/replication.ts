@@ -9,7 +9,7 @@ import { FEED_OUT_RULES_SCHEMA_SQL } from "./out-rules.js";
 
 export const feedSync: PluginSyncDeclaration = {
   protocol_version: 1,
-  collections: [{ id: "capture_rules", title: "消息捕捉规则", schema_version: 1, requires: [] }],
+  collections: [{ id: "capture_rules", title: "消息捕捉规则", schema_version: 1, requires: [] },{id:'source_descriptions',title:'来源描述与历史',schema_version:1,requires:[]},{id:'messages',title:'消息、材料与固定历史',schema_version:1,requires:['source_descriptions']}],
 };
 
 const COLUMNS = ["project_id", "rule_id", "name", "enabled", "match_json", "created_at", "updated_at", "admission", "judgment_json", "revision"] as const;
@@ -27,7 +27,7 @@ function exact(value: Row, columns: readonly string[]): void {
 }
 function timestamp(value: unknown): boolean { return typeof value === "string" && Number.isFinite(Date.parse(value)); }
 function size(value: unknown): void {
-  if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) invalid("捕捉规则超过当前同步上限（512 KiB）", "limit");
+  if (Buffer.byteLength(JSON.stringify(value)) > 100000000) invalid("捕捉规则超过账号容量上限（100 MB）", "limit");
 }
 function validateRule(value: unknown, projectId: string, ruleId: string): Row {
   const row = object(value);
@@ -73,7 +73,7 @@ export function installFeedReplication(db: ReplicaDatabase, projectId: string): 
 }
 
 export function createFeedRuleReplica(db: ReplicaDatabase, context: {
-  spaceId: string; projectId: string; title: string; authorize(): void;
+  spaceId: string; projectId: string; title: string; authorize(): void; conflictState?: import('@molis-ai/molis-work-contracts/platform/sync-transport').SyncConflictState;
 }): SyncReplicaAdapter {
   const binding = readDatabaseSpace(db);
   if (binding?.kind !== "personal" || binding.spaceId !== context.spaceId) invalid("只允许同步当前个人空间的捕捉规则", "scope");
@@ -86,6 +86,7 @@ export function createFeedRuleReplica(db: ReplicaDatabase, context: {
   };
   return createSqliteReplica(namespacedReplicaDatabase(db, "feed"), {
     authorize: context.authorize,
+    conflictState: context.conflictState,
     read(key) {
       const id = keyId(key);
       const row = db.prepare("SELECT * FROM feed_out_rules WHERE project_id=? AND rule_id=?").get(context.projectId, id);

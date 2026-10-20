@@ -9,6 +9,8 @@ Home 激活通过 `actions.home` 选择稳定插件 provider，并在启动上�
 
 Host 的 Home 与项目执行器共用可信定义对象的 provider 规则：bundled 使用 plugin_id，其余 install_id。Home 复用此包的安装、发行物、私有 KV 与模型调用规则；Local Host 在完整 v2 基线核对后才构造 Repository，旧版/坏结构不由 constructor 补表。业务库仍由插件拥有，Home 不造项目 artifacts、端口或事件。公开 Host 的组合回归是 `tests/home-plugin-platform.test.ts`、`tests/home-plugin-private-store.test.ts`、`tests/home-plugin-model-lifecycle.test.ts`；模型与 KV 的原独立回归仍须保留。
 
+`listPluginInstallationRecords` 只读已验证库中的安装事实，与 Repository 的 `list` 使用同一读取；不构造 Repository、不建表、不启动/恢复实例或修改停用意图。Host 项目设置用这份观察识别已安装的独立插件，不能把同步来的依赖清单当作安装记录。只读连接与缺表拒绝由 `tests/plugin-runtime-integration.test.ts` 验证。
+
 ## 一次典型调用
 
 PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新的 grant context，失败和卸载撤销旧 context。SQLite repository 保存安装事实，private storage 按安装 ID 隔离 opaque string 数据。
@@ -37,9 +39,13 @@ PluginRuntime 使用注入的 repository 和 executor；启动或恢复产生新
 
 这是单 key 的条件写入，不是任意多 key 事务，也不提供跨设备团队同步。消费者可把同一次原子提交的状态放在一个带修订标记的值中；不要在冲突后盲目重跑含外部副作用的逻辑。
 
+运行实例可在 `PluginAppContribution.sync` 兑现已声明集合。未声明、重复或缺少必要增量方法的实现拒绝启动；只有声明而未兑现的集合仍不可用。`bindRuntimeSyncCollection` 从现有 Supervisor 查找已启用实例，不安装、不补权、不恢复停用意图；包装后的日志、冲突与附件方法每次核对账号、当前实例、安装世代、发布者、版本、Manifest 和私有存储授权，附件等待返回后再次复核。它只提供生命周期安全的局部绑定；实际 Host 复用自己的 Home/项目平台生成共同目录，并按真实作用域封装键值，Runtime 不导入同步协调器或解释业务内容。
+
 工作区依赖：`@molis-ai/molis-work-contracts`。其他运行依赖见 [package.json](package.json)。
 
 ## 本地开发
+
+`privateValueReplicaOwner` 将可信 `PrivateValueReplicationOwner` 接到共同 SQLite replica：Runtime 只选择自己拥有的 `plugin_private_values` 中固定前缀/key，业务 owner 只解释 JSON。`installPrivateValueReplicationJournal` 根据明确的数组/身份字段选择器在原 KV CAS 事务里记录逐项变化，其他私有 key 和未改变的对象不入队；不同连接也由同一 SQLite 触发器记账。`validatePrivateValueReplication` 在创建目标项目前纯检查完整 envelope 和业务内容。替换及墓碑仅交给对应对象的 owner 恢复，保留其他对象与本机高水位；不授予安装或执行权限。这些端口不自动注册同步或启动实例。
 
 以下命令在**仓库根目录**执行，使用 Node.js 24+ 与仓库配置的 pnpm。首次准备运行 `pnpm install --frozen-lockfile` 和 `pnpm build`；之后可单独检查此包。
 

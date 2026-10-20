@@ -58,3 +58,5 @@
 - 相关手册：[插件开发](../../../skills/molis-plugin-dev/SKILL.md)、[Home 数据归属](../../../docs/system/HOME-DATA.md)、[开发要求](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 模型回复替身（`tests/fixtures/issue-model.ts`）只证明数据流、撤销与写入边界；真实模型的标题与分类质量、中文输入法和跨应用粘贴手感由用户验收。
+
+项目回收检查：本 owner 的个人 Home 内容跨项目独立保存，不因某项目被回收而删除。同步适配器明确返回无该项目所属的未结算内容；材料或成果来源引用不改变所有权。检查仍执行账号与格式校验。

@@ -6,7 +6,7 @@ import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module
 import { LOCAL_PERSON_ACTOR_ID } from '@molis-ai/molis-work-contracts/platform/actions';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 // The Host's coupling to the plugin builder stays in this file: the lifecycle module takes these types from here.
-export type { AgentBuilderPorts, AgentRelease } from '@molis-ai/molis-work-plugin-builder';
+export type { AgentBuilderPorts, AgentRelease, AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { createReminderActionHandlers, REMINDER_ACTIONS, SCHEDULE_REMINDER_PROVIDER_ID, createScheduledOperations, createScheduledOperationActionHandlers,
   SCHEDULE_OPERATION_ACTIONS, SCHEDULE_OPERATION_PROVIDER_ID } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
@@ -47,6 +47,12 @@ export interface InstalledPluginHostOptions {
 /** One execution owner per project database. Authoring and its Workflow are separate consumers. */
 export type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
+
+/** Passive projection of the unique installed execution owner; never installs or starts a second platform. */
+export async function runningInstalledPluginPlatform(store: LocalProjectDatabase, projectId: string) {
+  const entry = hosts.get(store)?.get(projectId);
+  return entry ? (await entry.ready).platform : null;
+}
 
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);

@@ -119,7 +119,8 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   await evaluate("root.remove()"); await inFlight.cancelled.promise;
   // The old HTTP response already contains the earlier owner snapshot. New mounting must read the changed owner.
   const { direction: current } = await f.bound.invoke(f.actions.directionUpdate, { id: direction.id,
-    title: "Current owner after remount", description: direction.description });
+    title: "Current owner after remount", description: direction.description,
+    expectedEtag:(await f.bound.invoke(f.actions.directionEditing,{id:direction.id})).etag });
   await evaluate("parentNode.append(root);boot();boot()");
   await waitFor(`document.querySelector('[data-alc-title]').textContent===${JSON.stringify(current.title)}`);
   inFlight.release.resolve(); await inFlight.completed.promise;
@@ -127,4 +128,27 @@ test("W2-18-ALCHEMIST-UI-01/02 and PARTIAL-01: object selection, unavailable pub
   assert.equal(await evaluate("document.querySelector('[data-alc-title]').textContent"), current.title, "the cancelled old read cannot overwrite the new mount");
   assert.deepEqual(await evaluate("JSON.parse(root.dataset.assistantContext).object"),
     { kind: "alchemist-direction", id: direction.id, title: current.title }, "the new mount keeps its current discussion context after the old response finishes");
+
+  // PCSYNC-15: real edit forms capture the content they show, not a fresh token for an old draft at submit time.
+  await evaluate("document.querySelector('[data-alc-action=edit-direction]').click()");
+  await waitFor("document.querySelector('[data-alc-dialog]').open");
+  assert.equal(await evaluate("document.querySelector('[data-alc-dialog] [name=title]').value"),current.title);
+  await f.bound.invoke(f.actions.directionUpdate,{id:direction.id,title:'Changed by another device',description:direction.description,
+    expectedEtag:(await f.bound.invoke(f.actions.directionEditing,{id:direction.id})).etag});
+  await evaluate("document.querySelector('[data-alc-dialog] [name=title]').value='Stale browser draft';document.querySelector('[data-alc-submit]').click()");
+  await waitFor("document.querySelector('[data-alc-form-error]').textContent.includes('内容已经改变')");
+  assert.equal((await f.bound.invoke(f.actions.directionEditing,{id:direction.id})).direction.title,'Changed by another device');
+  assert.equal(await evaluate("document.querySelector('[data-alc-dialog] [name=title]').value"),'Stale browser draft','a refusal preserves the user draft');
+  await evaluate("document.querySelector('[data-alc-dialog] [data-alc-action=close]').click();document.querySelector('[data-alc-action=settings]').click()");
+  await waitFor("document.querySelector('[data-alc-action=revise-playbook]')");
+  await evaluate("document.querySelector('[data-alc-action=revise-playbook]').click()");
+  await waitFor("document.querySelector('[data-alc-dialog]').open");
+  const beforeMethod=await f.bound.invoke(f.actions.playbookEditing,{id:rule.id});
+  await f.bound.invoke(f.actions.playbookRevise,{id:rule.id,expectedVersion:beforeMethod.rule.version,expectedEtag:beforeMethod.etag,
+    methodChange:'Updated method elsewhere',positiveExamples:[],negativeExamples:[]});
+  await evaluate("document.querySelector('[data-alc-dialog] [name=method]').value='Old method draft';document.querySelector('[data-alc-submit]').click()");
+  await waitFor("document.querySelector('[data-alc-form-error]').textContent.includes('内容已经改变')");
+  assert.equal((await f.bound.invoke(f.actions.playbookEditing,{id:rule.id})).rule.version,beforeMethod.rule.version+1);
+  assert.ok(requests.some(r=>r.endsWith(`/directions/${direction.id}/editing`)));
+  assert.ok(requests.some(r=>r.endsWith(`/memory/playbook/${rule.id}/editing`)));
 });

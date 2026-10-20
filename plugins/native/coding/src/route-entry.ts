@@ -27,7 +27,7 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite) => {
     const api = context.services?.capabilities;
     if (!ports || !api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
-    await ports.ready();
+    if(request.method!=="GET") await ports.ready();
     if (request.method !== "GET") await beforeWrite();
     beforeWrite.assert_current();
     const controlled: PluginCapabilityClient = { availability: definition => api.availability(definition),

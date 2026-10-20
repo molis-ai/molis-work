@@ -2,6 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 
 // Current Host and review refusals kept their caller-error status at the shared exit.
 export const agentErrors = defineErrorCodes("agent", {
+  history_invalid: 'invalid', history_waiting: 'unavailable', history_scope: 'forbidden',
   answer_invalid: "invalid",
   capability_unavailable: "invalid",
   collaboration_check_not_read: "forbidden",

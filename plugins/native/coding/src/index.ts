@@ -1,3 +1,4 @@
+export {refreshCodingSavedHistory} from './saved-history.js';
 export { CODING_INSTRUCTIONS, CODING_COMMIT_DRAFT, CODING_HISTORY_SUMMARY } from "./prompts.js";
 export { codingReportPreview } from "./report.js";
 export { codingChangeSetPreview, codingNetChange } from "./changeset.js";
@@ -118,6 +119,7 @@ export {
   type CodingRoleId,
 } from "./roles.js";
 export { createCodingPlugin, type CodingPluginPorts } from "./plugin.js";
+export { codingSync, codingContentReplicationDefinition, CODING_CONTENT_REPLICA_ID } from './session-replication.js';
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";

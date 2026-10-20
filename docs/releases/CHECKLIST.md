@@ -31,10 +31,10 @@
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 个人同步 | `sync/sync.db` | 1 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 拒绝 |
-| 项目库 | `projects/<project_id>/molis-work.db` | 8 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
-| 目录库 | `projects/catalog.db` | 22 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
-| 会话库 | `sessions/sessions.db` | 7 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
+| 个人同步 | `sync/sync.db` | 5 | `user_version` | `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE` | 拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 15 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 目录库 | `projects/catalog.db` | 25 | `catalog_meta.schema_version` | `apps/local-host/src/project-catalog-contract.ts#CATALOG_SCHEMA_VERSION` | 拒绝 |
+| 会话库 | `sessions/sessions.db` | 8 | `session_meta.schema_version` | `modules/private-work-context/src/session-schema.ts#SESSION_REGISTRY_SCHEMA_VERSION` | 拒绝 |
 | Functions | `functions/functions.db` | 3 | `user_version` | `modules/functions/src/store.ts#FUNCTIONS_STORE_BASELINE` | 拒绝 |
 | 助理 | `assistant/assistant.db` | 2 | `user_version` | `apps/local-host/src/assistant/assistant-store.ts#ASSISTANT_STORE_BASELINE` | 拒绝 |
 | Home Plugin Runtime | `plugin-runtime/plugin-runtime.db` | 2 | `user_version` | `apps/local-host/src/home-plugin-store.ts#HOME_PLUGIN_RUNTIME_BASELINE` | 拒绝 |
@@ -45,16 +45,16 @@
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
 | 连接 | `connectors/connectors.db` | 1 | `user_version` | `apps/local-host/src/connectors-store.ts#CONNECTORS_BASELINE` | 拒绝 |
 | 引导 | `context-onboarding/context-onboarding.db` | 1 | `user_version` | `apps/local-host/src/context-onboarding-store.ts#CONTEXT_ONBOARDING_BASELINE` | 拒绝 |
-| Cognia | `cognia/cognia.db` | 1 | `user_version` | `plugins/native/cognia/src/store.ts#COGNIA_STORE_BASELINE` | 拒绝 |
+| Cognia | `cognia/cognia.db` | 2 | `user_version` | `plugins/native/cognia/src/store.ts#COGNIA_STORE_BASELINE` | 拒绝；知识图同步日志入新基线，旧库另行批准维护 |
 | Dataset | `dataset/dataset.db` | 2 | `user_version` | `plugins/native/dataset/src/store.ts#DATASET_STORE_BASELINE` | 拒绝 |
-| Images | `images/images.db` | 1 | `user_version` | `plugins/native/images/src/store.ts#IMAGES_STORE_BASELINE` | 拒绝 |
+| Images | `images/images.db` | 2 | `user_version` | `plugins/native/images/src/store.ts#IMAGES_STORE_BASELINE` | 拒绝；同步日志纳入新基线，旧库需单独批准维护 |
 | Jelly | `jelly/jelly.db` | 2 | `user_version` | `plugins/native/jelly/src/store.ts#JELLY_STORE_BASELINE` | 拒绝 |
 | 灵光 | `lingguang/lingguang.db` | 2 | `user_version` | `plugins/native/lingguang/src/store.ts#LINGGUANG_STORE_BASELINE` | 拒绝 |
 | Pages | `pages/pages.db` | 3 | `user_version` | `plugins/native/pages/src/store.ts#PAGES_STORE_BASELINE` | 拒绝 |
 | PPT | `ppt/ppt.db` | 2 | `user_version` | `plugins/native/ppt/src/store.ts#PPT_STORE_BASELINE` | 拒绝 |
-| Todo | `todo/todo.db` | 2 | `user_version` | `plugins/native/todo/src/store.ts#TODO_STORE_BASELINE` | 拒绝 |
+| Todo | `todo/todo.db` | 3 | `user_version` | `plugins/native/todo/src/store.ts#TODO_STORE_BASELINE` | 拒绝 |
 | Workflows | `workflows/workflows.db` | 2 | `user_version` | `plugins/native/workflows/src/store.ts#WORKFLOWS_STORE_BASELINE` | 拒绝 |
-| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
+| 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 2 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
 | server（讨论） | `server/server.sqlite` | 1 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
 | 搜索索引（可重建的派生库） | `search/search.db` | 2 | `search_meta.schema` | `packages/storage/src/adapters/text-search-index.ts#SCHEMA_VERSION` | 清空重建 |
@@ -62,6 +62,7 @@
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 2 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
 
+- Builder 的项目私有 KV owner 文档改为格式 2（不是新库、也不复制私有表）：草稿及删除后编辑高水位在同一次 CAS 中保存。原无格式文档、坏 JSON 或错高水位拒绝，不重建空文档；可能阻止旧创作/安装记录被新构建读取。真实 Home 的备份、格式整理与维护须另行批准，不能以同步启动为由隐式转换。此项不表示 Builder 的源码、发布文件或云端接入完成。
 - Pages 评论线程将库基线从 1 改为 2，新增 `page_comments`，正文与块备注保持原结构。旧 Home 仍拒绝直接打开；真实 Home 尚未执行这一项维护，发布前须在副本演练并取得维护授权。实现与隔离验证见 [Pages 与助理规格](../../specs/archive/pages-assistant-surfaces/spec.md)。
 - 「拒绝」是 `applySqliteBaseline` 的行为（`packages/storage/src/sqlite-baseline.ts`）：空文件建基线并写版本，版本相同照常打开，其他一律报错，带路径、找到的版本和期望的版本，不就地升级。目录库与会话库用自己的 meta 表，同样只认当前版本（`apps/local-host/src/catalog-schema.ts` 的 `assertCurrentCatalog`、`modules/private-work-context/src/session-schema.ts`）。
 - （实验插件已在 2026-10-10 删除，它的私有库不在上表里，Home 里残留的目录由第 4.3 节的维护六移出；下面是维护五当时的写法，作为历史保留。）实验插件私有库和炼金术士搜索缓存原来没有版本（`CREATE TABLE IF NOT EXISTS`，旧库和新库没有区别），路线图 W2-05（用户 2026-10-08 决定 #21）给它们各一份基线，版本 1。新建的文件带版本；已经存在的旧文件有表没有版本，新构建拒绝打开，所以真实 Home 的实验库要先盖版本 1：一次性维护 `tests/fixtures/store-maintenance-experiments-private-v1.sql`（炼金术士搜索库对应 `store-maintenance-alchemist-search-v1.sql`，对每个 `search.sqlite` 各跑一次；2026-10-08 的真实 Home 里没有这种文件），每份一个事务，库不是未盖版本且与基线逐项一致就整体回滚，只写 `PRAGMA user_version = 1`、不动任何表和行。窗口里用同目录的 `store-maintenance-run.sh` 跑（先演练再 `--apply`，会先整份备份），`store-maintenance-verify-open.mjs` 用新构建打开盖过的拷贝；逐步命令与演练记录见 [防腐整理 spec](../../specs/repository-anti-corruption/spec.md) §4.1 的维护五。真实 Home 已于 2026-10-09 做完（维护五：`plugins/experiments/private.sqlite` 盖到 1，备份 `~/molis-work-backups/2026-10-09-before-maint5-r2`），这两份 SQL、两个脚本和演练用例 `tests/store-version-maintenance.test.ts` 随后删除；别的 Home 若还有未盖版本的文件，从 Git 历史取（`git show bccdcee17:tests/fixtures/store-maintenance-run.sh` 等）。「无」只留给没有任何版本标记的库，现在这张表里没有；表里的行由 `verify-release-versions.mjs` 对着基线常量核对。
@@ -143,3 +144,9 @@
 - [ ] 发布 PR 里补上备份路径、维护记录位置和上面各项的结果。
 
 个人同步整改（personal 分支，2026-10-16）：上述库的新增日志及辅助表纳入当前基线；旧版只拒绝，不自动补表。新增同步配置库 `sync/sync.db` v1，基线为 `modules/sync-replication/src/database.ts#SYNC_STORE_BASELINE`。本次未维护真实 Home，启用前需备份并另行授权维护。
+
+个人云同步 D1（2026-10-17）：这是独立 Worker 数据库，不是上表 Home 库。当前新库基线为 `apps/sync-worker/migrations/0001_sync.sql`，`sync_schema.version=3`，包含结构化内容与私有 R2 附件预留的共同容量账本及准入触发器。旧 v1/v2 数据库的维护或重建须另行批准，不能以再次执行已应用的 0001 当作升级；本次没有操作真实 D1。发布前核对独立数据库及私有 R2 绑定、HTTPS Auth 和应用 ID，不能使用 Auth/官网数据库；Artifact 附件首片已实现，其他 owner、预留到期和 30 天引用清理、正式两设备验收未完成。
+
+个人附件本机暂存（2026-10-17）：`sync/sync.db` 当前基线 v2，新增受空间租约约束的上传回执和下载分块。原 v1 记录是前一切片的历史，不是当前可读格式；旧库保留并拒绝，未维护真实 Home。
+
+持续实现（2026-10-19，尚未发布）：当前实际同步控制库为 v5，含逐项隔离、流游标及按集合保护的分块/延迟事件；独立 D1 为 v5，含上传世代、独立幂等回执、30 天记录墓碑及清理账本、限流、冲突分支归档/固定及精确恢复来源。以上 v1/v2/v3 段落保留为历史交付记录，不能作为当前库版本。所有旧库均需当次授权的备份/维护，未自动升级或读取旧值。记录墓碑的临时 D1/R2 回收验证不代表所有业务 owner 的内部回收站、项目生命周期或正式环境已验收。

@@ -2,6 +2,75 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import Database from "better-sqlite3";
+import { join } from "node:path";
+import { ensureStorageSpace } from "@molis-ai/molis-work-storage";
+import { projectReplicationOwner } from "@molis-ai/molis-work-module-projects";
+import { listPluginInstallationRecords, PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { githubIntegrationManifest } from "@molis-ai/molis-work-integration-github";
+import { mkdir, writeFile } from "node:fs/promises";
+
+test("PCSYNC-20 missing plugin hints inspect actual local installations without starting or enabling code", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user");if (!browser) return;
+  const { homeDirectory, databasePath, projectId, origin, navigate, command, sessionId, click, waitFor, evaluate } = browser;
+  assert.ok(projectId);let starts = 0;
+  const db = new Database(databasePath), repository = new SqlitePluginRuntimeRepository(db);
+  const runtime = new PluginRuntime(repository);
+  const installed = runtime.install({ definition: { manifest: githubIntegrationManifest, async start() { starts++;throw new Error("inspection must not start plugin code"); } }, deployment: "local" }).install;
+  repository.save({ ...installed, state: "disabled" });db.close();
+  const catalog = new Database(join(homeDirectory, "projects", "catalog.db"));
+  try {
+    const owner = projectReplicationOwner(catalog, { spaceId: ensureStorageSpace(homeDirectory).spaceId, authorize: () => {}, excludedProjectIds: [] });
+    const value = owner.read(projectId)!;
+    owner.apply(projectId, { ...value, plugins: ["goals", githubIntegrationManifest.plugin_id, "missing.example.plugin", "missing." + "x".repeat(180), "pages"].sort() });
+  } finally { catalog.close(); }
+  await withMolisWorkProjectCatalog({ homeDirectory }, catalog => assert.ok(catalog.projectPluginRequirements(projectId).some(plugin => plugin.plugin_id === "missing.example.plugin" && !plugin.installed)));
+  const initialSettings = await fetch(origin + `/projects/${projectId}/settings/general?embed=1`);
+  assert.equal(initialSettings.status, 200);
+  assert.match(await initialSettings.text(), /data-project-missing-plugins/);
+  await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/` }, sessionId));
+  await click(".navigator-project-settings");
+  await waitFor("!!document.querySelector('[data-project-missing-plugins]') && !document.body.dataset.navigationPending");
+  const hint = await evaluate<string>("document.querySelector('[data-project-missing-plugins]').textContent");
+  assert.match(hint, /missing\.example\.plugin/);assert.doesNotMatch(hint, new RegExp(githubIntegrationManifest.plugin_id));
+  assert.doesNotMatch(hint, /pages/);assert.equal(starts, 0);
+  await mkdir(".impeccable/qa/review", { recursive: true });
+  for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await evaluate(`localStorage.setItem('molis-work:theme',${JSON.stringify(theme)});dispatchEvent(new StorageEvent('storage',{key:'molis-work:theme',newValue:${JSON.stringify(theme)}}))`);
+    assert.equal(await evaluate("document.documentElement.dataset.resolvedTheme"), theme);
+    await evaluate("document.querySelector('[data-project-missing-plugins]').scrollIntoView({block:'center'})");
+    assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
+    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] .settings-setting-row')).every(row=>row.scrollWidth<=row.clientWidth)"), true);
+    assert.equal(await evaluate("Array.from(document.querySelectorAll('[data-project-missing-plugins] [data-slot=status]')).every(mark=>{const rect=mark.getBoundingClientRect();return rect.height<=22&&rect.width<80})"), true, "installation status must neither wrap vertically nor stretch into a full-width bar");
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId);
+    await writeFile(`.impeccable/qa/review/project-missing-plugins-${width}-${theme}.png`, Buffer.from(shot.data, "base64"));
+  }
+  const readonly = new Database(databasePath, { readonly: true });
+  try { assert.deepEqual(listPluginInstallationRecords(readonly).find(record => record.install_id === installed.install_id), { ...installed, state: "disabled" }); }
+  finally { readonly.close(); }
+  const english = await (await fetch(origin + `/projects/${projectId}/settings/general?embed=1`, { headers: { "accept-language": "en" } })).text();
+  assert.match(english, /Missing plugins/);assert.match(english, /Your synced content is kept/);
+});
+
+test("PCSYNC-15 project rename retains a stale browser draft after another device changes the name", { timeout: 60_000 }, async t => {
+  const browser = await openGoalBrowser(t, "user");if (!browser) return;
+  const { origin, projectId, homeDirectory, command, sessionId, navigate, evaluate, waitFor, click } = browser;
+  await navigate(() => command("Page.navigate", { url: origin + `/projects/${projectId}/` }, sessionId));
+  await click(".navigator-project-settings");
+  const form = '[data-work-surface=project-settings] [data-project-rename]';
+  await waitFor(`!!document.querySelector('${form}') && !document.body.dataset.navigationPending`);
+  const observed = await evaluate<string>(`document.querySelector('${form}').dataset.projectObservedName`);
+  await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.renameProject(projectId!, "已同步的新名称", "remote", observed));
+  await evaluate(`document.querySelector('${form} input[name=display_name]').value='未保存的草稿'`);
+  await click(form + ' button[type=submit]');
+  await waitFor(`!!document.querySelector('${form} .settings-form-error:not([hidden])')`);
+  assert.equal(await evaluate(`document.querySelector('${form} input[name=display_name]').value`), "未保存的草稿");
+  assert.equal(await evaluate(`document.querySelector('${form}').dataset.projectObservedName`), observed);
+  assert.equal(await evaluate(`document.querySelector('${form} button[type=submit]').disabled`), false);
+  await withMolisWorkProjectCatalog({ homeDirectory }, catalog => assert.equal(catalog.getProject(projectId!).display_name, "已同步的新名称"));
+});
 
 // It walks every settings category in two layouts: about 27 s on a development Mac, about 60 s on the Linux CI runner.
 test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 120_000 }, async t => {

@@ -47,7 +47,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   const item=received.body.item; assert.deepEqual(item.artifact_source.reference,reference);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),preview.body.text);
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id); assert.equal(shelf.snapshot().materials.length,before+1);
-  shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。');
+  shelf.writeCopy(item.item_id,'只改 Shelf 副本，来源保持。', (await request(`/api/shelf/items/${item.item_id}/project-material`)).body.payload.content_hash);
   assert.equal((await request(path,confirmation)).body.item.item_id,item.item_id);
   assert.equal(shelf.readFile(item.item_id).bytes.toString('utf8'),'只改 Shelf 副本，来源保持。');
   const materialPath='/api/shelf/items/'+item.item_id+'/project-material';

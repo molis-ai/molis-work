@@ -8,6 +8,7 @@ import { ResearchPlanError } from "./create-research-plan.js";
 import { createWorkspaceOperations } from "./workspace-operations.js";
 import { DecisionServiceError } from "./decision-workspace.js";
 import { AlchemistOperationError } from "./action-error.js";
+import {studioEditFingerprint} from '../db/edit-fingerprint.js';
 export { AlchemistOperationError } from "./action-error.js";
 
 export type AlchemistEffectControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
@@ -47,6 +48,11 @@ function implementations(d: ApiDependencies): Implementations {
     reuseReconcile: async (input, signal, control) => ({ receipt: await d.workReuse.reconcile(input.planId, signal, control) }),
     reuseFeedback: async (input, signal) => ({ receipt: await d.workReuse.feedback(input, signal) }),
     playbookRevise: input => ({ rule: d.workReuse.revise(input) }),
+    playbookEditing: input => {
+      const rule=d.memory.getPlaybookRule(input.id);
+      if(!rule||rule.workspaceId!==d.workspaceId)throw new AlchemistOperationError('alchemist.playbook_rule_not_found','没有找到这条研究方法。',404);
+      return {rule,etag:studioEditFingerprint(rule)};
+    },
     bootstrap: () => ({
       workspace: { id: d.workspaceId, name: d.workspaceName ?? "炼金术士" }, actor: { id: d.actorId, name: d.actorName ?? "本地创始人" },
       directions: d.directions.list(), explorations: d.explorations.list(),
@@ -58,8 +64,9 @@ function implementations(d: ApiDependencies): Implementations {
       return { direction: d.directions.create({ id: d.idFactory.next("direction"), workspaceId: d.workspaceId,
         title: input.title ?? deriveDirectionTitle(input.description), description: input.description, source: { kind: "user_input" }, status: "active", createdAt: now, updatedAt: now }) };
     },
+    directionEditing: input => {const value=direction(input.id);return {direction:value,etag:studioEditFingerprint(value)};},
     directionUpdate: input => ({ direction: d.directions.update(direction(input.id).id, {
-      title: input.title ?? deriveDirectionTitle(input.description), description: input.description, updatedAt: d.clock.now() }) }),
+      title: input.title ?? deriveDirectionTitle(input.description), description: input.description, updatedAt: d.clock.now() },input.expectedEtag) }),
     directionStatus: input => ({ direction: d.directions.setStatus(direction(input.id).id, input.status, d.clock.now()) }),
     explorationStart: input => {
       if (direction(input.id).status === "archived") throw new AlchemistOperationError("alchemist.direction_archived", "请先恢复方向，再继续炼化。");

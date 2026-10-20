@@ -2,6 +2,7 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { randomUUID } from "node:crypto";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { FeedGoalLinks } from "./goal-links.js";
+export {feedContentReplicationDefinition} from './replication.js';
 
 import type {
   AttentionApi,

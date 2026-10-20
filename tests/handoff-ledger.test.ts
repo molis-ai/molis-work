@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
-import { openWorkSessionRegistry } from "@molis-ai/molis-work-app-local-host";
+import { openWorkSessionRegistry,createSessionReplicationSupport } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkSessionRegistry } from "@molis-ai/molis-work-module-private-work-context";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { SESSION_REGISTRY_SCHEMA_VERSION } from "../modules/private-work-context/dist/session-schema.js";
@@ -46,7 +46,7 @@ async function fixture() {
 test("new Handoff pins the supplied Goal version; target edits, removals and failures stay atomic", async () => {
   const data = await fixture();
   let fail = false;
-  const registry = await MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, createLedger: (db) => {
+  const registry = await MolisWorkSessionRegistry.open({ homeDirectory: data.homeDirectory, replication:createSessionReplicationSupport(), createLedger: (db) => {
     const ledger = createContextLedger(db, { authorize: () => true });
     return { query: ledger.query, commands: { ...ledger.commands, put: (who, input) => {
       const result = ledger.commands.put(who, input);

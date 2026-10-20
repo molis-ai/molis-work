@@ -6,6 +6,7 @@ import type { BuilderAgentRequest, BuilderAgentRecord, BuilderSkill } from '@mol
 import type { BuildManifest, BuildCheckResult } from '@molis-ai/molis-work-contracts/platform/plugin-builder';
 import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import { AgentBuilderStore } from './agent-store.js';
+import { reviseCheckedPresentation } from './checked-presentation.js';
 import { BUILDER_PROMPTS, type BuilderPromptName } from './agent-prompts.js';
 import { BUILDER_CHOOSE_CAPABILITY, BUILDER_CHOOSE_COMPONENT } from './choice-prompts.js';
 import { capabilityCandidates, focusCatalog, usedCapabilities, withinBudget, type CatalogEntry } from './agent-catalog.js';
@@ -444,13 +445,9 @@ export class AgentBuilderWorkflow {
     this.step(id, { id: stepId, agent: 'ui', action: 'design', label: '整页设计已应用', status: 'done', detail: result.summary });
   }
   private async reviseVisual(id: string, token: string, signal: AbortSignal) {
-    const build = this.store.require(id);
-    if (!build.design || !build.checks.global?.passed) throw new Error('功能验证通过后才能调整界面');
-    await this.compose(id, token, signal, build.pendingVisual ?? '继续完善当前界面');
-    const result = await this.acceptance(id, token, signal, 0);
-    if (!result.passed) throw new Error('界面调整后的交互验收未通过，可以修改或撤回；后端保持原样');
-    await this.reviewPresentation(id, token, signal);
-    this.change(id, value => { value.active = null; value.pendingVisual = undefined; value.phase = 'ready'; value.error = null; });
+    await reviseCheckedPresentation({ read: () => this.store.require(id), current: () => this.current(id, token), change: mutate => this.change(id, mutate),
+      check: () => this.check(id, this.store.require(id).design!.contract.operations.map(item => item.id), signal),
+      compose: request => this.compose(id, token, signal, request), acceptance: () => this.acceptance(id, token, signal, 0), review: () => this.reviewPresentation(id, token, signal) });
   }
   private async reviewPresentation(id: string, token: string, signal: AbortSignal) {
     if (!this.ports.inspectPresentation || !this.store.require(id).design?.presentation) return;
@@ -730,8 +727,8 @@ export class AgentBuilderWorkflow {
       this.change(id, value => { value.nodes = inDesignOrder(value.design, [...value.nodes, { ...part, kind: body.kind as AgentBuild['nodes'][number]['kind'] }]); value.pendingPart = undefined; });
       this.step(id, { id: 'part:' + build.design!.contract.revision + ':' + part.id, agent: 'ui', action: 'place', label: '使用你选择的组件', target: part.id, status: 'done', selection: { source: 'user', candidates: pending.candidates, choice: String(body.kind) } }); this.launch(id, 'build'); return this.store.require(id);
     }
-    if (body.action === 'undo' && build.design && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) { const previous = build.history.at(-1)!; this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = previous.browserResult?.passed ? 'ready' : 'paused'; }); return this.store.require(id); }
-    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw new Error('没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
+    if (body.action === 'undo' && build.design && build.history.at(-1)?.checks?.global?.bundlePath && build.history.at(-1)?.design?.contract.revision === build.design?.contract.revision) { const previous = build.history.at(-1)!; this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.error = null; value.phase = previous.browserResult?.passed ? 'ready' : 'paused'; }); return this.store.require(id); }
+    if (body.action === 'undo') { const previous = build.history.at(-1); if (!previous) throw new Error('没有可撤销的合同修订'); await this.resetPreview(id); this.change(id, value => { value.history.pop(); Object.assign(value, previous); value.pendingVisual = undefined; value.connected = []; value.checks = {}; value.browserResult = undefined; value.visualResult = undefined; value.phase = 'paused'; }); this.launch(id, 'build'); return this.store.require(id); }
     if (body.action === 'remove') { this.store.remove(id, build.revision); await this.resetPreview(id); return null; }
     if (body.action === 'publish') {
       if (build.phase !== 'ready' || !build.browserResult?.passed || !build.checks.global?.passed || !build.design) throw new Error('全部功能和浏览器验收通过后才能发布');

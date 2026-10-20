@@ -1,11 +1,35 @@
 import { replicaError } from './project-replication-errors.js';
+import { createSyncConflictState } from '@molis-ai/molis-work-plugin-sdk';
 import type { ProjectReplicaRows, SyncReplicaAdapter } from '@molis-ai/molis-work-contracts/platform/sync-transport';
 import { goalReplicationDefinition } from '@molis-ai/molis-work-module-goals';
 import { governanceReplicationDefinition } from '@molis-ai/molis-work-module-governance-collaboration';
 import { goalContextReplicationDefinition } from '@molis-ai/molis-work-module-context-ledger';
-import { createProjectReplicaSection, createProjectReplicaJournal, createSqliteReplica, installProjectReplicaJournal, namespacedReplicaDatabase, mapReplicaSequences, readDatabaseSpace, type ReplicaDatabase } from '@molis-ai/molis-work-storage';
+import { createProjectReplicaSection, createProjectReplicaJournal, validateProjectReplicaJournal, validateProjectReplicaRows, createSqliteReplica, installProjectReplicaJournal, namespacedReplicaDatabase, mapReplicaSequences, readDatabaseSpace, type ReplicaDatabase } from '@molis-ai/molis-work-storage';
 
 const definitions = () => [goalReplicationDefinition(), governanceReplicationDefinition(), goalContextReplicationDefinition()];
+
+/** No target database or project is created until the complete portable owner unit is valid. */
+export function validateProjectGoalReplication(value: unknown, context: { spaceId: string; projectId: string; authorize(): void }): void {
+  context.authorize(); size(value);
+  const wire=record(value),project=record(wire.project),owners=definitions();
+  exact(wire,['format','spaceId','project','facts','journal']);exact(project,['id','title']);
+  if(wire.format!==1||wire.spaceId!==context.spaceId||project.id!==context.projectId||typeof project.title!=='string'||!project.title.trim()||project.title.length>120)throw replicaError('replica_scope_mismatch');
+  const facts=record(wire.facts);exact(facts,owners.map(owner=>owner.id));
+  const rows=Object.fromEntries(owners.map(owner=>[owner.id,validateProjectReplicaRows(facts[owner.id],owner,context.projectId)]));
+  const history=validateProjectReplicaJournal(wire.journal,context.projectId,owners);
+  const ids=new Map(history.events.map((event,index)=>[event.event_id,index+1]));
+  const decode=(anchor:unknown):number=>{
+    if(anchor==='@start')return 0;
+    if(typeof anchor!=='string'||!anchor.startsWith('@event:'))throw replicaError('replica_references_invalid');
+    const seq=ids.get(anchor.slice(7));if(seq===undefined)throw replicaError('replica_references_invalid');return seq;
+  };
+  const fields=[...new Set(owners.flatMap(owner=>owner.sequenceFields))];
+  mapReplicaSequences(history,fields,decode);
+  const restored=mapReplicaSequences(rows,fields,decode) as Record<string,ProjectReplicaRows>;
+  owners.forEach(owner=>owner.validate(restored[owner.id]!,context.projectId));validateProjectGoalLinks(restored);
+  for(const event of restored.goals!.goal_work_events!)if(event.journal_seq!==decode('@event:'+event.event_id))throw replicaError('replica_references_invalid');
+  context.authorize();
+}
 
 /** Composition root: each owner declares its own fields and validation, Storage owns the journal mechanism. */
 export function installProjectGoalReplication(db: ReplicaDatabase): void {
@@ -23,6 +47,7 @@ export function createProjectGoalReplica(db: ReplicaDatabase, context: { spaceId
     if (key !== JSON.stringify([context.projectId, 'project_goals', context.projectId])) throw replicaError('replica_key_invalid');
   };
   return createSqliteReplica(namespacedReplicaDatabase(db, 'goals'), {
+    conflictState:createSyncConflictState,
     authorize: context.authorize,
     read(key) {
       assertKey(key);
@@ -81,4 +106,4 @@ function validateProjectGoalLinks(facts: Record<string, ProjectReplicaRows>): vo
 }
 function record(value: unknown): Record<string, unknown> { if (!value || typeof value !== 'object' || Array.isArray(value)) throw replicaError('replica_invalid'); return value as Record<string, unknown>; }
 function exact(value: Record<string, unknown>, keys: readonly string[]): void { if (Object.keys(value).length !== keys.length || keys.some(k => !Object.hasOwn(value, k))) throw replicaError('replica_invalid'); }
-function size(value: unknown): void { if (Buffer.byteLength(JSON.stringify(value)) > 512 * 1024) throw replicaError('replica_limit'); }
+function size(value: unknown): void { if (Buffer.byteLength(JSON.stringify(value)) > 100000000) throw replicaError('replica_limit'); }

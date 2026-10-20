@@ -1,4 +1,6 @@
+import {CODING_HISTORY_SCHEMA_SQL,readCodingSavedHistory} from './saved-history.js';
 import { codingStoreErrors } from "./store-errors.js";
+import {CodingInputStore,CODING_INPUTS_SCHEMA_SQL} from './inputs.js';
 import type { CodingSessionEntry, CodingSessionState } from "./projection.js";
 import type { CodingPlanDraft } from "./plans.js";
 
@@ -76,6 +78,26 @@ export const CODING_SCHEMA_SQL = `
       PRIMARY KEY (project_id, session_id),
       FOREIGN KEY (project_id, session_id) REFERENCES coding_sessions(project_id, session_id) ON DELETE CASCADE
     );
+    CREATE TABLE IF NOT EXISTS coding_plan_versions (
+      project_id TEXT NOT NULL,
+      session_id TEXT NOT NULL,
+      revision INTEGER NOT NULL CHECK (revision > 0),
+      PRIMARY KEY (project_id, session_id)
+    );
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_insert AFTER INSERT ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
+    END;
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_update AFTER UPDATE OF revision ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (NEW.project_id,NEW.session_id,NEW.revision)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,excluded.revision);
+    END;
+    CREATE TRIGGER IF NOT EXISTS coding_plan_version_delete BEFORE DELETE ON coding_plan_drafts BEGIN
+      INSERT INTO coding_plan_versions VALUES (OLD.project_id,OLD.session_id,OLD.revision+1)
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=MAX(revision,OLD.revision)+1;
+    END;
+${CODING_INPUTS_SCHEMA_SQL}
+${CODING_HISTORY_SCHEMA_SQL}
 `;
 
 type Row = Record<string, unknown>;
@@ -101,9 +123,13 @@ function mapSession(row: Row): CodingSessionRecord {
 }
 
 export class CodingSessionStore {
+  readonly inputs:CodingInputStore;
   constructor(private readonly db: CodingSqliteDatabase) {
     db.exec(CODING_SCHEMA_SQL);
+    this.inputs=new CodingInputStore(db,(projectId,sessionId)=>{this.get(projectId,sessionId);});
   }
+
+  savedHistory(projectId:string,sessionId:string):string[] {const record=this.get(projectId,sessionId);return readCodingSavedHistory(this.db,projectId,sessionId,record.runtime_session_id);}
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     this.get(projectId, sessionId);
@@ -111,14 +137,19 @@ export class CodingSessionStore {
     return row ? JSON.parse(String(row.draft_json)) as CodingPlanDraft : null;
   }
 
+  planRevision(projectId: string, sessionId: string): number {
+    this.get(projectId, sessionId);
+    const row=this.db.prepare("SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?").get(projectId,sessionId) as Row|undefined;
+    return row?Number(row.revision):0;
+  }
+
   savePlan(projectId: string, sessionId: string, expected: number, draft: CodingPlanDraft): CodingPlanDraft {
     this.get(projectId, sessionId);
-    if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
-    const result = expected === 0
-      ? this.db.prepare("INSERT OR IGNORE INTO coding_plan_drafts (project_id, session_id, revision, draft_json) VALUES (?, ?, ?, ?)")
-        .run(projectId, sessionId, draft.revision, JSON.stringify(draft))
-      : this.db.prepare("UPDATE coding_plan_drafts SET revision = ?, draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?")
-        .run(draft.revision, JSON.stringify(draft), projectId, sessionId, expected);
+    if (!Number.isSafeInteger(expected) || expected < 0 || !Number.isSafeInteger(draft.revision) || draft.revision !== expected + 1) throw new Error("计划修订无效");
+    const result=this.db.prepare(`INSERT INTO coding_plan_drafts(project_id,session_id,revision,draft_json)
+      SELECT ?,?,?,? WHERE COALESCE((SELECT revision FROM coding_plan_versions WHERE project_id=? AND session_id=?),0)=?
+      ON CONFLICT(project_id,session_id) DO UPDATE SET revision=excluded.revision,draft_json=excluded.draft_json WHERE coding_plan_drafts.revision=?`)
+      .run(projectId,sessionId,draft.revision,JSON.stringify(draft),projectId,sessionId,expected,expected);
     if ((result as { changes: number }).changes !== 1) throw new Error("计划已被另一页面修改，请重新打开后合并修改");
     return this.plan(projectId, sessionId)!;
   }

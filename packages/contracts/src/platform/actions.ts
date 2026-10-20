@@ -97,6 +97,8 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly host_plugin?: import("./app-host.js").HostPluginCaller;
   /** Restrict this call and its descendants to registered query operations; never grants authority. */
   readonly query_only?: true;
+  /** Read callbacks may inspect the original authorized directory, but execute only non-metered queries. */
+  readonly read_only_effects?: true;
   readonly permissions: readonly string[];
   readonly allowed_capability_ids?: readonly string[];
   /** Exact grants; when present, ID-only restrictions cannot widen versions or providers. */
@@ -387,17 +389,23 @@ export interface ActionSceneBinding {
   readonly revision?: string;
 }
 
+/** Active scene callback control, issued by the Kernel; no action declaration or background authority is implied. */
+export interface ActionSceneExecutionContext extends ActionCallContext {
+  /** Recheck the original scene, judgment, permissions and caller after each wait and before committing an effect. */
+  beforeEffect(): Promise<void>;
+}
+
 export interface ActionSceneHandlerBinding {
   readonly scene_id: string;
   readonly version: number;
   bindings(context: ActionCallContext): readonly ActionSceneBinding[] | Promise<readonly ActionSceneBinding[]>;
   targets?(context: ActionCallContext): readonly ActionSceneTargetDefinition[] | Promise<readonly ActionSceneTargetDefinition[]>;
   /** Must write through the authoritative owner; when options are supplied, atomically reject a stale expected_revision. */
-  bind(context: ActionCallContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+  bind(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
   prepare?(context: ActionCallContext, event: unknown): { input: unknown; state?: unknown } | Promise<{ input: unknown; state?: unknown }>;
-  consume(context: ActionCallContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  consume(context: ActionSceneExecutionContext, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   /** Optional explicit failure consumption, after the same stale-state and authority checks. */
-  failed?(context: ActionCallContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
+  failed?(context: ActionSceneExecutionContext, input: unknown, error: unknown, execution: { binding: ActionSceneBinding; state?: unknown }): unknown | Promise<unknown>;
   availability?(context: ActionCallContext): ActionAvailability;
   /** Configuration-only availability must not depend on execution/model grants. */
   configuration_availability?(context: ActionCallContext): ActionAvailability;

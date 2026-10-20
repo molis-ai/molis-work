@@ -22,6 +22,7 @@ ActionService.registerProvider 注册同一提供方的合同、处理器与消�
 | [src/call-scope.ts](src/call-scope.ts) | 核心：调用编号的作用域：生成、沿用、随操作结束关闭；记下「这个编号下留了调用记录」 |
 | [src/action-settlement.ts](src/action-settlement.ts) | 核心：一次调用的结算：补编号、描述被调的动作、告诉 `settled` 钩子它怎样结束 |
 | [src/action-service.ts](src/action-service.ts) | 核心：`ActionService`（注册、发现、授权、调用、`beforeEffect`、场景） |
+| [src/action-scene-execution.ts](src/action-scene-execution.ts) | 场景只读回调与有限的绑定/消费写入控制 |
 | [src/action-schema.ts](src/action-schema.ts) | 核心：schema 编译与输入校验 |
 | [src/subject-offer-choices.ts](src/subject-offer-choices.ts) | 核心：从目录派生事项动作选项，供判断规则与场景引用的兼容检查用 |
 | [src/action-authorship.ts](src/action-authorship.ts) | 核心：`authorship: "session"` 的唯一检查点 |
@@ -73,6 +74,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。
+  - 场景读回调只能查询；绑定与成功/失败消费获得 `ActionSceneExecutionContext.beforeEffect`，原场景和判断被替换、原调用者撤权或取消、回调结束后都拒绝写入。嵌套调用不能移除只读约束，付费查询也不在只读范围内（`tests/security-invariants-plugin-scenes.test.ts`）。
   - `invokeSync` 只接受显式声明 `execution: "sync"` 的处理器，不等待 Promise，不能借它绕过异步策略。
   - 声明了 `authorship: "session"` 的动作，在派发处拒绝调用上下文带 `runtime_session_missing`（可信的 MCP 适配器给没有稳定 Session 的外部 Runtime 标上）的调用，直接调用和包装动作（首页事项动作、工作流步骤）发起的嵌套调用一样，只在这一处检查（`kernel.runtime_identity_missing`）。
   - 注册时检查同一次注册里的交叉引用（规则在插件 SDK 的 `inspectActionCrossReferences`）：撤销命令、后台任务状态查询、片段与事项选项的目标要在同一次注册里、种类与范围对，被指的字段和位置要在输入输出合同里。检查在 `registerProvider` 原有的一行里调用，不往函数里加行；谁能用目标留到使用时按调用者核对。

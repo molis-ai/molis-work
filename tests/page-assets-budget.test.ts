@@ -701,6 +701,10 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1129470],
   ["/assets/molis-work-workbench.js", 1139931],
   ["/assets/molis-work-workbench.js", 1134824],
+  // Retire prior exact starts when the shared context fix moves this predecessor.
+  ["/assets/molis-work-workbench.js", 1138212],
+  ["/assets/molis-work-workbench.js", 1140034],
+  ["/assets/molis-work-workbench.js", 1140247],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -718,7 +722,7 @@ for (const [asset, old] of [
 // the new baseline still fails.
 test("VUX-19 VUX-26 the shared copy and scroll consumers' allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1140247, 1140444],
+    "/assets/molis-work-workbench.js": [1140350, 1140547],
     "/assets/molis-work-plugins/shelf.js": [75673, 75771],
     "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
   } as const;

@@ -33,9 +33,42 @@ async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof 
   }
 }
 
+// PAS-01 / VUX-35: opening a saved block discussion waits for the frame-batched context read.
+async function checkDiscussionOpening(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+  const { evaluate, waitFor } = browser;
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  await evaluate(`(() => {
+    window.holdContextFrames=true;
+    const doc=${side},script=doc.createElement('script');
+    script.textContent="window.openingMessages=[];addEventListener('message',event=>{if(event.source!==parent)return;if(['molis:side-context','molis:side-shown'].includes(event.data?.type))window.openingMessages.push(event.data);if(event.data?.type==='opening-barrier')window.openingBarrier=true;});";
+    doc.body.append(script);
+    document.addEventListener('molis:side-shown',()=>doc.defaultView.postMessage({type:'opening-barrier'},location.origin),{once:true});
+  })()`);
+  try {
+    await evaluate(`[...${side}.querySelectorAll('[data-comment-notes] button')].find(button=>button.textContent==='讨论这段').click()`);
+    await waitFor(`${side}.defaultView.openingBarrier`);
+    assert.deepEqual(await evaluate(`${side}.defaultView.openingMessages.filter(message=>message.type==='molis:side-shown')`), [], 'PAS-01: do not publish an opening under the previous document context while its fresh read is queued');
+  } finally { await evaluate("window.releaseContextFrames()"); }
+  await waitFor(`${side}?.querySelector('[data-comment-quote]')?.textContent === '先完成核心体验，再安排发布。'`);
+  assert.equal(await evaluate(`(() => {
+    const messages=${side}.defaultView.openingMessages,shown=messages.findIndex(message=>message.type==='molis:side-shown');
+    const context=messages.slice(0,shown).findLast(message=>message.type==='molis:side-context')?.context;
+    const current=JSON.parse(document.querySelector('[data-work-surface="pages"][data-assistant-context], [data-work-surface="pages"] [data-assistant-context]').dataset.assistantContext);
+    return context?.unsaved===false&&context.object_ref.version===current.object.version&&shown>0;
+  })()`), true, 'PAS-01: the quoted discussion arrives after the saved version and can be sent immediately');
+}
+
 test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active document, preserves drafts and notes; one Assistant composer moves to a main tab and back", { timeout: 120000 }, async t => {
   const browser = await openGoalBrowser(t, true);if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  // Install before navigation so holding a frame also holds callbacks already queued by the host.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
+    if(window===top){
+      const request=window.requestAnimationFrame.bind(window),held=[];
+      window.requestAnimationFrame=callback=>request(time=>{if(window.holdContextFrames)held.push(callback);else callback(time);});
+      window.releaseContextFrames=()=>{window.holdContextFrames=false;held.splice(0).forEach(callback=>request(callback));};
+    }
+  ` }, sessionId);
   const store = openPagesStore(homeDirectory);
   const a = store.create({ project_id: projectId!, title: "讨论中的发布计划", body: { type: "doc", content: [{ type: "paragraph", attrs: { note: "需要保留的块备注" }, content: [{ type: "text", text: "先完成核心体验，再安排发布。" }] }] } });
   const b = store.create({ project_id: projectId!, title: "另一个文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "此处不应出现前一篇的评论。" }] }] } });
@@ -101,8 +134,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await evaluate(`(() => {const child=${side}.defaultView;child.postMessage(child.heldNotes,location.origin);child.postMessage({type:'notes-replay-barrier'},location.origin);})()`);
   await waitFor(`${side}.defaultView.notesReplayDone`);
   assert.equal(await evaluate(`${side}.querySelector('[data-comment-notes] textarea').value`), '在侧栏保存的备注');
-  await evaluate(`[...${side}.querySelectorAll('[data-comment-notes] button')].find(button=>button.textContent==='讨论这段').click()`);
-  await waitFor(`${side}?.querySelector('[data-comment-quote]')?.textContent === '先完成核心体验，再安排发布。'`);
+  await checkDiscussionOpening(browser);
   await edit("从块备注明确发起的新讨论");
   await evaluate(`${side}.querySelector('[data-comment-send]').click()`);
   await waitFor(`${side}?.querySelector('[data-comment-messages]')?.textContent.includes('从块备注明确发起的新讨论')`);

@@ -99,7 +99,7 @@
       "methods": 29
     },
     "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 547,
+      "lines": 545,
       "methods": 34
     },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {

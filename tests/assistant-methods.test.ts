@@ -78,7 +78,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
   agentHost.register(adapter);
   const registry = agentDefinitionsFor(home, builtinRegistrations);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => agentHost,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
     scopeActions: async work => {
       const ref = work.project_ref;

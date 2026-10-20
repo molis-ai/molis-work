@@ -13,7 +13,7 @@ const pinPermissions = () => [...new Set([...artifactTypeDeclarations().values()
 export function goalsActionProvider(runtime: MolisWorkProjectRuntime, personalMethods: () => readonly PlanningMethodPack[], client: ActionClient): ActionProviderRegistration {
   return { provider: { provider_id: goalsManifest.plugin_id, plugin_id: goalsManifest.plugin_id,
     title: goalsManifest.name, kind: "plugin", project_id: runtime.project_id },
-    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, projectId: runtime.project_id,
+    definitions: goalsManifest.actions!.filter(definition => definition.action.scope === "project"), handlers: createGoalsActionHandlers({ events: runtime.coordinator.goalEvents, acknowledgements: runtime.coordinator.goalAcknowledgements, projectId: runtime.project_id,
       board: { initializeBoard: input => runtime.coordinator.initializeBoard(input) },
       collection: { snapshot: projectId => runtime.store.snapshot(projectId), events: projectId => runtime.store.readEventsDescending(projectId),
         goals: runtime.coordinator.goalQueries, inputs: runtime.coordinator.goalInputs, eventWork: runtime.coordinator.goalEvents },

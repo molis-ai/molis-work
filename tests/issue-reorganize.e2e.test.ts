@@ -78,7 +78,7 @@ test("ISSUE-49 failure, continued editing, cancellation and version conflicts pr
 test("ISSUE-49 clarification and timeout keep edited text and pictures; late completion cannot affect another record", { timeout: 90_000 }, async t => {
   const behavior: Parameters<typeof issueModel>[2] = { question: "free-text" };
   const s = await setup(t, behavior); if (!s) return;
-  const { v, issue } = s;
+  const { v, issue, namings } = s;
   await v.press(editor + " [name=description]"); await v.type("；还有截图"); await v.paste("补充.png", 40);
   await v.until("d.querySelectorAll('[data-issue-edit-shots] img').length === 1");
   const source = await v.ask("({ text: $('[data-issue-editor] [name=description]').value, image: $('[data-issue-edit-shots] img').src })");

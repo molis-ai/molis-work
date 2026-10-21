@@ -402,7 +402,7 @@ pnpm page-assets:check                              # 只有动宿主下发的�
 | Sessions（`work`、`private-work-context` 的相关部分） | BL-177 明说这一轮只清理、以后重做；整包/整功能删除会打断重做 | `specs/BACKLOG.md` BL-177 | 清理片合入、重做需求书经用户审后 | 高 |
 | Characters | 决定 26：长期要并进宿主或某个 Module，不再作为长期 Runtime 插件；现在删代码会打断迁移 | `specs/repository-anti-corruption/spec.md` 决定 26 | 合并进宿主/Module 的那一片 | 高 |
 | 构建期插件装配（`*-native-plugin-http.ts`、`*-actions.ts`、`registerProvider`、catalog 条目） | #853 正在迁 Workflows，Pages 已由 #847 迁走，注册表已由 #840 改；其余按 W4/W5 迁移。先删会绕过装配门禁 | open PR #853；origin/main #847/#840；`tests/builtin-plugin-assembly-gate.test.ts` | 每个插件迁移完成时，随该 PR 删 | 高 |
-| `tests/fixtures/artifact-browser.ts` | 它本身没人 import，但 artifact 测试仍在跑，#881 还改 `tests/artifact-browser.test.ts`；等 artifact 线合入后再判断 | open PR #881；`specs/artifact-positioning/spec.md` | artifact 线合入后 | 中 |
+| `tests/fixtures/artifact-browser.ts` | 它本身没人 import，但 artifact 测试仍在跑，#881 还改 `tests/artifact-browser.test.ts`；等 artifact 线合入后再判断 | open PR #881；`specs/archive/artifact-positioning/spec.md` | artifact 线合入后 | 中 |
 | `scripts/preview-*.mts`、`studio-replay` | 视觉/创作台/回放线在用；它们是开发工具，不是死代码 | `specs/ai-development-handbook/spec.md`、`docs/platform/STUDIO-SKILL-REPLAY.md` | 工具被替换时 | 高 |
 | `.impeccable/` 318 个文件 | 全部仍被 spec、文档或测试引用；删一组要先改引用 | §7；`scripts/gates/impeccable-files.mjs` | 引用清零后 | 高 |
 | `plugins/native/jelly/native/` | 469 MB 是 Swift 构建产物；要加忽略规则，不是删除源码 | §7 | 只加 `.gitignore`，不删产物 | 高 |

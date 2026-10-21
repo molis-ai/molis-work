@@ -11,9 +11,10 @@ import { duplicateEnclosingRow, enterHeading, enterInToggle, exitWrappedBlock, i
 import { openFind } from "./editor-find.js";
 import { addTableRow, atLastTableCell, moveTableColumn, moveTableEdge, tableHit } from "./table-edit.js";
 import { pagesSchema } from "./schema.js";
+import { sizeKeys } from "./editor-size-keys.js";
 
-export function pagesKeymap(openLink: (view: EditorView) => void): Plugin {
-  return keymap({ ...shortcutKeys(openLink), ...blockKeys(), ...navigationKeys() });
+export function pagesKeymap(openLink: (view: EditorView) => void, translate?: (text: string) => string): Plugin {
+  return keymap({ ...shortcutKeys(openLink), ...blockKeys(), ...navigationKeys(), ...sizeKeys(translate) });
 }
 
 function shortcutKeys(openLink: (view: EditorView) => void): Record<string, Command> {

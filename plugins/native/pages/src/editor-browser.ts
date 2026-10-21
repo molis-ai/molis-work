@@ -515,7 +515,7 @@ export function mount(host: HTMLElement, options: PagesEditorMountOptions = {}):
     history(),
     slashPlugin(options.translate),
     mentionPlugin(options),
-    pagesKeymap(openLink),
+    pagesKeymap(openLink, options.translate),
     keymap({ Enter: splitTaskItem }),
     keymap(baseKeymap),
     pagesInputRules(),

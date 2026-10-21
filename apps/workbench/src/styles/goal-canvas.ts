@@ -331,8 +331,8 @@ export const GOAL_CANVAS_STYLES = `
   body.immersive-workbench .goal-kanban-card .goal-status { display: inline-flex; align-items: center; gap: 4px; width: max-content; max-width: 100%; min-height: 0; padding: 0; border: 0; border-radius: 0; background: transparent; font-size: 11px; font-weight: 400; color: var(--goal-status-tone); }
   .goal-kanban-card:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   @container goal-board (max-width: 839px) {
-    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
-    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 48px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
+    .goal-canvas-shell[data-board-view="kanban"] > [data-goal-kanban] { display: block; top: calc(var(--control-h, 32px) + 20px); height: auto; overflow-x: hidden; overflow-y: auto; background: var(--paper); min-width: 0; max-width: 100%; }
+    .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { flex-direction: column; align-items: stretch; gap: 8px; box-sizing: border-box; min-width: 0; max-width: 100%; flex: none; width: 100%; height: auto; min-height: 100%; margin: 0; padding: 4px 12px 24px; background: transparent; border: 0; border-radius: 0; overflow-x: hidden; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column { flex: none; width: auto; min-width: 0; max-width: 100%; height: auto; overflow: visible; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card { max-width: 100%; }
     .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details { display: block; height: auto; overflow: visible; }
@@ -360,7 +360,7 @@ export const GOAL_CANVAS_STYLES = `
   }
   @media (max-width: 760px) {
     @container goal-board (max-width: 839px) {
-      .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { padding: 48px 8px 16px; }
+      .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-board { padding: 4px 8px 16px; }
       .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-column > details > summary, .goal-canvas-shell[data-board-view="kanban"] .goal-kanban-card { height: 44px; min-height: 44px; }
     }
   }

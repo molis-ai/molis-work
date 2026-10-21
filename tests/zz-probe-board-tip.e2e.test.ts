@@ -1,0 +1,25 @@
+import test from "node:test";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { TRUNCATION_AUDIT, TRUNCATION_STRESS } from "./fixtures/truncation-audit.js";
+const pause = (ms = 300) => new Promise((r) => setTimeout(r, ms));
+test("probe", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
+  const errors: string[] = [];
+  browser.on("Runtime.exceptionThrown", (e: any) => errors.push(String(e.exceptionDetails?.exception?.description ?? e.exceptionDetails?.text).slice(0, 300)));
+  await command("Runtime.enable", {}, sessionId);
+  await command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/__ui/catalog" }, sessionId));
+  await waitFor("document.readyState === 'complete'", 20_000); await pause(1500);
+  await evaluate(TRUNCATION_STRESS); await pause(200);
+  await evaluate(TRUNCATION_AUDIT);
+  const info = await evaluate(`(() => { const el = [...document.querySelectorAll('[data-cut-audit]')].find(e => e.matches('.mw-file-row__name')); if (!el) return 'none'; el.scrollIntoView({block:'nearest'}); const b = el.getBoundingClientRect(); const x = b.x + Math.min(b.width/2, 24), y = b.y + b.height/2; const at = document.elementFromPoint(x, y);
+    const chain = []; for (let n = el; n && chain.length < 8; n = n.parentElement) chain.push(n.tagName + '.' + (n.className||'').toString().split(' ')[0] + (n.closest('[inert]') ? ' INERT' : '') + ' pe=' + getComputedStyle(n).pointerEvents);
+    return { x, y, at: at && (at.tagName + '.' + at.className), contains: el.contains(at), sw: el.scrollWidth, cw: el.clientWidth, tipNodes: document.querySelectorAll('.craft-tip').length, tipScript: typeof window.molisTip, chain, section: el.closest('section')?.id }; })()`);
+  console.log("INFO", JSON.stringify(info));
+  const p = info as any;
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: 1, y: 1 }, sessionId); await pause(150);
+  await command("Input.dispatchMouseEvent", { type: "mouseMoved", x: p.x, y: p.y }, sessionId); await pause(800);
+  console.log("TIP", await evaluate("(() => { const t = document.querySelector('.craft-tip'); return t ? t.outerHTML.slice(0, 200) : null; })()"));
+  console.log("ERR", JSON.stringify(errors));
+});

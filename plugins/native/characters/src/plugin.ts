@@ -36,6 +36,21 @@ function assertRunnableDraft(draft: ReturnType<CharactersPluginPorts["drafts"]["
   if (content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
 }
 
+/**
+ * `characters.runnable` answers with the same check as a launch, as data: a version that cannot run is an answer carrying Characters'
+ * reason, not a failed call.
+ */
+function runnableAnswer(check: () => unknown): { available: true } | { available: false; reason: string } {
+  try { check(); return { available: true }; }
+  catch (error) { return { available: false, reason: error instanceof Error && error.message ? error.message : "请选择当前项目已发布的角色版本" }; }
+}
+
+/** The JSON object an old route path sends; anything else is refused. */
+function body(request: PluginRouteRequest): Record<string, unknown> {
+  if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
+  return request.body as Record<string, unknown>;
+}
+
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
@@ -51,10 +66,6 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
       return [record];
     });
-    const body = (request: PluginRouteRequest): Record<string, unknown> => {
-      if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
-      return request.body as Record<string, unknown>;
-    };
     const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
     const actionCatalog = async () => {
       const api = context.services?.capabilities;
@@ -139,11 +150,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       bindOwnerPluginAction(context, a.draftFile, input => characterFilePreview(ports.drafts.get(String(input.id))?.import_snapshot, input)),
       bindOwnerPluginAction(context, a.publicationFile, input => characterFilePreview(publication(input, false).content.import_snapshot, input)),
       bindOwnerPluginAction(context, a.execution, input => imports().execution(publication(input).content)),
-      // The same check as a launch, answered as data: a version that cannot run is an answer with Characters' reason, not a failed call.
-      bindOwnerPluginAction(context, a.runnable, input => {
-        try { publication(input); return { available: true as const }; }
-        catch (error) { return { available: false as const, reason: error instanceof Error && error.message ? error.message : "请选择当前项目已发布的角色版本" }; }
-      }),
+      bindOwnerPluginAction(context, a.runnable, input => runnableAnswer(() => publication(input))),
       bindOwnerPluginAction(context, a.usages, input => {
         const usages: ActionUsage[] = [];
         for (const draft of ports.drafts.list()) {

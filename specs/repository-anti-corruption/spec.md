@@ -665,7 +665,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **搬了什么**：处理器逻辑进 `modules/characters`：`createCharactersActionHandlers(ports, runtime)` 返回每个 Characters 动作的纯函数（`action-handlers.ts`）；已发布角色的筛选、锁定、「能不能跑」的判断在 `publications.ts`，内置 Agent 能力目录的检查在 `agent-actions.ts`，用到处的统计在 `usages.ts`，成果库详情的 Markdown 在 `artifact-preview.ts`；非界面的预览与导入逻辑（`import-preview.ts`、`imports.ts`）整份从插件搬来。
 - **边界发现与做法**：插件不能 import Module（`PLUGIN_MODULE_IMPORT_ALLOWLIST` 只许减少），所以不让插件依赖 `modules/characters`。宿主 `characters-host.ts` 用宿主的端口建好处理器，经插件现有的端口类型 `CharactersPluginPorts` 交给插件，端口的内容从「数据端口」换成 `handlers(runtime)`。只有运行中的插件才有的东西（项目号、成果库客户端、内置 Agent 目录）由插件在 `start` 里作为 `runtime` 递给处理器。插件的 `start` 只剩用 `bindOwnerPluginAction` 逐个绑定，Manifest、`actions.ts` 定义、14 条路由不动。
 - **不变**：动作 id、版本、schema、受众、权限、提供方 id、MCP 工具名、路由路径与状态码映射、`project-plugins.ts`、目录条目、`CodingCharacterPorts` 与 `codingCharacterPorts`（留给 C2b）。没有新增兼容或迁移代码，没有向 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 或任何名单加条目。
-- **客户端就地收拾**：`plugins/native/characters/src/client.ts` 里的空 catch、`_SCRIPT` 文本常量、两处直接 `fetch` 在 `check-health-gates.mjs --report` 里各降到 0。直接 `fetch` 改走工作台已有的 `molisWorkRequest`（同一批地址）。注意：`_SCRIPT` 那一项的下降是改名（`CHARACTERS_CLIENT_FACTORY_SCRIPT` → `CHARACTERS_CLIENT_FACTORY`，与同包的 `CHARACTER_IMPORT_CLIENT_FACTORY` 一致），脚本本身仍是文本，要到 CHR-1 搬进 `apps/workbench/src/characters/` 才真正变成 TypeScript。
+- **客户端就地收拾**：`plugins/native/characters/src/client.ts` 里的空 catch、两处直接 `fetch` 在 `check-health-gates.mjs --report` 里各降到 0。直接 `fetch` 改走工作台已有的 `molisWorkRequest`（同一批地址）。`_SCRIPT` 文本常量（`CHARACTERS_CLIENT_FACTORY_SCRIPT`）不在这一片动：脚本还是文本，改名只会让计数变小而程序没变；CHR-1 把它搬进 `apps/workbench/src/characters/` 改成打包的 TypeScript，这一项才真正去掉（新位置从 0 开始，仍是文本就过不了门禁）。
 
 #### 验收（RAC-63～69）
 - **RAC-63**：每个 Characters 动作在 Module 里恰有一个处理器，名字与插件的动作定义一一对应；插件源码不 import Module、插件包不依赖 Module，经真实 Runtime 与路由绑定后行为不变。`tests/characters-action-handlers.test.ts`、`tests/characters-native-execution.test.ts`、`tests/characters-actions.test.ts`。
@@ -674,7 +674,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **RAC-66**：已发布版本只有在它的草稿启用、且它据以发布的草稿修订存在时才能运行；停用、删除、来源修订不存在，`characters.runnable` 都答 `available: false` 并带 Characters 自己的原因，`execution` 拒绝。`tests/characters-action-handlers.test.ts`。
 - **RAC-67**：同样的内容再次发布返回已有版本（`replayed`，不写成果）；内容变了写下一版并带 `supersedes_version`；过期修订不发布。`tests/characters-action-handlers.test.ts`。
 - **RAC-68**：对外合同不变：`pnpm actions:update` 对 `tooling/gates/actions/` 零差异，19 个 `characters.*@1` 的提供方仍是 `io.molis.work.characters`，`tests/action-contract-snapshot.test.ts` 通过。`tests/characters-action-handlers.test.ts`（快照里的 id、版本、提供方与动作定义一致）。
-- **RAC-69**：Characters 浏览器客户端无空 catch、无直接 `fetch`、无 `*_SCRIPT` 常量，经 `molisWorkRequest` 请求；`/assets/molis-work-plugins/characters.js` 不涨。`tests/characters-action-handlers.test.ts`、`tests/characters-publication-http.test.ts`、`pnpm page-assets:check`。
+- **RAC-69**：Characters 浏览器客户端无空 catch、无直接 `fetch`，经 `molisWorkRequest` 请求；`/assets/molis-work-plugins/characters.js` 不涨。`tests/characters-action-handlers.test.ts`、`tests/characters-publication-http.test.ts`、`pnpm page-assets:check`。
 
 #### 证据（2026-10-21，合并 origin/main `63ee40cc7` 之后）
 - 构建：`pnpm build`、`pnpm workspace:build` 通过。

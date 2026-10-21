@@ -1,7 +1,7 @@
 import { CHARACTER_IMPORT_CLIENT_FACTORY } from "./import-client.js";
 import { CHARACTER_ACTION_CLIENT } from "./action-client.js";
 /** Personal editing and exact project publication. No polling replaces an active editor. */
-export const CHARACTERS_CLIENT_FACTORY = `() => {
+export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const root = document.querySelector('[data-characters]');
   if (!root) return;
   const q = name => root.querySelector('[data-character-' + name + ']');

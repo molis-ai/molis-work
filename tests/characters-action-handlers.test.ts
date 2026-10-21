@@ -144,10 +144,9 @@ test("RAC-68 the registered action ids, versions and provider are the ones the c
   assert.ok(rows.every(row => row[2] === plugin.charactersManifest.plugin_id && row[3] === plugin.charactersManifest.plugin_id), "the provider stays the plugin id");
 });
 
-test("RAC-69 the Characters browser client holds no empty catch, no raw fetch and no *_SCRIPT constant, and asks through the workbench's request helper", () => {
-  const client = plugin.CHARACTERS_CLIENT_FACTORY;
+test("RAC-69 the Characters browser client holds no empty catch and no raw fetch, and asks through the workbench's request helper", () => {
+  const client = plugin.CHARACTERS_CLIENT_FACTORY_SCRIPT;
   assert.ok(!/\bcatch\s*(\([^)]*\))?\s*\{\s*\}/.test(client), "no empty catch in the browser program");
   assert.ok(!/\bfetch\(/.test(client), "no raw fetch in the browser program");
   assert.ok(client.includes("molisWorkRequest("), "the program asks through the request helper");
-  assert.deepEqual(Object.keys(plugin).filter(name => /_SCRIPT$/.test(name)), []);
 });

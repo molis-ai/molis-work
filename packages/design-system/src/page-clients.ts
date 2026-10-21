@@ -15,6 +15,8 @@ export const MEDIA_ZOOM_CLIENT_SCRIPT = readFileSync(new URL("../dist/media-zoom
 export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-text-client.js", import.meta.url), "utf8").trim();
 /** `window.molisFit`, intrinsic sizing for fields that grow with what is written (`browser/field-fit.ts`, VUX-16). */
 export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-client.js", import.meta.url), "utf8").trim();
+/** `window.molisRovingFocus`, one roving tab stop for groups (`browser/roving-focus.ts`, VUX-28). */
+export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-focus-client.js", import.meta.url), "utf8").trim();
 /** The overflow fade's sensor (`browser/overflow-fade.ts`, VUX-27). */
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */

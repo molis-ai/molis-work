@@ -238,11 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-31 (slice 57): a quick load never flashes a waiting mark. The shared skeleton and busy
-  // button wait 250ms like `.mw-loading` (one keyframe and three animation declarations in the primitives every sheet carries).
-  "/assets/molis-work-arrival.css": [702913, 703321],
-  "/assets/molis-work-settings.css": [993565, 993973],
-  "/assets/molis-work-workbench.css": [1617596, 1618004],
+  // specs/visual-ui-experience VUX-31 (slice 58): a Shelf setting saved on change whose save fails goes back to what was
+  // saved and says so in its own block, instead of failing in silence (one shared save in the Shelf settings script).
+  "/assets/molis-work-workbench.js": [1172509, 1173294],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

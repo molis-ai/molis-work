@@ -145,6 +145,21 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
     node.hidden = !message;
     node.textContent = message || "";
   };
+  // A failed save is reported in the control's own block; the caller puts the control back.
+  const save = async (scope, patch, control) => {
+    const block = control.closest(".shelf-settings-block, .settings-section");
+    let line = block?.querySelector(":scope > [data-shelf-save-error]");
+    try {
+      const body = await savePatch(scope, patch);
+      if (line) line.hidden = true;
+      return body;
+    } catch (error) {
+      if (block && !line) { line = document.createElement("p"); line.className = "shelf-settings-line"; line.dataset.shelfSaveError = ""; line.setAttribute("role", "alert"); block.append(line); }
+      // A dropped connection has no readable reason.
+      if (line) { line.textContent = error?.name === "TypeError" || !error?.message ? t("无法保存 Shelf 设置") : error.message; line.hidden = false; }
+      throw error;
+    }
+  };
   const panelLabel = (chord) => {
     let label = "";
     if (chord.ctrl) label += "⌃";
@@ -230,9 +245,11 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         if (!slot) return;
         stopRecording();
         try {
-          settings = await savePatch(scope, { panel_keys: { [slot]: panelDefaults[slot] } });
+          settings = await save(scope, { panel_keys: { [slot]: panelDefaults[slot] } }, reset);
           paintPanelKeys(scope);
-        } catch {}
+        } catch {
+          // Reported in its block.
+        }
       });
     });
     scope.querySelectorAll("[data-shelf-engine]").forEach((input) => {
@@ -240,18 +257,22 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
       input.dataset.shelfSettingsBound = "1";
       input.addEventListener("change", async () => {
         if (!input.checked) return;
-        try { settings = await savePatch(scope, { engine: input.value }); } catch {}
+        try { settings = await save(scope, { engine: input.value }, input); } catch { paintPanes(scope); }
       });
     });
     scope.querySelectorAll("[data-shelf-model]").forEach((input) => {
       if (input.dataset.shelfSettingsBound === "1") return;
       input.dataset.shelfSettingsBound = "1";
+      let saved = input.value;
       input.addEventListener("change", async () => {
         try {
           const value = input.value ? JSON.parse(input.value) : null;
-          settings = await savePatch(scope, { model_selection: value ? { provider_id: value[0], model_id: value[1] } : null });
+          settings = await save(scope, { model_selection: value ? { provider_id: value[0], model_id: value[1] } : null }, input);
+          saved = input.value;
           await reloadPage();
-        } catch {}
+        } catch {
+          if (saved !== input.value) input.value = saved;
+        }
       });
     });
     const runtimeForm = scope.querySelector("[data-shelf-runtime-form]");
@@ -325,9 +346,11 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         const hidden = new Set(current?.hidden_actions || []);
         if (hidden.has(slot)) hidden.delete(slot); else hidden.add(slot);
         try {
-          settings = await savePatch(scope, { hidden_actions: [...hidden] });
+          settings = await save(scope, { hidden_actions: [...hidden] }, row);
           await reloadPage();
-        } catch {}
+        } catch {
+          // Reported in its block.
+        }
       });
       row.querySelectorAll("[data-shelf-action-move]").forEach((button) => {
         button.addEventListener("click", async () => {
@@ -338,9 +361,11 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
           if (index < 0 || next < 0 || next >= order.length) return;
           order.splice(next, 0, order.splice(index, 1)[0]);
           try {
-            settings = await savePatch(scope, { action_order: order });
+            settings = await save(scope, { action_order: order }, row);
             await reloadPage();
-          } catch {}
+          } catch {
+            // Reported in its block.
+          }
         });
       });
       row.querySelector("[data-shelf-action-edit]")?.addEventListener("click", async () => {
@@ -363,12 +388,14 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         const id = slot.startsWith("shortcut:") ? slot.slice("shortcut:".length) : "";
         if (!id || !current) return;
         try {
-          settings = await savePatch(scope, {
+          settings = await save(scope, {
             shortcuts: current.shortcuts.filter((entry) => entry.id !== id),
             action_order: current.action_order.filter((entry) => entry !== slot),
-          });
+          }, row);
           await reloadPage();
-        } catch {}
+        } catch {
+          // Reported in its block.
+        }
       });
     });
     const sample = scope.querySelector("[data-shelf-try-sample]");
@@ -415,7 +442,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         const previous = !input.checked;
         input.disabled = true;
         try {
-          const body = await savePatch(scope, { drop_wheel_enabled: input.checked });
+          const body = await save(scope, { drop_wheel_enabled: input.checked }, input);
           input.checked = body.drop_wheel_enabled === true;
         } catch {
           input.checked = previous;
@@ -446,8 +473,10 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         if (!slot || !DEFAULTS[slot]) return;
         stopRecording();
         try {
-          await savePatch(scope, { hotkeys: { [slot]: DEFAULTS[slot] } });
-        } catch {}
+          await save(scope, { hotkeys: { [slot]: DEFAULTS[slot] } }, reset);
+        } catch {
+          // Reported in its block.
+        }
       });
     });
     invoke("shelf_hotkey_status").then((status) => paintOccupied(scope, status)).catch(() => {});
@@ -471,7 +500,7 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
         if (MODIFIER_CODES.includes(event.code)) return;
         event.preventDefault();
         event.stopPropagation();
-        const slot = recording.row.dataset.shelfPanelSlot;
+        const row = recording.row, slot = row.dataset.shelfPanelSlot;
         const root = recording.root;
         const chord = {
           code: event.code,
@@ -481,9 +510,9 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
           shift: event.shiftKey,
         };
         stopRecording();
-        savePatch(root, { panel_keys: { [slot]: chord } })
+        save(root, { panel_keys: { [slot]: chord } }, row)
           .then((body) => { settings = body; paintPanelKeys(root); })
-          .catch(() => {});
+          .catch(() => paintPanelKeys(root));
         return;
       }
       const chord = chordFromEvent(event);
@@ -491,10 +520,10 @@ export const SHELF_SETTINGS_CLIENT_SCRIPT = `(() => {
       event.preventDefault();
       event.stopPropagation();
       if (!chord.carbon_modifiers) return;
-      const slot = recording.row.dataset.shelfHotkeySlot;
+      const row = recording.row, slot = row.dataset.shelfHotkeySlot;
       const root = recording.root;
       stopRecording();
-      savePatch(root, { hotkeys: { [slot]: chord } }).catch(() => {});
+      save(root, { hotkeys: { [slot]: chord } }, row).then((body) => { settings = body; }, () => paintHotkeysFromSettings(root, settings?.hotkeys));
     }, true);
   }
 

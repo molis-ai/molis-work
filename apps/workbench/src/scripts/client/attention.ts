@@ -3,9 +3,11 @@
  * Assistant's notices for the plugin in front and the plugin deliveries waiting in the market in one request. It is read
  * every 15 seconds while the page is visible, at once when the person comes back or moves to another plugin, and when a
  * reader asks (`molis-work:attention-refresh`, after the person acted on something). The Assistant's bell, with the plugin
- * notification count, paints from `molis-work:attention`; this module paints the title bar's list of Coding sessions
- * running or waiting on the person, in this project and every other one, with the background commands they left running
- * (each can be stopped here). A session here opens in place, one elsewhere opens its project on it.
+ * notification count, paints from `molis-work:attention`; this module paints the title bar's list of background tasks
+ * running or waiting on the person, in this project and every other open one, with the background commands they left running
+ * (each can be stopped here). It knows no plugin: each row names the surface and item it opens, the words under its title, whether
+ * it waits on the person and the URL that stops each command, as the plugin that owns the task said them (PG-043). A task here
+ * opens in place, one elsewhere opens its project on it.
  *
  * The notices asked for are those of the plugin in front (the person's rules hold some while it matches). Each read
  * carries when it started: a count the market reports later than that is newer than its answer (assistant-island.ts).
@@ -19,13 +21,12 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
   const menu = document.createElement("div");
   menu.className = "background-tasks-menu mw-menu"; menu.setAttribute("popover", "auto"); menu.setAttribute("aria-label", L("后台任务"));
   if (button) document.body.append(menu);
-  const LABEL = { running: L("进行中"), paused: L("已暂停"), "waiting-answer": L("等你回答"), "waiting-approval": L("等你审查"), "reconcile-required": L("需要核对"), queued: L("挂起等待") };
   let tasks = [], key = "", reading = false, again = false;
   const node = (tag, text, className) => { const value = document.createElement(tag); if (text !== undefined) value.textContent = text; if (className) value.className = className; return value; };
   const when = (at) => { const date = new Date(at); return Number.isNaN(date.getTime()) ? "" : date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }); };
   const hrefFor = (task) => {
     const url = new URL("/projects/" + encodeURIComponent(task.project_id) + "/", location.origin);
-    url.searchParams.set("openPlugin", "coding"); url.searchParams.set("openItem", task.session_id); url.searchParams.set("openTitle", task.title);
+    url.searchParams.set("openPlugin", task.surface); url.searchParams.set("openItem", task.id); url.searchParams.set("openTitle", task.title);
     const desktop = new URLSearchParams(location.search).get("desktop"); if (desktop) url.searchParams.set("desktop", desktop);
     return url.pathname + url.search;
   };
@@ -33,31 +34,26 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
     if (!button) return;
     button.hidden = !tasks.length;
     count.textContent = String(tasks.length);
-    // A session listed only for the commands it left running does not wait on the person.
-    const waiting = tasks.filter(task => !task.before_restart && (task.state !== "running" && LABEL[task.state] !== undefined || task.steps?.mine)).length;
+    // A task listed only for the commands it left running does not wait on the person.
+    const waiting = tasks.filter(task => task.waiting).length;
     button.dataset.backgroundTasksWaiting = waiting ? "true" : "false";
     button.title = tasks.length ? L("后台任务") + " · " + tasks.length + (waiting ? " · " + waiting + " " + L("个等你处理") : "") : L("后台任务");
     button.setAttribute("aria-label", button.title);
     menu.replaceChildren(node("strong", L("后台任务")));
     for (const task of tasks) {
-      const row = node("a", undefined, "background-task"); row.href = hrefFor(task); row.dataset.state = task.before_restart ? "reconcile-required" : task.state;
+      const row = node("a", undefined, "background-task"); row.href = hrefFor(task); row.dataset.state = task.state;
       const head = node("span", undefined, "background-task-head");
       head.append(node("span", task.title, "background-task-title"), node("time", when(task.updated_at)));
       const detail = node("span", undefined, "background-task-detail");
-      // The round's standing, then who is on its open plan steps (a step you hold waits on you even after the round ended).
-      const holders = task.steps ? [task.steps.mine ? L("你负责") + " " + task.steps.mine + " " + L("步") : "", task.steps.subtasks ? task.steps.subtasks + " " + L("步在子任务手上") : "",
-        task.steps.unowned ? L("没人认领") + " " + task.steps.unowned + " " + L("步") : ""].filter(Boolean).join(" · ") : "";
-      const standing = task.before_restart ? L("服务重启前没有结束，打开后核对") : LABEL[task.state] || (holders ? L("本轮已结束") : task.commands?.length ? L("本轮已结束") : task.state);
-      detail.append(node("span", holders ? standing + " · " + holders : standing));
-      if (task.steps?.mine) row.dataset.state = row.dataset.state === "running" ? "running" : "waiting-answer";
+      detail.append(node("span", task.standing.map(phrase => L(phrase.text, { n: phrase.count })).join(" · ")));
       if (task.project_id !== projectId) detail.append(node("span", task.project_name, "background-task-project"));
       row.append(head, detail);
       row.addEventListener("click", (event) => {
         if (task.project_id !== projectId || event.metaKey || event.ctrlKey || event.shiftKey) return;
-        event.preventDefault(); menu.hidePopover?.(); openItem("coding", task.session_id, task.title);
+        event.preventDefault(); menu.hidePopover?.(); openItem(task.surface, task.id, task.title);
       });
       menu.append(row);
-      // Commands it left running: stopping one is the same reviewed stop the session's own panel offers.
+      // Commands it left running: stopping one is the same reviewed stop the task's own panel offers.
       for (const command of task.commands || []) {
         const line = node("div", undefined, "background-task-command");
         const stop = node("button", L("停止"), "mw-btn mw-btn--ghost"); stop.type = "button";
@@ -65,8 +61,7 @@ export const ATTENTION_FACTORY_SCRIPT = `(host) => {
         stop.addEventListener("click", async () => {
           stop.disabled = true; feedback.replaceChildren();
           try {
-            const url = "/projects/" + encodeURIComponent(task.project_id) + "/api/plugins/io.molis.work.coding/sessions/" + encodeURIComponent(task.session_id) + "/background/" + encodeURIComponent(command.task_id) + "/stop";
-            await molisWorkRequest(url, { body: {} });
+            await molisWorkRequest(command.stop_url, { body: {} });
             line.remove(); key = ""; void read();
           } catch (error) { if (!menu.contains(feedback)) menu.append(feedback); molisWorkRequest.show(feedback, error); stop.disabled = false; }
         });

@@ -2779,6 +2779,27 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 
 测试：`tests/security-invariants-review-kinds.test.ts`（真实的 Plugin Runtime、宿主与 Agent 服务）；队列一层见 `tests/git-operation-review.test.ts`；Git 暂存审查整条产品链见 `tests/coding-git-diff-product.test.ts`（Git 声明 `review:git-index` 之后转绿）。
 
+### J. 首页的后台任务列表走首页聚合（2026-10-21，PG-043，C4）；后台跟随者不迁（PG-038）
+
+首页标题栏的后台任务列表原来由宿主打开每个项目库、读 Coding 的 `coding_sessions`（`apps/local-host/src/coding-background-tasks.ts`，Coding 导出的 `listCodingBackgroundSessions`、`holdsCodingSessions`），页面脚本里还写着 `coding` 的名字、会话地址和状态词。现在 Coding 把它声明成自己的查询，宿主与页面都不认识 Coding：
+
+- **Coding 的查询**：`coding.home.background-tasks@1`（`plugins/native/coding/src/home-background.ts`，定义函数 `defineHomeBackgroundTasksAction` 在合同包 `platform/home-background-tasks`）。项目范围、只读、`audiences: ["user"]`、权限只有 `artifact:read`、`home_aggregate: true`，输入输出类型 `molis.home-background-tasks.query.v1` 与 `.collection.v1`。答案是 `{ source: { surface: "coding" }, tasks: [...] }`；每个任务带 id（会话 id，页面据此在 `surface` 上打开它）、标题、状态、更新时间、是否在等人、几句话（`standing`，句子加可选的数字，`{n}` 由数字替换）和它留着的后台命令（命令 id、说明、相对 Coding 的停止路径）。读的是 Coding 自己的库（`CodingSessionStore.backgroundSessions`）：进行中或等人的会话，以及一轮已结束、但人还有一步没做完或还有后台命令在跑的会话；归档的不列；解析不了的列当作没有，不猜。
+- **本次激活之前就记着在跑的**：没有一轮能跨过重启，所以更新时间早于这次激活开始、状态是进行中的会话，答案里写成「需要核对」，说「服务重启前没有结束，打开后核对」，不算等人。排队中的会话还没开始，不受影响。
+- **宿主**：`apps/local-host/src/home-background-tasks.ts` 用首页聚合（`home-aggregate.ts`，S-49）对每个已打开的项目问这一类型的查询，把各项目的答案摊平、保留项目；校验答案（`surface` 是普通名字，停止路径只是插件下的普通段，不含 `..`、反斜杠、控制字符），拼出停止地址 `/projects/<项目>/api/plugins/<提供方插件>/<路径>`；没打开的项目不读也不打开，停用或没授权的项目安静跳过，读不了或答案读不懂的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条）。停止仍走会话原来的路由 `coding.background-stop`，没改。
+- **页面**：`apps/workbench/src/scripts/client/attention.ts` 只按行里的 `surface`、`id`、`state`、`waiting`、`standing`、`commands` 画，不含 `coding`。
+- **不迁的**：PG-038 的 Coding 一半。后台跟随者与唤醒循环（`start-round.ts` 的 `follow`、`wake-loop.ts`）不在声明了 `background_job` 的并发命令里启动，而是由页面路由和激活启动；`services.background` 只接受插件自己的、声明了 `background_job` 的并发命令里启动的有限执行，随调用的撤权、取消、插件停止而停。R-CODING-RECEIPT-01/02 要的恰好相反：发起调用被拒或被取消之后，已受理的 Run 仍被跟随（`tests/coding-session-follow.test.ts`）。要迁得先裁定，不是在这一片里能改的。
+
+1. **W5-01-CODING-32** Manifest 声明 `coding.home.background-tasks@1`：项目范围的只读查询，`home_aggregate`、输出类型是首页后台任务的集合，权限只有 `artifact:read`（没有 `model:invoke`），过首页每次调用前重查的规则（`isHomeAggregateQuery`）。Coding 包不再导出 `listCodingBackgroundSessions`、`holdsCodingSessions`、`CodingSqliteDatabase`，`web-catalog.ts` 不再读 Coding 的表。测试：`tests/coding-background-tasks.test.ts`。
+2. **W5-01-CODING-33** 经真实宿主，首页列出每个已打开项目里进行中、等人处理、等核对或留着后台命令的 Coding 会话，按更新时间新的在前，带项目名；一轮已结束又没有东西留给人的不列；人还有一步要做的会话列为「等你回答」；重启前记着在跑的会话列为「需要核对」、不计入等人；没有装 Coding 的项目、没有打开的项目不出现。测试：同上。
+3. **W5-01-CODING-34** Coding 的读取器列出进行中或有人要做的步骤或有后台命令的会话；归档的、只有子任务的步骤的、空闲的不列；解析不了的列当作没有，只读，读完一行没变，只回答被问的项目。测试：同上。
+4. **W5-01-CODING-35** 会话留着的后台命令，停止地址是 `/projects/<项目>/api/plugins/io.molis.work.coding/sessions/<会话>/background/<命令>/stop`，即 Manifest 里 `coding.background-stop` 路由的路径；提供方和项目是宿主自己的，不是插件说的。测试：同上。
+5. **W5-01-CODING-36** 首页不认识 Coding：换一个不是 Coding 的插件声明同一类型的查询，它的任务显示在它自己的 `surface` 上，只在它开着、已打开的项目里被问，每次调用都标了只读；停用的项目和没打开的项目不被问。测试：同上。
+6. **W5-01-CODING-37** 答案先检查再画：不是普通名字的 `surface`、不是列表的 `tasks`、形状不对的任务整个不要，只留好的；离开插件的、不是普通段的、太深的停止路径不提供。测试：同上。
+7. **W5-01-CODING-38** 收集、摊平和画列表的源码（`home-background-tasks.ts`、`home-aggregate.ts`、`attention.ts`）里没有 Coding 的名字。测试：同上。
+8. **W5-01-CODING-39** 问这个列表不写项目库里的任何东西；问之前就已取消的调用，一个项目也不问。测试：同上。
+9. **W5-01-CODING-49** 一个项目的答案读不了，按项目记一条，下一次轮询不再记，读通之后再坏才再记；插件在某个项目停用时安静跳过（W5-13-06）。测试：`tests/host-log-catches.test.ts`。
+10. **W5-01-CODING-50** Coding 说的每一句话（状态词、「你负责 {n} 步」之类）在页面的英文词典里都有英文。测试：`tests/coding-background-tasks.test.ts`。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |

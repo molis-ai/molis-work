@@ -12,16 +12,6 @@ import type { CodingPlanDraft } from "./plans.js";
  * from Goals, through the Capabilities that Plugin already registers.
  */
 
-/** A raw connection, as the Host's background list reads the table (`holdsCodingSessions`, `listCodingBackgroundSessions`). */
-export interface CodingSqliteDatabase {
-  exec(sql: string): unknown;
-  prepare(sql: string): {
-    all(...params: unknown[]): unknown[];
-    get(...params: unknown[]): unknown;
-    run(...params: unknown[]): unknown;
-  };
-}
-
 export interface CodingSessionRecord {
   project_id: string;
   session_id: string;
@@ -194,6 +184,13 @@ export class CodingSessionStore {
     return this.db.all("SELECT * FROM coding_sessions WHERE project_id = ? AND archived = 0 ORDER BY updated_at DESC, session_id", [projectId]).map(mapSession);
   }
 
+  /** The sessions the person may have to come back to, newest first (the Home's background tasks, `home-background.ts`). */
+  backgroundSessions(projectId: string): CodingBackgroundSession[] {
+    return backgroundSessionsOf(this.db.all(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
+      WHERE project_id = ? AND archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL)
+      ORDER BY updated_at DESC, session_id`, [projectId, ...CODING_ACTIVE_STATES]));
+  }
+
   /** Record who holds the session's unfinished plan steps; null when none are open. Not a change to the session. */
   async setSteps(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, steps: CodingStepHolders | null): Promise<void> {
     await this.db.transaction(beforeEffect, tx => {
@@ -293,22 +290,13 @@ export interface CodingBackgroundSession {
 }
 
 /**
- * The sessions of one project database that are active, or whose round has ended while the person holds one of the open plan
- * steps (or a background command is left running), newest first. Reads the recorded states Coding keeps current while a round
- * runs: nothing here opens a runtime. It writes nothing and creates no table, so a read-only connection works; a database that
- * never held Coding has no such table and the read throws, which the caller treats as "nothing to list".
+ * The sessions of a project that are active, or whose round has ended while the person holds one of the open plan steps (or a
+ * background command is left running), newest first. Reads the recorded states Coding keeps current while a round runs: nothing
+ * here opens a runtime, writes or creates anything. A column that does not parse reads as absent: the list shows less rather than a guess.
  */
-/** Whether a project database ever held Coding: the Host's background list asks first, so a project without Coding is not a failure to read. */
-export function holdsCodingSessions(db: Pick<CodingSqliteDatabase, "prepare">): boolean {
-  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'coding_sessions'").get());
-}
-
-export function listCodingBackgroundSessions(db: Pick<CodingSqliteDatabase, "prepare">): CodingBackgroundSession[] {
-  const rows = db.prepare(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
-    WHERE archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL) ORDER BY updated_at DESC`).all(...CODING_ACTIVE_STATES) as Row[];
+function backgroundSessionsOf(rows: readonly Row[]): CodingBackgroundSession[] {
   const sessions: CodingBackgroundSession[] = [];
   for (const row of rows) {
-    // A column that does not parse reads as absent: the list shows less rather than a guess.
     const parse = <T>(value: unknown): T | undefined => {
       try { return typeof value === "string" ? JSON.parse(value) as T : undefined; } catch { return undefined; }
     };

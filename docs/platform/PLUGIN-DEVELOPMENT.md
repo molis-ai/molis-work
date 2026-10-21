@@ -173,6 +173,8 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 首页要把各项目里还在跑的工作列在一处时，插件把读这些工作的查询标上 `action.home_aggregate: true`，并写明 `output_type`：只能是项目范围、`kind: "query"`、只读（`effect` 不写或 `read`）、不调用模型、不计费的查询，别的写法 Manifest 检查就拒（`isHomeAggregateQuery` 是同一条规则）。首页按 `output_type` 找，只在打开的项目里逐个调、用那个项目里安装的授权；插件停用或没授权的项目不调，没打开的项目不为它打开。调用带 `query_only`，查询里再调命令或计费查询会被拒。各项目的答案分开返回，首页按 `plugin_id` 去打开。声明本身不给任何授权。验收见 `tests/security-invariants-home-aggregate.test.ts`（S-49）。
 
+首页标题栏的「后台任务」列表就是这样来的，不需要宿主为某个插件写分支：插件用 SDK（`@molis-ai/molis-work-plugin-sdk`）的 `defineHomeBackgroundTasksAction(能力 id, 标题, 权限)` 声明查询，回答 `{ source: { surface }, tasks: [{ id, title, state, updated_at, waiting, standing, commands }] }`（`surface` 是工作台上打开这个任务的位置，`id` 是在那里打开的项目；`standing` 是几句话，句子可以带 `{n}` 和数字，页面按词典翻译；`commands` 是任务留着的后台命令，`stop_path` 是插件自己的停止路由、相对插件）。宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问一遍，检查后摊平，按提供方插件和项目拼出停止地址；页面只按行里的字段画。例子是 Coding 的 `plugins/native/coding/src/home-background.ts`，验收见 `tests/coding-background-tasks.test.ts`。
+
 ## 当前项目设置
 
 跨模块读取当前项目目标目录、创建意图或补充便笺可引用 Goals 的 `goalsActions.list/create/note`。公共动作输入只有业务字段，项目与 actor 由可信调用上下文绑定；不要把内部 typed Capability 的 actor 字段复制进动作 JSON。权限分别为 `goals:read` / `goals:write`，写入重试保留原 idempotency key。Goals 的写入声明 `authorship: "session"`，审计作者由宿主写进 `caller.audit_actor_id`，它属于可信上下文，不是业务参数，不改变客户端授权，也不授予决策权限；外部客户端只看到被授予的动作工具。其他 Goals 事件能力仍按其现有接口和审批合同使用，见 Goals 包 README。

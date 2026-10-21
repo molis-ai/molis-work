@@ -237,7 +237,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 456,
+  "testInternalImports": 455,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -287,7 +287,6 @@
     "tests/characters-native-execution.test.ts": 1,
     "tests/characters-publication-http.test.ts": 1,
     "tests/client-script-undeclared.test.ts": 4,
-    "tests/coding-background-tasks.test.ts": 1,
     "tests/coding-commit-draft.test.ts": 2,
     "tests/coding-delegation-waits.test.ts": 2,
     "tests/coding-plan-dependencies.test.ts": 1,
@@ -759,10 +758,10 @@
     "apps/local-host/src/project-host.ts#register-provider": 5,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 15,
+  "hybridPluginsTotal": 14,
   "hybridPlugins": {
     "characters#host-files": 4,
-    "coding#host-files": 2,
+    "coding#host-files": 1,
     "git#host-files": 5,
     "shelf#host-files": 3,
     "shelf#host-providers": 1

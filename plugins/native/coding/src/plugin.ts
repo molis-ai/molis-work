@@ -15,6 +15,7 @@ import { codingSurface, stopCodingSurface } from "./routes.js";
 import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
+import { codingHomeBackgroundTasksHandler } from "./home-background.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -75,12 +76,14 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       // (goal-titles.ts); the routes and the directory share this one cache.
       const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
       const surface = codingSurface(context, sessions, goalTitles);
+      // No round survives this activation: what the Home lists as under way from before it was cut off (home-background.ts).
+      const startedAt = new Date().toISOString();
       return {
         kind: "app",
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context)],
+        actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context), codingHomeBackgroundTasksHandler(context, sessions, startedAt)],
         /**
          * A command is offered only when it can actually do something. Opening
          * a change set needs a session; opening a report needs a report. An

@@ -102,6 +102,17 @@ test("filter animates only in the fresh-text reveal", () => {
   }
 });
 
+// VUX-27: an edge that fades is the one shared overflow fade, shown only where there is more; no surface keeps a fixed
+// gradient mask of its own (Workflows' chain had one, faded even when the chain fit). An icon drawn as a mask is not a fade.
+test("a gradient mask is only the shared overflow fade", () => {
+  for (const [name, css] of sheets()) {
+    for (const match of css.matchAll(/([^{};]*)\{[^{}]*?(?<![\w-])(?:-webkit-)?mask(?:-image)?\s*:\s*([^;}]+)/g)) {
+      if (!/gradient\(/.test(match[2]!)) continue;
+      assert.match(match[1]!.trim(), /^\[data-overflow-fade\]\[data-more\]$/, `${name}: ${match[1]!.trim().slice(-100)} masks with a gradient of its own`);
+    }
+  }
+});
+
 test("the natural-height exception admits only the fold's outer row", () => {
   const refused = (selector: string) => !NATURAL_HEIGHT_ROWS.some(row => row.test(selector));
   assert.equal(refused(".mw-collapsible::details-content"), false);

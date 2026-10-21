@@ -8,6 +8,7 @@ import { CODING_CLIENT_FACTORY_SCRIPT, renderCodingWorkbench } from "@molis-ai/m
 import { escapeHtml, icon, INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 // Exercise the embedded production factories from the public, shipped program; no second implementation or new API.
 function embeddedFactory(name: string): string {
@@ -32,6 +33,7 @@ test("RING-07 Coding plan and cooperation render actual rings and preserve recei
     primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
   try {
     const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<{
       running: string[]; paused: string[]; person: string; accepted: string; labels: string[];
       commands: string[]; letters: string[]; delegation: string; errors: string[];

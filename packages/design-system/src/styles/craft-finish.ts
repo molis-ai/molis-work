@@ -1019,7 +1019,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-strip-chip.is-work{padding:0 8px;color:var(--muted);cursor:pointer}
   ${ASSIST} .assistant-strip-chip.is-landing{background:var(--accent-soft);box-shadow:none}
   ${ASSIST} .assistant-strip-label{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap}
+  ${ASSIST} .assistant-strip-note{color:var(--faint);white-space:nowrap} ${ASSIST} .assistant-strip-chip.is-failed{max-width:320px;box-shadow:inset 0 0 0 1px var(--danger)} ${ASSIST} .is-failed>.assistant-strip-label{max-width:120px} ${ASSIST} .is-failed>.assistant-strip-note{min-width:0;overflow:hidden;color:var(--danger);text-overflow:ellipsis}
   ${ASSIST} .assistant-strip-thumb{width:20px;height:20px;border-radius:4px;object-fit:cover}
   ${ASSIST} .assistant-strip-act{flex:none;width:32px;height:32px;padding:0;border:0;border-radius:6px;background:transparent;color:var(--muted);font:inherit;cursor:pointer}
   ${ASSIST} :is(.assistant-strip-act,.is-work):hover{background:var(--nav-hover);color:var(--ink)}

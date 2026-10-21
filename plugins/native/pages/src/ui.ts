@@ -134,10 +134,10 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         </div>
       </form>
     </dialog>
-    <dialog class="mw-dialog creative-confirm" data-pages-name>
+    <dialog class="mw-dialog creative-confirm" data-pages-name aria-labelledby="pages-name-label">
       <form class="creative-confirm-form" method="dialog">
-        <p data-name-label></p>
-        <input class="mw-input" data-name-input autocomplete="off">
+        <p id="pages-name-label" data-name-label></p>
+        <input class="mw-input" data-name-input autocomplete="off" aria-labelledby="pages-name-label">
         <div class="creative-confirm-actions">
           <button class="mw-btn mw-btn--ghost" value="cancel">${p.text("取消")}</button>
           <button class="mw-btn mw-btn--primary" value="ok">${p.text("确定")}</button>

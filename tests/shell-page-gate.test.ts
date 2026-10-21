@@ -147,6 +147,7 @@ const PAGE_PRODUCERS: Record<string, string> = {
   "apps/desktop/src/capsule-shell.ts": "桌面菜单栏胶囊",
   "apps/workbench/src/primitive-catalog.ts": "开发规格板",
   "apps/workbench/src/condition-frame.ts": "开发规格板：条件与状态的框架页",
+  "apps/workbench/src/assistant-board-frame.ts": "开发规格板：助理信息与任务的框架页",
   "apps/local-host/src/plugin-builder/agent-surface.ts": "沙箱框里的文档：试用与已安装的生成插件",
   "packages/im-ui/src/page.ts": "协作服务",
   "plugins/native/form/src/fillpage.ts": "导出：问卷填写页文件",

@@ -11,6 +11,7 @@ import {
 } from "@molis-ai/molis-work-design-system";
 import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundation-specimens.js";
 import { CONDITIONS_SECTION_STYLES, renderConditionsSection } from "./condition-specimens.js";
+import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assistant-board-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
@@ -165,8 +166,8 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
     ],
   });
   const catalog = renderPrimitiveCatalog()
-    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
-    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
+    .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say)}\n    ${renderAssistantBoardSection(say)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -175,7 +176,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
-  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}</style>
+  <style>${FOUNDATION_SPECIMEN_STYLES}${CONDITIONS_SECTION_STYLES}${ASSISTANT_SECTION_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}

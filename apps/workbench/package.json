@@ -21,7 +21,7 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-frame.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-section.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-section.js",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-frame.js && ../../node_modules/.bin/esbuild src/browser/board/conditions-section.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-conditions-section.js && ../../node_modules/.bin/esbuild src/browser/board/assistant-frame.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/board-assistant-frame.js",
     "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {

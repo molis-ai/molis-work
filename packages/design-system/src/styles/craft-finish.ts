@@ -51,7 +51,7 @@ const CRAFT_BASE_STYLES = `
     --ease-quint: cubic-bezier(.22, 1, .36, 1);
     --ease-spring: cubic-bezier(.2, 1.35, .4, 1);
     --ease-swift: var(--ease-quint);
-    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms;
+    --dur-press: 130ms; --dur-hover: 130ms; --dur-move: 250ms; --dur-arrive: 420ms; --dur-moment: 640ms; --code-tab: 4;
     /* Depth steps: a small raised piece (current tab, segment thumb, Dock item), a raised surface
        (the composer, an inner sheet), and the one floating layer (menus, dialogs, toasts). */
     --lift-1: var(--shadow-soft);
@@ -829,7 +829,7 @@ const CRAFT_BASE_STYLES = `
     transition: background-color var(--dur-hover) var(--ease-quint), color var(--dur-hover) var(--ease-quint), transform var(--dur-press) var(--ease-spring); }
   ${ASSIST} :is(.assistant-code-copy, .assistant-code-more):hover { background: var(--nav-hover); color: var(--ink); }
   ${ASSIST} .assistant-code-copy[data-copy=done] { color: var(--tone-done, #3a8f5c); }
-  ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; }
+  ${ASSIST} .assistant-rich .assistant-code pre, ${ASSIST} .assistant-code pre { margin: 0; padding: 10px 12px; border-radius: 0; background: transparent; overflow: auto; font-size: 12px; line-height: 1.55; tab-size: var(--code-tab, 4); }
   ${ASSIST} .assistant-code[data-folded] pre { max-height: 300px; overflow: hidden; }
   ${ASSIST} .assistant-code-more { display: block; width: 100%; height: 28px; border-radius: 0; box-shadow: inset 0 1px 0 var(--line); }
   /* Cards: one shape for every moment that asks something of you — a kicker saying what kind, a badge saying what act,

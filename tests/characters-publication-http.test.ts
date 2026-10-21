@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
-import { CHARACTERS_CLIENT_FACTORY_SCRIPT, renderCharacters } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_CLIENT_FACTORY, renderCharacters } from "@molis-ai/molis-work-plugin-characters";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -86,7 +86,8 @@ test("Character manager publishes confirmed personal drafts through real project
 });
 
 test("Character manager client parses and its server-rendered route is escaped", () => {
-  assert.equal(typeof new Function(`return (${CHARACTERS_CLIENT_FACTORY_SCRIPT})`)(), "function");
+  // RAC-69: the client program still parses and builds a function after its requests moved to the workbench's request helper.
+  assert.equal(typeof new Function(`return (${CHARACTERS_CLIENT_FACTORY})`)(), "function");
   const html = renderCharacters({ route_prefix: '/projects/"<script>', primitives: { escape: value => escapeHtml(String(value)) } });
   assert.ok(!html.includes('/projects/"<script>'));
   assert.ok(html.includes('data-character-dialog'));

@@ -1,4 +1,4 @@
-import { openCharacters, type CharactersService } from "@molis-ai/molis-work-module-characters";
+import { createCharactersActionHandlers, openCharacters, type CharactersActionPorts, type CharactersService } from "@molis-ai/molis-work-module-characters";
 import { hostLog } from "./host-log.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE, parseCharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ArtifactsQueryApi, ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -12,7 +12,10 @@ import { createCharacterDiscovery } from "./character-import-discovery.js";
 import { characterNativeExecution } from "./character-native-execution.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 
-/** Host composition binds personal ownership and project publication; Plugins never open databases. */
+/**
+ * Host composition binds personal ownership and project publication; Plugins never open databases. The handlers of every action are
+ * Characters' own (modules/characters); the plugin gets them built from these ports, for the runtime it supplies when it starts.
+ */
 export function charactersPluginPorts(homeDirectory: string | undefined, actorId: string, projectId: string, artifacts: ArtifactsQueryApi,
   workspaces: () => Promise<readonly ProjectWorkspaceRef[]> = async () => [], spawn: (request: PtySpawnRequest) => PtySpawnResult = () => { throw new Error("原生终端尚未接通"); }): CharactersPluginPorts {
   const home = resolveConfiguredHome(homeDirectory);
@@ -21,7 +24,7 @@ export function charactersPluginPorts(homeDirectory: string | undefined, actorId
     try { return action(handle.service); } finally { handle.close(); }
   };
   const discovery = createCharacterDiscovery({ userHome: homedir() });
-  return { actorId,
+  const actionPorts: CharactersActionPorts = { actorId,
     imports: {
       previewFile: (candidateId, input) => {
         const file = discovery.get(candidateId)?.skills.find(skill => skill.id === input.skill_id)?.files.find(file => file.path === input.path);
@@ -45,6 +48,7 @@ export function charactersPluginPorts(homeDirectory: string | undefined, actorId
       .map(({ artifact_id, version }) => ({ artifact_id, version })),
     publish: (id, revision, publisher) => use(service => service.publish(id, revision, publisher)),
   };
+  return { actorId, handlers: runtime => createCharactersActionHandlers(actionPorts, runtime) };
 }
 
 /** Resolve the exact publication for a new Run; history uses its frozen body and never calls this. */

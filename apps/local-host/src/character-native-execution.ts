@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join, relative } from "node:path";
 import type { CharacterContent, CharacterImportRuntimeId } from "@molis-ai/molis-work-contracts/modules/characters";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { WorkSessionRecord, WorkSessionApi } from "@molis-ai/molis-work-contracts/modules/private-work-context";
-import type { CharactersImportPorts, CharacterNativeRun } from "@molis-ai/molis-work-plugin-characters";
+import type { CharactersImportPorts, CharacterNativeRun } from "@molis-ai/molis-work-module-characters";
 import { openWorkSessionRegistry } from "./session-registry.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 

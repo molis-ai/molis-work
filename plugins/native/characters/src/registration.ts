@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY_SCRIPT } from "./index.js";
+import { CHARACTERS_PROJECT_PLUGIN_ID, charactersManifest, charactersSettingsUiContribution, CHARACTERS_CLIENT_FACTORY } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -14,6 +14,6 @@ export const registration: PluginRegistration = {
   workbench: {
     order: 14,
     contributions: [charactersSettingsUiContribution],
-    clientFactory: CHARACTERS_CLIENT_FACTORY_SCRIPT,
+    clientFactory: CHARACTERS_CLIENT_FACTORY,
   },
 };

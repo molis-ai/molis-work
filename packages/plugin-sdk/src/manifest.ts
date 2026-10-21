@@ -1,6 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
@@ -66,6 +67,11 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       }
     } else if (permission.origins !== undefined) {
       throw pluginErrors.permission_invalid("只有 surface:browser 可以列出 origins");
+    }
+    // A review kind is the platform's, never the plugin's: only the listed ones exist (PG-009).
+    if (permission.permission.startsWith(PLUGIN_REVIEW_PERMISSION_PREFIX)
+      && !(PLUGIN_REVIEW_KINDS as readonly string[]).includes(permission.permission.slice(PLUGIN_REVIEW_PERMISSION_PREFIX.length))) {
+      throw pluginErrors.permission_invalid(`没有 ${permission.permission} 这种审查；能声明的只有 ${PLUGIN_REVIEW_KINDS.map(kind => PLUGIN_REVIEW_PERMISSION_PREFIX + kind).join("、")}`);
     }
   }
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);

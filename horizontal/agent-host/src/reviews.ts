@@ -11,6 +11,34 @@ import type {
   AgentReviewRecoveryInput,
   AgentReviewRecoveryView,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
+
+/**
+ * The installation that started a plugin's person-reviewed Host operation (PG-009). It must declare and hold `review:<kind>`
+ * when the operation is asked for, again when a person approves it and again right before it runs: one revoked, disabled,
+ * stopped or replaced since no longer does, and the operation is refused, never run.
+ */
+export interface ReviewAuthority {
+  readonly plugin_id: string;
+  readonly install_id: string;
+  holds(): boolean;
+}
+
+const pluginOperation = (request: AgentReviewRequest): string | null =>
+  request.operation && (PLUGIN_REVIEW_KINDS as readonly string[]).includes(request.operation.kind) ? request.operation.kind : null;
+
+/** A review belongs to a real round, or to one named Host operation whose document is of that operation's kind. */
+function assertOwned(request: AgentReviewRequest): void {
+  const operation = request.operation;
+  const manual = operation?.operation_id && (operation.kind === "checkpoint-rewind" && operation.session_id && request.kind === "rewind"
+    || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index"
+    || operation.kind === "git-integration" && operation.workspace_id && request.kind === "git-integration" && request.document.kind === "git-integration"
+    || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create"
+    || operation.kind === "git-operation" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/.test(request.document.tool));
+  if ((request.run === null) !== Boolean(operation) || operation && !manual) {
+    throw agentErrors.review_unknown("审查必须属于实际轮次或明确的宿主操作");
+  }
+}
 
 /**
  * The identity of a command for a standing rule: same session, same plugin, same argv, directory,
@@ -57,6 +85,8 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
   readonly #deciders = new Map<string, (input: AgentReviewDecisionInput) => Promise<AgentReviewReceipt>>();
   readonly #refreshers = new Set<(projectId: string) => Promise<void>>();
   readonly #recoverers = new Map<string, RecoveryHandler>();
+  /** Only for a plugin's operation asked for in this process; a restored one has none, so it can never be approved. */
+  readonly #authorities = new Map<string, ReviewAuthority>();
   readonly #now: () => Date;
 
   constructor(options: { now?: () => Date } = {}) {
@@ -96,11 +126,15 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     row.receipt.reconciliation = structuredClone(value);
   }
 
-  /** Restore only the Host decision. Runtime receipts are independently queried afterwards. */
-  restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note">): void {
-    if (!["approved", "rejected", "cancelled", "expired"].includes(decision.status)) throw new Error("无效的历史审查决定");
+  /**
+   * Restore only the Host decision, or a pending review when none was recorded. Runtime receipts are independently queried
+   * afterwards. The installation that asked belongs to an earlier process, so a plugin's operation brought back is never approved.
+   */
+  restoreDecision(request: AgentReviewRequest, decision: Pick<AgentReviewReceipt, "status" | "decided_by" | "decided_at" | "note"> | null): void {
+    if (decision && !["approved", "rejected", "cancelled", "expired"].includes(decision.status)) throw new Error("无效的历史审查决定");
     if (this.#rows.has(request.review_id)) return;
-    this.request(request);
+    this.#admit(request);
+    if (!decision) return;
     const row = this.#rows.get(request.review_id)!;
     row.receipt = { ...row.receipt, ...structuredClone(decision) };
     // This authority has already been handed to the execution owner. Restoring
@@ -108,17 +142,22 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     if (decision.status === "approved") this.#consumed.add(request.review_id);
   }
 
-  /** An adapter asks for permission. This never grants anything by itself. */
-  request(request: AgentReviewRequest): AgentReviewRequest {
-    const operation = request.operation;
-    const manual = operation?.operation_id && (operation.kind === "checkpoint-rewind" && operation.session_id && request.kind === "rewind"
-      || operation.kind === "git-index" && operation.workspace_id && request.kind === "git-index" && request.document.kind === "git-index" && request.plugin_id === "io.molis.work.git"
-      || operation.kind === "git-integration" && operation.workspace_id && request.kind === "git-integration" && request.document.kind === "git-integration" && request.plugin_id === "io.molis.work.coding"
-      || operation.kind === "git-worktree" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && request.document.tool === "git-worktree-create" && request.plugin_id === "io.molis.work.coding"
-      || operation.kind === "git-operation" && operation.workspace_id && request.kind === "tool-operation" && request.document.kind === "tool-operation" && /^git-(commit|branch-create|branch-switch|push|pr-create|merge|pull|resolve|merge-abort)$/.test(request.document.tool) && request.plugin_id === "io.molis.work.git");
-    if ((request.run === null) !== Boolean(operation) || operation && !manual) {
-      throw agentErrors.review_unknown("审查必须属于实际轮次或明确的宿主操作");
+  /**
+   * An adapter asks for permission. This never grants anything by itself. A plugin's Host operation names the installation
+   * that started it, which must hold `review:<kind>` now and again when a person approves (PG-009).
+   */
+  request(request: AgentReviewRequest, authority?: ReviewAuthority): AgentReviewRequest {
+    const kind = pluginOperation(request);
+    if (kind && (!authority || authority.plugin_id !== request.plugin_id || !authority.holds())) {
+      throw agentErrors.review_not_permitted(`插件 ${request.plugin_id} 没有声明或没有获得 review:${kind}，不能发起这项需要人审查的操作`);
     }
+    const created = !this.#rows.has(request.review_id), stored = this.#admit(request);
+    if (kind && created) this.#authorities.set(request.review_id, authority!);
+    return stored;
+  }
+
+  #admit(request: AgentReviewRequest): AgentReviewRequest {
+    assertOwned(request);
     const existing = this.#rows.get(request.review_id);
     if (existing) {
       if (!isDeepStrictEqual(existing.request, request)) {
@@ -214,6 +253,11 @@ export class AgentReviewQueue implements AgentReviewQueueApi {
     }
     if (current !== "pending") {
       throw agentErrors.review_already_decided("这条待审操作已经有结论了");
+    }
+    // Rejecting is always the person's to do; approving needs the installation that asked to still hold its kind.
+    const kind = input.decision === "approve" ? pluginOperation(row.request) : null;
+    if (kind && !this.#authorities.get(input.review_id)?.holds()) {
+      throw agentErrors.review_not_permitted(`发起这项操作的插件已不再持有 review:${kind}（撤权、停用、停止、升级或应用重启过），不能批准，只能拒绝`);
     }
     const automatic = input.decision === "approve" ? this.#automatic.get(input.review_id) : undefined;
     row.receipt = {

@@ -37,6 +37,7 @@ import path from "node:path";
 import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
+import { reviewAuthority } from "./plugin-callers.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -137,7 +138,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     if (!workspace) throw new Error("工作区已取消授权");
     await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
-      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, prepared);
+      document: { kind: "git-index", action: input.action, workspace_name: workspace.display_name ?? "当前仓库", files: prepared.files } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-index") });
     return { review_id: request.review_id };
   });
 
@@ -162,7 +163,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     await invocation.beforeEffect();
     const request = await prologue.gitReviews.prepare({ project_id: project.project_id, workspace_id: input.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-operation", document: { kind: "tool-operation", tool: prepared.tool, summary: prepared.summary, fields: prepared.fields } },
-      { check: prepared.check, async execute() {
+      { authority: reviewAuthority(invocation.plugin, "git-operation"), check: prepared.check, async execute() {
         const detail = await prepared.execute();
         try { await saveDetail(`${project.project_id}:${input.operation_id}`, detail); } catch { /* the operation happened; only its description is missing */ }
       } });
@@ -237,7 +238,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       return { worktree_id: path.basename(canonical_path), branch: entry.branch ?? "", base_commit: "", canonical_path, workspace_id: grantFor(canonical_path), problem: entry.reason };
     })];
   });
-  const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input) => {
+  const unregisterPrepareWriter = options.localHost.registerCapability(writerDirectoryCapabilities.prepare, async (project, input, invocation) => {
     await initialize();
     if (!prologue?.gitReviews || !options.authorizeWriterDirectory) throw new Error("独立工作树的宿主审查与目录授权尚未装配");
     if (!/^[a-zA-Z0-9-]{8,80}$/.test(input.operation_id)) throw new Error("工作树操作标识无效");
@@ -252,7 +253,7 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       operation_kind: "git-worktree", document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树，并授权本项目在该目录执行任务",
         fields: [{ label: "主工作区", value: parent.canonical_path }, { label: "新目录", value: target }, { label: "新分支", value: preview.branch },
           { label: "起点提交", value: preview.base_commit }, { label: "执行范围", value: "仅创建独立目录和本地分支，关联到当前项目；不发送模型任务、不修改主工作区、不推送远端。禁用 Git hooks。" }] } },
-      { check, async execute() {
+      { authority: reviewAuthority(invocation.plugin, "git-worktree"), check, async execute() {
         await check();
         await port.create(id, preview.base_commit);
         // A failure keeps the real directory and branch for inspection; never deletes user work.
@@ -292,13 +293,13 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     const source = await integrationSource(project, input);
     return readWriterIntegration(source, async () => (await integrationSource(project, input)).grants);
   });
-  const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input) => {
+  const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input, invocation) => {
     const source = await integrationSource(project, input);
     const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input)).grants);
     const request = await prologue!.gitReviews!.prepare({ project_id: project.project_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
         source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
-        files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, prepared);
+        files: prepared.files.map(file => ({ path: file.path.join("/"), before_text: file.before_text!, after_text: file.after_text!, before_mode: file.before_mode!, after_mode: file.after_mode! })) } }, { ...prepared, authority: reviewAuthority(invocation.plugin, "git-integration") });
     return { review_id: request.review_id };
   });
 

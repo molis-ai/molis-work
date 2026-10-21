@@ -44,7 +44,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2248,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2243,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1990,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,

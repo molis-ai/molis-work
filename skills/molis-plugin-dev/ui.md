@@ -136,6 +136,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 ## 文案与 i18n
 
 - UI 字符串用中文当 key：`p.text("加入 Inbox")`。英文写插件 `src/en.ts`，**还要**在 `apps/workbench/src/i18n/en.ts` 里 `import { X_EN }` 并展开进总表。只写插件文件，英文界面仍是中文 key。两种漏写都由 `pnpm health:check` 拦下（CI 也跑）：调用的中文原文没有英文，和 `X_EN` 写了却没并进总表；`node scripts/gates/translations.mjs --missing` 列出缺哪句、该加到哪个词典，哪本词典没接上。检查靠变量名以 `_EN` 结尾认词典。
+- 路由与动作送回页面显示的字（错误、说明、状态名）跟页面语言走（用户 2026-10-20 定）：宿主按请求（页面的语言 cookie，没有就看 Accept-Language）把语言放在调用上下文的 `locale`（`"zh" | "en"`），处理器用自己的词典按它写出要显示的字。`locale` 只选字、不授予任何东西，也从不从输入里读；没有页面的调用（模型的工具调用、定时器、后台工作）没有它，用插件自己的默认语言。存进库里的记录照原样，不按读取者的语言改写。写给模型的话不跟页面语言走。Coding 的写法见 `plugins/native/coding/src/words.ts`：深处抛出的错误用 `codingError`/`codingFailure` 从稳定键写成中文，离开路由时 `codingErrorIn` 按调用方的语言重写，类、码、kind 与 details 不变。
 - 按钮说人做的事，不说机制（不要「提交 Attention Command」）。
 - 空态说明下一步能做什么，不要空讲架构。
 

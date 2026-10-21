@@ -1,4 +1,4 @@
-import { ACTION_ERROR_CODE, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ACTION_ERROR_CODE, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingCharacters, type CodingCharacters } from "./character-source.js";
@@ -31,6 +31,8 @@ export interface CodingExecution {
   readonly models: ReturnType<typeof codingModels>;
   readonly goalTitles: CodingGoalTitles;
   readonly characters: CodingCharacters;
+  /** The language of the page this call came from (route calls only): what a handler sends back to show is worded in it. */
+  readonly locale?: ActionLocale;
 }
 
 // A refused answer's problems, with the questions they are about, for the Host to word beside each field.

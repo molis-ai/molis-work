@@ -6,7 +6,7 @@ import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platfo
 import type { AgentCommandOutput, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingUsageSummary } from "./usage.js";
 import { codingGoalVersionLabel } from "./goal-versions.js";
-import { codingZh } from "./zh.js";
+import { codingZh } from "./words.js";
 import { CODING_REPORT_TYPE, type CodingReport } from "./artifacts.js";
 
 import { codingChangeSetReference } from "./changeset.js";

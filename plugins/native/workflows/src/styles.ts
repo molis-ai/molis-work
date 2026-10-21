@@ -13,8 +13,9 @@ export const WORKFLOWS_STYLES = `
 
   /* List */
   [data-workflows="workbench"] .wf-rows { display: grid; gap: 4px; }
+  /* The name comes first; the stations give way. */
   [data-workflows="workbench"] .wf-row {
-    display: grid; grid-template-columns: minmax(10rem, 1fr) minmax(0, 2fr) 10rem; align-items: center; gap: 16px;
+    display: grid; grid-template-columns: minmax(10rem, 3fr) minmax(0, 2fr) 10rem; align-items: center; gap: 16px;
     width: 100%; min-height: 36px; padding: 4px 12px; border: 0; border-radius: var(--radius-item, 8px);
     background: transparent; color: var(--ink); font: inherit; text-align: left; cursor: pointer;
     transition: background-color var(--wf-row);

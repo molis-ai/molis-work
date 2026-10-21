@@ -56,6 +56,8 @@ export const PAGES_STYLES = `
     padding: 0 24px 0 76px; border: 0 !important; border-radius: 0; background: transparent !important;
     color: var(--content-ink, var(--ink)); font-size: 40px; line-height: 1.2; font-weight: 600;
     letter-spacing: -0.03em; outline: none; box-shadow: none !important;
+    /* Says it is cut while not being edited. */
+    text-overflow: ellipsis;
   }
   .pages-title::placeholder { color: var(--faint); font-weight: 600; }
   .pages-title:focus, .pages-title:focus-visible,

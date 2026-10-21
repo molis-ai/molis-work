@@ -4,7 +4,8 @@ export const GOAL_CANVAS_STYLES = `
   .goal-canvas-shell [hidden] { display: none !important; }
   .goal-canvas-shell .goal-canvas-map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; padding: 0; margin: 0; overflow: hidden; background: transparent; }
   .goal-canvas-shell .goal-kanban { position: absolute; inset: 0; display: none; overflow-x: auto; overflow-y: hidden; overscroll-behavior: contain; background: var(--canvas); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
-  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: calc(var(--control-h, 32px) + 20px) 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
+  /* Below the toolbar, not under it: no row scrolls through its buttons. */
+  .goal-canvas-shell .goal-stage-list { display: none; position: absolute; inset: calc(var(--control-h, 32px) + 20px) 0 0; z-index: 0; overflow: auto; overscroll-behavior: contain; padding: 0 24px 32px; background: var(--paper); scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; }
   .goal-canvas-shell[data-board-view="list"] .goal-stage-list { display: block; }
   .goal-canvas-shell[data-board-view="list"] { background: var(--paper); }
   .goal-canvas-shell[data-expanded="true"]:not([data-board-view="list"]) .goal-stage-list { display: none !important; }

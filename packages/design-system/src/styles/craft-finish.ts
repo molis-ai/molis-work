@@ -1473,7 +1473,7 @@ const CRAFT_BASE_STYLES = `
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(strong, h1, h2),
   ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(strong, h1, h2), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > strong { margin: 0 0 8px; font-size: 15px; font-weight: var(--weight-title, 600); letter-spacing: -.02em; color: var(--ink); }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > p,
-  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: 34em; color: var(--muted); font-size: 13px; line-height: 1.75; }
+  ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > p, ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > p { margin: 0; max-width: min(34em, 100%); color: var(--muted); font-size: 13px; line-height: 1.75; }
   ${WORKBENCH} .plugin-stage-list > .mw-empty > :is(.mw-btn, .mw-empty__actions),
   ${WORKBENCH} .plugin-stage-list > div:only-child > .mw-empty:only-child > :is(.mw-btn, .mw-empty__actions), ${WORKBENCH} .session-stage-list > .mw-empty:not(.project-record-empty) > .mw-btn { margin: 24px 0 0; justify-content: center; }
   ${WORKBENCH} .plugin-stage-list .mw-empty__actions { gap: 8px; }

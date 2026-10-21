@@ -65,7 +65,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const ownTask = (text) => { const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER); return at < 0 ? own : own.slice(0, at); };
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
-  const timeline = (${createCodingTimeline.toString()})((${codingTimelineWords.toString()})()), turnChanges = (${createCodingTurnChanges.toString()})();
+  const timeline = (${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(L)), turnChanges = (${createCodingTurnChanges.toString()})();
   lifetime.poll(()=>timeline.tick(turns),1000);
   // The conversation's scroll has the page's one owner (design system molisFollow, VUX-26): only the reader stops the follow,
   // only the reader's return or a word from here (back to latest, a fresh session, a restored place) starts it again.
@@ -199,7 +199,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(turns.contains(node))follow.release();node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
   }});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({...ports,openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:state=>host.receipts.step(state)});
-  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,openIntegration:integrations.open,usageSummary:codingUsageSummary,prepareRework:async(id,runId,child,notes)=>{
+  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,openIntegration:integrations.open,usageSummary:usage=>codingUsageSummary(usage,L),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction=L('coding.rework.instruction',{subagent:child.subagent_id,run:runId,path:child.workspace_path,task:child.task,notes});
     await draft.append(id,text=>text.trim()?text+'\\n\\n'+instruction:instruction,L('coding.rework.saved-not-added'));
@@ -231,7 +231,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!goalChoice){region.textContent=L('coding.goal.none-next');return;}
     const goal=goalChoice.snapshot.goal,heading=make('h3'),body=make('p');
     heading.textContent=goal.title;body.textContent=goalChoice.snapshot.state.agreement.outcome || goal.outcome;region.append(heading,body);
-    const versions=make('p');versions.textContent=codingGoalVersionLabel({agreement_version:goalChoice.snapshot.state.agreement.version});region.append(versions);
+    const versions=make('p');versions.textContent=codingGoalVersionLabel({agreement_version:goalChoice.snapshot.state.agreement.version},L);region.append(versions);
     const sections=[[L('coding.goal.why'),goal.why],[L('coding.goal.logic'),goal.business_logic],[L('coding.goal.scope'),goal.in_scope.join('\\n')],[L('coding.goal.out-of-scope'),goal.out_of_scope.join('\\n')],[L('coding.goal.constraints'),goal.constraints.join('\\n')],[L('coding.goal.inputs'),goal.required_inputs.join('\\n')],[L('coding.goal.outputs'),goal.promised_outputs.join('\\n')],[L('coding.goal.acceptance'),goal.acceptance_criteria.map(item=>L('coding.goal.criterion',{statement:item.statement,pass:item.pass_condition,method:item.decision_method})).join('\\n')]];
     for(const [title,value] of sections.filter(item=>item[1])){const label=make('strong'),content=make('p');label.textContent=title;content.textContent=value;content.style.whiteSpace='pre-wrap';region.append(label,content);}
     const requirements=goalChoice.snapshot.state.requirements;
@@ -693,7 +693,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
         if(state.progress_summary)add('p',L('coding.progress.existing',{summary:state.progress_summary.summary}));
         if(state.goal_event_cursor!==value.report_goal.goal_event_cursor)add('p',L('coding.progress.goal-updated'));
       }
-      q('[data-coding-progress-source]').textContent=value.reference.artifact_id+' v'+value.reference.version+'\\n'+L('coding.progress.source-goal',{goal:value.report_goal.goal_id})+'\\n'+L('coding.progress.source-basis',{version:codingGoalVersionLabel(value.report_goal),cursor:value.report_goal.goal_event_cursor})+(value.current?'\\n'+L('coding.progress.source-now',{version:codingGoalVersionLabel({agreement_version:value.current.state.agreement.version}),cursor:value.current.state.goal_event_cursor}):'');
+      q('[data-coding-progress-source]').textContent=value.reference.artifact_id+' v'+value.reference.version+'\\n'+L('coding.progress.source-goal',{goal:value.report_goal.goal_id})+'\\n'+L('coding.progress.source-basis',{version:codingGoalVersionLabel(value.report_goal,L),cursor:value.report_goal.goal_event_cursor})+(value.current?'\\n'+L('coding.progress.source-now',{version:codingGoalVersionLabel({agreement_version:value.current.state.agreement.version},L),cursor:value.current.state.goal_event_cursor}):'');
     }
     for(const selector of ['[data-coding-progress-summary]','[data-coding-progress-next]'])q(selector).readOnly=Boolean(recorded);
     q('[data-coding-progress-save]').disabled=!value || Boolean(recorded) || progressSaving || !q('[data-coding-progress-summary]').value.trim();
@@ -911,7 +911,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(!lastRun) { result.textContent=L('coding.facts.empty'); delete result.dataset.content; if(statusKey!=='idle'){statusKey='idle';status('');} }
     if(lastRun) {
       // Only what this round actually used is listed; what it did not use is named once, so nothing is silently omitted.
-      const f=lastRun.frozen,values=[[L('coding.facts.model'),f.model_id],[L('coding.facts.usage'),codingUsageSummary(lastRun.usage)],[L('coding.facts.scope'),f.directory?.canonical_path || L('coding.facts.no-directory')]],unused=[];
+      const f=lastRun.frozen,values=[[L('coding.facts.model'),f.model_id],[L('coding.facts.usage'),codingUsageSummary(lastRun.usage,L)],[L('coding.facts.scope'),f.directory?.canonical_path || L('coding.facts.no-directory')]],unused=[];
       if(f.subagent_workspaces?.length) values.push([L('coding.facts.subagent-dirs'),f.subagent_workspaces.map(item=>item.directory.canonical_path).join(L('coding.list.semicolon'))]);
       values.push([L('coding.facts.role'),f.role_id+' · v'+f.role_version]);
       if(f.skills.length) values.push([L('coding.facts.methods'),f.skills.map(method=>L(method.name)+' · v'+method.version).join(L('coding.list.joiner'))]); else unused.push(L('coding.attach.method'));

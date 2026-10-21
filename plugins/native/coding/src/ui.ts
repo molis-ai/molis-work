@@ -653,6 +653,6 @@ export function renderCodingUsage(model: CodingUsageModel): string {
   const state = !hasKnown ? "unknown" : usage.unavailable_reason ? "partial" : "known";
   return `<div class="coding-usage" data-coding-usage="${state}">
     ${hasKnown ? "" : `<span class="mw-status" data-tone="idle">${p.icon("help-circle")}${p.escape(p.text("coding.usage.unknown"))}</span>`}
-    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage))}</span>
+    <span class="coding-usage-why">${p.escape(codingUsageSummary(usage, p.text))}</span>
   </div>`;
 }

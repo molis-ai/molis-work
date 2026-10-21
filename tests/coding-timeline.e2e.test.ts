@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { codingTimelineWords, createCodingTimeline, createCodingTurnChanges } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 interface Reading { summary: string; rows: string[]; footer: string }
 
@@ -14,9 +15,11 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
+    // The words come through the page's translator, as on the Coding page (`host.translate`).
+    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`);
     // The factory is injected into the page by toString in production, so it runs here the same way.
     const result = await page.evaluate<Record<"waiting" | "running" | "done" | "stopped" | "failed", Reading>>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='r:0';block.append(detail);document.body.append(block);
       const items=[{call_id:'a',name:'run-command',target:'ls -la',state:'started'},{call_id:'b',name:'grep',target:'completionRate',state:'started'}];
       const read=(run)=>{timeline.renderGroup(detail,run.activity,run,true);timeline.renderFooter(block,run,0);
@@ -42,7 +45,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.doesNotMatch(result.stopped.footer, /已停止.*已停止/, "只复述标题的停止原因不再重复一遍");
     assert.match(result.failed.footer, /模型请求超时/, "真正的失败原因保留");
     const thinking = await page.evaluate<{ live: string; done: string; rows: string[]; preview: string; body: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const detail=document.createElement('details');detail.dataset.codingActivity='t:0';document.body.append(detail);
       const text=()=>detail.querySelector('summary').textContent.trim();
       const thought={call_id:'reasoning-2',name:'reasoning',target:'',state:'started',output:'先确认入口在哪里。\\n然后看会话校验。'};
@@ -56,7 +59,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(thinking.body, /然后看会话校验/);
     assert.deepEqual(thinking.rows, ["", ""], "思考完成不打勾，读取也没有退出码");
     const resume = await page.evaluate<Record<string, string>>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const card=(run,latest)=>{const block=document.createElement('section');document.body.append(block);timeline.renderFooter(block,{ref:{run_id:run.id},started_at:null,ended_at:null,activity:[],...run},0,latest);
         const b=block.querySelector('[data-coding-continue],[data-coding-recover-continue],[data-coding-nudge]');return (b?b.textContent.trim()+'|':'none|')+block.querySelector('header strong')?.textContent.trim()+'|'+block.querySelector('.coding-run-reason')?.textContent.trim();};
       return {
@@ -85,7 +88,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.match(resume.denied, /^从断点继续\|这一轮没有完成\|模型服务拒绝了凭据：/, "401 指向密钥");
     assert.match(resume.refused, /^从断点继续\|这一轮没有完成\|这一轮的授权已失效：.*没有发出任何内容.*\s*EFFECT_NOT_AUTHORIZED/, "发出前被拒不说成网络问题");
     const quiet = await page.evaluate<{ early: boolean; late: string; tool: boolean; heard: boolean }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const block=document.createElement('section');document.body.append(block);
       const run={ref:{run_id:'q'},phase:'running',started_at:new Date(Date.now()-90000).toISOString(),ended_at:null,activity:[{call_id:'r',name:'reasoning',state:'started',output:'想一想',at:null}],turns:[]};
       timeline.renderFooter(block,run,0,true);
@@ -113,7 +116,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     // A restart leaves an interrupted round without an end time: its duration stops at the last recorded moment, so
     // redrawing the card later changes nothing and the 核对并继续 button under the pointer is not replaced.
     const cutOff = await page.evaluate<{ facts: string; same: boolean; kept: boolean; bare: string }>(`(async()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const block=document.createElement('section');document.body.append(block);
       const run={ref:{run_id:'r'},phase:'reconcile-required',stop_reason:'运行中断',started_at:'2026-09-25T10:00:00Z',ended_at:null,
         activity:[{call_id:'e1',name:'edit',target:'src/a.ts',state:'completed',at:'2026-09-25T10:01:05Z'}],turns:[{kind:'user',text:'改',at:'2026-09-25T10:00:00Z'}]};
@@ -133,7 +136,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     // "" (it only takes path/file_path/command/pattern/query from tool args), so matching retries by target would
     // be vacuous; matching by "any later completed board-report" is what the data actually supports.
     const retry = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const detail=document.createElement('details');detail.dataset.codingActivity='r:retry';document.body.append(detail);
       const items=[
         {call_id:'br1',name:'board-report',target:'',state:'failed',output:'TASKBOARD_CONFLICT: stale version'},
@@ -147,7 +150,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.equal(retry.tone, "retry");
     assert.doesNotMatch(retry.summary, /未成功/, "重试不计入未成功,摘要里没有'项未成功'");
     const plain = await page.evaluate<{ row: string; tone: string; summary: string }>(`(()=>{
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const detail=document.createElement('details');detail.dataset.codingActivity='r:plain';document.body.append(detail);
       const items=[{call_id:'br3',name:'board-report',target:'',state:'failed',output:'some other error'}];
       timeline.renderGroup(detail,items,{ref:{run_id:'plain'},phase:'failed',activity:items},true);
@@ -167,7 +170,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
       const idle=live.querySelectorAll('[data-coding-rewind]').length;
       live.querySelector('details').open=true;
       const ended=rows.place(block,turn,{...run,phase:'completed'},true);
-      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})());
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
       const detail=document.createElement('details');document.body.append(detail);
       const items=[{call_id:'w1',name:'write',target:'config.ts',state:'failed',output:'WORKSPACE_SECRET_DETECTED: "config.ts" line 3 looks like a aws-access-key-id; nothing was proposed or written.'}];
       timeline.renderGroup(detail,items,{ref:{run_id:'s'},phase:'running',activity:items},true);
@@ -182,5 +185,31 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     assert.deepEqual(changes.rewinds, ["cp-1", "cp-2"], "once idle, each write can be rewound through the reviewed preview");
     assert.equal(changes.kept, true, "the same row is redrawn in place and stays open");
     assert.match(changes.hint, /像密钥的一段，没有写入/, "a refused secret write reads in words above its raw code");
+    // VUX-40: the same timeline through the English translator draws no Chinese: rows, summary, live line and cards.
+    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    const english = await page.evaluate<{ summary: string; rows: string[]; footer: string; failed: string; quiet: string; han: string[] }>(`(()=>{
+      const timeline=(${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(globalThis.L));
+      const block=document.createElement('section'),detail=document.createElement('details');detail.dataset.codingActivity='en:0';block.append(detail);document.body.append(block);
+      const items=[{call_id:'a',name:'run-command',target:'npm test',state:'completed',output:'exit 1\\nfail'},{call_id:'b',name:'read',target:'src/a.ts',state:'completed'},
+        {call_id:'c',name:'edit',target:'src/a.ts',state:'completed'},{call_id:'d',name:'reasoning',target:'',state:'completed',output:'Look first.'}];
+      const run={ref:{run_id:'en'},phase:'completed',started_at:new Date(Date.now()-65000).toISOString(),ended_at:new Date().toISOString(),activity:items};
+      timeline.renderGroup(detail,items,run,true);timeline.renderFooter(block,run,1,true);
+      const failed=document.createElement('section');document.body.append(failed);
+      timeline.renderFooter(failed,{ref:{run_id:'f'},phase:'failed',stop_reason:'MODEL_NETWORK_FAILED: fetch failed',started_at:null,ended_at:null,activity:[]},0,true);
+      const live=document.createElement('section');document.body.append(live);
+      timeline.renderFooter(live,{ref:{run_id:'l'},phase:'running',started_at:new Date(Date.now()-90000).toISOString(),ended_at:null,activity:[{call_id:'r',name:'reasoning',state:'started',output:'x',at:null}],turns:[]},0,true);
+      live.querySelector('.coding-run-footer').dataset.heard=String(Date.now()-35000);timeline.tick(live);
+      const text=node=>node.textContent.replace(/\\s+/g,' ').trim();
+      const han=[block,failed,live].flatMap(node=>[node,...node.querySelectorAll('*')]).flatMap(node=>[...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).concat([...node.attributes].map(attr=>attr.value))).filter(value=>/[\\u3400-\\u9fff]/.test(value));
+      return {summary:detail.querySelector('summary').textContent.trim(),rows:[...detail.querySelectorAll('.coding-tool-state')].map(node=>node.textContent.trim()),
+        footer:text(block.querySelector('.coding-run-footer')),failed:text(failed),quiet:text(live),han};
+    })()`);
+    assert.equal(english.summary, "Commands run: 1 · Files read: 1 · Files edited: 1 · Thought · 1 did not succeed");
+    assert.deepEqual(english.rows, ["exit 1", "", "", ""]);
+    assert.match(english.footer, /^This turn is done\s*Turn 2 Took 1m \d+s · Files edited: 1 · Commands run: 1 · Last: npm test → exit 1/);
+    assert.match(english.footer, /View changes\s*Commit these changes…\s*Run report/);
+    assert.match(english.failed, /This turn did not finish.*Can't reach the model service: Check the network or proxy, then continue from where it stopped\.\s*MODEL_NETWORK_FAILED/);
+    assert.match(english.quiet, /^Working\s*\d+m \d+s\s*The model has had no new output for 3\d seconds/);
+    assert.deepEqual(english.han, [], "no Chinese in the timeline's text or attributes");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

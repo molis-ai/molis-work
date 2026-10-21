@@ -1039,7 +1039,7 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-notices-held > summary { cursor: pointer; color: var(--muted); font-size: 12px; padding: 7px 2px; }
   ${ASSIST} .assistant-notices-held > .assistant-notice { margin-top: 6px; }
   ${ASSIST} .assistant-popover-title { margin: 0 0 4px; padding: 0 8px; font-size: 11px; color: var(--faint); }
-  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; }
+  ${ASSIST} .assistant-mention { display: grid; gap: 2px; text-align: left; } ${ASSIST} .assistant-mention.is-stale { opacity: .5; cursor: default; }
   ${ASSIST} .assistant-mention-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   ${ASSIST} .assistant-mention-snippet { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: var(--muted); }
   ${ASSIST} .assistant-composer[data-dropping] { outline: 2px dashed var(--accent, var(--ink)); outline-offset: 2px; }

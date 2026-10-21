@@ -17,8 +17,8 @@ import { openTestHome } from "./fixtures/test-home.js";
  * PG-043 (C4): the title bar's list of background work is gathered from the plugins that declare a `home_aggregate` query of one type,
  * not read from Coding's tables by the Host. Coding declares the query and answers it from its own store (W5-01-CODING-32, 33, 34);
  * its stop route is the one the session already had (35); the Home and the page know no plugin (36, 37, 38); asking writes nothing and
- * a cancelled ask is not made (39); a failing project is written once (40, in tests/host-log-catches.test.ts); every sentence Coding
- * says has its English (41).
+ * a cancelled ask is not made (39); a failing project is written once (49, in tests/host-log-catches.test.ts); every sentence Coding
+ * says has its English (50).
  */
 
 const CODING_ID = "io.molis.work.coding";
@@ -40,7 +40,7 @@ test("W5-01-CODING-32 Coding declares its background tasks as a read-only projec
   assert.doesNotMatch(source("apps/local-host/src/web-catalog.ts"), /listCodingBackgroundSessions|holdsCodingSessions|codingBackgroundTasks|coding-background-tasks/);
 });
 
-test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in every open project, newest first, through Coding's own query; the stop route (CODING-35) and the English (CODING-41) follow from the rows", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in every open project, newest first, through Coding's own query; the stop route (CODING-35) and the English (CODING-50) follow from the rows", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t);
   const alpha = await home.createProject("Alpha", ["coding"]), beta = await home.createProject("Beta", ["coding"]), unopened = await home.createProject("Unopened", ["coding"]);
   const without = await home.createProject("Without Coding");
@@ -110,7 +110,7 @@ test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in
     assert.match(command.stop_url.slice(`/projects/${command.project}/api/plugins/${CODING_ID}`.length), /^\/sessions\/[^/]+\/background\/[^/]+\/stop$/, "a path the Manifest's route takes");
   }
 
-  // W5-01-CODING-41: the page translates each sentence by the words Coding sent, so each one has an English entry.
+  // W5-01-CODING-50: the page translates each sentence by the words Coding sent, so each one has an English entry.
   for (const text of new Set(rows.flatMap(row => row.standing.map(phrase => phrase.text)))) assert.ok(EN[text] && EN[text] !== text, `English for "${text}"`);
 });
 

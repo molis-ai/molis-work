@@ -80,7 +80,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     if(!runId)ports.closeReport();
     if(runId!==nextRun){comments=[];runId=nextRun;try{const saved=JSON.parse(localStorage.getItem(key()) || '[]');if(Array.isArray(saved))comments=saved;}catch{}}
     index=nextIndex;fixed=requireFixed;value=null;reader.hidden=false;
-    q('[data-coding-change-save]').disabled=true;q('[data-coding-feedback-return]').disabled=true;
+    q('[data-coding-change-save]').disabled=true;q('[data-coding-feedback-return]').disabled=true;q('[data-coding-change-patch]').disabled=true;
     message.textContent=save?'正在保存原审查的固定版本…':'正在读取本轮审查…';
     try{
       const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index+'&net='+mode+'&layout='+layout+(requireFixed?'&fixed=1':''),save?'POST':'GET');
@@ -89,6 +89,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       renderFiles(result.change.files,nextRun);
       if(net){const body=q('[data-coding-change-body]'),whole=q('[data-coding-change-files] .is-net[aria-pressed=true]');
         whole?.append(counts({added_lines:body.querySelectorAll('.diff-rows li[data-kind=insert],.diff-split code[data-kind=insert]').length,removed_lines:body.querySelectorAll('.diff-rows li[data-kind=delete],.diff-split code[data-kind=delete]').length}));}
+      q('[data-coding-change-patch]').disabled=!result.patch;
       const fixedChip=q('[data-coding-change-fixed]'),saveButton=q('[data-coding-change-save]');
       fixedChip.hidden=!result.reference;saveButton.hidden=Boolean(result.reference);saveButton.disabled=Boolean(result.reference);
       if(result.reference){fixedChip.lastElementChild.textContent='已固定 v'+result.reference.version;fixedChip.title='固定于 '+new Date(result.saved_at).toLocaleString('zh-CN');}
@@ -101,6 +102,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   };
   lifetime.listen(root,'click',async(event)=>{
     const target=event.target.closest('button');if(!target)return;
+    if(target.hasAttribute('data-coding-change-patch') && reader.contains(target)){const patch=value?.patch;if(patch)window.molisCopy?.(target,()=>patch,{done:'已复制补丁',failed:'复制失败'});return;}
     if(target.hasAttribute('data-diff-unfold') && reader.contains(target)){
       opened.add(target.dataset.diffUnfold);unfold(target.closest('ol'),target.dataset.diffUnfold);return;
     }

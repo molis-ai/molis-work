@@ -91,6 +91,32 @@ test("只有待决定的条目才给动作按钮：已决定的不能换个入�
   }
 });
 
+test("W5-01-CODING-48 a round's proposal from any plugin offers the feedback field, and a Host operation with no round does not", () => {
+  const feedback = /data-agent-review-feedback/;
+  const documents: AgentReviewRow["request"]["document"][] = [
+    row().request.document,
+    { kind: "command", command: "npm", args: ["test"], cwd: ".", timeout_ms: 30000, escalate: false },
+    { kind: "tool-operation", tool: "dispatch-subagent", summary: "派出一个子任务", fields: [] },
+    { kind: "mcp", server: "docs", tool: "search", arguments_json: "{}" },
+  ];
+  for (const plugin_id of ["io.molis.work.coding", "io.example.reviewer"]) {
+    for (const document of documents) {
+      const proposal = row();
+      proposal.request = { ...proposal.request, plugin_id, kind: document.kind, document };
+      assert.match(renderAgentReviewSurface({ rows: [proposal], primitives: p }), feedback, `${plugin_id} ${document.kind}`);
+      const settled = row({ receipt: receipt({ status: "rejected" }) });
+      settled.request = proposal.request;
+      assert.doesNotMatch(renderAgentReviewSurface({ rows: [settled], primitives: p }), feedback, "a decided one offers nothing");
+    }
+    // A Git or worktree operation a plugin started has no round to return a comment to.
+    const hostOperation = row();
+    hostOperation.request = { ...hostOperation.request, plugin_id, run: null, kind: "tool-operation",
+      operation: { operation_id: "op-1", workspace_id: "main", kind: "git-worktree" },
+      document: { kind: "tool-operation", tool: "git-worktree-create", summary: "创建独立工作树", fields: [] } };
+    assert.doesNotMatch(renderAgentReviewSurface({ rows: [hostOperation], primitives: p }), feedback, plugin_id);
+  }
+});
+
 test("待审内容里的标记被转义", () => {
   const nasty = row();
   nasty.request.document = {

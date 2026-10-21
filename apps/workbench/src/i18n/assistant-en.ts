@@ -375,6 +375,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "暂时只能读取文本文件、PDF 和图片": "Only text files, PDFs and images can be read for now",
   "文件太大，请只带需要的部分": "File too large; bring only the part you need",
   "读不了这个文件": "Can't read this file",
+  "读取中": "Reading",
   "查看实际发生了什么": "See what actually happened",
   "已发生": "happened",
   "失败，没有发生": "failed, did not happen",

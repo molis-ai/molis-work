@@ -1,6 +1,6 @@
 # 项目资料
 
-项目里所有 Agent 共用的资料目录与读取：经系统搜索找到资料，向资料所属插件读原文，按分节或位置一段段读，在几份资料里逐行查找。一律用调用者自己的授权；本服务不保存正文，卡片只是指路。需求与分期见 [specs/project-knowledge/spec.md](../../specs/project-knowledge/spec.md)。
+项目里所有 Agent 共用的资料目录与读取：经系统搜索找到资料，向资料所属插件读原文，按分节或位置一段段读，在几份资料里逐行查找。一律用调用者自己的授权；本服务不保存正文，卡片只是指路。需求与分期见 [specs/archive/project-knowledge/spec.md](../../specs/archive/project-knowledge/spec.md)。
 
 包名：`@molis-ai/molis-work-service-knowledge`。工作区内部包，通过仓库构建和 Host 装配使用。
 
@@ -38,7 +38,7 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
   - 逐行查找只认字面文字，不接受正则，一次最多 20 份资料，每行最多 400 字。
   - 不保存任何正文或读取结果。
 - 改动后必跑：`node scripts/run-tests.mjs tests/knowledge-service.test.ts tests/security-invariants-knowledge.test.ts`
-- 相关手册：[specs/project-knowledge/spec.md](../../specs/project-knowledge/spec.md)、[docs/horizontal/knowledge.md](../../docs/horizontal/knowledge.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+- 相关手册：[specs/archive/project-knowledge/spec.md](../../specs/archive/project-knowledge/spec.md)、[docs/horizontal/knowledge.md](../../docs/horizontal/knowledge.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读
 

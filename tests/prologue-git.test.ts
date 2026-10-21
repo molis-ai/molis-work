@@ -5,12 +5,15 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 
+/** The installation asking, as the Host passes it (PG-009): here one that holds its kind throughout. */
+const held = { plugin_id: "io.molis.work.git", install_id: "fixture", holds: () => true };
+
 test("worktree creation with a missing dispatch receipt remains unknown after restart and cannot be retried as an index operation", async () => {
   const root=await mkdtemp(path.join(tmpdir(),"worktree-uncertain-"));let queue=new AgentReviewQueue(),calls=0;
   const make=()=>createPrologueNodeAdapter({app:{appId:"molis.worktree.unknown",appVersion:"1.0.0"},storageRoot:path.join(root,"sdk"),reviewQueue:queue,modelConfiguration:async()=>{throw new Error("no model for directory preparation");}});
   let adapter=await make();
   const intent={project_id:"b",workspace_id:"w",operation_id:"worktree-unknown",operation_kind:"git-worktree" as const,document:{kind:"tool-operation" as const,tool:"git-worktree-create",summary:"prepare",fields:[{label:"directory",value:root}]}};
-  const execution={check:async()=>{},execute:async()=>{calls++;await writeFile(path.join(root,"created"),"created once");throw Object.assign(new Error("lost receipt"),{code:"EFFECT_RECONCILE_REQUIRED"});}};
+  const execution={authority:held,check:async()=>{},execute:async()=>{calls++;await writeFile(path.join(root,"created"),"created once");throw Object.assign(new Error("lost receipt"),{code:"EFFECT_RECONCILE_REQUIRED"});}};
   try {
     const request=await adapter.gitReviews!.prepare(intent,execution);
     await queue.respond({review_id:request.review_id,decision:"approve",actor_id:"test"});
@@ -36,17 +39,17 @@ test("Git uses the SDK's durable effect receipt and blocks redispatch after an u
       files: [{ path: "note", before_text: "before", after_text: "after", before_mode: "100644" as const, after_mode: "100644" as const }] } };
   try {
     await start();
-    const request = await adapter.gitReviews!.prepare(intent, { check: async () => {}, execute: async () => {
+    const request = await adapter.gitReviews!.prepare(intent, { authority: held, check: async () => {}, execute: async () => {
       calls++; await writeFile(target, String(calls)); throw Object.assign(new Error("receipt unavailable after dispatch"), { code: "EFFECT_RECONCILE_REQUIRED" });
     } });
-    const duplicate = await adapter.gitReviews!.prepare(intent, { check: async () => {}, execute: async () => { calls++; } });
+    const duplicate = await adapter.gitReviews!.prepare(intent, { authority: held, check: async () => {}, execute: async () => { calls++; } });
     assert.equal(duplicate.review_id, request.review_id); assert.equal(calls, 0);
-    await assert.rejects(adapter.gitReviews!.prepare({ ...intent, document: { ...intent.document, action: "unstage" } }, { check: async () => {}, execute: async () => {} }), /另一份/);
+    await assert.rejects(adapter.gitReviews!.prepare({ ...intent, document: { ...intent.document, action: "unstage" } }, { authority: held, check: async () => {}, execute: async () => {} }), /另一份/);
     const result = await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" });
     assert.equal(result.effect_settled, false); assert.ok(result.effect_uncertain); assert.equal(await readFile(target, "utf8"), "1");
     await adapter.close(); await start(); await queue.refresh("board");
     assert.ok(queue.receipt(request.review_id)?.effect_uncertain);
-    await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: "second-operation" }, { check: async () => {}, execute: async () => { calls++; } }), /结果未知/);
+    await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: "second-operation" }, { authority: held, check: async () => {}, execute: async () => { calls++; } }), /结果未知/);
     await assert.rejects(queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" }));
     assert.equal(calls, 1); assert.equal(await readFile(target, "utf8"), "1");
   } finally { await adapter!?.close(); await rm(root, { recursive: true, force: true }); }
@@ -77,7 +80,7 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     const prepared = await prepareGitIndex({ workspace_id: 'workspace', path: ['note'], action: 'stage', revision: diff.revision }, async () => grants);
     const intent = { project_id: 'board', workspace_id: 'workspace', operation_id: 'unknown-operation', document: { kind: 'git-index' as const, action: 'stage' as const, workspace_name: 'fixture', files: prepared.files } };
     await start();
-    const request = await adapter.gitReviews!.prepare(intent, { check: prepared.check, execute: async () => {
+    const request = await adapter.gitReviews!.prepare(intent, { authority: held, check: prepared.check, execute: async () => {
       calls++; if (applied) await prepared.execute();
       throw Object.assign(new Error('lost original dispatch receipt'), { code: 'EFFECT_RECONCILE_REQUIRED' });
     } });
@@ -93,7 +96,7 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
     const input = { review_id: id, action: 'not-happened' as const, actor_id: 'tester', revision: initial.observation!.revision, reason: 'The fixture interrupted the execution before the index writer was called.' };
     if (applied) {
       await assert.rejects(queue.recover(input, observe), /不支持确认/);
-      await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: 'next-operation' }, prepared), /结果未知/);
+      await assert.rejects(adapter.gitReviews!.prepare({ ...intent, operation_id: 'next-operation' }, { ...prepared, authority: held }), /结果未知/);
       assert.equal((await git('show', ':note')).stdout, '\uFEFFafter🙂\r\n');
       assert.ok(queue.receipt(id)?.effect_uncertain); assert.equal(queue.receipt(id)?.reconciliation, undefined);
     } else {
@@ -123,8 +126,8 @@ for (const applied of [false, true]) test(`Git recovery ${applied ? 'retains unc
       await assert.rejects(queue.respond({ review_id: id, decision: 'approve', actor_id: 'tester' }));
       await adapter.close(); await start(); await queue.refresh('board');
       assert.deepEqual(queue.receipt(id), resolved.receipt, 'SDK outcome and Host provenance survive restart');
-      assert.equal((await adapter.gitReviews!.prepare(intent, prepared)).review_id, id);
-      const next = await adapter.gitReviews!.prepare({ ...intent, operation_id: 'new-operation' }, { check: async () => {}, execute: async () => { calls++; } });
+      assert.equal((await adapter.gitReviews!.prepare(intent, { ...prepared, authority: held })).review_id, id);
+      const next = await adapter.gitReviews!.prepare({ ...intent, operation_id: 'new-operation' }, { authority: held, check: async () => {}, execute: async () => { calls++; } });
       await queue.respond({ review_id: next.review_id, decision: 'reject', actor_id: 'tester' });
       assert.equal(calls, 1); assert.equal((await git('show', ':note')).stdout, 'base\n');
     }
@@ -140,7 +143,7 @@ test("integration with an uncertain write retains its original review and blocks
   const intent = { project_id: "b", workspace_id: "w", operation_id: "integration-original", operation_kind: "git-integration" as const,
     document: { kind: "git-integration" as const, target_directory: root, source: { session_id: "s", run_id: "r", subagent_id: "child", branch: "branch", base_commit: "base", directory: root + "/child" },
       files: [{ path: "created", before_text: null, after_text: "once", before_mode: null, after_mode: "100644" as const }] } };
-  const execution = { check: async () => {}, execute: async () => { calls++; await writeFile(path.join(root, "created"), "once"); throw Object.assign(new Error("write result uncertain"), { code: "EFFECT_RECONCILE_REQUIRED" }); } };
+  const execution = { authority: held, check: async () => {}, execute: async () => { calls++; await writeFile(path.join(root, "created"), "once"); throw Object.assign(new Error("write result uncertain"), { code: "EFFECT_RECONCILE_REQUIRED" }); } };
   try {
     const original = await adapter.gitReviews!.prepare(intent, execution);
     await queue.respond({ review_id: original.review_id, decision: "approve", actor_id: "user" });
@@ -165,7 +168,7 @@ test("after a restart, review refreshes bring earlier Git operations back once a
     for (const operation_id of ["operation-one", "operation-two", "operation-three"]) {
       const request = await adapter.gitReviews!.prepare({ project_id: "board", workspace_id: "workspace", operation_id,
         document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [{ path: operation_id, before_text: "a", after_text: "b", before_mode: "100644", after_mode: "100644" }] } },
-        { check: async () => {}, execute: async () => {} });
+        { authority: held, check: async () => {}, execute: async () => {} });
       await queue.respond({ review_id: request.review_id, decision: "approve", actor_id: "tester" });
     }
     await adapter.close(); queue = new AgentReviewQueue(); adapter = await make();

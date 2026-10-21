@@ -1,5 +1,7 @@
 # 项目资料：平台通用的资产管理、导入与召回
 
+> 归档（2026-10-21）：判定为**部分实现**。依据：K0–K4、召回评测与 #839 已合入 main；PMAT-22 由用户 10-19 判定达标。剩余事项已移到统一待办清单：BL-396（PMAT-23 的测试）、BL-397（旧 .doc/.xls/.ppt）、BL-398（下载中途停止）、BL-399（向量召回与 L2 前缀，见 [vector-recall-todo.md](vector-recall-todo.md)）。
+
 状态：执行中（2026-10-19）。用户看过 spec 说「行，开始吧」：§12 的五项按推荐采纳；K0、K0b、K1、K2 已在分支 `docs/project-materials` 本地提交，K3（存量接入）与 K4（工具式检索）也已本地提交；召回评测（§10.1）跑了两轮（第二轮换成与产品无关的资料，答对 30/40），第二轮查出的两项已修（PMAT-32 全项目 grep 查长资料后半部、PMAT-33「本轮情况」写明资料份数）并复测，结果在 §14 末三节；用户 10-19 判定 PMAT-22 达标（按复测的结论：剩下的是模型能力）。用户 10-19 又定了检索第二期（§6.4，K5：宽松召回、每轮的资料目录、工具常驻、按问题选节），已提交，第三轮评测见 §14；之后按评测加了短编号 ref（PMAT-39）与 grep 接着找（PMAT-40），第五轮 38/40，剩下的错是模型能力。全部已推送，开 PR 交统筹（10-19）。之后用户要求复查代码、界面与策略，四项按推荐定（§2 末四行），修复与验证见 §14「代码与界面复查」（PMAT-41–46）。用户随后要导入读更多文件（§2 末两行）：Office、OpenDocument、RTF、EPUB 经开源的 officeparser 转成 Markdown，图片与扫描 PDF 识别文字、音视频转写用 Host 已有的 macOS 组件，见 §14「导入读更多格式」（PMAT-47）；导入处就地同意下载语音模型见 §14「导入时同意下载语音模型」（PMAT-48）。用户 10-19 定：向量召回拆到 [后续待办](vector-recall-todo.md)，这一期聚焦 Agent 的工具式检索（参考 Claude Code、Codex 的 agentic search 与 PageIndex，§6、§7），进度见 §14。本文是这件事唯一的需求、进度与证据记录。
 
 ## 1. 要解决的事
@@ -8,7 +10,7 @@
 
 | 位置 | 做什么 | 问题 |
 | --- | --- | --- |
-| Coding「＋ 材料」（[`materials.ts`](../../plugins/native/coding/src/materials.ts)） | 每轮最多手选 30 份固定版本交给 Coding 的 Agent | 按类型逐个硬编码解析 Shelf 材料、Files 快照与选区、Git 差异，还核对生产者插件 id；助理和其他插件的 Agent 用不上 |
+| Coding「＋ 材料」（[`materials.ts`](../../../plugins/native/coding/src/materials.ts)） | 每轮最多手选 30 份固定版本交给 Coding 的 Agent | 按类型逐个硬编码解析 Shelf 材料、Files 快照与选区、Git 差异，还核对生产者插件 id；助理和其他插件的 Agent 用不上 |
 | Shelf「保存到项目材料」 | 发布 `shelf.text-material.v1`，默认只连 Coding 的 materials 输入 | 文案说「Coding 和助理能读取」，实际只连了 Coding |
 | Artifacts「导入文档」 | Notion、飞书、Google Docs、本地文件存为 `io.molis.work.document` | PDF、DOCX 只存原件、不读正文；导入后的内容 Agent 只能靠人引用 |
 | 系统搜索 `search.query` 与助理的「@」 | 插件声明搜索来源，人手动 @ 一条结果，Host 读出正文 | 只有关键字；只有人能挑，Agent 自己不能按需去找 |

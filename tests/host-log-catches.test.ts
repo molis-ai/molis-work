@@ -47,7 +47,7 @@ test("W5-13-05 an owner's failed preview is written by its type; \"you may not r
   ]);
 });
 
-test("W5-13-06 W5-01-CODING-40 the Home's background list: a project where the plugin is off lists nothing quietly; one whose answer cannot be read is written once until it reads again", async t => {
+test("W5-13-06 W5-01-CODING-49 the Home's background list: a project where the plugin is off lists nothing quietly; one whose answer cannot be read is written once until it reads again", async t => {
   const empty = { source: { surface: "example" }, tasks: [] };
   const plugin = backgroundPlugin(() => empty);
   const rig = await backgroundRig(t, plugin, ["Fine", "Off", "Broken"], { off: ["Off"] });

@@ -2,7 +2,7 @@
 
 用自然语言描述想要的插件，由 Agent 设计方案、编写后端代码与测试，Local Host 做类型检查、打包并在 [plugin-sandbox](../../../packages/plugin-sandbox/README.md) 里试跑（`apps/local-host/src/plugin-builder/build-checks.ts`）后才安装；前端由平台渲染器按规格板零件渲染，插件没有自己的前端代码。路线见 [agent-built-plugins](../../../specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md)。
 
-创作台只画在工作台的主区里（`?openPlugin=plugin-builder`），没有自己的整页，也不嵌框架（[artifact-positioning](../../../specs/artifact-positioning/spec.md) S4）。客户端是插件包的 `AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT`，接口在 `/api/plugin-builder/studio/*`（`apps/local-host/src/plugin-builder/agent-surface.ts`）。生成的插件安装后在工作台打开，身份为 `io.molis.work.generated.<id>`，每个插件有独立安装身份和数据。先配置模型并关联工作区。
+创作台只画在工作台的主区里（`?openPlugin=plugin-builder`），没有自己的整页，也不嵌框架（[artifact-positioning](../../../specs/archive/artifact-positioning/spec.md) S4）。客户端是插件包的 `AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT`，接口在 `/api/plugin-builder/studio/*`（`apps/local-host/src/plugin-builder/agent-surface.ts`）。生成的插件安装后在工作台打开，身份为 `io.molis.work.generated.<id>`，每个插件有独立安装身份和数据。先配置模型并关联工作区。
 
 旧的「设计数据 + 固定解释器 v1」创作台（独立页面 `/projects/<project>/plugin-builder`、`builder.builds.*` 动作、灵感库示例）已随 S1b 删除，不留兼容；旧路线的设计与验收留在 [specs/archive/plugin-builder](../../../specs/archive/plugin-builder/)。
 

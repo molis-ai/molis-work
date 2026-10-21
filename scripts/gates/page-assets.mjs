@@ -235,11 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience slice 37 (VUX-40): the Coding settings script knows its method library has loaded by a mark the
-// Host puts on the loading line, not by the line being Chinese (+46 B in workbench.js, under the user's #17 rule that small,
-// necessary growth passes once). Delete it in the next change to this gate.
+// specs/visual-ui-experience slice 41 (VUX-40): the TaskBoard, plan and plan progress panels speak English through stable
+// keys, which are longer than the short Chinese labels they replace (+1458 B in coding.js); the plan card's "added by you"
+// badge reads its translated label from an attribute instead of a Chinese CSS string (+11 B in each stylesheet that carries
+// Coding's styles). Small, necessary growth passes once under the user's #17 rule. Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1168002, 1168048],
+  "/assets/molis-work-plugins/coding.js": [370645, 372103],
+  "/assets/molis-work-settings.css": [992910, 992921],
+  "/assets/molis-work-workbench.css": [1609496, 1609507],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

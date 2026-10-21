@@ -7,6 +7,7 @@ import { setColumnWidth } from "./table-edit.js";
 import { pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 import type { Translate, PagesEditorMountOptions } from "./editor-types.js";
 import { t, dsIcon } from "./editor-view-ui.js";
+import { SIZE_KEYS } from "./editor-size-keys.js";
 
 
 export function columnNodeView(node: Node, view: EditorView, getPos: () => number | undefined, translate?: Translate) {
@@ -19,6 +20,7 @@ export function columnNodeView(node: Node, view: EditorView, getPos: () => numbe
   handle.type = "button";
   handle.className = "pages-column-resize";
   handle.setAttribute("aria-label", t(translate, "调整栏宽"));
+  handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const paint = () => {
     dom.dataset.pagesColumnShare = String(safePagesColumnShare(current.attrs.width));
   };
@@ -83,6 +85,7 @@ export function cellNodeView(node: Node, view: EditorView, getPos: () => number 
   handle.type = "button";
   handle.className = "pages-col-resize";
   handle.setAttribute("aria-label", t(translate, "调整列宽"));
+  handle.setAttribute("aria-keyshortcuts", SIZE_KEYS);
   const paint = () => {
     const width = safePagesColumnWidth(current.attrs.colwidth);
     if (width) {

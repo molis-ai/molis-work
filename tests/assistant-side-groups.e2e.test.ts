@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantBackgroundJob, AssistantUndoable, AssistantUnsettledChange } from "@molis-ai/molis-work-contracts/services/assistant";
-import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openWork, putInput, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // specs/visual-ui-experience VUX-08, VUX-22: the Assistant's side groups what a work made, changed and still runs elsewhere
 // into one disclosure each. A real work on a real Host; its change and job rows, which only an owner's undoable action or
@@ -125,4 +125,50 @@ test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working obje
   assert.doesNotMatch(groups[0]![1], /周报草稿/);
   assert.match(groups[1]![1], /周报草稿/);
   assert.equal(await evaluate<string>(`${results}.querySelector('.assistant-block-badge').textContent`), "2", "the summary still counts everything made");
+});
+
+// VUX-08/09 「上下文显示待发送/本次实际使用/历史引用」: what the next Send carries, what the latest round used and what earlier
+// rounds used are three places, never one list. The two rounds' materials and the work's material objects are added to the
+// view the page reads, in the contract's shape; the pending one is put in as a page hands one over. The Host records an
+// object's relation before the round starts (the Send links it, then dispatches), and a second use keeps the first record,
+// so an object is placed by the rounds whose materials name it, not by its time.
+test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used and what earlier rounds used apart", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const id = await seedWork(browser, "整理本周数据");
+  const early = "2026-10-19T08:00:00.000Z", late = "2026-10-19T09:00:00.000Z";
+  await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
+    const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
+    const view = await response.json(), round = view.rounds[0];
+    const page = (id, title) => ({ material_id: "m-" + id, kind: "object", title, explicit: true, object: { kind: "pages_document", id } });
+    view.rounds = [{ ...round, run_id: "r-early", started_at: ${JSON.stringify(early)}, materials: [{ material_id: "m-old", kind: "text", title: "旧会议纪要", explicit: true }, page("p-old", "上周周报"), page("p-both", "项目说明")] },
+      { ...round, run_id: "r-late", started_at: ${JSON.stringify(late)}, materials: [{ material_id: "m-new", kind: "file", title: "本周数据.csv", explicit: true }, page("p-new", "本周计划"), page("p-both", "项目说明")],
+        context: { ...(round.context || {}), source: { surface: "pages" }, captured_at: ${JSON.stringify(late)}, selection: { text: "第三季度  收入", truncated: false } } }];
+    view.objects = [...(view.objects || []).filter((o) => o.relation !== "material"),
+      { relation: "material", subject: { kind: "pages_document", id: "p-old" }, title: "上周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-both" }, title: "项目说明", recorded_revision: "2", current_revision: "2", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-new" }, title: "本周计划", recorded_revision: "4", current_revision: "4", state: "current", recorded_at: "2026-10-19T08:59:59.000Z" }];
+    return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
+  }; })()`);
+  await openWork(browser, id);
+  const box = `document.querySelector('[data-assistant-block="materials"]')`;
+  await waitFor(`${box}?.hidden === false && ${box}.textContent.includes('本周计划')`, 15_000);
+  await putInput(browser, "接着整理", "补充说明");
+  await waitFor(`${box}.querySelector('.assistant-drop').textContent.includes('补充说明')`);
+  const read = await evaluate<{ title: string; pending: string; groups: Array<[string, string]>; badge: string }>(`(() => ({
+    title: ${box}.querySelector('.assistant-block-title').textContent,
+    pending: ${box}.querySelector('.assistant-drop').textContent,
+    groups: [...${box}.querySelectorAll('.assistant-group')].map((g) => [g.querySelector('.assistant-block-sub').textContent, g.querySelector('.assistant-tiles').textContent]),
+    badge: ${box}.querySelector('.assistant-block-badge').textContent }))()`);
+  assert.equal(read.title, "上下文");
+  assert.match(read.pending, /待发送/);
+  assert.doesNotMatch(read.pending, /本周数据|本周计划|旧会议纪要|上周周报/, "nothing already used is shown as waiting");
+  assert.deepEqual(read.groups.map(([label]) => label), ["本次使用", "历史引用"]);
+  assert.match(read.groups[0]![1], /本周计划/); assert.match(read.groups[0]![1], /本周数据\.csv/); assert.match(read.groups[0]![1], /选中的内容：第三季度 收入/, "what the round saw of the page is part of what it used");
+  assert.match(read.groups[0]![1], /项目说明/, "used in both rounds, it is under the latest");
+  assert.doesNotMatch(read.groups[0]![1], /上周周报|旧会议纪要/);
+  assert.doesNotMatch(read.groups[1]![1], /项目说明/, "each object once");
+  assert.match(read.groups[1]![1], /上周周报.*第 1 轮/, "an object an earlier round used says which round"); assert.match(read.groups[1]![1], /旧会议纪要.*第 1 轮|第 1 轮.*旧会议纪要/);
+  assert.equal(read.badge, "1 项待发送", "what waits is the summary while nothing changed");
 });

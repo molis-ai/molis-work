@@ -906,12 +906,13 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintSave();
     rowsEl.querySelectorAll("[data-todo-row]").forEach((row) => row.classList.toggle("is-selected", row.dataset.todoRow === item.id));
   };
+  let detailTicket = 0; // Only the latest opening paints: picking another item, or closing, before it answers keeps what came last.
   const openDetail = async (id, keepEdits) => {
+    const ticket = ++detailTicket;
     const [payload, pool] = await Promise.all([request("GET", todoPath(id)),
       request("GET", "/items?view=all" + (everything ? "&all=1" : "")).catch(() => ({ items: [] }))]);
-    history = payload.history || [];
-    backlinks = payload.backlinks || [];
-    linkPool = pool.items || [];
+    if (ticket !== detailTicket) return;
+    history = payload.history || []; backlinks = payload.backlinks || []; linkPool = pool.items || [];
     if (selected && (dirtyKeys.size || saving)) { if (keepEdits && selected.id === id) selected = payload.item; paintSave(); return; }
     fillEditor(payload.item);
   };
@@ -932,8 +933,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!selected || !dirtyKeys.size) return;
     if (dirtyKeys.has("title") && !field("title").value.trim()) { const message = L("标题不能是空的"); detailHint(message, true); throw new Error(message); }
     const patch = patchFromEditor();
-    const sent = new Set(dirtyKeys);
-    dirtyKeys = new Set();
+    const sent = new Set(dirtyKeys); dirtyKeys = new Set();
     const target = selected;
     const run = async () => {
       try {
@@ -942,8 +942,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (!selected || selected.id !== target.id) return;
         selected = payload.item;
         heading.textContent = selected.title;
-        history = detail.history || [];
-        backlinks = detail.backlinks || [];
+        history = detail.history || []; backlinks = detail.backlinks || [];
         renderHistory();
         $("[data-todo-remind-hint]").hidden = !selected.remind_at;
         detailHint("");
@@ -966,6 +965,7 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const closeDetail = async () => {
     await flush();
+    detailTicket++;
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;

@@ -2354,3 +2354,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ② 正在合入 main 后第二次重跑（构建、门禁、39 个文件）。
   - 和 ③ 的 C1、C2 有重叠：`project-plugins.ts`、`coding-surface.ts`、`project-plugin-startup.test.ts`。已提醒 ③ 在 C1 的 PR 正文里写明。
 - **③ 的 C2 叠在 C1 的分支上开**，只用 merge。两片都改 `CodingExecutionPorts`、`start-round.ts` 和 `project-plugins.ts`，① 同意。
+- **10-21 #926（C6 平台一半）已交 ⑤**，head `db2a4ecba`。
+  - ⑤ 的评审结论是可以合，没有要改的。它改了宿主装配，属于共享核心，所以进了 batch-1021-5，全量 run 39546974778。
+  - `installed-plugin-host` 只在 macOS 上跑，那条 30 秒超时由 ⑤ 在本机拿 main（`0641e1f69`）的检出单独比对。
+  - main 上有一条由 #901 带进来的灵光用例是红的，② 已告诉 ⑤。
+- **② 下一片是 C4 的平台一半**（PG-038、PG-043），然后是 C5。

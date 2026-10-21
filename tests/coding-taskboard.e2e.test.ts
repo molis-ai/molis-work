@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
+import { pageTextScript } from "./fixtures/page-text.js";
 
 // The TaskBoard reads like the Goal list: rounds, their steps and subagents nested, each with its state, progress,
 // prerequisites, time and the Agent doing it. Rounds continuing one step graph are one task.
@@ -16,6 +17,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -74,6 +76,7 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       const board=document.querySelector('[data-coding-board]'),amended=[];
@@ -136,6 +139,7 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board hidden><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>'
         +'<section data-coding-board-outline hidden><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p><button data-coding-board-expand disabled>展开任务图</button></section>';

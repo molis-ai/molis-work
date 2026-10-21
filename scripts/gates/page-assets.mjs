@@ -235,21 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience slice 37 (VUX-40): the Coding settings script knows its method library has loaded by a mark the
-// Host puts on the loading line, not by the line being Chinese (+46 B in workbench.js, under the user's #17 rule that small,
-// necessary growth passes once). Delete it in the next change to this gate.
+// specs/visual-ui-experience slice 41 (VUX-40): the TaskBoard, plan and plan progress panels speak English through stable
+// keys, which are longer than the short Chinese labels they replace (+1458 B in coding.js); the plan card's "added by you"
+// badge reads its translated label from an attribute instead of a Chinese CSS string (+11 B in each stylesheet that carries
+// Coding's styles). Small, necessary growth passes once under the user's #17 rule. Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [702945, 704315],
+  "/assets/molis-work-plugins/coding.js": [368392, 369754],
+  "/assets/molis-work-settings.css": [994276, 994287],
+  "/assets/molis-work-workbench.css": [1610842, 1610853],
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   "/assets/molis-work-arrival.css": [702945, 704315],
-  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  // #923: Coding's main browser script speaks English.
-  "/assets/molis-work-workbench.js": [1168048, 1176182],
-  // #922: Coding's server-drawn page and settings speak through stable keys.
-  "/assets/molis-work-arrival.css": [702900, 704315],
-  "/assets/molis-work-settings.css": [992861, 994276],
-  "/assets/molis-work-workbench.css": [1609427, 1610842],
-  "/assets/molis-work-workbench.js": [1176136, 1176182],
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

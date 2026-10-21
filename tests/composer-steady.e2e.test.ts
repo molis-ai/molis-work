@@ -5,7 +5,7 @@ import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 
-// specs/visual-ui-experience §composer-mentions (VUX-16): the box and its main action stay where they are while a round
+// specs/visual-ui-experience §composer-mentions (VUX-16): a composer's box and its main action stay where they are while a round
 // starts, runs and ends. The round's settings (way of working, model) give way first, shortened and read whole on hover,
 // so pause, stop and send sit together on the right and the bar does not wrap onto a second line when they appear; a
 // narrow composer has its settings on their own row, idle or running alike.
@@ -115,4 +115,29 @@ test("VUX-16: the Assistant's box and send stay put as a file is added and a rou
   await waitFor("document.body.textContent.includes('这一段写完了')", 60_000);
   const ended = await place();
   assert.deepEqual([running.input, running.send, ended.input, ended.send], [idle.input, idle.send, idle.input, idle.send], "through the round the box and send stay where they were");
+});
+
+test("VUX-16: the discussion's send stays at the composer's corner when the status beside it speaks", { timeout: 120_000 }, async (t) => {
+  // The field's growth here needs the shared field-fit program on the IM page, which #919 brings (the #894 review).
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await waitFor("document.querySelector('[data-side-toggle]')");
+  await click("[data-side-toggle]");
+  await waitFor("document.querySelector('[data-side-tab=\"discussion\"]')?.checkVisibility()");
+  await click("[data-side-tab=\"discussion\"]");
+  const im = "document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument";
+  await waitFor(`${im}?.querySelector('[data-name-form] input')`, 30_000);
+  await evaluate(`(() => { const form = ${im}.querySelector('[data-name-form]'); form.querySelector('input').value = '读者'; form.requestSubmit(); })()`);
+  await waitFor(`${im}?.querySelector('[data-conversations]')?.hidden === false && ${im}.querySelector('#im-group-input')`, 30_000);
+  type Place = { send: number[]; field: number[]; form: number[]; outside: boolean };
+  const place = () => evaluate<Place>(`(() => { const doc = ${im}, form = doc.querySelector('[data-composer="group"]'), box = (node) => { const b = node.getBoundingClientRect(); return [b.x, b.y, b.width, b.height].map(Math.round); };
+    const f = form.getBoundingClientRect(), s = doc.querySelector('[data-composer="group"] .im-send').getBoundingClientRect();
+    return { send: box(doc.querySelector('[data-composer="group"] .im-send')), field: box(doc.querySelector('#im-group-input')), form: box(form), outside: s.right > f.right + 0.5 || s.bottom > f.bottom + 0.5 }; })()`);
+  const quiet = await place();
+  // The status line speaks beside the send; the send does not move for it.
+  await evaluate(`(() => { const status = ${im}.querySelector('[data-compose-status="group"]'); status.textContent = '这条消息还没有发出去，网络恢复后会再试一次'; status.classList.add('is-error'); })()`);
+  const spoken = await place();
+  assert.deepEqual([spoken.send, spoken.field, spoken.outside], [quiet.send, quiet.field, false], "a long status beside it does not move the field or the send, or push the send out");
 });

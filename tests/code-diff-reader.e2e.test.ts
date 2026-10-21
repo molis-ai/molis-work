@@ -4,13 +4,14 @@ import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-w
 import { mkdir, writeFile } from "node:fs/promises";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { pageText } from "./fixtures/page-text.js";
 
 // specs/visual-ui-experience VUX-33: code and its changes keep one row geometry. In Coding's change reader, five-digit line
 // numbers sit in the same columns as the code beside them, stay put while a long line scrolls under them and are left out of
 // a copy; 并排 is a real two-column view whose halves stay level and wrap; switching keeps the line being read where it was.
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-const primitives = { escape, icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
+const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
 
 /** One write to `big.ts`: 10,040 lines, two changed near line 10,010 (one of them far wider than the reader), one added. */
 function bigWrite() {

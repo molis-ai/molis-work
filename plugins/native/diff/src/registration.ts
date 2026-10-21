@@ -1,5 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "./index.js";
+import { DIFF_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,6 +8,7 @@ import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "./index.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25,
+  messages: DIFF_MESSAGES,
   manifest: diffManifest,
   workbench: { order: 23, contributions: [], clientFrom: "coding" },
   summary: "比较固定版本，逐项阅读差异。",

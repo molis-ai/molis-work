@@ -707,6 +707,32 @@ for (const [asset, old] of [
   // The text-wrap allowances (#900, VUX-04) are spent.
   ["/assets/molis-work-workbench.js", 1158399], ["/assets/molis-work-workbench.css", 1607761], ["/assets/molis-work-settings.css", 991786],
   ["/assets/molis-work-arrival.css", 702081],
+  // The roving-focus allowance (#902, VUX-28) is spent.
+  ["/assets/molis-work-workbench.js", 1158426],
+  // The layers allowance (#904, VUX-29) is spent.
+  ["/assets/molis-work-workbench.js", 1161486],
+  // The tooltip allowances (#906, VUX-05) are spent.
+  ["/assets/molis-work-workbench.js", 1161761], ["/assets/molis-work-workbench.css", 1607833], ["/assets/molis-work-settings.css", 991858],
+  ["/assets/molis-work-arrival.css", 702153],
+  // The hover-action allowances (#907, VUX-06) are spent.
+  ["/assets/molis-work-workbench.js", 1162964], ["/assets/molis-work-workbench.css", 1607967], ["/assets/molis-work-settings.css", 991992],
+  ["/assets/molis-work-arrival.css", 702287],
+  // The sizing-keys allowance (#908, VUX-06) is spent.
+  ["/assets/molis-work-pages-editor.js", 707306],
+  // The size-announcement allowances (#910, VUX-06) are spent.
+  ["/assets/molis-work-pages-editor.js", 708886], ["/assets/molis-work-workbench.js", 1163017],
+  // The narrow-container allowances (#911, VUX-30) are spent.
+  ["/assets/molis-work-workbench.css", 1608756], ["/assets/molis-work-settings.css", 992244], ["/assets/molis-work-workbench.js", 1163042],
+  // The drop-zone allowances (#912, VUX-18) are spent.
+  ["/assets/molis-work-workbench.js", 1163079], ["/assets/molis-work-plugins/shelf.js", 75771],
+  // The attachment-chip allowances (#913, VUX-16, VUX-18) are spent.
+  ["/assets/molis-work-workbench.js", 1163656], ["/assets/molis-work-workbench.css", 1608984], ["/assets/molis-work-settings.css", 992398], ["/assets/molis-work-arrival.css", 702433],
+  // The patch-copy allowance (#914, VUX-33) is spent.
+  ["/assets/molis-work-plugins/coding.js", 373159],
+  // The @-list allowances (#915, VUX-17) are spent.
+  ["/assets/molis-work-workbench.js", 1167224], ["/assets/molis-work-workbench.css", 1609383], ["/assets/molis-work-settings.css", 992797], ["/assets/molis-work-arrival.css", 702832],
+  // The no-accumulation allowance (#918, VUX-36) is spent.
+  ["/assets/molis-work-workbench.js", 1167962],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

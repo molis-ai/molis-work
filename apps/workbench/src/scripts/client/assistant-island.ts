@@ -5,6 +5,7 @@ import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
+import { ASSISTANT_MENTION_FACTORY_SCRIPT } from "./assistant-mention.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
 import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT, ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT } from "./assistant-side-context.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -1766,52 +1767,20 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!starters.length && !rows.length && !methods.length) startPop.append(el("p", "assistant-material-origin", L("没有匹配的能力；换个词，或直接说要做什么")));
   }
   function closeSlash() { if (startPop && startPop.dataset.mode === "slash") { delete startPop.dataset.mode; startPop.hidden = true; } }
-  /* “@”: find something in this project or the person's own content through the system search and bring it along.
-     A hit is only a pointer: the Host checks it with its owner and reads it before the round. */
-  const mentionOpen = () => startPop && !startPop.hidden && startPop.dataset.mode === "mention";
-  const mentionAt = () => {
-    const before = String(input.value || "").slice(0, input.selectionStart ?? String(input.value || "").length);
-    const match = /(^|\s)@([^\s@]{0,40})$/.exec(before);
-    return match ? { query: match[2], start: before.length - match[2].length - 1 } : null;
-  };
-  let mentionSeq = 0, mentionTimer = null;
-  function closeMention() { clearTimeout(mentionTimer); if (startPop && startPop.dataset.mode === "mention") { delete startPop.dataset.mode; startPop.hidden = true; } }
-  function setMention(found) {
-    if (!startPop) return;
-    clearTimeout(mentionTimer);
-    startPop.dataset.mode = "mention";
-    startPop.hidden = false;
-    const head = el("p", "assistant-popover-title", L("引用内容"));
-    if (!found.query) { startPop.replaceChildren(head, el("p", "assistant-material-origin", L("输入关键词，从本项目和你个人的内容里找"))); return; }
-    const seq = ++mentionSeq;
-    mentionTimer = setTimeout(async () => {
-      let res;
-      try {
-        res=await molisWorkRequest(host.route("/api/search/query"),{body:{query:found.query,scope:"all",limit:8},fallback:L("搜索暂时不可用，请稍后重试")});
-      } catch (error) { if (seq === mentionSeq && mentionOpen()) { const note=el("p","assistant-material-origin");molisWorkRequest.show(note,error);startPop.replaceChildren(head,note); } return; }
-      if (seq !== mentionSeq || !mentionOpen()) return;
-      startPop.replaceChildren(head);
-      (res.hits || []).forEach((hit) => {
-        const btnEl = el("button", "assistant-starter assistant-mention", ""); btnEl.type = "button";
-        btnEl.append(el("span", "assistant-mention-title", hit.plugin_title + " · " + hit.title), el("span", "assistant-mention-snippet", hit.snippet || ""));
-        btnEl.setAttribute("aria-label", L("引用") + "：" + hit.plugin_title + " · " + hit.title);
-        btnEl.addEventListener("mousedown", (event) => event.preventDefault());
-        btnEl.addEventListener("click", () => {
-          const at = mentionAt() || found;
-          const value = String(input.value || "");
-          input.value = value.slice(0, at.start) + "「" + hit.title + "」" + value.slice(at.start + 1 + at.query.length);
-          if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
-            files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
-              object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
-              text: hit.snippet || "" });
-          }
-          typed = true; syncSend(); saveDraft(false); closeMention(); paintMats(); input.focus();
-        });
-        startPop.append(btnEl);
-      });
-      if (!(res.hits || []).length) startPop.append(el("p", "assistant-material-origin", res.status === "indexing" ? L("内容还在建立索引，稍后再试") : L("没有找到；换个词试试")));
-    }, 180);
-  }
+  /* “@”: the system search's hits, brought along as references (assistant-mention.ts). */
+  const mention = (${ASSISTANT_MENTION_FACTORY_SCRIPT})({ L, el, pop: startPop, field: input,
+    search: (query) => molisWorkRequest(host.route("/api/search/query"), { body: { query, scope: "all", limit: 8 }, fallback: L("搜索暂时不可用，请稍后重试") }),
+    pick: (hit) => {
+      if (!files.some((file) => file.reference && file.object && file.object.kind === hit.subject.kind && file.object.id === hit.subject.id)) {
+        files.push({ material_id: "ref-" + crypto.randomUUID(), kind: "object", title: hit.title, explicit: true, reference: { hit_id: hit.hit_id },
+          object: { kind: hit.subject.kind, id: hit.subject.id, title: hit.title }, source: { surface: (hit.open && hit.open.surface) || hit.plugin_id, plugin_id: hit.plugin_id, title: hit.plugin_title },
+          text: hit.snippet || "" });
+      }
+      typed = true; syncSend(); saveDraft(false); paintMats();
+    } });
+  const mentionOpen = mention.isOpen, mentionAt = mention.at;
+  function closeMention() { mention.close(); }
+  function setMention(found) { mention.open(found); }
   function closeStarts() { if (startPop) { delete startPop.dataset.mode; startPop.hidden = true; } }
   input.addEventListener("blur", () => setTimeout(() => { if (!island.contains(document.activeElement) || document.activeElement === input) return; closeStarts(); }, 0));
   // What opens from the island, and the button focus returns to.

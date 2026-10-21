@@ -235,18 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience slice 41 (VUX-40): the TaskBoard, plan and plan progress panels speak English through stable
-// keys, which are longer than the short Chinese labels they replace (+1458 B in coding.js); the plan card's "added by you"
-// badge reads its translated label from an attribute instead of a Chinese CSS string (+11 B in each stylesheet that carries
-// Coding's styles). Small, necessary growth passes once under the user's #17 rule. Delete it in the next change to this gate.
+// specs/visual-ui-experience slice 42 (VUX-40): cooperation, the subagent cards and results, and the usage meter speak
+// English through stable keys, which are longer than the short Chinese labels they replace (+733 B in coding.js). Small,
+// necessary growth passes once under the user's #17 rule. Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-arrival.css": [702945, 704315],
-  "/assets/molis-work-plugins/coding.js": [368392, 369754],
-  "/assets/molis-work-settings.css": [994276, 994287],
-  "/assets/molis-work-workbench.css": [1610842, 1610853],
-  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
+  "/assets/molis-work-plugins/coding.js": [369754, 370911],
   "/assets/molis-work-arrival.css": [702945, 704315],
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
+  "/assets/molis-work-settings.css": [992921, 994287],
+  "/assets/molis-work-workbench.css": [1609507, 1610853],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

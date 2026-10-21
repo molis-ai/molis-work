@@ -32,7 +32,7 @@
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 272,
-    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 168,
+    "function apps/local-host/src/web-goals-read.ts#createLocalGoalsReadHttp": 167,
     "function apps/local-host/src/web-project-settings.ts#createLocalProjectSettingsHttp": 153,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 194,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 191,
@@ -185,7 +185,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1590,
+    "file plugins/native/coding/src/client.ts": 1583,
     "file plugins/native/coding/src/styles.ts": 805,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,

@@ -236,8 +236,14 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
-// deleted in the next change to this gate (none is open now).
-const APPROVED_CEILINGS = {};
+// deleted in the next change to this gate.
+const APPROVED_CEILINGS = {
+  // specs/visual-ui-experience VUX-33 (slice 48): a streamed code block coloured from its last line — the growth function and
+  // the hunk-aware diff reading carried as source, and the block's grow step. Measured 19.5 → 3.7 ms per update on 1,000 lines.
+  "/assets/molis-work-plugins/coding.js": [372329, 375625],
+  // The same slice: the Assistant's code figure grows in place and keeps a fold the person opened.
+  "/assets/molis-work-workbench.js": [1168510, 1170057],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

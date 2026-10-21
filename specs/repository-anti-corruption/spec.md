@@ -660,7 +660,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 
 ### W5-01 Characters 搬逻辑进 Module（CHR-0，2026-10-21，③；分支 `migrate/characters-chr0`）
 
-状态：本地完成，待 ⑤ 评审（未推、未开 PR）。这是 Characters 迁到宿主的第一片（计划见迁移线笔记 `characters-into-module-plan.md` §12）：只搬逻辑，不换装配；第二片（CHR-1）才换宿主登记提供方、删插件包。片内的工作名是 CHR-0、CHR-1；验收编号照 `specs/README.md`「验收编号」一份 spec 一个前缀，接着本 spec 的 RAC 往下排。
+状态：本地完成，待 ⑤ 评审（未推、未开 PR；已合入 origin/main `63ee40cc7`）。这是 Characters 迁到宿主的第一片（计划见迁移线笔记 `characters-into-module-plan.md` §12）：只搬逻辑，不换装配；第二片（CHR-1）才换宿主登记提供方、删插件包。片内的工作名是 CHR-0、CHR-1；验收编号照 `specs/README.md`「验收编号」一份 spec 一个前缀，接着本 spec 的 RAC 往下排。
 
 - **搬了什么**：处理器逻辑进 `modules/characters`：`createCharactersActionHandlers(ports, runtime)` 返回每个 Characters 动作的纯函数（`action-handlers.ts`）；已发布角色的筛选、锁定、「能不能跑」的判断在 `publications.ts`，内置 Agent 能力目录的检查在 `agent-actions.ts`，用到处的统计在 `usages.ts`，成果库详情的 Markdown 在 `artifact-preview.ts`；非界面的预览与导入逻辑（`import-preview.ts`、`imports.ts`）整份从插件搬来。
 - **边界发现与做法**：插件不能 import Module（`PLUGIN_MODULE_IMPORT_ALLOWLIST` 只许减少），所以不让插件依赖 `modules/characters`。宿主 `characters-host.ts` 用宿主的端口建好处理器，经插件现有的端口类型 `CharactersPluginPorts` 交给插件，端口的内容从「数据端口」换成 `handlers(runtime)`。只有运行中的插件才有的东西（项目号、成果库客户端、内置 Agent 目录）由插件在 `start` 里作为 `runtime` 递给处理器。插件的 `start` 只剩用 `bindOwnerPluginAction` 逐个绑定，Manifest、`actions.ts` 定义、14 条路由不动。
@@ -675,6 +675,15 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **RAC-67**：同样的内容再次发布返回已有版本（`replayed`，不写成果）；内容变了写下一版并带 `supersedes_version`；过期修订不发布。`tests/characters-action-handlers.test.ts`。
 - **RAC-68**：对外合同不变：`pnpm actions:update` 对 `tooling/gates/actions/` 零差异，19 个 `characters.*@1` 的提供方仍是 `io.molis.work.characters`，`tests/action-contract-snapshot.test.ts` 通过。`tests/characters-action-handlers.test.ts`（快照里的 id、版本、提供方与动作定义一致）。
 - **RAC-69**：Characters 浏览器客户端无空 catch、无直接 `fetch`、无 `*_SCRIPT` 常量，经 `molisWorkRequest` 请求；`/assets/molis-work-plugins/characters.js` 不涨。`tests/characters-action-handlers.test.ts`、`tests/characters-publication-http.test.ts`、`pnpm page-assets:check`。
+
+#### 证据（2026-10-21，合并 origin/main `63ee40cc7` 之后）
+- 构建：`pnpm build`、`pnpm workspace:build` 通过。
+- 测试：`tests/characters-action-handlers.test.ts`（新，7 项，RAC-63～69）与 Characters 相关、动作合同与成果声明门禁共 12 个文件通过（`characters-actions`、`characters-module`、`characters-import`、`characters-schema`、`characters-native-execution`、`characters-publication-http`、`security-invariants-plugin-original-caller` 17 项含 S-18、`action-contract-snapshot` 25 项、`artifact-type-gate`、`artifact-declaration-gate`、`builtin-plugin-assembly-gate`）；读文档的 `health-gates-structure`、`health-gates-store-versions`、`package-inventory-gate`、`package-owners`、`shelf-owner-files`、`plugin-registry-generation` 通过。合并前对 `affected-tests` 建议的 101 个非浏览器文件跑过一遍：98 个通过；失败的 3 个里 `security-invariants-plugin-original-caller` 是本片改测试时留下的重复声明，已改并重跑通过，另 2 个与本片无关：`npm-package` 在这台机器上 `spawn npm ENOENT`（PATH 里没有 npm），`shelf-jelly-cognia-images-error-model` 因 cognia 的 `directory_unavailable` 错误码（#901 加入，已在 HEAD，本片没动 cognia 的源码或测试）；没有为它们另建基线工作树对比，依据是静态的（`git log`、`git grep`）。浏览器用例（`affected-tests` 列的 2 个）按本机约定未跑，留给 CI。没有跑全量。
+- 动作合同快照：`pnpm actions:update` 对 `tooling/gates/actions/` 零差异；`pnpm api:update` 无变化（Module 不在公开 API 快照里）。
+- 页面资源：`characters.js` 30250 → 29988 字节（-262），`page-assets --update --base origin/main` 已写入。
+- `pnpm boundary:check`：72 个包、`errors: []`，没有向 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 或任何名单加条目。`pnpm secrets:check` 通过。
+- `check-health-gates.mjs --base origin/main` 通过，数字对 merge-base：巨大单元 126 → 124（`createCharactersPlugin`、`start` 两个函数）；浏览器脚本里的空 catch 128 → 127；`*_SCRIPT` 文本常量 127 → 126（改名，见上，不是脚本已变成 TypeScript）；直接 `fetch` 63 → 61；插件在自己包外被点名的文件 `characters#outside-files` 11 → 10（总数 367 → 366）；`as unknown as` 177 → 176。其余数字不变；`--update --base origin/main` 已刷新本地快查。
+- 没验证：真实浏览器里角色页的点击与导入流程、真实 Home、其他机器；原生 CLI 执行没有重跑（`characters-native-execution` 用的是测试替身）。
 
 ## 0. 现场与范围
 

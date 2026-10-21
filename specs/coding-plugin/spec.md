@@ -2773,7 +2773,7 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 4. **W5-01-CODING-43** 发起时持有、宿主准备审查途中被停止，同上：不发布审查。
 5. **W5-01-CODING-44** 审查已在等，发起的安装停止（再启动也一样）或被撤权后，人批准得 `agent.review_not_permitted`；审查仍在等，人能拒绝；不建目录、不授权目录。
 6. **W5-01-CODING-45** 人没批准之前不执行：等待中的审查没有可用的批准（`agent.review_not_approved`），拒绝后也不执行；持有的安装经人批准，同一条路径真的建出工作树并授权目录。
-7. **W5-01-CODING-46** 整合入口按调用者认会话：会话主人是同一插件的另一份安装，读和准备都以「不属于发起整合的这份插件安装」拒绝；另一个持有 `review:git-integration` 并声明消费整合动作的插件，在 Coding 的会话上读和准备都被拒绝，且不出审查；没有插件发起的调用（`client.invoke`）得 `host.plugin_caller_invalid`；别的项目仍以「不属于」拒绝。Coding 自己的安装读、准备、拒绝、改动后失效的提案和批准整合照旧。测试：`tests/writer-integration-host.test.ts`（真实的 Coding 会话、子任务与 Git 工作树）。
+7. **W5-01-CODING-46** 整合入口按调用者认会话：会话主人是同一插件的另一份安装，读和准备都以「不属于发起整合的这份插件安装」拒绝；另一个持有 `review:git-integration` 并声明消费整合动作的插件，在 Coding 的会话上读和准备都被拒绝，且不出审查；没有插件发起的调用（`client.invoke`）得 `host.plugin_caller_invalid`；别的项目仍以「不属于」拒绝。Coding 自己的安装读、准备、拒绝、改动后失效的提案和批准整合照旧。测试两处，断言相同的三种拒绝：`tests/security-invariants-review-kinds.test.ts`（S-50，CI 里跑：用宿主里一个记在别人名下的会话，不需要仓库和子任务，因为三种拒绝都发生在读取任何一轮执行之前，并以主人自己的安装得到下一道检查（此轮执行不属于原会话）作对照）；`tests/writer-integration-host.test.ts`（端到端，只在本机跑：真实的 Coding 会话、子任务与 Git 工作树）。
 8. **W5-01-CODING-47** Git 的 Manifest 里 `review:` 权限恰好是 `review:git-index`、`review:git-operation`，Coding 的恰好是 `review:git-worktree`、`review:git-integration`，都是必需并带理由；合起来正好是平台列出的四种，且都能通过 Manifest 解析。测试：`tests/security-invariants-review-kinds.test.ts`。
 9. **W5-01-CODING-48** 审查卡片对任何插件的轮次内提案（文件修改、命令、派出、MCP 调用）给出「修改意见」框，已决定的不给；没有轮次的宿主操作不给。测试：`tests/agent-review-surface.test.ts`（不开浏览器，直接渲染工作台的审查面）。
 

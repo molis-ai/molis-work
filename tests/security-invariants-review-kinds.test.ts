@@ -4,9 +4,10 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { randomUUID } from "node:crypto";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { writerDirectoryCapabilities, writerIntegrationCapabilities as integration } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { gitManifest } from "@molis-ai/molis-work-plugin-git";
@@ -58,8 +59,17 @@ async function openHost(t: TestContext) {
     runtime: plugins.runtime,
     reviews: composition.agentHost.reviews,
     authorized,
-    start(name: string, permissions: PluginManifest["permissions"], grants: string[]) {
-      return plugins.start(pluginId(name), permissions, grants, [writerDirectoryCapabilities.prepare.capability_id]);
+    start(name: string, permissions: PluginManifest["permissions"], grants: string[], consumes: readonly string[] = [writerDirectoryCapabilities.prepare.capability_id]) {
+      return plugins.start(pluginId(name), permissions, grants, consumes);
+    },
+    /** What `name`'s current session calls the Host with, as its SDK does. */
+    asPlugin: (name: string) => plugins.capabilities(pluginId(name)),
+    /** A call into the project that no plugin made: it carries no plugin caller. */
+    noPlugin: host.client(reference),
+    /** A session in the project's workspace, recorded as owned by `owner`; the model is never asked. */
+    async session(owner: { project_id: string; plugin_id: string; install_id: string; actor_id: string }) {
+      await composition.ready;
+      return composition.agentHost.adapter("prologue").createSession({ ...owner, directory: { canonical_path: repo, realpath_verified: true }, title: "owned session" });
     },
     prepare(name: string, operation_id: string) {
       return plugins.capabilities(pluginId(name)).invoke(writerDirectoryCapabilities.prepare, { workspace_id: "main", operation_id });
@@ -102,6 +112,38 @@ test("S-50 PG-009 Git declares exactly review:git-index and review:git-operation
   assert.deepEqual([...git, ...coding].map(declared => declared.permission.slice("review:".length)).sort(), [...PLUGIN_REVIEW_KINDS].sort());
   parsePluginManifest(gitManifest);
   parsePluginManifest(codingManifest);
+});
+
+test("S-50 PG-009 W5-01-CODING-46 the integration entry refuses a session another installation or another plugin owns, and a call no plugin made", { timeout: 60_000 }, async t => {
+  // The entry (read and prepare) answers for whose session this is before it reads any run, so no repository or child task is needed:
+  // it is the plugin and the installation the Host recorded as the session's owner that may integrate it, never a plugin's name.
+  const integrate: PluginManifest["permissions"] = [{ permission: "review:git-integration", required: true, reason: "Brings a child's result back once a person approves" }];
+  const consumes = [integration.read.capability_id, integration.prepare.capability_id];
+  const host = await openHost(t);
+  try {
+    const install_id = await host.start("integrator", integrate, ["review:git-integration"], consumes);
+    await host.start("neighbour", integrate, ["review:git-integration"], consumes);
+    const owner = { project_id: "project", plugin_id: pluginId("integrator"), actor_id: "user" };
+    const mine = await host.session({ ...owner, install_id });
+    const another = await host.session({ ...owner, install_id: "another-installation-of-integrator" });
+    // Each call is started only when it is awaited, so a refusal is never left waiting for its handler.
+    const asks = (caller: ReturnType<typeof host.asPlugin> | typeof host.noPlugin, session_id: string) => {
+      const source = { session_id, run_id: "no-such-run", subagent_id: "no-such-child" };
+      return [() => caller.invoke(integration.read, source), () => caller.invoke(integration.prepare, { ...source, files: [{ path: "note.txt", revision: "fixture" }], operation_id: randomUUID() })];
+    };
+    const notYours = /不属于发起整合的这份插件安装/;
+    // The control: the installation that owns the session gets past the owner check, so it is the next check (the run) that stops it.
+    for (const ask of asks(host.asPlugin("integrator"), mine.session_id)) await assert.rejects(ask(), /此轮执行不属于原会话/);
+    // (a) Another installation of the same plugin: the session records the installation that opened it.
+    for (const ask of asks(host.asPlugin("integrator"), another.session_id)) await assert.rejects(ask(), notYours);
+    // (b) Another plugin that was declared and granted review:git-integration too: holding the kind is not owning the session.
+    for (const ask of asks(host.asPlugin("neighbour"), mine.session_id)) await assert.rejects(ask(), notYours);
+    // (c) A call into the project that no plugin made has no caller to compare with.
+    for (const ask of asks(host.noPlugin, mine.session_id)) await assert.rejects(ask(), { code: "host.plugin_caller_invalid" });
+    assert.deepEqual(host.reviews.list("project"), [], "none of those refusals left a review");
+  } finally {
+    await host.close();
+  }
 });
 
 test("S-50 PG-009 an installation that did not declare, was not granted or stopped holding review:git-worktree cannot start one: no review appears and no worktree is made", { timeout: 60_000 }, async t => {

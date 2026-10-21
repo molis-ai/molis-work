@@ -25,7 +25,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
   let adapter = await makeAdapter();
   const base = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined };
   const ports = { ...base, observeGitOperations: (listener: Parameters<typeof observeGitOperations>[2]) => observeGitOperations(queue, DEMO_PROJECT_ID, listener),
-    escapeHtml: String, translate: (value: string) => value };
+    escapeHtml: String };
   const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports)
     .then(handled => { if (!handled) { response.writeHead(404); response.end(); } }).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

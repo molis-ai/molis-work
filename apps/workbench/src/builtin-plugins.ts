@@ -6,7 +6,7 @@ import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiCont
 import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION, JELLY_MESSAGES } from "@molis-ai/molis-work-plugin-jelly";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
-import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution, CODING_MESSAGES } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest, DIFF_MESSAGES } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PROJECT_PLUGIN_ID, filesManifest, FILES_MESSAGES } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest, GIT_MESSAGES } from "@molis-ai/molis-work-plugin-git";
@@ -341,6 +341,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
     instructions: CODING_INSTRUCTIONS,
     summary: "和 Agent 一起写代码，留每轮记录。",
     agent: { prompts: codingPrompts, skills: codingMethods },
+    messages: CODING_MESSAGES,
     workbench: {
       order: 20,
       contributions: [codingSettingsContribution],

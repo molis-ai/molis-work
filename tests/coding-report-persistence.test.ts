@@ -35,7 +35,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     usage: { tokens: { input: 0, output: 0 }, unavailable_reason: "未报告" }, awaiting_input: [], stop_reason: "检查失败",
   };
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    escapeHtml: (value: unknown) => String(value),
     execution: { ready: async () => {}, models: async () => [] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (!runtimeAvailable) throw new Error("runtime offline");
@@ -159,7 +159,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
   new CodingSessionStore(store.db).setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", "2026-10-17T00:00:00Z");
   const run = steerRun();
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, execution: { ready: async () => {}, models: async () => [] },
+    escapeHtml: (value: unknown) => String(value), execution: { ready: async () => {}, models: async () => [] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [run.ref] } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(run) as Output;

@@ -151,7 +151,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
   const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
-    goalTitle: () => undefined, escapeHtml: String, translate: (value: string) => value,
+    goalTitle: () => undefined, escapeHtml: String,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
   const action: ActionDefinition<{ value: number }, { doubled: number; report: { title: string; body_markdown: string; run_id: string } }> = {

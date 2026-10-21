@@ -235,8 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// No growth is admitted now (slice 36 made the Coding script 709 B lighter); the next one is written here when it is reviewed.
-const APPROVED_CEILINGS = {};
+// specs/visual-ui-experience slice 37 (VUX-40): the Coding settings script knows its method library has loaded by a mark the
+// Host puts on the loading line, not by the line being Chinese (+46 B in workbench.js, under the user's #17 rule that small,
+// necessary growth passes once). Delete it in the next change to this gate.
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-workbench.js": [1168002, 1168048],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

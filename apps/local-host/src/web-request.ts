@@ -149,7 +149,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
   const codingServices = projectCodingServices(context);
   const pluginPorts: CodingSurfacePorts = { ...codingServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
-    actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value), translate: (value) => value };
+    actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value) };
   const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, codingServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }

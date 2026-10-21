@@ -42,7 +42,7 @@ test("a round told to wait for another session's work waits on it, starts on its
       return { session: structuredClone(one) }; } },
   ] });
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    escapeHtml: (value: unknown) => String(value),
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const id = definition.capability_id, input = args as unknown as any[];

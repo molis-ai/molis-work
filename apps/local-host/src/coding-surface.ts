@@ -85,7 +85,6 @@ import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-eve
 export interface CodingSurfacePorts extends ProjectPluginPorts {
   routeCaller?(): Promise<ActionCallContext>;
   escapeHtml(value: unknown): string;
-  translate(value: string): string;
 }
 
 export { releaseProjectPlugins as releaseCodingSurface } from "./project-plugins.js";
@@ -134,7 +133,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
-        text: ports.translate,
+        text: L,
         formatDate: (value) => value.slice(0, 10),
       },
     };
@@ -340,7 +339,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     const report = reportBody.report;
     Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
       body_html: renderFeedRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
-        icon: name => icon(name as Parameters<typeof icon>[0]), text: value => value, formatDate: value => value },
+        icon: name => icon(name as Parameters<typeof icon>[0]), text: L, formatDate: value => value },
     }) });
   }
 }

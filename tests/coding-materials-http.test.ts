@@ -51,7 +51,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
   };
   const starts: AgentStartRequest[] = []; let created = 0;
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user", goalTitle: () => undefined,
-    escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
+    escapeHtml: (value: unknown) => String(value),
     execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;

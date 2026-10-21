@@ -35,7 +35,6 @@ function ports(store: LocalProjectDatabase, goalTitle: (id: string) => string | 
     actorId: "web-user",
     goalTitle,
     escapeHtml,
-    translate: (value: string) => value,
   };
 }
 

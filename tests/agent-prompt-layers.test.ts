@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pageText } from "./fixtures/page-text.js";
 
 import {
   AGENT_PROMPT_LAYERS,
@@ -204,7 +205,7 @@ test("这一轮不能调工具时，说出来而不是画一个空列表", () =>
     primitives: {
       escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
       icon: (name) => `<i data-icon="${name}"></i>`,
-      text: (value) => value,
+      text: pageText("zh"),
       formatDate: (value) => value,
     },
   });
@@ -230,7 +231,7 @@ test("身份面是只读的：渲染出来不含任何控件", () => {
     primitives: {
       escape: (value) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;"),
       icon: (name) => `<i data-icon="${name}"></i>`,
-      text: (value) => value,
+      text: pageText("zh"),
       formatDate: (value) => value,
     },
   });

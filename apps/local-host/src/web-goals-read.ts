@@ -133,7 +133,6 @@ export function createLocalGoalsReadHttp(ports: {
             actorId: LOCAL_PERSON_ACTOR_ID,
             goalTitle: (goalId: string) => coordinator?.goalQueries.getGoal(options.projectId, goalId)?.title,
             escapeHtml,
-            translate: (value: string) => value,
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };

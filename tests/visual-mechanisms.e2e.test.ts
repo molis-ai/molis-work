@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
-  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, renderCollapsible, renderToggleGroup,
+  COPY_DONE_HOLD_MS, COPY_FEEDBACK_CLIENT_SCRIPT, MICRO_INTERACTION_CLIENT_SCRIPT, MICRO_INTERACTION_STYLES, SHOW_MORE_CLIENT_SCRIPT, renderCollapsible, renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
 import type { ChromePage } from "@molis-ai/molis-work-test-kit/browser";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
@@ -26,7 +26,7 @@ async function openPage(t: test.TestContext, body: string): Promise<ChromePage |
     style.textContent = ":root{--ease-quint:cubic-bezier(.22,1,.36,1);--ease-spring:cubic-bezier(.34,1.56,.64,1);--motion-fast:130ms;--motion-normal:250ms}" + ${JSON.stringify(MICRO_INTERACTION_STYLES)} + "body{font:14px system-ui}";
     document.head.append(style);
     document.body.innerHTML = ${JSON.stringify(body)};
-    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
+    for (const code of [${JSON.stringify(MICRO_INTERACTION_CLIENT_SCRIPT)}, ${JSON.stringify(COPY_FEEDBACK_CLIENT_SCRIPT)}, ${JSON.stringify(SHOW_MORE_CLIENT_SCRIPT)}]) { const s = document.createElement("script"); s.textContent = code; document.body.append(s); }
   })()`);
   return page;
 }
@@ -74,6 +74,51 @@ test("VUX-19 copy feedback: done only after the clipboard took it, same width, r
   // The button's own content stays its idle face; a removed button is let go without errors.
   await page.evaluate(`document.getElementById("copy").remove()`);
   await sleep(100);
+});
+
+test("VUX-19 an icon-only copy button answers with a check or a cross in its own box, and its words are read out", { timeout: 60_000 }, async t => {
+  const page = await openPage(t, `<p><button id="copy" aria-label="复制" style="width:32px;height:32px;padding:0"><svg aria-hidden="true" width="16" height="16"><use href="#icon-copy"></use></svg></button></p>`);
+  if (!page) return;
+  await page.evaluate(`Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: (text) => text === "坏" ? Promise.reject(new Error("denied")) : Promise.resolve() } })`);
+  const box = () => page.evaluate<number[]>(`(() => { const r = document.getElementById("copy").getBoundingClientRect(); return [r.width, r.height]; })()`);
+  const before = await box();
+  await page.evaluate(`void window.molisCopy(document.getElementById("copy"), "正文", { done: "已复制", failed: "复制失败" })`);
+  await page.wait(`document.getElementById("copy").dataset.copy === "done"`);
+  assert.deepEqual(await page.evaluate(`[...document.querySelectorAll("#copy > [data-copy-face]")].map((n) => [n.dataset.copyFace, n.textContent.trim(), n.querySelector("use")?.getAttribute("href") ?? ""])`),
+    [["idle", "", "#icon-copy"], ["done", "", "#icon-check"], ["failed", "", "#icon-x"]], "no words inside an icon button: a check for done, a cross for failed");
+  assert.deepEqual(await box(), before, "the icon button keeps its size");
+  await page.wait(`document.querySelector("[role=status].mw-sr-only")?.textContent === "已复制"`);
+  await page.evaluate(`void window.molisCopy(document.getElementById("copy"), "坏", { done: "已复制", failed: "复制失败" })`);
+  await page.wait(`document.getElementById("copy").dataset.copy === "failed"`);
+  await page.wait(`document.querySelector("[role=status].mw-sr-only")?.textContent === "复制失败"`);
+});
+
+test("VUX-08 show more: one over the limit is shown, drawn again it keeps one button, and the press reveals and focuses by keyboard", { timeout: 60_000 }, async t => {
+  const page = await openPage(t, `<ul id="six"></ul><ul id="nine"></ul><ul id="rows"></ul><style>#rows>li{display:flex}</style>`);
+  if (!page) return;
+  const draw = (id: string, count: number) => page.evaluate(`(() => { const list = document.getElementById(${JSON.stringify(id)});
+    list.innerHTML = Array.from({ length: ${count} }, (_, i) => '<li><button type="button">第 ' + (i + 1) + ' 行</button></li>').join('');
+    window.molisShowMore(list, { key: ${JSON.stringify(id)}, label: '再显示 {n} 项' }); })()`);
+  const seen = (id: string) => page.evaluate<number>(`[...document.querySelectorAll('#${id} > li')].filter((n) => n.getClientRects().length > 0).length`);
+  await draw("six", 6);
+  assert.equal(await seen("six"), 6, "a single item over the limit is shown, not put behind a button for it");
+  assert.equal(await page.evaluate("document.querySelector('#six .mw-show-more')"), null);
+  await draw("nine", 9);
+  await page.evaluate(`window.molisShowMore(document.getElementById('nine'), { key: 'nine', label: '再显示 {n} 项' })`);
+  assert.equal(await page.evaluate<number>("document.querySelectorAll('#nine .mw-show-more').length"), 1, "called again, one button");
+  assert.equal(await seen("nine"), 5);
+  await page.evaluate("document.querySelector('#nine .mw-show-more').focus()");
+  await page.command("Input.dispatchKeyEvent", { type: "keyDown", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13, text: "\r" });
+  await page.command("Input.dispatchKeyEvent", { type: "keyUp", key: "Enter", code: "Enter", windowsVirtualKeyCode: 13 });
+  await page.wait("!document.querySelector('#nine .mw-show-more')");
+  assert.equal(await seen("nine"), 9);
+  assert.equal(await page.evaluate<string>("document.activeElement.textContent"), "第 6 行", "focus lands on the first revealed row's control");
+  await draw("nine", 9);
+  assert.equal(await seen("nine"), 9, "drawn again under the same key, it stays revealed");
+  // Rows that set their own display (a plugin's flex rows) are still tucked: the button's count and what is shown agree.
+  await draw("rows", 8);
+  assert.equal(await seen("rows"), 5, "a row's own display: flex does not bring a tucked row back");
+  assert.equal(await page.evaluate<string>("document.querySelector('#rows .mw-show-more').textContent"), "再显示 3 项");
 });
 
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {

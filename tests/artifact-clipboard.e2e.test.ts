@@ -78,12 +78,13 @@ test("migrated result reference copies exact text and handles denied clipboard p
   const copySelector = `[data-copy-value=${JSON.stringify(reference)}]`;
   await waitFor(`document.querySelector(${JSON.stringify(copySelector)})`);
   await click(copySelector);
-  await waitFor(`document.querySelector('[data-toast]')?.textContent.includes('引用已复制')`);
+  // VUX-19: the reference answers on itself, only once the clipboard took the text.
+  await waitFor(`document.querySelector(${JSON.stringify(copySelector)}).dataset.copy === 'done'`);
   assert.equal(await evaluate("navigator.clipboard.readText()"), reference);
   // No stub replaces navigator.clipboard: reject writes using the browser's real permission boundary.
   await command("Browser.setPermission", { origin, permission: { name: "clipboard-write" }, setting: "denied" });
   await click(copySelector);
-  await waitFor(`document.querySelector('[data-toast]')?.textContent.includes('无法访问剪贴板')`);
+  await waitFor(`document.querySelector(${JSON.stringify(copySelector)}).dataset.copy === 'failed' && document.querySelector('[data-toast]')?.textContent.includes('无法访问剪贴板')`);
   await command("Browser.grantPermissions", { origin, permissions: ["clipboardReadWrite", "clipboardSanitizedWrite"] });
   assert.equal(await evaluate("navigator.clipboard.readText()"), reference);
   const after = store.snapshot(DEMO_PROJECT_ID);

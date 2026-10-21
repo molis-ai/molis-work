@@ -462,16 +462,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     chatInput.value = "";
     chatInput.focus();
   };
-  const copyDispatch = async () => {
+  const copyDispatch = async (button) => {
     const items = selectedRecords().length ? selectedRecords() : (selected ? [selected] : []);
     if (!items.length) throw new Error(L("先选至少一条"));
     const text = items.map((item) => item.title + (item.body ? "\\n" + item.body : "")).join("\\n\\n");
-    try {
-      await navigator.clipboard.writeText(text);
-      showNote(L("已复制内容"), false);
-    } catch {
-      showNote(L("复制失败"), true);
-    }
+    if (!await window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") })) showNote(L("复制失败"), true);
   };
 
   // Moved or copied from the placement bar: this list changed; a spark moved away is no longer here to edit.
@@ -568,9 +563,10 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
         await openBrainstorm();
         return;
       }
-      if (event.target.closest("[data-lingguang-dispatch], [data-lingguang-dispatch-current]")) {
+      const dispatch = event.target.closest("[data-lingguang-dispatch], [data-lingguang-dispatch-current]");
+      if (dispatch) {
         await save();
-        await copyDispatch();
+        await copyDispatch(dispatch);
         return;
       }
       if (event.target.closest("[data-lingguang-back]")) {

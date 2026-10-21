@@ -192,6 +192,8 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
  }
  const $=s=>root.querySelector(s);
  const feed=$('[data-as-feed]'),input=$('[data-as-input]'),canvas=$('[data-as-canvas]'),scroll=$('[data-as-scroll]'),pluginRoot=$('[data-as-plugin]'),empty=$('[data-as-empty]');
+ // The conversation's one scroll owner (VUX-26): it follows at the end and stops when the person reads back.
+ const follow=window.molisFollow?.(feed);if(follow)lifetime.own(()=>follow.dispose());
  let state={builds:[],models:[],model:null,components:[],selectionAvailable:false},current=null,versions=[],preview=null,tab='build',target=null,source=null,frame=0,busy=false,notice='',openSteps=null,rendered='',seenWired=new Set(),firstPaint=true;
  let revealed=new Set(),queue=[],landing=null,picking=null,playing=false,playToken=0;
  let wiredCaps=new Set(),wires=[],wiring=null,wiringPlay=false;
@@ -289,7 +291,7 @@ export const AGENT_STUDIO_CLIENT_FACTORY_SCRIPT = String.raw`(host)=>{
   if(b?.visualResult){const v=b.visualResult;parts.push('<div class="as-card"><h3>'+L(v.structural?'宽窄屏结构检查通过':'界面结构需要修正')+'</h3><p>'+L(v.status==='reviewed'?'视觉复查已完成':'功能已验证；视觉未复查')+'</p>'+v.issues.map(issue=>'<p class="as-small">'+esc(issue)+'</p>').join('')+'</div>');}
   if(notice)parts.push('<div class="as-card as-error" role="alert"><p>'+esc(notice)+'</p></div>');
   const html=parts.join('');if(html===rendered)return;rendered=html;
-  const bottom=feed.scrollHeight-feed.scrollTop-feed.clientHeight<40;feed.innerHTML=html;if(!current)feed.scrollTop=0;else if(bottom||firstPaint)feed.scrollTop=feed.scrollHeight;firstPaint=false;
+  feed.innerHTML=html;if(!current)follow?.restore(0);else{if(firstPaint)follow?.resume();follow?.pin();}firstPaint=false;
  }
  function renderHead(){
   $('[data-as-edit-label]').hidden=!(current?.design&&current?.checks?.global?.passed);if($('[data-as-edit-label]').hidden)$('[data-as-edit-mode]').value='message';

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantStore, assistantSurroundings, repositoryName } from "@molis-ai/molis-work-app-local-host";
 
@@ -11,6 +11,10 @@ import { AssistantStore, assistantSurroundings, repositoryName } from "@molis-ai
 const view = (capability_id: string, provider: string, available = true, reason = ""): ActionView => ({ capability_id, version: 1,
   provider: { provider_id: provider, title: provider === "io.molis.coding" ? "Coding" : provider === "system.connectors" ? "连接" : provider },
   action: { title: capability_id, audiences: ["user", "agent"] }, availability: available ? { available: true } : { available: false, code: "x", reason } }) as ActionView;
+
+/** An owner's answers, carried by the person's bound client as the Coding executor's reads are. */
+const bound = (owner: { discover(): Promise<readonly ActionView[]>; invoke(reference: { capability_id: string }, input: unknown): Promise<unknown> }): BoundActionClient =>
+  ({ discover: owner.discover, invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await owner.invoke(definition, input) as Output });
 
 const mcp = (id: string, label: string, health: AgentMcpServerView["health"], tools: string[]): AgentMcpServerView => ({ id, version: 1, label, enabled: true, transport: "stdio",
   timeout_ms: 1000, credential: "none", health, tools: tools.map(tool => ({ server: id, tool, version: "1", description: "" })), resources: [] });
@@ -42,7 +46,7 @@ function owners() {
       { connection_id: "c3", display_name: "Linear", enabled: false, status: status("connected", "verified", "callable") }] }; },
   };
   const assistant = [view("todo.items.create", "Todo"), view("todo.items.read", "Todo"), view("pages.read", "Pages"), view("mail.send", "Mail", false, "邮件连接需要重新登录")];
-  const ports: Parameters<typeof assistantSurroundings>[1] = { personActions: async () => coding, homeActions: async () => home, projectTitle: async () => "发布计划",
+  const ports: Parameters<typeof assistantSurroundings>[1] = { personActions: async () => bound(coding), homeActions: async () => home, projectTitle: async () => "发布计划",
     authority: async () => ({ actions: async () => ({ discover: async () => assistant }) }) };
   return { calls, ports, fail: () => { homeFails = true; } };
 }

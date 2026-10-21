@@ -1,9 +1,9 @@
-import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionView, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkConnection, AssistantWorkGit, AssistantWorkSurroundings } from "@molis-ai/molis-work-contracts/services/assistant";
 import { workspaceReadActions, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { connectorManagementActions, type ManagedConnectorView } from "../connector-management-actions.js";
-import { CodingExecutor, type PersonActions } from "./assistant-coding.js";
+import { CodingExecutor } from "./assistant-coding.js";
 import { agentActions } from "./assistant-directory.js";
 import type { AssistantServicePorts } from "./assistant-service.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
@@ -45,7 +45,7 @@ export function assistantSurroundings(store: AssistantStore, ports: Surroundings
 
 const why = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 200);
 
-type CodingSetup = Awaited<ReturnType<CodingExecutor["setup"]>> & { actions: PersonActions };
+type CodingSetup = Awaited<ReturnType<CodingExecutor["setup"]>> & { actions: BoundActionClient };
 
 async function read(work: StoredWork, ports: SurroundingsPorts): Promise<AssistantWorkSurroundings> {
   // A Coding work's directory and its tools come from the same two reads of Coding, asked once for both groups.
@@ -55,7 +55,7 @@ async function read(work: StoredWork, ports: SurroundingsPorts): Promise<Assista
   return { environment, ...connections, tools, read_at: new Date().toISOString() };
 }
 
-async function codingSetup(sessionId: string, person: Promise<PersonActions>): Promise<CodingSetup> {
+async function codingSetup(sessionId: string, person: Promise<BoundActionClient>): Promise<CodingSetup> {
   const actions = await person;
   return { ...await new CodingExecutor(actions).setup(sessionId), actions };
 }
@@ -76,10 +76,11 @@ const available = (views: readonly ActionView[], reference: { capability_id: str
 /** owner/name of a remote's address, never its credentials or a query after it: https://user:token@host/owner/name.git and git@host:owner/name both read owner/name. */
 export const repositoryName = (url: string) => url.replace(/[?#].*$/, "").replace(/^[a-z][a-z0-9+.-]*:\/\/[^/]*\/?/i, "").replace(/^[^@/]+@[^:/]+:/, "").replace(/\.git\/?$/, "").split("/").filter(Boolean).slice(-2).join("/") || null;
 
-async function gitOf(actions: PersonActions, workspaceId: string): Promise<AssistantWorkGit | null> {
+async function gitOf(actions: BoundActionClient, workspaceId: string): Promise<AssistantWorkGit | null> {
   const view = available(await actions.discover(), workspaceReadActions.git);
   if (!view) return null;
-  const result = await actions.invoke({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, { workspace_id: workspaceId, kind: "summary" }) as WorkspaceGitResult;
+  const result = await actions.invoke({ capability_id: view.capability_id, version: view.version, operation: view.operation, action: view.action, provider_id: view.provider.provider_id },
+    { workspace_id: workspaceId, kind: "summary" }) as WorkspaceGitResult;
   if (result.outcome !== "summary") return null;
   const remote = result.remotes.find(one => one.name === "origin") ?? result.remotes[0];
   return { repository: remote ? repositoryName(remote.url) : null, branch: result.branch, ahead: result.ahead, behind: result.behind,

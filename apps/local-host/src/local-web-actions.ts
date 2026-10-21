@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -71,8 +71,9 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
 }
 
 /**
- * The action client for one request. Its calls share one authority snapshot, so a caller must not keep the client across requests
- * (in a cached handler, say): a grant given later would stay out of its snapshot until the process restarts.
+ * The person's own action client, for one request. Its calls share one authority snapshot, so a caller must not keep the client
+ * across requests (in a cached handler, or a follow-up that runs later): a grant given later would stay out of its snapshot until
+ * the process restarts. Someone acting for the person later (the Assistant's scheduled follow-up) binds a new client when it acts.
  */
 export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
   builtinPermissions: readonly string[]): BoundActionClient {
@@ -83,7 +84,11 @@ export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHo
   const current = () => context ??= localWebActionContext(host, reference, builtinPermissions).catch(error => { context = undefined; throw error; });
   return {
     discover: async () => client.discover(await current()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) =>
-      await client.invoke(await current(), definition, input) as Output,
+    // A control (whose call this is still counting, say) joins this caller's checks the way every bound client joins it: at the
+    // dispatcher's validation, its last synchronous check and each `beforeEffect` of the handler, up to the effect itself.
+    invoke: async (definition, input, control, transport) => {
+      const caller = await current();
+      return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
+    },
   };
 }

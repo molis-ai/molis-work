@@ -2468,3 +2468,5 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - U1 ① 按最好的体验定 (a)：删掉 `git.accept-run-changes` 和宿主从没给过的 `acceptable`、`selectedPath` 端口，SSOT 那半句跟着改。理由：这个命令在产品里从没能用过，接受一次 Run 的改动走 Coding 的整合审查（`review:git-integration`），只留一条路。放进 G2 做。附条件：③ 先核实整合审查确实覆盖「接受一次 Run 的改动」，没覆盖就停下回 ①。
   - U3：G3、G4 的新动作只给 plugin，不开给 mcp、agent，不触发。
   - 先后：③ 先开 GS；G0 等 #955 合入；G1 进批。C8-2、CHR-1 解开后优先做。② 的平台一半排在 PG038-P 之后，顺序是 `ui.invalidate`（Coding C6 也要用）、PG-035 类型化能力改动作的写法、X-6 宿主发起的事件。
+- **10-22 BL 号段**：⑤ 的 390–399 用完了（391 在 #819 用过、不复用，396–399 是项目资料的四行），给 ⑤ 换新段 BL-410～419。这十个号 main 历史里和开着的 PR 里都没出现过。`coding-input-receipts:78` 的竞态记为 BL-410，挂到 PG-038 的 Coding 一片（③）一起查。① 的段 400–409 里，400～402 已用，下一个空号是 403。
+- **10-22 S 编号**：S-51 归 #960（C8-1），S-52 归 #963（PG-038），S-53 归 ③ 的 GS。S 号要连着排，GS 等 #960、#963 都合入后再开 PR。

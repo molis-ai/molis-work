@@ -27,7 +27,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const oneLine=(text)=>(text||'').replace(/\\s+/g,' ').trim();
   const hue=(name)=>{let value=0;for(const char of name)value=(value*31+char.codePointAt(0))%360;return value;};
   const when=(at)=>{if(!at)return null;const date=new Date(at);if(Number.isNaN(date.getTime()))return null;const now=new Date(),pad=(n)=>String(n).padStart(2,'0');
-    const text=date.toDateString()===now.toDateString()?pad(date.getHours())+':'+pad(date.getMinutes()):L('coding.board.date',{month:date.getMonth()+1,day:date.getDate()});return {text,title:date.toLocaleString()};};
+    const text=date.toDateString()===now.toDateString()?pad(date.getHours())+':'+pad(date.getMinutes()):new Intl.DateTimeFormat(document.documentElement.lang||'zh-CN',{month:'short',day:'numeric'}).format(date);return {text,title:date.toLocaleString()};};
   // Status words and marks follow the Goal list: an icon and a short label, coloured by tone.
   const STATE={
     'not-started':[L('coding.board.state.not-started'),'waiting','idle'],ready:[L('coding.board.state.ready'),'ready','ready'],running:[L('coding.filter.running'),'running','progress'],succeeded:[L('coding.board.state.succeeded'),'done','done'],

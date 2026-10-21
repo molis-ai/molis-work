@@ -45,6 +45,10 @@ test("Coding stops hidden polling and releases every client listener before the 
   assert.equal(await evaluate("codingRequests.filter(request=>request.method==='POST'&&request.path.endsWith('/sessions')).length"), 1, "one user click creates one session after remount");
   const id = await evaluate<string>("document.querySelector('[data-coding-session]').dataset.codingSession");
   // FIX79-LIFETIME: create() already selects the detail; return through the real visible directory control.
+  // That control only exists in the narrow layout (container molis-coding ≤ 760px); the default 800px window
+  // gives a ~772px container, so pin a narrow window instead of depending on the browser's default size.
+  await command("Emulation.setDeviceMetricsOverride", { width: 720, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await waitFor("document.querySelector('[data-coding-directory-back]').getClientRects().length > 0");
   await click('[data-coding-directory-back]');
   await waitFor("codingRoot.dataset.codingDetail === 'false'");
   await click(`[data-coding-session="${id}"]`);

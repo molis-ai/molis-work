@@ -9,6 +9,7 @@ import path from "node:path";
 import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 import { writerIntegrationCapabilities as integration } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { reviewPlugins } from "./fixtures/review-plugins.js";
 const exec=promisify(execFile);
 function response(name?:string,input?:unknown){const frames=[{type:"message_start",message:{id:"f",type:"message",role:"assistant",model:"fixture",content:[],usage:{input_tokens:10,output_tokens:0}}},
  ...(name?[{type:"content_block_start",index:0,content_block:{type:"tool_use",id:"f-"+name,name,input}}]:[{type:"content_block_start",index:0,content_block:{type:"text",text:""}},{type:"content_block_delta",index:0,delta:{type:"text_delta",text:"finished"}}]),
@@ -30,12 +31,17 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
  const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"}),client=localHost.client(reference);
  const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
  let composition=make();await composition.ready;
+ // Integrating is a review only the installation holding review:git-integration asks for, through its own session (S-50); reading
+ // what would be integrated is that installation's too (W5-01-CODING-46).
+ const plugins=reviewPlugins(localHost,reference,path.join(home,"plugins.db")),coding="io.molis.work.coding",reviewer="io.molis.work.example.reviewer",integrate=[{permission:"review:git-integration",required:true,reason:"Brings a child's result back once a person approves"}] as const;
+ const install_id=await plugins.start(coding,[...integrate],["review:git-integration"],[integration.read.capability_id,integration.prepare.capability_id]);
+ const reads=plugins.capabilities(coding);
  try{
-  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:"io.molis.work.coding",install_id:"fixture",actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
+  const adapter=composition.agentHost.adapter("prologue"),owner={project_id:"board",plugin_id:coding,install_id,actor_id:"user"},directory={canonical_path:root,realpath_verified:true};
   const session=await adapter.createSession({...owner,directory,title:"integration"});
   const handle=await composition.agentHost.start("prologue",{...owner,session,directory,role_id:"writers",task:"delegate once",subagent_workspaces:[{workspace_id:"child",directory:{canonical_path:childRoot,realpath_verified:true}}]}, {manifest:codingAgentManifest,prompts:codingPrompts,authorizedDirectories:[root,childRoot]});
   const source={session_id:session.session_id,run_id:handle.ref.run_id,subagent_id:"unknown"};
-  await assert.rejects(client.invoke(integration.read,source),/父任务|子任务/);
+  await assert.rejects(reads.invoke(integration.read,source),/父任务|子任务/);
   const deadline=Date.now()+15000,decided=new Set<string>();
   while(!["completed","failed"].includes((await adapter.read(handle.ref)).phase)){
    assert.ok(Date.now()<deadline,"fixture task must complete");await composition.agentHost.reviews.refresh("board");
@@ -44,23 +50,35 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   }
   assert.equal((await adapter.read(handle.ref)).phase,parentOutcome);
   const children=await adapter.subagents!.list(handle.ref); assert.equal(children.length,1,JSON.stringify(await adapter.read(handle.ref))); source.subagent_id=children[0]!.subagent_id;
-  const view=await client.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
+  const view=await reads.invoke(integration.read,source);assert.equal(view.files[0]!.after_text,"child result\n");assert.equal(view.files[0]!.selectable,true);
   const other=localHost.client(molisWorkHostProjectReference({databasePath:path.join(home,"other.db"),projectId: "other"}));
   await assert.rejects(other.invoke(integration.read,source),/不属于/);
-  await assert.rejects(client.invoke(integration.read,{...source,subagent_id:"forged"}),/子任务/);
+  await assert.rejects(reads.invoke(integration.read,{...source,subagent_id:"forged"}),/子任务/);
   const files=view.files.map(f=>({path:f.path,revision:f.revision!}));
-  const operation_id=randomUUID(),pending=await client.invoke(integration.prepare,{...source,files,operation_id});
-  assert.equal((await client.invoke(integration.prepare,{...source,files,operation_id})).review_id,pending.review_id);
+  // W5-01-CODING-46: whose session this is decides who may integrate it, by plugin and installation together, never by a plugin's name.
+  const asked=composition.agentHost.reviews.list("board").length,refuse=/不属于发起整合的这份插件安装/;
+  const foreign=await adapter.createSession({...owner,install_id:"another-installation-of-coding",directory,title:"owned by another installation"});
+  await assert.rejects(reads.invoke(integration.read,{...source,session_id:foreign.session_id}),refuse);
+  await assert.rejects(reads.invoke(integration.prepare,{...source,session_id:foreign.session_id,files,operation_id:randomUUID()}),refuse);
+  await plugins.start(reviewer,[...integrate],["review:git-integration"],[integration.read.capability_id,integration.prepare.capability_id]);
+  const other_plugin=plugins.capabilities(reviewer);
+  await assert.rejects(other_plugin.invoke(integration.read,source),refuse);
+  await assert.rejects(other_plugin.invoke(integration.prepare,{...source,files,operation_id:randomUUID()}),refuse);
+  await assert.rejects(client.invoke(integration.read,source),{code:"host.plugin_caller_invalid"});
+  await assert.rejects(client.invoke(integration.prepare,{...source,files,operation_id:randomUUID()}),{code:"host.plugin_caller_invalid"});
+  assert.equal(composition.agentHost.reviews.list("board").length,asked,"none of those refusals left a review");
+  const operation_id=randomUUID(),pending=await plugins.capabilities(coding).invoke(integration.prepare,{...source,files,operation_id});
+  assert.equal((await plugins.capabilities(coding).invoke(integration.prepare,{...source,files,operation_id})).review_id,pending.review_id);
   await composition.agentHost.reviews.respond({review_id:pending.review_id,decision:"reject",actor_id:"user"});assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
-  const stale=await client.invoke(integration.prepare,{...source,files,operation_id:randomUUID()});await writeFile(path.join(childRoot,"note.txt"),"changed after review\n");
+  const stale=await plugins.capabilities(coding).invoke(integration.prepare,{...source,files,operation_id:randomUUID()});await writeFile(path.join(childRoot,"note.txt"),"changed after review\n");
   await composition.agentHost.reviews.respond({review_id:stale.review_id,decision:"approve",actor_id:"user"});assert.ok(composition.agentHost.reviews.receipt(stale.review_id)?.effect_error);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"base\n");
-  const refreshed=await client.invoke(integration.read,source),ready=await client.invoke(integration.prepare,{...source,files:refreshed.files.map(f=>({path:f.path,revision:f.revision!})),operation_id:randomUUID()});
+  const refreshed=await reads.invoke(integration.read,source),ready=await plugins.capabilities(coding).invoke(integration.prepare,{...source,files:refreshed.files.map(f=>({path:f.path,revision:f.revision!})),operation_id:randomUUID()});
   const index=await readFile(path.join(root,".git/index"));await composition.agentHost.reviews.respond({review_id:ready.review_id,decision:"approve",actor_id:"user"});
   assert.equal(composition.agentHost.reviews.receipt(ready.review_id)?.effect_settled,true);assert.equal(await readFile(path.join(root,"note.txt"),"utf8"),"changed after review\n");assert.deepEqual(await readFile(path.join(root,".git/index")),index);
   const receipt=composition.agentHost.reviews.receipt(ready.review_id),request=composition.agentHost.reviews.get(ready.review_id),calls=parentCalls+childCalls;
   await composition.dispose();composition=make();await composition.ready;await composition.agentHost.reviews.refresh("board");
   assert.deepEqual(composition.agentHost.reviews.receipt(ready.review_id),receipt);assert.deepEqual(composition.agentHost.reviews.get(ready.review_id),request);
   await assert.rejects(composition.agentHost.reviews.respond({review_id:ready.review_id,decision:"approve",actor_id:"user"}));assert.equal(parentCalls+childCalls,calls);
-  grants=grants.slice(0,1);await assert.rejects(client.invoke(integration.read,source),/授权/);
- }finally{await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
+  grants=grants.slice(0,1);await assert.rejects(reads.invoke(integration.read,source),/授权/);
+ }finally{await plugins.close();await composition.dispose();await localHost.close();await rm(home,{recursive:true,force:true});}
 });

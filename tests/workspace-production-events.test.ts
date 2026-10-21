@@ -42,7 +42,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
     let filesRevision = await revision(FILES), gitRevision = await revision(GIT);
     const prepare = async (id: string, outcome: "succeeded" | "failed" | "unknown", board = DEMO_PROJECT_ID) => adapter.gitReviews!.prepare({ project_id: board, workspace_id: id, operation_id: id,
       document: { kind: "git-index", action: "stage", workspace_name: "fixture", files: [{ path: "note", before_text: "before", after_text: "after", before_mode: "100644", after_mode: "100644" }] } },
-      { check: async () => {}, execute: async () => {
+      { authority: { plugin_id: "io.molis.work.git", install_id: "fixture", holds: () => true }, check: async () => {}, execute: async () => {
         await writeFile(join(root, id), "executed once");
         if (outcome !== "succeeded") throw Object.assign(new Error(outcome), outcome === "unknown" ? { code: "EFFECT_RECONCILE_REQUIRED" } : {});
       } });

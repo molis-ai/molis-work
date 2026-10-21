@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { compareRunChangeSet, renderDiff } from "@molis-ai/molis-work-plugin-diff";
+import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-diff";
 import { mkdir, writeFile } from "node:fs/promises";
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
@@ -20,7 +20,8 @@ function bigWrite() {
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-big", applied: true, files: [{ path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, diff: "",
     review: { review_id: "review-big", before_text: before.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  return (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  const html = (mode: "unified" | "split") => renderDiff({ view: { ...view, mode }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
+  return { html, patch: unifiedPatch(view.rows, { path: "big.ts" }) };
 }
 
 test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a real side-by-side view, and the reading place across the switch", { timeout: 120_000 }, async t => {
@@ -29,10 +30,10 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   const evidence = reviewEvidenceUrl("code-diff/"); await mkdir(evidence, { recursive: true });
   const shot = async (name: string) => writeFile(new URL(name, evidence), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   const session = await start("看一个很长的文件的改动");
-  const run = `/sessions/${encodeURIComponent(session)}/runs/run-big/changeset?`, html = bigWrite();
+  const run = `/sessions/${encodeURIComponent(session)}/runs/run-big/changeset?`, { html, patch } = bigWrite();
   const file = { path: "big.ts", kind: "modified", added_lines: 3, removed_lines: 2, review: { decision: "approved", execution: "applied" } };
   const body = (mode: "unified" | "split") => ({ html: html(mode), change: { files: [file] }, reference: { artifact_id: "artifact-big", version: 1 },
-    saved_at: "2026-10-20T00:00:00.000Z", view_mode: "write", net_groups: [], output: null });
+    saved_at: "2026-10-20T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch });
   // The reader asks for its layout by name; a request that names neither is answered with nothing, so the test sees it fail.
   await evaluate(`fakes.push({method:'GET',path:'layout=split',body:${JSON.stringify(body("split"))}},{method:'GET',path:'layout=unified',body:${JSON.stringify(body("unified"))}})`);
   const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
@@ -101,4 +102,14 @@ test("VUX-33: the change reader keeps one row geometry for five-digit numbers, a
   await waitFor(`${list} && !${list}.classList.contains('diff-split')`, 15_000);
   assert.ok(Math.abs((await evaluate<number>(place("after", 10_012)))! - 40) <= 2, "switching back keeps the place too");
   assert.equal(await evaluate("localStorage.getItem('molis-coding-diff-layout')"), "unified");
+
+  // 复制补丁 copies the patch the reader was given, whole, and says so on the button; a refused clipboard says that instead.
+  const copyPatch = `${reader}.querySelector('[data-coding-change-patch]')`;
+  assert.equal(await evaluate(`${copyPatch}.disabled`), false, "a change on show has a patch to copy");
+  await evaluate(`(() => { window.copied = []; navigator.clipboard.writeText = (text) => { copied.push(text); return Promise.resolve(); }; ${copyPatch}.click(); })()`);
+  await waitFor(`copied.length === 1 && ${copyPatch}.textContent.includes('已复制补丁')`, 5_000);
+  assert.equal(await evaluate<string>("copied[0]"), patch, "the whole patch, not the coloured rows");
+  assert.deepEqual(patch.match(/^@@ .* @@$/gm), ["@@ -10002,7 +10002,8 @@", "@@ -10017,7 +10018,7 @@"], "a hunk for each change, three lines around it");
+  await evaluate(`(() => { navigator.clipboard.writeText = () => Promise.reject(new Error('denied')); ${copyPatch}.click(); })()`);
+  await waitFor(`${copyPatch}.textContent.includes('复制失败')`, 5_000);
 });

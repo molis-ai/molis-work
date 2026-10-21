@@ -145,4 +145,11 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   await evaluate(`document.dispatchEvent(new CustomEvent('molis:assistant-open', { detail: { work_id: ${JSON.stringify(work)} } }))`);
   await waitFor(`Boolean(document.querySelector('${GROUP} > summary')?.textContent)`, 15_000);
   assert.equal(await evaluate<string>(`document.querySelector('${GROUP} > summary').textContent`), "Read Goals, look up capabilities · 4 steps · 1 did not finish");
+  // Each line says its step whole in English too: done in the past tense, a step that did not finish by its verb, each line
+  // starting with a capital (before: "read Goals", "look up capabilities Goal": a Chinese prefix translated to nothing).
+  const english = await texts();
+  assert.equal(english.length, 4);
+  assert.match(english[0]!, /^Read Goals/);
+  assert.match(english[1]!, /^Read Goals .* — /);
+  assert.deepEqual(english.slice(2), ["Looked up capabilities Goal", "Looked up capabilities Todo"]);
 });

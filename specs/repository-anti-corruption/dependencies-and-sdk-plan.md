@@ -134,7 +134,7 @@ W2-18 待决 11（用户定：固定版本并收窄环境）把飞书/Lark MCP �
 
 ### 3.6 项目资料导入读更多格式：officeparser（2026-10-19）
 
-用户 10-19 要导入能读更多文件，并指明用开源的「转成 Markdown」一类项目（`specs/project-knowledge/spec.md` §2、PMAT-47）。比较过的：Microsoft MarkItDown（Python，要在桌面包里带 Python 运行时，不取）；Kreuzberg（Rust 内核加 Node 原生绑定，每个平台一份预编译文件，没有 darwin-x64，桌面包要按平台处理，不取）；markitdown-ts（0.0.10，依赖 `ai` SDK、jsdom 与有公告的 `xlsx@0.18.5`，不取）；**officeparser 8.1.1**（MIT，纯 JavaScript，读 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB 等，输出 Markdown，取这个）。图片与扫描 PDF 的文字识别、音视频转写不用它，用 Host 已有的 macOS 组件（`material-native.ts`）。
+用户 10-19 要导入能读更多文件，并指明用开源的「转成 Markdown」一类项目（`specs/archive/project-knowledge/spec.md` §2、PMAT-47）。比较过的：Microsoft MarkItDown（Python，要在桌面包里带 Python 运行时，不取）；Kreuzberg（Rust 内核加 Node 原生绑定，每个平台一份预编译文件，没有 darwin-x64，桌面包要按平台处理，不取）；markitdown-ts（0.0.10，依赖 `ai` SDK、jsdom 与有公告的 `xlsx@0.18.5`，不取）；**officeparser 8.1.1**（MIT，纯 JavaScript，读 DOCX、PPTX、XLSX、ODT、ODS、ODP、RTF、EPUB 等，输出 Markdown，取这个）。图片与扫描 PDF 的文字识别、音视频转写不用它，用 Host 已有的 macOS 组件（`material-native.ts`）。
 
 - 只加在 `apps/local-host`，精确版本 `8.1.1`（2026-10-05 发布，过了 `minimumReleaseAge`），登记在 `scripts/workspace-packages.mjs`。在 `material-office-worker.ts` 的工作线程里调用（内存上限 256 MB、超时 60 秒、解压上限 64 MB / 5,000 项），按扩展名告诉它类型，不让它读 PDF；`ocr: false`、不取附件、不读批注。
 - `pnpm-workspace.yaml` 的 `overrides` 两条：`officeparser>pdfjs-dist: 6.3.289`（它自己钉 6.2.108，改成与 Host 共用一份；它读 PDF 的那条路我们不走）；`officeparser>tesseract.js: '-'`（它的 OCR 只在 `ocr: true` 时动态 import，我们从不开；去掉后不装 `tesseract.js` 与 44 MB 的 `tesseract.js-core`）。

@@ -11,7 +11,7 @@ import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard } fro
 import { BUILTIN_PLUGIN_CATALOG, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
-// Every plugin is content in the one workbench (specs/artifact-positioning §4, S7). Following every local link a seeded
+// Every plugin is content in the one workbench (specs/shell-page-exceptions, S7). Following every local link a seeded
 // workbench offers, as a person opening it in the address bar would, each address is the workbench itself, leads into it,
 // is not a page at all (data, a file), or is on the exception list below. Nothing else may be a whole page of its own.
 const EXCEPTIONS: readonly (readonly [RegExp, string])[] = [
@@ -131,7 +131,7 @@ test("the workbench is one page: plugin content brings no page shell of its own"
 });
 
 // Host workbench entrypoints and every other whole-page producer. A standalone page still needs an exception in
-// specs/artifact-positioning §4; a Home workbench entrypoint is checked above under the same rules as a project.
+// specs/shell-page-exceptions; a Home workbench entrypoint is checked above under the same rules as a project.
 const PAGE_PRODUCERS: Record<string, string> = {
   "apps/workbench/src/document-shell.ts": "the workbench document itself",
   "apps/workbench/src/goals-page-renderer.ts": "the workbench",

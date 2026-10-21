@@ -235,16 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 32, the @ list (VUX-17).
-// +738 B of the workbench script: the list says what it is looking for, dims and turns off the hits for older words while a
-// newer search is on its way, drops a late answer, and puts the caret after the chosen reference; +113 B of each
-// stylesheet for the dimmed hit. Tried first: the list moved out of the island (its old copy is gone), and the dimmed hit
-// is one rule on an existing line. Spent once from exactly #914's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 34, nothing left behind (VUX-36).
+// +40 B of the workbench script: the workspace's way back drops a closed pane's record when it is saved, instead of keeping
+// one per pane ever opened. Tried first: the delete replaces the filter that was there when saving. Spent once from exactly
+// #916's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1167224, 1167962],
-  "/assets/molis-work-workbench.css": [1609383, 1609496],
-  "/assets/molis-work-settings.css": [992797, 992910],
-  "/assets/molis-work-arrival.css": [702832, 702945],
+  "/assets/molis-work-workbench.js": [1167962, 1168002],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

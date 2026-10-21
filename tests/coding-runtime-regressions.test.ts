@@ -89,6 +89,10 @@ test("a failed SDK background read preserves the last actual command observation
 });
 
 // W2-18-CODING-WAKE-01: a persisted real SDK wait wakes on activation alone, despite four consecutive read failures.
+// W5-01 C2 (expected change): Coding no longer waits for the Host's `ready()` before it starts the loop, so the loop's first read is the
+// one that starts the runtime. A first read that fails ends a loop the activation started (W5-01-CODING-31, tests/coding-input-ports.test.ts);
+// a loop whose first read was answered keeps retrying. So the four failures here come after one answered read (nothing ready at that
+// instant); before this change the Host's `ready()` was that answer.
 // The command ends while the plugin is stopped, so the wait is over on the record before the SDK reopens: a finished
 // fact may start the next round by itself (specs/prologue-adoption §4.6.4). A command the restart cut off is not one: its
 // result is unknown, so the step is held for the person (needs-reconciliation) and nothing is started.
@@ -110,8 +114,8 @@ test("Coding activation resumes a persisted SDK wait without opening a page and 
   await fixture.reopenSdk(); const persisted = (await fixture.adapter.collaboration!.read(DEMO_PROJECT_ID))[0]!;
   assert.deepEqual([persisted.wait?.wait_id, persisted.wait?.state, persisted.continuation?.state], [parked[0]!.wait_id, "satisfied", "eligible"], "the wait is over on the record");
   assert.equal(turn, 3, "reopening asks no model");
-  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0;
-  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
+  const original = fixture.adapter.collaboration!.awaitReady.bind(fixture.adapter.collaboration), entered = Promise.withResolvers<void>(); let failures = 0, reads = 0;
+  t.mock.method(fixture.adapter.collaboration!, "awaitReady", async (...args) => { if (reads++ === 0) return []; if (failures < 4) { failures++; entered.resolve(); throw new Error("transient owner read failure"); } return original(...args); });
   await fixture.platform.supervisor.restart("io.molis.work.coding"); await entered.promise;
   // No HTTP/directory/session read starts this work: only the new plugin activation owns the loop.
   await until("activation stopped retrying or failed to resume the persisted wait", () => turn >= 4, 70_000);

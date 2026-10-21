@@ -23,7 +23,7 @@ test("one unreadable runtime history does not hide other sessions or lose its dr
       return [];
     } },
   } } as unknown as PluginStartContext;
-  const routes = codingRoutes(context, sessions, { goalTitle: () => undefined, ready: async () => {}, models: async () => [] });
+  const routes = codingRoutes(context, sessions);
   const call = async (id: string, params = {}) => {
     const route = routes.find(route => route.route_id === id)!;
     return await route.handle({ params } as PluginRouteRequest);
@@ -55,7 +55,7 @@ test("command receipt route binds the selected app session and exact runtime run
     if (definition.capability_id === agent.readCommandOutput.capability_id) { reads.push(args); return { exit_code: 7, stdout: "saved", stderr: "check failed" }; }
     throw new Error("unexpected capability");
   } } } } as unknown as PluginStartContext;
-  const route = codingRoutes(context, sessions, { goalTitle: () => undefined, ready: async () => {}, models: async () => [] }).find(route => route.route_id === "coding.command-output")!;
+  const route = codingRoutes(context, sessions).find(route => route.route_id === "coding.command-output")!;
   try {
     const call = (runId: string) => route.handle({ params: { sessionId: "app-session", runId, callId: "call" } } as PluginRouteRequest);
     assert.equal((await call("other")).status, 400); assert.equal(reads.length, 0);
@@ -78,7 +78,7 @@ test("answer route preserves the original run and questionnaire, rejects foreign
     if(definition.capability_id===agent.controlRun.capability_id){delivered.push(args);return;}
     throw new Error('unexpected capability');
   }}});
-  const route=codingRoutes(context,sessions,{goalTitle:()=>undefined,ready:async()=>{},models:async()=>[]}).find(item=>item.route_id==='coding.control-run')!;
+  const route=codingRoutes(context,sessions).find(item=>item.route_id==='coding.control-run')!;
   const call=(body:unknown)=>route.handle({params:{sessionId:'app'},body} as PluginRouteRequest);
   const answer={kind:'answer',run_id:'owned',pending_id:'original',pending_revision:7,answers:[{question:1,indexes:[2,4],other:'保留原文'}]};
   try {
@@ -117,7 +117,7 @@ test("AC-07 an answer to a round parked at a restart opens the next round, or sa
       if(definition.capability_id===projectSettingsCapabilities.workspaces.capability_id){if(busy-->0)throw Object.assign(new Error('这个会话正在恢复，请稍后再试'),{code:'agent.session_busy'});return [];}
       throw new Error('unexpected capability '+definition.capability_id);
   }}});
-  const route=codingRoutes(context,sessions,{goalTitle:()=>undefined,ready:async()=>{},models:async()=>[]}).find(item=>item.route_id==='coding.control-run')!;
+  const route=codingRoutes(context,sessions).find(item=>item.route_id==='coding.control-run')!;
   const call=async()=>(await route.handle({params:{sessionId:'app'},body:{kind:'answer',run_id:'parked',pending_id:'asked',pending_revision:1,answers:[{question:0,value:45}]}} as PluginRouteRequest)).body as {next_round?:{started:boolean;reason?:string};message:string};
   try {
     const unknown=await call();
@@ -158,7 +158,7 @@ test("AC-07 the round after a parked answer is started by the one who answered, 
       throw new Error('unexpected capability '+definition.capability_id);
   }}});
   (context as {actor_id?:string}).actor_id='who-answered';
-  const route=codingRoutes(context,sessions,{goalTitle:()=>undefined,ready:async()=>{},models:async()=>[{provider_id:'p',model_id:'m',label:'M'}]}).find(item=>item.route_id==='coding.control-run')!;
+  const route=codingRoutes(context,sessions,[{provider_id:'p',model_id:'m',label:'M'}]).find(item=>item.route_id==='coding.control-run')!;
   try {
     const answered=await route.handle({params:{sessionId:'app'},body:{kind:'answer',run_id:'parked',pending_id:'asked',pending_revision:1,answers:[{question:0,value:45}]}} as PluginRouteRequest);
     assert.equal(started.length,1,`the next round was asked for: ${JSON.stringify(answered.body)}`);

@@ -9,6 +9,7 @@ import { resolveGoalContext } from "./goal-context.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
+import { MODEL_UNAVAILABLE } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
@@ -119,9 +120,10 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     if (task.length > 100_000) throw new Error("总任务与分工合计超过 100000 字符，请缩短后发送");
   } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw new Error("独立写入分工只用于并行写入方式");
   const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: actorId };
-  const models = await execution.models();
-  const model = models.find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
-  if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
+  // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.
+  const model = execution.models.list().find((entry) => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
+  const modelRefusal = model ? execution.models.unavailable(model) : MODEL_UNAVAILABLE;
+  if (!model || modelRefusal !== undefined) throw new Error(modelRefusal);
   const effort = chosenEffort(body, model);
   const roles = await api!.invoke(agent.availableRoles, [record.runtime_id, context.plugin_id]);
   const availability = roles.find((entry) => entry.role_id === role);
@@ -130,9 +132,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
-    if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
     if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
-    characterTools = execution.characters.resolve(character).action_tools;
+    characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
     await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]), characterTools);

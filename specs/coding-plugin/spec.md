@@ -2727,11 +2727,33 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 3. **W5-01-CODING-17** Coding 在 `start` 里用 `services.project_database` 自己建会话库；宿主没有借出这项服务时 `start` 失败，错误信息指明缺的是 `services.project_database`；有服务时它启动，路由写下的会话在项目库里，另一个客户端读得到。测试：`tests/coding-session-effect-control.test.ts`。
 4. **W5-01-CODING-18** 建会话、改名、归档、存计划的调用在提交前被取消或撤权，就不留会话、不改名、不归档、不改计划；一轮真实 SDK 读取途中被取消、撤权、被换掉提供方，计划行也不留。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-effect-control.test.ts`。
 5. **W5-01-CODING-19** 读一轮时顺手记下会话状态的调用，在提交前被取消或撤权，状态不被改写；后台跟随者带着被拒的调用，不存「运行中」。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-session-follow.test.ts`。
-6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给目标标题等宿主才知道的东西。测试：`tests/coding-surface.test.ts`。
+6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给页面的外观、伙伴页和图元，不再给目标标题（C2 起标题经 Goals 的公开读动作读，见 H 的 25）。测试：`tests/coding-surface.test.ts`。
 7. **W5-01-CODING-21** 激活停止之后，后台跟随者不再写会话状态。测试：`tests/coding-session-follow.test.ts`。
 8. **W5-01-CODING-22** 归档、存计划、确认计划、选目标的「正在提交任务／正在开始执行」检查，在写入的事务体里再做一次（`BEGIN` 之后、与 `COMMIT` 同一段同步代码）：写入等 `beforeEffect` 的时候同一条会话开始了一轮，仍然拒绝，库里一行不改。测试：`tests/coding-store.test.ts`。
 
 说明：没有单独的「消息」表。一轮里的消息走 Agent 宿主，Coding 自己写的是会话状态（`setState`、`roundStarted`），由 15、16、19、21 覆盖。
+
+### H. 输入端口走平台服务与公开动作（2026-10-21，PG-047、V-13、PG-086、PG-091，C2）
+
+Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、`models`、`goalTitle`、`characters`）。现在一样不递，`CodingExecutionPorts` 与宿主的 `execution` 端口整个删掉，Coding 自己从平台取：
+
+- **模型**：`services.model`。Manifest 把 `model:read` 列为必需，不声明 `model:invoke`；列表用 `choices()`，每次选模型用 `availability(selection)`；`complete()` 对 Coding 不可用（没有声明 `model:invoke` 的动作，装上也没有这项授权）。列表只有平台这一份（宿主里为 Coding 另算的那份与创作台里的第二份已删），所以过滤口径一致：停用的提供方与模型都不在其中。
+- **`ready`**：删掉。Agent 的能力处理器在被调用时自己初始化，Coding 不必再等。重启后找到挂着 Agent 运行的会话，Coding 直接起等待循环；它的第一次 `awaitContinuations` 失败（运行时没接上、起不来）就和 `agent.capability_unavailable` 一样结束循环，不再每 5 到 30 秒重试；下一次 `coding.state` 读或开一轮会再起一个。
+- **Goal 标题**：经 Goals 的公开读动作 `goals.list@1`（目录，一次带回大多数标题）和 `goals.contract.read@2`（目录不列的归档或丢弃的目标，按 id 读一次），二者都在 `capabilities.consumes` 里，由平台核授权。目录面板当场渲染、等不了一次动作，所以 Coding 记下最近一次读到的标题（进程内加写入插件私有存储，重启后还在）；页面一打开就读的 `coding.state`、会话读取、搜索条目和所选 Goal 都会刷新它。从没读到过的 Goal，目录首屏显示 Goal 的 id，页面里显示「关联 Goal 暂不可用」，和 Goal 读不到时一向的样子一样；读到过、现在读不到的，保持最近一次读到的标题。
+- **Character**：经 Characters 的两个公开动作 `characters.list@1`（已发布的固定版本；新增 `plugin` 受众，形状、版本和 MCP 工具名不变）与新加的 `characters.runnable@1`（只给 `plugin` 受众：这个版本现在能不能跑，不能跑时答 `available: false`，带 Characters 自己给的原因），Coding 在 `capabilities.consumes` 里列出这两个。`characters.execution@1` 仍然只给本人：它答的是本机 Agent 的程序路径与工作目录，Coding 只要知道「能不能跑」，不该拿到这些。合同影响：多一个动作、`characters.list` 多一个受众，其余不变；内置 Coding 的必需权限仍是 `artifact:read`，`consumes` 不是授权项，不需要到设置页重新授权。
+  - 决定（2026-10-21，评审与合并按防腐后果定）：PR 原稿给 `characters.execution` 加 `plugin` 受众，等于让任何声明了它、持 `artifact:read` 的插件读到本机程序路径和工作目录，信任边界比 Coding 实际要的宽；所以另开只答「能不能跑」的窄动作，`execution` 留在本人。
+
+1. **W5-01-CODING-23** Manifest：`model:read` 必需、没有 `model:invoke`，Coding 的动作也没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.runnable`，没有 `characters.execution`。测试：`tests/coding-input-ports.test.ts`。
+2. **W5-01-CODING-24** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read`；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
+3. **W5-01-CODING-25** V-13 只有一份模型列表：Coding 列出的与同一个 Home 里另一个持 `model:read` 的插件拿到的相同、同序，停用的模型两边都没有。测试：`tests/coding-input-ports.test.ts`。
+4. **W5-01-CODING-26** 会话关联的 Goal 标题，经 Goals 的公开列表动作、以插件受众（`host_plugin` 是 Coding）读到；读之前目录首屏给 id，读之后目录显示标题；Goals 读不到了标题保持，插件重启后目录里仍是这个标题。测试：`tests/coding-input-ports.test.ts`、`tests/coding-surface.test.ts`（20）。
+5. **W5-01-CODING-27** 目录不列的 Goal（归档、丢弃）按 id 经 `goals.contract.read` 读一次；读不到的 Goal 没有标题，这不是错误；已知的标题不重复读。测试：`tests/coding-input-ports.test.ts`。
+6. **W5-01-CODING-28** 角色列表与「能不能跑」经 `characters.list`、`characters.runnable`，以插件受众、Coding 的身份调用；不能跑的版本带 Characters 给的原因（`runnable` 答 `available: false` 与原因，不是失败的调用）。测试：`tests/coding-input-ports.test.ts`、`tests/coding-characters-http.test.ts`（真实 Characters 的整条链）。
+7. **W5-01-CODING-29** S-15：清单没有把 `characters.runnable` 列进 `consumes` 的插件，调它得 `actions.forbidden`，Characters 不被问到；列了的才够得到。只给本人的 `characters.execution`，插件就是列进 `consumes`、持有 `artifact:read` 也够不到（`actions.dependency_missing`：这个动作不对插件开放，在插件看来它不存在）。测试：`tests/coding-input-ports.test.ts`。
+8. **W5-01-CODING-30** S-15：人撤回授权（停用后收回再启动）之后，列了的动作得 `plugin.grant_denied`，Characters 不被问到；从没被授权的插件同样被拒。测试：`tests/coding-input-ports.test.ts`。
+9. **W5-01-CODING-31** 重启后第一次 Agent 读就失败的恢复循环只试一次就结束，不每 5 秒重试；之后的 `coding.state` 读会再起一个。测试：`tests/coding-input-ports.test.ts`；启动时 Agent 服务未接上、没有 `ready` 可等：`tests/project-plugin-startup.test.ts`（第一次能力调用得「能力未注册」，之后同一实例读到 Home 里新配的模型）。
+
+说明：助理（`assistant-http.ts`）与 `agent-host-composition.ts` 仍用 `characters-host.ts` 的 `codingCharacterPorts`，那是 C2b，不在这一片；`characters-host.ts` 因此还从 Coding 包取 `CodingCharacterChoice`、`CodingCharacterPorts` 两个类型。
 
 ### I. 需要人审查的宿主操作按 Manifest 声明的种类放行（2026-10-21，PG-009，C5）
 

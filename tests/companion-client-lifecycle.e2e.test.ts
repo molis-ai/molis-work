@@ -101,7 +101,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
       throw new Error("Unexpected capability " + definition.capability_id);
     } },
   });
-  const started = await platform.start([{ definition: createCodingPlugin({ execution: { ready: async () => {}, models: async () => [], goalTitle: () => undefined } }), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {

@@ -77,6 +77,8 @@ const ROUTES: RouteMaker[] = [
         await beforeWrite(); beforeWrite.assert_current();
         notSubmitting();
         saveGoalContext(context, record.session_id, value);
+        // The title the person has just chosen it by is the one the directory shows from now on.
+        execution.goalTitles.remember(goalId, value.snapshot.goal.title);
       }
       // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
       const session = await execution.sessions.setGoal(beforeWrite, projectId, record.session_id, goalId, new Date().toISOString(), notSubmitting);

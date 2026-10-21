@@ -18,6 +18,7 @@ import { icon } from "@molis-ai/molis-work-design-system";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { pageText, pageTextScript } from "./fixtures/page-text.js";
 
 const pause = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 async function until(predicate: () => boolean) {
@@ -116,12 +117,13 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     // The Host's presentation seam: the owner's genuine view is rendered by the public Diff renderer.
     return { ...state, html: renderDiff({ view: state.view, route_prefix: "", primitives: {
       escape: value => String(value).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"),
-      icon: name => icon(name as Parameters<typeof icon>[0]),
+      text: pageText("zh"), icon: name => icon(name as Parameters<typeof icon>[0]),
     } }) };
   };
   const previous = await fixedState(1);
   const f = await fixture(t, `<section data-companion="diff">${fixedMarkup}</section>`, `
-    const host={mountPluginClient:mount,openPlugin:()=>{},request:async(plugin,path,method='GET',body,signal)=>{
+    ${pageTextScript("zh")}
+    const host={mountPluginClient:mount,translate:globalThis.L,openPlugin:()=>{},request:async(plugin,path,method='GET',body,signal)=>{
       const response=await fetch('/'+plugin+path,{method,signal});if(!response.ok)throw new Error('read failed');return response.json();}};
     window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
@@ -145,10 +147,11 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
 
 for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
-    const body = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult()
+    const body = name === "files" ? renderFilesBrowserDirectory(pageText("zh")) + renderFilesBrowserResult(pageText("zh"))
       : name === "git" ? renderGitBrowserDirectory() + renderGitBrowserResult() : fixedMarkup;
     const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
-      const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
+      ${pageTextScript("zh")}
+      const host={mountPluginClient:mount,translate:globalThis.L,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
         request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});return response.json();}};
       window.root=document.querySelector('[data-companion]');window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
     `, path => {
@@ -248,9 +251,10 @@ test("Host reviews retain decisions across hiding without rendering stale result
 
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
-  const markup = name === "files" ? renderFilesBrowserDirectory() + renderFilesBrowserResult() : renderGitBrowserDirectory() + renderGitBrowserResult();
+  const markup = name === "files" ? renderFilesBrowserDirectory(pageText("zh")) + renderFilesBrowserResult(pageText("zh")) : renderGitBrowserDirectory() + renderGitBrowserResult();
   const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
-    const host={mountPluginClient:mount,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
+    ${pageTextScript("zh")}
+      const host={mountPluginClient:mount,translate:globalThis.L,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
       request:async(plugin,path,method='GET',body,signal)=>{const response=await fetch('/'+plugin+path,{method,signal,...(body?{body:JSON.stringify(body)}:{})});if(!response.ok)throw new Error('offline');return response.json();}};
     window.boot=()=>(${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})(host);boot();
   `, path => {

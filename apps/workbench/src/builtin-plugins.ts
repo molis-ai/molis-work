@@ -3,14 +3,14 @@ import { COGNIA_INSTRUCTIONS, COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_C
 import { BUILDER_CHOICE_INSTRUCTIONS, builderManifest, builderUiContribution, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-builder";
 import { PLUGIN_COMPONENT_STYLES } from "@molis-ai/molis-work-design-system";
 import { IMAGES_PROJECT_PLUGIN_ID, IMAGES_MESSAGES, imagesManifest, imagesUiContribution, IMAGES_STYLES, IMAGES_CLIENT_FACTORY_SCRIPT, imagesProjectData, createImagesPlugin, IMAGES_DATABASE, IMAGES_FILES, IMAGES_IMAGE_GENERATION } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION } from "@molis-ai/molis-work-plugin-jelly";
+import { JELLY_INSTRUCTIONS, JELLY_PROJECT_PLUGIN_ID, jellyManifest, JELLY_CLIENT_FACTORY_SCRIPT, JELLY_STYLES, jellyUiContribution, createJellyPlugin, JELLY_DATABASE, JELLY_MODEL_CONFIGURATION, JELLY_MESSAGES } from "@molis-ai/molis-work-plugin-jelly";
 import { issuesManifest, issuesMethods, issuesUiContribution, createIssuesPlugin, ISSUES_DATABASE, ISSUES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-issues";
 import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiContribution, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
-import { DIFF_PROJECT_PLUGIN_ID, diffManifest } from "@molis-ai/molis-work-plugin-diff";
-import { FILES_PROJECT_PLUGIN_ID, filesManifest } from "@molis-ai/molis-work-plugin-files";
+import { DIFF_PROJECT_PLUGIN_ID, diffManifest, DIFF_MESSAGES } from "@molis-ai/molis-work-plugin-diff";
+import { FILES_PROJECT_PLUGIN_ID, filesManifest, FILES_MESSAGES } from "@molis-ai/molis-work-plugin-files";
 import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
-import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "@molis-ai/molis-work-plugin-text-stats";
+import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest, TEXT_STATS_MESSAGES } from "@molis-ai/molis-work-plugin-text-stats";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
 import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "@molis-ai/molis-work-plugin-inbox";
@@ -87,6 +87,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
     runtime: { scope: "home", create: createJellyPlugin, database: JELLY_DATABASE, model_configuration: JELLY_MODEL_CONFIGURATION,
       package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
     manifest: jellyManifest,
+    messages: JELLY_MESSAGES,
     instructions: JELLY_INSTRUCTIONS,
     personal: true,
     summary: "日历与笔记，按天安排。",
@@ -349,6 +350,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   {
     project_plugin_id: FILES_PROJECT_PLUGIN_ID, catalog_order: 23,
     manifest: filesManifest,
+    messages: FILES_MESSAGES,
     workbench: { order: 21, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区文件与保留的内容。",
   },
@@ -361,12 +363,14 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   {
     project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25,
     manifest: diffManifest,
+    messages: DIFF_MESSAGES,
     workbench: { order: 23, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "比较固定版本，逐项阅读差异。",
   },
   {
     project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
     manifest: textStatsManifest,
+    messages: TEXT_STATS_MESSAGES,
     developer: true,
     workbench: { order: 24, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "统计文件快照的字数、字节与行数。",

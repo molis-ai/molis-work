@@ -129,8 +129,8 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       sessions,
       tools: [],
       workspace_path: null,
-      companion_directory: renderFilesBrowserDirectory() + renderGitBrowserDirectory(),
-      companion_result: renderFilesBrowserResult() + renderGitBrowserResult(),
+      companion_directory: renderFilesBrowserDirectory(L) + renderGitBrowserDirectory(),
+      companion_result: renderFilesBrowserResult(L) + renderGitBrowserResult(),
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
@@ -249,11 +249,11 @@ function decorateRuntimeResult(result: PluginRouteResponse, pluginId: string, re
     const content = result.body as { view?: unknown; html?: string };
     if (content?.view && pluginId === DIFF_PLUGIN_ID) content.html = renderDiff({
       route_prefix: ports.routePrefix ?? "", view: content.view as DiffView,
-      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
+      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
     if (content?.view && pluginId === TEXT_STATS_PLUGIN_ID) content.html = renderTextStats({
       view: content.view as TextStatsView,
-      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) },
+      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) },
     });
   }
   if (pluginId === CODING_PLUGIN_ID) decorateCodingResult(result, request, url, ports);
@@ -319,7 +319,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
       net_groups: groups.map(group => ({ path: group.path, indices: group.indices, available: group.available, ...(group.available ? {} : { reason: group.reason }) })) });
     // The reader picks unified or side by side; anything else reads as unified.
     changeBody.html = renderDiff({ view: { ...view, mode: url.searchParams.get("layout") === "split" ? "split" : "unified" }, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
-      primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+      primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
     // 复制补丁 copies the change on show as a patch git takes (VUX-33), written from the same rows.
     Object.assign(changeBody, { patch: chosen && view.phase === "ready" ? unifiedPatch(view.rows, { path: chosen.path, created: (netFiles?.[0] ?? chosen).kind === "added", removed: (netFiles?.[0] ?? chosen).kind === "deleted" }) : "" });
   }
@@ -333,7 +333,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
         review: { review_id: "integration", before_text: file.before_text, after_text: file.after_text ?? "", decision: "approved", execution: "applied" } }] } as never,
         source_plugin_id: CODING_PLUGIN_ID, content_version: 1 }, undefined, 0);
       file.diff_html = renderDiff({ view, route_prefix: ports.routePrefix ?? "", fold_context: 3, sides: false,
-        primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+        primitives: { escape: value => escapeHtml(String(value)), text: L, icon: name => icon(name as Parameters<typeof icon>[0]) } });
     }
   }
   if (result.status === 200 && reportBody?.report) {
@@ -369,6 +369,7 @@ function viewOf<TModel>(
 function primitivesFor(ports: CodingSurfacePorts) {
   return {
     escape: ports.escapeHtml,
+    text: L,
     icon: (name: string) => icon(name as Parameters<typeof icon>[0]),
   };
 }
@@ -479,7 +480,7 @@ export async function diffStagePanel(
 
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",
-    body: `<div class="mw-empty" role="alert"><p>${escapeHtml(message)}</p><a class="mw-btn" href="">重新打开页面</a></div>` });
+    body: `<div class="mw-empty" role="alert"><p>${escapeHtml(message)}</p><a class="mw-btn" href="">${escapeHtml(L("重新打开页面"))}</a></div>` });
 }
 
 /** Compose the running companions into the same main-stage contract as other apps. */
@@ -487,18 +488,18 @@ export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: 
   const record = await ensureStarted(ports);
   return ["files", "git", "diff", "text-stats"].filter(id => enabled.includes(id)).map(id => {
     const active = record.platform?.supervisor.state("io.molis.work." + id);
-    if (active?.status !== "running") return failedStage(id, active?.message ?? "插件未能启动，请重新打开页面");
-    const openWorkspace = `<a class="mw-btn mw-btn--ghost companion-manage" href="${escapeHtml(ports.routePrefix ?? "")}/settings/workspaces">${icon("folder-tree")}<span>工作目录设置</span>${icon("chevron-right")}</a>`;
+    if (active?.status !== "running") return failedStage(id, active?.message ?? L("插件未能启动，请重新打开页面"));
+    const openWorkspace = `<a class="mw-btn mw-btn--ghost companion-manage" href="${escapeHtml(ports.routePrefix ?? "")}/settings/workspaces">${icon("folder-tree")}<span>${escapeHtml(L("工作目录设置"))}</span>${icon("chevron-right")}</a>`;
     let body: string;
     if (id === "files" || id === "git") {
-      const directory = id === "files" ? renderFilesBrowserDirectory() : renderGitBrowserDirectory();
-      const result = id === "files" ? renderFilesBrowserResult() : renderGitBrowserResult();
-      body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:id === "files" ? "打开文件，开始阅读" : "查看工作区的改动",body:id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。"})}${result}</div></div>`;
+      const directory = id === "files" ? renderFilesBrowserDirectory(L) : renderGitBrowserDirectory();
+      const result = id === "files" ? renderFilesBrowserResult(L) : renderGitBrowserResult();
+      body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:L(id === "files" ? "打开文件，开始阅读" : "查看工作区的改动"),body:L(id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。")})}${result}</div></div>`;
     } else {
       // Diff and Text Stats are plugin pages: the stage draws their heading and one sentence, the actions sit at the right,
       // and the plugin's own content (or its empty block) fills the column.
       const files = enabled.includes("files");
-      body = `<div class="plugin-stage-list" data-companion-list><header class="plugin-stage-chrome"><button class="mw-btn mw-btn--ghost" type="button" data-companion-refresh>${icon("refresh")}<span class="mw-spinner" hidden></span><span>刷新</span></button><button class="mw-btn mw-btn--ghost" type="button" data-companion-open="${files ? "files" : "market"}">${icon("file")}<span>${files ? "打开 Files" : "到插件市场添加 Files"}</span></button></header><p data-companion-status role="status"></p><div data-companion-content></div></div>`;
+      body = `<div class="plugin-stage-list" data-companion-list><header class="plugin-stage-chrome"><button class="mw-btn mw-btn--ghost" type="button" data-companion-refresh>${icon("refresh")}<span class="mw-spinner" hidden></span><span>${escapeHtml(L("刷新"))}</span></button><button class="mw-btn mw-btn--ghost" type="button" data-companion-open="${files ? "files" : "market"}">${icon("file")}<span>${escapeHtml(L(files ? "打开 Files" : "到插件市场添加 Files"))}</span></button></header><p data-companion-status role="status"></p><div data-companion-content></div></div>`;
     }
     return renderPluginStageShell({ surface: id, label: id === "text-stats" ? "Text Stats" : id[0]!.toUpperCase() + id.slice(1), dataset: "coding-companion", extraAttrs: `data-companion="${id}"`, body: id === "files" || id === "git" ? `<div class="companion-surface mw-layout-primitives">${body}</div>` : body });
   });

@@ -552,4 +552,17 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "拿起": "Pick up",
   // The account a connected document source reads with (home model settings, the side panel's import, Jelly).
   "账号连接": "Account connection",
+  // The companion pages' shell around Files, Git, Diff and Text Stats (apps/local-host/src/coding-surface.ts, coding-companions.ts).
+  "返回改动列表": "Back to changes",
+  "正在读取固定内容…": "Reading the pinned versions…",
+  "。请点击刷新重试。": ". Select Refresh to try again.",
+  "工作目录设置": "Working folder settings",
+  "打开文件，开始阅读": "Open a file to start reading",
+  "查看工作区的改动": "See the workspace's changes",
+  "打开 Files": "Open Files",
+  "到插件市场添加 Files": "Add Files from the plugin market",
+  "重新打开页面": "Reopen the page",
+  "插件未能启动，请重新打开页面": "The plugin didn't start. Reopen the page.",
+  "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。": "Choose a file from the folder to read it, save a selection, or pin two snapshots to compare.",
+  "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。": "Choose a change from the folder to see its difference as read, then decide whether to stage it.",
 };

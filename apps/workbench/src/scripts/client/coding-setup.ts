@@ -26,7 +26,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
     };
     const gitBrowser = codingRoot ? gitFactory({mountPluginClient,root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
       showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
-    const filesBrowser = codingRoot ? filesFactory({mountPluginClient,root:codingRoot,
+    const filesBrowser = codingRoot ? filesFactory({mountPluginClient,root:codingRoot,translate:L,
       icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
       request: companionRequest,
       onWorkspaceSelected: () => { void gitBrowser?.refresh(); },
@@ -45,7 +45,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       openBeside: (plugin, id, title) => tabWorkspace?.openBeside(plugin, id, title),
     });
     (${CODING_COMPANIONS_CLIENT_FACTORY_SCRIPT})({
-      root: host.root, mountPluginClient,
+      root: host.root, mountPluginClient, translate: L,
       request: companionRequest, route, icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},
       openPlugin: plugin => tabWorkspace?.openPlugin(plugin),
       reviewFactory, gitFactory, filesFactory,

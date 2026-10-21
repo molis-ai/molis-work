@@ -8,7 +8,10 @@ import {
   clampSplitRatio,
   focusedPaneBoxAfterDrop,
   layoutPaneBoxes,
+  snapSplitRatio,
   splitDropEdge,
+  splitRatioRange,
+  splitTreeFits,
   TAB_SPLIT_EDGE_X,
   TAB_SPLIT_EDGE_X_CSS,
   TAB_SPLIT_EDGE_Y,
@@ -171,4 +174,26 @@ test("already-split later drags preview the pane that exists after drop", () => 
   assert.equal(threeCopyLeft?.y, 50);
   assert.equal(threeCopyLeft?.w, 25);
   assert.equal(threeCopyLeft?.h, 50);
+});
+
+test("VUX-24 a divider stays inside the room both sides need, takes the narrow layout when they cannot fit, and snaps with hysteresis", () => {
+  const pane = (id: string) => ({ paneId: id });
+  const two = { id: "s", direction: "row", ratio: 0.5, children: [pane("a"), pane("b")] };
+  assert.deepEqual(splitRatioRange(two, 2000), [0.15, 0.85], "a wide stage keeps the 15–85 % the drop preview reads");
+  const [low, high] = splitRatioRange(two, 800)!;
+  assert.equal(low, 240 / 800); assert.equal(high, 1 - 240 / 800, "each side keeps a pane's 240 px");
+  assert.equal(splitRatioRange(two, 470), null, "two 240 px panes do not fit in 470 px: no inverted clamp");
+  const three = { id: "t", direction: "row", ratio: 0.5, children: [pane("a"), { id: "u", direction: "row", ratio: 0.5, children: [pane("b"), pane("c")] }] };
+  assert.equal(splitRatioRange(three, 1000)![1], 1 - (240 * 2 + 8) / 1000, "a split along the same direction needs its children's room together");
+  const across = { id: "v", direction: "row", ratio: 0.5, children: [pane("a"), { id: "w", direction: "column", ratio: 0.5, children: [pane("b"), pane("c")] }] };
+  assert.equal(splitRatioRange(across, 1000)![1], 1 - 240 / 1000, "a split across it needs its larger child's");
+  assert.equal(splitTreeFits(three, 1000, 600), true);
+  assert.equal(splitTreeFits(three, 700, 600), false, "three columns of 240 px do not fit in 700 px");
+  assert.equal(splitTreeFits({ id: "x", direction: "column", ratio: 0.5, children: [pane("a"), pane("b")] }, 1000, 300), false, "two rows of 160 px do not fit in 300 px");
+  assert.equal(splitTreeFits(pane("a"), 10, 10), true, "one pane always fits");
+  // Hysteresis: in within 8 px, out only past 16 px.
+  assert.deepEqual(snapSplitRatio(0.5 + 7 / 1000, 0.5, false, 1000), { ratio: 0.5, snapped: true });
+  assert.deepEqual(snapSplitRatio(0.5 + 12 / 1000, 0.5, false, 1000), { ratio: 0.512, snapped: false }, "12 px away does not snap in");
+  assert.deepEqual(snapSplitRatio(0.5 + 12 / 1000, 0.5, true, 1000), { ratio: 0.5, snapped: true }, "but holds a divider already settled");
+  assert.deepEqual(snapSplitRatio(0.5 + 17 / 1000, 0.5, true, 1000), { ratio: 0.517, snapped: false }, "past 16 px it lets go");
 });

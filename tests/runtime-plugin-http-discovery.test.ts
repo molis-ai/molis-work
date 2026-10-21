@@ -151,7 +151,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
   const ports = { store, projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
-    goalTitle: () => undefined, escapeHtml: String, translate: (value: string) => value,
+    escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
   const action: ActionDefinition<{ value: number }, { doubled: number; report: { title: string; body_markdown: string; run_id: string } }> = {
@@ -246,7 +246,7 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
     const started = await ensureProjectPlugins({ store: runtime.store, projectId: project.project_id, actorId: "web-user",
-      homeDirectory: home, goalTitle: () => undefined, capabilities: host.client(reference),
+      homeDirectory: home, capabilities: host.client(reference),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);
     await started.platform.start([{ definition: {

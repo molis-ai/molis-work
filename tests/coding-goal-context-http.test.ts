@@ -13,6 +13,7 @@ import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-a
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 function codingHostFixture(root: string) {
   const starts: AgentStartRequest[] = [], runs: AgentRunView[] = [];
@@ -92,7 +93,7 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
 
 test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
-  seedDemoBoard(databasePath);
+  seedDemoBoard(databasePath); await seedConfiguredModels(root);
   const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const { host, starts, runs, sessionCount, codingCaller, holdProgress } = codingHostFixture(root);
   const goalActions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["goals:read", "goals:write"] }));
@@ -101,10 +102,10 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
-  const server = createServer((request, response) => { void host.withProject(ref, async ({ store, coordinator }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
+  const server = createServer((request, response) => { void host.withProject(ref, async ({ store }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
-    store, projectId: DEMO_PROJECT_ID, actorId: "web-user", goalTitle: id => coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, id)?.title,
-    capabilities: host.client(ref), execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
+    store, projectId: DEMO_PROJECT_ID, actorId: "web-user",
+    capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
   })).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

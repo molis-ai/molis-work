@@ -14,8 +14,8 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);
   const sessions=codingSessions(store);await sessions.create(noEffect, {project_id:DEMO_PROJECT_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID,'app','sdk',new Date().toISOString());
   let state='running',cancels=0;
-  const host=()=>({store,homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
-    execution:{ready:async()=>{},models:async()=>[]},capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
+  const host=()=>({store,homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
+    capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{
       const input=args as any[];
       if(input[0]?.session_id!=='sdk'||input[1]?.run_id!=='parent')throw new Error('not original parent');
       if(definition.capability_id===agent.listSubagents.capability_id)return [{subagent_id:'child',parent_run:input[1],role_id:'coding-reader',task:'read',state,result:'candidate',workspace_path:home}] as O;

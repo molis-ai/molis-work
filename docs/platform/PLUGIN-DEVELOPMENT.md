@@ -173,13 +173,13 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 ## 随激活存活的后台作业
 
-有些工作要比受理它的那次调用活得长，又不该带着那次调用的授权：一轮 Agent 已经开始，要有人跟到它结束、记下真实结果；插件激活时要接上上次没跟完的事。这类工作用 `services.background.keep(job, async control => …)`，返回 `{ done, cancel() }`。作业属于插件的这次激活，用安装自己的授权跑；单次调用取消或撤权不停它，插件停止、停用、卸载、升级、崩溃或隔离，库里的安装记录撤了作业要的授权或换了世代，作业所在的项目关闭或删除，Home 关闭，它都停。验收与条文见 `docs/system/SECURITY-INVARIANTS.md` 的 S-51。
+有些工作要比受理它的那次调用活得长，又不该带着那次调用的授权：一轮 Agent 已经开始，要有人跟到它结束、记下真实结果；插件激活时要接上上次没跟完的事。这类工作用 `services.background.keep(job, async control => …)`，返回 `{ done, cancel() }`。作业属于插件的这次激活，用安装自己的授权跑；单次调用取消或撤权不停它，插件停止、停用、卸载、升级、崩溃或隔离，库里的安装记录撤了作业要的授权或换了世代，作业所在的项目关闭或删除，Home 关闭，它都停。验收与条文见 `docs/system/SECURITY-INVARIANTS.md` 的 S-52。
 
 - **先在 Manifest 声明**：`background: { jobs: [{ job_id, reason, permissions }] }`。`job_id` 是小写字母开头的名字，`reason` 写这个作业在后台做什么，`permissions` 是它的写入要的权限，必须是 Manifest `permissions` 里声明过的。`keep()` 只认声明过的 `job_id`。
 - **只能在三处登记**：
-  - 本插件的命令里，在这次调用通过最后一次授权检查之后：它自己的 `await caller.beforeEffect()` 返回过，或经平台服务写过一次、调过一个返回了的命令。还没通过、检查被拒的调用登记，`plugin.background_job_unchecked`；查询里登记，`plugin.background_job_origin`。
+  - 本插件的命令里，在这次调用通过最后一次授权检查之后：它自己的 `await caller.beforeEffect()` 返回过，或经平台服务写过一次、调过一个返回了的命令。还没通过、检查被拒的调用登记，`plugin.background_job_unchecked`；查询里登记，`plugin.background_job_origin`。登记时平台再同步核一次这次调用：检查之后被取消或撤权的调用登记被拒，错误就是那次取消或撤权。所以提交之后同步调 `keep()`，中间不要再 `await` 别的东西。
   - 激活的 `start()` 返回之前（接上没跟完的事）。`start()` 返回以后、在那里设的定时器里再登记，`plugin.background_job_origin`。
-  - 同一激活的另一个作业里（跟随者发现一轮在等，就起唤醒的作业）。
+  - 同一激活的另一个还在跑的作业里（跟随者发现一轮在等，就起唤醒的作业）。作业已经停了（被取消、所在项目关闭或删除）再登记，被拒；项目关闭或删除之前就开始、还在进行的调用，之后也不能在那个项目里登记。
 - **作业的项目**从登记它的调用来，作业里起的作业继承它；Home 实例在 `start()` 里登记的作业没有项目，所以 Home 插件要为某个项目起作业，得等那个项目里有一次通过了检查的调用。项目不从输入或存储读。
 - **作业以安装的身份做事**：`control` 只有 `job`、`signal`、`beforeEffect()`、`assert_authority_current()` 和 `project_id`，没有原调用者、受众和页面。作业里调动作，一律以安装的身份、按 `plugin` 受众、在作业自己的操作编号里发：调不到只给 `user`、`mcp` 等受众的动作，调用记录里也不出现原调用者；拿请求的路由 control 去调会被拒。
 - **每次写之前** `await control.beforeEffect()`：作业还在、激活还活着、安装记录仍是同一份并授予作业声明的权限。每个激活共用一个 200 ms 定时器把同样的检查跑一遍，不过就中止那个作业的 `signal`，正在等的工作要把 `signal` 交给它等的东西。作业停了以后，经平台服务的写（存储、库、文件、事件、动作调用）都被拒，插件忘了问 `beforeEffect()` 也一样；插件进程里的内存状态平台不管。

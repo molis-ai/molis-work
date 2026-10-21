@@ -14,7 +14,7 @@ import { jobProbe } from "./fixtures/plugin-jobs.js";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// S-51 (PG-038): the jobs an activation keeps (`services.background.keep`) belong to the installation, not to the call that kept them.
+// S-52 (PG-038): the jobs an activation keeps (`services.background.keep`) belong to the installation, not to the call that kept them.
 
 /** The Home plugin host over the Kernel alone, as the Host composes it, with the probe running. */
 async function homeJobs(t: TestContext, probe: ReturnType<typeof jobProbe>) {
@@ -41,7 +41,7 @@ function held(probe: ReturnType<typeof jobProbe>, onEnter = () => {}) {
   return { release, finished };
 }
 
-test("S-51 PG-038 a call that has not passed its last authority check keeps no job: before its check, after a refused one, or as a query", async t => {
+test("S-52 PG-038 a call that has not passed its last authority check keeps no job: before its check, after a refused one, or as a query", async t => {
   const probe = jobProbe(), { actions } = await homeJobs(t, probe);
   probe.behavior.order = "unchecked";
   await assert.rejects(actions.invoke(person(probe.permissions), probe.keep, { id: "unchecked" }), { code: "plugin.background_job_unchecked" });
@@ -51,7 +51,8 @@ test("S-51 PG-038 a call that has not passed its last authority check keeps no j
     let permitted = true;
     probe.behavior.beforeCheck = async () => { if (mode === "cancelled") controller.abort(); else permitted = false; };
     await assert.rejects(actions.invoke({ ...person(probe.permissions), signal: controller.signal,
-      assert_authority_current: () => { if (!permitted) throw new ActionError("actions.forbidden", "caller revoked"); } }, probe.keep, { id: mode }));
+      assert_authority_current: () => { if (!permitted) throw new ActionError("actions.forbidden", "caller revoked"); } }, probe.keep, { id: mode }),
+    { code: "plugin.background_job_unchecked" });
   }
   assert.equal(probe.refused.length, 2, "both calls were refused at their own check");
   probe.behavior.beforeCheck = async () => {}; probe.behavior.order = "checked";
@@ -60,7 +61,56 @@ test("S-51 PG-038 a call that has not passed its last authority check keeps no j
   for (const id of ["unchecked", "cancelled", "revoked", "query"]) assert.equal(probe.stored(`result.${id}`), null);
 });
 
-test("S-51 PG-038 outside every action and job a job is kept only while start() runs, not after it returned nor from a timer it set", async t => {
+for (const mode of ["cancelled", "revoked"] as const) {
+  test(`S-52 PG-038 a call ${mode} after it passed its last authority check keeps no job: keep() asks the call again`, async t => {
+    const probe = jobProbe(), controller = new AbortController();
+    let permitted = true;
+    probe.behavior.beforeKeep = async () => { if (mode === "cancelled") controller.abort(new ActionError("actions.cancelled", "caller cancelled")); else permitted = false; };
+    const { actions } = await homeJobs(t, probe);
+    await assert.rejects(actions.invoke({ ...person(probe.permissions), signal: controller.signal,
+      assert_authority_current: () => { if (!permitted) throw new ActionError("actions.forbidden", "caller revoked"); } }, probe.keep, { id: mode }),
+    { code: mode === "cancelled" ? "actions.cancelled" : "actions.forbidden" });
+    assert.equal(probe.kept.length, 0, "the call had passed its check once, and still kept nothing");
+    assert.equal(probe.controls.length, 0); assert.equal(probe.stored(`result.${mode}`), null);
+  });
+}
+
+test("S-52 PG-038 a job stopped with its deleted project keeps no successor there, and nothing is written", async t => {
+  const probe = jobProbe("jobsuccessor", "project"), entered = deferred(), release = deferred(), tried = deferred();
+  let refusal: unknown, successor: { done: Promise<void> } | undefined;
+  probe.behavior.work = async (context, _control, id) => {
+    entered.resolve(); await release.promise;
+    try {
+      successor = context.services!.background!.keep("resume", async control => { context.services!.storage!.set(`result.${id}-next`, control.job); });
+    } catch (error) { refusal = error; } finally { tried.resolve(); }
+  };
+  const { home, actions } = await homeJobs(t, probe);
+  await actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "p1" }); await entered.promise;
+  assert.equal(await projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1"), true);
+  await assert.rejects(probe.kept[0]!.done, { code: "actions.cancelled" });
+  release.resolve(); await tried.promise; await successor?.done.catch(() => undefined);
+  assert.equal(successor, undefined, "the stopped job kept nothing");
+  assert.equal((refusal as { code?: string } | undefined)?.code, "actions.cancelled");
+  assert.equal(probe.stored("result.p1-next"), null);
+});
+
+test("S-52 PG-038 a call under way when its project is deleted keeps no job there, and a call begun after keeps its own", async t => {
+  const probe = jobProbe("jobdeleting", "project"), waiting = deferred(), go = deferred();
+  probe.behavior.beforeKeep = async () => { waiting.resolve(); await go.promise; };
+  const { home, actions } = await homeJobs(t, probe);
+  const underway = actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "underway" });
+  await waiting.promise;
+  assert.equal(await projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1"), true);
+  go.resolve();
+  await assert.rejects(underway, { code: "actions.cancelled" });
+  assert.equal(probe.kept.length, 0, "the call had passed its check before the project went, and still kept nothing there");
+  probe.behavior.beforeKeep = async () => {};
+  assert.equal(await actions.invoke(person(probe.permissions, "p1"), probe.keep, { id: "after" }), "kept");
+  await probe.kept[0]!.done;
+  assert.equal(probe.stored("result.underway"), null); assert.equal(probe.stored("result.after"), "follow");
+});
+
+test("S-52 PG-038 outside every action and job a job is kept only while start() runs, not after it returned nor from a timer it set", async t => {
   const probe = jobProbe(), later = deferred(), tried = deferred();
   let late: unknown;
   probe.behavior.onStart = (_context, keep) => {
@@ -76,7 +126,7 @@ test("S-51 PG-038 outside every action and job a job is kept only while start() 
   assert.equal(probe.kept.length, 1);
 });
 
-test("S-51 PG-038 only a job the Manifest declares is kept, and a declaration may only name permissions the Manifest declares", async t => {
+test("S-52 PG-038 only a job the Manifest declares is kept, and a declaration may only name permissions the Manifest declares", async t => {
   const probe = jobProbe(), { actions } = await homeJobs(t, probe);
   await assert.rejects(actions.invoke(person(probe.permissions), probe.keep, { id: "other", job: "undeclared" }), { code: "plugin.background_undeclared" });
   assert.equal(probe.kept.length, 0);
@@ -86,7 +136,7 @@ test("S-51 PG-038 only a job the Manifest declares is kept, and a declaration ma
   assert.throws(() => parsePluginManifest({ ...manifest, background: { jobs: [{ ...job, reason: " " }] } }), /用途/u);
 });
 
-test("S-51 PG-038 stopping the plugin stops its jobs, and the platform refuses a write after that even when the job never asks", async t => {
+test("S-52 PG-038 stopping the plugin stops its jobs, and the platform refuses a write after that even when the job never asks", async t => {
   const probe = jobProbe(), entered = deferred(), release = deferred(), wrote = deferred();
   let refusal: unknown;
   probe.behavior.work = async (context, _control, id) => {
@@ -106,7 +156,7 @@ test("S-51 PG-038 stopping the plugin stops its jobs, and the platform refuses a
   assert.equal(probe.stored("result.stopped"), null);
 });
 
-test("S-51 PG-038 a record that no longer grants the job's permissions stops it on the shared check, and its beforeEffect refuses", async t => {
+test("S-52 PG-038 a record that no longer grants the job's permissions stops it on the shared check, and its beforeEffect refuses", async t => {
   const probe = jobProbe(), entered = deferred(), { release, finished } = held(probe, () => entered.resolve());
   const { home, actions, install_id } = await homeJobs(t, probe);
   await actions.invoke(person(probe.permissions), probe.keep, { id: "revoked" }); await entered.promise;
@@ -120,7 +170,7 @@ test("S-51 PG-038 a record that no longer grants the job's permissions stops it 
   assert.equal(probe.stored("result.revoked"), null, "granting it again does not bring the stopped job back");
 });
 
-test("S-51 PG-038 a job of another installation generation or an earlier activation writes nothing, and the next start() keeps its own", async t => {
+test("S-52 PG-038 a job of another installation generation or an earlier activation writes nothing, and the next start() keeps its own", async t => {
   const probe = jobProbe(), entered = deferred();
   let starts = 0;
   probe.behavior.onStart = (_context, keep) => { if (starts++) keep("resume", `resumed-${starts}`); };
@@ -142,7 +192,7 @@ test("S-51 PG-038 a job of another installation generation or an earlier activat
   assert.equal(probe.stored("result.replaced"), null); assert.equal(probe.stored("result.earlier"), null);
 });
 
-test("S-51 PG-038 closing a project stops the jobs a Home plugin kept there, and its jobs in another project run on", { timeout: 60_000 }, async t => {
+test("S-52 PG-038 closing a project stops the jobs a Home plugin kept there, and its jobs in another project run on", { timeout: 60_000 }, async t => {
   const probe = jobProbe("jobprojects", "project"), entered = deferred();
   let waiting = 0;
   const { release } = held(probe, () => { if (++waiting === 2) entered.resolve(); });
@@ -160,7 +210,7 @@ test("S-51 PG-038 closing a project stops the jobs a Home plugin kept there, and
   assert.equal(probe.stored(`result.${closed.project_id}`), null); assert.equal(probe.stored(`result.${open.project_id}`), "follow");
 });
 
-test("S-51 PG-038 deleting a project stops the jobs kept there, and only those", async t => {
+test("S-52 PG-038 deleting a project stops the jobs kept there, and only those", async t => {
   const probe = jobProbe("jobdeletion", "project"), entered = deferred();
   let waiting = 0;
   const { release } = held(probe, () => { if (++waiting === 2) entered.resolve(); });
@@ -174,7 +224,7 @@ test("S-51 PG-038 deleting a project stops the jobs kept there, and only those",
   assert.equal(probe.stored("result.p1"), null); assert.equal(probe.stored("result.p2"), "follow");
 });
 
-test("S-51 PG-038 closing the Home stops every job, and none writes after", async t => {
+test("S-52 PG-038 closing the Home stops every job, and none writes after", async t => {
   const probe = jobProbe(), entered = deferred();
   let waiting = 0;
   const { release } = held(probe, () => { if (++waiting === 2) entered.resolve(); });
@@ -190,7 +240,7 @@ test("S-51 PG-038 closing the Home stops every job, and none writes after", asyn
 });
 
 for (const mode of ["cancelled", "revoked"] as const) {
-  test(`S-51 PG-038 R-CODING-RECEIPT-02 a call ${mode} after its last authority check leaves its job to follow what it accepted to the end`, async t => {
+  test(`S-52 PG-038 R-CODING-RECEIPT-02 a call ${mode} after its last authority check leaves its job to follow what it accepted to the end`, async t => {
     const probe = jobProbe(), controller = new AbortController(), { release, finished } = held(probe);
     let permitted = true;
     probe.behavior.afterKeep = async () => { if (mode === "cancelled") controller.abort(); else permitted = false; };
@@ -203,7 +253,7 @@ for (const mode of ["cancelled", "revoked"] as const) {
   });
 }
 
-test("S-51 PG-038 a job kept through MCP follows on after the grant is revoked, as the installation: no MCP-only action, no record of the client", { timeout: 30_000 }, async t => {
+test("S-52 PG-038 a job kept through MCP follows on after the grant is revoked, as the installation: no MCP-only action, no record of the client", { timeout: 30_000 }, async t => {
   const probe = jobProbe("jobmcp"), entered = deferred(), release = deferred(), finished = deferred();
   const outcomes: { note?: unknown; mcp?: unknown } = {};
   probe.behavior.work = async (context, control, id) => {

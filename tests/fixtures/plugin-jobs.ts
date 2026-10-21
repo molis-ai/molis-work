@@ -22,6 +22,8 @@ export function jobProbe(name = "jobprobe", scope: "home" | "project" = "home") 
     beforeCheck: async (_caller: ActionExecutionContext) => {},
     /** `checked`: the command keeps its job once its own `beforeEffect()` returned; `unchecked`: before it; `despite`: after it refused. */
     order: "checked" as "checked" | "unchecked" | "despite",
+    /** Runs in the command right before it keeps its job, after its check. */
+    beforeKeep: async (_caller: ActionExecutionContext) => {},
     /** Runs in the command once its job is kept. */
     afterKeep: async (_caller: ActionExecutionContext) => {},
     work: async (context: PluginStartContext, control: PluginJobControl, id: string) => {
@@ -50,7 +52,7 @@ export function jobProbe(name = "jobprobe", scope: "home" | "project" = "home") 
       await behavior.beforeCheck(caller);
       if (behavior.order === "checked") await caller.beforeEffect();
       if (behavior.order === "despite") await caller.beforeEffect().catch((error: unknown) => { refused.push(error); });
-      run(job, id); await behavior.afterKeep(caller); return "kept";
+      await behavior.beforeKeep(caller); run(job, id); await behavior.afterKeep(caller); return "kept";
     };
     return { ...contribution, actions: [...contribution.actions!,
       { ...keep, handle: keeping }, { ...peek, handle: keeping }, { ...note, handle: record }, { ...mcpOnly, handle: record }] };

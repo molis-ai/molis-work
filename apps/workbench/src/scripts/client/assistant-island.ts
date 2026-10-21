@@ -5,6 +5,7 @@ import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
+import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT } from "./assistant-side-context.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -921,68 +922,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     });
   };
 
-  /* 材料: a place to drop what the next Send carries (named in the strip above the input), then what this work has used. */
+  /* 上下文 (assistant-side-context.ts): what the next Send carries, what the latest round used, what earlier rounds used. */
   const MATERIAL_KIND = { image: "图片", file: "文件", method: "方法", capability: "能力", text: "文字", selection: "选中的内容", object: "引用" };
-  const MATERIAL_GLYPH = { image: "image", file: "file", method: "zap", capability: "zap", text: "note", selection: "text", object: "file" };
-  function renderMaterialsBlock() {
-    const node = blocks.materials;
-    if (!node) return;
-    const work = view && view.work.work_id === curId ? view.work : null;
-    const objects = work && view.objects ? view.objects.filter((o) => o.relation === "material") : [];
-    const used = [];
-    (work ? view.rounds : []).forEach((round, index) => (round.materials || []).forEach((material) => {
-      if (material.object) return;
-      const key = material.kind + ":" + material.title;
-      if (!used.some((one) => one.key === key)) used.push({ key, material, round: index + 1 });
-    }));
-    const signature = JSON.stringify([work && work.work_id, sidePanelHere(),
-      objects.map((o) => [o.subject.id, o.state, o.title, o.current_revision]), used.map((one) => one.key)]);
-    if (node.dataset.signature === signature) return;
-    node.dataset.signature = signature;
-    keepFocus(node, () => {
-      // The next Send's materials go where things can be dropped; the strip above the input names each one.
-      const zone = el("div", "assistant-drop");
-      zone.append(el("p", "assistant-drop-label", L("下次发送带上")));
-      const hint = el("div", "assistant-drop-hint");
-      const pick = sideAct(L("添加文件"), L("下次发送带上"), async () => { fileInput?.click(); }, false, "secondary");
-      hint.append(glyph("upload"), el("span", "", L("拖到这里，或 @ 引用、/ 用能力")), pick);
-      zone.append(hint);
-      zone.addEventListener("dragover", (event) => { if (![...(event.dataTransfer?.types || [])].includes("Files")) return; event.preventDefault(); zone.dataset.dropping = "true"; });
-      zone.addEventListener("dragleave", (event) => { if (!zone.contains(event.relatedTarget)) delete zone.dataset.dropping; });
-      zone.addEventListener("drop", (event) => { delete zone.dataset.dropping; const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
-      const tiles = el("div", "assistant-tiles");
-      objects.forEach((object) => {
-        const state = objectState(object), open = openObject(object);
-        const box = el("div", "assistant-tile" + (open ? " is-openable" : "") + (state ? " is-attention" : ""));
-        box.append(tile(objectGlyph(object), state ? "attention" : ""));
-        if (open) { const name = el("button", "assistant-item-title", object.title); name.type = "button"; name.setAttribute("aria-label", L("打开") + "：" + object.title); name.addEventListener("click", () => { void open(); }); box.append(name); }
-        else box.append(el("span", "assistant-item-title", objectTitle(object)));
-        box.append(el("span", "assistant-item-sub" + (state ? " is-attention" : ""), state || surfaceName(object.open && object.open.surface) || L("材料")));
-        box.title = objectDetail(object);
-        tiles.append(box);
-      });
-      used.forEach((one) => {
-        const box = el("div", "assistant-tile"), name = one.material.title.replace(/^(方法|用|图片|引用)：/, "");
-        const readable = one.material.kind === "file" && one.material.text && sidePanelHere()
-          ? () => { sidePreview({ preview: { title: name, media_type: "text/plain", text: one.material.text } }); } : readBack(one.material, name) || readImage(one.material, name);
-        const title = el(readable ? "button" : "span", "assistant-item-title", name);
-        if (readable) {
-          title.type = "button"; title.setAttribute("aria-label", L("预览") + "：" + name); box.classList.add("is-openable");
-          title.addEventListener("click", readable);
-        }
-        box.append(tile(MATERIAL_GLYPH[one.material.kind] || "file", ""), title,
-          el("span", "assistant-item-sub", L(MATERIAL_KIND[one.material.kind] || "材料") + " · " + L("第 {n} 轮").replace("{n}", String(one.round))
-            + (one.material.expired ? " · " + L("已失效") : "")));
-        if (one.material.expired) box.title = L(EXPIRED_IMAGE);
-        tiles.append(box);
-      });
-      const content = el("div", "assistant-group-list");
-      content.append(zone);
-      if (tiles.children.length) content.append(group(L("用过的"), tiles));
-      const changed = objects.filter((o) => o.state !== "current").length;
-      paintBlock(node, L("材料"), "paperclip", content, changed ? changed + " " + L("项有变化") : tiles.children.length ? String(tiles.children.length) : "", changed > 0);
-    });
-  }
+  function renderMaterialsBlock() { sideContext.paint(); }
 
   /* 产出: what it made, a fixed version kept in the 成果库 (固定成果) apart from objects their owners keep changing (工作文件); each card opens it or takes it back. */
   const renderResults = (work) => {
@@ -1727,6 +1669,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     else if (item.key.startsWith("file:")) files = files.filter((file) => "file:" + file.material_id !== item.key); else removed.add(item.key);
   }
   const stripNode = island.querySelector("[data-assistant-context-strip]");
+  const sideContext = (${ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT})({ L, el, kinds: MATERIAL_KIND, tile, glyph, group, sideAct, paintBlock, keepFocus, sidePanelHere, sidePreview, readBack, readImage, openObject, objectState, objectTitle, objectDetail, objectGlyph, surfaceName, addFiles,
+    current: () => (view && view.work.work_id === curId ? view : null), pickFile: () => fileInput?.click(), expired: EXPIRED_IMAGE, block: () => blocks.materials,
+    pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })) });
   contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
     drop: (item) => { dropMaterial(item); paintMats(); },

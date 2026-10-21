@@ -17,8 +17,8 @@ const ended = (error: unknown, beforeWrite: CodingBeforeWrite) =>
  * The titles of the Goals sessions are attached to (PG-091). Goals owns a Goal and its title; Coding reads the title through Goals' public
  * read actions, declared in its Manifest `capabilities.consumes`, and keeps what it read only to draw the session directory, which is
  * rendered at once and cannot wait for an action: the last title read, refreshed every time a route reads titles (the page asks
- * `coding.state` as it opens). A Goal that has never been read, or cannot be read now, keeps its id in the directory and shows
- * 「关联 Goal 暂不可用」 in the page, as an unresolvable Goal always has.
+ * `coding.state` as it opens). A Goal whose title has never been read keeps its id in the directory and shows 「关联 Goal 暂不可用」
+ * in the page, as an unresolvable Goal always has; one read before that cannot be read now keeps the last title read.
  */
 export function codingGoalTitles(context: PluginStartContext) {
   const memory = new Map<string, string>();

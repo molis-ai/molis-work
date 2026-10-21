@@ -46,25 +46,25 @@ function publishedOf(answer: unknown): Published[] {
 
 /**
  * The person's Characters as Coding runs a round with them (PG-086): read through Characters' public actions, `characters.list` for what
- * is published and `characters.execution` for whether a version can run now. Both are declared in Coding's Manifest
- * `capabilities.consumes` and called through the platform, so the platform checks the grant (`actions.forbidden` without the
- * declaration, `plugin.grant_denied` once the person has withdrawn it); Coding opens no Character record of its own and holds no Host port.
+ * is published and `characters.runnable` for whether a version can run now (only that: how a version would be launched on this
+ * computer stays the person's `characters.execution`). Both are declared in Coding's Manifest `capabilities.consumes` and called
+ * through the platform, so the platform checks the grant (`actions.forbidden` without the declaration, `plugin.grant_denied` once the
+ * person has withdrawn it); Coding opens no Character record of its own and holds no Host port.
  */
 export function codingCharacters(context: PluginStartContext) {
   const actions = () => {
     if (!context.services?.actions) throw Object.assign(new Error("宿主未提供系统动作调用入口"), { code: "actions.unredeemed" });
     return context.services.actions;
   };
-  /** Whether this version can run now: Characters refuses one that is not a current publication of this project, or whose Character is off or deleted. */
+  /**
+   * Whether this version can run now: Characters answers no, with its own reason, for one that is not a current publication of this
+   * project or whose Character is off or deleted. A failed call (not granted, the plugin stopped, cancelled) is not a reason about the
+   * Character: it ends the read.
+   */
   const refusal = async (reference: ArtifactReference, control?: Control): Promise<string | undefined> => {
-    try { await actions().invoke(characterPluginActions.execution, { reference }, control); return undefined; }
-    catch (error) {
-      if (control?.signal?.aborted || (error as { name?: unknown } | undefined)?.name === "AbortError") throw error;
-      const { code } = (error ?? {}) as { code?: unknown };
-      // A refusal of the call itself (not granted, the plugin stopped) is not a reason about the Character: it ends the read.
-      if (typeof code === "string" && /^(actions|plugin)\./.test(code)) throw error;
-      return error instanceof Error && error.message ? error.message : UNAVAILABLE;
-    }
+    const answer = await actions().invoke(characterPluginActions.runnable, { reference }, control);
+    if (answer.available) return undefined;
+    return answer.reason || UNAVAILABLE;
   };
   return {
     /** Every published version of the person's Characters in this project, each with whether it can run now and, if not, why. */

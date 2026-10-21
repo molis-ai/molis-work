@@ -29,7 +29,7 @@ function characterPublication(content: CharacterContent) {
 
 /**
  * A publication is runnable while its draft is active and the revision it was made from exists. A publication made from a draft
- * revision that does not exist is not one to run (the check a plugin running a Character relies on, PG-086).
+ * revision that does not exist is not one to run (the check `characters.runnable` answers a plugin running a Character with, PG-086).
  */
 function assertRunnableDraft(draft: ReturnType<CharactersPluginPorts["drafts"]["get"]>, content: CharacterContent): void {
   if (!draft || draft.state !== "active") throw new Error("该角色已停用或删除");
@@ -139,6 +139,11 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       bindOwnerPluginAction(context, a.draftFile, input => characterFilePreview(ports.drafts.get(String(input.id))?.import_snapshot, input)),
       bindOwnerPluginAction(context, a.publicationFile, input => characterFilePreview(publication(input, false).content.import_snapshot, input)),
       bindOwnerPluginAction(context, a.execution, input => imports().execution(publication(input).content)),
+      // The same check as a launch, answered as data: a version that cannot run is an answer with Characters' reason, not a failed call.
+      bindOwnerPluginAction(context, a.runnable, input => {
+        try { publication(input); return { available: true as const }; }
+        catch (error) { return { available: false as const, reason: error instanceof Error && error.message ? error.message : "请选择当前项目已发布的角色版本" }; }
+      }),
       bindOwnerPluginAction(context, a.usages, input => {
         const usages: ActionUsage[] = [];
         for (const draft of ports.drafts.list()) {

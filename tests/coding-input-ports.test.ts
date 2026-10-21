@@ -10,6 +10,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID, codingManifest, type CodingUiHostModel } from "@molis-ai/molis-work-plugin-coding";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
+import { charactersActions } from "@molis-ai/molis-work-plugin-characters";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -22,7 +23,9 @@ import { fakeGoalDirectory } from "./fixtures/plugin-actions.js";
 
 // Coding reads what it used to be handed by the Host through the platform instead (W5-01 C2; specs/coding-plugin §4 H): the models
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
-// public actions (PG-086), each declared in its Manifest and checked by the platform's grant. There is no `ready` port to wait for.
+// public actions `characters.list` and the plugin-only `characters.runnable` (PG-086), each declared in its Manifest and checked by the
+// platform's grant. The person's `characters.execution` (the local program and folders) stays out of a plugin's reach. There is no
+// `ready` port to wait for.
 
 /** What the page's own routes answer (`/state`, `/sessions/:id/characters`), as far as these tests read it. */
 type Reply = { status: number; body: { models: Array<{ provider_id: string; model_id: string; label: string }>; sessions: Array<{ session_id: string; goal_title: string | null }>;
@@ -59,9 +62,12 @@ test("W5-01-CODING-23 Coding declares model:read and never model:invoke, and lis
   // No action of Coding's can ask the model for text either: a call to complete() needs an own action that declares model:invoke.
   for (const action of codingManifest.actions) assert.equal(action.action.permissions.includes("model:invoke"), false, `${action.capability_id} does not declare model:invoke`);
   const consumed = codingManifest.capabilities.consumes;
-  for (const definition of [goalPluginActions.list, goalPluginActions.contract, characterPluginActions.list, characterPluginActions.execution]) {
+  for (const definition of [goalPluginActions.list, goalPluginActions.contract, characterPluginActions.list, characterPluginActions.runnable]) {
     assert.ok(consumed.includes(definition.capability_id), `Coding lists ${definition.capability_id} under consumes`);
   }
+  assert.equal(consumed.includes(charactersActions.execution.capability_id), false, "Coding does not ask for how a Character is launched");
+  assert.deepEqual(charactersActions.runnable.action.audiences, ["plugin"], "the runnable answer is for plugins only");
+  assert.deepEqual(charactersActions.execution.action.audiences, ["user"], "the local program and folders stay the person's");
 });
 
 test("W5-01-CODING-24 Coding reads the model list and each model's availability from services.model with model:read only; complete() is not available to it", { timeout: 60_000 }, async t => {
@@ -135,16 +141,17 @@ test("W5-01-CODING-27 a Goal the directory does not list (archived or discarded)
   assert.deepEqual(reads.filter(id => id === "archived"), ["archived"], "a title already known is not read again");
 });
 
-test("W5-01-CODING-28 Characters are read through characters.list and characters.execution as a plugin caller; the reason a version cannot run is Characters' own", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-28 Characters are read through characters.list and characters.runnable as a plugin caller; the reason a version cannot run is Characters' own", { timeout: 60_000 }, async t => {
   const s = await codingSdkRuntime(t), seen: Array<{ capability_id: string; caller: ActionCallContext }> = [];
   const publication = (artifact_id: string, title: string) => ({ artifact_id, version: 1, lifecycle_state: "active", availability: "available", payload: { title, instructions: "固定要求", host_tools: null } });
-  s.service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterPluginActions.list, characterPluginActions.execution],
+  s.service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterPluginActions.list, characterPluginActions.runnable],
     handlers: [
       { ...characterPluginActions.list, handle: caller => { seen.push({ capability_id: characterPluginActions.list.capability_id, caller }); return { drafts: [], publications: [publication("c-ok", "可用角色"), publication("c-off", "已停用角色")] }; } },
-      { ...characterPluginActions.execution, handle: (caller, input) => {
-        seen.push({ capability_id: characterPluginActions.execution.capability_id, caller });
-        if ((input as { reference: { artifact_id: string } }).reference.artifact_id === "c-off") throw new ActionError("characters.disabled", "该角色已停用或删除");
-        return { runnable: true };
+      { ...characterPluginActions.runnable, handle: (caller, input) => {
+        seen.push({ capability_id: characterPluginActions.runnable.capability_id, caller });
+        // A version that cannot run is an answer with Characters' reason, not a failed call.
+        if ((input as { reference: { artifact_id: string } }).reference.artifact_id === "c-off") return { available: false, reason: "该角色已停用或删除" };
+        return { available: true };
       } },
     ] });
   await s.create("s1");
@@ -154,19 +161,24 @@ test("W5-01-CODING-28 Characters are read through characters.list and characters
   assert.equal(byId.get("c-ok")?.available, true);
   assert.equal(byId.get("c-off")?.available, false);
   assert.equal(byId.get("c-off")?.reason, "该角色已停用或删除", "the reason is the one Characters gave");
-  assert.deepEqual([...new Set(seen.map(entry => entry.capability_id))].sort(), ["characters.execution", "characters.list"]);
+  assert.deepEqual([...new Set(seen.map(entry => entry.capability_id))].sort(), ["characters.list", "characters.runnable"]);
   assert.ok(seen.every(({ caller }) => caller.audience === "plugin" && caller.host_plugin?.plugin_id === CODING_PLUGIN_ID), "both reads reached Characters as Coding, the plugin audience");
 });
 
-/** A consumer plugin and the stand-in Characters it calls: the platform's checks of a plugin's consumption, with Coding's own declarations. */
+/**
+ * A consumer plugin and the stand-in Characters it calls: the platform's checks of a plugin's consumption, with Coding's own declarations
+ * and Characters' own user-only `characters.execution`.
+ */
 async function consumers() {
   const home = mkdtempSync(join(tmpdir(), "coding-input-ports-")), file = join(home, "board.sqlite");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), service = new ActionService(), reached: string[] = [];
-  service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterPluginActions.list, characterPluginActions.execution],
+  service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" },
+    definitions: [characterPluginActions.list, characterPluginActions.runnable, charactersActions.execution],
     handlers: [
       { ...characterPluginActions.list, handle: () => { reached.push("list"); return { drafts: [], publications: [] }; } },
-      { ...characterPluginActions.execution, handle: () => { reached.push("execution"); return { runnable: true }; } },
+      { ...characterPluginActions.runnable, handle: () => { reached.push("runnable"); return { available: true }; } },
+      { ...charactersActions.execution, handle: () => { reached.push("execution"); return { executable: "/usr/local/bin/agent", workspaces: [] }; } },
     ] });
   const actions = registration(service);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
@@ -190,43 +202,47 @@ async function consumers() {
 }
 const reference = { artifact_id: "c-ok", version: 1 };
 
-test("W5-01-CODING-29 S-15 a plugin that does not list characters.execution under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable", { timeout: 60_000 }, async () => {
+test("W5-01-CODING-29 S-15 a plugin that does not list characters.runnable under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable; the person's characters.execution is out of reach even when listed", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
-    await item.start("lists-both", [characterPluginActions.list.capability_id, characterPluginActions.execution.capability_id], ["artifact:read"]);
+    await item.start("lists-both", [characterPluginActions.list.capability_id, characterPluginActions.runnable.capability_id], ["artifact:read"]);
     await item.start("lists-one", [characterPluginActions.list.capability_id], ["artifact:read"]);
     await item.start("lists-none", [goalPluginActions.list.capability_id], ["artifact:read"]);
+    await item.start("lists-execution", [charactersActions.execution.capability_id], ["artifact:read"]);
     // Coding's own Manifest asks for both, so it gets both.
-    assert.deepEqual(await item.client("lists-both").invoke(characterPluginActions.execution, { reference }), { runnable: true });
+    assert.deepEqual(await item.client("lists-both").invoke(characterPluginActions.runnable, { reference }), { available: true });
     assert.deepEqual(await item.client("lists-both").invoke(characterPluginActions.list, {}), { drafts: [], publications: [] });
-    assert.deepEqual(item.reached, ["execution", "list"]);
+    assert.deepEqual(item.reached, ["runnable", "list"]);
     // Not listed: refused before Characters is asked.
     assert.deepEqual(await item.client("lists-one").invoke(characterPluginActions.list, {}), { drafts: [], publications: [] });
-    await assert.rejects(item.client("lists-one").invoke(characterPluginActions.execution, { reference }), { code: "actions.forbidden" });
-    await assert.rejects(item.client("lists-none").invoke(characterPluginActions.execution, { reference }), { code: "actions.forbidden" });
+    await assert.rejects(item.client("lists-one").invoke(characterPluginActions.runnable, { reference }), { code: "actions.forbidden" });
+    await assert.rejects(item.client("lists-none").invoke(characterPluginActions.runnable, { reference }), { code: "actions.forbidden" });
     await assert.rejects(item.client("lists-none").invoke(characterPluginActions.list, {}), { code: "actions.forbidden" });
-    assert.deepEqual(item.reached, ["execution", "list", "list"], "the refused calls never reached Characters");
+    // Listed and granted, but the launch details are the person's: the action is not offered to plugins, so for this plugin what it
+    // lists does not exist in the project (it is not told the action is there and refused).
+    await assert.rejects(item.client("lists-execution").invoke(charactersActions.execution, { reference }), { code: "actions.dependency_missing" });
+    assert.deepEqual(item.reached, ["runnable", "list", "list"], "the refused calls never reached Characters");
   } finally { item.close(); }
 });
 
 test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed action is refused (plugin.grant_denied) and Characters is not asked", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
-    const consumes = [characterPluginActions.list.capability_id, characterPluginActions.execution.capability_id];
+    const consumes = [characterPluginActions.list.capability_id, characterPluginActions.runnable.capability_id];
     const installed = await item.start("revoked", consumes, ["artifact:read"]);
-    assert.deepEqual(await item.client("revoked").invoke(characterPluginActions.execution, { reference }), { runnable: true });
-    assert.deepEqual(item.reached, ["execution"]);
+    assert.deepEqual(await item.client("revoked").invoke(characterPluginActions.runnable, { reference }), { available: true });
+    assert.deepEqual(item.reached, ["runnable"]);
     // The running plugin's grants do not change under it: the person stops it, withdraws the grant, and it starts again without it.
     await item.runtime.stop(installed.install_id);
     item.runtime.grant(installed.install_id, []);
     await item.runtime.start(installed.install_id);
-    await assert.rejects(item.client("revoked").invoke(characterPluginActions.execution, { reference }), { code: "plugin.grant_denied" });
+    await assert.rejects(item.client("revoked").invoke(characterPluginActions.runnable, { reference }), { code: "plugin.grant_denied" });
     await assert.rejects(item.client("revoked").invoke(characterPluginActions.list, {}), { code: "plugin.grant_denied" });
-    assert.deepEqual(item.reached, ["execution"], "the withdrawn grant refused both before Characters was asked");
+    assert.deepEqual(item.reached, ["runnable"], "the withdrawn grant refused both before Characters was asked");
     // A plugin that was never given it is refused the same way.
     await item.start("never", consumes, []);
-    await assert.rejects(item.client("never").invoke(characterPluginActions.execution, { reference }), { code: "plugin.grant_denied" });
-    assert.deepEqual(item.reached, ["execution"]);
+    await assert.rejects(item.client("never").invoke(characterPluginActions.runnable, { reference }), { code: "plugin.grant_denied" });
+    assert.deepEqual(item.reached, ["runnable"]);
   } finally { item.close(); }
 });
 

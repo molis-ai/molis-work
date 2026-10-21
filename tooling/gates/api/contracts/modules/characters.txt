@@ -126,9 +126,14 @@ export declare const characterPluginActions: {
         drafts: unknown[];
         publications: unknown[];
     }>;
-    readonly execution: ActionDefinition<{
+    readonly runnable: ActionDefinition<{
         reference: ArtifactReference;
-    }, unknown>;
+    }, {
+        available: true;
+    } | {
+        available: false;
+        reason: string;
+    }>;
 };
 
 export declare const modulesCharactersContract: {

@@ -50,7 +50,10 @@ export const charactersActions = {
   draftFile: define<Record<string, unknown>, unknown>("drafts.file", "预览草稿来源文件", "预览草稿导入快照中的文件", "query", { type: "object", required: ["id"] }, { type: "object" }, [], LOCAL),
   publicationFile: define<Record<string, unknown>, unknown>("publications.file", "预览发布来源文件", "预览已发布版本导入快照中的文件", "query",
     { type: "object", required: ["reference"] }, { type: "object" }, ["artifact:read"], LOCAL),
-  execution: characterPluginActions.execution,
+  execution: define<{ reference: ArtifactReference }, unknown>("execution", "角色运行准备", "读取用本机 Agent 运行此发布版本所需的程序与工作目录",
+    "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
+  /** Defined in the contracts, where Coding (which consumes it) finds it too: whether a version can run, without the launch details. */
+  runnable: characterPluginActions.runnable,
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", "角色里的使用位置", []),
   launch: define<CharacterLaunchInput, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",

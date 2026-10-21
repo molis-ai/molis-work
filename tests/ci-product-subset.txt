@@ -109,6 +109,7 @@ tests/assistant-work-continuity.test.ts
 
 # characters
 tests/characters-action-client.test.ts
+tests/characters-action-handlers.test.ts
 tests/characters-agent-host.test.ts
 tests/characters-appearance.test.ts
 tests/characters-import.test.ts

@@ -190,3 +190,54 @@ test("VUX-40: the writer directories and integration dialogs speak English in En
     assert.deepEqual(result.errors, []);
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// specs/visual-ui-experience VUX-40: a step's report dialog and the change set reader (files and writes, write states, the fixed
+// version, line comments) speak English on an English page.
+test("VUX-40: the step report dialog and the change set reader speak English in English", { timeout: 30_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-english-changes-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
+    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+  try {
+    const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    const result = await page.evaluate<{ han: string[]; step: string; stepStatus: string; files: string; reader: string; comments: string }>(`(async () => {
+      document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
+      const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
+      const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
+      const steps=(${embeddedFactory("stepReports")})({lifetime,q,current:()=>'s',status:message=>errors.push(message),refresh:async()=>{},prepareRework:()=>{},receipts:{link:()=>null},
+        api:async()=>({runs:[{ref:{run_id:'r'},phase:'completed'}],taskboard_plans:[{run_id:'r',revision:2,plan:{content:{steps:[{title:'Write the parser',acceptance:'Tests pass'}]}},
+          board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:'Builder',note:'Done it'}]}]},
+          verdicts:{'step-1':{status:'needs-work',notes:'Missing an edge case',project_id:'p',board_version:2,revision:1}}}]})});
+      await steps.open('s','r','step-1');
+      const step=q('[data-coding-step-detail]').textContent.replace(/\\s+/g,' '),stepStatus=q('[data-coding-step-status]').textContent;
+      q('[data-coding-step-dialog]').close();
+      const changes=(${embeddedFactory("changeReview")})({lifetime,root,q,turns:q('[data-coding-turns]'),current:()=>'s',closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},
+        api:async()=>({view_mode:'write',html:'<ol class="diff-rows"><li><button type="button" data-coding-line="3" data-coding-line-side="after">3</button></li></ol>',patch:'diff',
+          reference:{artifact_id:'a',version:2},saved_at:Date.UTC(2026,9,20,9,30),output:null,net_groups:[{path:'a.ts',available:true,indices:[0,1]}],
+          change:{files:[{path:'a.ts',kind:'modified',added_lines:2,removed_lines:1,review:{decision:'approved',execution:'applied'}},
+            {path:'a.ts',kind:'modified',added_lines:1,removed_lines:0,review:{decision:'approved',execution:'failed'}},
+            {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected'}},{path:'c.ts',kind:'modified',added_lines:1,removed_lines:1}]}})});
+      const opener=document.createElement('button');opener.dataset.codingChangeOpen='r';root.append(opener);opener.click();
+      await new Promise(resolve=>setTimeout(resolve,20));
+      q('[data-coding-line]').click();
+      const reader=q('[data-coding-change-reader]');
+      const nodes=[reader,...reader.querySelectorAll('*'),q('[data-coding-step-dialog]'),...q('[data-coding-step-dialog]').querySelectorAll('*')];
+      const han=nodes.flatMap(node=>[...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).concat([...node.attributes].map(attr=>attr.value)))
+        .filter(value=>/[\\u3400-\\u9fff]/.test(value));
+      return {han:[...new Set(han)],step,stepStatus,files:q('[data-coding-change-files]').textContent.replace(/\\s+/g,' '),reader:reader.textContent.replace(/\\s+/g,' '),
+        comments:q('[data-coding-feedback-list]').querySelector('textarea').getAttribute('aria-label')};
+    })()`);
+    assert.deepEqual(result.han, [], "no Chinese in what the dialog and the reader draw");
+    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: you.*Builder: Done it/);
+    assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
+    assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
+    assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
+    assert.match(result.files, /b\.ts\s*new.*Rejected.*c\.ts\s*modified.*Older record/);
+    assert.match(result.reader, /Fixed v2/);
+    assert.match(result.reader, /Files: 3 · writes: 4/);
+    assert.match(result.reader, /Click a line number to leave a comment/);
+    assert.equal(result.comments, "Comment on a.ts · write 1 · line 3 after");
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});

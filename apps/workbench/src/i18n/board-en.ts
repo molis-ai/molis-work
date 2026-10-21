@@ -42,4 +42,17 @@ export const BOARD_EN: Record<string, string> = {
   "跑命令": "Run a command",
   "查找": "Find",
   "连接中断": "Disconnected",
+  // 助理信息与任务 (assistant-board-*.ts, browser/board/assistant-frame.ts).
+  "助理信息与任务": "Assistant information and works",
+  "常驻助理的生产程序放在它自己的底栏里：多项工作的标签与列表、侧栏六组（工作环境、上下文、连接与工具、产出、变更、后台任务）、一轮的过程、输入框、上下文条与附件。读到的工作是固定样例（模拟），由宿主照常画好；写入一律被拒绝，不碰真实的工作，也不改这台电脑上工作台记住的东西。": "The resident Assistant's production program in its own bottom bar: the tabs and list of several works, the side pane's six groups (environment, context, connections and tools, outputs, changes, background work), a round's steps, the input, the context strip and attachments. The works it reads are fixed samples (simulated), drawn by the Host as usual; every write is refused, so no real work is touched and nothing the workbench remembers on this computer changes.",
+  "非编程 · 等你确认": "Non-programming · waiting for you to confirm",
+  "编程 · 进行中": "Programming · running",
+  "助理样例": "Assistant specimen",
+  "模拟：工作、轮次与宿主的回答是固定样例（宿主照常画好），不连接模型，任何写入都被拒绝。面板、侧栏六组、过程、输入框、上下文条与附件都是生产的助理程序。": "Simulated: the works, rounds and the Host's answers are fixed samples (drawn by the Host as usual); no model is connected and every write is refused. The panel, the six side groups, the steps, the input, the context strip and attachments are the production Assistant program.",
+  "带上三个文件（模拟）": "Bring three files (simulated)",
+  "推进一步（模拟）": "Move on one step (simulated)",
+  "样例不执行这一步（模拟）": "The sample does not carry this out (simulated)",
+  "样例已经走完了": "The sample has no more steps",
+  "已推进一步": "Moved on one step",
+  "样例里不打开「{title}」（模拟）": "The sample does not open “{title}” (simulated)",
 };

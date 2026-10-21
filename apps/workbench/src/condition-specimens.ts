@@ -9,9 +9,11 @@ import { escapeHtml, renderChoice, renderToggleGroup } from "@molis-ai/molis-wor
  */
 type Say = (text: string, values?: Record<string, string | number>) => string;
 type Option = readonly [value: string, label: string];
+/** One parameter of a board frame: its name in the frame's address (or `width`, the frame's own width), its label and its values. */
+export type BoardFrameParam = readonly [name: string, label: string, options: readonly Option[]];
 
 // The language names are written in their own language, as the product's language switch writes them.
-const PARAMS: ReadonlyArray<readonly [name: string, label: string, options: readonly Option[]]> = [
+const PARAMS: readonly BoardFrameParam[] = [
   ["lang", "界面语言", [["zh", "中文"], ["en", "English"]]],
   ["text", "正文语言", [["zh", "中文"], ["en", "English"], ["mixed", "混排"]]],
   ["kind", "内容", [["code", "编程"], ["prose", "非编程"]]],
@@ -21,7 +23,8 @@ const PARAMS: ReadonlyArray<readonly [name: string, label: string, options: read
 ];
 const NATIVE = new Set(["中文", "English"]);
 
-function param(say: Say, [name, label, options]: (typeof PARAMS)[number]): string {
+/** A frame's parameter as one toggle group, its first value current; the board's strip program (conditions-section.ts) reads it. */
+export function boardFrameParam(say: Say, [name, label, options]: BoardFrameParam): string {
   return `<div class="mw-cond-param"><span>${escapeHtml(say(label))}</span>${renderToggleGroup({ label: say(label), items: options.map(([value, text], index) => ({
     value, label: NATIVE.has(text) ? text : say(text), current: index === 0, attrs: { "data-cond-param": name, "data-cond-value": value },
   })) })}</div>`;
@@ -36,7 +39,7 @@ export function renderConditionsSection(say: Say): string {
     + preference(say, "界面密度", "data-density-option", [["standard", "标准"], ["compact", "紧凑"]]);
   return `<section class="mw-catalog__section" id="conditions" data-primitive="conditions"><h2>${escapeHtml(say("条件与状态"))}</h2>
     <p class="mw-catalog__hint">${escapeHtml(say("同一块生产内容放在真实的工作台环境里（下面的框架用工作台的样式表与页面程序），一次只换一个参数对照：界面语言、正文语言与混排、编程与非编程、后备字体、复制成败、容器宽度，明暗与密度用页面的偏好。缩放、触控与减少动态效果由浏览器给，框架只读出当前值。示例内容固定，不连接任何服务；标「模拟」的是板上造出的条件，不代替生产验证。"))}</p>
-    <div class="mw-cond-params" data-cond-params>${PARAMS.map((one) => param(say, one)).join("")}${preferences}</div>
+    <div class="mw-cond-params" data-cond-params>${PARAMS.map((one) => boardFrameParam(say, one)).join("")}${preferences}</div>
     <iframe class="mw-cond-frame" data-cond-frame src="/__ui/catalog/conditions?lang=zh&amp;text=zh&amp;kind=code&amp;font=system&amp;copy=ok" title="${escapeHtml(say("条件与状态样例"))}" style="width:760px" loading="lazy"></iframe>
     <script>${CONDITIONS_SECTION_SCRIPT}</script>
   </section>`;

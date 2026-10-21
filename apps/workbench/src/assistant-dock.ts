@@ -3,7 +3,7 @@ import { renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-sy
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
 const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
   "code", "idea", "inbox", "target", "database", "workflow", "upload", "bell", "paperclip", "text", "status-waiting", "x",
-  "question", "shield", "terminal", "external", "eye", "search", "list", "refresh"];
+  "question", "shield", "terminal", "external", "eye", "search", "list", "refresh", "folder", "git-branch", "link", "user"];
 
 /**
  * The resident Assistant: its panel of works and the composer, which at rest is only the input, “+” and send. Where to
@@ -44,7 +44,9 @@ export function renderAssistantDock(primitives: { L(value: string): string; icon
             <section class="assistant-block assistant-block--attention" data-assistant-block="attention" aria-label="${L("还等你处理")}" hidden></section>
             <section class="assistant-block" data-assistant-block="path" aria-label="${L("路径")}" hidden></section>
             <section class="assistant-block" data-assistant-block="agreements" aria-label="${L("AI 记下的约定")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="environment" aria-label="${L("工作环境")}" hidden></section>
             <section class="assistant-block" data-assistant-block="materials" aria-label="${L("上下文")}" hidden></section>
+            <section class="assistant-block" data-assistant-block="tools" aria-label="${L("连接与工具")}" hidden></section>
             <section class="assistant-block" data-assistant-block="results" aria-label="${L("产出")}" hidden></section>
             <section class="assistant-block" data-assistant-block="changes" aria-label="${L("变更")}" hidden></section>
             <section class="assistant-block" data-assistant-block="background" aria-label="${L("后台任务")}" hidden></section>

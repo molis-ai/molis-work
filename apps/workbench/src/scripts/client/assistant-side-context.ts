@@ -77,3 +77,72 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
     });
   } };
 }`;
+
+/**
+ * The Assistant's 工作环境 and 连接与工具 groups (VUX-08/09; the user's 2026-10-20 decision ②): what the Host reads from each
+ * owner for the current work (`GET /works/<id>/surroundings`, held there for a few seconds), asked again when the work,
+ * its revision or its state changes, never on every redraw. A connection or a repository changes without the work changing,
+ * so a read older than 15 s is asked again whenever the side is in sight and redrawn (the page coming back to the front
+ * redraws) or focus enters it (opening it does); a failed read is tried again 3 s later. A part its owner could not answer
+ * says so in its own row.
+ * - 工作环境: the scope (personal, or the project); for Coding, the session's directory and its repository, branch, distance to
+ *   upstream and what is not committed. A conflict is the summary and stands out.
+ * - 连接与工具: each of the person's connections (headed 你的连接: they are the person's, not what this work was given) by its own status (signed in, needs signing in, failed, off) and whether its tools can run;
+ *   then what the Assistant can call now by provider, and what it cannot with its owner's reason. Coding keeps its own tools.
+ */
+export const ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT = String.raw`({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock, toolsBlock }) => {
+  let asked = "", held = null, at = 0, asking = false, last = null;
+  const count = (text, value) => L(text).replace("{n}", String(value));
+  const CONNECTION = { connected: "已连接", "needs-authorization": "需要登录授权", failed: "连接失败", disconnected: "未连接", unchecked: "还没检查", incomplete: "还没设置完", off: "已关闭" };
+  const TOOLS = { callable: "工具可调用", partial: "部分工具可调用", blocked: "工具不可调用", "none-discovered": "还没发现工具" };
+  const paint = (work, read) => {
+    const env = environmentBlock(), tools = toolsBlock();
+    if (!env || !tools) return;
+    const signature = JSON.stringify([work && work.work_id, read]);
+    if (env.dataset.signature === signature) return;
+    env.dataset.signature = signature;
+    if (!work || !read) { paintBlock(env, "", "", null); paintBlock(tools, "", "", null); return; }
+    const { environment, connections, tools: can } = read, coding = environment.coding, git = coding && coding.git;
+    keepFocus(env, () => {
+      const rows = [card({ icon: environment.scope.kind === "project" ? "folder" : "user", title: environment.scope.kind === "project" ? environment.scope.title || L("本项目") : L("个人"),
+        sub: environment.scope.kind === "project" ? L("项目范围：只用这个项目的能力与资料") : L("个人范围：不属于任何项目") })];
+      if (coding && coding.workspace) rows.push(card({ icon: "folder", title: coding.workspace.name, sub: L("目录") + " · " + coding.workspace.path, detail: coding.workspace.path }));
+      if (git) rows.push(card({ icon: "git-branch", tone: git.conflicted ? "blocked" : "", title: (git.repository ? git.repository + " · " : "") + (git.branch || L("分离的 HEAD")),
+        sub: [git.ahead ? count("领先 {n}", git.ahead) : "", git.behind ? count("落后 {n}", git.behind) : "",
+          git.changed ? count("{n} 处未提交", git.changed) : L("没有未提交的改动"), git.conflicted ? count("{n} 处冲突", git.conflicted) : ""].filter(Boolean).join(" · "),
+        subTone: git.conflicted ? "blocked" : "" }));
+      else if (coding) rows.push(card({ icon: "folder", tone: coding.problem ? "attention" : "", title: coding.workspace ? L("不是 Git 仓库") : L("还没有工作目录"), sub: coding.problem || "", subTone: coding.problem ? "attention" : "" }));
+      paintBlock(env, L("工作环境"), "folder", stack(rows), git && git.conflicted ? count("{n} 处冲突", git.conflicted) : git ? git.branch || L("分离的 HEAD") : "", Boolean(git && git.conflicted));
+    });
+    keepFocus(tools, () => {
+      const box = el("div", "assistant-group-list");
+      const linked = connections.map((one) => card({ icon: "link", tone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : one.state === "connected" ? "" : "attention", title: one.title,
+        sub: [L(CONNECTION[one.state] || one.state), one.account || "", one.state === "connected" ? L(TOOLS[one.tools] || one.tools) : ""].filter(Boolean).join(" · "),
+        subTone: ["needs-authorization", "failed"].includes(one.state) ? "blocked" : "" }));
+      if (read.connections_problem) linked.push(card({ icon: "link", tone: "attention", title: L("连接暂时读不到"), sub: read.connections_problem, subTone: "attention" }));
+      if (linked.length) box.append(group(L("你的连接"), stack(linked, work.work_id + ":tools:connections")));
+      const callable = can.executor === "coding" ? [card({ icon: "terminal", title: "Coding Agent", sub: L("用它自己的工具与 MCP，在 Coding 里设置") })]
+        : can.callable.map((one) => card({ icon: "zap", title: one.provider, sub: count("{n} 项可用", one.count) }));
+      if (can.problem) callable.push(card({ icon: "zap", tone: "attention", title: L("工具暂时读不到"), sub: can.problem, subTone: "attention" }));
+      if (callable.length) box.append(group(L("可调用"), stack(callable, work.work_id + ":tools:callable")));
+      const blocked = can.unavailable.map((one) => card({ icon: "zap", tone: "blocked", title: one.title, sub: one.provider + (one.reason ? " · " + one.reason : ""), subTone: "blocked" }));
+      if (blocked.length) box.append(group(L("现在不能用"), stack(blocked, work.work_id + ":tools:blocked")));
+      const needs = connections.filter((one) => ["needs-authorization", "failed"].includes(one.state)).length, total = can.callable.reduce((sum, one) => sum + one.count, 0);
+      paintBlock(tools, L("连接与工具"), "link", box.children.length ? box : null, needs ? count("{n} 项要处理", needs) : total ? count("{n} 项可用", total) : "", needs > 0);
+    });
+  };
+  const side = () => environmentBlock()?.parentElement;
+  const surround = (work) => {
+    last = work;
+    const key = work ? work.work_id + ":" + work.revision + ":" + work.state : "";
+    if (!work) { asked = ""; held = null; paint(null, null); return; }
+    if (!asking && (key !== asked || (Date.now() - at > 15000 && side()?.checkVisibility()))) {
+      asked = key; asking = true; at = Date.now();
+      api("/works/" + encodeURIComponent(work.work_id) + "/surroundings").then((read) => { if (asked === key) { held = { id: work.work_id, read }; paint(work, read); } })
+        .catch(() => { at -= 12000; }).finally(() => { asking = false; });
+    }
+    paint(work, held && held.id === work.work_id ? held.read : null);
+  };
+  document.addEventListener("focusin", (event) => { if (last && side()?.contains(event.target)) surround(last); });
+  return { paint: surround };
+}`;

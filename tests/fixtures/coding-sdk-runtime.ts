@@ -2,11 +2,12 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { LocalHost, LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase, createPluginPlatform, homeStores, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseArtifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -14,11 +15,16 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { createCodingPlugin, codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./coding-sessions.js";
+import { seedConfiguredModels } from "./configured-models.js";
 
 /** The existing Coding effect fixture's real Plugin Runtime, Host and SDK composition, shared by recovery tests. */
-export async function codingSdkRuntime(t: TestContext) {
+export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?: ReadonlyArray<{ definition: PluginDefinition; grants: string[] }>; wrapCoding?: (definition: PluginDefinition) => PluginDefinition;
+  /** Stands between Coding and the Host's capability client, to count or refuse a call. */
+  wrapCapabilities?: <Client extends object>(client: Client) => Client } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
   seedDemoBoard(file);
+  // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
+  await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
   const store = new LocalProjectDatabase(file), sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -41,9 +47,9 @@ export async function codingSdkRuntime(t: TestContext) {
       return { subject: asked.subject, ref: null, revision: String(record.version), title: record.artifact_id, layer: "original", text, start: 0, end: text.length, start_line: 1, end_line: 1, total_lines: 1,
         remaining: 0, owner_truncated: false, round_chars_left: null } satisfies KnowledgeReadResponse;
     } }] });
-  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,
-    actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-  await platform.start([{ definition: createCodingPlugin({ execution: { goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "storage:private", "workspace:read"] }]);
+  const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
+    actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
+  await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read"] }, ...(options.extraPlugins ?? [])]);
   t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
     await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";

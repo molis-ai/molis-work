@@ -13,10 +13,11 @@ import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-a
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 test("Coding saves exact Character versions, blocks unavailable selection before SDK creation, and preserves task drafts across reopen", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-characters-")), dbPath = join(home, "board.db");
-  seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
+  seedDemoBoard(dbPath); await seedConfiguredModels(home); let store = new LocalProjectDatabase(dbPath);
   const personal = openCharacters(home, "web-user"), draft = personal.service.create();
   personal.service.update(draft.character_id, 1, { title: "原角色", instructions: "旧的固定要求", host_tools: null });
   const artifacts = () => new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
@@ -32,9 +33,8 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   const sessions = codingSessions(store);
   for (const id of ["app", "new"]) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;

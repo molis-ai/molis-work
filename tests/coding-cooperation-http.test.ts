@@ -11,13 +11,14 @@ import { fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createRequire } from "node:module";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 // The SDK's own delivery box stands behind the messages capability: its rules, not a copy of them, decide each move.
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createDeliveryBox } = await import(requireSdk.resolve("@prologue/sdk"));
 
 test("委派与交付走会话间的信：只由对应一方推进，发送即开始，交付可退回再交，收下后成为下一轮材料；结束后的答复只记录；重启后回执不变；旧记录只读", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-cooperation-http-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
   const at = new Date().toISOString(), runs = new Map<string, { ref: { session_id: string; run_id: string } }>();
   const box = createDeliveryBox({ newId: () => crypto.randomUUID(), canReceive: () => true });
@@ -32,9 +33,8 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null, directory: { canonical_path: root, realpath_verified: true } },
     turns: [{ turn_id: "u", kind: "user", text: "补测试", at }, { turn_id: "a", kind: "assistant", text: "三个测试已补，全部通过。", at }],
     activity: [], usage: { tokens: { input: 10, output: 5 } }, awaiting_input: [], command_outputs: [] });
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeKnowledgeReader(pluginActions(store, DEMO_PROJECT_ID), subject => ({ title: `报告 ${subject.id}`, text: "三个测试已补，全部通过。", revision: "1" })), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const input = args as any[];
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "w", canonical_path: root, realpath_verified: true }] as Output;

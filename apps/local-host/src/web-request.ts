@@ -37,7 +37,7 @@ import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
-import { homeRouteProjectPlugins, projectCodingServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
+import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { CodingSurfacePorts } from "./coding-surface.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -148,10 +148,10 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const feedOptions = projectFeedOptions(localHost, hostReference);
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
-  const codingServices = projectCodingServices(context);
-  const pluginPorts: CodingSurfacePorts = { ...codingServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
-    actorId: LOCAL_PERSON_ACTOR_ID, goalTitle: (id) => coordinator.goalQueries.getGoal(options.projectId, id)?.title, escapeHtml: (value) => String(value), translate: (value) => value };
-  const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, codingServices, pluginPorts };
+  const pluginServices = projectPluginServices(context);
+  const pluginPorts: CodingSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
+    actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value), translate: (value) => value };
+  const withoutView = { ...context, store, coordinator, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -277,7 +277,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
     context.readWebView, asPerson(context, WORK_ACTION_PERMISSIONS), context.controlToken, context.goalActions,
-    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store, context.codingServices) },
+    asPerson(context, ARTIFACT_ACTION_PERMISSIONS), context.coordinator, context.store, context.pluginServices) },
 ];
 
 /** Inside the project's open runtime, tried in this order; the last entry answers every address the project does not have. */

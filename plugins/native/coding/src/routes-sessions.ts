@@ -30,6 +30,9 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const runtimes = await api.invoke(agent.listRuntimes, []);
   // Every session's standing in one Host call per runtime, rather than one queued read per session.
   const records = execution.sessions.list(projectId);
+  // The titles of the Goals sessions are attached to, as Goals has them now: read through Goals' public action, and kept for the
+  // directory, which draws at once (goal-titles.ts). A Goal that cannot be read keeps the title it had, or none.
+  await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
   const statuses = new Map<string, AgentSessionStatus | { session_id: string; error: string }>();
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     const ids = records.filter(record => record.runtime_id === runtimeId && record.runtime_session_id).map(record => record.runtime_session_id!);
@@ -53,7 +56,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     if (wait && !active) {
       if (record.state !== "queued") record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", record.updated_at);
       return { ...record, background_unreadable, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: a.waits.waitView(wait),
-        goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+        goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null };
     }
     if (record.runtime_session_id) {
       const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
@@ -69,7 +72,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
         record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "reconcile-required", record.updated_at);
       }
     }
-    return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
+    return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitles.known(record.goal_id) ?? null : null };
   };
   const sessions = [];
   for (const record of records) sessions.push(await describe(record));
@@ -77,7 +80,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
   const { runtime: library } = projectRuntime(runtimes);
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
   const mcp = library && supports(library, "mcp") ? await api.invoke(agent.listMcp, [library.runtime_id, context.plugin_id]) : [];
-  return { sessions, methods, mcp, models: await execution.models(),
+  return { sessions, methods, mcp, models: execution.models.list(),
     // One current directory per project: the one chosen in project settings (and by Coding's own workspace choice)
     // is where new rounds run and what Files and Git show. Only when none was chosen does the catalog's pick stand.
     // A host without workspace settings offers none of these: sessions still list and open, and a round asks for a directory.
@@ -140,19 +143,24 @@ const ROUTES: RouteMaker[] = [
   // in another plugin). Its revision moves with every round, so a holder can tell the session went on since.
   (a) => {
     const { projectId, route } = a;
-    return route("coding.search-entries", async (request, _api, execution) => searchEntriesPage(execution.sessions.list(projectId).filter(record => !record.archived).map(record => ({
-      subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: record.title || "编码会话",
-      summary: record.goal_id ? `关联目标：${execution.goalTitle(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
-      open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
-      limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) }));
+    return route("coding.search-entries", async (request, _api, execution, beforeWrite) => {
+      const records = execution.sessions.list(projectId).filter(record => !record.archived);
+      await execution.goalTitles.read(records.flatMap(record => record.goal_id ? [record.goal_id] : []), beforeWrite);
+      return searchEntriesPage(records.map(record => ({
+        subject: { kind: "coding_session", id: record.session_id }, revision: `${record.updated_at}:${record.state}`, title: record.title || "编码会话",
+        summary: record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : "", updated_at: record.updated_at, content: "context" as const,
+        open: { surface: "coding", id: record.session_id } })), { cursor: typeof request.query.cursor === "string" && request.query.cursor ? request.query.cursor : null,
+        limit: Math.min(500, Math.max(1, Number(request.query.limit ?? 500) || 500)) });
+    });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.subject", async (request, api, execution) => {
+    return route("coding.subject", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
+      if (record.goal_id) await execution.goalTitles.read([record.goal_id], beforeWrite);
       const saved = context.services?.storage?.get(`configuration:${record.session_id}`);
       const intent = typeof saved === "string" ? (JSON.parse(saved) as { intent?: string }).intent : undefined;
-      const lines = [`状态：${record.state}${intent ? `；下一轮方式：${intent}` : ""}`, record.goal_id ? `关联目标：${execution.goalTitle(record.goal_id) ?? record.goal_id}` : ""];
+      const lines = [`状态：${record.state}${intent ? `；下一轮方式：${intent}` : ""}`, record.goal_id ? `关联目标：${execution.goalTitles.known(record.goal_id) ?? record.goal_id}` : ""];
       let revision = "0";
       if (record.runtime_session_id) {
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -331,7 +339,7 @@ const ROUTES: RouteMaker[] = [
       const body = bodyOf(request);
       const run = snapshot.runs.find((entry) => entry.run_id === body.run_id);
       if (!run) throw codingRunErrors.run_not_found("找不到属于这个会话的执行");
-      const control = await runControl(body, () => execution.models());
+      const control = await runControl(body, async () => execution.models.list());
       if (control.kind === "steer") return { accepted: true, receipt: await context.services!.actions!.invoke(agentInputActions.send, { ...session, run_id: run.run_id, ...control.send }, codingActionControl(beforeWrite)) };
       if (control.kind === "withdraw") return { accepted: true, withdrawn: await context.services!.actions!.invoke(agentInputActions.withdraw, { ...session, run_id: run.run_id, input_id: control.input_id }, codingActionControl(beforeWrite)) };
       const view = await api!.invoke(agent.readRun, [session, run]);

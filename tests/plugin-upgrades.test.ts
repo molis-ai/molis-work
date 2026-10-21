@@ -154,7 +154,6 @@ test("a bundled plugin's older install moves up when the project starts, so the 
       store,
       projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
       actorId: "market-test",
-      goalTitle: () => undefined,
       escapeHtml: String,
       translate: String,
       workspaces: [],
@@ -200,7 +199,7 @@ for (const shape of ["above the build's version", "at the build's version with a
       }).install;
       const ports = {
         store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "follow-test",
-        goalTitle: () => undefined, escapeHtml: String, translate: String, workspaces: [],
+        escapeHtml: String, translate: String, workspaces: [],
       };
       const { response, recorded } = recordedResponse();
       const handled = await handleProjectPluginHttp({ method: "GET" } as IncomingMessage, response,

@@ -27,6 +27,30 @@ function characterPublication(content: CharacterContent) {
     title: content.title.trim() || content.character_id, media_type: "application/json" };
 }
 
+/**
+ * A publication is runnable while its draft is active and the revision it was made from exists. A publication made from a draft
+ * revision that does not exist is not one to run (the check `characters.runnable` answers a plugin running a Character with, PG-086).
+ */
+function assertRunnableDraft(draft: ReturnType<CharactersPluginPorts["drafts"]["get"]>, content: CharacterContent): void {
+  if (!draft || draft.state !== "active") throw new Error("该角色已停用或删除");
+  if (content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
+}
+
+/**
+ * `characters.runnable` answers with the same check as a launch, as data: a version that cannot run is an answer carrying Characters'
+ * reason, not a failed call.
+ */
+function runnableAnswer(check: () => unknown): { available: true } | { available: false; reason: string } {
+  try { check(); return { available: true }; }
+  catch (error) { return { available: false, reason: error instanceof Error && error.message ? error.message : "请选择当前项目已发布的角色版本" }; }
+}
+
+/** The JSON object an old route path sends; anything else is refused. */
+function body(request: PluginRouteRequest): Record<string, unknown> {
+  if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
+  return request.body as Record<string, unknown>;
+}
+
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
@@ -42,10 +66,6 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (content.source.owner_actor_id !== ports.actorId || record.artifact_id !== `character:${projectId}:${content.character_id}`) throw new Error("角色发布的来源或身份不一致");
       return [record];
     });
-    const body = (request: PluginRouteRequest): Record<string, unknown> => {
-      if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw new Error("角色请求格式无效");
-      return request.body as Record<string, unknown>;
-    };
     const imports = () => { if (!ports.imports) throw new Error("本地 Agent 导入服务尚未接通"); return ports.imports; };
     const actionCatalog = async () => {
       const api = context.services?.capabilities;
@@ -68,7 +88,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
       if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
       const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
-      if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
+      if (requireActive) assertRunnableDraft(draft, content);
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     const a = charactersActions;
@@ -130,6 +150,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       bindOwnerPluginAction(context, a.draftFile, input => characterFilePreview(ports.drafts.get(String(input.id))?.import_snapshot, input)),
       bindOwnerPluginAction(context, a.publicationFile, input => characterFilePreview(publication(input, false).content.import_snapshot, input)),
       bindOwnerPluginAction(context, a.execution, input => imports().execution(publication(input).content)),
+      bindOwnerPluginAction(context, a.runnable, input => runnableAnswer(() => publication(input))),
       bindOwnerPluginAction(context, a.usages, input => {
         const usages: ActionUsage[] = [];
         for (const draft of ports.drafts.list()) {

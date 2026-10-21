@@ -71,6 +71,12 @@ test("VUX-27 a strip fades only where it has more, clears at each edge, follows 
   await page.evaluate(`document.getElementById("fits").style.width = "120px"`);
   await page.wait(`${more("fits")} === "end"`);
 
+  // A child hidden or shown by the page, without a click or a box resize, is measured too.
+  await page.evaluate(`(() => { const child = document.getElementById("fits").firstElementChild; child.id = "fits-hidden"; child.hidden = true; })()`);
+  await page.wait(`${more("fits")} === ""`);
+  await page.evaluate(`document.getElementById("fits-hidden").hidden = false`);
+  await page.wait(`${more("fits")} === "end"`);
+
   // A box that does not scroll is never masked, however wide its content: the mask would cut off what it lets show.
   await page.evaluate(`(() => { const row = document.getElementById("fits"); row.style.overflowX = "visible"; row.append(...${JSON.stringify(chips(6))}.split("</button>").filter(Boolean).map((html) => { const t = document.createElement("template"); t.innerHTML = html + "</button>"; return t.content; })); })()`);
   await page.wait(`${more("fits")} === "" && document.getElementById("fits").scrollWidth > 400`);

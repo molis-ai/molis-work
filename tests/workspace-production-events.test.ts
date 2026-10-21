@@ -22,7 +22,7 @@ test("committed SDK receipts notify real project consumers once; history, other 
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "molis.events.test", appVersion: "1.0.0" }, storageRoot: join(root, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => { throw new Error("manual Effects must not request a model"); } });
   let adapter = await makeAdapter();
-  const base = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined };
+  const base = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user" };
   const ports = { ...base, observeGitOperations: (listener: Parameters<typeof observeGitOperations>[2]) => observeGitOperations(queue, DEMO_PROJECT_ID, listener),
     escapeHtml: String, translate: (value: string) => value };
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://fixture"), ports, codingRouteHooks)
@@ -92,7 +92,7 @@ test("a settled operation reaches Git even when another installation's action se
   let settle: ((event: GitOperationUpdate) => void) | undefined, armed = false;
   const failures: unknown[] = [], update: GitOperationUpdate = { workspace_id: "inside", operation_id: "inside-files", outcome: "succeeded" };
   const browsing = (definition: { capability_id: string }) => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id;
-  const ports = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
+  const ports = { store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user",
     observeGitOperations: (listener: (event: GitOperationUpdate) => void) => { settle = listener; return () => { settle = undefined; }; },
     capabilities: {
       availability: (definition: { capability_id: string }) => browsing(definition) ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },

@@ -10,7 +10,7 @@ import { LocalProjectDatabase, createPluginPlatform, seedDemoBoard, DEMO_PROJECT
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { openCharacters } from "@molis-ai/molis-work-module-characters";
+import { createCharactersActionHandlers, openCharacters, type CharactersActionPorts } from "@molis-ai/molis-work-module-characters";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCharactersPlugin, type CharactersPluginPorts } from "@molis-ai/molis-work-plugin-characters";
 import type { CharacterContent } from "@molis-ai/molis-work-contracts/modules/characters";
@@ -109,10 +109,12 @@ for (const invalidation of ["cancel", "revoke", "publication", "provider"] as co
   const native = characterNativeExecution({ home, actorId: "user", projectId: DEMO_PROJECT_ID, executable: () => "/fixture/codex",
     workspaces: async () => { if (holding) { entered.resolve(); await release.promise; } return [{ workspace_id: "work", canonical_path: home, realpath_verified: true, display_name: "Fixture" }]; },
     spawn: () => { spawns++; return { attached: false, started: true, replay: "" }; } });
-  const ports: CharactersPluginPorts = { actorId: "user", drafts: personal,
+  const actionPorts: CharactersActionPorts = { actorId: "user", drafts: personal,
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
     publish: (id, revision, publisher) => personal.publish(id, revision, publisher),
     imports: { ...native, discover: () => [], previewFile: () => { throw new Error("not used"); }, import: () => { throw new Error("not used"); } } };
+  // RAC-63: the handlers are the Module's, built from these ports; the plugin only binds them (here through the real Runtime and routes).
+  const ports: CharactersPluginPorts = { actorId: "user", handlers: runtime => createCharactersActionHandlers(actionPorts, runtime) };
   const register = service.registerProvider.bind(service);
   t.mock.method(service, "registerProvider", registration => {
     const remove = register({ ...registration, handlers: registration.handlers?.map((binding: ActionHandlerBinding) => binding.capability_id !== "characters.launch" ? binding : {

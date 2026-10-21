@@ -27,8 +27,6 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-row__live { flex: none; width: 6px; height: 6px; border-radius: 50%; background: var(--tone-progress, var(--blue)); box-shadow: 0 0 0 2px color-mix(in srgb, var(--tone-progress, var(--blue)) 20%, transparent); }
   [data-workflows="workbench"] .wf-row__chain {
     display: flex; align-items: center; gap: 8px; min-width: 0; overflow: hidden; white-space: nowrap; font-size: 12px;
-    /* A chain longer than the row fades out instead of cutting a word in half. */
-    mask-image: linear-gradient(90deg, #000 calc(100% - 28px), transparent);
   }
   [data-workflows="workbench"] .wf-row__chain b { font-weight: var(--weight-control, 500); color: var(--ink-soft); }
   [data-workflows="workbench"] .wf-row__chain b::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 4px; border-radius: 2px; background: var(--station-tint); vertical-align: 1px; }

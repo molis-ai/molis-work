@@ -1,5 +1,5 @@
 import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMcpServerView, AgentMcpToolRef, AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { L } from "../web-locale.js";
 
@@ -67,6 +67,18 @@ export class CodingExecutor {
   async read(sessionId: string, window = 6): Promise<CodingSessionRead> {
     const read = await this.call<CodingSessionRead & { runs: Array<AgentRunView | { unchanged: true }> }>("sessions.read", { session_id: sessionId, window });
     return { ...read, runs: read.runs.filter((run): run is AgentRunView => !("unchanged" in run)) };
+  }
+
+  /**
+   * Where the session's next round runs and which external tools it brings, as Coding has them: the directory is its own
+   * setting, else Coding's current one; the tools are the MCP tools chosen for the session, beside the servers as they are now.
+   */
+  async setup(sessionId: string): Promise<{ workspace: { workspace_id: string; name: string; path: string } | null; mcp: { chosen: AgentMcpToolRef[]; servers: AgentMcpServerView[] } }> {
+    const read = await this.call<CodingSessionRead & { mcp_tools?: AgentMcpToolRef[] }>("sessions.read", { session_id: sessionId, window: 1 });
+    const state = await this.call<{ workspace?: { workspace_id?: string } | null; workspaces?: Array<{ workspace_id: string; canonical_path: string; display_name?: string | null }>; mcp?: AgentMcpServerView[] }>("state", {});
+    const id = read.configuration?.workspace_id ?? state.workspace?.workspace_id, found = state.workspaces?.find(row => row.workspace_id === id);
+    return { workspace: found ? { workspace_id: found.workspace_id, name: found.display_name || found.canonical_path.split("/").filter(Boolean).at(-1) || found.canonical_path, path: found.canonical_path } : null,
+      mcp: { chosen: read.mcp_tools ?? [], servers: state.mcp ?? [] } };
   }
 
   /** A new round with the session's own settings, or Coding's defaults: carry out the task, first model, current directory. */

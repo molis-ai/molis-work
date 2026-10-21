@@ -258,11 +258,16 @@ const APPROVED_CEILINGS = {
   // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  // #866/#868/#869: the remaining copy/scroll consumers, one show-more and the assistant's 产出 split.
-  // +1,101 B over #866's workbench base (1,140,490 B).
-  "/assets/molis-work-workbench.js": [1140293, 1141591],
-  "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
-  "/assets/molis-work-plugins/shelf.js": [75673, 75771],
+  // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
+  // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
+  // #885: the split divider with a dead zone, pixel minimums, snap hysteresis and full cancel.
+  "/assets/molis-work-workbench.js": [1159486, 1161872],
+  "/assets/molis-work-workbench.css": [1607357, 1607694],
+  "/assets/molis-work-settings.css": [991152, 991617],
+  "/assets/molis-work-arrival.css": [701388, 701853],
+  "/assets/molis-work-plugins/coding.js": [371625, 371652],
+  "/assets/molis-work-plugins/workflows.js": [82527, 82546],
+  "/assets/molis-work-workbench.js": [1161872, 1162116],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

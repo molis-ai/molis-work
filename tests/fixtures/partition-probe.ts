@@ -7,7 +7,7 @@ import { HomePluginHost, projectDeletedHooksFor, type HomePluginEntry } from "@m
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { HomePluginDatabaseDeclaration, PluginBackgroundExecution, PluginDatabase, PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginBackgroundExecution, PluginDatabase, PluginDefinition, PluginExecutionControl, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { person } from "./home-runtime.js";
@@ -53,6 +53,8 @@ export const storeNote = (database: PluginDatabase, text: string, caller: Action
 export const probe = {
   contexts: [] as PluginStartContext[],
   jobs: [] as PluginBackgroundExecution<void>[],
+  /** Each accepted job's control, in the order the jobs began to run. */
+  controls: [] as PluginExecutionControl[],
   trace: [] as string[],
   startRefusal: undefined as unknown,
   /** Runs inside the write's `beforeEffect`, before the caller's own. */
@@ -63,7 +65,7 @@ export const probe = {
   later: Promise.resolve(),
   purge: (_home: string, projectId: string): void | Promise<void> => { probe.trace.push(`purge:${projectId}`); },
   reset() {
-    Object.assign(probe, { contexts: [], jobs: [], trace: [], startRefusal: undefined, hold: async () => {}, write: storeNote, beforeRead: async () => {},
+    Object.assign(probe, { contexts: [], jobs: [], controls: [], trace: [], startRefusal: undefined, hold: async () => {}, write: storeNote, beforeRead: async () => {},
       read: noteTexts, later: Promise.resolve(), purge: (_home: string, projectId: string) => { probe.trace.push(`purge:${projectId}`); } });
   },
   database: (): PluginDatabase => probe.contexts.at(-1)?.services?.database ?? assert.fail("the probe was given no services.database"),
@@ -80,13 +82,14 @@ function createProbe(): PluginDefinition {
     probe.contexts.push(context);
     try { context.services!.database!.get("SELECT 1"); } catch (error) { probe.startRefusal = error; }
     const database = () => context.services!.database!;
-    return { kind: "app", views: [], onProjectDeleted: projectId => { probe.trace.push(`deleted:${projectId}`); }, actions: [
+    return { kind: "app", views: [], actions: [
       { ...write, async handle(caller, input) { await probe.write(database(), (input as { text: string }).text, caller); return "stored"; } },
       ...[read, homeRead].map(definition => ({ ...definition, async handle() { await probe.beforeRead(); return probe.read(database()); } })),
       { ...laterStatus, handle: () => ({ state: "running" }) },
       { ...later, async handle(_caller, input) {
         const { id } = input as { id: string };
         probe.jobs.push(await context.services!.background!.start(async control => {
+          probe.controls.push(control);
           await probe.later;
           await database().transaction(control.beforeEffect, tx => tx.run("INSERT INTO notes (text) VALUES (?)", [`later:${id}`]));
         }));

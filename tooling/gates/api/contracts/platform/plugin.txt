@@ -526,6 +526,7 @@ export interface ActionMetadata {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
     };
+    readonly home_aggregate?: true;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -2425,7 +2426,6 @@ export interface PluginActionDirectory {
 
 export interface PluginAppContribution {
     kind: "app";
-    onProjectDeleted?(projectId: string): void;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];

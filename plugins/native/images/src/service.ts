@@ -18,7 +18,7 @@ export interface ImagesServiceOptions {
 
 export class ImagesService {
   private readonly store: ImagesStore;
-  private readonly active = new Map<string, { controller: AbortController; projectId: string }>();
+  private readonly active = new Map<string, AbortController>();
   private closed = false;
 
   constructor(private readonly options: ImagesServiceOptions) {
@@ -89,8 +89,8 @@ export class ImagesService {
       connection_name: connection.name, api_format: connection.api_format, model: connection.model, prompt: normalized.prompt,
       size: normalized.size, aspect_ratio: normalized.aspect_ratio, status: "running", images: [], error: "", created_at: new Date().toISOString(), finished_at: null };
     const controller = new AbortController();
-    // Registered before the first await: project deletion also cancels jobs still being admitted.
-    this.active.set(job.id, { controller, projectId: projectIdValue });
+    // Registered before the first await: closing the service also cancels jobs still being admitted.
+    this.active.set(job.id, controller);
     let admit!: (accepted: boolean) => void;
     const admitted = new Promise<boolean>(resolve => { admit = resolve; });
     const current = () => {
@@ -123,13 +123,9 @@ export class ImagesService {
     const job = this.getJob(projectId, id);
     if (job.status === "running") {
       await this.write(control, store => store.finish(job.project_id, job.id, "cancelled", [], "已停止本机等待；厂商可能仍在生成或计费。"));
-      this.active.get(job.id)?.controller.abort();
+      this.active.get(job.id)?.abort();
     }
     return this.getJob(job.project_id, job.id);
-  }
-
-  cancelProject(projectId: string): void {
-    for (const entry of this.active.values()) if (entry.projectId === projectId) entry.controller.abort();
   }
 
   readImage(projectId: string, jobId: string, imageId: string): { bytes: Buffer; mime: GeneratedImage["mime_type"]; filename: string } {
@@ -140,7 +136,7 @@ export class ImagesService {
     return { bytes: Buffer.from(bytes), mime: image.mime_type, filename: image.filename };
   }
 
-  close(): void { this.closed = true; for (const entry of this.active.values()) entry.controller.abort(); this.active.clear(); }
+  close(): void { this.closed = true; for (const controller of this.active.values()) controller.abort(); this.active.clear(); }
 
   private write<T>(control: ImagesControl, apply: (store: ImagesStore) => T): Promise<T> {
     return this.options.database.transaction(() => control.beforeEffect(), transaction => {

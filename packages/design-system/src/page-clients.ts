@@ -9,6 +9,10 @@ import { readFileSync } from "node:fs";
 export const SCROLL_FOLLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/scroll-follow-client.js", import.meta.url), "utf8").trim();
 /** `window.molisShowMore`, the one show-more for long lists (`browser/show-more.ts`, VUX-08). */
 export const SHOW_MORE_CLIENT_SCRIPT = readFileSync(new URL("../dist/show-more-client.js", import.meta.url), "utf8").trim();
+/** `window.molisMediaZoom`, the one media preview zoom (`browser/media-zoom.ts`, VUX-32). */
+export const MEDIA_ZOOM_CLIENT_SCRIPT = readFileSync(new URL("../dist/media-zoom-client.js", import.meta.url), "utf8").trim();
+/** `window.molisStreamText`, streamed replies keep unchanged nodes (`browser/stream-text.ts`, VUX-14/15). */
+export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-text-client.js", import.meta.url), "utf8").trim();
 /** The overflow fade's sensor (`browser/overflow-fade.ts`, VUX-27). */
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */

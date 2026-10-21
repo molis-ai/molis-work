@@ -136,6 +136,8 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   assert.equal(await evaluate(`${side}.querySelector('[data-comment-notes] textarea').value`), '在侧栏保存的备注');
   await checkDiscussionOpening(browser);
   await edit("从块备注明确发起的新讨论");
+  // Starting the discussion anchors it in the body; until that is saved the button says 等待正文保存 and is disabled, as a person sees it.
+  await waitFor(`${side}?.querySelector('[data-comment-send]')?.disabled === false`);
   await evaluate(`${side}.querySelector('[data-comment-send]').click()`);
   await waitFor(`${side}?.querySelector('[data-comment-messages]')?.textContent.includes('从块备注明确发起的新讨论')`);
   // PAS-01: a second real work pane owns B; changing focused panes changes the bound sidebar.

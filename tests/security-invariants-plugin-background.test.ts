@@ -1,9 +1,13 @@
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import test from "node:test";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
-import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { HomePluginHost, LocalMcpServer, MolisWorkLocalHost, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { ActionService } from "@molis-ai/molis-work-kernel";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
@@ -229,3 +233,64 @@ for (const cancelled of [false, true]) {
     } finally { release.resolve(); }
   });
 }
+
+test("S-18 PG-038 deleting a project stops the background work a Home plugin accepted there, though it keeps no data of the project", async t => {
+  const probe = backgroundProbe("backgroundprojects", "project"), entered = deferred(), release = deferred();
+  probe.definition.stop = async context => { await probe.lifecycle.stop(context); };
+  let running = 0;
+  probe.behavior.work = async () => { if (++running === 2) entered.resolve(); await release.promise; return "after"; };
+  const home = mkdtempSync(join(tmpdir(), "background-project-deletion-")), actions = new ActionService();
+  const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [probe.definition] });
+  t.after(async () => { try { release.resolve(); await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
+  const platform = await host.ready(), install = host.installation(probe.id)!;
+  await platform.runtime.stop(install.install_id);
+  platform.runtime.grant(install.install_id, probe.permissions);
+  await platform.supervisor.restart(probe.id);
+  for (const project of ["p1", "p2"]) await actions.invoke(person(probe.permissions, project), probe.start, { id: project });
+  await entered.promise;
+  const hooks = projectDeletedHooksFor(home), owner = `plugin-background:${probe.id}`;
+  assert.deepEqual(hooks.owners().filter(item => item.id === owner).map(item => ({ id: item.id, label: item.label })), [{ id: owner, label: null }],
+    "a step of its own, which the confirmation dialog does not list");
+  const accepted = (projectId: string) => probe.controls.find(control => control.project_id === projectId)!;
+  const stopped = assert.rejects(probe.handles[0]!.result, { code: "actions.cancelled" });
+  assert.equal(await hooks.clear(owner, "p1"), true);
+  assert.equal(accepted("p1").signal!.aborted, true); assert.equal(accepted("p2").signal!.aborted, false, "another project's work runs on");
+  await stopped;
+  release.resolve();
+  assert.equal(await probe.handles[1]!.result, "after");
+  assert.equal(probe.stored("result.p1"), null, "the stopped work wrote neither its result"); assert.equal(probe.stored("failure.p1"), null, "nor its failure");
+  assert.equal(probe.stored("result.p2"), "after");
+});
+
+test("S-18 PG-038 deleting a project also stops a background execution still being accepted there: its work never begins", async t => {
+  const probe = backgroundProbe("backgroundaccepting", "project"), release = deferred();
+  probe.definition.stop = async context => { await probe.lifecycle.stop(context); };
+  // Each project's call is held in its acceptance: the handler marks it right before `background.start`, whose first wait is the
+  // caller's own authority check, and that check waits here.
+  const held = new Set<string>(), waiting = new Map([["p1", deferred()], ["p2", deferred()]]);
+  probe.behavior.beforeStart = async caller => { held.add(caller.project_id!); };
+  probe.behavior.work = async () => "after";
+  const caller = (projectId: string) => ({ ...person(probe.permissions, projectId), validate_authority: async () => {
+    if (!held.delete(projectId)) return;
+    waiting.get(projectId)!.resolve(); await release.promise;
+  } });
+  const home = mkdtempSync(join(tmpdir(), "background-project-accepting-")), actions = new ActionService();
+  const host = new HomePluginHost({ home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [probe.definition] });
+  t.after(async () => { try { release.resolve(); await host.close(); } finally { rmSync(home, { recursive: true, force: true }); } });
+  const platform = await host.ready(), install = host.installation(probe.id)!;
+  await platform.runtime.stop(install.install_id);
+  platform.runtime.grant(install.install_id, probe.permissions);
+  await platform.supervisor.restart(probe.id);
+  const deleted = actions.invoke(caller("p1"), probe.start, { id: "p1" }), kept = actions.invoke(caller("p2"), probe.start, { id: "p2" });
+  const refused = assert.rejects(deleted, { code: "actions.cancelled" });
+  await waiting.get("p1")!.promise; await waiting.get("p2")!.promise;
+  assert.equal(probe.handles.length, 0, "both are still being accepted");
+  assert.equal(await projectDeletedHooksFor(home).clear(`plugin-background:${probe.id}`, "p1"), true);
+  release.resolve();
+  await refused;
+  assert.deepEqual(await kept, { id: "p2", state: "running" }, "another project's acceptance goes on");
+  assert.equal(await probe.handles[0]!.result, "after");
+  assert.deepEqual(probe.controls.map(control => control.project_id), ["p2"], "the work accepted in the deleted project never began");
+  assert.equal(probe.stored("result.p1"), null); assert.equal(probe.stored("failure.p1"), null);
+  assert.equal(probe.stored("result.p2"), "after");
+});

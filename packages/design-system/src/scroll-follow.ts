@@ -10,7 +10,12 @@ export const FOLLOW_INPUT_WINDOW_MS = 700;
 /** How far the end of the content is below the bottom of the view. */
 export const followDistance = (box: { scrollHeight: number; scrollTop: number; clientHeight: number }) => box.scrollHeight - box.scrollTop - box.clientHeight;
 
-/** While following, the pin owns every shift, so the browser's own anchoring stands aside; detached, it keeps the reading place. */
+/**
+ * While following, the pin owns every shift, so the browser's own anchoring stands aside. Detached, one owner keeps the reading
+ * place: the browser's anchoring, or, on a surface that compensates by hand (IM, Coding: a redraw, earlier pages, a restored
+ * place), that compensation with `overflow-anchor: none` on its scroller, so a shift is never moved twice. A WebView without
+ * scroll anchoring (WKWebView before Safari 27) relies on the hand.
+ */
 export const FOLLOW_STYLES = `[data-follow=following]{overflow-anchor:none}`;
 
 /** A scroller's state: following its end, or detached because the person read back. */

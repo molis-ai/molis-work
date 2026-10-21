@@ -562,25 +562,24 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     paintInto(code,text,codeLanguageOf(named) || (/^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? 'json' : /^\s*\$ /.test(text) ? 'sh' : ''));
   };
   // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
-  // spanning lines stays a comment (see diffRowTokens).
+  // spanning lines stays a comment (see diffRowTokens). Side by side colours each side on its own, as the file it shows.
   const diffRowTokens = ${diffRowTokens.toString()};
-  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => {
-    const codes=[...list.querySelectorAll(':scope > li > code')];if(!codes.some(code=>!code.parentElement.dataset.painted))return;
+  const paintDiffs = (scope) => scope.querySelectorAll('[data-code-path] .diff-rows').forEach(list => (list.classList.contains('diff-split') ? ['.diff-left','.diff-right'] : ['']).forEach(side => {
+    const codes=[...list.querySelectorAll(':scope > li > code'+side)].filter(code=>code.dataset.kind!=='blank');if(!codes.some(code=>!code.dataset.painted))return;
     const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
-    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
+    const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.dataset.kind||code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
     const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
     rows.forEach((row,index)=>{
-      if(row.code.parentElement.dataset.painted)return;row.code.parentElement.dataset.painted='true';
+      if(row.code.dataset.painted)return;row.code.dataset.painted='true';
       if(!painted)return;
       row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(([kind,value])=>{if(!kind)return document.createTextNode(value);const span=make('span');span.className='tok-'+kind;span.textContent=value;return span;}));
     });
-    list.querySelectorAll(':scope > li:not([data-painted])').forEach(row=>{row.dataset.painted='true';});
-  });
+  }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
-  const enrichCode = (node) => node.querySelectorAll('pre').forEach(pre => {
-    const code=pre.querySelector('code');if(code)paintBlock(code);
+  const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {
+    pre.dataset.enriched='';const code=pre.querySelector('code'),raw=(code || pre).textContent;if(code)paintBlock(code); // copied as written, not from the colours
     const button=make('button'); button.type='button'; button.className='mw-btn coding-code-copy'; button.textContent='复制';
-    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>pre.querySelector('code')?.textContent || pre.textContent,{done:'已复制',failed:'复制失败'})); pre.append(button);
+    lifetime.listen(button,'click',()=>window.molisCopy?.(button,()=>raw,{done:'已复制',failed:'复制失败'})); pre.append(button);
   });
   const renderCommands = (runs) => {
     const region=q('[data-coding-commands]');
@@ -771,8 +770,9 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // runs: the rounds to (re)draw, a contiguous stretch. all: the whole session in order, where rounds that are not
   // loaded are summaries. Numbering and "latest" are always read against the whole session.
   const renderRuns = (runs, all=runs) => {
-    // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it.
-    const pinNow = !reportRun && following();
+    // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it. Read back, the
+    // part at the top of the view keeps its place: this is the one owner of the shift (overflow-anchor is none here; a WebView may have no scroll anchoring).
+    const pinNow = !reportRun && following(), held = pinNow || reportRun ? null : [...turns.querySelectorAll(':scope > [data-run] > *')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top), heldTop = held?.getBoundingClientRect().top;
     if(all.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
@@ -801,7 +801,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
           if(!node) { node=make('article'); node.className='coding-turn'; node.dataset.turn=turn.turn_id; node.dataset.kind=turn.kind; }
           const renderKey=turn.text+(run.frozen.role_id==='planner'?'|'+run.phase:'');
           if(renderedText.get(node)!==renderKey) {
-            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
+            if(!plans.renderTurn(node,run,turn) && !writerDirectories.renderTurn(node,run,turn)){if(turn.html && window.molisStreamText) window.molisStreamText(node,turn.html,{reveal:renderedText.has(node) && turn.kind==='assistant' && run===all.at(-1) && ['starting','running'].includes(run.phase) && !document.hidden}); else node.innerHTML=turn.html || ''; if(!turn.html) linkedText(node,turn.text);}
             // A round that started from the digest of earlier rounds shows the person's own request; the digest it carried
             // stays one click away, with the plain statement that tool output was not carried.
             const digestAt=turn.kind==='user' && turn.text.startsWith(HISTORY_DIGEST_MARKER) ? turn.text.indexOf(HISTORY_DIGEST_TASK_HEAD) : -1;
@@ -938,7 +938,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(statusKey!==nextStatus){statusKey=nextStatus;status(lastRun.phase==='failed' ? (lastRun.stop_reason || phases.failed) : '',lastRun.phase==='failed');}
     }
     const pill=q('[data-coding-phase]'),live=lastRun && !terminal(lastRun.phase);pill.hidden=!live;if(live){pill.dataset.phase=lastRun.phase;pill.dataset.mwState=phaseRing(lastRun.phase);pill.textContent=phases[lastRun.phase]||lastRun.phase;}
-    if(pinNow) follow.pin();
+    if(pinNow) follow.pin(); else if(held?.isConnected) turns.scrollTop+=held.getBoundingClientRect().top-heldTop;
     q('[data-coding-latest]').hidden=Boolean(reportRun) || pinNow; controls();
   };
   const readRecovery = async () => {
@@ -1025,13 +1025,11 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
       planEntries=[...olderPlanEntries,...planEntries.filter(entry=>!olderPlanEntries.includes(entry))];subagentGroups=[...olderSubagents,...subagentGroups.filter(group=>!olderSubagents.includes(group))];
       // The results panel lists every loaded round's subtasks, so an earlier round's "评价并整合成果" finds its row.
       subagents.update(id,subagentGroups);
-      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; the round being read stays put.
+      // Drawn two rounds a frame, nearest first, so scrolling never waits on a whole page; renderRuns keeps the part being read put.
       const pending=page.runs.map(run=>olderViews.get(run.ref.run_id)).reverse();
       while(pending.length){
         if(current!==id || ticket!==generation)return;
-        const anchor=[...turns.querySelectorAll(':scope > [data-run]')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top),before=anchor?.getBoundingClientRect().top;
         renderRuns(pending.splice(0,2).reverse(),allRuns);
-        if(anchor)turns.scrollTop+=anchor.getBoundingClientRect().top-before;
         if(pending.length)await lifetime.nextFrame();
       }
     }catch(error){if(current===id)status(error.message,true);}

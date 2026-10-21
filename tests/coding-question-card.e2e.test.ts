@@ -416,6 +416,24 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
     return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.activeElement === input }; })()`);
   assert.deepEqual(after, { same: true, value: "写到一半的话", caret: [3, 3], focused: true }, "three reads later the card is the same node, with the words, the caret and focus where they were");
   assert.deepEqual(await evaluate(position), before, "and the thread is where the person scrolled it");
+  // VUX-26 reading anchor: a read that rewrites an earlier turn above the view (longer now) leaves what the person is reading
+  // where it was on screen. Coding compensates by hand (overflow-anchor is none on the thread), so the browser does not move it twice.
+  const grown = await evaluate<{ id: string; seen: string; at: number } | null>(`(() => { const node = document.querySelector(${JSON.stringify(turns)}), top = node.getBoundingClientRect().top;
+    const above = [...node.querySelectorAll('[data-turn]')].find(turn => turn.getBoundingClientRect().bottom < top && turn.textContent.trim());
+    const seen = [...node.querySelectorAll(':scope > [data-run] > *')].find(part => part.getBoundingClientRect().bottom > top);
+    if (!above || !seen) return null; seen.dataset.probeSeen = ''; window.__grow = above.dataset.turn;
+    const original = window.fetch, longer = (value) => { if (Array.isArray(value)) value.forEach(longer); else if (value && typeof value === 'object') { if (value.turn_id === window.__grow && typeof value.text === 'string') { value.text += ' 更正：补上的一段。'.repeat(6); if (typeof value.html === 'string') value.html += '<p>更正：补上的一段。</p>'.repeat(6); window.__grown = true; } Object.values(value).forEach(longer); } };
+    // The read names the runs it already has; asking without that brings the whole run back, with the corrected turn in it.
+    window.fetch = async (...args) => { const asked = String(args[0]), read = asked.includes('?window=') && window.__grow; if (read) args[0] = asked.replace(/&known=[^&]*/, '');
+      const response = await original(...args); if (!read) return response; const data = await response.clone().json(); longer(data); return new Response(JSON.stringify(data), { status: response.status, headers: response.headers }); };
+    return { id: above.dataset.turn, seen: seen.tagName, at: seen.getBoundingClientRect().top }; })()`);
+  assert.ok(grown, "there is an earlier turn wholly above the view");
+  await waitFor(`window.__grown && document.querySelector('[data-turn="' + window.__grow + '"]').textContent.includes('更正：补上的一段')`, 20_000);
+  await new Promise(resolve => setTimeout(resolve, 200));
+  const moved = await evaluate<number>("document.querySelector('[data-probe-seen]').getBoundingClientRect().top");
+  assert.ok(Math.abs(moved - grown!.at) <= 1, `the part being read stayed put (${grown!.at} → ${moved})`);
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(turns)}).dataset.follow`), "detached", "and the reader is still reading back");
+  await evaluate("window.__grow = null");
   // VUX-26: the thread has one scroll owner. Detached, 回到最新 is offered; it is the one trip back, and the thread follows again.
   const latest = `${coding} [data-coding-latest]`;
   assert.equal(await evaluate(`document.querySelector(${JSON.stringify(turns)}).dataset.follow`), "detached");

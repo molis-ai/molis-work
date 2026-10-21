@@ -5,7 +5,7 @@ import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./assistant-work-objects.js";
-import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT } from "./assistant-side-context.js";
+import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT, ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT } from "./assistant-side-context.js";
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -991,39 +991,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* What this work used (its sub-tasks with it) and the cap the person gave it; a sub-task shows its delegating work's. */
-  const renderUsage = (work) => {
-    if (!usageBox) return;
-    const usage = work && view && view.usage ? view.usage : null;
-    const signature = JSON.stringify([work && work.work_id, usage]);
-    if (usageBox.dataset.signature === signature) return;
-    const wasOpen = usageBox.querySelector("details")?.open;
-    usageBox.dataset.signature = signature;
-    const over = Boolean(usage && usage.budget_tokens !== null && usage.tokens >= usage.budget_tokens);
-    usageBox.hidden = !usage;
-    if (!usage) { usageBox.replaceChildren(); return; }
-    const number = (value) => Number(value).toLocaleString("en-US");
-    const details = el("details", "assistant-usage");
-    details.open = wasOpen === undefined ? over : wasOpen || over;
-    details.append(el("summary", "", L("用量") + " · " + number(usage.tokens) + " tokens" + (usage.budget_tokens !== null ? " / " + number(usage.budget_tokens) : "") + (over ? " · " + L("已到上限") : "")));
-    if (usage.budget_of) {
-      details.append(el("p", "assistant-material-origin", L("子任务按委托它的工作计算") + "：「" + usage.budget_of.title + "」"));
-    } else {
-      const form = el("form", "assistant-usage-form");
-      const field = el("input", "assistant-usage-input"); field.type = "number"; field.min = "1000"; field.step = "1000"; field.inputMode = "numeric";
-      field.placeholder = L("不单独设限"); field.value = usage.budget_tokens !== null ? String(usage.budget_tokens) : "";
-      field.setAttribute("aria-label", L("这项工作的用量上限（tokens，含子任务）"));
-      const save = el("button", "assistant-side-action", L("保存上限")); save.type = "submit";
-      form.append(el("span", "assistant-material-origin", L("上限（tokens，含子任务）")), field, save);
-      form.addEventListener("submit", async (event) => {
-        event.preventDefault(); save.disabled = true;
-        try { view = await api("/works/" + encodeURIComponent(work.work_id) + "/budget", "POST", { budget_tokens: field.value.trim() === "" ? null : Number(field.value) }); render(); }
-        catch (error) { host.showToast?.(error); }
-        finally { save.disabled = false; }
-      });
-      details.append(form);
-    }
-    usageBox.replaceChildren(details);
-  };
+  const renderUsage = (work) => usagePane.paint(work);
   // Raising a work's cap is done in its usage box: the side pane opens on it.
   const openUsage = () => {
     if (spacious()) store.set(SIDE_KEY, null); else drawerOpen = true;
@@ -1672,6 +1640,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     current: () => (view && view.work.work_id === curId ? view : null), pickFile: () => fileInput?.click(), expired: EXPIRED_IMAGE, block: () => blocks.materials,
     pending: () => materialsNow().filter((item) => !item.optional).map((item) => ({ kind: item.key === "draft" ? "text" : item.key === "selection" ? "selection" : item.key.startsWith("file:") ? (files.find((file) => "file:" + file.material_id === item.key) || {}).kind || "file" : "object", title: item.label })) });
   const surroundings = (${ASSISTANT_SIDE_SURROUNDINGS_FACTORY_SCRIPT})({ L, el, card, group, stack, paintBlock, keepFocus, api, environmentBlock: () => blocks.environment, toolsBlock: () => blocks.tools });
+  const usagePane = (${ASSISTANT_SIDE_USAGE_FACTORY_SCRIPT})({ L, el, progress, api, toast: (error) => host.showToast?.(error), box: () => usageBox, current: () => (view && view.work.work_id === curId ? view : null), adopt: (next) => { view = next; render(); } });
   contextStrip = stripNode && (${ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT})({ strip: stripNode, L, el, items: materialsNow, open: () => Boolean(panel && !panel.hidden), focused: () => document.activeElement === input,
     add: () => { const page = pageObject(); if (page) joined.add(objectKey(page.object)); paintMats(); },
     drop: (item) => { dropMaterial(item); paintMats(); },

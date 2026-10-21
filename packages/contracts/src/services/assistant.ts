@@ -326,6 +326,12 @@ export interface AssistantRound {
    */
   steps?: Array<{ id: string; text: string; state: "pending" | "in-progress" | "done" | "abandoned" }>;
   usage?: AgentRunUsage;
+  /**
+   * The model this round really ran on, as the runtime froze it at its start (`model_id`), the one its calls went to after
+   * the person switched (`now`) and the window it was packed against. Absent for
+   * a round the runtime has no record of. Choosing another model for the next round never changes this.
+   */
+  model?: { model_id: string; now?: string; window_tokens?: number };
   stop_reason?: string;
   ended_at: string | null;
   /** The memories this round was given, and the ones that matched but did not fit (specs/archive/memory-system §7.3). Deleted ones are not listed. */

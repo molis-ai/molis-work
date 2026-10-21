@@ -456,6 +456,11 @@ export interface AssistantRound {
         state: "pending" | "in-progress" | "done" | "abandoned";
     }>;
     usage?: AgentRunUsage;
+    model?: {
+        model_id: string;
+        now?: string;
+        window_tokens?: number;
+    };
     stop_reason?: string;
     ended_at: string | null;
     memories_used?: {

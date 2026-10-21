@@ -1,10 +1,12 @@
-/** The same conversation fills a normal workspace sheet when expanded. */
+/** The same conversation fills a normal workspace sheet when expanded. 用量 (VUX-11): one part per measure, each row a label
+ * and its number at the end. */
 export const ASSISTANT_STAGE_STYLES = `
   .assistant-rules { margin-bottom: 18px; }
   .assistant-rule-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-top: 12px; font-size: 13px; }
   .assistant-rule-form > strong { flex-basis: 100%; font-weight: 500; }
   .assistant-rule-surfaces { display: flex; flex-wrap: wrap; gap: 6px 14px; flex-basis: 100%; }
   .assistant-rule-form select { width: auto; }
+.assistant-usage-part{display:grid;gap:2px;padding-top:8px}.assistant-usage-part>.assistant-progress{margin:2px 0 4px}.assistant-usage-row{display:flex;justify-content:space-between;gap:8px;margin:0;font-size:12px;line-height:1.5}.assistant-usage-row.is-muted{color:var(--muted)}
 
 .system-view-focus{display:block;margin:32px auto;padding:12px 20px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);font:inherit;cursor:pointer}.system-work-surface:has([data-assistant-island])>.system-view-focus{display:none}
 .system-work-surface{height:100%;min-height:0;min-width:0;overflow:hidden}

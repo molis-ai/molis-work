@@ -35,7 +35,8 @@ test("DUAL-12 DUAL-05 a Home half marked on the Host's list and its project half
   const platform = await host.homePlugins!.ready();
   const homeRecord = host.homePlugins!.installation(dual.id)!;
   assert.equal(homeRecord.state, "running", platform.supervisor.state(dual.id)?.message ?? "");
-  assert.deepEqual(platform.runtime.contribution(homeRecord.install_id)?.actions?.map(action => action.capability_id), [dual.actions.home.capability_id]);
+  assert.deepEqual(platform.runtime.contribution(homeRecord.install_id)?.actions?.map(action => action.capability_id),
+    [dual.actions.home.capability_id, dual.actions.homeReach.capability_id]);
   // The Manifest publishes an event, and the Home half still starts; it is given none of a project's services for it.
   assert.ok(dual.services.home, "the Home half started");
   for (const service of ["events", "inputs", "outputs", "artifacts", "processItems"] as const) {

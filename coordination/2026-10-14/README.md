@@ -2430,3 +2430,8 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 用户同意，就用 `APPROVED_CEILINGS` 一次放行；不同意，就退回单独资源。
     - 这一问不挡 CHR-0。
   - **② 的 C5 平台一半**：已开 #949，要等 ③ 补上 Git 的 Manifest 行才能合。
+- **10-21 更正 Characters 的 D5 与本人权限**：
+  - **D5 不用问用户**：照 `/assets/molis-work-knowledge.js` 的先例，代码放 `apps/workbench/src/characters/`，单独打包，仍从 `/assets/molis-work-plugins/characters.js` 发，字节数只许变小，不并进 `workbench.js`。上一条「D5 改成问用户」作废。来源标签的待办记为 BL-378。
+  - **本人权限**：`artifact:read`/`artifact:write` 早就在 `LOCAL_OWNER_PERMISSIONS` 里了，由 Dataset、Form、Pages、PPT、Shelf 这几份 native Manifest 经 `NATIVE_OWNER_PERMISSIONS` 带进来，① 已核实。所以 CHR-1 不算放宽。
+    - CHR-1 要做的：列出前后两份集合做比对，并对 `SECURITY-INVARIANTS.md` 核一遍。
+    - 「本人权限按提供方限定」和对应的拒绝测试，并进 PG-007 第 4 阶段，归 ②，不另开新片。

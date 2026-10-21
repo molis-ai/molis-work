@@ -1,4 +1,5 @@
 import { PLUGIN_COMPONENTS_EN } from "@molis-ai/molis-work-design-system";
+import { BOARD_EN } from "./board-en.js";
 
 /**
  * English for the plugin studio (plugins/native/plugin-builder); the Chinese text is the key. `{name}`-style placeholders stay
@@ -10,6 +11,7 @@ import { PLUGIN_COMPONENTS_EN } from "@molis-ai/molis-work-design-system";
  */
 export const STUDIO_EN: Record<string, string> = {
   ...PLUGIN_COMPONENTS_EN,
+  ...BOARD_EN,
   // The stage: header, composer, tabs.
   "插件创作工作台": "Plugin Studio",
   "我的插件": "My plugins",

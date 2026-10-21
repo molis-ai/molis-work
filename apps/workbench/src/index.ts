@@ -116,6 +116,7 @@ export { createWorkbenchProjectSettingsPages, type ProjectSettingsPagePorts } fr
 export type { ProjectSettingsFoldId } from "./project-settings-folds.js";
 export { createWorkbenchRenderer, type WorkbenchRendererPorts, type WorkbenchRenderer } from "./renderer.js";
 export { renderMolisWorkBarSpecimen, renderMolisWorkPrimitiveCatalog } from "./primitive-catalog.js";
+export { parseConditionFrame, renderMolisWorkConditionsSpecimen } from "./condition-frame.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
 export { ALWAYS_ON_PLUGIN_IDS, availableProjectPluginIds, catalogProblems, shownProjectPlugins, BUILTIN_PLUGIN_CATALOG, BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins } from "./plugin-catalog.js";

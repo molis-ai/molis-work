@@ -354,7 +354,7 @@ export const WORKFLOWS_STYLES = `
   [data-workflows="workbench"] .wf-manual header strong { font-weight: var(--weight-control, 500); font-size: 13px; }
   [data-workflows="workbench"] .wf-manual .mw-input, [data-workflows="workbench"] .wf-manual .mw-textarea { width: 100%; }
   /* Grows with what is being handed over, but never pushes the plugin below it out of sight. */
-  [data-workflows="workbench"] .wf-manual .mw-textarea { field-sizing: content; min-height: 6lh; max-height: 28vh; resize: vertical; }
+  [data-workflows="workbench"] .wf-manual .mw-textarea { min-height: 6lh; max-height: 28vh; resize: vertical; }
   [data-workflows="workbench"] .wf-manual footer { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
   [data-workflows="workbench"] .wf-kbd-hint { display: inline-flex; align-items: center; gap: 4px; margin-right: auto; color: var(--faint); font-size: 11px; }
   [data-workflows="workbench"] .wf-kbd-hint .mw-kbd { min-height: 18px; padding: 0 4px; border-radius: 5px; font-size: 11px; line-height: 18px; }

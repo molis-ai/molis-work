@@ -5,7 +5,7 @@ function composer(kind: "group" | "thread") {
   return `<form class="im-composer" data-composer="${kind}">
     <div class="im-quote-draft" data-quote="${kind}" hidden></div>
     <label class="im-composer-destination" for="im-${kind}-input" data-destination="${kind}"></label>
-    <textarea id="im-${kind}-input" rows="1" maxlength="12000" placeholder="写下你的想法…" aria-label="${kind === "group" ? "群聊消息" : "Thread 回复"}" required></textarea>
+    <textarea id="im-${kind}-input" data-fit rows="1" maxlength="12000" placeholder="写下你的想法…" aria-label="${kind === "group" ? "群聊消息" : "Thread 回复"}" required></textarea>
     <div class="im-composer-tools"><div>${button("new-topic", "新建公开话题", "plus")}${button("mention", "插入成员名字", "user")}${button("format-help", "消息格式", "text")}</div><span class="im-compose-status" data-compose-status="${kind}" role="status"></span><button class="im-send" type="submit" aria-label="${kind === "group" ? "发送群消息" : "发送 Thread 回复"}" disabled>${icon("send")}</button></div>
   </form>`;
 }

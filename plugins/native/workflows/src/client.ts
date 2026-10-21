@@ -918,7 +918,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const draft = ui.handoff.draft;
       return '<form class="wf-manual" data-wf-manual><header><strong>' + esc(L('手动交给 {next}', { next })) + '</strong><span class="wf-muted">' + tx('看完再决定交不交、交什么。改好的内容会交过去。') + '</span></header>'
         + '<label class="mw-field"><span class="mw-field__label">' + tx('标题') + '</span><input class="mw-input" name="title" maxlength="200" value="' + esc(draft.title) + '"></label>'
-        + '<label class="mw-field"><span class="mw-field__label">' + tx('正文') + '</span><textarea class="mw-textarea" name="body" rows="5">' + esc(draft.body) + '</textarea></label>'
+        + '<label class="mw-field"><span class="mw-field__label">' + tx('正文') + '</span><textarea class="mw-textarea" name="body" data-fit rows="5">' + esc(draft.body) + '</textarea></label>'
         + '<footer><span class="wf-kbd-hint"><kbd class="mw-kbd">' + esc(MOD) + ' ↵</kbd>' + tx('交过去') + '<kbd class="mw-kbd">Esc</kbd>' + tx('先不交') + '</span>'
         + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="handoff-cancel">' + tx('先不交') + '</button>'
         + '<button class="mw-btn mw-btn--primary" type="submit" data-wf-action="handoff-submit"' + (busy ? ' data-loading aria-disabled="true"' : '') + '>' + (busy ? '<span class="mw-spinner" aria-hidden="true"></span>' : '') + '<span>' + esc(L('交给 {next}', { next })) + '</span></button></footer></form>';

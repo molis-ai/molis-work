@@ -235,15 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience slice 43 (VUX-40): Coding's method library and MCP settings, which the workbench script carries,
-// speak English through stable keys, which are longer than the short Chinese labels they replace (+462 B in the workbench
-// script). Small, necessary growth passes once under the user's #17 rule. Delete it in the next change to this gate.
+// specs/visual-ui-experience slice 44 (VUX-40): Coding's step report dialog and change set reader speak English through
+// stable keys, which are longer than the short Chinese labels they replace (+251 B in coding.js). Small, necessary growth
+// passes once under the user's #17 rule. Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.js": [370566, 370756],
   "/assets/molis-work-arrival.css": [702945, 704315],
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   "/assets/molis-work-settings.css": [992921, 994287],
   "/assets/molis-work-workbench.css": [1609507, 1610853],
-  "/assets/molis-work-workbench.js": [1176182, 1176649],
-  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

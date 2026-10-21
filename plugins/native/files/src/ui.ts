@@ -15,7 +15,7 @@ export function renderFilesBrowserDirectory(text: (key: string) => string): stri
   return `<section data-files-browser hidden class="files-browser mw-dir">
     <p class="mw-field__label">${text("files.directory.label")}</p>
     <p class="files-notice">${text("files.directory.help")}</p>
-    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${text("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span>${text("files.directory.refresh")}</button></div>
+    <div class="mw-toolbar files-directory-toolbar"><span class="mw-dir__label">${text("files.directory.title")}</span><button class="mw-btn mw-btn--ghost" type="button" data-files-refresh><span class="mw-spinner" hidden></span><span>${text("files.directory.refresh")}</span></button></div>
     <p data-files-status role="status"></p><div class="mw-dir__list" data-files-tree></div>
   </section>`;
 }

@@ -238,10 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-31 (slice 56): only the latest detail opening paints. A pick made while an earlier one is
-  // still loading, or a close before it answers, drops the earlier answer (a ticket per open/close in Todo and Cognia).
-  "/assets/molis-work-plugins/cognia.js": [23703, 23773],
-  "/assets/molis-work-plugins/todo.js": [62036, 62126],
+  // specs/visual-ui-experience VUX-31 (slice 57): a quick load never flashes a waiting mark. The shared skeleton and busy
+  // button wait 250ms like `.mw-loading` (one keyframe and three animation declarations in the primitives every sheet carries).
+  "/assets/molis-work-arrival.css": [702913, 703321],
+  "/assets/molis-work-settings.css": [993565, 993973],
+  "/assets/molis-work-workbench.css": [1617596, 1618004],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

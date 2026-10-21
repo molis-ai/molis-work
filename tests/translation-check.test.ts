@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { MESSAGES_ROOT, REGISTRATION_SOURCE, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
+import { MESSAGES_ROOT, SERVED_ROOT, analyse, isProductSource, missingErrors, ownerTable, scanFile, scanTree, summarise, unservedDictionaries, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 
 // specs/repository-anti-corruption decision #16 (W1-08): the translation check scans every translator call and every
 // dictionary instead of a list of files. It is a health-gate metric, so these tests drive scripts/check-health-gates.mjs on a
@@ -582,40 +582,51 @@ test("RAC-59: the catalog may use an import alias for the owner's stable diction
   assert.equal(run.code, 0, run.out);
 });
 
-// W5-02: a plugin writes its catalog entry in its own src/registration.ts; the generated catalog lists it.
-const registerOwn = (owner: string, field = "messages") => put(`plugins/native/${owner}/src/registration.ts`,
-  `import { ${owner.toUpperCase()}_MESSAGES } from "./messages.js";\nexport const registration = { ${field}: ${owner.toUpperCase()}_MESSAGES };\n`);
+// VUX-40 (slice 40): one owner's words may span several files. The registered dictionary spreads its parts; each part is
+// checked like any dictionary, and a part must belong to the same owner.
+const alphaParts = (spreadsFromBeta = false) => {
+  put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成", en: "Done" },\n};\n');
+  if (spreadsFromBeta) put("plugins/native/beta/src/messages.ts", messages("beta", '  "beta.ui.open": { zh: "打开", en: "Open" },'));
+  put("plugins/native/alpha/src/messages.ts", 'import { ALPHA_TIMELINE_MESSAGES as TIMELINE } from "./timeline-messages.js";\n' +
+    (spreadsFromBeta ? 'import { BETA_MESSAGES } from "@scratch/beta";\n' : "") +
+    'export const ALPHA_MESSAGES = {\n  ...TIMELINE,\n' + (spreadsFromBeta ? "  ...BETA_MESSAGES,\n" : "") + '  "alpha.ui.open": { zh: "打开", en: "Open" },\n};\n');
+  registerMessages("alpha");
+};
 
-test("RAC-59 W5-02-REG-01: a plugin's own registration registers its stable dictionary", () => {
-  branch("stable-own-registration", () => {
-    put("plugins/native/alpha/src/messages.ts", stableAlpha);
-    registerOwn("alpha");
-  });
+test("VUX-40: a registered dictionary may be assembled from its owner's parts, and each part is still checked", () => {
+  branch("stable-parts", () => alphaParts());
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);
+  branch("stable-parts-bad-part", () => {
+    alphaParts();
+    put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成 {count}", en: "Done" },\n};\n');
+  });
+  const bad = gate("--base", "main");
+  assert.equal(bad.code, 1, bad.out);
+  assert.match(bad.out, /stable key alpha\.timeline\.done .*different \{placeholders\}/);
 });
 
-test("RAC-59 W5-02-REG-01: a registration that names the dictionary in another field, or a file that is not a registration, registers nothing", () => {
-  for (const [name, mutate] of [
-    ["own-wrong-field", () => registerOwn("alpha", "unused")],
-    ["own-other-file", () => put("plugins/native/alpha/src/catalog-entry.ts", 'import { ALPHA_MESSAGES } from "./messages.js";\nexport const registration = { messages: ALPHA_MESSAGES };\n')],
-  ] as const) {
-    branch(name, () => { put("plugins/native/alpha/src/messages.ts", stableAlpha); mutate(); });
-    const run = gate("--base", "main");
-    assert.equal(run.code, 1, run.out);
-    assert.match(run.out, /stable dictionary ALPHA_MESSAGES .*not registered/);
-  }
+test("VUX-40: a part another owner defines is rejected, and a part nothing spreads is still unregistered", () => {
+  branch("stable-parts-foreign", () => alphaParts(true));
+  const foreign = gate("--base", "main");
+  assert.equal(foreign.code, 1, foreign.out);
+  assert.match(foreign.out, /stable dictionary ALPHA_MESSAGES \(plugins\/native\/alpha\/src\/messages\.ts\) spreads BETA_MESSAGES, which beta defines/);
+  assert.match(foreign.out, /stable dictionary BETA_MESSAGES .*not registered/);
+  branch("stable-parts-unspread", () => {
+    alphaParts();
+    put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },') + 'const unused = { ...ALPHA_TIMELINE_MESSAGES };\n');
+  });
+  const unspread = gate("--base", "main");
+  assert.equal(unspread.code, 1, unspread.out);
+  assert.match(unspread.out, /stable dictionary ALPHA_TIMELINE_MESSAGES .*not registered/);
 });
 
-test("RAC-59 W5-02-REG-01: removing Images' real registration of its messages is detected even while its import remains", () => {
+test("RAC-59: removing Images' real catalog registration is detected even while its import remains", () => {
   assert.deepEqual(real.scan.stableErrors, []);
-  const own = "plugins/native/images/src/registration.ts";
-  assert.match(own, REGISTRATION_SOURCE);
-  const original = readFileSync(path.join(repoRoot, own), "utf8");
-  assert.match(original, /messages: IMAGES_MESSAGES/);
-  assert.match(readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8"), /registration as imagesRegistration\b/, "the catalog lists Images' own registration");
-  const disconnected = scanFile(own, original.replace("messages: IMAGES_MESSAGES,", ""));
-  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === own ? disconnected : file));
+  const original = readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8");
+  assert.match(original, /imagesRegistration,/);
+  const disconnected = scanFile(MESSAGES_ROOT, original.replace("  imagesRegistration,\n", ""));
+  const changed = analyse(real.scan.files.map((file: { file: string }) => file.file === MESSAGES_ROOT ? disconnected : file));
   assert.equal(changed.stableErrors.length, 1);
   assert.match(changed.stableErrors[0], /stable dictionary IMAGES_MESSAGES .*not registered/);
 });

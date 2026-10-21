@@ -284,7 +284,7 @@ test("W2-18-GIT-CONFLICT-03 a busy Git index and an oversized UTF-8 resolution c
   assert.equal(await readFile(f.index + ".lock", "utf8"), "another Git writer");
 });
 
-test("S-52 reading the repository and preparing a review run no filter, fsmonitor or hook, the repository's or a submodule's, whatever Git variables the Host inherited or the filter is named; the approved commit runs the repository's hooks", async t => {
+test("S-53 reading the repository and preparing a review run no filter, fsmonitor or hook, the repository's or a submodule's, whatever Git variables the Host inherited or the filter is named; the approved commit runs the repository's hooks", async t => {
   const f = await isolatedRepository(t), ran = path.join(f.directory, "ran");
   await mkdir(ran);
   // A filter passes its content through; anything else must leave stdin alone (a commit reads its message from it).

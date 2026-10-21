@@ -1,4 +1,4 @@
-// SECURITY-INVARIANTS S-52: the Host runs Git for a workspace without executing what the repository configures (hooks, filters,
+// SECURITY-INVARIANTS S-53: the Host runs Git for a workspace without executing what the repository configures (hooks, filters,
 // fsmonitor, a submodule's own filters), except in an operation the person approved. This file holds the writer's work tree half,
 // through the package's public entry; reading the repository, preparing a review and the approved operation are in
 // tests/git-operations.test.ts, because they need the Host's internal functions (docs/system/SECURITY-INVARIANTS.md §2).
@@ -37,7 +37,7 @@ async function fixture(t: import("node:test").TestContext) {
   return { home, root, ran, git, helper };
 }
 
-test("S-52 a writer's work tree is prepared, created, read and removed without a hook, a filter or a submodule's work tree, whatever Git variables the Host inherited", async t => {
+test("S-53 a writer's work tree is prepared, created, read and removed without a hook, a filter or a submodule's work tree, whatever Git variables the Host inherited", async t => {
   const f = await fixture(t);
   // Configured after the fixture's own Git commands, so anything that runs them is the Host.
   const hooks = path.join(f.home, "hooks");
@@ -67,7 +67,7 @@ test("S-52 a writer's work tree is prepared, created, read and removed without a
   assert.deepEqual(await readdir(f.ran), [], "no hook, fsmonitor or submodule filter ran");
 });
 
-test("S-52 a repository whose files use a content filter gets no writer's work tree, and the filter does not run", async t => {
+test("S-53 a repository whose files use a content filter gets no writer's work tree, and the filter does not run", async t => {
   const f = await fixture(t);
   await f.git(f.root, "config", "filter.outer.clean", await f.helper("outer-filter"));
   await f.git(f.root, "config", "filter.outer.smudge", await f.helper("outer-smudge"));
@@ -80,7 +80,7 @@ test("S-52 a repository whose files use a content filter gets no writer's work t
   assert.deepEqual(await readdir(f.ran), []);
 });
 
-test("S-52 a writer's work tree holding an initialized submodule is not removed, and the submodule's changes stay", async t => {
+test("S-53 a writer's work tree holding an initialized submodule is not removed, and the submodule's changes stay", async t => {
   const f = await fixture(t);
   const port = createGitWorktreePort(f.root), created = await port.create("held", (await port.preview("held")).base_commit);
   const directory = path.join(f.root, created.directory), inner = path.join(directory, "inner");

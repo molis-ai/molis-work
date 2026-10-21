@@ -238,12 +238,13 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-40 Chinese UI (slice 62): long Chinese names ellipsize where they would push a column
-  // wide (placement line, Todo's project choice, Pages' title), the Goals list scrolls below its toolbar, Workflows names
-  // come first; the empty state's paragraph never outgrows it (the primitives every sheet carries: +11 B).
-  "/assets/molis-work-arrival.css": [704422, 704433],
-  "/assets/molis-work-settings.css": [995074, 995085],
-  "/assets/molis-work-workbench.css": [1619105, 1619583],
+  // specs/visual-ui-experience VUX-13 (slice 63): a round's steps and a step's detail open to their natural height through
+  // the shared disclosure rule (disclosure.ts `disclosureHeight`, scoped to the Assistant: +880 B in each sheet), and the
+  // steps sit in one body the rule can grow (+18 B).
+  "/assets/molis-work-arrival.css": [704433, 705313],
+  "/assets/molis-work-settings.css": [995085, 995965],
+  "/assets/molis-work-workbench.css": [1619583, 1620463],
+  "/assets/molis-work-workbench.js": [1175662, 1175680],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -72,14 +72,15 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
   const place = (round, run, put, anchor) => {
     const placed = (round.stepPlaced ||= new Set());
     if (run.length === 1) { const one = line(round, run[0]); keep(one, put); placed.add(one); return; }
-    const box = keyed(round, "data-entry", "g:" + anchor, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary")); return box; });
+    // The steps sit in one body, so the group opens to its natural height like every collapsible (disclosure.ts).
+    const box = keyed(round, "data-entry", "g:" + anchor, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary"), el("div", "assistant-steps-body")); return box; });
     box.dataset.state = run.some((item) => item.state === "started") ? "started" : run.some((item) => item.state === "failed" || item.state === "unknown") ? "failed" : "completed";
     setText(box.firstElementChild, summary(run));
-    const inBox = placer(box); inBox(box.firstElementChild);
+    const body = box.lastElementChild, inBody = placer(body);
     const lines = run.map((item) => line(round, item));
-    if (box.childElementCount === 1 && lines.some((one) => one.open || one.contains(document.activeElement))) box.open = true;
-    const mine = new Set(lines.map((one) => { keep(one, inBox); return one; }));
-    [...box.children].slice(1).forEach((child) => { if (!mine.has(child)) child.remove(); });
+    if (!body.childElementCount && lines.some((one) => one.open || one.contains(document.activeElement))) box.open = true;
+    const mine = new Set(lines.map((one) => { keep(one, inBody); return one; }));
+    [...body.children].forEach((child) => { if (!mine.has(child)) child.remove(); });
     keep(box, put); placed.add(box);
   };
   const sweep = (round) => {

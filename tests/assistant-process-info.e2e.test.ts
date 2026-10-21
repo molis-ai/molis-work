@@ -99,7 +99,7 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   await waitFor(`document.querySelectorAll(${JSON.stringify(LINES)}).length === 3 && document.querySelector('${GROUP}')?.dataset.state === 'failed'`, 15_000);
   assert.equal(await evaluate<string>(`document.querySelector('${GROUP} > summary').textContent`), "读取 Goals、查找能力 · 3 步 · 1 步没有完成");
   assert.deepEqual(await evaluate(`(() => { const first = window.__first;
-    return { connected: first.isConnected, inGroup: first.parentElement.matches('details.assistant-steps'), groupOpen: first.parentElement.open, open: first.open, focused: document.activeElement === first.querySelector('summary') }; })()`),
+    return { connected: first.isConnected, inGroup: first.parentElement.matches('details.assistant-steps > .assistant-steps-body'), groupOpen: first.closest('details.assistant-steps').open, open: first.open, focused: document.activeElement === first.querySelector('summary') }; })()`),
     { connected: true, inGroup: true, groupOpen: true, open: true, focused: true });
   assert.deepEqual(await texts(), ["已读取 Goals · 读取回收站", "读取 Goals · 读取目标正文 — 没有完成", "已查找能力 Goal"]);
   // The step that did not finish keeps why on demand, by keyboard: what it called and what came back.
@@ -127,6 +127,16 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
   assert.deepEqual(activity.map(item => item.verb + ":" + item.state), ["read:completed", "read:failed", "lookup:completed", "lookup:completed"]);
   // A step with nothing behind it is a plain line: no control that opens nothing.
   assert.equal(await evaluate<number>(`[...document.querySelectorAll(${JSON.stringify(LINES)})].filter(node => node.matches('details') && !node.querySelector('.assistant-activity-detail').textContent).length`), 0);
+
+  // The group opens to its natural height like every collapsible (disclosure.ts): closed, then opened, its steps grow from
+  // nothing to their own height over the frames, never at once.
+  await evaluate("window.__group.open = false"); await new Promise((resolve) => setTimeout(resolve, 500));
+  const opening = await evaluate<{ heights: number[]; transition: string }>(`new Promise((done) => { const group = window.__group, body = group.querySelector('.assistant-steps-body'), heights = [];
+    group.open = true; const start = performance.now(); const step = () => { heights.push(Math.round(body.getBoundingClientRect().height)); if (performance.now() - start < 450) requestAnimationFrame(step); else done({ heights, transition: getComputedStyle(group, '::details-content').transitionProperty }); }; requestAnimationFrame(step); })`);
+  assert.match(opening.transition, /grid-template-rows/);
+  const full = opening.heights.at(-1)!;
+  assert.ok(full > 40 && opening.heights[0]! < full && opening.heights.some((height) => height > opening.heights[0]! && height < full), `the group grows to its height over frames: ${opening.heights.join(",")}`);
+  assert.ok(opening.heights.every((height, index) => index === 0 || height >= opening.heights[index - 1]!), "it only grows while it opens");
 
   // In English the summary is the same sentence, in English.
   const work = await evaluate<string>("localStorage.getItem('molis.assistant.current')");

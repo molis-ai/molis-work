@@ -239,6 +239,12 @@ const headErrors = (measured, budget, base) => {
 // Host puts on the loading line, not by the line being Chinese (+46 B in workbench.js, under the user's #17 rule that small,
 // necessary growth passes once). Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-arrival.css": [702945, 704315],
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
+  // #923: Coding's main browser script speaks English.
+  "/assets/molis-work-settings.css": [992910, 994276],
+  "/assets/molis-work-workbench.css": [1609496, 1610842],
+  "/assets/molis-work-workbench.js": [1168048, 1176182],
   // #922: Coding's server-drawn page and settings speak through stable keys.
   "/assets/molis-work-arrival.css": [702900, 704315],
   "/assets/molis-work-settings.css": [992861, 994276],

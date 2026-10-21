@@ -2340,3 +2340,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - `project-plugin-startup.test.ts:29-40` 随 C2 改写；
     - `AgentHostComposition.ready` 不删。
   - 已转给 ③。② 现在开 C6（PG-037）。
+- **10-21 #905（C3）、#909（T2）已合 main**，分别是 90fd80478 和 9848b3502。
+  - 两个都是 ⑤ 先修好评审要改的地方，再过 batch-1021-4 的全量（绿），然后 merge-only。用完的集成分支已清掉。
+  - #909 合入后 C2 就不用等了。
+- **② 和 ③ 的这一轮都断在代理错误上**（ERR_PROXY_TUNNEL，网络问题）。
+  - ① 已让它们接着做：② 做 C6，③ 做 C1，C1 之后从 main 开 C2。
+- #891、#893 仍在等用户在 ⑤ 会话里批新门禁。⑤ 已在自己的会话里发问。

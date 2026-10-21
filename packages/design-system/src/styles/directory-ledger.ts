@@ -149,9 +149,9 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     font-weight: var(--weight-control, 500);
     line-height: 1.35;
     letter-spacing: -.008em;
-    overflow-wrap: anywhere;
-    text-overflow: clip;
-    white-space: normal;
+    overflow-wrap: var(--tree-title-wrap, anywhere);
+    text-overflow: var(--tree-title-overflow, clip);
+    white-space: var(--tree-title-space, normal);
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-toggle {
     height: 30px;
@@ -160,10 +160,11 @@ export const DIRECTORY_LEDGER_STYLES = `  /* Tree rows: chrome spacing, node gri
     min-height: 30px;
     padding-block: 4px;
   }
-  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node .tree-title-line strong {
-    overflow-wrap: normal;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-node .tree-title-line {
+    /* Passed to the title: a :has() rule ending in a bare tag makes the browser check that tag on every node put anywhere in the page. */
+    --tree-title-wrap: normal;
+    --tree-title-overflow: ellipsis;
+    --tree-title-space: nowrap;
   }
   body[data-desktop-shell="true"]:where(:not(.immersive-workbench)) .desktop-goal-directory .tree-item:not(.is-collapsed):has(> .tree-children) > .tree-row > .tree-entry > .tree-meta-line > .tree-progress {
     display: none;

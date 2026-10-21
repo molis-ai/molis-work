@@ -959,8 +959,8 @@ export const PRIMITIVE_STYLES = `
     display: block; grid-column: 2; grid-row: 1 / span 2; width: 8px; height: 36px;
     border-radius: 4px;
   }
-  .mw-swatch:has(.mw-swatch__fill) span,
-  .mw-swatch:has(.mw-swatch__fill) small { grid-column: 3; }
+  .mw-swatch > .mw-swatch__fill ~ span,
+  .mw-swatch > .mw-swatch__fill ~ small { grid-column: 3; }
   .mw-swatch span {
     grid-column: 2; color: var(--ink); font-size: 12px; font-weight: var(--weight-control, 500); line-height: 16px;
   }

@@ -338,11 +338,9 @@ export const IMMERSIVE_NAVIGATION_STYLES = `
     font: inherit; font-size: 13px; cursor: pointer;
   }
   body.immersive-workbench .plugin-market-project-trigger strong { min-width: 0; overflow: hidden; font-weight: var(--weight-control, 500); text-overflow: ellipsis; white-space: nowrap; }
-  body.immersive-workbench .plugin-market-project-trigger svg { width: 12px; height: 12px; flex: none; color: var(--muted); transition: transform 130ms var(--ease-quint); }
+  body.immersive-workbench .plugin-market-project-trigger svg { width: 12px; height: 12px; flex: none; color: var(--muted); transform: var(--market-trigger-turn, none); transition: transform 130ms var(--ease-quint); }
   body.immersive-workbench .plugin-market-project-trigger[aria-expanded="true"],
-  body.immersive-workbench .plugin-market-destination:has([data-market-project-popover]:popover-open) .plugin-market-project-trigger { background: var(--nav-hover); border-color: var(--line-strong); }
-  body.immersive-workbench .plugin-market-project-trigger[aria-expanded="true"] svg,
-  body.immersive-workbench .plugin-market-destination:has([data-market-project-popover]:popover-open) .plugin-market-project-trigger svg { transform: rotate(180deg); }
+  body.immersive-workbench .plugin-market-destination:has([data-market-project-popover]:popover-open) .plugin-market-project-trigger { --market-trigger-turn: rotate(180deg); background: var(--nav-hover); border-color: var(--line-strong); }
   body.immersive-workbench .plugin-market-project-trigger:hover:not(:disabled) { background: var(--nav-hover); }
   body.immersive-workbench .plugin-market-project-trigger:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); box-shadow: none; }
   body.immersive-workbench .plugin-market-project-popover {

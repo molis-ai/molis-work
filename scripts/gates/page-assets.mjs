@@ -238,9 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-40 English UI (slice 67): each step verb's three forms (bare, under way, done) are their own
-  // keys, so English says "Reading" and "Read" instead of a translated-away prefix before "read" (+1,415 B).
-  "/assets/molis-work-workbench.js": [1175741, 1177156],
+  // specs/visual-ui-experience VUX-31 (slice 68): the plugins' own waits (a Goal's document, its event form, Files' reader,
+  // Git's diff) dim on the shared 250ms wait through one keyframe, and the Goal document's mark waits with them.
+  "/assets/molis-work-arrival.css": [705313, 705612],
+  "/assets/molis-work-settings.css": [995965, 996446],
+  "/assets/molis-work-workbench.css": [1620517, 1621512],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

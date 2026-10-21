@@ -4180,6 +4180,136 @@ export declare const WORKFLOW_CONTENT_VERSIONS: {
     readonly create: 1;
 };
 
+export declare const WORK_EXECUTOR_PROTOCOL: Readonly<Record<WorkExecutorRole, WorkExecutorRoleContract>>;
+
+export declare const WORK_EXECUTOR_ROLES: readonly ["state", "session.open", "session.read", "session.update", "run.start", "run.control"];
+
+export interface WorkExecutorActionOptions {
+    readonly capability_id: string;
+    readonly version?: number;
+    readonly title: string;
+    readonly description: string;
+    readonly permissions: readonly string[];
+    readonly audiences?: readonly ActionAudience[];
+    readonly subject_kinds?: readonly string[];
+    readonly scheduling?: "concurrent";
+    readonly execution?: ActionExecutionPolicy;
+}
+
+export interface WorkExecutorCalls {
+    state: {
+        input: Record<string, never>;
+        output: WorkExecutorState;
+    };
+    "session.open": {
+        input: WorkExecutorSessionOpen;
+        output: WorkExecutorSessionRef;
+    };
+    "session.read": {
+        input: WorkExecutorSessionReadInput;
+        output: WorkExecutorSession;
+    };
+    "session.update": {
+        input: WorkExecutorSessionUpdate;
+        output: WorkExecutorSessionUpdate;
+    };
+    "run.start": {
+        input: WorkExecutorRunStart;
+        output: WorkExecutorRunStarted;
+    };
+    "run.control": {
+        input: WorkExecutorRunControl;
+        output: WorkExecutorRunControlResult;
+    };
+}
+
+export interface WorkExecutorMode {
+    id: string;
+    title: string;
+}
+
+export type WorkExecutorRole = (typeof WORK_EXECUTOR_ROLES)[number];
+
+export interface WorkExecutorRoleContract {
+    readonly operation: "query" | "command";
+    readonly input_type: string;
+    readonly output_type: string;
+    readonly input_schema: ActionSchema;
+    readonly output_schema: ActionSchema;
+}
+
+export type WorkExecutorRunControl = RoundRef & ({
+    kind: "stop" | "pause" | "resume";
+} | (AgentAnswerControl & {
+    pending_revision: number;
+}) | ({
+    kind: "steer";
+} & AgentInputSend) | {
+    kind: "withdraw";
+    input_id: string;
+});
+
+export interface WorkExecutorRunControlResult {
+    accepted: boolean;
+    receipt?: AgentSteerReceipt;
+}
+
+export interface WorkExecutorRunStart {
+    session_id: string;
+    task: string;
+}
+
+export interface WorkExecutorRunStarted {
+    run_id: string;
+}
+
+export interface WorkExecutorSession {
+    session_id: string;
+    title: string;
+    mode: string | null;
+    runs: AgentRunView[];
+    runtime_session_id: string | null;
+    recovery: {
+        message: string;
+    } | null;
+    workspace_id?: string | null;
+    mcp_tools?: AgentMcpToolRef[];
+}
+
+export interface WorkExecutorSessionOpen {
+    title: string;
+    mode?: string;
+}
+
+export interface WorkExecutorSessionReadInput {
+    session_id: string;
+    window?: number;
+}
+
+export interface WorkExecutorSessionRef {
+    session_id: string;
+}
+
+export interface WorkExecutorSessionUpdate {
+    session_id: string;
+    mode: string;
+}
+
+export interface WorkExecutorState {
+    modes: WorkExecutorMode[];
+    default_mode: string;
+    images: boolean;
+    workspace_id?: string | null;
+    workspaces?: WorkExecutorWorkspace[];
+    mcp?: AgentMcpServerView[];
+}
+
+export interface WorkExecutorWorkspace {
+    workspace_id: string;
+    name: string;
+    path: string;
+}
+
 export interface WorkflowContentActions {
     readonly list: ActionDefinition<Record<string, never>, readonly WorkflowStartItem[]>;
     readonly read: ActionDefinition<{
@@ -4359,6 +4489,12 @@ export declare function defineSubjectContextAction(capabilityId: string, kind: s
 export declare function defineSubjectOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices?: readonly SubjectOfferChoice[]): ActionDefinition<SubjectOffersInput, {
     offers: SubjectActionOffer[];
 }>;
+
+export declare function defineWorkExecutorAction<R extends WorkExecutorRole>(name: R, options: WorkExecutorActionOptions): ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
+
+export declare function defineWorkExecutorActions(options: Readonly<Record<WorkExecutorRole, WorkExecutorActionOptions>>): {
+    readonly [R in WorkExecutorRole]: ActionDefinition<WorkExecutorCalls[R]["input"], WorkExecutorCalls[R]["output"]>;
+};
 
 export declare function defineWorkflowContentActions(station: WorkflowStationSpec & {
     receive: false;
@@ -4589,9 +4725,16 @@ export declare function validActionResultView(value: unknown): value is ActionRe
 
 export declare function withActionEffect<D extends ActionDefinition<any, any>>(definition: D, effect: NonNullable<ActionMetadata["effect"]>, plugin?: false): D;
 
+export declare function withControlChecks(caller: ActionCallContext, control: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">): Pick<ActionCallContext, "validate_authority" | "assert_authority_current">;
+
 export declare function withinDueReminderWindow(value: string, window: DueReminderWindow): boolean;
 
 export declare function withinHomeEventWindow(value: string, window: HomeEventWindow): boolean;
+
+export declare function workExecutorRoleOf(action: {
+    input_type?: string;
+    output_type?: string;
+}): WorkExecutorRole | null;
 
 // Declarations the exports above refer to, which no entry exports itself:
 
@@ -4607,6 +4750,11 @@ interface DestinationDeclaration {
 type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> = {
     kind: Kind;
 } & Payload;
+
+type RoundRef = {
+    session_id: string;
+    run_id: string;
+};
 
 interface WorkflowStationSpec {
     id: string;

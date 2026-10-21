@@ -1,5 +1,6 @@
 import { isId, isObject, isOutputPath, isText, isVersion } from "./action-declarations.js";
 import { schemaFields, schemaPathExists } from "./schema-paths.js";
+import { workExecutorSetProblems } from "./work-executor-declarations.js";
 
 // The checks a group of action declarations gets as a whole: the actions one declaration points at (the undo command, the job's
 // status query, the targets of fragment and subject options) must be declared in the same group, as the kind of action the
@@ -10,7 +11,8 @@ import { schemaFields, schemaPathExists } from "./schema-paths.js";
 //
 // This is a separate pass from `inspectActionDeclarations`, which reads one definition at a time. A definition or a reference that
 // is incomplete (`inspectActionDeclarations` reports that) is skipped, never reported twice. Problems come in the order of the
-// definitions, then undo, background job, fragment options, subject options, result object. The one thing read here that the shape
+// definitions, then undo, background job, fragment options, subject options, result object; the work executor's set of roles comes
+// last, once for the group. The one thing read here that the shape
 // check does not read at all is `result_subject`, so a value of it that is not an object is reported here.
 
 /** A definition complete enough to be pointed at or to point: its identity, its operation, and its action body. */
@@ -27,13 +29,13 @@ interface Option { readonly offerId: string; readonly ref: string; readonly targ
 /** Every cross-reference problem in a group of action declarations, or none. Anything that is not a list of definitions has none. */
 export function inspectActionCrossReferences(definitions: unknown): string[] {
   const group = declaredGroup(definitions);
-  return [...group.values()].flatMap(source => [
+  return [...[...group.values()].flatMap(source => [
     ...undoProblems(source, group),
     ...backgroundJobProblems(source, group),
     ...fragmentTargetProblems(source, group),
     ...subjectTargetProblems(source, group),
     ...resultSubjectProblems(source),
-  ]);
+  ]), ...workExecutorSetProblems([...group.values()])];
 }
 
 function declaredGroup(definitions: unknown): DeclaredGroup {

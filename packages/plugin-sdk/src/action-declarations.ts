@@ -10,6 +10,7 @@ import { contextDeclarationProblems } from "./context-declarations.js";
 import {
   fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
+import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 
 // The shape checks for a Manifest's `actions` and `action_scenes`, made when a Manifest is parsed, when a plugin registers its
 // actions with the Kernel, and when an author calls `defineAction`. Moved here from the contracts package (W3-03): they run code,
@@ -49,6 +50,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
+    ...workExecutorDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),
     ...contextDeclarationProblems(key, raw.operation, action),

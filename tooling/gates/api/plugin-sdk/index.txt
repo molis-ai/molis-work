@@ -251,6 +251,13 @@ export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+export { WORK_EXECUTOR_ROLES } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorActionOptions } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorCalls } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorRole } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorRunControl } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { WorkExecutorState } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function actionErrorBody(error: unknown, options?: ActionErrorBodyOptions): ActionErrorBody;
 
@@ -335,6 +342,8 @@ export declare function definePollingIntegrationPlugin(input: {
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function dismissActionCard<Card extends ActionCard>(card: Card, store: CardStore<Card>): Card;

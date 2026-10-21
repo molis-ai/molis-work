@@ -8,10 +8,10 @@ import { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platf
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService, presentActivity } from "../apps/local-host/dist/assistant/assistant-service.js";
-import { withPersonDispatchGuard, type PersonActions } from "../apps/local-host/dist/assistant/assistant-coding.js";
+import type { PersonActions } from "../apps/local-host/dist/assistant/assistant-coding.js";
 import { codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** Coding as its page sees it: the same actions, over sessions kept in memory. */
 function fakeCoding() {
@@ -26,24 +26,24 @@ function fakeCoding() {
     availability: { available: true } }) as unknown as ActionView);
   const run = (id: string, task: string): AgentRunView => ({ ref: { run_id: id }, phase: "completed", turns: [{ turn_id: "u", kind: "user", text: task }],
     activity: [], awaiting_input: [], usage: {}, started_at: "2026-09-28T00:00:00.000Z", ended_at: "2026-09-28T00:00:01.000Z" }) as unknown as AgentRunView;
-  const actions: PersonActions = {
-    discover: async () => views,
-    invoke: async (reference, input: any) => {
-      const name = reference.capability_id.slice("coding.".length);
-      calls.push({ name, input: structuredClone(input) });
-      const session = sessions.get(input.session_id);
-      switch (name) {
-        case "state": return { models: [{ provider_id: "provider", model_id: "model" }], workspace: { workspace_id: "workspace" } };
-        case "sessions.create": { const id = `session-${sessions.size + 1}`; sessions.set(id, { configuration: null, runs: [] }); return { session: { session_id: id } }; }
-        case "sessions.read": return { session: { session_id: input.session_id, runtime_session_id: null }, runs: session!.runs, configuration: session!.configuration };
-        case "sessions.update": session!.configuration = structuredClone(input.configuration); return { session: { session_id: input.session_id } };
-        case "runs.start": session!.runs.push(run(`run-${session!.runs.length + 1}`, input.task)); return {};
-        case "runs.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: true };
-        default: return {};
-      }
-    },
+  // What Coding answers a call, whoever makes it: the executor through the person's bound client, or a test as Coding's own page.
+  const respond = async (reference: { capability_id: string }, input: any): Promise<unknown> => {
+    const name = reference.capability_id.slice("coding.".length);
+    calls.push({ name, input: structuredClone(input) });
+    const session = sessions.get(input.session_id);
+    switch (name) {
+      case "state": return { models: [{ provider_id: "provider", model_id: "model" }], workspace: { workspace_id: "workspace" } };
+      case "sessions.create": { const id = `session-${sessions.size + 1}`; sessions.set(id, { configuration: null, runs: [] }); return { session: { session_id: id } }; }
+      case "sessions.read": return { session: { session_id: input.session_id, runtime_session_id: null }, runs: session!.runs, configuration: session!.configuration };
+      case "sessions.update": session!.configuration = structuredClone(input.configuration); return { session: { session_id: input.session_id } };
+      case "runs.start": session!.runs.push(run(`run-${session!.runs.length + 1}`, input.task)); return {};
+      case "runs.control": return input.kind === "steer" ? { accepted: true, receipt: { input_id: "steer-1", replayed: false, delivered: receipt.delivered } } : { accepted: true };
+      default: return {};
+    }
   };
-  return { sessions, calls, actions, receipt };
+  const actions: BoundActionClient = { discover: async () => views,
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input) => await respond(definition, input) as Output };
+  return { sessions, calls, actions, respond, receipt };
 }
 
 function fixture() {
@@ -56,7 +56,7 @@ function fixture() {
   return { coding, store, service, caller };
 }
 
-test("W2-18-FOLLOWUP-DELETE-04 production person-client wiring refuses a deleted request after the final beforeEffect await", async () => {
+test("W2-18-FOLLOWUP-DELETE-04 the person's bound client, carrying the follow-up's control, refuses a deleted request after the final beforeEffect await", async () => {
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const actions = new ActionService(undefined, { beforeEffect: async () => { entered.resolve(); await release.promise; } });
   const definition: ActionDefinition = { capability_id: "coding.fixture.start", version: 1, operation: "command", action: {
@@ -68,13 +68,15 @@ test("W2-18-FOLLOWUP-DELETE-04 production person-client wiring refuses a deleted
   const seen: Array<{ reference: unknown; permissions: unknown }> = [];
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["coding:write"],
     assert_authority_current: (reference, permissions) => { seen.push({ reference, permissions }); } };
-  const guarded = withPersonDispatchGuard(caller, () => { if (!current) throw new Error("Follow-up removed"); });
+  // The control the Assistant hands its executor for a follow-up's round, joined to the person's checks the way the Host's client joins it.
+  const live = () => { if (!current) throw new Error("Follow-up removed"); };
   const reference = { capability_id: definition.capability_id, version: 1, provider_id: "fixture.coding" };
-  const pending = actions.invoke(guarded, reference, {});
+  const pending = bindActionClient(actions, () => caller).invoke({ ...definition, provider_id: "fixture.coding" }, {}, { beforeEffect: async () => live(), assert_authority_current: live });
   try { await entered.promise; current = false; release.resolve(); await assert.rejects(pending, /Follow-up removed/); }
   finally { release.resolve(); }
   assert.equal(writes, 0);
-  assert.ok(seen.some(row => JSON.stringify(row.reference) === JSON.stringify(reference) && JSON.stringify(row.permissions) === '["coding:write"]'),
+  const identity = (value: unknown) => { const { capability_id, version, provider_id } = value as ActionDefinition; return JSON.stringify({ capability_id, version, provider_id }); };
+  assert.ok(seen.some(row => identity(row.reference) === JSON.stringify(reference) && JSON.stringify(row.permissions) === '["coding:write"]'),
     "the original synchronous authority receives both the exact reference and declared required permissions");
 });
 
@@ -209,7 +211,7 @@ test("a professional Agent's own steps read as file and command work, never as b
 
 test("a new Coding work can continue the session the person started on the Coding page, and one session belongs to one work", async () => {
   const { coding, service, caller } = fixture();
-  const started = await coding.actions.invoke({ capability_id: "coding.sessions.create", version: 1, provider_id: "io.molis.coding" }, { title: "在 Coding 里开始的" }) as { session: { session_id: string } };
+  const started = await coding.respond({ capability_id: "coding.sessions.create" }, { title: "在 Coding 里开始的" }) as { session: { session_id: string } };
   const before = coding.calls.filter(call => call.name === "sessions.create").length;
   const sent = await service.send({ executor: "coding", coding_session_id: started.session.session_id, scope: { kind: "project", project_id: "project" }, text: "接着做", request_id: randomUUID() }, caller);
   assert.equal((sent.work.executor as { session_id: string }).session_id, started.session.session_id);

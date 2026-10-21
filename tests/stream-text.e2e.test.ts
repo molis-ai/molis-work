@@ -123,6 +123,8 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   assert.equal(written.href, "https://example.com/a?b=1&c=2");
   assert.equal(written.code, "const x = 1;");
   assert.equal(written.copies, 1, "the code block has one copy button");
+  // VUX-04: a reply written while it streamed wraps line by line, so a line already read never moves as it grows or ends.
+  assert.deepEqual(await evaluate("(() => { const rich = document.querySelector('.assistant-msg--assistant .assistant-rich'); return [!!rich.closest('[data-streamed]'), getComputedStyle(rich.querySelector('p')).textWrapStyle]; })()"), [true, "auto"], "the streamed reply wraps greedily");
   await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
 
   // Reopened, the same reply reads the same, and nothing in it is shown arriving again.
@@ -130,6 +132,7 @@ test("VUX-14/15: the Assistant's streamed reply keeps its blocks, shows only new
   await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich')?.textContent.includes('最后一段写完')", 30_000);
   const reopened = await evaluate<{ html: string; text: string; seen: number }>("({ html: document.querySelector('.assistant-msg--assistant .assistant-rich').innerHTML, text: document.querySelector('.assistant-msg--assistant .assistant-rich').textContent, seen: window.freshSeen })");
   assert.equal(reopened.seen, 0, "a reopen does not replay the reveal");
+  assert.deepEqual(await evaluate("(() => { const rich = document.querySelector('.assistant-msg--assistant .assistant-rich'); return [!!rich.closest('[data-streamed]'), getComputedStyle(rich.querySelector('p')).textWrapStyle]; })()"), [false, "pretty"], "reopened from history, its paragraphs wrap pretty again");
   assert.equal(reopened.text, written.text, "the reopened reply has the same words");
   assert.equal(reopened.html.replaceAll(' data-bound=""', ""), written.html.replaceAll(' data-bound=""', ""), "and the same structure as the one that was written");
 });

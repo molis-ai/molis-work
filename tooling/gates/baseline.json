@@ -1,5 +1,5 @@
 {
-  "giantUnits": 126,
+  "giantUnits": 124,
   "giant": {
     "function apps/local-host/src/agent-host-composition.ts#composeAgentHost": 245,
     "file apps/local-host/src/assistant/assistant-service.ts": 1868,
@@ -44,7 +44,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2157,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2121,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -183,8 +183,6 @@
       "lines": 343,
       "methods": 19
     },
-    "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 158,
-    "function plugins/native/characters/src/plugin.ts#start": 156,
     "file plugins/native/coding/src/client.ts": 1590,
     "file plugins/native/coding/src/styles.ts": 805,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
@@ -219,7 +217,7 @@
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1670,
+    "file plugins/native/shelf/src/client.ts": 1662,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
@@ -471,7 +469,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 128,
+  "emptyCatchesInScriptsTotal": 127,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -504,7 +502,6 @@
     "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/alchemist/src/client.ts": 1,
     "plugins/native/alchemist/src/work-reuse/client.ts": 2,
-    "plugins/native/characters/src/client.ts": 1,
     "plugins/native/coding/src/changeset-client.ts": 1,
     "plugins/native/coding/src/client.ts": 10,
     "plugins/native/coding/src/plans-client.ts": 4,
@@ -631,7 +628,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 63,
+  "rawFetchInScriptsTotal": 61,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -641,7 +638,6 @@
     "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
-    "plugins/native/characters/src/client.ts": 2,
     "plugins/native/coding/src/client.ts": 2,
     "plugins/native/dataset/src/client.ts": 1,
     "plugins/native/images/src/client.ts": 1,
@@ -771,11 +767,11 @@
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 367,
+  "pluginOutsideMentionsTotal": 366,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
-    "characters#outside-files": 11,
+    "characters#outside-files": 10,
     "coding#outside-files": 14,
     "cognia#outside-files": 6,
     "dataset#outside-files": 8,
@@ -1037,7 +1033,7 @@
     "plugins/native/work/src/http/create.ts": 1,
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 177,
+  "unknownCastsTotal": 176,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -1068,7 +1064,6 @@
     "packages/plugin-sandbox/src/schema.ts": 3,
     "packages/plugin-sandbox/src/worker.ts": 2,
     "packages/plugin-sdk/src/index.ts": 1,
-    "plugins/native/characters/src/plugin.ts": 1,
     "plugins/native/coding/src/goal-context.ts": 1,
     "plugins/native/coding/src/plans.ts": 1,
     "plugins/native/coding/src/report.ts": 2,

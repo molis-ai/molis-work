@@ -18,6 +18,9 @@
 //             soon as one exists, so files can move one at a time (apps/workbench/README.md, section 界面文字).
 //             One definition per key, a key starts with its owner, zh and en use the same {placeholders}, a key is used only
 //             by its owner (shared words are `common.*`), and the named dictionary feeds a catalog entry's `messages` field.
+//             A registered dictionary may be assembled from parts, `export const X_MESSAGES = { ...X_A_MESSAGES, ...X_B_MESSAGES }`
+//             (exportedSpreads), so one owner's words can span several files; each part is checked like any dictionary and
+//             must be defined by the same owner as the dictionary that spreads it.
 //
 // What counts as a translator call (the first argument, or every argument a wrapper forwards)
 //   L(…)  x.L(…)  p.text(…)  primitives.text(…)  translate(…)  x.translate(…)  this.t(…)
@@ -278,6 +281,26 @@ const registeredMessages = (source) => {
   return registered;
 };
 
+// `export const X = { ...A, ...B as C }`: the names each exported object literal spreads, under their exported names (an
+// import alias is followed back). Only identifiers count; a spread of a call or a property is not a dictionary part.
+const exportedSpreads = (source) => {
+  const imports = new Map();
+  for (const statement of source.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : null;
+    if (bindings && ts.isNamedImports(bindings)) for (const item of bindings.elements) imports.set(item.name.text, item.propertyName?.text ?? item.name.text);
+  }
+  const spreads = new Map();
+  for (const statement of source.statements) {
+    if (!ts.isVariableStatement(statement) || !statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword)) continue;
+    for (const declaration of statement.declarationList.declarations) {
+      const object = ts.isIdentifier(declaration.name) ? objectOf(declaration.initializer) : null;
+      const parts = object ? object.properties.filter(ts.isSpreadAssignment).map((part) => unwrap(part.expression)).filter((part) => part && ts.isIdentifier(part)) : [];
+      if (parts.length) spreads.set(declaration.name.text, parts.map((part) => imports.get(part.text) ?? part.text));
+    }
+  }
+  return spreads;
+};
+
 const stableDictionaryName = (property) => {
   let node = property.parent?.parent;
   while (node && (ts.isAsExpression(node) || ts.isSatisfiesExpression(node) || ts.isParenthesizedExpression(node))) node = node.parent;
@@ -331,7 +354,7 @@ export function scanFile(file, text, shared) {
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   const declared = declaredTranslators(source);
   const result = {
-    file, messages: registeredMessages(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
+    file, messages: registeredMessages(source), spreads: exportedSpreads(source), entries: [], stable: [], dictionaries: [], usesBy: dictionaryUses(source), calls: [], dynamic: [], mentions: new Set(),
     // for linkPrograms: the relative modules it imports, how many browser scripts it holds, and the wrappers those define
     imports: source.statements.filter((node) => (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text.startsWith(".")).map((node) => node.moduleSpecifier.text),
     scripts: 0, scriptWrappers: new Map(),
@@ -534,7 +557,20 @@ export function analyse(files) {
 
   const stableByKey = new Map();
   const stableErrors = [];
-  const registered = files.find(file => file.file === MESSAGES_ROOT)?.messages ?? new Set();
+  const registered = new Set(files.find(file => file.file === MESSAGES_ROOT)?.messages ?? []);
+  // A registered dictionary's parts are registered too, when the same owner defines them (a part with no stable entries,
+  // say a table of something else, adds nothing to check).
+  const definedIn = new Map();
+  for (const file of files) for (const entry of file.stable) if (entry.dictionary && !definedIn.has(entry.dictionary)) definedIn.set(entry.dictionary, file.file);
+  const pending = [...registered];
+  while (pending.length) {
+    const name = pending.pop();
+    for (const file of files) for (const part of file.spreads?.get(name) ?? []) {
+      const home = definedIn.get(part);
+      if (home && ownerOf(home) !== ownerOf(file.file)) stableErrors.push(`stable dictionary ${name} (${file.file}) spreads ${part}, which ${ownerOf(home)} defines (${home}); a dictionary's parts belong to its owner`);
+      else if (!registered.has(part)) { registered.add(part); pending.push(part); }
+    }
+  }
   for (const file of files) {
     const dictionaries = new Set(file.stable.map(entry => entry.dictionary));
     for (const name of dictionaries) if (!name || !registered.has(name)) {

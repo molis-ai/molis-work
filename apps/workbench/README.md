@@ -95,7 +95,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 5. 跑 `node scripts/check-health-gates.mjs`（缺英文为零，没有新冲突），再跑 `node scripts/run-tests.mjs tests/i18n.test.ts tests/translation-check.test.ts` 和该插件自己的用例。冲突或无用键少了，在同一个 PR 里 `node scripts/check-health-gates.mjs --update --base origin/main`。
 6. 一个插件里一部分文件用稳定键、一部分仍用中文键是允许的；检查两种都认。
 
-**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在已有 `BUILTIN_PLUGIN_CATALOG` 条目写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录数组条目的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
+**运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在已有 `BUILTIN_PLUGIN_CATALOG` 条目写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在目录数组条目的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。一个主人的词多到一个文件放不下时（单个文件 800 行上限），登记的那本词典可以由几本分册拼成：`export const X_MESSAGES = { ...X_TIMELINE_MESSAGES, … }`，分册在同一个主人的包里各自导出，门禁沿展开把分册也算作已登记，逐条照常检查；展开别的主人的分册会失败，没有被任何登记词典展开的分册仍算未登记（用户 2026-10-20 定，visual-ui-experience 第四十片；例：Coding 的 `timeline-messages.ts`）。
 
 **动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Files 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是主人稳定词典（`src/messages.ts`）里的键，带 `zh`、`en`，随目录条目的 `messages` 发到页面，不另并进 `i18n/en.ts`；没有的照原样显示。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
 

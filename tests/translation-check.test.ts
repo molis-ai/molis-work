@@ -582,6 +582,45 @@ test("RAC-59: the catalog may use an import alias for the owner's stable diction
   assert.equal(run.code, 0, run.out);
 });
 
+// VUX-40 (slice 40): one owner's words may span several files. The registered dictionary spreads its parts; each part is
+// checked like any dictionary, and a part must belong to the same owner.
+const alphaParts = (spreadsFromBeta = false) => {
+  put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成", en: "Done" },\n};\n');
+  if (spreadsFromBeta) put("plugins/native/beta/src/messages.ts", messages("beta", '  "beta.ui.open": { zh: "打开", en: "Open" },'));
+  put("plugins/native/alpha/src/messages.ts", 'import { ALPHA_TIMELINE_MESSAGES as TIMELINE } from "./timeline-messages.js";\n' +
+    (spreadsFromBeta ? 'import { BETA_MESSAGES } from "@scratch/beta";\n' : "") +
+    'export const ALPHA_MESSAGES = {\n  ...TIMELINE,\n' + (spreadsFromBeta ? "  ...BETA_MESSAGES,\n" : "") + '  "alpha.ui.open": { zh: "打开", en: "Open" },\n};\n');
+  registerMessages("alpha");
+};
+
+test("VUX-40: a registered dictionary may be assembled from its owner's parts, and each part is still checked", () => {
+  branch("stable-parts", () => alphaParts());
+  const run = gate("--base", "main");
+  assert.equal(run.code, 0, run.out);
+  branch("stable-parts-bad-part", () => {
+    alphaParts();
+    put("plugins/native/alpha/src/timeline-messages.ts", 'export const ALPHA_TIMELINE_MESSAGES = {\n  "alpha.timeline.done": { zh: "完成 {count}", en: "Done" },\n};\n');
+  });
+  const bad = gate("--base", "main");
+  assert.equal(bad.code, 1, bad.out);
+  assert.match(bad.out, /stable key alpha\.timeline\.done .*different \{placeholders\}/);
+});
+
+test("VUX-40: a part another owner defines is rejected, and a part nothing spreads is still unregistered", () => {
+  branch("stable-parts-foreign", () => alphaParts(true));
+  const foreign = gate("--base", "main");
+  assert.equal(foreign.code, 1, foreign.out);
+  assert.match(foreign.out, /stable dictionary ALPHA_MESSAGES \(plugins\/native\/alpha\/src\/messages\.ts\) spreads BETA_MESSAGES, which beta defines/);
+  assert.match(foreign.out, /stable dictionary BETA_MESSAGES .*not registered/);
+  branch("stable-parts-unspread", () => {
+    alphaParts();
+    put("plugins/native/alpha/src/messages.ts", messages("alpha", '  "alpha.ui.open": { zh: "打开", en: "Open" },') + 'const unused = { ...ALPHA_TIMELINE_MESSAGES };\n');
+  });
+  const unspread = gate("--base", "main");
+  assert.equal(unspread.code, 1, unspread.out);
+  assert.match(unspread.out, /stable dictionary ALPHA_TIMELINE_MESSAGES .*not registered/);
+});
+
 test("RAC-59: removing Images' real catalog registration is detected even while its import remains", () => {
   assert.deepEqual(real.scan.stableErrors, []);
   const original = readFileSync(path.join(repoRoot, MESSAGES_ROOT), "utf8");

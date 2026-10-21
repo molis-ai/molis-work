@@ -2420,3 +2420,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - **D4**：生产方版本取宿主的产品版本。
     - **D5**：`characters.js` 路径保留，改由宿主发，字节数只许变小。
     - POLICY、CHECKLIST 里写现状的数字由本片改。
+- **10-21 Characters 计划补全**：
+  - **D3**：界面落点由 ② 答，选 (b)：宿主登记的工作台界面，不走 ui-host。
+    - 「设置 › 角色」进 `HOST_SECTIONS`，排在「助理」之后（order 35）；
+    - 客户端代码进 `apps/workbench/src/characters/`；
+    - 不缺平台能力，CHR-1 不再等平台。
+  - **D5 改成问用户**：`characters.js`（30250 B）删掉，脚本并进 `molis-work-workbench.js`（现在 1,168,820 B），预计一次涨 20～30 KB，超过 10 KB，要先问用户。
+    - 等 ③ 先省、再量出准确字节数，① 拿这个数去问。
+    - 用户同意，就用 `APPROVED_CEILINGS` 一次放行；不同意，就退回单独资源。
+    - 这一问不挡 CHR-0。
+  - **② 的 C5 平台一半**：已开 #949，要等 ③ 补上 Git 的 Manifest 行才能合。

@@ -4,6 +4,7 @@ import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
 import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
+import { ASSISTANT_PROCESS_FACTORY_SCRIPT } from "./assistant-process.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
 import { ASSISTANT_MENTION_FACTORY_SCRIPT } from "./assistant-mention.js";
@@ -410,26 +411,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     return node;
   };
   const setText = (node, text) => { if (node.textContent !== text) node.textContent = text; };
-  const VERBS = { lookup: "查找能力", read: "读取", change: "修改", suggest: "准备操作卡", ask: "向你提问", todo: "更新工作步骤", "lookup-tools": "查找工具",
-    delegate: "委托子任务", "delegate-check": "查看子任务", "delegate-follow-up": "让子任务补改", "delegate-stop": "停止子任务",
-    "memory-keep": "记下你的要求", "memory-list": "查看记住的事", "memory-forget": "删除一条记忆", "memory-suggest": "建议记住一条",
-    "file-read": "读取文件", "file-list": "查看目录", "file-search": "搜索代码", "file-change": "修改文件", command: "运行命令", "command-output": "查看命令输出", "auto-continue": "自动续做", compact: "整理上下文",
-    "browser-list": "找到侧栏浏览器", "browser-look": "查看网页", "browser-act": "操作网页", "computer-list": "查看可操作的应用", "computer-look": "查看应用窗口", "computer-act": "操作应用", "ended-on-promise": "收尾" };
-  const REASONS = { "not-authorized": "未获授权，没有执行", declined: "你拒绝了，没有执行", interrupted: "这一轮停止了，没有执行", unavailable: "这项能力已关闭或不再可用，没有执行" };
-  const VERB_GLYPH = { lookup: "search", "lookup-tools": "search", "file-search": "search", read: "note", "file-read": "file", "file-list": "list", change: "edit",
-    "file-change": "code", command: "terminal", "command-output": "terminal", ask: "question", todo: "list", suggest: "zap", delegate: "workflow", "delegate-check": "workflow",
-    "delegate-follow-up": "workflow", "delegate-stop": "workflow", "memory-keep": "sparkles", "memory-list": "sparkles", "memory-forget": "sparkles", "memory-suggest": "sparkles",
-    "auto-continue": "refresh", compact: "refresh", "browser-list": "globe", "browser-look": "globe", "browser-act": "globe", "computer-list": "system", "computer-look": "system", "computer-act": "system", "ended-on-promise": "alert" };
-  const verbGlyph = (item) => item.state === "started" ? spinner() : item.state === "failed" || item.state === "unknown" ? spinner(item.state === "failed" ? "failed" : "verify") : glyph(VERB_GLYPH[item.verb] || "circle");
-  const activityLine = (item) => {
-    const verb = L(VERBS[item.verb] || item.verb);
-    const what = item.target ? (item.verb === "ask" ? "：" : " ") + item.target : "";
-    if (item.state === "started") return L("正在") + verb + what;
-    // An answered question keeps what the person said, so the conversation shows the choice, not just that one was made.
-    if (item.state === "completed") return L("已") + verb + what + (item.verb === "ask" && item.answer ? " · " + L("你的回答") + "：" + item.answer : "");
-    if (item.state === "failed") return verb + what + " — " + L(REASONS[item.reason] || "没有完成");
-    return verb + what + " — " + L("结果未确认");
-  };
+  const proc = (${ASSISTANT_PROCESS_FACTORY_SCRIPT})({ L, el, keyed, setText, placer: (parent) => placer(parent), glyph: (name) => glyph(name), spinner: (state) => spinner(state) }), activityLine = proc.activityLine;
   /* Questions, action cards and next steps come drawn by the Host (in the person's language); the page binds them with the
      shared client. A node is redrawn only when its key changes, so what the person is typing stays put. */
   const ixClient = host.interaction, fills = new Map(); // fills: words from the composer into a card's draft (R4, assistant-send.ts)
@@ -578,37 +560,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       put(own);
       if (carried) { put(carried); carried = null; }
     } else node.querySelector(':scope > [data-entry="task"]')?.remove();
-    const placeLine = (item, into) => {
-      const line = keyed(into ? into.box : node, "data-entry", "a:" + item.call_id, () => el("p", "assistant-activity"));
-      line.dataset.state = item.state;
-      const words = activityLine(item);
-      if (line.dataset.text !== words || line.dataset.glyph !== item.state) { line.dataset.text = words; line.dataset.glyph = item.state; line.replaceChildren(verbGlyph(item), el("span", "", words)); }
-      if (item.detail) line.title = item.detail; else line.removeAttribute("title");
-      (into ? into.put : put)(line);
-    };
-    // The steps between two messages read as one quiet line — what it is doing now, or how many steps it took and any
-    // that did not finish — and open to each step. A single step stays a line of its own.
-    let run = [];
-    const flush = () => {
-      if (run.length === 1) placeLine(run[0]);
-      else if (run.length > 1) {
-        const first = "a:" + run[0].call_id;
-        [...node.children].forEach((child) => { if (child.getAttribute("data-entry") === first) child.remove(); });
-        const box = keyed(node, "data-entry", "g:" + run[0].call_id, () => { const box = el("details", "assistant-steps"); box.append(el("summary", "assistant-steps-summary")); return box; });
-        const live = [...run].reverse().find((item) => item.state === "started");
-        const unfinished = run.filter((item) => item.state === "failed" || item.state === "unknown").length;
-        box.dataset.state = live ? "started" : unfinished ? "failed" : "completed";
-        setText(box.firstElementChild, live ? activityLine(live) : L("过程") + " · " + run.length + " " + L("步") + (unfinished ? " · " + unfinished + " " + L("步没有完成") : ""));
-        const inBox = { box, put: placer(box) };
-        inBox.put(box.firstElementChild);
-        run.forEach((item) => placeLine(item, inBox));
-        put(box);
-      }
-      run = [];
-    };
+    // The steps between two messages read as one quiet line that opens to each step (assistant-process.ts). A single step stays a line of its own.
+    let run = [], anchor = "start";
+    const flush = () => { if (run.length) proc.place(node, run, put, anchor); run = []; };
     entries.forEach((entry) => {
       if (entry.turn) {
-        flush();
+        flush(); anchor = entry.key;
         const turn = entry.turn;
         // Words the Host wrote (a timed round, a work going on when its sub-tasks came back) are not shown as the person's; a supplement is the person's, whoever wrote the round.
         const kind = turn.kind === "user" ? (round.written_by === "host" && !turn.steer ? "host" : "user") : turn.kind === "assistant" ? "assistant" : "note";
@@ -647,7 +604,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if ((kind === "user" || kind === "host") && carried) { put(carried); carried = null; }
       } else run.push(entry.item);
     });
-    flush();
+    flush(); proc.sweep(node);
     if (carried) put(carried);
     const memories = round.memories_used;
     if (memories && ((memories.used || []).length || (memories.omitted || []).length)) {

@@ -44,7 +44,7 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 319,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2090,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2047,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1969,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -146,9 +146,9 @@
     "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2063,
+    "file packages/design-system/src/styles/craft-finish.ts": 2054,
     "file packages/design-system/src/styles/momentum.ts": 823,
-    "file packages/design-system/src/styles/primitives.ts": 1266,
+    "file packages/design-system/src/styles/primitives.ts": 1264,
     "file packages/im-ui/src/browser/controller.ts": 961,
     "function packages/im-ui/src/browser/controller.ts#startIm": 952,
     "function packages/im-ui/src/views.ts#createViews": 162,
@@ -185,7 +185,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1583,
+    "file plugins/native/coding/src/client.ts": 1581,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -488,7 +488,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 128,
+  "emptyCatchesInScriptsTotal": 121,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -537,7 +537,7 @@
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
     "plugins/native/shelf/src/client.ts": 7,
     "plugins/native/shelf/src/reading-client.ts": 1,
-    "plugins/native/shelf/src/settings-client.ts": 8,
+    "plugins/native/shelf/src/settings-client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/workflows/src/client.ts": 2
   },

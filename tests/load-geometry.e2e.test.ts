@@ -43,3 +43,29 @@ test("VUX-31: the project page and every plugin keep their first-painted geometr
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("load-geometry.json", evidence), JSON.stringify(scores, null, 2));
 });
+
+test("VUX-31: switching between plugins inside the page moves nothing that stays, at two widths", { timeout: 600_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: OBSERVE }, sessionId);
+  const order = [...SURFACES.filter((id) => id !== "project"), "home"], moved: string[] = [];
+  let switches = 0;
+  for (const [width, height] of WIDTHS.slice(0, 2)) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+    await command("Page.bringToFront", {}, sessionId);
+    await waitFor("document.readyState === 'complete' && typeof molisWorkOpenPlugin === 'function'", 20_000);
+    await pause(1_500);
+    // Twice round: the first visit loads each plugin, the second comes back to one already loaded.
+    for (const round of [1, 2]) for (const id of order) {
+      const from = await evaluate<number>("window.__shifts.length");
+      await evaluate(`molisWorkOpenPlugin(${JSON.stringify(id)})`);
+      await pause(1_500);
+      const shifts = (await evaluate<Array<{ value: number; moved: string[] }>>("window.__shifts")).slice(from), score = shifts.reduce((sum, shift) => sum + shift.value, 0);
+      switches++;
+      if (score >= 0.02) moved.push(`${width}px round ${round} → ${id}: ${score.toFixed(4)} — ${shifts.filter((shift) => shift.value >= 0.002).map((shift) => shift.moved.join(", ")).join(" / ")}`);
+    }
+  }
+  assert.equal(switches, 2 * 2 * order.length);
+  assert.deepEqual(moved, [], "switching moved what stayed on the page");
+});

@@ -5,7 +5,7 @@ import { JELLY_MATERIAL_CLIENT_SCRIPT } from "./client-material.js";
 import { JELLY_PLAN_CLIENT_SCRIPT } from "./client-plan.js";
 
 /** A single browser owner keeps calendar, notes and linked task blocks coherent. */
-// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `category colours`: Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens. `molis:assistant-effect`: The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving then reports the conflict instead of overwriting. `molis-work:select-item`: Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the workspace again and show that item, note or idea where it lives.
+// Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `category colours`: Stored category colours: these hex values identify a saved choice and must match existing data; the swatches draw from tokens. `molis:assistant-effect`: The Assistant changed Jelly: read the workspace again. An open note or idea with unsaved edits keeps them; saving then reports the conflict instead of overwriting. `periodTitle()` on start: The period's name is known before anything loads: named at once, the toolbar has its final width when it is first painted. `molis-work:select-item`: Opened by id (search, the side panel, an Assistant result): the object may be newer than this page, so read the workspace again and show that item, note or idea where it lives.
 export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const root = document.querySelector('[data-jelly="workbench"]');
   if (!root) return;
@@ -184,6 +184,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   });
   window.addEventListener('beforeunload',(event)=>{if(dirty){event.preventDefault();event.returnValue='';}});
   root.addEventListener('keydown',(event)=>{if((event.metaKey||event.ctrlKey)&&event.key.toLowerCase()==='s'){event.preventDefault();void run(flushEditor);}});
+  periodTitle();
   void loadList().catch((error)=>{content.innerHTML=empty('Jelly 暂时无法打开','请检查本地服务后重试。')+btn('重试','data-jelly-retry');showNote(error.message,true);});
   root.addEventListener('click',(event)=>{if(event.target.closest('[data-jelly-retry]'))void run(loadList);});
 }`;

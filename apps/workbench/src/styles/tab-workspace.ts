@@ -1,6 +1,8 @@
 import { TAB_SASH_GUTTER, TAB_SASH_HIT, TAB_SPLIT_EDGE_X_CSS, TAB_SPLIT_EDGE_Y_CSS } from "../tab-split-drop.js";
 import { TAB_SHARE_MAX } from "../tab-strip-share.js";
 
+// `[data-split-narrow]` repeats the narrow layout for a stage too small for every pane's minimum (VUX-24); while a divider moves,
+// `.is-resizing` holds its cursor over the panes and selects nothing under it.
 export const TAB_WORKSPACE_STYLES = `
   body.immersive-workbench .tab-workspace { --tab-split-edge-x: ${TAB_SPLIT_EDGE_X_CSS}; --tab-split-edge-y: ${TAB_SPLIT_EDGE_Y_CSS}; --tab-sash-gutter: ${TAB_SASH_GUTTER}px; --tab-sash-hit: ${TAB_SASH_HIT}px; }
   body.immersive-workbench .immersive-plugin-stage > .tab-workspace { position: absolute; inset: 0; min-width: 0; min-height: 0; display: flex; overflow: hidden; background: var(--canvas); }
@@ -141,6 +143,12 @@ export const TAB_WORKSPACE_STYLES = `
     body.immersive-workbench .tab-sash, body.immersive-workbench .tab-pane:not(.is-focused) { display: none; }
     body.immersive-workbench .tab-pane.is-focused { flex: 1; }
   }
+  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > :is(.tab-split, .tab-pane:not(.is-focused), .tab-content-frame:not(.is-focused)) { display: none; }
+  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-pane.is-focused { left: 0 !important; top: 0 !important; width: 100% !important; height: 100% !important; }
+  body.immersive-workbench .tab-workspace[data-split-narrow] .tab-workspace-panes > .tab-content-frame.is-focused { left: 0 !important; top: var(--pane-strip-height) !important; width: 100% !important; height: calc(100% - var(--pane-strip-height)) !important; }
+  body.immersive-workbench .tab-workspace.is-resizing { user-select: none; }
+  body.immersive-workbench .tab-workspace.is-resizing[data-resizing=row] * { cursor: col-resize !important; }
+  body.immersive-workbench .tab-workspace.is-resizing[data-resizing=column] * { cursor: row-resize !important; }
   @media (prefers-reduced-motion: reduce) { body.immersive-workbench :is(.tab-item, .tab-sash, .tab-sash-handle, .tab-group-label svg) { transition: none; } body.immersive-workbench .tab-workspace-panes[data-split-drop-preview]::after { animation: none; } }
   @media (max-width: 760px), (pointer: coarse) {
     body.immersive-workbench .tab-strip { padding-block: 0; align-items: center; }

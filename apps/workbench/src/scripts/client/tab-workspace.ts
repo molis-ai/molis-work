@@ -6,9 +6,10 @@ import { pluginTabGlyphs } from "../../plugin-catalog.js";
 import { createTabWorkspaceOps, isCurrentTabWorkspace, isLoosePluginTab, settlePluginTabs, withPluginGroups } from "../../tab-workspace-ops.js";
 import { PLUGIN_TAB_GROUPS_FACTORY } from "./plugin-tab-groups.js";
 import { TAB_DRAG_SLOT_FACTORY } from "./tab-drag-slot.js";
+import { TAB_SASH_FACTORY } from "./tab-sash.js";
 import { tabIdsAfterMove, TAB_REORDER_EASE, TAB_REORDER_MS } from "../../tab-reorder.js";
 import { tabShareWidth, tabShareMin, tabScrollAllotment, TAB_SHARE_MAX, TAB_SHARE_MIN, TAB_SHARE_MIN_TOUCH } from "../../tab-strip-share.js";
-import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, splitDropEdge, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
+import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, snapSplitRatio, splitDropEdge, splitRatioRange, splitTreeFits, TAB_SASH_HALF, TAB_SASH_INSET, TAB_SPLIT_EDGE_X, TAB_SPLIT_EDGE_Y, TAB_SPLIT_RATIO } from "../../tab-split-drop.js";
 
 /** Keep a popover inside the viewport. Tall menus scroll instead of clipping past the top.
  *  Stringified into the browser factory. Type annotations are erased before that string is sent. */
@@ -60,6 +61,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SASH_HALF = ${TAB_SASH_HALF};
   const clampSplitRatio = ${clampSplitRatio.toString()};
   const splitDropEdge = ${splitDropEdge.toString()};
+  const splitRatioRange = ${splitRatioRange.toString()}, splitTreeFits = ${splitTreeFits.toString()}, snapSplitRatio = ${snapSplitRatio.toString()};
   const layoutPaneBoxes = ${layoutPaneBoxes.toString()};
   const focusedPaneBoxAfterDrop = ${focusedPaneBoxAfterDrop.toString()};
   const tabIdsAfterMove = ${tabIdsAfterMove.toString()};
@@ -91,10 +93,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       notifyParent("workbench-open-settings", { href: link.href });
     });
   }
-  const narrow = () => matchMedia("(max-width: 760px)").matches;
+  const narrow = () => matchMedia("(max-width: 760px)").matches || root.hasAttribute("data-split-narrow");
   let state = ops.create();
   const paneById = (id) => state.panes.find((pane) => pane.id === id);
-  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); } catch {} };
+  let unsaved = false; // a layout this device would not keep is said once, and again only after it saved since
+  const persist = () => { if (embedded) return; try { localStorage.setItem(storageKey, JSON.stringify(state)); unsaved = false; } catch { if (!unsaved) showToast?.(L("这个布局没能保存到本机，刷新后会回到上次保存的样子"), true); unsaved = true; } };
   const restore = (requestedGoalId = "") => {
     if (embedded) {
       state = ops.create();
@@ -677,14 +680,14 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
       return;
     }
-    const ratio = clampSplitRatio(node.ratio);
-    const split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
+    const stage = panesEl.getBoundingClientRect(), length = (node.direction === "row" ? stage.width * box.w : stage.height * box.h) / 100, bounds = splitRatioRange(node, length) || [0.15, 0.85];
+    const ratio = Math.min(bounds[1], Math.max(bounds[0], clampSplitRatio(node.ratio))), split = panesEl.querySelector('[data-split-id="' + node.id + '"]');
     if (split) {
       Object.assign(split.style, { left: box.x + "%", top: box.y + "%", width: box.w + "%", height: box.h + "%" });
       const sash = split.firstElementChild;
       sash.style.left = node.direction === "row" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
       sash.style.top = node.direction === "column" ? "calc(" + ratio * 100 + "% - " + TAB_SASH_HALF + "px)" : "0";
-      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100)));
+      sash.setAttribute("aria-valuenow", String(Math.round(ratio * 100))); sash.setAttribute("aria-valuemin", String(Math.round(bounds[0] * 100))); sash.setAttribute("aria-valuemax", String(Math.round(bounds[1] * 100)));
     }
     if (node.direction === "row") {
       syncSplitSizes(node.children[0], { ...box, w: box.w * ratio });
@@ -694,6 +697,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       syncSplitSizes(node.children[1], { ...box, y: box.y + box.h * ratio, h: box.h * (1 - ratio) });
     }
   };
+  // Splits that cannot all keep their panes' minimum size at this stage size take the narrow layout (VUX-24), not a squeeze.
+  const layoutSplits = () => { syncSplitSizes(state.layout.tree); const stage = panesEl.getBoundingClientRect(); if (stage.width && stage.height) root.toggleAttribute("data-split-narrow", !splitTreeFits(state.layout.tree, stage.width, stage.height)); };
   let applying = false;
   let applyQueued = false;
   let historyLock = false;
@@ -1098,7 +1103,6 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
         const split = document.createElement("div"); split.className = "tab-split"; split.dataset.splitId = tree.id; split.dataset.direction = tree.direction;
         const sash = document.createElement("div"); sash.className = "tab-sash"; sash.dataset.tabSash = tree.id; sash.role = "separator"; sash.tabIndex = 0;
         sash.setAttribute("aria-label", L("调整分屏大小")); sash.setAttribute("aria-orientation", tree.direction === "row" ? "vertical" : "horizontal");
-        sash.setAttribute("aria-valuemin", "15"); sash.setAttribute("aria-valuemax", "85");
         const handle = document.createElement("span"); handle.className = "tab-sash-handle"; handle.setAttribute("aria-hidden", "true");
         handle.innerHTML = '<svg aria-hidden="true"><use href="#icon-grip"></use></svg>';
         sash.append(handle);
@@ -1106,7 +1110,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       };
       renderSashes(state.layout.tree); panesEl.dataset.treeSignature = treeSignature;
     }
-    syncSplitSizes(state.layout.tree);
+    layoutSplits();
     if (embedded) setMobileView("document");
     } finally {
       applying = false;
@@ -1676,31 +1680,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     event.target.closest("details[open]")?.removeAttribute("open");
     closeCover();
   }, true);
-  panesEl.addEventListener("keydown", (event) => {
-    const sash = event.target.closest("[data-tab-sash]");
-    if (sash) {
-      const node = findSplit(state.layout.tree, sash.dataset.tabSash);
-      if (["ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", "Home"].includes(event.key)) {
-        event.preventDefault(); node.ratio = event.key === "Home" ? TAB_SPLIT_RATIO : clampSplitRatio(node.ratio + (["ArrowLeft", "ArrowUp"].includes(event.key) ? -.05 : .05));
-        syncSplitSizes(state.layout.tree); persist();
-      }
-      return;
-    }
-    handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event);
-  });
-  panesEl.addEventListener("dblclick", (event) => {
-    const sash = event.target.closest("[data-tab-sash]"); if (!sash) return;
-    findSplit(state.layout.tree, sash.dataset.tabSash).ratio = TAB_SPLIT_RATIO; syncSplitSizes(state.layout.tree); persist();
-  });
-  panesEl.addEventListener("pointerdown", (event) => {
-    const sash = event.target.closest("[data-tab-sash]"); if (!sash) return;
-    event.preventDefault(); sash.setPointerCapture(event.pointerId); sash.classList.add("is-dragging");
-    const node = findSplit(state.layout.tree, sash.dataset.tabSash), rect = sash.parentElement.getBoundingClientRect();
-    root.classList.add("is-resizing");
-    const move = (pointer) => { node.ratio = clampSplitRatio(node.direction === "row" ? (pointer.clientX - rect.left) / rect.width : (pointer.clientY - rect.top) / rect.height); syncSplitSizes(state.layout.tree); };
-    const end = () => { root.classList.remove("is-resizing"); sash.classList.remove("is-dragging"); sash.removeEventListener("pointermove", move); sash.removeEventListener("pointerup", end); sash.removeEventListener("pointercancel", end); persist(); };
-    sash.addEventListener("pointermove", move); sash.addEventListener("pointerup", end); sash.addEventListener("pointercancel", end);
-  });
+  panesEl.addEventListener("keydown", (event) => { if (!event.target.closest("[data-tab-sash]")) handleStripKey(event.target.closest("[data-tab-pane]")?.dataset.tabPane, event); });
+  (${TAB_SASH_FACTORY})({ panes: panesEl, root, find: (id) => findSplit(state.layout.tree, id), sync: layoutSplits, persist, range: splitRatioRange, snap: snapSplitRatio, defaultRatio: TAB_SPLIT_RATIO });
   let dragTab = null;
   let reorderKey = "";
   const stripFor = (paneId) => {

@@ -1,5 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "./index.js";
+import { CODING_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,6 +8,7 @@ import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, CODING_WORKBENCH_CLIENT_
  */
 export const registration: PluginRegistration = {
   project_plugin_id: CODING_PROJECT_PLUGIN_ID, catalog_order: 22,
+  messages: CODING_MESSAGES,
   manifest: codingManifest,
   instructions: CODING_INSTRUCTIONS,
   summary: "和 Agent 一起写代码，留每轮记录。",

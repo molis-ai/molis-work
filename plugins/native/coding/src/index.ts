@@ -37,6 +37,7 @@ export {
   type CodingIdentityLayer,
   type CodingIdentityView,
 } from "./identity.js";
+export { CODING_MESSAGES } from "./messages.js";
 export {
   CODING_DIRECTORY_FACES,
   CODING_SETTINGS_UI_CONTRIBUTION_ID,

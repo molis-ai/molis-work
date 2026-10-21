@@ -5,7 +5,7 @@ export const CODING_SETTINGS_CLIENT_SCRIPT = `(() => {
     const root=scope.querySelector('[data-coding-method-library]');
     if(!root || root.dataset.bound) return;root.dataset.bound='true';
     const q=selector=>root.querySelector(selector),prefix=root.dataset.prefix+'api/plugins/io.molis.work.coding';
-    const status=(text)=>{q('[data-method-library-status]').textContent=text;};
+    const status=(text)=>{const node=q('[data-method-library-status]');delete node.dataset.methodLibraryLoading;node.textContent=text;};
     const api=async(path,body)=>{
       const response=await fetch(prefix+path,{method:body?'POST':'GET',cache:'no-store',...(body?{headers:molisWorkControlHeaders(),body:JSON.stringify(body)}:{})});
       const result=await response.json();if(!response.ok)throw new Error(result.error || '方法操作失败');return result;
@@ -31,7 +31,7 @@ export const CODING_SETTINGS_CLIENT_SCRIPT = `(() => {
         }catch(error){content.textContent=error.message;}});list.append(row);
       }
       if(!list.childElementCount)list.textContent='这个项目还没有安装方法。';
-      if(q('[data-method-library-status]').textContent==='正在读取项目方法…')status('项目方法已读取。');
+      if('methodLibraryLoading' in q('[data-method-library-status]').dataset)status('项目方法已读取。');
       if(!state.workspaces.length)status('先返回 Coding，为这个项目选择并授权工作区。');
     };
     for(const field of [q('[data-method-workspace]'),q('[data-method-path]')])field.addEventListener('input',()=>{

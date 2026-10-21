@@ -419,6 +419,7 @@ export const ASSISTANT_EN: Record<string, string> = {
   "引用": "Reference",
   "内容还在建立索引，稍后再试": "Content is still being indexed; try again shortly",
   "没有找到；换个词试试": "Nothing found; try other words",
+  "正在找「{query}」…": "Looking for “{query}”…",
   "打开助理设置": "Open Assistant settings",
   "调高这项工作的上限": "Raise this work's cap",
   "已到上限": "cap reached",

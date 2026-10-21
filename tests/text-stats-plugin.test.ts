@@ -10,6 +10,7 @@ import {
   unavailableStats,
   waitingStats,
 } from "@molis-ai/molis-work-plugin-text-stats";
+import { pageText } from "./fixtures/page-text.js";
 
 function snapshot(text: string) {
   return {
@@ -71,7 +72,7 @@ test("最小插件：不要能力、不发端口、不发事件", () => {
 });
 
 test("没有可数的快照时是共用的空态块（标记、说了什么、下一步），不是一行小字", () => {
-  const primitives = { escape: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const waiting = renderTextStats({ view: waitingStats(), primitives });
   assert.match(waiting, /^<div class="mw-empty" data-phase="waiting"><span class="mw-empty__mark"><svg data-icon="hash"><\/svg><\/span><strong>固定一份文件快照后，这里会显示该版本的文本统计<\/strong><p>统计 Files 中固定为对比前的文本快照。重新固定后更新，磁盘变化不会改写已保存的内容。<\/p><\/div>/);
   const gone = renderTextStats({ view: unavailableStats(), primitives });

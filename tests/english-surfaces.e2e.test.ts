@@ -1,0 +1,101 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { execFileSync } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.js";
+
+// specs/visual-ui-experience VUX-40「中英文…不溢出、不混排」: a page shown in English says everything it says itself in English.
+// Goals' status words (the projection words them in Chinese), Jelly's fixed "uncategorized" category, and the Files, Git,
+// Diff and Text Stats pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
+// project names) is theirs and is not checked. The same places in Chinese still say it in Chinese, and the longer English
+// fits where the Chinese did.
+
+/** Visible text and labels with Chinese characters inside the elements `selector` finds. */
+const HAN_IN = (selector: string) => `(() => {
+  const out = [], han = /[\\u4e00-\\u9fff]/;
+  for (const scope of document.querySelectorAll(${JSON.stringify(selector)})) {
+    if (!scope.checkVisibility()) continue;
+    const walk = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walk.nextNode());) if (han.test(node.data) && node.parentElement.checkVisibility()) out.push(node.data.trim());
+    for (const el of [scope, ...scope.querySelectorAll('[aria-label], [title], [placeholder]')]) for (const name of ['aria-label', 'title', 'placeholder']) {
+      const value = el.getAttribute(name); if (value && han.test(value) && el.checkVisibility()) out.push('@' + name + ' ' + value);
+    }
+  }
+  return [...new Set(out)];
+})()`;
+
+test("VUX-40: Goals statuses, Jelly's fixed category and the Files, Git, Diff and Text Stats pages speak English in English", { timeout: 240_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  const open = async (plugin: string, ready: string) => {
+    await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=${plugin}` }, sessionId));
+    await waitFor(ready, 30_000);
+  };
+  // Each page's own words: where they are and when it has drawn them.
+  const pages: Array<[plugin: string, ready: string, selector: string, zh: string]> = [
+    ["goals", "document.querySelectorAll('.goal-status').length > 3", ".goal-status", "正在推进"],
+    ["jelly", "document.querySelector('[data-jelly-category-filters] [data-jelly-filter=uncategorized]')", "[data-jelly-category-filters]", "未分类"],
+    ["files", "document.querySelector('[data-companion=files] [data-files-browser]:not([hidden])')", "[data-companion=files]", "项目的当前目录"],
+    ["git", "document.querySelector('[data-companion=git] [data-git-status]')?.textContent", "[data-companion=git]", "Git 改动"],
+    ["diff", "document.querySelector('[data-companion=diff] [data-companion-content] .mw-empty')", "[data-companion=diff]", "打开 Files"],
+    ["text-stats", "document.querySelector('[data-companion=text-stats] [data-companion-content] .mw-empty')", "[data-companion=text-stats]", "固定一份文件快照后"],
+  ];
+  for (const [plugin, ready, selector, zh] of pages) {
+    await open(plugin, ready);
+    assert.ok((await evaluate<string>(`[...document.querySelectorAll(${JSON.stringify(selector)})].map((el) => el.textContent).join(' ')`)).includes(zh), `${plugin} in Chinese says 「${zh}」`);
+  }
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
+  for (const [plugin, ready, selector] of pages) {
+    await open(plugin, ready);
+    assert.deepEqual(await evaluate<string[]>(HAN_IN(selector)), [], `${plugin} in English`);
+    // The English is longer: none of it runs out of its box.
+    assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], `${plugin} in English fits`);
+  }
+  await open("goals", pages[0]![1]);
+  assert.ok((await evaluate<string>("[...document.querySelectorAll('.goal-status')].map((el) => el.textContent).join('|')")).includes("In progress"));
+});
+
+test("VUX-40: with a real repository, Git's changes, branches, commit and conflict tools and the Files reader speak English", { timeout: 240_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
+  const { evaluate, waitFor, click, navigate, command, sessionId, origin, projectId, homeDirectory } = browser;
+  // A repository with one commit, one staged change and one that is not, so every list and the source-control tools show.
+  const repo = join(homeDirectory, "english-repo");
+  await mkdir(repo, { recursive: true });
+  const git = (...args: string[]) => execFileSync("git", ["-c", "user.name=Test", "-c", "user.email=test@example.com", ...args], { cwd: repo });
+  git("init", "-q", "-b", "main");
+  await writeFile(join(repo, "notes.md"), "first\n"); await writeFile(join(repo, "todo.md"), "one\n");
+  git("add", "."); git("commit", "-q", "-m", "start");
+  await writeFile(join(repo, "notes.md"), "first\nsecond\n"); git("add", "notes.md");
+  await writeFile(join(repo, "todo.md"), "one\ntwo\n");
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=en&next=%2F` }, sessionId));
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await click(".navigator-project-settings");
+  await waitFor("!!document.querySelector('[data-directory-panel=project-settings] [data-settings-section=workspaces]')");
+  await click("[data-directory-panel=project-settings] [data-settings-section=workspaces]");
+  await waitFor("!!document.querySelector('[data-project-workspaces-add]') && !document.querySelector('[data-project-workspaces-refresh]').disabled");
+  await evaluate(`(()=>{const node=document.querySelector('[data-project-workspaces-add] [name=path]');node.value=${JSON.stringify(repo)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);
+  await click("[data-project-workspaces-add] [type=submit]");
+  await waitFor("document.querySelector('[data-project-workspaces-list]').textContent.includes('english-repo')");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=git` }, sessionId));
+  await waitFor("document.querySelector('[data-companion=git] [data-git-sc]:not([hidden])') && document.querySelectorAll('[data-companion=git] [data-git-path]').length === 2", 30_000);
+  // The branch form, the PR form and one change opened: what they say is the page's too.
+  await click("[data-companion=git] [data-git-branch-toggle]");
+  await click("[data-companion=git] [data-git-pr-toggle]");
+  await waitFor("(t => t && !t.startsWith('Checking'))(document.querySelector('[data-companion=git] [data-git-pr-support]').textContent)", 20_000);
+  await click("[data-companion=git] [data-git-path]");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-index-action]:not([hidden])')", 20_000);
+  assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=git]")), [], "Git in English");
+  assert.equal(await evaluate("document.querySelector('[data-companion=git] [data-git-commit]').textContent"), "Commit 1 staged files…");
+
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=files` }, sessionId));
+  await waitFor("document.querySelectorAll('[data-companion=files] [data-file-path]').length >= 2", 30_000);
+  await click(`[data-companion=files] [data-file-path='${JSON.stringify(["notes.md"])}']`);
+  await waitFor("!document.querySelector('[data-companion=files] [data-files-text]').hidden", 20_000);
+  assert.deepEqual(await evaluate<string[]>(HAN_IN("[data-companion=files]")), [], "Files reader in English");
+  assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Files reader in English fits");
+});

@@ -27,7 +27,8 @@ import { directoryForHome } from "./plugin-directory-service.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
-import { homeBackgroundTasks } from "./web-catalog.js";
+import { homeBackgroundTasks } from "./home-background-tasks.js";
+import { homeAggregatePorts } from "./home-aggregate.js";
 import { projectNavigation } from "./web-project-presentation.js";
 import { serviceProcessId } from "./web-runtime-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody, requestHeader } from "./web-http.js";
@@ -234,9 +235,9 @@ export const projectAssistantRoutes: readonly WebRoute<ProjectRuntimeContext>[] 
   } },
   { id: "attention", handle: async context => {
     const assistant = projectAssistant(context);
-    const { request, response, url, composition, serverOptions, store, options, pluginPorts } = context;
+    const { request, response, url, composition, serverOptions, store, options, pluginPorts, localHost } = context;
     return Boolean(assistant) && await handleAttentionHttp(request, response, url, {
-      backgroundTasks: async () => homeBackgroundTasks(await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
+      backgroundTasks: async () => homeBackgroundTasks(homeAggregatePorts(localHost), await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.listProjects().map(projectNavigation))),
       notices: surface => assistantNotices(assistant!, surface), boardCursor: () => store.eventCursor(options.projectId),
       ...(options.project ? { pluginEventsPending: () => pluginEventsPending(pluginPorts) } : {}) });
   } },

@@ -154,6 +154,10 @@ export type { FragmentOfferChoice } from "@molis-ai/molis-work-contracts/platfor
 export type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentRole } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { FragmentTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTask } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskCommand } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -321,6 +325,7 @@ export { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 export { defineFileContentAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFileEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineFragmentOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+export { defineHomeBackgroundTasksAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineHomeEventsAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineInstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export { defineObjectCopyAction } from "@molis-ai/molis-work-contracts/platform/actions";

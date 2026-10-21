@@ -44,6 +44,8 @@ export type CodingClient = (ports: Record<string, unknown>) => void;
 export interface CodingWorkbenchHost {
   readonly root: Element;
   readonly mountPluginClient: MountPluginClient;
+  /** The page's words; Files' and Git's clients read theirs through it as `host.translate`. */
+  readonly translate: (text: string, values?: Record<string, string | number>) => string;
   readonly route: (path: string) => string;
   readonly headers: () => Record<string, string>;
   readonly interaction?: unknown;
@@ -71,6 +73,8 @@ const BACK_LABEL: Readonly<Record<string, string>> = { files: "返回文件列�
  */
 export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient, icons: CodingIcons): void {
   const { mountPluginClient, route, clients, reviews } = host;
+  // What every client mounted here (Coding's own, Files, Git, a companion page) gets besides its own ports.
+  const lent = { mountPluginClient, translate: host.translate };
   const headers = () => host.headers();
   const request: CompanionRequest = (plugin, path, method = "GET", body, signal) => molisWorkRequest(route(`/api/plugins/io.molis.work.${plugin}${path}`),
     { method, body: method === "GET" ? undefined : body ?? {}, signal, fallback: "无法读取文件工作区" });
@@ -87,13 +91,13 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
       if (!codingRoot.querySelector('[data-coding-session][aria-current="true"]')) codingRoot.dataset.codingDetail = "false";
     }
   };
-  const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ mountPluginClient, root: codingRoot, request,
+  const gitBrowser: CompanionBrowser | null = codingRoot ? clients.git?.({ ...lent, root: codingRoot, request,
     openResult: () => openCompanionResult("git"), closeResult: closeCompanionResult,
     showReviews: reviews({ mountPluginClient, route, headers, onDecision: outcome => gitBrowser?.afterDecision?.(outcome) }) }) ?? null : null;
-  const filesBrowser: CompanionBrowser | null = codingRoot ? clients.files?.({ mountPluginClient, root: codingRoot, icons, request,
+  const filesBrowser: CompanionBrowser | null = codingRoot ? clients.files?.({ ...lent, root: codingRoot, icons, request,
     onWorkspaceSelected: () => { void gitBrowser?.refresh?.(); },
     openResult: () => openCompanionResult("files"), closeResult: closeCompanionResult }) ?? null : null;
-  coding({ mountPluginClient, interaction: host.interaction, receipts: host.receipts,
+  coding({ ...lent, interaction: host.interaction, receipts: host.receipts,
     revealTask: () => { if (matchMedia("(max-width: 600px)").matches) host.hideDirectory?.(); closeCompanionResult(); },
     onDirectoryFace: (face: string) => { const handled = filesBrowser?.show?.(face) ?? false; gitBrowser?.show?.(face); return handled; },
     showReviews: reviews({ mountPluginClient, route, headers }),
@@ -102,12 +106,13 @@ export function codingWorkbench(host: CodingWorkbenchHost, coding: CodingClient,
     openBeside: (plugin: string, id: string, title?: string) => host.openBeside?.(plugin, id, title),
   });
   for (const root of host.root.matches("[data-companion]") ? [host.root as HTMLElement] : []) {
-    companionPage(root, { mountPluginClient, route, headers, request, icons, clients, reviews, openPlugin: plugin => host.openPlugin?.(plugin) });
+    companionPage(root, { ...lent, route, headers, request, icons, clients, reviews, openPlugin: plugin => host.openPlugin?.(plugin) });
   }
 }
 
 interface CompanionPorts {
   readonly mountPluginClient: MountPluginClient;
+  readonly translate: CodingWorkbenchHost["translate"];
   readonly route: (path: string) => string;
   readonly headers: () => Record<string, string>;
   readonly request: CompanionRequest;
@@ -135,7 +140,7 @@ function companionPage(root: HTMLElement, ports: CompanionPorts): void {
       showReviews: ports.reviews({ mountPluginClient: ports.mountPluginClient, route: ports.route, headers: ports.headers, onDecision: outcome => browser?.afterDecision?.(outcome) }) });
     const panel = q(`[data-${plugin}-browser]`), back = q(`[data-${plugin}-close]`);
     if (panel) panel.hidden = false;
-    if (back && BACK_LABEL[plugin]) back.textContent = BACK_LABEL[plugin];
+    if (back && BACK_LABEL[plugin]) back.textContent = ports.translate(BACK_LABEL[plugin]);
     return;
   }
   let read = 0, view: AbortSignal | undefined, index = 0;

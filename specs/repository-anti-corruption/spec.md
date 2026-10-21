@@ -541,7 +541,7 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
   - 定时轮次：`web-project-schedulers.ts` 的 Feed 与定时任务两种轮次、`project-schedulers.ts` 启动时的首轮、`schedule-task-runner.ts` 取消失败，原来静默；现在记 `schedule` 区域。每 30 秒一轮的失败只在开始失败时记一条，跑通过后再失败才再记（`host-log.ts` 的 `repeatingFailure`，Coding 后台清单与终端记录共用）。
   - 连接目录：`connector-mcp-actions.ts` 重启后某个连接登记失败按连接 id 记，其余照常登记；`external-mcp-actions.ts` 重启副本写不进、恢复失败，`project-host.ts` 启动时 `connectorMcp.sync()` 失败，都记 `connections` 区域。
   - 成果预览：`artifact-actions.ts`、`side-files-http.ts`、`artifact-native-plugin-http.ts` 的主人预览失败仍显示为没有预览；「不能读」（`forbidden`）与「不在了」（`not_found`）是答案不记，别的按成果类型记（`logPreviewFailure`）。
-  - 其余：Characters 解析不了的记录按 id 记；已安装插件的入口读不出来时页面照开、记一条；终端记录写不进每个进程记一次；Coding 后台清单读不了的库按项目记（开始失败时一条）。Coding 的读取器 `listCodingBackgroundSessions` 不变（没有 Coding 的库照旧抛错，`tests/owner-readers.test.ts` 钉着）；Coding 另出 `holdsCodingSessions` 回答这个库有没有用过 Coding，宿主接线（`web-catalog.ts` 的 `homeBackgroundTasks`）先问它，没用过的项目安静地什么也不列，读不了的才记，宿主不再把一切失败当「没有 Coding」。Alchemist 读不到绑定账户的令牌（只记键，不记错误文字和任何可能带令牌的值；界面上该不该显示「读不到」而不是「未连接」是界面改动，不在本片，记为后续）、Images 绑定连接对这个地址被拒或读不到密钥，仍按无令牌处理，但记一条。项目关闭时搜索、放置关不掉也记，不挡其余部分关闭。
+  - 其余：Characters 解析不了的记录按 id 记；已安装插件的入口读不出来时页面照开、记一条；终端记录写不进每个进程记一次；Coding 后台清单读不了的库按项目记（开始失败时一条）。2026-10-21 起（C4，PG-043）这条换了做法：Coding 的清单是它自己的查询 `coding.home.background-tasks@1`，宿主 `home-background-tasks.ts` 经首页聚合（S-49）问每个已打开的项目，读取器 `listCodingBackgroundSessions` 与 `holdsCodingSessions` 已删；停用或没授权的项目安静跳过，读不了的按项目记一条（`home` 区域 `background_tasks_unreadable`，开始失败时一条），仍是 W5-13-06 管的那件事，测试换成经真实宿主与插件的写法（`tests/host-log-catches.test.ts`）。Alchemist 读不到绑定账户的令牌（只记键，不记错误文字和任何可能带令牌的值；界面上该不该显示「读不到」而不是「未连接」是界面改动，不在本片，记为后续）、Images 绑定连接对这个地址被拒或读不到密钥，仍按无令牌处理，但记一条。项目关闭时搜索、放置关不掉也记，不挡其余部分关闭。
   - `web-onboarding-input.ts` 的空 `catch {}` 写明真实原因（空 catch 4 → 3）。
 - 留下并写明真实原因（不写「忽略」）：队列串接（`connector-api-oauth.ts`、`connector-mcp.ts`、`mcp-settings-store.ts`：上一个的失败已经答给它自己的调用方）、收尾关闭（`connector-mcp.ts` ×4、`material-web.ts` ×2、`workspace-git-index.ts`、`git-operations.ts` ×2、`alchemist-native-plugin-http.ts`）、「没有就是答案」（`action-call-log.ts` ×3、`git-status.ts`、`git-worktrees.ts`、`onboarding.ts`、`jelly-source-providers.ts` ×3、`personal-planning-methods.ts`、`notion-oauth.ts` ×2、`feed-history-release.ts`、`web-assets.ts`、`home-plugin-http.ts`、`resident-host-request.ts`）；`project-host.ts` 原来的「closing anyway」改成记录。
 - 模型路径，只列给 AI 手册线、不在本片改：`home-event-actions.ts:52`（行为判断失败不记）、`information-actions.ts:27` 与 `workflows-actions.ts:12`（`hostCompleteText` 不可用时为 undefined）、`schedule-runtime.ts:92`（Feed 的 `flushPendingJudgments`）。
@@ -657,6 +657,33 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 - **RAC-62**：确实不存在的工作及不属于该图的工作仍无授权；已有撤权拒绝、后台作业及助理回归通过。由同条测试及 `tests/security-invariants-external-checks.test.ts`、`tests/prologue-work-jobs.test.ts` 证明。
 
 验证：整体 `pnpm build` 后运行新增回归与 Host README 必跑/助理逻辑列表；`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check`。修改是一个读取错误分类，不改合同、页面或安全上限；无需修改 API/动作快照或门禁。2026-10-17 验证通过：整体构建；定向 3 文件 69 项（含真实 SQLite 排他锁恢复与既有撤权拒绝）；Host/助理必跑其余 60 文件 510 项；真实 Chrome 1 文件 2 项，合计 64 文件 581 项、无失败或跳过；health 对 merge-base `8dad2fb96`、boundary 通过。RAC-61/62 已满足；本地实现与定向验证完成，等待按本线 PR 顺序集成，不据此宣称整体防腐线完成。
+
+### W5-01 Characters 搬逻辑进 Module（CHR-0，2026-10-21，③；分支 `migrate/characters-chr0`）
+
+状态：完成，经 PR #956 合入 main（⑤ 评审，集成批次跑全量）。这是 Characters 迁到宿主的第一片（计划见迁移线笔记 `characters-into-module-plan.md` §12）：只搬逻辑，不换装配；第二片（CHR-1）才换宿主登记提供方、删插件包。片内的工作名是 CHR-0、CHR-1；验收编号照 `specs/README.md`「验收编号」一份 spec 一个前缀，接着本 spec 的 RAC 往下排。
+
+- **搬了什么**：处理器逻辑进 `modules/characters`：`createCharactersActionHandlers(ports, runtime)` 返回每个 Characters 动作的纯函数（`action-handlers.ts`）；已发布角色的筛选、锁定、「能不能跑」的判断在 `publications.ts`，内置 Agent 能力目录的检查在 `agent-actions.ts`，用到处的统计在 `usages.ts`，成果库详情的 Markdown 在 `artifact-preview.ts`；非界面的预览与导入逻辑（`import-preview.ts`、`imports.ts`）整份从插件搬来。
+- **边界发现与做法**：插件不能 import Module（`PLUGIN_MODULE_IMPORT_ALLOWLIST` 只许减少），所以不让插件依赖 `modules/characters`。宿主 `characters-host.ts` 用宿主的端口建好处理器，经插件现有的端口类型 `CharactersPluginPorts` 交给插件，端口的内容从「数据端口」换成 `handlers(runtime)`。只有运行中的插件才有的东西（项目号、成果库客户端、内置 Agent 目录）由插件在 `start` 里作为 `runtime` 递给处理器。插件的 `start` 只剩用 `bindOwnerPluginAction` 逐个绑定，Manifest、`actions.ts` 定义、14 条路由不动。
+- **不变**：动作 id、版本、schema、受众、权限、提供方 id、MCP 工具名、路由路径与状态码映射、`project-plugins.ts`、目录条目、`CodingCharacterPorts` 与 `codingCharacterPorts`（留给 C2b）。没有新增兼容或迁移代码，没有向 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 或任何名单加条目。
+- **客户端就地收拾**：`plugins/native/characters/src/client.ts` 里的空 catch、两处直接 `fetch` 在 `check-health-gates.mjs --report` 里各降到 0。直接 `fetch` 改走工作台已有的 `molisWorkRequest`（同一批地址）。`_SCRIPT` 文本常量（`CHARACTERS_CLIENT_FACTORY_SCRIPT`）不在这一片动：脚本还是文本，改名只会让计数变小而程序没变；CHR-1 把它搬进 `apps/workbench/src/characters/` 改成打包的 TypeScript，这一项才真正去掉（新位置从 0 开始，仍是文本就过不了门禁）。
+
+#### 验收（RAC-63～69）
+- **RAC-63**：每个 Characters 动作在 Module 里恰有一个处理器，名字与插件的动作定义一一对应；插件源码不 import Module、插件包不依赖 Module，经真实 Runtime 与路由绑定后行为不变。`tests/characters-action-handlers.test.ts`、`tests/characters-native-execution.test.ts`、`tests/characters-actions.test.ts`。
+- **RAC-64**：处理器只为一个人服务：别人的草稿读不到（`characters.not_found`）、改不了、发布不了（`characters.conflict`），被拒的发布不写成果；绑定后的动作仍拒绝别的调用方。`tests/characters-action-handlers.test.ts`、`tests/security-invariants-plugin-original-caller.test.ts`（S-18）。
+- **RAC-65**：只列出、只允许运行「本人、本项目、Characters 自己发布」的角色版本：别的项目、别的所有者、别的生产方、别的签名、别的类型、别的 schema 版本，各一条不列出、也不可运行；本人版本的身份与正文不一致是错误，不是可覆盖的版本。`tests/characters-action-handlers.test.ts`。
+- **RAC-66**：已发布版本只有在它的草稿启用、且它据以发布的草稿修订存在时才能运行；停用、删除、来源修订不存在，`characters.runnable` 都答 `available: false` 并带 Characters 自己的原因，`execution` 拒绝。`tests/characters-action-handlers.test.ts`。
+- **RAC-67**：同样的内容再次发布返回已有版本（`replayed`，不写成果）；内容变了写下一版并带 `supersedes_version`；过期修订不发布。`tests/characters-action-handlers.test.ts`。
+- **RAC-68**：对外合同不变：`pnpm actions:update` 对 `tooling/gates/actions/` 零差异，19 个 `characters.*@1` 的提供方仍是 `io.molis.work.characters`，`tests/action-contract-snapshot.test.ts` 通过。`tests/characters-action-handlers.test.ts`（快照里的 id、版本、提供方与动作定义一致）。
+- **RAC-69**：Characters 浏览器客户端无空 catch、无直接 `fetch`，经 `molisWorkRequest` 请求；`/assets/molis-work-plugins/characters.js` 不涨。`tests/characters-action-handlers.test.ts`、`tests/characters-publication-http.test.ts`、`pnpm page-assets:check`。
+
+#### 证据（2026-10-21，合并 origin/main `63ee40cc7` 之后）
+- 构建：`pnpm build`、`pnpm workspace:build` 通过。
+- 测试：`tests/characters-action-handlers.test.ts`（新，7 项，RAC-63～69）与 Characters 相关、动作合同与成果声明门禁共 12 个文件通过（`characters-actions`、`characters-module`、`characters-import`、`characters-schema`、`characters-native-execution`、`characters-publication-http`、`security-invariants-plugin-original-caller` 17 项含 S-18、`action-contract-snapshot` 25 项、`artifact-type-gate`、`artifact-declaration-gate`、`builtin-plugin-assembly-gate`）；读文档的 `health-gates-structure`、`health-gates-store-versions`、`package-inventory-gate`、`package-owners`、`shelf-owner-files`、`plugin-registry-generation` 通过。合并前对 `affected-tests` 建议的 101 个非浏览器文件跑过一遍：98 个通过；失败的 3 个里 `security-invariants-plugin-original-caller` 是本片改测试时留下的重复声明，已改并重跑通过，另 2 个与本片无关：`npm-package` 在这台机器上 `spawn npm ENOENT`（PATH 里没有 npm），`shelf-jelly-cognia-images-error-model` 因 cognia 的 `directory_unavailable` 错误码（#901 加入，已在 HEAD，本片没动 cognia 的源码或测试）；没有为它们另建基线工作树对比，依据是静态的（`git log`、`git grep`）。浏览器用例（`affected-tests` 列的 2 个）按本机约定未跑，留给 CI。没有跑全量。
+- 动作合同快照：`pnpm actions:update` 对 `tooling/gates/actions/` 零差异；`pnpm api:update` 无变化（Module 不在公开 API 快照里）。
+- 页面资源：`characters.js` 30250 → 29988 字节（-262），`page-assets --update --base origin/main` 已写入。
+- `pnpm boundary:check`：72 个包、`errors: []`，没有向 `PLUGIN_MODULE_IMPORT_ALLOWLIST` 或任何名单加条目。`pnpm secrets:check` 通过。
+- `check-health-gates.mjs --base origin/main` 通过，数字对 merge-base：巨大单元 126 → 124（`createCharactersPlugin`、`start` 两个函数）；浏览器脚本里的空 catch 128 → 127；`*_SCRIPT` 文本常量 127 → 126（改名，见上，不是脚本已变成 TypeScript）；直接 `fetch` 63 → 61；插件在自己包外被点名的文件 `characters#outside-files` 11 → 10（总数 367 → 366）；`as unknown as` 177 → 176。其余数字不变；`--update --base origin/main` 已刷新本地快查。
+- 没验证：真实浏览器里角色页的点击与导入流程、真实 Home、其他机器；原生 CLI 执行没有重跑（`characters-native-execution` 用的是测试替身）。
 
 ## 0. 现场与范围
 

@@ -733,6 +733,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1167224], ["/assets/molis-work-workbench.css", 1609383], ["/assets/molis-work-settings.css", 992797], ["/assets/molis-work-arrival.css", 702832],
   // The no-accumulation allowance (#918, VUX-36) is spent.
   ["/assets/molis-work-workbench.js", 1167962],
+  // The English-page allowances (#920, VUX-40) are spent.
+  ["/assets/molis-work-plugins/jelly.js", 91179], ["/assets/molis-work-plugins/coding.js", 373460],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -755,7 +757,8 @@ const currentCeilings = () => {
 test("VUX the current one-time allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = currentCeilings();
   const assets = Object.keys(allowed);
-  assert.ok(assets.length > 0 || !/APPROVED_CEILINGS = \{\s*\S/.test(readFileSync(script, "utf8")), "every entry in the gate's allowance is read");
+  // An empty allowance (a slice that only made things lighter) is `{}`: anything else in it is an entry.
+  assert.ok(assets.length > 0 || !/APPROVED_CEILINGS = \{\s*[^\s}]/.test(readFileSync(script, "utf8")), "every entry in the gate's allowance is read");
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
   git("checkout", "-q", "-B", "vux-change");
   for (const asset of assets) sizes[asset] = allowed[asset][1];

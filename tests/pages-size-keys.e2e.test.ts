@@ -4,7 +4,8 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // specs/visual-ui-experience VUX-06 and VUX-23 (a keyboard equivalent for what a pointer does by dragging): Pages sizes a
 // selected image, a table column and a layout column from the keyboard with Mod-Alt-Shift-← and →, through the same
-// commands as their handles, and the handles name those keys.
+// commands as their handles, and the handles name those keys. Each press reads the new width out once through the page's
+// status region (window.molisAnnounce, the one copy feedback uses).
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
@@ -42,6 +43,7 @@ async function size(b: Browser, direction: "ArrowLeft" | "ArrowRight") {
   for (const type of ["rawKeyDown", "keyUp"]) await b.command("Input.dispatchKeyEvent", { type, key: direction, code: direction, windowsVirtualKeyCode: direction === "ArrowLeft" ? 37 : 39, modifiers: mod | 1 | 8 }, b.sessionId);
   await new Promise((resolve) => setTimeout(resolve, 80));
 }
+const said = (b: Browser) => b.evaluate<string>("document.querySelector('[role=status].mw-sr-only')?.textContent ?? ''");
 const attrs = (b: Browser) => b.evaluate<{ cols: number[]; shares: number[]; image: number }>(`(() => { const doc = sizeEditor.view.state.doc; const out = { cols: [], shares: [], image: -1 };
   doc.descendants((node) => { if (node.type.name === 'table_row' && !out.cols.length) node.forEach(c => out.cols.push(c.attrs.colwidth));
     if (node.type.name === 'column') out.shares.push(node.attrs.width); if (node.type.name === 'image') out.image = node.attrs.width; });
@@ -60,6 +62,7 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   let now = await attrs(b);
   assert.equal(now.cols[0], drawn + 32, "the first column widens by one step from where it was drawn");
   assert.equal(now.cols[1], 0, "the other column keeps sharing the row");
+  assert.equal(await said(b), `列宽 ${drawn + 32} 像素`, "the new width is read out");
   assert.equal(await b.evaluate("Math.round(document.querySelector('#size-fixture tr + tr td').getBoundingClientRect().width)"), drawn + 32, "the cells under it follow");
   await size(b, "ArrowLeft");
   await size(b, "ArrowLeft");
@@ -71,10 +74,12 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   await size(b, "ArrowRight");
   now = await attrs(b);
   assert.deepEqual(now.shares, [1.1, 0.9], "the left column takes from its neighbour");
+  assert.equal(await said(b), "栏宽 55%");
   await caretIn(b, "右栏");
   await size(b, "ArrowRight");
   await size(b, "ArrowRight");
   assert.deepEqual((await attrs(b)).shares, [0.9, 1.1], "the last column widens by moving its left edge");
+  assert.equal(await said(b), "栏宽 55%", "the share read out is the caret's column");
 
   // A selected image: from its drawn width; reaching the line, it fills the line again.
   // Select it the way a person does: a press on the picture.
@@ -84,10 +89,12 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   const image = await b.evaluate<number>("Math.round(document.querySelector('#size-fixture .pages-image').getBoundingClientRect().width)");
   await size(b, "ArrowLeft");
   assert.equal((await attrs(b)).image, image - 32, "a selected image narrows by one step");
+  assert.equal(await said(b), `宽度 ${image - 32} 像素`);
   assert.equal(await b.evaluate("Math.round(document.querySelector('#size-fixture .pages-image-frame').getBoundingClientRect().width)"), image - 32, "and is drawn so");
   const widths: number[] = [];
   for (let press = 0; press < 12 && (await attrs(b)).image !== 0; press++) { await size(b, "ArrowRight"); widths.push((await attrs(b)).image); }
   assert.equal(widths.at(-1), 0, `widened to the line, it fills the line again (${widths.join(" → ")})`);
+  assert.equal(await said(b), "占满一行");
   assert.ok(widths.slice(0, -1).every((width, index) => width === image - 32 + (index + 1) * 32), `each press widens it by one step (${widths.join(" → ")})`);
 
   // Outside anything sizable the keys do nothing.
@@ -95,4 +102,5 @@ test("VUX-06: Mod-Alt-Shift-← and → size a table column, a layout column and
   await caretIn(b, "结尾");
   await size(b, "ArrowRight");
   assert.deepEqual(await attrs(b), before);
+  assert.equal(await said(b), "占满一行", "and say nothing new");
 });

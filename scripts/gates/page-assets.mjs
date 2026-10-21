@@ -256,14 +256,14 @@ const headErrors = (measured, budget, base) => {
 // The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
   // #908: resize a column, table column or image from the keyboard; the Pages editor grows once.
-  "/assets/molis-work-pages-editor.js": [707306, 708886],
+  "/assets/molis-work-pages-editor.js": [708886, 709541],
+  "/assets/molis-work-workbench.js": [1168873, 1168898],
   // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
   // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
   // #885: the split divider with a dead zone, pixel minimums, snap hysteresis and full cancel.
-  "/assets/molis-work-workbench.js": [1159486, 1161872],
   "/assets/molis-work-plugins/lingguang.js": [25301, 25359],
   "/assets/molis-work-plugins/plugin-builder.js": [115396, 115438],
   "/assets/molis-work-plugins/ppt.js": [30958, 31025],
@@ -271,7 +271,6 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1607898, 1608687],
   "/assets/molis-work-settings.css": [991943, 992195],
   "/assets/molis-work-arrival.css": [702242, 702388],
-  "/assets/molis-work-workbench.js": [1168820, 1168873],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

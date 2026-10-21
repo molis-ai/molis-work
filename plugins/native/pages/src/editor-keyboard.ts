@@ -13,8 +13,8 @@ import { addTableRow, atLastTableCell, moveTableColumn, moveTableEdge, tableHit 
 import { pagesSchema } from "./schema.js";
 import { sizeKeys } from "./editor-size-keys.js";
 
-export function pagesKeymap(openLink: (view: EditorView) => void): Plugin {
-  return keymap({ ...shortcutKeys(openLink), ...blockKeys(), ...navigationKeys(), ...sizeKeys() });
+export function pagesKeymap(openLink: (view: EditorView) => void, translate?: (text: string) => string): Plugin {
+  return keymap({ ...shortcutKeys(openLink), ...blockKeys(), ...navigationKeys(), ...sizeKeys(translate) });
 }
 
 function shortcutKeys(openLink: (view: EditorView) => void): Record<string, Command> {

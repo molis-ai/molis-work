@@ -87,7 +87,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 ## 3. 批准的构建期例外
 
-**2026-10-18 改：用户取消了这四个例外**（第 1 节）：Goals 按本计划迁到 Runtime；插件创作台不再算插件，并进平台能力；成果库与 Sessions 是平台事实，Sessions 这一轮清理。下表保留当时读出的理由，作为补平台能力时要解决的依赖，不再是不迁的依据。
+**2026-10-18 改：用户取消了这四个例外**（第 1 节）：Goals 按本计划迁到 Runtime；插件创作台不再算插件，并进平台能力（2026-10-21 再改：不迁、不并进平台，防腐收尾后删除再重做，见防腐 spec §1 的 2026-10-21 行与 BL-377）；成果库与 Sessions 是平台事实，Sessions 这一轮清理。下表保留当时读出的理由，作为补平台能力时要解决的依赖，不再是不迁的依据。
 
 四个例外都是 2026-10-07 用户批准的。spec 里只记了结论，没有逐条记理由；下面的原因是从代码里读出的事实。
 
@@ -197,7 +197,7 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 3. 流程族：Schedule、Workflows、Inbox。Schedule 的提醒和定时操作与宿主调度器相连，Workflows 要通过动作目录调其他插件，Inbox 与 Feed 有判断场景绑定；碰到 4.2 的项目库表问题。Inbox 和 Workflows 还在代码里写死了自己的 `provider_id`，Inbox 还钉着 Pages（4.2 第 3 类后果）：4.2 已定内置插件保持 `plugin_id`（用户 2026-10-10，W3-06 C），这些钉死处不用改，迁 Pages 也不会让 Inbox 的动作不可用，迁移顺序不受它牵制。
 4. Feed：被 29 个宿主文件 import，来源、信号、连接器、Inbox 都和它相连，单独写计划再迁。
 5. 混合插件收拢：Shelf（删 `shelf-native-plugin-http.ts`、`personal-native-plugin-http.ts`、两处 `registerProvider`）。
-6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。
+6. Alchemist：最后迁，它有自己的宿主服务和每项目工作室库。（2026-10-21 用户定：不迁，防腐收尾后删除再重做，见防腐 spec §1 的 2026-10-21 行与 BL-376。）
 
 ### 5.4 Characters：并进宿主，不是迁到 Runtime
 

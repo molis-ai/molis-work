@@ -660,7 +660,7 @@ W5-01-WORKFLOWS（Runtime 迁移，2026-10-20，分支 `migrate/workflows-runtim
 
 ### W5-01 Characters 搬逻辑进 Module（CHR-0，2026-10-21，③；分支 `migrate/characters-chr0`）
 
-状态：本地完成，待 ⑤ 评审（未推、未开 PR；已合入 origin/main `63ee40cc7`）。这是 Characters 迁到宿主的第一片（计划见迁移线笔记 `characters-into-module-plan.md` §12）：只搬逻辑，不换装配；第二片（CHR-1）才换宿主登记提供方、删插件包。片内的工作名是 CHR-0、CHR-1；验收编号照 `specs/README.md`「验收编号」一份 spec 一个前缀，接着本 spec 的 RAC 往下排。
+状态：完成，经 PR #956 合入 main（⑤ 评审，集成批次跑全量）。这是 Characters 迁到宿主的第一片（计划见迁移线笔记 `characters-into-module-plan.md` §12）：只搬逻辑，不换装配；第二片（CHR-1）才换宿主登记提供方、删插件包。片内的工作名是 CHR-0、CHR-1；验收编号照 `specs/README.md`「验收编号」一份 spec 一个前缀，接着本 spec 的 RAC 往下排。
 
 - **搬了什么**：处理器逻辑进 `modules/characters`：`createCharactersActionHandlers(ports, runtime)` 返回每个 Characters 动作的纯函数（`action-handlers.ts`）；已发布角色的筛选、锁定、「能不能跑」的判断在 `publications.ts`，内置 Agent 能力目录的检查在 `agent-actions.ts`，用到处的统计在 `usages.ts`，成果库详情的 Markdown 在 `artifact-preview.ts`；非界面的预览与导入逻辑（`import-preview.ts`、`imports.ts`）整份从插件搬来。
 - **边界发现与做法**：插件不能 import Module（`PLUGIN_MODULE_IMPORT_ALLOWLIST` 只许减少），所以不让插件依赖 `modules/characters`。宿主 `characters-host.ts` 用宿主的端口建好处理器，经插件现有的端口类型 `CharactersPluginPorts` 交给插件，端口的内容从「数据端口」换成 `handlers(runtime)`。只有运行中的插件才有的东西（项目号、成果库客户端、内置 Agent 目录）由插件在 `start` 里作为 `runtime` 递给处理器。插件的 `start` 只剩用 `bindOwnerPluginAction` 逐个绑定，Manifest、`actions.ts` 定义、14 条路由不动。

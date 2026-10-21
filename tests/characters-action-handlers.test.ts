@@ -58,8 +58,8 @@ function editedDraft(person: ReturnType<ReturnType<typeof fixture>["handlersFor"
   return person.drafts.update(created.character_id, created.revision, patch);
 }
 
-test("RAC-63 every Characters action has exactly one handler in the Module, and the plugin binds them without holding any", () => {
-  const person = fixture({ after() {} }).handlersFor("actor-a");
+test("RAC-63 every Characters action has exactly one handler in the Module, and the plugin binds them without holding any", t => {
+  const person = fixture(t).handlersFor("actor-a");
   assert.deepEqual(Object.keys(person.handlers).sort(), Object.keys(plugin.charactersActions).sort());
   // The plugin keeps the Manifest, the action definitions and the routes; the logic and the data ports are the owner's.
   const sources = readdirSync(new URL("src/", pluginSource)).filter(name => name.endsWith(".ts")).map(name => ({ name, text: readFileSync(new URL(`src/${name}`, pluginSource), "utf8") }));

@@ -1,4 +1,4 @@
-import { escapeHtml, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { DROP_ZONE_CLIENT_SCRIPT, escapeHtml, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite, SELECT_MENU_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderWorkbenchDocument } from "./document-shell.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -48,7 +48,7 @@ export function renderHomePluginPage(entry: PluginRegistration, html: string | n
         <div class="mw-form__body"><p role="status" data-home-model-status></p><button class="mw-btn mw-btn--secondary" type="button" data-home-model-retry hidden>${escapeHtml(L("重试"))}</button><div data-home-model-content></div></div>
       </div>
     </dialog>
-    <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}</script><script src="/assets/molis-work-plugins/${encodeURIComponent(id)}.js"></script><script>
+    <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${DROP_ZONE_CLIENT_SCRIPT}</script><script src="/assets/molis-work-plugins/${encodeURIComponent(id)}.js"></script><script>
     document.querySelector('[data-work-surface]')?.removeAttribute('hidden');
     globalThis.molisWorkbenchPluginFactories?.[${JSON.stringify(id)}]?.({side:${side},translate:globalThis.L,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{

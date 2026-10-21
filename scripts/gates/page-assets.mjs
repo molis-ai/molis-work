@@ -235,15 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 28, narrow containers (VUX-30).
-// Both stylesheets +228/+154 B: the Goals list and board leave room for a toolbar at touch height, a long Goal status gives
-// way to the title, and a pane's close is a 44 px touch target with its strip keeping the room. +37 B of the workbench
-// script: the Dock refits when the switcher's name changes. Tried first: no new rules, only the values that were fixed.
-// Spent once from exactly #910's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 29, drop zones (VUX-18).
+// +577 B of the workbench script: one drop-zone program (`browser/drop-zone.ts`) says when a drag is over a zone and when it
+// really leaves, for the Assistant, its side zone, project knowledge, Issues, Pages and Shelf; +11 B of Shelf's client
+// for its zone's rule. Tried first: each consumer drops its own leave logic, so knowledge, Issues and Pages fall by
+// 56/56/86 B and the Assistant's island by its share. Spent once from exactly #911's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.css": [1608756, 1608984],
-  "/assets/molis-work-settings.css": [992244, 992398],
-  "/assets/molis-work-workbench.js": [1163042, 1163079],
+  "/assets/molis-work-workbench.js": [1163079, 1163656],
+  "/assets/molis-work-plugins/shelf.js": [75771, 75782],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

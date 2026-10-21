@@ -1910,13 +1910,9 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     event.preventDefault();
     void addFiles(pasted.map(pastedName));
   });
-  compose?.addEventListener("dragover", (event) => {
-    if (![...(event.dataTransfer?.types || [])].includes("Files")) return;
-    event.preventDefault(); compose.dataset.dropping = "true";
-  });
-  compose?.addEventListener("dragleave", (event) => { if (!compose.contains(event.relatedTarget)) delete compose.dataset.dropping; });
+  compose?.addEventListener("dragover", (event) => { if ([...(event.dataTransfer?.types || [])].includes("Files")) event.preventDefault(); });
+  if (compose) window.molisDropZone?.(compose, (on) => { if (on) compose.dataset.dropping = "true"; else delete compose.dataset.dropping; });
   compose?.addEventListener("drop", (event) => {
-    delete compose.dataset.dropping;
     const dropped = [...(event.dataTransfer?.files || [])];
     if (!dropped.length) return;
     event.preventDefault();

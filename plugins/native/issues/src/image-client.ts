@@ -73,9 +73,9 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
   };
   const files = $('files'); let target = composer;
   for (const form of [composer, editor]) {
-    scope.listen(form, 'dragover', event => { if (event.dataTransfer.types.includes('Files')) { event.preventDefault(); form.classList.add('is-drop'); } });
-    scope.listen(form, 'dragleave', () => form.classList.remove('is-drop'));
-    scope.listen(form, 'drop', event => { form.classList.remove('is-drop'); const list = [...event.dataTransfer.files]; if (list.length) { event.preventDefault(); void attach(list, form); } });
+    scope.listen(form, 'dragover', event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); });
+    window.molisDropZone?.(form, on => form.classList.toggle('is-drop', on));
+    scope.listen(form, 'drop', event => { const list = [...event.dataTransfer.files]; if (list.length) { event.preventDefault(); void attach(list, form); } });
   }
   scope.listen(root, 'paste', event => {
     const list = [...(event.clipboardData?.files || [])]; if (!list.length || !detail.hidden && !editing) return;

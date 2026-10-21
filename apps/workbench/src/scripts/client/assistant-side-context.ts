@@ -65,9 +65,9 @@ export const ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT = String.raw`({ L, el, kinds,
       hint.append(glyph("upload"), el("span", "", L("拖到这里，或 @ 引用、/ 用能力")), sideAct(L("添加文件"), L("下次发送带上"), async () => { pickFile(); }, false, "secondary"));
       zone.append(hint);
       if (waiting.length) zone.append(tiles(waiting.map((one) => materialTile({ material: one }))));
-      zone.addEventListener("dragover", (event) => { if (![...(event.dataTransfer?.types || [])].includes("Files")) return; event.preventDefault(); zone.dataset.dropping = "true"; });
-      zone.addEventListener("dragleave", (event) => { if (!zone.contains(event.relatedTarget)) delete zone.dataset.dropping; });
-      zone.addEventListener("drop", (event) => { delete zone.dataset.dropping; const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
+      zone.addEventListener("dragover", (event) => { if ([...(event.dataTransfer?.types || [])].includes("Files")) event.preventDefault(); });
+      window.molisDropZone?.(zone, (on) => { if (on) zone.dataset.dropping = "true"; else delete zone.dataset.dropping; });
+      zone.addEventListener("drop", (event) => { const dropped = [...(event.dataTransfer?.files || [])]; if (!dropped.length) return; event.preventDefault(); void addFiles(dropped); });
       const content = el("div", "assistant-group-list");
       content.append(zone);
       if (now.length) content.append(group(L("本次使用"), tiles(now)));

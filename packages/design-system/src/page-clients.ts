@@ -25,3 +25,5 @@ export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-f
 export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
 /** The page's one tooltip: icon-only controls and text cut short (`browser/tip.ts`, VUX-05). */
 export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
+/** A drop zone says it will take a drag until the drag really leaves (`browser/drop-zone.ts`, VUX-18). */
+export const DROP_ZONE_CLIENT_SCRIPT = readFileSync(new URL("../dist/drop-zone-client.js", import.meta.url), "utf8").trim();

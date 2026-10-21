@@ -1180,7 +1180,7 @@ export const PRIMITIVE_STYLES = `
       background-color 130ms var(--ease-quint),
       color 130ms var(--ease-quint);
   }
-  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row {
     padding-right: var(--dir-yield, 72px);
   }
   .mw-dir-row-wrap.is-yield .mw-dir-row__ops {
@@ -1192,7 +1192,7 @@ export const PRIMITIVE_STYLES = `
   }
   .mw-dir-row-wrap.is-yield:has(.is-selected) .mw-dir-row__ops,
   .mw-dir-row-wrap.is-yield:has([aria-current="page"]) .mw-dir-row__ops { background: var(--nav-active); }
-  .mw-dir-row-wrap.is-yield:is(:hover, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
+  .mw-dir-row-wrap.is-yield:is(:hover, :focus-within, :has(.is-selected), :has([aria-current="page"])) .mw-dir-row__ops {
     opacity: 1; pointer-events: auto;
   }
   .mw-dir-row-wrap.is-yield .mw-dir-row__ops .mw-btn {

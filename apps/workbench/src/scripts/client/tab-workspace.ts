@@ -406,7 +406,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     name.className = "tab-item-name";
     trigger.append(name);
     button.append(trigger);
-    if (!tab.pinned) button.append(close);
+    if (!tab.pinned) { button.append(close); trigger.setAttribute("aria-keyshortcuts", "Delete"); } // a tab not chosen keeps its close out of the tab order; Delete is its key
     parent.append(button);
   };
   const tabHugWidth = (node) => {

@@ -492,7 +492,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 /* Reasoning reads as quoted prose under its row, never as tool output. */
 .coding-tools-chevron { display:inline-flex; color:var(--faint); opacity:0; transition:opacity 130ms var(--ease-quint),transform 130ms var(--ease-quint); }
 .coding-tools-chevron svg { width:12px; height:12px; }
-.coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; }
+.coding-activity > summary:hover .coding-tools-chevron,.coding-activity > summary:focus-visible .coding-tools-chevron,.coding-activity[open] > summary .coding-tools-chevron { opacity:1; } @media (hover:none) { .coding-tools-chevron { opacity:1; } }
 .coding-activity[open] > summary .coding-tools-chevron { transform:rotate(90deg); }
 .coding-tool-list { margin:8px 0 0 12px; padding-left:16px; border-left:1px solid var(--line); display:grid; gap:1px; animation:coding-rise 130ms var(--ease-quint); }
 .coding-tool > summary, .coding-tool-head { list-style:none; display:flex; align-items:center; gap:8px; min-width:0; padding:4px 8px; border-radius:6px; color:var(--muted); }

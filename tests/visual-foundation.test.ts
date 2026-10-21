@@ -428,7 +428,7 @@ test("plugin list titles yield at the squeeze edge", () => {
   assert.match(workbench, /\.mw-dir-row__copy strong \{[^}]*text-overflow: ellipsis/);
   assert.doesNotMatch(workbench, /\.mw-dir-row__copy strong \{[^}]*mask-image:/);
   assert.doesNotMatch(workbench, /\.feed-stage-leading strong[^{}]*\{[^}]*mask-image:/);
-  assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(workbench, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
   assert.match(workbench, /\.feed-stage-entry \{[\s\S]*grid-template-columns: minmax\(0, 1fr\) minmax\(7rem, 12rem\) max-content max-content/);
   assert.match(workbench, /grid-template-columns: minmax\(12rem, 1\.2fr\) 4.75rem 7.5rem minmax\(10rem, 1fr\) 4.5rem/);
   assert.doesNotMatch(workbench, /\.plugin-stage-meta \{ max-width: 18rem/);

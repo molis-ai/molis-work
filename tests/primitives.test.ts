@@ -244,7 +244,7 @@ test("visual foundation ships primitive classes after the Coss control layer", (
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*text-overflow: ellipsis/);
   assert.doesNotMatch(PRIMITIVE_STYLES, /\.mw-dir-row__copy strong \{[\s\S]*mask-image:/);
   assert.match(PRIMITIVE_STYLES, /\.mw-dir-row, \.mw-dir-row-wrap, \.mw-dir-row-wrap\.is-yield \.mw-dir-row, \.mw-dir-row-wrap\.is-yield \.mw-dir-row__ops \{ transition: none; \}/);
-  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
+  assert.match(PRIMITIVE_STYLES, /\.mw-dir-row-wrap\.is-yield:is\(:hover, :focus-within, :has\(\.is-selected\), :has\(\[aria-current="page"\]\)\) \.mw-dir-row \{[\s\S]*padding-right: var\(--dir-yield, 72px\)/);
   assert.match(PRIMITIVE_STYLES, /\.mw-catalog-dir-stage\.is-yield \{ width: 213px; \}/);
   const cossIndex = VISUAL_FOUNDATION_STYLES.indexOf(".mw-btn {");
   const primitiveIndex = VISUAL_FOUNDATION_STYLES.lastIndexOf(".mw-btn");

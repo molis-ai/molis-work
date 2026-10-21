@@ -29,35 +29,41 @@ export function recommendedMethod(card: ConnectorSettingsCardView): ConnectorMet
   return undefined;
 }
 
-export function methodLabel(method: ConnectorMethodOption, card: ConnectorSettingsCardView): string {
-  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? "登录账号" : "自定义应用授权";
-  if (method.kind === "mcp") return "连接官方工具";
-  if (method.kind === "cli") return "使用本机客户端";
-  return "使用密钥连接";
+type Translate = (text: string, values?: Record<string, string | number>) => string;
+
+/** How a method connects, in the page's language. */
+export function methodLabel(method: ConnectorMethodOption, card: ConnectorSettingsCardView, L: Translate): string {
+  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? L("登录账号") : L("自定义应用授权");
+  if (method.kind === "mcp") return L("连接官方工具");
+  if (method.kind === "cli") return L("使用本机客户端");
+  return L("使用密钥连接");
 }
 
-export function pathLabel(card: ConnectorSettingsCardView): string {
-  if (card.availability === "placeholder") return "暂未接入";
+/** The way a card would connect now, in the page's language. */
+export function pathLabel(card: ConnectorSettingsCardView, L: Translate): string {
+  if (card.availability === "placeholder") return L("暂未接入");
   const method = recommendedMethod(card);
-  if (!method) return "登录接入准备中";
-  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? "浏览器登录" : "登录接入准备中";
-  if (method.kind === "mcp") return card.connector_id === "figma" ? "连接 Figma 工具" : method.mcp?.client_registration === "manual" ? "需配置工具授权" : "官方工具授权";
-  if (method.kind === "cli") return method.cli?.installed ? "本机登录" : "需安装客户端";
-  return "使用 API Key / 令牌";
+  if (!method) return L("登录接入准备中");
+  if (method.kind === "oauth") return method.login_ready || readyAccountLogin(card) ? L("浏览器登录") : L("登录接入准备中");
+  if (method.kind === "mcp") return card.connector_id === "figma" ? L("连接 Figma 工具") : method.mcp?.client_registration === "manual" ? L("需配置工具授权") : L("官方工具授权");
+  if (method.kind === "cli") return method.cli?.installed ? L("本机登录") : L("需安装客户端");
+  return L("使用 API Key / 令牌");
 }
 
-export function connectorPurpose(card: ConnectorSettingsCardView): string {
-  const known: Record<string, string> = {
-    github: "把 GitHub 未读通知带进项目，跟进代码协作。",
-    gmail: "把邮件带进项目，整理工作往来与待办。当前只读取邮件。",
-    "model-api": "为 Molis 和 Jelly 选择可用的文本模型。",
-    "image-api": "在 Images 中使用自己的图像生成服务。",
-    typesafe: "让 Functions 使用你的 TypeSafe 账号。",
-    "mcp-bearer": "保存远程工具服务的密钥，在 Coding 中选择使用。",
-    loom: "通过 Atlassian Rovo 的官方工具访问已授权内容。",
-    figma: "连接官方设计工具，供 Agent 读取和处理已授权的设计。",
-  };
-  return known[card.connector_id] ?? card.summary;
+const CONNECTOR_PURPOSE: Record<string, string> = {
+  github: "把 GitHub 未读通知带进项目，跟进代码协作。",
+  gmail: "把邮件带进项目，整理工作往来与待办。当前只读取邮件。",
+  "model-api": "为 Molis 和 Jelly 选择可用的文本模型。",
+  "image-api": "在 Images 中使用自己的图像生成服务。",
+  typesafe: "让 Functions 使用你的 TypeSafe 账号。",
+  "mcp-bearer": "保存远程工具服务的密钥，在 Coding 中选择使用。",
+  loom: "通过 Atlassian Rovo 的官方工具访问已授权内容。",
+  figma: "连接官方设计工具，供 Agent 读取和处理已授权的设计。",
+};
+
+/** What a connector is for: the workbench's own sentence where it has one, else the catalog's summary (the catalog's words are its own; specs/font-and-skin-system FSS-36). */
+export function connectorPurpose(card: ConnectorSettingsCardView, L: Translate): string {
+  return card.connector_id in CONNECTOR_PURPOSE ? L(CONNECTOR_PURPOSE[card.connector_id]!) : L(card.summary);
 }
 
 export function officialLinks(links: readonly ConnectorSetupLink[], p: ConnectorPrimitives): string {
@@ -144,8 +150,8 @@ export function renderConnectorSetup(card: ConnectorSettingsCardView, p: Connect
   if (card.availability === "placeholder") return `<p>${e(L(card.unavailable_reason || "此服务暂未接入。可以查看官方说明，选择其他可用服务。"))}</p>${officialLinks(card.setup_links ?? [], p)}`;
   const recommended = recommendedMethod(card);
   const others = (card.method_options ?? []).filter(m => m !== recommended);
-  return `<div class="settings-connector-setup">${recommended ? `<h3>${e(L(methodLabel(recommended, card)))}</h3>${renderMethodGuide(card, recommended, p)}` : `<div class="settings-connector-pending"><h3>${L("登录接入准备中")}</h3><p>${L("Molis 尚未完成此服务的应用接入，暂时无法直接登录。这一步由我们准备，你不需要注册开发者应用。")}</p><p>${L("已有密钥或自有应用的用户，可以展开高级连接方式。")}</p></div>`}
-    ${others.length ? `<details class="settings-connector-alternatives"><summary>${L("高级连接方式")}</summary>${others.map(m => `<details class="settings-connector-alternative" data-method-choice="${m.kind}"><summary>${e(L(methodLabel(m, card)))}<small>${e(L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"))}</small></summary>${renderMethodGuide(card, m, p)}</details>`).join("")}</details>` : ""}
+  return `<div class="settings-connector-setup">${recommended ? `<h3>${e(methodLabel(recommended, card, L))}</h3>${renderMethodGuide(card, recommended, p)}` : `<div class="settings-connector-pending"><h3>${L("登录接入准备中")}</h3><p>${L("Molis 尚未完成此服务的应用接入，暂时无法直接登录。这一步由我们准备，你不需要注册开发者应用。")}</p><p>${L("已有密钥或自有应用的用户，可以展开高级连接方式。")}</p></div>`}
+    ${others.length ? `<details class="settings-connector-alternatives"><summary>${L("高级连接方式")}</summary>${others.map(m => `<details class="settings-connector-alternative" data-method-choice="${m.kind}"><summary>${e(methodLabel(m, card, L))}<small>${e(L(m.kind === "mcp" ? "供工具调用使用" : m.kind === "cli" ? "需安装官方客户端" : m.kind === "oauth" ? "使用自有应用" : "在官方后台获取凭据"))}</small></summary>${renderMethodGuide(card, m, p)}</details>`).join("")}</details>` : ""}
     <details class="settings-connector-help"><summary>${L("为这个账号起个名字（可选）")}</summary><label class="settings-connector-field"><span>${L("连接名称")}</span><input class="mw-input" data-connector-new-name maxlength="100" placeholder="${e(card.title)}" autocomplete="off"></label></details>
     ${card.capabilities?.length ? `<details class="settings-connector-help"><summary>${L("支持的用途与限制")}</summary><ul class="settings-connector-capabilities">${card.capabilities.map(c => `<li data-fulfillment="${c.fulfillment}"><span>${L(c.fulfillment === "live" ? "支持" : "暂不支持")}</span>${e(L(c.label))}</li>`).join("")}</ul>${card.outbound_note ? `<p>${e(L(card.outbound_note))}</p>` : ""}</details>` : ""}
     ${(() => { const used = new Set((card.method_options ?? []).flatMap(m => m.links.map(l => l.url))); const extra = (card.setup_links ?? []).filter(l => !used.has(l.url)); return extra.length ? `<details class="settings-connector-help"><summary>${L("更多官方设置与帮助")}</summary>${officialLinks(extra, p)}</details>` : ""; })()}

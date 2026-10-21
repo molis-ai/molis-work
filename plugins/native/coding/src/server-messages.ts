@@ -34,7 +34,7 @@ export const CODING_SERVER_MESSAGES = {
   "coding.server.next-config": { zh: "下一轮配置格式无效", en: "The next turn's settings aren't valid" },
   "coding.server.intent": { zh: "执行方式无效", en: "That way of working isn't valid" },
   "coding.server.model-workspace": { zh: "模型或工作区配置无效", en: "The model or workspace setting isn't valid" },
-  "coding.server.pick-limit": { zh: "一道题最多选 {count} 个对象", en: "Pick at most {count} items per question" },
+  "coding.server.pick-limit": { zh: "一道题最多选 {count} 个对象", en: "Pick at most {count} {count|item|items} per question" },
   "coding.server.pick-shape": { zh: "选中的对象格式无效", en: "A picked item isn't valid" },
   "coding.server.question-version": { zh: "问题版本无效，请重新读取原问题", en: "This question changed; open it again" },
   "coding.server.answer-shape": { zh: "问题的回答格式无效", en: "An answer isn't valid for its question" },

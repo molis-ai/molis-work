@@ -1,4 +1,5 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_MESSAGES } from "./messages.js";
 
 /** A value is a word or number as it is, or another of Coding's keys worded in the same language (a field's name). */
@@ -6,15 +7,12 @@ type Values = Readonly<Record<string, string | number | { readonly key: string }
 export type CodingText = (key: string, values?: Values) => string;
 
 /**
- * Coding's stable keys in one language, `{name}` values filled in. Chinese is the default: the words that stay Chinese data
+ * Coding's stable keys in one language, `{name}` values filled in by the SDK's `fillMessage`. Chinese is the default: the words that stay Chinese data
  * (the run report, the Agent's context) and a call no page made (a model's tool call, background work) use it.
  */
 export function codingText(locale: ActionLocale = "zh"): CodingText {
-  const say: CodingText = (key, values = {}) => ((CODING_MESSAGES as Record<string, { zh: string; en: string }>)[key]?.[locale] ?? key)
-    .replace(/\{(\w+)\}/g, (all, name: string) => {
-      const value = values[name];
-      return value === undefined ? all : typeof value === "object" ? say(value.key) : String(value);
-    });
+  const say: CodingText = (key, values = {}) => fillMessage((CODING_MESSAGES as Record<string, { zh: string; en: string }>)[key]?.[locale] ?? key,
+    Object.fromEntries(Object.entries(values).filter(([, value]) => value !== undefined).map(([name, value]) => [name, typeof value === "object" ? say(value.key) : value])));
   return say;
 }
 

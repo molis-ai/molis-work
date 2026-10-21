@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, GoalProjectApplication, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
@@ -22,7 +22,7 @@ test("a Coding report in the 成果库 can be given to Shelf's report input and 
   const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string"); const origin = `http://127.0.0.1:${address.port}`;
-  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
+  t.after(async () => { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
   const post = async (path: string, body: unknown, authorized = true) => {
     const response = await fetch(origin + prefix + path, { method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(),
       ...(authorized ? { "x-molis-work-control-token": token } : {}) }, body: JSON.stringify(body) });
@@ -70,7 +70,7 @@ test("a version given to Shelf's report input survives a Host restart, and a sta
   catalog.close();
   const prefix = "/projects/" + project.project_id, token = "artifact-plugin-inputs-pin-control-token-123456789";
   const store = new LocalProjectDatabase(project.database_path), app = new GoalProjectApplication(store);
-  t.after(async () => { await releaseCodingSurface(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
+  t.after(async () => { await releaseProjectPlugins(store, project.project_id); store.close(); rmSync(home, { recursive: true, force: true }); });
   const openHost = async () => {
     const server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

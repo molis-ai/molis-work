@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -23,7 +23,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address=server.address(); assert.ok(address && typeof address!=='string'); let origin=`http://127.0.0.1:${address.port}`;
-  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseCodingSurface(store,projectId); store.close(); rmSync(home,{recursive:true,force:true}); });
+  t.after(async()=>{ await new Promise<void>(resolve=>server.close(()=>resolve())); await releaseProjectPlugins(store,projectId); store.close(); rmSync(home,{recursive:true,force:true}); });
   const request=async(path:string,body?:unknown,authorized=true)=>{const response=await fetch(origin+prefix+path,{method:body===undefined?'GET':'POST',headers:body===undefined?{}:{origin,'content-type':'application/json','x-molis-work-idempotency-key':randomUUID(),...(authorized?{'x-molis-work-control-token':token}:{})},...(body===undefined?{}:{body:JSON.stringify(body)})});return {status:response.status,body:await response.json()};};
   // A request the artifact and output services refuse is the caller's mistake: 400, and the body names the owner's code (the route answers by kind, not by message).
   const refused=(response:{status:number;body:{code?:string}},code:string)=>assert.deepEqual([response.status,response.body.code],[400,code],JSON.stringify(response.body));

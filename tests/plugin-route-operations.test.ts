@@ -14,7 +14,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
  * The HTTP operations every Runtime plugin shares (restart, release-quarantine, upgrade, "not running", the view revision, then the
  * plugin's own route) live in one place, `apps/local-host/src/plugin-route-operations.ts`, so that the project's instance and the
  * Home-level instance (W3-06 F) answer them the same way. This pins their answers through the product's web server, with Coding
- * as the plugin, before and after the code moved out of `handleCodingPluginHttp`.
+ * as the plugin, before and after the code moved out of the Coding surface into the project's entry (`project-plugin-http.ts`).
  */
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const CODING = "io.molis.work.coding";
@@ -121,8 +121,25 @@ test("the shared route operations know no plugin: they are the only place that r
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
   assert.doesNotMatch(shared, /@molis-ai\/molis-work-module-/);
   const surface = await readFile(path.join(repoRoot, "apps/local-host/src/coding-surface.ts"), "utf8");
+  const entry = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugin-http.ts"), "utf8");
   for (const operation of [/supervisor\.restart\(/, /platform\.upgrade\(/, /\.viewRevision\(/]) {
     assert.doesNotMatch(surface, operation, "the Coding surface hands these to the shared operations");
+    assert.doesNotMatch(entry, operation, "the project's entry hands these to the shared operations");
     assert.match(shared, operation);
   }
+});
+
+test("PG037-01: the project's plugin entry names no plugin; what the Coding family adds comes in from the caller (route operations)", async () => {
+  const entry = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugin-http.ts"), "utf8");
+  assert.match(entry, /export async function handleProjectPluginHttp\(/);
+  assert.doesNotMatch(entry, /io\.molis\.work\./, "no plugin id is written in the entry");
+  assert.doesNotMatch(entry, /@molis-ai\/molis-work-plugin-(?!(?:runtime|sdk)\b)/);
+  assert.doesNotMatch(entry, /@molis-ai\/molis-work-module-/);
+  assert.doesNotMatch(entry, /coding-surface|_PLUGIN_ID\b/, "plugin-specific steps are handed in as hooks");
+  const routes = await readFile(path.join(repoRoot, "apps/local-host/src/web-project-platform-routes.ts"), "utf8");
+  assert.match(routes, /handleProjectPluginHttp\(request, response, url, pluginPorts, codingRouteHooks\)/);
+  // Whether a plugin runs is read from the supervisor per plugin, not from one flag the Coding surface kept.
+  const plugins = await readFile(path.join(repoRoot, "apps/local-host/src/project-plugins.ts"), "utf8");
+  assert.doesNotMatch(plugins, /\brunning\??: boolean/);
+  assert.doesNotMatch(plugins, /Coding 启动失败/);
 });

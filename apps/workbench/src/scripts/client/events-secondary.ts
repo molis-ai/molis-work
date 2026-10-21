@@ -369,12 +369,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
       }
       const copy = target.closest("[data-copy-value]");
       if (copy) {
-        try {
-          await navigator.clipboard.writeText(copy.dataset.copyValue);
-          showToast(L("引用已复制"));
-        } catch {
-          showToast(L("无法访问剪贴板，请手动复制"), true);
-        }
+        if (!await window.molisCopy?.(copy, copy.dataset.copyValue, { done: L("已复制"), failed: L("复制失败") })) showToast(L("无法访问剪贴板，请手动复制"), true);
         return;
       }
       if (handleGoalRelationDisclosureClick(target)) return;

@@ -5,12 +5,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { agentHostCapabilities as agent, type AgentStartRequest, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("Plan formal routes preserve confirmed revisions, reject stale/blocked/foreign proposals, and do not replay execution", async () => {
@@ -50,7 +49,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {
@@ -79,7 +78,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.match(starts[0].text_materials![0].text, /10000 分免运费/);assert.match(starts[0].text_materials![0].text, /不批准任何文件修改或命令/);
     assert.equal((await request()).body.draft, "未发送的独立要求");
     assert.equal((await start()).body.existing, true);assert.equal(starts.length, 1, "lost-response retry does not start a second Run");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request("/plan")).body.plan, fixed);assert.equal((await start()).body.existing, true);
     assert.equal((await request("/plan", "POST", { expected_revision: 1, content: { ...content, title: "新计划" } })).status, 400);
     const adjusted = { ...content, title: "新计划", change_reason: "增加边界检查", blockers: "尚缺折扣约定" };
@@ -112,7 +111,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(changed.runs.at(-1).phase,"failed");
     assert.equal(changed.subagents.at(-1).children[0].verdict.status,"needs-work");
     assert.equal(changed.subagents.at(-1).children[0].state,"completed","user rework is distinct from original execution state");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     const reopened=(await request()).body;
     assert.deepEqual(reopened.taskboard_plans,changed.taskboard_plans);assert.deepEqual(reopened.subagents,changed.subagents);
     const unreadable=makeRun("lost-plan","builder");unreadable.frozen.text_materials=[{material_id:"lost",title:"lost",source_artifact_id:"coding-plan:app:999",source_version:1},{material_id:"foreign",title:"foreign",source_artifact_id:"coding-plan:other:1",source_version:1}];runs.push(unreadable);
@@ -152,7 +151,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response=await request(stepPath,"POST",{...evaluation,action:"needs-work",notes:"还需核对负数输入",expected_revision:1});assert.equal(response.status,200,JSON.stringify(response.body));
     assert.deepEqual(firstRun.step_board,originalBoard,"human rework never rewrites SDK success or report history");
     const verdict=response.body.verdict;
-    await releaseCodingSurface(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store,DEMO_PROJECT_ID);store.close();store=new LocalProjectDatabase(dbPath);
     const assessed=(await request()).body.taskboard_plans.find((entry:any)=>entry.run_id==="execute-1");
     assert.deepEqual(assessed.verdicts["step-1"],verdict);assert.equal(assessed.plan.revision,1);assert.equal((await request()).body.plan.revision,4);
     const reportPath = "/runs/execute-1/report";
@@ -192,7 +191,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     response = await request(stepPath, "POST", { ...evaluation, expected_revision: 2, notes: "后续复核已经通过" });
     assert.equal(response.status, 200, JSON.stringify(response.body));
     assert.deepEqual((await request(reportPath, "POST", {})).body, savedReport, "later evaluation cannot rewrite a saved report");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request(reportPath)).body, savedReport, "reopening keeps the exact saved assessment");
     firstRun.step_board!.nodes[0].state="blocked";firstRun.step_board!.version++;
     assert.equal((await request(stepPath,"POST",{...evaluation,expected_revision:2,board_version:4})).status,400,"blocked is not accepted as success");
@@ -213,6 +212,6 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
     assert.equal(missingPlanReport.report.steps.board, undefined);
 
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();rmSync(home, { recursive: true, force: true });
+    await new Promise<void>(resolve => server.close(() => resolve()));await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();rmSync(home, { recursive: true, force: true });
   }
 });

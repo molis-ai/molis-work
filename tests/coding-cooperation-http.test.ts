@@ -4,12 +4,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { createRequire } from "node:module";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 // The SDK's own delivery box stands behind the messages capability: its rules, not a copy of them, decide each move.
@@ -60,7 +59,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
       if (definition.capability_id === agent.listSubagents.capability_id) return [] as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, method = "GET", body?: unknown) => {
@@ -118,7 +117,7 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     const late = await call(`/sessions/A/delegations/${id}`, "POST", { action: "cancel" });
     assert.equal(late.status, 400); assert.match(late.body.error, /这次操作只记录，不改变结果/);
 
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     seen = (await call(`/sessions/A/delegations`)).body.outgoing[0];
     assert.equal(seen.state, "completed", "state survives a restart");
     assert.deepEqual(seen.receipts.map((receipt: { event: string; recorded_only?: boolean }) => receipt.event + (receipt.recorded_only ? "*" : "")),
@@ -130,5 +129,5 @@ test("委派与交付走会话间的信：只由对应一方推进，发送即�
     assert.deepEqual(replies.map((reply: any) => [reply.kind, reply.inReplyTo.id, reply.state, reply.attachments[0].id]),
       [["reply", id, "rejected", `coding-report:${encodeURIComponent(C)}:r1`], ["reply", id, "completed", `coding-report:${encodeURIComponent(C)}:r2`]]);
 
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

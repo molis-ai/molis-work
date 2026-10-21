@@ -22,6 +22,7 @@ import {
   codingWorkbenchPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
+import { ensureProjectPlugins } from "./project-plugins.js";
 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
@@ -29,6 +30,12 @@ import {
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
+/** Opening the project page starts the project's plugin platform; the stages read what it runs. */
+async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
+  await ensureProjectPlugins(ports);
+  const builtin = await builtinStagePanels(ports, enabled);
+  return { html: [...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
+}
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
   renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
@@ -136,8 +143,8 @@ export function createLocalGoalsReadHttp(ports: {
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
-          const builtinStages = await builtinStagePanels(surfacePorts, projectConfiguration.plugins);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html, await builderWorkbenchPanel(surfacePorts)], plugin_stage_ids: builtinStages.ids };
+          const builtinStages = await projectPluginStages(surfacePorts, projectConfiguration.plugins);
+          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html], plugin_stage_ids: builtinStages.ids };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,

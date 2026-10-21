@@ -9,7 +9,7 @@ import {
   DEMO_PROJECT_ID,
   LocalProjectDatabase,
   codingDirectoryPanel,
-  releaseCodingSurface,
+  releaseProjectPlugins,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -60,7 +60,7 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
     // Goal 标题是读时解析的，不是存在 Coding 自己表里的
     assert.match(surface!.panel, /让首次使用不再卡住/);
 
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -83,7 +83,7 @@ test("会话标题里的标记不会原样进页面", async () => {
     assert.equal(surface?.panel.includes("<img src=x"), false);
     assert.match(surface!.panel, /&lt;img src=x/);
 
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -97,7 +97,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
     const surface = await codingDirectoryPanel(ports(store));
     assert.notEqual(surface, null);
     assert.match(surface!.panel, /还没有编码会话/);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -106,7 +106,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
 
 test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
   const { createServer } = await import("node:http");
-  const { handleCodingPluginHttp } = await import("../apps/local-host/dist/coding-surface.js");
+  const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
   const store = project(directory), sessions = codingSessions(store);
@@ -122,7 +122,7 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
     },
   } };
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, codingRouteHooks).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -134,6 +134,6 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
     assert.deepEqual(await response.json(), report);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(directory, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

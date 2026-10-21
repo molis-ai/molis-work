@@ -5,12 +5,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/prologue-adoption §4.6.10: the Host keeps the wait on the session's step; the plugin keeps the queued send and starts it once the step may go on.
@@ -95,7 +94,7 @@ test("a round told to wait for another session's work waits on it, starts on its
       throw new Error(`Unexpected capability ${id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {
@@ -173,5 +172,5 @@ test("a round told to wait for another session's work waits on it, starts on its
     assert.equal(waits.find(one => one.wait.wait_id === "w-wb2")!.continuation.state, "started");
     await until("the round the person started ends", () => sessions.get(DEMO_PROJECT_ID, "b").state === "done");
     await refusedLeavesNothing("wb3", Object.assign(new Error("调用已取消"), { name: "AbortError" }));
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

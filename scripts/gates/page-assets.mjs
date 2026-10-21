@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-33 (slice 52): the Assistant colours a large code block a slice a frame from the Host's
-  // map of its pieces instead of leaving it uncoloured past 40,000 characters (the painter, its growth and the binding).
-  "/assets/molis-work-workbench.js": [1170072, 1172325],
+  // specs/visual-ui-experience VUX-33 (slice 53): Coding's change reader colours its rows a slice a frame and no longer leaves a
+  // file plain for one line past 40,000 characters (the row painter and its rules).
+  "/assets/molis-work-plugins/coding.js": [376883, 377809],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

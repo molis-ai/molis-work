@@ -293,8 +293,7 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-digest > pre { max-height:18rem; overflow:auto; margin:8px 0 0; padding:12px; border-radius:8px; background:color-mix(in srgb,var(--ink) 4%,var(--paper)); white-space:pre-wrap; font:12px/1.6 inherit; }
 .coding-turn-own { white-space:pre-wrap; }
 .coding-start .mw-empty { padding:24px 0; }
-.coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-composer,
-.coding-dialogue:has([data-coding-report-reader]:not([hidden])) > .coding-status { display:none; }
+.coding-dialogue > [data-coding-report-reader]:not([hidden]) ~ :is(.coding-composer,.coding-status) { display:none; }
 /* The report reads like a document in the same column as the conversation, with its actions kept in reach. */
 [data-coding-report-reader] > header { position:sticky; top:0; z-index:2; display:flex; flex-wrap:wrap; align-items:center; gap:8px; max-width:76ch; margin:0 auto; padding:12px 0; border-bottom:1px solid var(--line); background:color-mix(in srgb,var(--paper) 94%,transparent); backdrop-filter:blur(8px); }
 [data-coding-report-reader] > header .mw-btn { height:28px; min-height:28px; padding-inline:12px; font-size:12px; }
@@ -386,14 +385,16 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-dialogue .coding-jump svg { width:14px; height:14px; }
 @media (prefers-reduced-motion:no-preference) { .coding-dialogue .coding-jump:not([hidden]) { animation:coding-rise 130ms var(--ease-quint) both; } }
 .coding-stage:has([data-companion-open=true]) { grid-template-columns:minmax(0,1fr); }
-.coding-stage:has([data-companion-open=true]) .coding-dialogue { display:none; }
-.coding-stage:has([data-companion-open=true]) .coding-tools,.coding-stage:has([data-coding-change-reader]:not([hidden])) .coding-tools { display:block; }
+.coding-stage > .coding-dialogue:has(~ [data-companion-open=true]) { display:none; }
+/* No :has() here is anchored on a box that holds the conversation or a change with something after it (".x:has(…) .y"): the
+   browser restyles all of such a box on every node put in it. The change reader marks the tools (data-coding-reading). */
+.coding-stage>[data-coding-tools]:is([data-companion-open=true],[data-coding-reading]) { display:block; }
 /* Changes open beside the conversation, so reading a diff never loses the thread that produced it. */
 .coding-stage:has([data-coding-change-reader]:not([hidden])) { grid-template-columns:minmax(360px,.9fr) minmax(480px,1.1fr); }
-.coding-stage:has([data-coding-change-reader]:not([hidden])) .coding-tool-tabs { display:none; }
+.coding-stage > [data-coding-tools][data-coding-reading] > .coding-tool-tabs { display:none; }
 @container molis-coding (max-width:1100px) {
   .coding-stage:has([data-coding-change-reader]:not([hidden])) { grid-template-columns:minmax(0,1fr); }
-  .coding-stage:has([data-coding-change-reader]:not([hidden])) .coding-dialogue { display:none; }
+  .coding-stage > .coding-dialogue:has(~ [data-coding-reading]) { display:none; }
   [data-coding-results=true] .coding-stage { grid-template-columns:minmax(0,1fr); }
   [data-coding-results=true] .coding-dialogue { display:none; }
   .coding-composer-context .mw-btn { width:32px; min-width:32px; }
@@ -427,7 +428,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 
   .coding-method-heading { display:flex; align-items:center; justify-content:space-between; gap:var(--space-2); }
   [data-coding-method-list] { display:grid; gap:var(--space-4); }
-  [data-coding-tools]:has([data-coding-change-reader]:not([hidden])) > :not([data-coding-change-reader]):not(.coding-tool-tabs) { display:none; }
+  .coding-stage > [data-coding-tools][data-coding-reading] > :not([data-coding-change-reader]):not(.coding-tool-tabs) { display:none; }
 
 /* Timeline: tool calls read as rows, a round closes with what happened. */
 .coding-activity { max-width:76ch; margin:-12px auto 24px; color:var(--muted); font-size:13px; }
@@ -494,9 +495,9 @@ ${CODING_COMPOSER_BAR_STYLES}
 @media (prefers-reduced-motion: reduce) { .coding-tools-summary.is-live > span:last-child, .coding-run-footer[data-state=live] .coding-live-text, .coding-tool-list, .coding-inline-review, .coding-run-card { animation:none; } }
 
 /* A new session opens like a blank page: the question, the composer, and a few ways in. */
-.coding-dialogue:has([data-coding-welcome]) .coding-turns { display:flex; flex-direction:column; justify-content:flex-end; }
-.coding-dialogue:has([data-coding-welcome]) > .coding-composer { margin-bottom:clamp(24px, 18vh, 180px); }
-.coding-dialogue:has([data-coding-welcome]) > .coding-status:empty { display:none; }
+.coding-dialogue > .coding-turns[data-coding-welcoming] { display:flex; flex-direction:column; justify-content:flex-end; }
+.coding-turns[data-coding-welcoming] ~ .coding-composer { margin-bottom:clamp(24px, 18vh, 180px); }
+.coding-turns[data-coding-welcoming] ~ .coding-status:empty { display:none; }
 .coding-welcome { width:min(100%, 76ch); margin:0 auto; padding:0 0 16px; text-align:left; animation:coding-rise 250ms var(--ease-quint); }
 .coding-welcome h2 { margin:8px 0; font-size:24px; font-weight:500; letter-spacing:-.01em; color:var(--ink); }
 .coding-welcome > p { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
@@ -509,7 +510,7 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-starter svg { width:16px; height:16px; color:var(--muted); }
 .coding-starter strong { font-weight:500; font-size:13px; }
 .coding-starter small { font-size:11px; color:var(--faint); }
-@media (max-width: 640px) { .coding-starters { grid-template-columns:minmax(0,1fr); } .coding-dialogue:has([data-coding-welcome]) > .coding-composer { margin-bottom:12px; } }
+@media (max-width: 640px) { .coding-starters { grid-template-columns:minmax(0,1fr); } .coding-turns[data-coding-welcoming] ~ .coding-composer { margin-bottom:12px; } }
 
 .coding-start { display:grid; place-items:center; min-height:0; height:100%; padding:24px; }
 .coding-start-hero { display:grid; justify-items:center; gap:12px; max-width:420px; text-align:center; animation:coding-rise 250ms var(--ease-quint); }

@@ -92,17 +92,25 @@ export const ISSUE_IMAGES_CLIENT_SCRIPT = String.raw`
       paint(); form.querySelector('[data-issue-pick]').focus();
     } else if (button.hasAttribute('data-preview')) {
       const dialog = $('preview'), img = dialog.querySelector('img'), source = button.querySelector('img');
-      img.src = source.src; img.alt = source.alt; delete dialog.dataset.zoom; $('zoom').textContent = L('原始尺寸'); dialog.querySelector('.issues-preview-body').scrollTo(0, 0); dialog.showModal();
+      img.src = source.src; img.alt = source.alt; delete dialog.dataset.zoom; $('zoom').textContent = L('原始尺寸'); view.scrollTo(0, 0); dialog.showModal();
+      zoomer()?.fit(false); fits();
     } else if (button.hasAttribute('data-issue-zoom')) {
-      const dialog = $('preview'), zoomed = dialog.toggleAttribute('data-zoom'); button.textContent = L(zoomed ? '适应窗口' : '原始尺寸'); dialog.querySelector('.issues-preview-body').scrollTo(0, 0);
+      if (zoomer()) { if (zoom.state() === 'fit') zoom.actual(); else zoom.fit(); }
+      else { const zoomed = $('preview').toggleAttribute('data-zoom'); button.textContent = L(zoomed ? '适应窗口' : '原始尺寸'); view.scrollTo(0, 0); }
     }
   }));
+  // Media zoom (VUX-32), made on first open; the button says what it does next. Without the helper: fit / own size.
+  const view = $('preview').querySelector('[data-issue-picture]'), viewed = view.querySelector('img');
+  let zoom;
+  const fits = () => { if (zoom) $('zoom').hidden = zoom.state() === 'fit' && zoom.fitsAtActual(); };
+  const zoomer = () => zoom === undefined ? (zoom = window.molisMediaZoom?.(view, viewed, { onChange: state => { $('zoom').textContent = state === 'fit' ? L('原始尺寸') : L('适应窗口'); fits(); } }) || null) : zoom;
+  scope.own(() => zoom?.dispose()); scope.listen(viewed, 'load', fits);
   const restoredPictures = pictures().catch(error => { if (scope.alive) tip(composer, error.message, true); })
     .finally(() => { restoring = false; ready(); });
   // A click on the backdrop or beside the picture closes it; a drag that started on the picture does not.
   for (const dialog of root.querySelectorAll('dialog')) {
     let down = null;
     scope.listen(dialog, 'pointerdown', event => { down = event.target; });
-    scope.listen(dialog, 'click', event => { if (down === event.target && (event.target === dialog || event.target.matches('.issues-preview-body'))) dialog.close(); down = null; });
+    scope.listen(dialog, 'click', event => { if (down === event.target && (event.target === dialog || event.target.matches('.issues-preview-body, [data-issue-picture]'))) dialog.close(); down = null; });
   }
 `;

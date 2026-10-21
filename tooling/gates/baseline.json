@@ -185,8 +185,8 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
     "function plugins/native/characters/src/plugin.ts#start": 159,
-    "file plugins/native/coding/src/client.ts": 1594,
-    "file plugins/native/coding/src/styles.ts": 812,
+    "file plugins/native/coding/src/client.ts": 1593,
+    "file plugins/native/coding/src/styles.ts": 805,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {

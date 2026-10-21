@@ -259,11 +259,9 @@ const APPROVED_CEILINGS = {
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
-  "/assets/molis-work-workbench.js": [1151781, 1155557],
-  "/assets/molis-work-workbench.css": [1605446, 1606003],
-  "/assets/molis-work-settings.css": [991241, 991798],
-  "/assets/molis-work-arrival.css": [700831, 701388],
-  "/assets/molis-work-plugins/issues.js": [23871, 24401],
+  // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
+  "/assets/molis-work-plugins/coding.js": [369421, 371370],
+  "/assets/molis-work-workbench.css": [1606003, 1606426],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -261,6 +261,8 @@ const APPROVED_CEILINGS = {
   // #866/#868/#869: the remaining copy/scroll consumers, one show-more and the assistant's 产出 split.
   // +1,101 B over #866's workbench base (1,140,490 B).
   "/assets/molis-work-workbench.js": [1140293, 1141591],
+  "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
+  "/assets/molis-work-plugins/shelf.js": [75673, 75771],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

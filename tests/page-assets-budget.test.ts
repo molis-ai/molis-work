@@ -687,8 +687,7 @@ for (const [asset, old] of [
   // The Coding scroll-owner allowance (#864, VUX-26) is spent.
   ["/assets/molis-work-workbench.js", 1134508],
   // The remaining copy and scroll consumers' allowances (#866, VUX-19, VUX-26) are spent.
-  ["/assets/molis-work-workbench.js", 1134824], ["/assets/molis-work-plugins/shelf.js", 75673],
-  ["/assets/molis-work-plugins/lingguang.js", 25265],
+  ["/assets/molis-work-workbench.js", 1134824],
   // The show-more allowances (#868, VUX-08) are spent.
   ["/assets/molis-work-workbench.js", 1135021], ["/assets/molis-work-workbench.css", 1605196], ["/assets/molis-work-settings.css", 990971],
   ["/assets/molis-work-arrival.css", 700557],
@@ -735,6 +734,8 @@ for (const [asset, old] of [
 test("VUX-08 the 产出 split allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
     "/assets/molis-work-workbench.js": [1140293, 1141591],
+    "/assets/molis-work-plugins/lingguang.js": [25265, 25301],
+    "/assets/molis-work-plugins/shelf.js": [75673, 75771],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });

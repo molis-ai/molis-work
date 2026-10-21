@@ -2435,3 +2435,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - **本人权限**：`artifact:read`/`artifact:write` 早就在 `LOCAL_OWNER_PERMISSIONS` 里了，由 Dataset、Form、Pages、PPT、Shelf 这几份 native Manifest 经 `NATIVE_OWNER_PERMISSIONS` 带进来，① 已核实。所以 CHR-1 不算放宽。
     - CHR-1 要做的：列出前后两份集合做比对，并对 `SECURITY-INVARIANTS.md` 核一遍。
     - 「本人权限按提供方限定」和对应的拒绝测试，并进 PG-007 第 4 阶段，归 ②，不另开新片。
+- **10-21 C7 往后放，① 同意不拆**：视觉线 #940 正在改 Coding 的 `highlight.ts`，#950～952 叠在它上面，另有 7 个在途 PR 改 `assistant-island.ts`、`coding-surface.ts`。C7 等这几个合进 main 后一个 PR 搬完；拆开要多一个共享核心 PR、多一次全量，不值。② 先做 C8 设计。
+- **10-21 ① 批 C8 设计**（共享笔记 `c8-executor-design.md`，② 写）：
+  - `withPersonDispatchGuard` 归平台的本人动作客户端（`local-web-actions.ts`，②）：`invoke` 多一个 `control`，形状取现成 `PluginExecutionControl` 的 `beforeEffect`、`assert_authority_current`；串接只写一份，S-43 的 `delegate` 也改用它。
+  - 不用消费场景：场景只表示「准备、判断、落地」，执行方没有判断。照搜索来源的先例按动作语义类型选：新合同子路径 `platform/work-executors` 定 6 个角色，SDK 加 `defineWorkExecutorActions`。PG-036 行的「和消费场景」在 C8-1 里删掉。
+  - 谁能当执行方：任何装好、在运行、发布了全套角色的插件，本人每次对一项工作明确选。① 核过不算新的信任边界，不问用户：本人客户端对 Runtime 插件的动作只经该安装的授权放行（`local-web-actions.ts` 的 `accepted` 与 `validate_authority`，每次重读安装代次），和本人打开那个插件自己的页面发话是同一条路；第三方的安装信任（首次确认、沙箱）不变。依据用户 10-18「插件待遇一样」与 C5 的 U1。
+  - 新安全不变量一条（编号开 PR 时取）：只以本人身份、只为本人的发送、控制、定时跟进调执行方；只交给记下的 `plugin_id`，找不到以 `assistant.executor_unavailable` 拒、不换提供方；这一轮不算数就不派发，查到执行方提交前最后一次同步检查。拒绝测试放 `tests/security-invariants-assistant-executor.test.ts`（`test:security` 通配带上，不改 `package.json`）。
+  - 切片：C8-1（②，合同、SDK、本人客户端的 `control`、删守卫，进批，现在开）；C8-2（③，Coding 用 SDK 发布 6 个角色，等 C8-1 和 ③ 的 C4 Coding 一半合入）；C8-3（②，助理按类型选、删 `assistant-coding.ts`、库第 3 版、新不变量，等 C8-2 与视觉线 #915、#916、#940、#951）。
+  - 附带条件：S-43 现有拒绝测试的文件在 C8-1 里一行不改；定时跟进每次派发重新绑定本人客户端，不缓存（`bindLocalWebActions` 只管一次请求），补一条「跟进排好后撤权，触发时被拒」；`state` 角色里工作区与 MCP 可选项写成可选字段；C8-3 补一条正向用例：执行方插件升级换了安装代次、`plugin_id` 不变，照样找得到。

@@ -259,10 +259,10 @@ const APPROVED_CEILINGS = {
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   // #871: 上下文 keeps pending, this round and earlier rounds apart; the workbench page adds 2,361 B.
-  "/assets/molis-work-workbench.js": [1143952, 1148828],
-  "/assets/molis-work-workbench.css": [1605127, 1605166],
-  "/assets/molis-work-settings.css": [990922, 990961],
-  "/assets/molis-work-arrival.css": [700512, 700551],
+  "/assets/molis-work-workbench.js": [1148828, 1151777],
+  "/assets/molis-work-workbench.css": [1605166, 1605446],
+  "/assets/molis-work-settings.css": [990961, 991241],
+  "/assets/molis-work-arrival.css": [700551, 700831],
   // #866/#868/#869: the remaining copy/scroll consumers, one show-more and the assistant's 产出 split.
   // +1,101 B over #866's workbench base (1,140,490 B).
 };

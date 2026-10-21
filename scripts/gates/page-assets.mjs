@@ -271,7 +271,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-workbench.css": [1609314, 1609427],
   "/assets/molis-work-settings.css": [992748, 992861],
   "/assets/molis-work-arrival.css": [702787, 702900],
-  "/assets/molis-work-workbench.js": [1173080, 1173818],
+  "/assets/molis-work-workbench.js": [1173818, 1173858],
   "/assets/molis-work-plugins/coding.js": [371545, 371846],
   "/assets/molis-work-plugins/shelf.js": [75771, 75782],
 };

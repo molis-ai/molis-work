@@ -1,5 +1,6 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeGoalDirectory, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -28,18 +29,18 @@ function project(directory: string) {
   return new LocalProjectDatabase(file);
 }
 
-function ports(store: LocalProjectDatabase, goalTitle: (id: string) => string | undefined = () => undefined) {
+/** `titles` is what Goals' public directory answers (`goals.list`), the one place a Goal title is read from (PG-091). */
+function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, string>> = {}) {
   return {
     store,
-    projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID),
+    projectId: DEMO_PROJECT_ID, actions: fakeGoalDirectory(pluginActions(store, DEMO_PROJECT_ID), () => titles),
     actorId: "web-user",
-    goalTitle,
     escapeHtml,
     translate: (value: string) => value,
   };
 }
 
-test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的库", async () => {
+test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的库；Goal 标题经 Goals 的公开读动作读到", async () => {
   const directory = mkdtempSync(join(tmpdir(), "coding-surface-"));
   try {
     const store = project(directory);
@@ -52,13 +53,35 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
       at: "2026-09-19T14:00:00Z",
     });
 
-    const surface = await codingDirectoryPanel(ports(store, (id) => id === "g1" ? "让首次使用不再卡住" : undefined));
+    // The route reads titles through Goals' action and no Agent capability, so the Host's capability port is one that answers nothing.
+    const host = { ...ports(store, { g1: "让首次使用不再卡住" }), capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
+      throw new Error(`unexpected capability ${definition.capability_id}`);
+    } } };
+    const surface = await codingDirectoryPanel(host);
     assert.notEqual(surface, null, "插件跑起来了就该给出面板");
     assert.equal(surface?.plugin_id, "coding");
     assert.match(surface!.panel, /data-coding-directory/);
     assert.match(surface!.panel, /修好 runtime 连接提示/);
-    // Goal 标题是读时解析的，不是存在 Coding 自己表里的
-    assert.match(surface!.panel, /让首次使用不再卡住/);
+    // 目录当场渲染、等不了一次动作：第一次绘制时 Goal 标题还没读过，目录给出的是 Goal 的 id（预期变化：此前由宿主同步注入）。
+    assert.doesNotMatch(surface!.panel, /让首次使用不再卡住/);
+    assert.match(surface!.panel, /g1/);
+
+    // 页面一打开就读 Coding 的路由；路由经 Goals 的公开读动作读标题并记下，之后目录画的就是标题。
+    const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
+    const server = createServer((request, response) => {
+      void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
+    });
+    try {
+      await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+      const address = server.address(); assert.ok(address && typeof address === "object");
+      const read = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/search/entries`);
+      const answer = await read.text();
+      assert.equal(read.status, 200, answer);
+      assert.match(answer, /关联目标：让首次使用不再卡住/);
+    } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
+    // Goal 标题是读时从 Goals 取的，不是存在 Coding 自己表里的会话字段
+    const after = await codingDirectoryPanel(host);
+    assert.match(after!.panel, /让首次使用不再卡住/);
 
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
@@ -105,7 +128,6 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
 });
 
 test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
-  const { createServer } = await import("node:http");
   const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
@@ -114,7 +136,7 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-09-20T00:00:00Z");
   const report = { session_id: "sdk", blockers: [], runs: [{ run_id: "run", version: 1, live: false, waiting: 0,
     can_close: true, blockers: [], operations: [{ effect_id: "effect", kind: "edit", summary: "cart.mjs", outcome: "not-dispatched" }] }] };
-  const host = { ...ports(store), execution: { ready: async () => {}, models: async () => [] }, capabilities: {
+  const host = { ...ports(store), capabilities: {
     async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       assert.equal(definition.capability_id, agentHostCapabilities.inspectRecovery.capability_id);
       assert.deepEqual(args, [{ runtime_id: "prologue", session_id: "sdk" }]);

@@ -12,6 +12,7 @@ import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentR
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 function codingHostFixture(root: string) {
   const starts: AgentStartRequest[] = [], runs: AgentRunView[] = [];
@@ -20,8 +21,14 @@ function codingHostFixture(root: string) {
   let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
   const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_actions?.some(ref => ref.capability_id === action.capability_id && ref.provider_id)) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
-    } return { available: true }; }, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
-  host.registerCapability(agent.availableRoles, () => [{ role_id: "reader", available: true }] as any);
+    } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
+  // A Host with a Home composes its own Agent service (and registers its agent.* capabilities); the Home is what gives Coding's
+  // `services.model` the provider catalog (PG-047). This test stands in the Agent capabilities, so it releases the real ones first.
+  // The Host's own close disposes that service again; it is released once, so that second call answers the first.
+  const composed = host.ensureAgentService(root, () => { throw new Error("a Host with a Home has composed its Agent service by now"); });
+  const released = composed.dispose();
+  composed.dispose = () => released;
+  host.registerCapability(agent.availableRoles,() => [{ role_id: "reader", available: true }] as any);
   // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
   host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);
@@ -91,7 +98,7 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
 
 test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable context, and keeps original report ownership after reassociation and restart", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-goal-context-")), databasePath = join(root, "project.db");
-  seedDemoBoard(databasePath);
+  seedDemoBoard(databasePath); await seedConfiguredModels(root);
   const ref = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const { host, starts, runs, sessionCount, codingCaller, holdProgress } = codingHostFixture(root);
   const goalActions = bindActionClient(host.actionClient(ref), () => ({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["goals:read", "goals:write"] }));
@@ -100,10 +107,10 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
-  const server = createServer((request, response) => { void host.withProject(ref, async ({ store, coordinator }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
+  const server = createServer((request, response) => { void host.withProject(ref, async ({ store }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
-    store, projectId: DEMO_PROJECT_ID, actorId: "web-user", goalTitle: id => coordinator.goalQueries.getGoal(DEMO_PROJECT_ID, id)?.title,
-    capabilities: host.client(ref), execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
+    store, projectId: DEMO_PROJECT_ID, actorId: "web-user",
+    capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
   }, codingRouteHooks)).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

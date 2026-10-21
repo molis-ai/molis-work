@@ -11,11 +11,12 @@ import { agentCollaborationActions as collaboration, type AgentCollaborationCond
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // specs/prologue-adoption §4.6.10: the wait hangs on the session's step; once it is over the plugin starts the next round, which takes the continuation up.
 test("a round that ends waiting on an answer or a background command waits as the task graph keeps it, goes on with its task, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); const store = new LocalProjectDatabase(dbPath);
   const sessions = codingSessions(store), at = new Date().toISOString();
   await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
   await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "a", "sdk-a", at);
@@ -52,9 +53,8 @@ test("a round that ends waiting on an answer or a background command waits as th
       else { one.wait.state = "cancelled"; one.wait.continued = true; one.continuation.state = "eligible"; continued.push(wait_id); }
       return { session: structuredClone(one) }; } },
   ] });
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const id = definition.capability_id, input = args as unknown as any[];
       if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;

@@ -37,7 +37,7 @@ async function codingCards(options: { offers?: AgentRunOffer[]; views?: () => Ac
     throw new Error("not in this fixture: " + definition.capability_id);
   } };
   const context: PluginStartContext = { project_id: "board", plugin_id: "io.molis.work.coding", services: { storage, capabilities } } as never;
-  const routes = codingFixtureRoutes(context, sessions, { goalTitle: () => undefined, ready: async () => {}, models: async () => [] });
+  const routes = codingFixtureRoutes(context, sessions);
   // The fixture redeems Coding's own actions; the Agent Host's suggestion runner is recorded here.
   const actions = context.services!.actions!, own = actions.invoke.bind(actions);
   Object.assign(actions, { invoke: async (definition: { capability_id: string }, input: unknown, control?: { beforeEffect?(): Promise<void> }) => {

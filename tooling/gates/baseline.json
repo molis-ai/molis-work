@@ -44,9 +44,9 @@
     "file apps/workbench/src/i18n/en.ts": 3323,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2243,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2157,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1990,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1971,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
@@ -183,8 +183,8 @@
       "lines": 343,
       "methods": 19
     },
-    "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 161,
-    "function plugins/native/characters/src/plugin.ts#start": 159,
+    "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 158,
+    "function plugins/native/characters/src/plugin.ts#start": 156,
     "file plugins/native/coding/src/client.ts": 1592,
     "file plugins/native/coding/src/styles.ts": 805,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
@@ -471,7 +471,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 129,
+  "emptyCatchesInScriptsTotal": 128,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -492,7 +492,7 @@
     "apps/workbench/src/scripts/client/plugin-membership.ts": 2,
     "apps/workbench/src/scripts/client/plugin-workbench.ts": 2,
     "apps/workbench/src/scripts/client/refresh-decisions.ts": 4,
-    "apps/workbench/src/scripts/client/tab-workspace.ts": 9,
+    "apps/workbench/src/scripts/client/tab-workspace.ts": 8,
     "apps/workbench/src/scripts/connectors-settings.ts": 1,
     "apps/workbench/src/scripts/context-onboarding.ts": 4,
     "apps/workbench/src/scripts/settings.ts": 2,
@@ -1157,7 +1157,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 485,
+  "explicitAnyTotal": 484,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1274,7 +1274,6 @@
     "tests/ppt-mcp.test.ts": 2,
     "tests/production-action-mcp.test.ts": 1,
     "tests/project-home-start.e2e.test.ts": 2,
-    "tests/project-plugin-startup.test.ts": 1,
     "tests/project-workspaces-settings.e2e.test.ts": 2,
     "tests/prologue-approval-bridge.test.ts": 1,
     "tests/prologue-checkpoints.test.ts": 4,

@@ -580,11 +580,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     ) {
       errors.push(`${relativePath}: Goal read callers must use the public Goal query application boundary`);
     }
-    if (relativePath === "apps/local-host/src/web-request.ts") {
-      if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
-    } else if (!WEB_DISPATCH_FILES.includes(relativePath)) {
-      if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
-    }
+    // web-request.ts used to be required to call goalQueries: its only call was the Goal-title port it injected into Coding. Coding now
+    // reads titles through Goals' public read action (C2, PG-091), so no entry or dispatcher reads a Goal through goalQueries any more.
+    if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
   }
   errors.push(...checkGoalReadOwnerSql(coordinator).map(error => `${coordinatorPath}: ${error}`));
 

@@ -12,6 +12,7 @@ import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-a
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
+import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 // specs/project-knowledge PMAT-18: what the person picks for Coding's next round is pieces of project knowledge, named by their
 // subject, and each is read through `knowledge.read` as the round starts. Coding has no reader of its own by type any more.
@@ -21,7 +22,7 @@ const REPORT = artifactSubjectId({ artifact_id: "report:1", version: 2 });
 
 test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.read; a piece that cannot be read stops the round before it starts", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
-  seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
+  seedDemoBoard(dbPath); await seedConfiguredModels(root); let store = new LocalProjectDatabase(dbPath);
   await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
   // The project's knowledge, as the knowledge service answers for it (its own reads, refusals and receipts are tested in tests/knowledge-*.test.ts).
   const pieces = new Map<string, Piece>([
@@ -49,9 +50,8 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     return actions;
   };
   const starts: AgentStartRequest[] = []; let created = 0;
-  const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user", goalTitle: () => undefined,
+  const host = () => ({ store, homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: knowledge(), actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    execution: { ready: async () => {}, models: async () => [{ provider_id: "p", model_id: "m", label: "fixture" }] },
     capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
       if (definition.capability_id === agent.availableRoles.capability_id) return [{ role_id: "reader", available: true }] as Output;

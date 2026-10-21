@@ -68,7 +68,7 @@ async function pluginsInDirectory(home: string, projectId: string, databasePath:
 async function codingPanel(databasePath: string, projectId: string): Promise<string> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const surface = await codingDirectoryPanel({ store, projectId, actions: pluginActions(store, projectId), actorId: "web-user", goalTitle: () => undefined,
+    const surface = await codingDirectoryPanel({ store, projectId, actions: pluginActions(store, projectId), actorId: "web-user",
       escapeHtml: value => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"), translate: value => value });
     await releaseProjectPlugins(store, projectId);
     return surface?.panel ?? "";

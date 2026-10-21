@@ -1,5 +1,6 @@
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
 /** Standalone owner fixtures explicitly share one Kernel, just as the application Host does. */
@@ -30,3 +31,22 @@ export function fakeKnowledgeReader(actions: ReturnType<typeof pluginActions>, r
   return actions;
 }
 const readers = new WeakSet<object>();
+
+/**
+ * Goals' public directory as `goals.list` answers it, for a plugin test without the Goals plugin (the real one is tested with the
+ * Goals suites). `titles` maps a Goal id to its title; the answer lists them in that order, `pageSize` to a page.
+ */
+export function fakeGoalDirectory(actions: ReturnType<typeof pluginActions>, titles: () => Readonly<Record<string, string>>, pageSize = 100, seen?: ActionCallContext[]) {
+  if (directories.has(actions.registry)) return actions;
+  directories.add(actions.registry);
+  actions.registry.registerProvider({ provider: { provider_id: "goals-fixture", title: "目标", kind: "system" }, definitions: [goalPluginActions.list],
+    handlers: [{ ...goalPluginActions.list, handle: (caller, input) => {
+      seen?.push(caller);
+      const asked = input as { after_cursor?: string; limit?: number }, rows = Object.entries(titles()), start = asked.after_cursor ? Number(asked.after_cursor) : 0;
+      const size = Math.min(asked.limit ?? pageSize, pageSize), page = rows.slice(start, start + size);
+      return { goals: page.map(([goal_id, title]) => ({ goal_id, title, work_status: "open", completion_effect: false, can_record: true, next_hint: "", unmet_requirement_count: 0,
+        pending_decision_count: 0, blocking_concern_count: 0, updated_at: "2026-09-19T14:00:00Z" })), next_cursor: start + size < rows.length ? String(start + size) : null, observed_event_cursor: 0 };
+    } }] });
+  return actions;
+}
+const directories = new WeakSet<object>();

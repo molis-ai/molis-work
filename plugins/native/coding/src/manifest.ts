@@ -1,4 +1,4 @@
-import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
+import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities, agentOfferActions } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -61,6 +61,8 @@ export const codingManifest: PluginManifest = {
       reason: "把变更集、报告与图作为成果发布，带来源与版本",
     },
     { permission: "workspace:read", required: true, reason: "读取已关联工作目录里的目录与文本，用于任务里 @ 提到的文件与目录" },
+    // Only the list and whether a model can run: the round's model call is the Agent runtime's, so Coding does not declare `model:invoke`.
+    { permission: "model:read", required: true, reason: "读取全局模型设置里可用的模型，供每一轮选用；不发起模型请求" },
   ],
   capabilities: {
     provides: [],
@@ -70,6 +72,8 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentInputActions).map((entry) => entry.capability_id),
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
+      // The person's published Characters, and whether a version can run now (PG-086).
+      ...Object.values(characterPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
       knowledgeActions.list.capability_id,
       projectsCapabilities.readWorkspace.capability_id,

@@ -272,6 +272,7 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-settings.css": [992349, 992748],
   "/assets/molis-work-arrival.css": [702388, 702787],
   "/assets/molis-work-workbench.js": [1169512, 1173080],
+  "/assets/molis-work-plugins/coding.js": [371545, 371846],
   "/assets/molis-work-plugins/shelf.js": [75771, 75782],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

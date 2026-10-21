@@ -25,6 +25,10 @@ export {
   type UnifiedHunk,
 } from "./unified.js";
 export {
+  unifiedPatch,
+  type UnifiedPatchFile,
+} from "./patch.js";
+export {
   compareChangeSet,
   compareRunChangeSet,
   compareSnapshots,

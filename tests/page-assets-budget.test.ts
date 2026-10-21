@@ -723,6 +723,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-pages-editor.js", 708886], ["/assets/molis-work-workbench.js", 1163017],
   // The narrow-container allowances (#911, VUX-30) are spent.
   ["/assets/molis-work-workbench.css", 1608756], ["/assets/molis-work-settings.css", 992244], ["/assets/molis-work-workbench.js", 1163042],
+  // The drop-zone allowances (#912, VUX-18) are spent.
+  ["/assets/molis-work-workbench.js", 1163079], ["/assets/molis-work-plugins/shelf.js", 75771],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

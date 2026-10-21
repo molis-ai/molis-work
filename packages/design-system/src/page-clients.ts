@@ -27,3 +27,5 @@ export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floa
 export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
 /** A drop zone says it will take a drag until the drag really leaves (`browser/drop-zone.ts`, VUX-18). */
 export const DROP_ZONE_CLIENT_SCRIPT = readFileSync(new URL("../dist/drop-zone-client.js", import.meta.url), "utf8").trim();
+/** Neighbours make room and close up when a list changes (`browser/reflow.ts`, VUX-16, VUX-18). */
+export const REFLOW_CLIENT_SCRIPT = readFileSync(new URL("../dist/reflow-client.js", import.meta.url), "utf8").trim();

@@ -235,14 +235,17 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 29, drop zones (VUX-18).
-// +577 B of the workbench script: one drop-zone program (`browser/drop-zone.ts`) says when a drag is over a zone and when it
-// really leaves, for the Assistant, its side zone, project knowledge, Issues, Pages and Shelf; +11 B of Shelf's client
-// for its zone's rule. Tried first: each consumer drops its own leave logic, so knowledge, Issues and Pages fall by
-// 56/56/86 B and the Assistant's island by its share. Spent once from exactly #911's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 30, attachment chips (VUX-16, VUX-18).
+// +3,568 B of the workbench script: a file has its own chip from the moment it is added (reading, read, or why it cannot go,
+// with retry), the strip keeps each chip's element across changes, and one reflow program (`browser/reflow.ts`, 861 B) moves
+// neighbours aside and closes them up; +399 B of each stylesheet for the failed chip. Tried first: the reading moved out of
+// the island instead of beside it (the island falls by its old copy), the served comments went to the outer doc, and the
+// failed chip is three rules on an existing line. Spent once from exactly #912's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1163079, 1163656],
-  "/assets/molis-work-plugins/shelf.js": [75771, 75782],
+  "/assets/molis-work-workbench.js": [1163656, 1167224],
+  "/assets/molis-work-workbench.css": [1608984, 1609383],
+  "/assets/molis-work-settings.css": [992398, 992797],
+  "/assets/molis-work-arrival.css": [702433, 702832],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

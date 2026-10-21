@@ -222,12 +222,13 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "整理上下文": "compact the context",
   "收尾": "wrap up",
   // apps/workbench/src/scripts/client/attention.ts
+  "个等你处理": "waiting for you",
+  // The words under a background task's title are the owning plugin's own (plugins/native/coding/src/home-background.ts); the page translates each as a whole.
   "等你审查": "Needs your review",
   "挂起等待": "Queued",
-  "个等你处理": "waiting for you",
-  "你负责": "You own",
-  "步在子任务手上": "steps with subtasks",
-  "没人认领": "Unclaimed",
+  "你负责 {n} 步": "You own {n} steps",
+  "{n} 步在子任务手上": "{n} steps with subtasks",
+  "没人认领 {n} 步": "Unclaimed {n} steps",
   "服务重启前没有结束，打开后核对": "Didn't finish before the service restarted; check it when you open it",
   "本轮已结束": "This round has ended",
   "后台命令": "Background command",

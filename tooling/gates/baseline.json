@@ -46,7 +46,7 @@
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 313,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2157,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 956,
-    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1971,
+    "file apps/workbench/src/scripts/client/tab-workspace.ts": 1966,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 441,
     "function horizontal/agent-host/src/adapters/plugin-builder.ts#createPluginBuilderAgent": 204,
@@ -143,14 +143,14 @@
       "methods": 35
     },
     "function modules/shelf/src/store.ts#runJob": 197,
-    "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 754,
+    "function packages/design-system/src/plugin-component-client.ts#createPluginComponentClient": 753,
     "file packages/design-system/src/primitives/catalog.ts": 945,
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
-    "file packages/design-system/src/styles/craft-finish.ts": 2133,
+    "file packages/design-system/src/styles/craft-finish.ts": 2063,
     "file packages/design-system/src/styles/momentum.ts": 823,
     "file packages/design-system/src/styles/primitives.ts": 1266,
-    "file packages/im-ui/src/browser/controller.ts": 964,
-    "function packages/im-ui/src/browser/controller.ts#startIm": 955,
+    "file packages/im-ui/src/browser/controller.ts": 961,
+    "function packages/im-ui/src/browser/controller.ts#startIm": 952,
     "function packages/im-ui/src/views.ts#createViews": 162,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,
@@ -185,7 +185,7 @@
     },
     "function plugins/native/characters/src/plugin.ts#createCharactersPlugin": 158,
     "function plugins/native/characters/src/plugin.ts#start": 156,
-    "file plugins/native/coding/src/client.ts": 1592,
+    "file plugins/native/coding/src/client.ts": 1590,
     "file plugins/native/coding/src/styles.ts": 805,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
@@ -239,7 +239,7 @@
     "file plugins/official-integrations/gmail/src/provider.ts": 910,
     "function plugins/official-integrations/gmail/src/provider.ts#createGmailProvider": 177
   },
-  "testInternalImports": 456,
+  "testInternalImports": 455,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -289,7 +289,6 @@
     "tests/characters-native-execution.test.ts": 1,
     "tests/characters-publication-http.test.ts": 1,
     "tests/client-script-undeclared.test.ts": 4,
-    "tests/coding-background-tasks.test.ts": 1,
     "tests/coding-commit-draft.test.ts": 2,
     "tests/coding-delegation-waits.test.ts": 2,
     "tests/coding-plan-dependencies.test.ts": 1,
@@ -763,10 +762,10 @@
     "apps/local-host/src/project-host.ts#register-provider": 5,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 15,
+  "hybridPluginsTotal": 14,
   "hybridPlugins": {
     "characters#host-files": 4,
-    "coding#host-files": 2,
+    "coding#host-files": 1,
     "git#host-files": 5,
     "shelf#host-files": 3,
     "shelf#host-providers": 1

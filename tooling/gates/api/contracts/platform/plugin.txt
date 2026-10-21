@@ -1770,6 +1770,10 @@ export interface FragmentTarget {
     readonly truncated?: boolean;
 }
 
+export declare const HOME_BACKGROUND_TASKS_INPUT_TYPE = "molis.home-background-tasks.query.v1";
+
+export declare const HOME_BACKGROUND_TASKS_OUTPUT_TYPE = "molis.home-background-tasks.collection.v1";
+
 export declare const HOME_EVENTS_INPUT_TYPE = "molis.home-events.window.v1";
 
 export declare const HOME_EVENTS_OUTPUT_TYPE = "molis.home-events.collection.v1";
@@ -2129,6 +2133,34 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
         };
     })[];
 };
+
+export interface HomeBackgroundTask {
+    id: string;
+    title: string;
+    state: string;
+    updated_at: string;
+    waiting: boolean;
+    standing: HomeBackgroundTaskPhrase[];
+    commands: HomeBackgroundTaskCommand[];
+}
+
+export interface HomeBackgroundTaskCollection {
+    source: {
+        surface: string;
+    };
+    tasks: HomeBackgroundTask[];
+}
+
+export interface HomeBackgroundTaskCommand {
+    task_id: string;
+    summary: string;
+    stop_path: string;
+}
+
+export interface HomeBackgroundTaskPhrase {
+    text: string;
+    count?: number;
+}
 
 export interface HomeEvent {
     event_id: string;
@@ -4311,6 +4343,8 @@ export declare function defineFileEntriesAction(capabilityId: string, kinds: rea
 export declare function defineFragmentOffersAction(capabilityId: string, kinds: string[], title: string, permissions: string[], choices: readonly FragmentOfferChoice[], scope?: "project" | "home"): ActionDefinition<FragmentOffersInput, {
     offers: FragmentActionOffer[];
 }>;
+
+export declare function defineHomeBackgroundTasksAction(capabilityId: string, title: string, permissions: string[]): ActionDefinition<Record<string, never>, HomeBackgroundTaskCollection>;
 
 export declare function defineHomeEventsAction(capabilityId: string, kinds: string[], title: string, permissions: string[]): ActionDefinition<HomeEventWindow, HomeEventCollection>;
 

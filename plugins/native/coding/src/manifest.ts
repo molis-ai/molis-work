@@ -18,6 +18,7 @@ import { codingAgentManifest } from "./roles.js";
 import { CODING_SETTINGS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID } from "./ui.js";
 import { CODING_ACTIONS } from "./route-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
+import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
@@ -116,7 +117,7 @@ export const codingManifest: PluginManifest = {
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, codingArtifactPreview, codingResultDocument],
+  actions: [...CODING_ACTIONS, codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.evaluate-step", method: "POST", path: "/sessions/:sessionId/runs/:runId/steps/:stepId" },
     { route_id: "coding.writer-directories", method: "GET", path: "/workspaces/:workspaceId/writers" },

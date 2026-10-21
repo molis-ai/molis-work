@@ -258,10 +258,9 @@ const APPROVED_CEILINGS = {
   // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  // #861: one scroll owner for a growing conversation and the Assistant's 产出/变更/后台任务 groups folding to natural height
-  // (VUX-26, VUX-08). +408 B of workbench.js and +390 B to each stylesheet, after taking main's copy of the inherited VUX
-  // files; the side-group fold and the follow owner are the only additions left in this slice.
-  "/assets/molis-work-workbench.js": [1138155, 1138563],
+  // #864: Coding's conversation takes the one scroll owner; the shared follow helper and the page's own release/pin
+  // handling add 1,730 B to workbench.js. #861's base is 1,138,563 B after its own admission.
+  "/assets/molis-work-workbench.js": [1138563, 1140293],
   "/assets/molis-work-workbench.css": [1604761, 1605151],
   "/assets/molis-work-settings.css": [990556, 990946],
   "/assets/molis-work-arrival.css": [700146, 700536],

@@ -43,7 +43,7 @@ export {
 
 export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./overflow-sides.js";
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
-export { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT } from "./page-clients.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT } from "./page-clients.js";
 export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "./copy-decay.js";
 export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
 export { NUMBER_STYLES } from "./styles/numbers.js";

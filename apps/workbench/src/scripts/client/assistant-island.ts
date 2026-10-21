@@ -1436,7 +1436,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       thread.append(box);
     }
     paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
-    if (stick) scrollOwner() ? follow.pin() : thread.scrollTop = thread.scrollHeight; else if (thread.scrollHeight > before + 4) unseen = true;
+    if (stick) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
 

@@ -964,8 +964,8 @@ export const TODO_CLIENT_FACTORY_SCRIPT = `(host) => {
     saveTimer = setTimeout(() => { saveTimer = 0; void flush().catch(() => {}); }, ["title", "notes", "waiting"].includes(name) ? 600 : 50);
   };
   const closeDetail = async () => {
-    await flush();
     detailTicket++;
+    await flush();
     selected = null;
     workbench.setAttribute("data-expanded", "false");
     workspace.hidden = true;

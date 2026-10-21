@@ -1,8 +1,9 @@
-import { COPY_FEEDBACK_STYLES, FOLLOW_STYLES, FONT_STACK, SR_ONLY_STYLES, renderShellTokens } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_STYLES, FIELD_FIT_STYLES, FOLLOW_STYLES, FONT_STACK, SR_ONLY_STYLES, renderShellTokens } from "@molis-ai/molis-work-design-system";
 
 /** Conversation on the Soft Workbench tokens: neutral typography, compact topic tags, no dashboard chrome. */
 export const IM_STYLES = String.raw`
 ${FOLLOW_STYLES}
+${FIELD_FIT_STYLES}
 ${SR_ONLY_STYLES}
 :root{color-scheme:light;${renderShellTokens("light")}--im-bg:var(--paper);--im-panel:var(--surface-soft);--im-ink:var(--ink);--im-muted:var(--muted);--im-line:var(--line);--im-hover:var(--nav-hover);--im-wash:var(--rail);--im-accent:var(--action);--im-on-accent:var(--action-ink);--im-error:var(--red);--im-font:${FONT_STACK}}
 [data-resolved-theme=dark]{color-scheme:dark;${renderShellTokens("dark")}}

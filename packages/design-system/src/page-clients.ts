@@ -17,6 +17,10 @@ export const STREAM_TEXT_CLIENT_SCRIPT = readFileSync(new URL("../dist/stream-te
 export const FIELD_FIT_CLIENT_SCRIPT = readFileSync(new URL("../dist/field-fit-client.js", import.meta.url), "utf8").trim();
 /** `window.molisRovingFocus`, one roving tab stop for groups (`browser/roving-focus.ts`, VUX-28). */
 export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-focus-client.js", import.meta.url), "utf8").trim();
+/** `window.molisFloatingDetails`, close a floating details layer (`browser/floating-details.ts`, VUX-29). */
+export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
+/** `window.molisTip`, the one tooltip (`browser/tip.ts`, VUX-05). */
+export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
 /** The overflow fade's sensor (`browser/overflow-fade.ts`, VUX-27). */
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */

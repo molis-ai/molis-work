@@ -39,16 +39,20 @@ async function tracksFileMode(root: string): Promise<boolean> {
   try { return (await git(root, ["config", "--bool", "--get", "core.filemode"])).toString().trim() !== "false"; }
   catch (error) { if ((error as { code?: number }).code === 1) return true; throw error; }
 }
-async function statusBytes(root: string): Promise<Buffer> {
-  // Even `status` can invoke clean/process filters for dirty files. Disable
-  // every configured driver for this read; never execute repository helpers.
+/**
+ * `git status` that executes no repository helper. Even `status` can invoke clean/process filters for dirty files, so every
+ * configured driver is disabled for this read; a submodule's work tree is not opened either, because its own config can name
+ * filters this one cannot see. A submodule whose checked-out commit moved still shows.
+ */
+export async function statusWithoutHelpers(root: string, args: readonly string[]): Promise<Buffer> {
   let keys = "";
   try { keys = (await git(root, ["config", "--null", "--name-only", "--get-regexp", "^filter\\..*\\.(clean|process|required)$"])).toString(); }
   catch (error) { if ((error as { code?: number }).code !== 1) throw error; }
   const drivers = new Set(keys.split("\0").map(key => /^(filter\..+)\.(clean|process|required)$/i.exec(key)?.[1]).filter((item): item is string => Boolean(item)));
   const options = [...drivers].flatMap(driver => ["-c", driver + ".clean=", "-c", driver + ".process=", "-c", driver + ".required=false"]);
-  return git(root, [...options, "status", "--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
+  return git(root, [...options, "status", "--ignore-submodules=dirty", ...args]);
 }
+const statusBytes = (root: string) => statusWithoutHelpers(root, ["--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
 interface Entry { mode: string; oid: string }
 async function indexEntry(root: string, name: string): Promise<{ raw: Buffer; entry: Entry | null }> {
   const raw = await git(root, ["ls-files", "--stage", "-z", "--", name]);

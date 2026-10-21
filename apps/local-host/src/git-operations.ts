@@ -6,7 +6,7 @@ import path from "node:path";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { parseFilePath, type GitOperation, type WorkspaceGitSummary } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-git";
-import { runWorkspaceGit } from "./workspace-git.js";
+import { runWorkspaceGit, statusWithoutHelpers } from "./workspace-git.js";
 
 /**
  * Committing, branching, pushing and opening a pull request, each as one Host-reviewed operation.
@@ -14,7 +14,8 @@ import { runWorkspaceGit } from "./workspace-git.js";
  * The review shows exactly what will run and where; the operation is prepared against the repository's state (HEAD,
  * branch, upstream and staged content) and refuses to run once that state has moved. Commands run without a shell
  * and never prompt: remote credentials are whatever Git and the GitHub CLI already use on this machine, and nothing
- * here stores or reads a secret. Repository hooks run as they would for the person at a terminal.
+ * here stores or reads a secret. Repository hooks and filters run as they would for the person at a terminal, but only in
+ * the operation the person approved: reading the repository and preparing the review run none.
  */
 
 const exec = promisify(execFile);
@@ -55,7 +56,7 @@ async function repositoryRoot(workspace: ProjectWorkspaceRef): Promise<string> {
 /** Where committing, branching, pushing or opening a PR starts from, with the fingerprint an operation is held to. */
 export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<WorkspaceGitSummary> {
   const root = await repositoryRoot(workspace);
-  const porcelain = await gitText(root, ["status", "--porcelain=v1", "-z", "--branch", "--untracked-files=all"]);
+  const porcelain = (await statusWithoutHelpers(root, ["--porcelain=v1", "-z", "--branch", "--untracked-files=all"])).toString();
   const status = parsePorcelainStatus({ stdout: porcelain });
   const branch = status.head.kind === "detached" ? null : status.head.name;
   // The porcelain branch header names the branch but not its commit; HEAD is read on its own.
@@ -136,7 +137,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
   // Merging needs a clean start: Git refuses when local changes would be overwritten, and a half-merged state is harder to read.
   // Untracked files do not count: Git merges around them, and refuses by itself if one would be overwritten.
   const clean = async () => { if (summary.merging) throw new Error("上一次合并还没完成：先解决冲突并提交，或放弃合并");
-    if (summary.staged.length || (await gitText(root, ["status", "--porcelain", "--untracked-files=no"])).trim()) throw new Error("工作区有未提交的改动，先提交或处理后再合并"); };
+    if (summary.staged.length || (await statusWithoutHelpers(root, ["--porcelain", "--untracked-files=no"])).toString().trim()) throw new Error("工作区有未提交的改动，先提交或处理后再合并"); };
   switch (operation.action) {
     case "commit": {
       const message = operation.message.replace(/\r\n/g, "\n").trim();

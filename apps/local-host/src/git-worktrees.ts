@@ -32,7 +32,8 @@ export interface GitWorktreePort {
 async function git(cwd: string, args: readonly string[]): Promise<string> {
   try {
     // The shared runner clears inherited Git redirects and disables fsmonitor.
-    // Creating a working directory must not execute checkout hooks.
+    // Creating a working directory must not execute checkout hooks; status and diff
+    // do not open a submodule's work tree, whose own config can name filters.
     return (await runWorkspaceGit(cwd, ["-c", "core.hooksPath=/dev/null", ...args])).toString();
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
@@ -91,7 +92,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     if (!SAFE_NAME.test(slotId)) throw gitWorktreeErrors.failed(`写入者 id 不合法：${slotId}`);
     const ctx = await context();
     await noFilters(ctx.root);
-    if (await git(ctx.root, ["status", "--porcelain=v1", "-z", "--untracked-files=all"])) {
+    if (await git(ctx.root, ["status", "--ignore-submodules=dirty", "--porcelain=v1", "-z", "--untracked-files=all"])) {
       throw gitWorktreeErrors.worktree_dirty("主工作区有未提交内容，不能仅从 HEAD 分叉而遗漏当前工作；请先确定可用的提交起点");
     }
     return { worktree_id: slotId, branch: BRANCH_PREFIX + slotId, base_commit: ctx.head, directory: path.relative(ctx.root, path.join(ctx.directory, slotId)) };
@@ -172,7 +173,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     async changes(worktree) {
       const { directory } = await owned(worktree);
       await noFilters(directory);
-      const fields = (await git(directory, ["diff", "--name-status", "-z", "--no-renames", worktree.base_commit, "--"])).split("\0");
+      const fields = (await git(directory, ["diff", "--ignore-submodules=dirty", "--name-status", "-z", "--no-renames", worktree.base_commit, "--"])).split("\0");
       const changes = new Map<string, WriterFileTarget>();
       for (let i = 0; i + 1 < fields.length; i += 2) {
         const status = fields[i]!, file = fields[i + 1]!;
@@ -188,7 +189,7 @@ export function createGitWorktreePort(workspacePath: string): GitWorktreePort {
     async remove(worktree) {
       const { ctx, directory } = await owned(worktree);
       await noFilters(directory);
-      if (await git(directory, ["status", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])) {
+      if (await git(directory, ["status", "--ignore-submodules=dirty", "--porcelain=v1", "-z", "--untracked-files=all", "--ignored=matching"])) {
         throw gitWorktreeErrors.worktree_dirty("工作树仍有未提交或未跟踪内容，已保留目录；请先保存成果");
       }
       await git(ctx.root, ["worktree", "remove", "--", directory]);

@@ -727,6 +727,8 @@ for (const [asset, old] of [
   ["/assets/molis-work-workbench.js", 1163079], ["/assets/molis-work-plugins/shelf.js", 75771],
   // The attachment-chip allowances (#913, VUX-16, VUX-18) are spent.
   ["/assets/molis-work-workbench.js", 1163656], ["/assets/molis-work-workbench.css", 1608984], ["/assets/molis-work-settings.css", 992398], ["/assets/molis-work-arrival.css", 702433],
+  // The patch-copy allowance (#914, VUX-33) is spent.
+  ["/assets/molis-work-plugins/coding.js", 373159],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;

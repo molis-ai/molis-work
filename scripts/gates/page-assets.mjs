@@ -235,12 +235,16 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 31, patch copy (VUX-33).
-// +301 B of Coding's client: 复制补丁 copies the patch the Host writes beside the reader's rows, through the shared
-// molisCopy, and is off while there is none. Tried first: the patch is written on the Host (Diff's `unifiedPatch`), so the
-// page only hands a string to the copy it already has. Spent once from exactly #913's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 32, the @ list (VUX-17).
+// +738 B of the workbench script: the list says what it is looking for, dims and turns off the hits for older words while a
+// newer search is on its way, drops a late answer, and puts the caret after the chosen reference; +113 B of each
+// stylesheet for the dimmed hit. Tried first: the list moved out of the island (its old copy is gone), and the dimmed hit
+// is one rule on an existing line. Spent once from exactly #914's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [373159, 373460],
+  "/assets/molis-work-workbench.js": [1167224, 1167962],
+  "/assets/molis-work-workbench.css": [1609383, 1609496],
+  "/assets/molis-work-settings.css": [992797, 992910],
+  "/assets/molis-work-arrival.css": [702832, 702945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

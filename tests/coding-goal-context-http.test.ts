@@ -22,8 +22,14 @@ function codingHostFixture(root: string) {
   let heldProgress: { enter(): void; wait: Promise<void> } | undefined;
   const host = new MolisWorkLocalHost({ actionAvailability: (caller, action) => { if (caller.audience === "plugin" && action.capability_id === goalPluginActions.contract.capability_id) captured = caller.host_plugin; if (heldProgress && caller.audience === "plugin" && action.capability_id === goalPluginActions.progress.capability_id && caller.allowed_actions?.some(ref => ref.capability_id === action.capability_id && ref.provider_id)) {
       const held = heldProgress; heldProgress = undefined; held.enter(); return held.wait.then(() => ({ available: true as const }));
-    } return { available: true }; }, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
-  host.registerCapability(agent.availableRoles, () => [{ role_id: "reader", available: true }] as any);
+    } return { available: true }; }, homeDirectory: root, workspacesFor: () => [{ workspace_id: "work", canonical_path: root, display_name: "fixture", realpath_verified: true }] });
+  // A Host with a Home composes its own Agent service (and registers its agent.* capabilities); the Home is what gives Coding's
+  // `services.model` the provider catalog (PG-047). This test stands in the Agent capabilities, so it releases the real ones first.
+  // The Host's own close disposes that service again; it is released once, so that second call answers the first.
+  const composed = host.ensureAgentService(root, () => { throw new Error("a Host with a Home has composed its Agent service by now"); });
+  const released = composed.dispose();
+  composed.dispose = () => released;
+  host.registerCapability(agent.availableRoles,() => [{ role_id: "reader", available: true }] as any);
   // The runtime directory a new session is made from (PG-054): one Runtime that offers everything.
   const everything = Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(capability => [capability, "supported"])) as AgentRuntimeCapabilityMatrix;
   host.registerCapability(agent.listRuntimes, () => [{ runtime_id: "prologue", display_name: "Prologue", provider_version: "fixture", capabilities: everything }]);

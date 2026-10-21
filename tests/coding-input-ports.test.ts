@@ -24,7 +24,9 @@ import { fakeGoalDirectory } from "./fixtures/plugin-actions.js";
 // from `services.model` (PG-047, V-13), the Goal titles from Goals' public read action (PG-091), the Characters from Characters' two
 // public actions (PG-086), each declared in its Manifest and checked by the platform's grant. There is no `ready` port to wait for.
 
-type Reply = { status: number; body: any };
+/** What the page's own routes answer (`/state`, `/sessions/:id/characters`), as far as these tests read it. */
+type Reply = { status: number; body: { models: Array<{ provider_id: string; model_id: string; label: string }>; sessions: Array<{ session_id: string; goal_title: string | null }>;
+  characters: Array<{ reference: { artifact_id: string }; available: boolean; reason?: string }> } };
 const callOf = (call: (path: string) => Promise<unknown>) => async (path: string) => await call(path) as Reply;
 const pick = ({ provider_id, model_id, label }: { provider_id: string; model_id: string; label: string }) => ({ provider_id, model_id, label });
 const at = "2026-10-21T00:00:00Z";
@@ -101,12 +103,12 @@ test("W5-01-CODING-25 a session's Goal title is read through Goals' public list 
   // The page asks coding.state as it opens; that reads the title from Goals as the plugin audience, with Coding's own grants.
   const state = await callOf(s.call)("/state");
   assert.equal(state.status, 200, JSON.stringify(state.body));
-  assert.equal(state.body.sessions.find((session: { session_id: string }) => session.session_id === "with-goal").goal_title, "让首次使用不再卡住");
+  assert.equal(state.body.sessions.find(session => session.session_id === "with-goal")?.goal_title, "让首次使用不再卡住");
   assert.ok(seen.length >= 1 && seen.every(caller => caller.audience === "plugin" && caller.host_plugin?.plugin_id === CODING_PLUGIN_ID), "Goals answered Coding as a plugin");
   assert.match(directoryHtml(s.platform), /让首次使用不再卡住/);
   // Goals can no longer be read: the title stays what it was, in this process and, kept in Coding's private storage, after a restart.
   delete titles.g1;
-  assert.equal((await callOf(s.call)("/state")).body.sessions.find((session: { session_id: string }) => session.session_id === "with-goal").goal_title, "让首次使用不再卡住");
+  assert.equal((await callOf(s.call)("/state")).body.sessions.find(session => session.session_id === "with-goal")?.goal_title, "让首次使用不再卡住");
   await s.platform.supervisor.restart(CODING_PLUGIN_ID);
   assert.match(directoryHtml(s.platform), /让首次使用不再卡住/);
 });

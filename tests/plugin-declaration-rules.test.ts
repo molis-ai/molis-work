@@ -553,6 +553,8 @@ test("a v1 Manifest is refused for each v2 block, naming the first block it carr
 
 // ---- (e) the shape checks that run before any declaration is read ---------------------------------------------------------
 
+/** A background job the fixture Manifest may declare: it names no permission, since the fixture declares none. */
+const JOB = { job_id: "follow", reason: "Follow what was accepted", permissions: [] };
 type ManifestCode = "plugin.manifest_invalid" | "plugin.entrypoint_missing" | "plugin.permission_invalid" | "plugin.declaration_invalid";
 const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestCode; message: string }> = [
   { rule: "not an object", input: null, code: "plugin.manifest_invalid", message: "Manifest 必须为对象" },
@@ -590,6 +592,15 @@ const SHAPE_RULES: ReadonlyArray<{ rule: string; input: unknown; code: ManifestC
   { rule: "embedded plugins naming itself", input: declarationManifest({ ui: { contributions: [], embedded_plugins: [DECLARATION_PLUGIN_ID] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
   { rule: "embedded plugins listing one twice", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["io.molis.work.other", "io.molis.work.other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
   { rule: "embedded plugins naming something that is not a plugin id", input: declarationManifest({ ui: { contributions: [], embedded_plugins: ["other"] } }), code: "plugin.manifest_invalid", message: "ui.embedded_plugins 必须为不含自身、重复项或首尾空白的 Plugin ID" },
+  { rule: "background that is not an object", input: declarationManifest({ background: [] }), code: "plugin.declaration_invalid", message: "background 必须为对象" },
+  { rule: "background with a field it does not know", input: declarationManifest({ background: { jobs: [JOB], extra: 1 } }), code: "plugin.declaration_invalid", message: "background 不认这些字段：extra" },
+  { rule: "background without jobs", input: declarationManifest({ background: { jobs: [] } }), code: "plugin.declaration_invalid", message: "background.jobs 必须是至少有一项的数组" },
+  { rule: "a job_id that is not a lowercase name", input: declarationManifest({ background: { jobs: [{ ...JOB, job_id: "Follow" }] } }), code: "plugin.declaration_invalid", message: "后台作业的 job_id 必须是小写字母开头、只含小写字母、数字和连字符的名字" },
+  { rule: "a job declared twice", input: declarationManifest({ background: { jobs: [JOB, JOB] } }), code: "plugin.declaration_invalid", message: "后台作业重复：follow" },
+  { rule: "a job with a field it does not know", input: declarationManifest({ background: { jobs: [{ ...JOB, schedule: "hourly" }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 不认这些字段：schedule" },
+  { rule: "a job without a reason", input: declarationManifest({ background: { jobs: [{ ...JOB, reason: " " }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 要写明用途（reason）" },
+  { rule: "a job whose permissions are not strings", input: declarationManifest({ background: { jobs: [{ ...JOB, permissions: [1] }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 的 permissions 必须为字符串数组" },
+  { rule: "a job naming a permission the Manifest does not declare", input: declarationManifest({ background: { jobs: [{ ...JOB, permissions: ["storage:private"] }] } }), code: "plugin.declaration_invalid", message: "后台作业 follow 使用未声明权限 storage:private" },
   { rule: "a declaration problem is its own code", input: declarationManifest({ routes: [route({ method: "TRACE" })] }), code: "plugin.declaration_invalid", message: "路由 example.list 的方法不合法" },
 ];
 

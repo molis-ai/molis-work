@@ -13,6 +13,7 @@ import {
   createPluginInputsClient,
   createPluginOutputsClient,
   currentPluginInvocation,
+  markPluginActionChecked,
   pluginInvocationReadOnly,
   type PluginCapabilityPort,
 } from "@molis-ai/molis-work-plugin-runtime";
@@ -32,6 +33,8 @@ import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
   readonly context: PluginStartContext;
+  /** Runs the Plugin's `start()`: until it settles, the activation may keep its jobs outside every action (PG-038). */
+  starting<T>(run: () => T): T;
   revoke(): void;
   dispose(): void;
 }
@@ -74,7 +77,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       files = openPluginFiles(options.home.directory, fileDeclaration, permission => { assertActive(); context.requireGrant(permission); }, context.install_id);
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
-    background = pluginBackgroundFor(definition, context, assertActive);
+    background = pluginBackgroundFor(definition, context, assertActive, { actor_id: options.actor_id, project_id: options.project_id,
+      ...(options.record ? { record: () => options.record!(context.install_id) } : {}) });
     const directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
       ? directoryForHome(options.home.directory) : undefined;
     const directoryService: PluginDirectoryService | undefined = directory
@@ -82,7 +86,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directoryService });
-    return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
+    return { context: hosted, starting: run => background ? background.starting(run) : run(),
+      revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
     throw error;
@@ -223,7 +228,8 @@ function withPluginCaller(caller: HostPluginCaller, port: PluginCapabilityPort):
         caller.assertActive(); signal?.throwIfAborted(); await beforeEffect?.(); assertAuthorityCurrent();
       }, assert_authority_current: assertAuthorityCurrent };
       // The port knows no capability by name: a capability that depends on who is calling reads the trusted invocation itself.
-      return port.invoke(capability, input, bound);
+      // A command it accepted passed every check of the call it was made in: from then on that call may keep a job (PG-038).
+      return port.invoke(capability, input, bound).then(output => { if (capability.operation !== "query") markPluginActionChecked(outer); return output; });
     },
   };
 }

@@ -126,9 +126,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // plugin_id gets no more than an installation id.
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
+  // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
+  const records = pluginInstallRecords(options.db);
   // The same holds for a library in the Home: the Host's list declares it about a definition object, so another definition that
   // carries the same plugin_id is given none.
   const executor = new PluginHostExecutor({
+    record: installId => records.get(installId),
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options.db),
@@ -145,7 +148,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     restorePrivateData: options.restorePrivateData,
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
-  const runtime = new PluginRuntime(pluginInstallRecords(options.db), executor,
+  const runtime = new PluginRuntime(records, executor,
     { redemption: definition => ({ partial: identity.dualInstance(definition) }),
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {

@@ -2346,3 +2346,11 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
 - **② 和 ③ 的这一轮都断在代理错误上**（ERR_PROXY_TUNNEL，网络问题）。
   - ① 已让它们接着做：② 做 C6，③ 做 C1，C1 之后从 main 开 C2。
 - #891、#893 仍在等用户在 ⑤ 会话里批新门禁。⑤ 已在自己的会话里发问。
+- **10-21 #891 已合 main**（用户在 ⑤ 会话里批了新门禁 `dual-instance.mjs`）。#893 跟在它后面合。
+- **② 开了 C6 的平台一半，是 #926**（`feat/project-plugin-http`，PG-037）。
+  - 新增 `project-plugin-http.ts`，项目插件的 HTTP 入口不再挂在 Coding 名下。
+  - `coding-surface.ts` 删到 -97/+28。
+  - 改了 `project-plugins.ts`、`index.ts`、`web-goals-read.ts`、`web-project-platform-routes.ts`，以及约 20 个测试的装配写法。
+  - ② 正在合入 main 后第二次重跑（构建、门禁、39 个文件）。
+  - 和 ③ 的 C1、C2 有重叠：`project-plugins.ts`、`coding-surface.ts`、`project-plugin-startup.test.ts`。已提醒 ③ 在 C1 的 PR 正文里写明。
+- **③ 的 C2 叠在 C1 的分支上开**，只用 merge。两片都改 `CodingExecutionPorts`、`start-round.ts` 和 `project-plugins.ts`，① 同意。

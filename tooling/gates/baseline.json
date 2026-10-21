@@ -148,9 +148,9 @@
     "function packages/design-system/src/primitives/catalog.ts#renderPrimitiveCatalog": 648,
     "file packages/design-system/src/styles/craft-finish.ts": 2133,
     "file packages/design-system/src/styles/momentum.ts": 823,
-    "file packages/design-system/src/styles/primitives.ts": 1268,
-    "file packages/im-ui/src/browser/controller.ts": 966,
-    "function packages/im-ui/src/browser/controller.ts#startIm": 957,
+    "file packages/design-system/src/styles/primitives.ts": 1266,
+    "file packages/im-ui/src/browser/controller.ts": 964,
+    "function packages/im-ui/src/browser/controller.ts#startIm": 955,
     "function packages/im-ui/src/views.ts#createViews": 164,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,
@@ -219,7 +219,7 @@
       "methods": 40
     },
     "file plugins/native/ppt/src/client.ts": 806,
-    "file plugins/native/shelf/src/client.ts": 1672,
+    "file plugins/native/shelf/src/client.ts": 1670,
     "file plugins/native/todo/src/client.ts": 1240,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
@@ -227,7 +227,7 @@
     },
     "function plugins/native/work/src/actions.ts#createWorkActionHandlers": 169,
     "function plugins/native/work/src/http/panels.ts#handleWorkPanelHttp": 163,
-    "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 434,
+    "function plugins/native/work/src/terminal/client.ts#startWorkTerminalClient": 431,
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
@@ -487,7 +487,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 130,
+  "emptyCatchesInScriptsTotal": 129,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -534,7 +534,7 @@
     "plugins/native/images/src/client.ts": 2,
     "plugins/native/jelly/src/client-content.ts": 2,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
-    "plugins/native/shelf/src/client.ts": 8,
+    "plugins/native/shelf/src/client.ts": 7,
     "plugins/native/shelf/src/reading-client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 8,
     "plugins/native/todo/src/client.ts": 1,

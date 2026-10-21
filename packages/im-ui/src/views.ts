@@ -53,8 +53,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
     return { id: message?.dataset.message, offset: message ? message.getBoundingClientRect().top - top : 0, bottom: node.scrollHeight - node.scrollTop - node.clientHeight < 70 };
   };
   const restoreScroll = (kind: StreamKind, anchor: ScrollAnchor | null) => {
-    if (!anchor)
-      return;
+    if (!anchor) return;
     const node = scroller(kind);
     if (anchor.bottom) {
       node.scrollTop = node.scrollHeight;
@@ -67,7 +66,7 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
   const stream = (kind: StreamKind, messages: ImMessage[], page: ImMessagePage | null, threads: ImThread[], selectedThread: string, mode: 'preserve' | 'latest' | 'older' = 'preserve', draftSource = '', memberId = '') => {
     const node = q('[data-stream="' + kind + '"]');
     const scroll = scroller(kind), anchor = captureScroll(kind), oldHeight = scroll.scrollHeight, oldTop = scroll.scrollTop;
-    const atBottom = oldHeight - oldTop - scroll.clientHeight < 70;
+    const follow = window.molisFollow?.(scroll), atBottom = follow ? follow.state === 'following' : oldHeight - oldTop - scroll.clientHeight < 70;
     const oldLast = node.querySelector<HTMLElement>('.im-message:last-child')?.dataset.message;
     const existing = new Map(([...node.children] as HTMLElement[]).map(item => [item.dataset.message || item.dataset.row, item]));
     let lastDay = '';
@@ -133,7 +132,8 @@ export function createViews(root: HTMLElement, createFormat: typeof createMessag
       if (!keep.has(child))
         child.remove();
     if (mode === 'latest' || (mode !== 'older' && atBottom)) {
-      scroll.scrollTop = scroll.scrollHeight;
+      if (mode === 'latest') follow?.resume();
+      follow ? follow.pin() : scroll.scrollTop = scroll.scrollHeight;
       q('[data-action="latest-' + kind + '"]').hidden = true;
     }
     else if (mode === 'older') {

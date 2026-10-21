@@ -850,10 +850,11 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     syncShelfStage();
   };
 
+  const say = (text, ms) => { stickyHint = text; renderBar(lastBarKind); if (ms) lifetime.timeout(() => { if (stickyHint === text) { stickyHint = ""; renderBar(lastBarKind); } }, ms); };
+  const copyClip = async (text) => { const ok = await navigator.clipboard.writeText(text).then(() => true, () => false); say(L(ok ? "已复制" : "复制失败"), ok ? 2500 : 4000); return ok; };
   const makeClipCurrent = async (clipId) => {
     const clip = (snapshot.clipboard || []).find((item) => item.clip_id === clipId);
-    if (!clip) return;
-    await navigator.clipboard.writeText(clip.body);
+    if (!clip || !await copyClip(clip.body)) return;
     const payload = await post("/api/shelf/clipboard", { text: clip.body });
     selected = null;
     selClip = payload.clip || (payload.snapshot.clipboard || []).find((item) => item.clip_id === clipId) || clip;
@@ -866,15 +867,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const native = invokeNative("shelf_copy_files", { paths: picked.filter(hasFile).map(filePathOf) });
     if (native) {
       await native;
-      stickyHint = L("已复制");
-      renderBar(lastBarKind);
-      lifetime.timeout(() => { if (stickyHint === L("已复制")) { stickyHint = ""; renderBar(lastBarKind); } }, 1200);
+      say(L("已复制"), 2500);
       return;
     }
     // A browser cannot place file URLs on the macOS pasteboard.
     for (const item of picked.filter(hasFile)) download(item);
-    stickyHint = L("浏览器已下载副本；桌面版可直接复制文件。");
-    renderBar(lastBarKind);
+    say(L("浏览器已下载副本；桌面版可直接复制文件。"));
   };
   const copyShelfItem = async (id) => {
     const item = itemById(id);
@@ -1531,7 +1529,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
 
   const copySelection = async () => {
     if (selClip) {
-      try { await navigator.clipboard.writeText(selClip.body); } catch {}
+      await copyClip(selClip.body);
       return;
     }
     const picked = batch().filter(hasFile);

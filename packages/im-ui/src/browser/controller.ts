@@ -367,6 +367,7 @@ export function startIm(factories: {
       }
       if (!message)
         return;
+      window.molisFollow?.(v.scroller('group')).release();
       message.scrollIntoView({ block: 'center', behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' });
       message.focus({ preventScroll: true });
       message.classList.remove('im-source-flash');
@@ -697,6 +698,7 @@ export function startIm(factories: {
       node = q('[data-stream="thread"] [data-message="' + CSS.escape(id) + '"]');
     }
     if (node) {
+      window.molisFollow?.(v.scroller('thread')).release();
       node.scrollIntoView({ block: 'center', behavior: 'instant' });
       node.focus({ preventScroll: true });
       node.classList.add('im-source-flash');
@@ -818,10 +820,9 @@ export function startIm(factories: {
         void send(kind);
       }
     });
-    v.scroller(kind).addEventListener('scroll', () => {
-      const n = v.scroller(kind); if (n.scrollHeight - n.scrollTop - n.clientHeight < 70)
-        q('[data-action="latest-' + kind + '"]').hidden = true; scheduleRead();
-    }, { passive: true });
+    // One owner for the stream's scroll (VUX-26): back at the end, the reader follows again and 回到最新消息 goes.
+    window.molisFollow?.(v.scroller(kind), { onChange: state => { if (state === 'following') q('[data-action="latest-' + kind + '"]').hidden = true; } });
+    v.scroller(kind).addEventListener('scroll', scheduleRead, { passive: true });
   }
   document.addEventListener('click', async (event) => {
     const button = event.target instanceof Element ? event.target.closest<HTMLButtonElement>('[data-action]') : null;
@@ -893,17 +894,14 @@ export function startIm(factories: {
           await startup();
       }
       else if (action === 'latest-group' || action === 'latest-thread') {
-        const kind = action.slice(7) as StreamKind, n = v.scroller(kind);
-        n.scrollTop = n.scrollHeight;
+        const kind = action.slice(7) as StreamKind, n = v.scroller(kind), follow = window.molisFollow?.(n);
+        follow ? follow.toLatest() : n.scrollTop = n.scrollHeight;
         button.hidden = true;
       }
       else if (action === 'copy-invite') {
         const input = dialogBody.querySelector<HTMLInputElement>('[data-invite-value]')!;
-        try {
-          await navigator.clipboard.writeText(input.value);
-          button.textContent = '已复制';
-        }
-        catch {
+        // The button answers through the shared copy feedback (VUX-19); a refusal selects the link to copy by hand.
+        if (!await window.molisCopy?.(button, input.value, { done: '已复制', failed: '复制失败' })) {
           input.focus();
           input.select();
           toast('链接已选中，请复制。');

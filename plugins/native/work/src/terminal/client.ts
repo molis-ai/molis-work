@@ -331,12 +331,9 @@ export function startWorkTerminalClient() {
 
     const copyAdvancePrompt = async () => {
       const text = await loadAdvancePrompt();
-      try {
-        await navigator.clipboard.writeText(text);
-        showPageToast(L("命令已复制到剪贴板"));
-      } catch {
-        showPageToast(L("无法访问剪贴板，请手动复制"), true);
-      }
+      const copied = copyBtn && window.molisCopy ? await window.molisCopy(copyBtn, text, { done: L("已复制"), failed: L("复制失败") })
+        : await navigator.clipboard.writeText(text).then(() => true, () => false);
+      if (!copied) showPageToast(L("无法访问剪贴板，请手动复制"), true);
     };
 
     emptyAddBtn?.addEventListener("click", () => {

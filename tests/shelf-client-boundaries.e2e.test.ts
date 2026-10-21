@@ -267,3 +267,27 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   for (let n = 0; n < 100 && reads() === mountedReads; n++) await pause(20);
   await pause(100); assert.equal(reads(), mountedReads + 1, "one current handler serves one refresh after remount");
 });
+
+// specs/visual-ui-experience VUX-19: copying a clip says how it went. Copied only once the clipboard took it; a refusal is said
+// on the bar instead of swallowed, and the clip is not made current on the Shelf while the clipboard does not hold it.
+test("VUX-19: a clip's copy is said on the bar, a refused clipboard included, and a refusal makes nothing current", { timeout: 35_000 }, async t => {
+  const browser = await openShelfBrowser(t); if (!browser) return;
+  const { shelf, requests, evaluate, waitFor, command, sessionId } = browser;
+  const clip = shelf.addClipboard("复制到剪贴板的一段话 4471"); assert.ok(clip);
+  await command("Page.reload", {}, sessionId);
+  const row = `document.querySelector('[data-shelf-clip=${JSON.stringify(clip.clip_id)}]')`;
+  await waitFor(`${row} && document.querySelector('[data-shelf-bar]')?.textContent.length > 0`);
+  await evaluate(`(() => { window.allowCopy = false; window.copied = []; Object.defineProperty(navigator, 'clipboard', { configurable: true, value: {
+    writeText: (text) => window.allowCopy ? (window.copied.push(text), Promise.resolve()) : Promise.reject(new Error('denied')) } }); })()`);
+  const promoted = () => requests.filter(line => line === "POST /api/shelf/clipboard").length;
+  const before = promoted();
+  await evaluate(`${row}.querySelector('[data-shelf-row-action=copy]').click()`);
+  await waitFor(`document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('复制失败')`);
+  assert.equal(promoted(), before, "a refused copy does not make the clip current");
+  await evaluate("window.allowCopy = true");
+  await evaluate(`document.querySelector('[data-shelf-clip=${JSON.stringify(clip.clip_id)}] [data-shelf-row-action=copy]').click()`);
+  await waitFor(`document.querySelector('[data-shelf-bar-hint]')?.textContent.includes('已复制')`);
+  assert.deepEqual(await evaluate("window.copied"), ["复制到剪贴板的一段话 4471"]);
+  for (let n = 0; n < 50 && promoted() === before; n++) await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(promoted(), before + 1, "a copy the clipboard took makes the clip current once");
+});

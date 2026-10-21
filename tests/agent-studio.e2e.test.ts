@@ -140,6 +140,8 @@ test('studio: a request becomes a working, published plugin that the person can 
     // Publish once; an unchanged build cannot be published again.
     await page.click('[data-as-action="publish"]');
     await page.wait(`document.querySelector('[data-as-feed]').innerText.includes('v1 已是当前版本')`);
+    // VUX-26: the feed has the conversation's one scroll owner; nobody scrolled it, so it follows its end.
+    await page.wait(`(() => { const feed = document.querySelector('[data-as-feed]'); return feed.dataset.follow === 'following' && feed.scrollHeight - feed.scrollTop - feed.clientHeight <= 1; })()`);
 
     // Install into the project after an explicit consent; the installed plugin keeps its own data, apart from the preview.
     await page.click('[data-as-install]');

@@ -57,5 +57,6 @@ node scripts/run-tests.mjs tests/im-browser-state.test.ts tests/im-domain.test.t
   - 具名成员不按名字匹配、不替换另一名成员，不开放远端自动授权。
   - 正式话题与首条消息由服务端一次事务创建；未发送的表单只是本地草稿，成功回执只清除同一 `client_id` 的版本。
   - 只有对话可见、宿主展开、文档在前台且消息进入视口时才推进读游标。
-- 改动后必跑：`node scripts/run-tests.mjs tests/im-browser-state.test.ts tests/im-local-project.test.ts tests/im-domain.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/im-browser-state.test.ts tests/im-local-project.test.ts tests/im-domain.test.ts`；改了消息流的滚动、复制或页面脚本的拼装加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/im-follow-copy.e2e.test.ts`
+- 消息流的滚动只有一个主人（设计系统的 `window.molisFollow`，VUX-26），复制走同一个 `window.molisCopy`（VUX-19）：两段页面脚本和它们的样式随 `IM_CLIENT_SCRIPT`、`IM_STYLES` 一起发，自己不再判断离底多少像素。
 - 相关手册：[docs/platform/UI-PLATFORM.md](../../docs/platform/UI-PLATFORM.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

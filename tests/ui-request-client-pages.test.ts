@@ -4,6 +4,8 @@ import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop"
 import { BUILTIN_PLUGIN_CATALOG, createWorkbenchLocale, renderHomePluginPage, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { FIELD_FIT_CLIENT_SCRIPT, FIELD_FIT_STYLES, FLOATING_DETAILS_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { IM_CLIENT_SCRIPT, IM_STYLES } from "@molis-ai/molis-work-im-ui";
 
 // W3-10: the pages that are written inline (their programs are not part of /assets/, so the helper costs the page-asset
 // budget nothing) carry the one request helper instead of their own copy of the headers function. Each page is rendered
@@ -74,6 +76,24 @@ test("a plugin's side panel document carries the request helper", () => {
   const html = renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "p1", routePrefix: "/projects/p1", enabled: ["lingguang"], controlToken: TOKEN });
   assert.ok(html, "the side view is served");
   assertCarriesHelper("side view", html!);
+});
+
+test("Home and side plugin documents carry the shared field, roving, floating and tip programs", () => {
+  const programs = [FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT];
+  const entry = BUILTIN_PLUGIN_CATALOG.find(candidate => candidate.project_plugin_id === "todo");
+  assert.ok(entry, "the Todo plugin is a Home plugin with a page of its own");
+  const home = renderHomePluginPage(entry, "<section data-work-surface></section>", null, TOKEN, createWorkbenchLocale(() => "zh"));
+  const side = renderer.renderSideViewDocument({ projectPluginId: "lingguang", viewId: "side", projectId: "p1", routePrefix: "/projects/p1", enabled: ["lingguang"], controlToken: TOKEN });
+  assert.ok(side, "the side view is served");
+  for (const program of programs) {
+    assert.ok(home.includes(program), "the Home plugin page carries every shared program");
+    assert.ok(side!.includes(program), "the side view carries every shared program");
+  }
+});
+
+test("the IM page carries the shared intrinsic field sizing in its script and styles", () => {
+  assert.ok(IM_CLIENT_SCRIPT.includes(FIELD_FIT_CLIENT_SCRIPT), "the IM script has the field-fit program");
+  assert.ok(IM_STYLES.includes(FIELD_FIT_STYLES), "the IM stylesheet has data-fit's styles");
 });
 
 test("a Home plugin page carries the request helper before the plugin's client runs", () => {

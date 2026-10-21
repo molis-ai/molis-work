@@ -238,9 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-33 (slice 53): Coding's change reader colours its rows a slice a frame and no longer leaves a
-  // file plain for one line past 40,000 characters (the row painter and its rules).
-  "/assets/molis-work-plugins/coding.js": [376883, 377809],
+  // specs/visual-ui-experience VUX-36 (slice 54): the Guidance editor marks its document open and closed (data-editing), so the
+  // Settings rule that hid the rest no longer follows a :has() with a broad selector (that made every node put in a long
+  // Assistant reply restyle the bar). The stylesheets it changed are smaller by 297 bytes.
+  "/assets/molis-work-workbench.js": [1172325, 1172465],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

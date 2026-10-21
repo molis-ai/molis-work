@@ -232,8 +232,10 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) .guidance-editor-actions { flex: none; padding: 12px 0; border-top: 1px solid var(--line); background: var(--paper); }
   :is(.project-preferences-page, .settings-stage) .guidance-editor footer { display: flex; flex-direction: row; justify-content: flex-end; gap: 8px; margin: 0; padding: 0; }
   :is(.project-preferences-page, .settings-stage) .guidance-editor-actions > [role=alert]:not([hidden]) { margin: 0 0 12px; max-height: 64px; overflow: auto; }
-  :is(.project-preferences-page, .settings-stage) .guidance-document:has(.guidance-editor:not([hidden])) > .guidance-page-header,
-  :is(.project-preferences-page, .settings-stage) .guidance-document:has(.guidance-editor:not([hidden])) > .settings-body > :not(.guidance-editor) { display: none; }
+  /* The open editor marks its document (data-editing): a :has() followed by a broad selector here made the browser
+     restyle the whole subtree of every :has() on the page with each node put in it (a long Assistant reply, a coloured change). */
+  :is(.project-preferences-page, .settings-stage) .guidance-document[data-editing]:not([hidden]) > .guidance-page-header,
+  :is(.project-preferences-page, .settings-stage) .guidance-document[data-editing]:not([hidden]) > .settings-body > :not(.guidance-editor) { display: none; }
   :is(.project-preferences-page, .settings-stage) .guidance-editor:not([hidden]) { display: flex; flex: 1; flex-direction: column; min-height: 0; margin: 0; padding: 0; border: 0; border-radius: 0; background: var(--paper); overflow: hidden; }
   :is(.project-preferences-page, .settings-stage) .guidance-editor > header { flex: none; padding: 0 4px 16px; }
   :is(.project-preferences-page, .settings-stage) .guidance-editor h2 { font-size: 20px; }

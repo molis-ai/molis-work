@@ -6,6 +6,7 @@ import { compareRunChangeSet, renderDiff, unifiedPatch } from "@molis-ai/molis-w
 import { coding, openCoding } from "./fixtures/coding-browser.js";
 import { pageText } from "./fixtures/page-text.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { expensiveHasSelectors } from "./fixtures/style-invalidation.js";
 
 // specs/visual-ui-experience VUX-33 (§code-diff, large changes): Coding's change reader colours a large change a slice a frame,
 // to exactly what colouring the file whole gives, and a line past 40,000 characters (a minified one) no longer leaves the whole
@@ -80,6 +81,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const start = performance.now(), span = document.createElement('span'); span.className = 'tok-keyword'; span.textContent = 'x'; pre.append(span); getComputedStyle(span).color;
     const ms = performance.now() - start; pre.remove(); return ms; })()`);
   assert.ok(turn < 50, `one node put in a long turn: ${turn.toFixed(1)} ms`);
+  assert.deepEqual(await expensiveHasSelectors(evaluate), [], "no :has() rule on the Coding page ends in a bare tag or a broad part (VUX-36)");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_insert: Math.round(turn * 10) / 10 }, null, 2));
 });

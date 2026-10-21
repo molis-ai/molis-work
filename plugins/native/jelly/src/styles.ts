@@ -11,7 +11,7 @@ export const JELLY_STYLES = `
   body.immersive-workbench [data-jelly="workbench"] > .jelly-main.plugin-stage-list { position:relative; inset:auto; width:100%; max-width:none; min-width:0; margin:0; justify-self:stretch; box-sizing:border-box; padding:16px 24px 24px; overflow:auto; grid-column:1; grid-row:2; }
   .jelly-toolbar { justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; }
   .jelly-toolbar h1 { font-size:20px; font-weight: var(--weight-title, 600); margin:0 8px 0 0; letter-spacing:-.02em; white-space:nowrap; }
-  .jelly-period .mw-btn:has(svg) span { display:none; }
+  .jelly-period .mw-btn > svg + span { display:none; }
   .jelly-toolbar-end { flex-wrap:wrap; }
   .jelly-calendar-modes { display:flex; padding:4px; border:1px solid var(--hairline); border-radius:9px; background:var(--control-fill); }
   .jelly-calendar-modes .mw-btn { min-width:36px; }

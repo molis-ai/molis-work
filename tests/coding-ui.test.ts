@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { pageText } from "./fixtures/page-text.js";
 
 import {
   renderCodingDirectory,
@@ -15,7 +16,7 @@ const primitives: CodingUiPrimitives = {
   escape: (value) => String(value)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"),
   icon: (name) => `<i data-icon="${name}"></i>`,
-  text: (value) => value,
+  text: pageText("zh"),
   formatDate: (value) => value.slice(0, 10),
 };
 

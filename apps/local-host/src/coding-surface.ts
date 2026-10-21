@@ -75,7 +75,6 @@ import { renderFeedRichText } from "@molis-ai/molis-work-plugin-feed";
 
 export interface CodingSurfacePorts extends ProjectPluginHttpPorts {
   escapeHtml(value: unknown): string;
-  translate(value: string): string;
 }
 
 export async function codingDirectoryPanel(
@@ -120,7 +119,7 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
-        text: ports.translate,
+        text: L,
         formatDate: (value) => value.slice(0, 10),
       },
     };
@@ -266,7 +265,7 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     const report = reportBody.report;
     Object.assign(reportBody, { html: renderCodingReport({ title: report.title, run_id: report.run_id,
       body_html: renderFeedRichText(report.body_markdown), primitives: { escape: value => escapeHtml(String(value)),
-        icon: name => icon(name as Parameters<typeof icon>[0]), text: value => value, formatDate: value => value },
+        icon: name => icon(name as Parameters<typeof icon>[0]), text: L, formatDate: value => value },
     }) });
   }
 }

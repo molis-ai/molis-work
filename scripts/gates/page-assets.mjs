@@ -235,20 +235,15 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 35, no Chinese left in English
-// pages (VUX-40). +88 B of the Jelly script: its fixed "uncategorized" category is named in the page's language by id, in
-// the five places categories are listed (one helper; each place got shorter by a byte). +24 B of the Coding script: the
-// Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
-// once from exactly #918's budgets.
+// specs/visual-ui-experience slice 37 (VUX-40): the Coding settings script knows its method library has loaded by a mark the
+// Host puts on the loading line, not by the line being Chinese (+46 B in workbench.js, under the user's #17 rule that small,
+// necessary growth passes once). Delete it in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // #966: round steps name what they acted on and keep the person's open/closed state.
-  "/assets/molis-work-arrival.css": [703308, 704315],
-  "/assets/molis-work-settings.css": [993269, 994276],
-  "/assets/molis-work-workbench.css": [1609835, 1610842],
-  "/assets/molis-work-workbench.js": [1173823, 1176136],
-  // #965: a failed save rolls back and stays visible.
-  // #961: a quick load keeps the label until 250 ms, so the three stylesheets gain the same rule once.
-  // #920: the English surfaces add one translation branch to Cognia.
+  // #922: Coding's server-drawn page and settings speak through stable keys.
+  "/assets/molis-work-arrival.css": [702900, 704315],
+  "/assets/molis-work-settings.css": [992861, 994276],
+  "/assets/molis-work-workbench.css": [1609427, 1610842],
+  "/assets/molis-work-workbench.js": [1176136, 1176182],
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

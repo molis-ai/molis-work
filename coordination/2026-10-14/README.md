@@ -2397,3 +2397,13 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 在防腐 spec §1 和 `privileges.md` 里，把这两个插件标成「不迁；防腐收尾后删除，再重做（用户 10-21）」；
     - BACKLOG 用 BL-376（Alchemist）、BL-377（插件创作台）。BL-400、BL-401 已被占用，上一条里的这两个号作废。
   - 真删时，删回放 CI 任务算改 CI，⑤ 合并前要在自己的会话里问用户。
+- **10-21 Characters：按已有决定收口，不当插件迁。**
+  - 依据：spec §1 的 2026-10-08 #26（用户选了「并进宿主，变成设置的一节」），以及 2026-10-18「落点 `modules/characters`」。GLOSSARY 也写明 Characters 不是插件。
+  - 现在只差代码：N-05 还标着「部分」，`RUNTIME_ASSEMBLED` 里还有 characters。
+  - 安排：
+    - ③ 写 `characters-into-module-plan.md`，交 ① 批；
+    - 界面落点（spec 第 13 项）由 ② 答；
+    - 代码等 #938（C2）合入后再动，因为 C2 改了 Characters 的动作和合同。用 Coding 的空档做，Coding 的顺序不变。
+  - 动作 id 不变，只是提供方换了。Coding 对 `characters.list`、`characters.runnable` 的消费要有测试证明照样能用。
+  - 已有 Home 里的安装记录：如果要新加兼容或迁移逻辑，先问用户。
+  - 内置插件从 26 个变成 25 个。

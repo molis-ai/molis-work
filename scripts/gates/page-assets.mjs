@@ -241,9 +241,9 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [702945, 704315],
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
+  "/assets/molis-work-arrival.css": [702945, 704315],
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   // #923: Coding's main browser script speaks English.
-  "/assets/molis-work-settings.css": [992910, 994276],
-  "/assets/molis-work-workbench.css": [1609496, 1610842],
   "/assets/molis-work-workbench.js": [1168048, 1176182],
   // #922: Coding's server-drawn page and settings speak through stable keys.
   "/assets/molis-work-arrival.css": [702900, 704315],

@@ -99,6 +99,8 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts
 
 **运行时登记**：在插件公开入口导出 `X_MESSAGES`，并在包 `src/registration.ts` 的 `registration` 写 `messages: X_MESSAGES`，不往 `i18n/en.ts` 加稳定词典的 import。服务端 `L()` 按当前请求语言查表；`clientI18nScript()` 将当前语言的词条放进 `MOLIS_WORK_MESSAGES`，浏览器的 `L()` 使用这张表。未定义的文本保持原样；缺词由现有静态检查拦截。同一门禁要求稳定词典实际用在某个 `registration`（或生成目录里的条目）的 `messages` 字段；只 import、只放进无关对象、使用别的字段都会失败，更新基线也不能放行。词典须为具名扁平对象，字段直接引用 import 的名字（支持别名）；和现有英文词典检查一样按导出名字识别，不解析模块路径。
 
+**动作输出里的句子**：视图或拒绝理由里的句子（如 Diff 的 `view.message`、Files 动作的拒绝理由）同时是 Agent 读到的动作输出，不改成键；页面画它们时经翻译（`p.text(view.message)`、浏览器 `L(error.message)`），句子本身就是主人稳定词典（`src/messages.ts`）里的键，带 `zh`、`en`，随目录条目的 `messages` 发到页面，不另并进 `i18n/en.ts`；没有的照原样显示。Host 画插件页面时把当前请求语言的 `L` 作为 `text` 交给渲染函数，浏览器脚本从 `host.translate` 拿同一张表（visual-ui-experience 第三十五片）。
+
 ### 第一个样板：Images（`plugins/native/images`）
 
 Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处浏览器调用，共 85 个稳定键，词典在 `plugins/native/images/src/messages.ts`。中文沿用原文；英文沿用迁移前实际 `EN` 结果，例如 `生成结果` 实际显示 `Results`。仍由其他主人或目录元数据使用的 16 个中文词条留在 Images 的 `en.ts`，其余旧条目已删除；这份小词典仍并入 `EN`，直到剩余消费者也迁移。

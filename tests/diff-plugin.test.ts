@@ -22,6 +22,7 @@ import {
   splitLines,
   textDiffRow,
 } from "@molis-ai/molis-work-plugin-sdk";
+import { pageText } from "./fixtures/page-text.js";
 
 const WS = { workspace_id: "ws-1", name: "项目" };
 
@@ -245,7 +246,7 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: lines.join("\n") + "\n", after_text: after.join("\n") + "\n", decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
-  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const html = renderDiff({ view, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false });
   assert.doesNotMatch(html, /diff-sides/, "宿主已写明文件时不重复对比两侧");
   assert.match(html, /data-diff-unfold="0"[^>]*>.*展开 6 行未改变/, "改动上方离得远的 6 行收起");
@@ -263,7 +264,7 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
 });
 
 test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并排是真的两栏，折叠、正负号与行号评论与统一视图一致", () => {
-  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;"), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const compare = (before: string, after: string) => compareRunChangeSet({ content: { scope: "run-frozen", run_id: "r", applied: true, files: [{ path: "a.ts", kind: "modified", added_lines: 1, removed_lines: 1, diff: "",
     review: { review_id: "v", before_text: before, after_text: after, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
@@ -295,7 +296,7 @@ test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并�
 });
 
 test("没有可比的内容时是共用的空态块：标记、说了什么、下一步，而不是一行小字", () => {
-  const primitives = { escape: (value: unknown) => String(value), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
+  const primitives = { escape: (value: unknown) => String(value), text: pageText("zh"), icon: (name: string) => `<svg data-icon="${name}"></svg>` };
   const waiting = renderDiff({ view: emptyDiff("snapshots"), route_prefix: "", primitives });
   assert.match(waiting, /^<div class="mw-empty" data-phase="waiting" data-group="snapshots"><span class="mw-empty__mark"><svg data-icon="git-compare"><\/svg><\/span><strong>先在文件阅读区固定“对比前”和“对比后”，这里会显示两份快照的差异<\/strong><\/div>/);
   const gone = renderDiff({ view: emptyDiff("snapshots", "读不了这两份快照", "unavailable", recoveryMessage("snapshots")), route_prefix: "", primitives });

@@ -235,45 +235,14 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
-// admission from the exact #805 + #848 + #853 predecessor (#851 carries #854, #856 and #860; reviewed 2026-10-20):
-// - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
-//   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
-// - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
-//   assistant strip's own: +879 B of workbench.js, +460–488 B of each stylesheet; tried first: one gradient for both sides
-//   and directions, short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet);
-// - the shared copy feedback (VUX-19), the natural-height disclosure and the measured thumb's triggers (VUX-22), reserved-width
-//   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
-//   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
-//   face; Coding's own copy code went (−185 B).
-// - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
-//   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
-//   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
-// - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
-//   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
-// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,264 B, and the three
-// stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
-// The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 35, no Chinese left in English
+// pages (VUX-40). +88 B of the Jelly script: its fixed "uncategorized" category is named in the page's language by id, in
+// the five places categories are listed (one helper; each place got shorter by a byte). +24 B of the Coding script: the
+// Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
+// once from exactly #918's budgets.
 const APPROVED_CEILINGS = {
-  // #908: resize a column, table column or image from the keyboard; the Pages editor grows once.
-  "/assets/molis-work-pages-editor.js": [708886, 709541],
-  "/assets/molis-work-workbench.js": [1168873, 1168898],
-  // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
-  // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
-  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
-  // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
-  // #885: the split divider with a dead zone, pixel minimums, snap hysteresis and full cancel.
-  "/assets/molis-work-plugins/lingguang.js": [25301, 25359],
-  "/assets/molis-work-plugins/plugin-builder.js": [115396, 115438],
-  "/assets/molis-work-plugins/ppt.js": [30958, 31025],
-  "/assets/molis-work-plugins/workflows.js": [82546, 82555],
-  "/assets/molis-work-workbench.css": [1609314, 1609427],
-  "/assets/molis-work-settings.css": [992748, 992861],
-  "/assets/molis-work-arrival.css": [702787, 702900],
-  "/assets/molis-work-workbench.js": [1173818, 1173858],
-  "/assets/molis-work-plugins/coding.js": [371545, 371846],
-  "/assets/molis-work-plugins/shelf.js": [75771, 75782],
+  "/assets/molis-work-plugins/jelly.js": [91179, 91267],
+  "/assets/molis-work-plugins/coding.js": [373460, 373484],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -758,15 +758,15 @@
     "apps/local-host/src/project-host.ts#register-provider": 5,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
-  "hybridPluginsTotal": 14,
+  "hybridPluginsTotal": 13,
   "hybridPlugins": {
     "characters#host-files": 4,
     "coding#host-files": 1,
-    "git#host-files": 5,
+    "git#host-files": 4,
     "shelf#host-files": 3,
     "shelf#host-providers": 1
   },
-  "pluginOutsideMentionsTotal": 366,
+  "pluginOutsideMentionsTotal": 365,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 12,
     "artifacts#outside-files": 20,
@@ -778,7 +778,7 @@
     "feed#outside-files": 40,
     "files#outside-files": 9,
     "form#outside-files": 8,
-    "git#outside-files": 12,
+    "git#outside-files": 11,
     "goals#outside-files": 58,
     "images#outside-files": 6,
     "inbox#outside-files": 17,

@@ -54,6 +54,9 @@ export interface ActionCallOrigin {
   readonly call_id?: string;
 }
 
+/** The languages a page is shown in; the words a handler sends back follow the caller's. */
+export type ActionLocale = "zh" | "en";
+
 /** Supplied by the authenticated host, never taken from model/tool arguments. */
 export interface ActionCallContext extends ActionCallOrigin {
   readonly actor_id: string;
@@ -61,6 +64,12 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly assistant_reply?: import("../services/assistant.js").AssistantReplyDelivery;
   /** Optional page evidence supplied by a protected entry adapter, never business/model input. */
   readonly page_context?: { readonly url: string | null; readonly title: string | null; readonly provenance: "host_snapshot" | "client_reported" };
+  /**
+   * The language of the page the call came from, which the Host resolves from the request (the page's language cookie, else
+   * Accept-Language). It only picks the words a handler sends back to be shown; it grants nothing and is never read from
+   * business input. Absent when no page asked (a model's tool call, a timer): the handler uses its own default.
+   */
+  readonly locale?: ActionLocale;
   /** Optional historical author supplied by a trusted adapter; grants still belong to actor_id. Never business input. */
   readonly audit_actor_id?: string;
   /** Stable session supplied by the authenticated Host; never a business input. */
@@ -446,14 +455,14 @@ export interface ActionInvokeTransport { readonly on_progress?: (event: ActionPr
 
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
-  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
+  invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;
 }
 
 export function bindActionClient(client: ActionClient, context: () => ActionCallContext): BoundActionClient {
   return { discover: async () => client.discover(context()),
-    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
+    invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "locale" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport) => {
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
-      return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
+      return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context, locale: control.locale ?? caller.locale,
         retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
         validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, requiredPermissions) => {

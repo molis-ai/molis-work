@@ -1,4 +1,4 @@
-import { ACTION_ERROR_CODE, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ACTION_ERROR_CODE, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -28,6 +28,8 @@ export interface CodingExecutionPorts {
   changeSetReferences?(): ArtifactReference[];
   planReferences?(): ArtifactReference[];
   goalTitle(goalId: string): string | undefined;
+  /** The language of the page this call came from (route calls only): what a handler sends back to show is worded in it. */
+  locale?: ActionLocale;
   ready(): Promise<void>;
   models(): Promise<readonly CodingModelChoice[]>;
 }

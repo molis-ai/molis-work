@@ -1,8 +1,9 @@
-import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, type ActionExecutionContext, type ActionHandlerBinding, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginCapabilityClient, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
 import type { CodingExecutionPorts } from "./routes.js";
+import { codingErrorIn } from "./words.js";
 
 export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal };
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
@@ -24,7 +25,7 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
     };
     return Object.assign(async () => { if (ownerCheck) await ownerCheck(); else await control?.beforeEffect(); assert_current(); }, { assert_current, signal: control?.signal });
   };
-  const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite) => {
+  const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => {
     const api = context.services?.capabilities;
     if (!ports || !api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
     await ports.ready();
@@ -44,17 +45,18 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
       const value: unknown = Reflect.get(target, key);
       return typeof value === "function" ? (...args: unknown[]) => { beforeWrite.assert_current(); return Reflect.apply(value, target, args); } : value;
     } });
-    return { api: controlled, execution: { ...ports, sessions } };
+    return { api: controlled, execution: { ...ports, sessions, locale } };
   };
   return (route_id: string, handle: Handler): PluginRouteBinding => {
     const action = codingRouteActions[route_id];
     if (action) {
       const binding = bindOwnerPluginAction(context, action.definition, async () => {});
-      actions.push({ ...binding, handle: (caller, input) => bindOwnerPluginAction(context, action.definition, async (value, ownerCheck) => {
+      // What the route says goes back in its caller's language (the page's, which the Host put on the call).
+      actions.push({ ...binding, handle: async (caller, input) => { try { return await bindOwnerPluginAction(context, action.definition, async (value, ownerCheck) => {
         const request = { ...action.toRequest(value), pathname: "", actor_id: context.actor_id! };
-        const beforeWrite = check(caller, ownerCheck, action.definition.action.permissions), { api, execution } = await execute(request, beforeWrite);
+        const beforeWrite = check(caller, ownerCheck, action.definition.action.permissions), { api, execution } = await execute(request, beforeWrite, caller.locale);
         return handle(request, api, execution, beforeWrite);
-      }).handle(caller, input) });
+      }).handle(caller, input); } catch (error) { throw codingErrorIn(error, caller.locale); } } });
     }
     return { route_id, async handle(request) {
       try {
@@ -63,9 +65,9 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
           if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
           return { status: 200, body: await context.services.actions.invoke(action.definition, action.toInput(request), request.execution) };
         }
-        const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite);
+        const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);
         return { status: 200, body: await handle(request, api, execution, beforeWrite) };
-      } catch (error) { return failure(error); }
+      } catch (error) { return failure(codingErrorIn(error, request.execution?.locale)); }
     } };
   };
 }

@@ -1,41 +1,37 @@
-import { constants } from "node:fs";
-import { lstat, open, readdir, realpath } from "node:fs/promises";
-import { basename, isAbsolute, join, relative, sep } from "node:path";
-import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
+import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, type ImportFile } from "./types.js";
 import { fileType, ignoredPath } from "./content.js";
-export async function scanCogniaDirectory(path: string, signal?: AbortSignal): Promise<{ locator: string; name: string; files: ImportFile[] }> {
-  signal?.throwIfAborted();
-  requireCognia(isAbsolute(path), "请输入绝对目录路径"); const rootStat = await lstat(path); requireCognia(rootStat.isDirectory() && !rootStat.isSymbolicLink(), "来源必须是实际目录，不能是符号链接");
-  const root = await realpath(path), files: ImportFile[] = []; let total = 0;
-  const within = (value: string) => { const rel = relative(root, value); return rel !== ".." && !rel.startsWith(".." + sep) && !isAbsolute(rel); };
+
+/**
+ * Read a person-authorized directory through the Host (PRR-03): the Plugin never names an absolute path and never touches
+ * `node:fs`. `grant_id` comes from the Host's user-only authorization route; the Host decides the root, symlinks and limits.
+ */
+export async function scanCogniaDirectory(directory: PluginDirectoryService | undefined, grantId: string, path: string, signal?: AbortSignal): Promise<{ locator: string; name: string; files: ImportFile[] }> {
+  requireCognia(directory, "平台目录服务不可用，请升级 Molis Work", cogniaErrors.directory_unavailable);
+  const segments = path === "." ? [] : path.split("/").filter(Boolean);
+  requireCognia(path === "." || (path.startsWith("/") === false && segments.length > 0 && segments.every(segment => segment !== "." && segment !== ".." && !segment.includes("\\"))),
+    "目录路径要是授权目录下的相对路径");
+  const files: ImportFile[] = [];
+  let total = 0;
   const append = (file: ImportFile) => { requireCognia(files.length < COGNIA_LIMITS.files, "每批最多 1000 个文件，请选择较小目录", cogniaErrors.too_large); files.push(file); };
-  const walk = async (directory: string): Promise<void> => {
+  const walk = async (relative: readonly string[]): Promise<void> => {
     signal?.throwIfAborted();
-    const actual = await realpath(directory); requireCognia(within(actual) && actual === directory, "目录在扫描时发生变化，请重新选择", cogniaErrors.conflict);
-    for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const listing = await directory!.read({ grant_id: grantId, path: relative, kind: "directory" }, signal);
+    requireCognia(listing.outcome === "directory", "目录读不出来，请重新授权", listing.outcome === "too-large" ? cogniaErrors.too_large : cogniaErrors.directory_unavailable);
+    for (const entry of listing.entries) {
       signal?.throwIfAborted();
-      const absolute = join(directory, entry.name), filePath = relative(root, absolute).split(sep).join("/");
+      const filePath = [...relative, entry.name].join("/");
       if (ignoredPath(filePath)) { append({ path: filePath, reason: "隐藏或缓存目录" }); continue; }
-      try {
-        const before = await lstat(absolute);
-        if (before.isSymbolicLink()) { append({ path: filePath, reason: "符号链接未读取" }); continue; }
-        if (before.isDirectory()) { await walk(absolute); continue; }
-        const type = fileType(filePath);
-        if (!before.isFile() || !type) { append({ path: filePath, reason: "暂不支持此文件类型" }); continue; }
-        if (before.size > type.limit || total + before.size > COGNIA_LIMITS.batch_bytes) { append({ path: filePath, reason: "超过文件或批次大小限制" }); continue; }
-        requireCognia(await realpath(absolute) === absolute && within(absolute), "路径在扫描时发生变化");
-        const handle = await open(absolute, constants.O_RDONLY | constants.O_NOFOLLOW);
-        try {
-          const stat = await handle.stat(); requireCognia(stat.isFile() && stat.dev === before.dev && stat.ino === before.ino, "文件在扫描时发生变化");
-          const buffer = Buffer.alloc(Math.min(type.limit, COGNIA_LIMITS.batch_bytes - total) + 1); let size = 0;
-          while (size < buffer.length) { signal?.throwIfAborted(); const read = await handle.read(buffer, size, buffer.length - size, null); if (!read.bytesRead) break; size += read.bytesRead; }
-          requireCognia(size <= type.limit && total + size <= COGNIA_LIMITS.batch_bytes, "超过文件或批次大小限制");
-          const after = await lstat(absolute), parent = await realpath(directory); requireCognia(parent === directory && after.dev === stat.dev && after.ino === stat.ino && !after.isSymbolicLink(), "路径在扫描时发生变化");
-          total += size; append({ path: filePath, data: buffer.subarray(0, size).toString("base64") });
-        } finally { await handle.close(); }
-      } catch (error) { signal?.throwIfAborted(); if (actionErrorKind(error) === "too_large") throw error; append({ path: filePath, reason: error instanceof Error ? error.message : "读取失败" }); }
+      if (entry.kind === "directory") { await walk(entry.path); continue; }
+      const type = fileType(filePath);
+      if (entry.kind !== "file" || !type) { append({ path: filePath, reason: "暂不支持此文件类型" }); continue; }
+      if ((entry.size ?? 0) > type.limit || total + (entry.size ?? 0) > COGNIA_LIMITS.batch_bytes) { append({ path: filePath, reason: "超过文件或批次大小限制" }); continue; }
+      const read = await directory!.read({ grant_id: grantId, path: entry.path, kind: "bytes", max_bytes: type.limit }, signal);
+      if (read.outcome === "bytes") { total += read.bytes; append({ path: filePath, data: read.data }); continue; }
+      append({ path: filePath, reason: read.outcome === "too-large" ? "超过文件或批次大小限制" : read.outcome === "missing" ? "文件已不存在" : "文件读取失败" });
     }
+    if (listing.truncated) append({ path: [...relative, "…"].join("/"), reason: "目录太大，已截断" });
   };
-  await walk(root); return { locator: "local:" + root, name: basename(root), files };
+  await walk(segments);
+  return { locator: "grant:" + grantId, name: segments.at(-1) ?? "本机目录", files };
 }

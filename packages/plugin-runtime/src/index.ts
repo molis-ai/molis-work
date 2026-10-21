@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-import { assertContributionMatchesManifest, offeredManifest, type RedemptionScope } from "./contribution.js";
+import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
@@ -654,7 +654,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     contribution: PluginContribution,
   ): Promise<void> {
     try {
-      assertContributionMatchesManifest(definition.manifest, contribution, this.options.redemption?.(definition));
+      assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
       const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;

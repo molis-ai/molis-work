@@ -55,7 +55,7 @@ import {
 } from "@molis-ai/molis-work-plugin-git";
 import { listWorkspaceDirectory } from "./workspace-files.js";
 import { readWorkspaceGit } from "./workspace-git.js";
-import { TEXT_STATS_PLUGIN_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
+import { TEXT_STATS_PLUGIN_ID, TEXT_STATS_UI_CONTRIBUTION_ID, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
 
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -407,6 +407,15 @@ export async function diffStagePanel(
 function failedStage(plugin: string, message: string): string {
   return renderPluginStageShell({ surface: plugin, label: plugin, dataset: plugin + "-error",
     body: `<div class="mw-empty" role="alert"><p>${escapeHtml(message)}</p><a class="mw-btn" href="">重新打开页面</a></div>` });
+}
+
+/** The stage panels the Host renders itself, and the contribution ids the Manifest fallback must not render again. */
+export async function builtinStagePanels(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
+  const character = await charactersWorkbenchPanel(ports);
+  const ids = [CHARACTERS_UI_CONTRIBUTION_ID, CODING_UI_CONTRIBUTION_ID];
+  if (enabled.includes("diff")) ids.push(DIFF_UI_CONTRIBUTION_ID);
+  if (enabled.includes("text-stats")) ids.push(TEXT_STATS_UI_CONTRIBUTION_ID);
+  return { html: [character.panel, ...await codingCompanionStages(ports, enabled)], ids };
 }
 
 /** Compose the running companions into the same main-stage contract as other apps. */

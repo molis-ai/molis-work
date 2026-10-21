@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KnowledgeOrganizer, KnowledgeService, knowledgeCatalog, locateSections, type KnowledgeLocateDraftInput } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
 import { person, referenceOwners } from "./fixtures/reference-owners.js";
@@ -112,4 +114,32 @@ test("S-41 PMAT-34 PMAT-35 PMAT-38 pieces added for some of the words, a round's
     subject => knowledge.outline(f.access(pagesOnly), { subject }), async input => { shown.push(input); return { sections: [] }; });
   assert.deepEqual(located.unread.map(row => row.subject.id), ["g1", "gb"], "a tree the caller cannot read, or of another project, is refused");
   assert.deepEqual(shown.flatMap(input => input.pieces.map(piece => piece.title)), ["试用说明"], "and never shown to the model");
+});
+
+// PRR-01 S-41: a Plugin holding knowledge:read reads sources with the owner's authority, but workspace files with its own.
+test("PRR-01 S-41 a plugin with knowledge:read but no workspace:read cannot read a workspace file", async t => {
+  const f = await knowledgeWorkspace(t);
+  const owner = f.agent();
+  const plugin = { ...f.agent(["knowledge:read"]), actor_id: "plugin-install-x", audience: "plugin" as const };
+  const views = [
+    { capability_id: workspaceReadActions.file.capability_id, version: workspaceReadActions.file.version, provider: { provider_id: "io.molis.work.projects" }, availability: { available: true } },
+    { capability_id: projectsCapabilities.listWorkspaces.capability_id, version: projectsCapabilities.listWorkspaces.version, provider: { provider_id: "io.molis.work.projects" }, availability: { available: true } },
+  ];
+  const client = {
+    discover: async (caller: ActionCallContext) => caller.permissions.includes("workspace:read") ? views : [],
+    invoke: async (caller: ActionCallContext, ref: { capability_id: string }, input: { kind?: string }) => {
+      assert.ok(caller.permissions.includes("workspace:read"), "workspace files need the caller's own grant");
+      if (ref.capability_id === projectsCapabilities.listWorkspaces.capability_id) return [{ workspace_id: "ws1", realpath_verified: true }];
+      if (ref.capability_id === workspaceReadActions.file.capability_id) return input.kind === "directory"
+        ? { outcome: "directory", entries: [{ name: "README.md", path: ["README.md"], kind: "file" }], truncated: false }
+        : { outcome: "text", text: "# 项目", fingerprint: "1" };
+      throw new Error("unexpected " + ref.capability_id);
+    },
+  };
+  const denied = { client, caller: plugin, reader: owner, workspace: plugin } as never;
+  await assert.rejects(() => f.knowledge.glob(denied, { pattern: "**/*" }), refused("knowledge.unreadable"));
+  await assert.rejects(() => f.knowledge.read(denied, { subject: { kind: "workspace_file", id: "ws1:README.md" } }), refused("knowledge.unreadable"));
+  const granted = { ...denied, workspace: { ...plugin, permissions: ["knowledge:read", "workspace:read"] } };
+  const files = await f.knowledge.glob(granted, { pattern: "README.md" });
+  assert.deepEqual(files.files.map(file => file.path), ["README.md"]);
 });

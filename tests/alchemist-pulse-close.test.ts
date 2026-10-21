@@ -13,7 +13,7 @@ import { alchemistFixture } from "./fixtures/alchemist-actions.js";
  * closes once the work in hand has settled. What the source brings back afterwards, an answer or a failure, is never recorded,
  * and the next source is never asked. The stop records nothing either: the job stays as it was, for recovery (RES01).
  * When Alchemist runs on the Plugin Runtime, this becomes the supervisor stopping the instance. The cancel, through the action
- * the page, MCP and workflows share, is the other half, in tests/alchemist-pulse-cancel.test.ts (W5-01-ALC-RES09).
+ * the page, MCP and workflows share, is the other half, in tests/alchemist-pulse-cancel.test.ts (W5-01-ALC-RES11).
  */
 const FACTS = ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_signals", "pulse_reports", "activity_events"];
 

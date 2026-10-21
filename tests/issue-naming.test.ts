@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
+import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -40,6 +41,11 @@ async function issues(t: TestContext) {
   const store = new IssueStore(db.client, "owner");
   return { store, drafts: new IssueCaptures(store), count: () => Number(db.client.get("SELECT count(*) AS n FROM issues")!.n) };
 }
+
+test("PRR-08 the fixed follow-up question has an English entry", () => {
+  const dictionary = readFileSync(new URL("../apps/workbench/src/i18n/renderer-gap-en.ts", import.meta.url), "utf8");
+  assert.ok(dictionary.includes(JSON.stringify(ISSUE_ASK)), "the English dictionary carries the exact fixed question");
+});
 
 test("ISSUE-50 one bounded model call names a page draft and saves it once: the words and screenshots unchanged, the writer from the call", async t => {
   const { store, drafts, count } = await issues(t), draft_id = crypto.randomUUID(), page = { url: "/projects/p-1/?plugin=goals", title: "Goals · Molis" };

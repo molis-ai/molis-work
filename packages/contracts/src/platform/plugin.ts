@@ -130,6 +130,8 @@ export interface PluginHostServices {
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;
   /** Host material readers, each declared on its own: materials:read, materials:fetch, materials:fetch_local, materials:original. */
   readonly materials?: PluginMaterialsClient;
+  /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
+  readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */
   readonly artifacts?: PluginArtifactClient;
   /** Present when the Manifest declares `process_items.produces`. */
@@ -465,7 +467,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };

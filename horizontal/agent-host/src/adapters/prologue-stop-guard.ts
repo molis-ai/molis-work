@@ -3,6 +3,7 @@ import { actionEffect, type ExactActionReference } from "@molis-ai/molis-work-co
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ANNOUNCE_HELD, BUTTON_CLAIM_HELD, SAVED_CLAIM_HELD, WRITTEN_CALL_HELD, actedThisRound, emptyRoundFacts, internalIdsHeld, memoryHeld, mentionsInternalIds, noteRoundEvent,
   writesToolCallAsText, type EndingClaim } from "./announce-guard.js";
+import { GATEWAY_TOOLS, MEMORY_TOOLS } from "./prologue-action-gateway.js";
 import { REVIEW_TIMEOUT_MS, reviewEnding, type EndingRound, type ReviewModel } from "./ending-review.js";
 import type { PrologueStartInput } from "./prologue.js";
 import type { HeldKind, RoundState } from "./prologue-node-kit.js";
@@ -96,23 +97,37 @@ export function ensureStopGuard(runtime: Runtime, state: RoundState, sessionId: 
     // Reviewed once for what the round has done so far: after a hold, only new calls make a new review worth its cost.
     if (!guard.writing || !guard.review || record.reviewedAt === facts.calls.length) return { kind: "allow" as const };
     const done = state.changeRounds.get(sessionId), memory = state.memoryRounds.get(sessionId);
-    const changed = guard.business ? actedThisRound(facts) || (memory ? memory.keep + memory.forget > 0 : false) || (done ? await changedThisRound(done) : false) : facts.calls.length > 0;
-    if (changed) return { kind: "allow" as const };
+    const suggestionTools = new Set<string>([GATEWAY_TOOLS.suggest, MEMORY_TOOLS.propose]);
+    const invokedChanged = done ? await changedThisRound(done) : false;
+    const changed = guard.business ? actedThisRound(facts) || (memory ? memory.keep + memory.forget > 0 : false) || invokedChanged : facts.calls.length > 0;
+    const actualChanged = guard.business ? actedThisRound(facts, { except: suggestionTools }) || (memory ? memory.keep + memory.forget > 0 : false) || invokedChanged : facts.calls.length > 0;
+    // A round that only offered a card or a memory proposal did act (the person has something new), but it did not keep or save
+    // anything: still review what it says it did, so "已记住"/"已保存" without the actual call is held. A true "按钮准备好了"
+    // is allowed because suggest-action returned; suggest-memory does not make a keep.
+    const returned = facts.calls.filter(call => call.ended === "returned");
+    const suggestionsOnly = !actualChanged && returned.some(call => suggestionTools.has(call.tool));
+    const suggestedAction = returned.some(call => call.tool === GATEWAY_TOOLS.suggest);
+    const suggestedMemory = returned.some(call => call.tool === MEMORY_TOOLS.propose);
+    // A suggestion is not a save or a memory. Only a round that suggests and then claims the thing itself is reviewed; a true
+    // "按钮在上面" after suggest-action is not sent to the review model again.
+    const claimAfterSuggestion = (suggestedAction && /保存|存到|已经建|建好|写入|改好|saved|stored|wrote|created/i.test(text))
+      || (suggestedMemory && /记住|记下|保留|忘记|删掉|停用|remember|kept|forgot/i.test(text));
+    if (changed && !(suggestionsOnly && claimAfterSuggestion)) return { kind: "allow" as const };
     record.reviewedAt = facts.calls.length;
     const round: EndingRound = { reply: text, facts, materials: guard.materials,
       ...(memory ? { memory: memory.off ? "switched-off" : memory.without.keep ? "not-given" : "available" } : {}) };
     const signal = AbortSignal.any([AbortSignal.timeout(REVIEW_TIMEOUT_MS), ...(guard.signal ? [guard.signal] : [])]);
-    const held = heldFor(await reviewEnding(runtime, guard.review, round, signal), memory, guard.business).filter(([kind]) => !record.held.has(kind));
+    const held = heldFor(await reviewEnding(runtime, guard.review, round, signal), memory, guard.business, suggestedAction).filter(([kind]) => !record.held.has(kind));
     return held.length ? hold(held.map(([kind]) => kind), held.map(([, why]) => why).join("\n\n")) : { kind: "allow" as const };
   } });
 }
 
 /** What each claim the facts do not bear out is held as, and what the model reads; a claim the round could not make is none. */
-function heldFor(claims: readonly EndingClaim[], memory: { off: boolean; without: { keep: boolean; forget: boolean } } | undefined, business: boolean): Array<[HeldKind, string]> {
+function heldFor(claims: readonly EndingClaim[], memory: { off: boolean; without: { keep: boolean; forget: boolean } } | undefined, business: boolean, suggestedAction = false): Array<[HeldKind, string]> {
   const held: Array<[HeldKind, string]> = [];
   const memoryClaim = claims.includes("kept") ? "keep" : claims.includes("forgot") ? "forget" : undefined;
   if (memoryClaim && memory) held.push(["memory", memoryHeld(memory, memoryClaim)]);
-  if (claims.includes("button") && business) held.push(["button", BUTTON_CLAIM_HELD]);
+  if (claims.includes("button") && business && !suggestedAction) held.push(["button", BUTTON_CLAIM_HELD]);
   if (claims.includes("changed")) held.push(["saved", SAVED_CLAIM_HELD]);
   if (claims.includes("will_do")) held.push(["announce", ANNOUNCE_HELD]);
   return held;

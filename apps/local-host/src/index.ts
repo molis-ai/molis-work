@@ -291,3 +291,5 @@ export { assistantConnectionCheckers } from "./assistant/assistant-connection-au
 export { connectorLocalActions } from "./connector-local-actions.js";
 
 export { connectorCliActions } from "./connector-cli-actions.js";
+
+export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";

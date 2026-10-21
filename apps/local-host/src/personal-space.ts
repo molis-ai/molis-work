@@ -11,9 +11,4 @@ export function isPersonalSpace(project: { project_id: string }): boolean {
   return project.project_id === PERSONAL_SPACE_PROJECT_ID;
 }
 
-/** Projects the person made, without the personal space. */
-export function withoutPersonalSpace<T extends { project_id: string }>(projects: readonly T[]): T[] {
-  return projects.filter(project => !isPersonalSpace(project));
-}
-
 export { PERSONAL_SPACE_PROJECT_ID };

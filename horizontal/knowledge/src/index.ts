@@ -78,10 +78,11 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
  * none); without it receipts are written as the call returns.
  */
 /**
- * Who asks (`caller`: the project, the round's fill, the receipt) and, when it differs, whose authority the sources are read
- * with (`reader`): a Plugin holding `knowledge:read` reads the project's knowledge as indexing does, with the project owner's.
+ * Who asks (`caller`: the project, the round's fill, the receipt), whose authority sources are read with when it differs
+ * (`reader`: a Plugin holding `knowledge:read` reads the project's knowledge as indexing does, with the project owner's),
+ * and whose authority workspace files are read with (`workspace`: always the caller, S-41).
  */
-export interface KnowledgeAccess { client: ActionClient; caller: ActionCallContext; reader?: ActionCallContext; beforeEffect?: () => Promise<void> }
+export interface KnowledgeAccess { client: ActionClient; caller: ActionCallContext; reader?: ActionCallContext; workspace?: ActionCallContext; beforeEffect?: () => Promise<void> }
 /** The authority sources are read and searched with. */
 export const knowledgeReader = (access: KnowledgeAccess): ActionCallContext => access.reader ?? access.caller;
 export interface KnowledgeServiceOptions {

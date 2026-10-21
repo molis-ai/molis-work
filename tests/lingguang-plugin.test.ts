@@ -9,12 +9,15 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { CHARACTERS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,
+  lingguangActions,
   lingguangManifest,
   openLingguangStore,
 } from "@molis-ai/molis-work-plugin-lingguang";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
@@ -25,6 +28,26 @@ import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
 const PROJECT = "project-lingguang";
+
+test("PRR-10 material.read reports each extraction progress once", { timeout: 120_000 }, async t => {
+  const f = await serveLingguang(t);
+  const events: unknown[] = [];
+  const caller = { ...f.caller, on_progress: (event: unknown) => { events.push(event); } };
+  const bound = bindActionClient(f.client, () => caller);
+  await bound.invoke(lingguangActions.readFile, { file_name: "note.md", data_base64: Buffer.from("# Note\n\n正文").toString("base64") });
+  assert.ok(events.length > 0, "the extraction reports progress");
+  const keys = events.map(event => JSON.stringify(event));
+  assert.equal(new Set(keys).size, keys.length, `the same progress reached the caller twice: ${keys.join(" ")}`);
+});
+
+test("PRR-11 each Lingguang route has its own body limit", () => {
+  const limits = Object.fromEntries((lingguangManifest.routes ?? []).map(route => [route.route_id, route.max_body_bytes]));
+  assert.equal(limits["lingguang.material_read"], 36_000_000);
+  for (const [route, bytes] of Object.entries(limits)) {
+    if (bytes === undefined || route === "lingguang.material_read") continue;
+    assert.ok(bytes <= 1_000_000, `${route} accepts ${bytes} bytes`);
+  }
+});
 
 function saveFunctionSource(script: string): string {
   const start = script.indexOf("const save = async");
@@ -83,10 +106,27 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
-  assert.equal(lingguangManifest.ui.views?.[0]?.slot, "island");
+  assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));
 });
 
-test("工作台挂上灵光空态、确认框和快记区", () => {
+test("PRR-12 the Manifest fallback only renders stages no host path already rendered, and only for shown plugins", () => {
+  const view = {
+    ...emptyView(),
+    enabled_plugins: ["goals", "characters", "lingguang", "issues"],
+    plugin_stage_ids: [CHARACTERS_UI_CONTRIBUTION_ID],
+    plugin_stages: ['<section data-work-surface="characters" data-stage="host"></section>'],
+  } as MolisWorkWebView;
+  const html = renderMolisWorkWeb(view);
+  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's Characters stage is kept once");
+  assert.doesNotMatch(html, /data-character-api="undefined/, "the fallback did not render a second Characters stage with an empty model");
+  assert.match(html, /data-lingguang="workbench"/, "Lingguang still comes from its Manifest stage");
+  assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
+
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "characters", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  assert.doesNotMatch(renderMolisWorkWeb(hiddenIssues), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
+});
+
+test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {
   const html = renderMolisWorkWeb(emptyView());
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the

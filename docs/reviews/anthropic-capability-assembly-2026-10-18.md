@@ -22,7 +22,7 @@ Anthropic 这套东西大多不是新动作，而是 **Skill（做法）+ Agent 
 
 ## 2. 个人助理怎么装
 
-**Manifest**：`ASSISTANT_AGENT` 有 `assistant` 和 `thread-reply` 两个 role；`host_tools` 是 `BUSINESS_HOST_TOOLS`（ask-user、update-todo、find-tools、context-remaining）；`characters` 可选；**没有自己的 `agent.skills`**。
+**Manifest**：`ASSISTANT_AGENT` 有 `assistant`、`thread-reply` 与 `assistant-delegated` 三个 role；`host_tools` 是 `BUSINESS_HOST_TOOLS`（ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs）；`characters` 可选；**没有自己的 `agent.skills`**。
 
 **Skill 从哪来**：
 1. 插件 `methods`：助理列出最多 20 条，只给 `name` + `summary`；某个适合这件事时，用 `assistant.methods.read` 读正文，读了才照做；用户用 `/` 选中的方法，正文直接作为材料进入这一轮。

@@ -1,5 +1,6 @@
 import { TOUCH_TARGET_STYLES } from "./touch-targets.js";
 import { ASSISTANT_STAGE_STYLES } from "./assistant-stage.js";
+import { ASSISTANT_PROCESS_STYLES } from "./assistant-process.js";
 
 /** Soft Workbench finish: the last layer of every Molis Work page (module name kept from the craft pass).
  *
@@ -988,16 +989,6 @@ const CRAFT_BASE_STYLES = `
   ${ASSIST} .assistant-more-value { max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; }
   /* News alone is a quiet bell; a number means something waits for the person. */
   /* The work's own menu: where it belongs, who carries it, handing over, usage. */
-  /* The steps between two messages: one quiet line that opens to each step. */
-  ${ASSIST} .assistant-steps { margin: 0; font-size: 12px; color: var(--muted); }
-  ${ASSIST} .assistant-steps > summary { width: fit-content; margin-left: -4px; padding: 2px 4px; border-radius: 6px; list-style: none; cursor: pointer; }
-  ${ASSIST} .assistant-steps > summary::-webkit-details-marker { display: none; }
-  ${ASSIST} .assistant-steps > summary::before { content: "›"; display: inline-block; width: 12px; transition: transform var(--dur-hover) var(--ease-quint); }
-  ${ASSIST} .assistant-steps[open] > summary::before { transform: rotate(90deg); }
-  ${ASSIST} .assistant-steps > summary:hover { background: var(--nav-hover); color: var(--ink-soft); }
-  ${ASSIST} .assistant-steps > summary:focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset, -1px); }
-  ${ASSIST} .assistant-steps[data-state="failed"] > summary { color: var(--danger); }
-  ${ASSIST} .assistant-steps > .assistant-activity { padding: 2px 0 0 12px; }
   /* A long message of the person's folds after six lines. */
   ${ASSIST} .assistant-msg--user[data-folded] { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 6; overflow: hidden; }
   ${ASSIST} .assistant-msg-more { align-self: flex-end; margin-top: -8px; padding: 0 4px; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: 12px; cursor: pointer; }
@@ -1823,7 +1814,7 @@ const STILL_RESET = `
   html[data-craft-still] *, html[data-craft-still] *::before, html[data-craft-still] *::after { transition-duration: 0s !important; transition-delay: 0s !important; }
 `;
 
-export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + STILL_RESET;
+export const CRAFT_FINISH_STYLES = CRAFT_BASE_STYLES + TOUCH_TARGET_STYLES + ASSISTANT_STAGE_STYLES + ASSISTANT_PROCESS_STYLES + STILL_RESET;
 
 /** Behaviour for the craft layer. Everything here is presentation: it never writes Goal state,
  * never moves focus and never cancels another handler. Without it the pages look the same, only

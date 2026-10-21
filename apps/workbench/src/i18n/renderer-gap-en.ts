@@ -552,6 +552,13 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "拿起": "Pick up",
   // The account a connected document source reads with (home model settings, the side panel's import, Jelly).
   "账号连接": "Account connection",
+  "用它自己的工具与 MCP，在 Coding 里设置": "Uses its own tools and MCP, set up in Coding",
+  "模型暂时不可用，可以直接保存，或检查模型设置": "The model is unavailable right now. You can save anyway, or check the model settings.",
+  "自动整理": "Tidy automatically",
+  "不能看图": "Cannot read images",
+  "能看图": "Can read images",
+  "未声明": "Not declared",
+  "读图能力": "Image input",
   // The companion pages' shell around Files, Git, Diff and Text Stats (apps/local-host/src/coding-surface.ts, coding-companions.ts).
   "返回改动列表": "Back to changes",
   "正在读取固定内容…": "Reading the pinned versions…",

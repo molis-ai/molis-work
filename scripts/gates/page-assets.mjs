@@ -241,8 +241,9 @@ const headErrors = (measured, budget, base) => {
 // Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
 // once from exactly #918's budgets.
 const APPROVED_CEILINGS = {
+  // #920: the English surfaces add one translation branch to Cognia.
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   "/assets/molis-work-plugins/jelly.js": [91179, 91267],
-  "/assets/molis-work-plugins/coding.js": [373460, 373484],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

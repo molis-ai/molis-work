@@ -2,7 +2,7 @@
 
 独立个人角色管理插件。界面位于「设置 › 角色」（manifest 1.6.0 起：工作台页面是 `stage` view、设置入口是 `settings` view，不再出现在插件切换器里；页面根标 `data-settings-page="characters"`，由设置覆盖层挂载；独立 `/settings/characters?project=<id>` 转回该项目工作台）。同一页列出系统与插件登记的角色，点开在同一覆盖层里打开它的提示词。拥有编辑界面、发布前的内容预览和项目发布操作；草稿与停用/删除状态由 Characters Module 的公开接口提供，固定正文、版本与来源由既有 Artifact 服务保存。调用方只得到精确版本引用，不能从浏览器请求注入正文或扩大权限。
 
-通过真实 Plugin Runtime 启动，Host 注入本人草稿、当前项目 Artifact、本地发现与执行端口。插件不打开数据库，不接触模型凭据；执行状态由 Agent Host / Runtime Host 和 Work Session 持有。
+通过真实 Plugin Runtime 启动。每个动作的处理器是 `modules/characters` 的（`createCharactersActionHandlers`），Host 用本人草稿、本地发现与执行端口建出它们，交给插件；插件在启动时补上只有 Runtime 才有的项目、成果库客户端与 Agent 目录，再把每个处理器用 `bindOwnerPluginAction` 绑定到它的动作，并保留旧路径的路由。插件不打开数据库，不接触模型凭据；执行状态由 Agent Host / Runtime Host 和 Work Session 持有。
 
 “从本机导入”支持 Codex、Claude Code、Cursor、OpenCode、Grok Build 的固定规则目录与 Skills，并读取可确认安装/启用状态的 Codex/Claude 插件。可以指定配置目录及项目目录；扫描警告显示未解析来源或不完整资源。附件按需预览，选定文件保存在 Character 快照，原配置不被修改。检查来源更新需要明确确认，保留名称、补充指令和已有固定发布。
 
@@ -18,14 +18,15 @@
 
 ## 开发要求
 
-- 负责：个人 Character 的编辑界面、发布前预览与项目发布。
-- 不负责：草稿存储、Artifact 事实、Agent 执行、权限。
+- 负责：个人 Character 的编辑界面、Manifest 与动作声明、把 Module 的处理器绑定到动作、旧路径的路由与状态码、启动动作的调用控制。
+- 不负责：草稿存储、动作处理逻辑与本机导入（在 `modules/characters`）、Artifact 事实、Agent 执行、权限。
 - 公开入口：`@molis-ai/molis-work-plugin-characters`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；插件不导入 Module 的实现，处理器由 Host 经 `CharactersPluginPorts.handlers(runtime)` 交来；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - 每个动作都经 `bindOwnerPluginAction` 绑定：Runtime 以草稿所属的本人兑换调用，写之前先核权限；处理器不在插件里。
   - 原生启动的 HTTP 和动作入口保留原调用控制。等待工作区和 registry 后，同步核原授权、取消及固定发布的当前可用性，再写 bundle、会话和事件并 spawn；重复 request_id 只重接已接受会话。
   - 调用方只得到精确版本引用；浏览器请求不能注入正文或扩大权限。
   - 检查来源更新要明确确认，保留名称、补充指令与已有发布；刷新或相同请求不重跑任务。
   - 未安装的原生 CLI 显示不可用，不假称已验证。
-- 改动后必跑：`node scripts/run-tests.mjs tests/characters-native-execution.test.ts tests/characters-actions.test.ts tests/characters-action-client.test.ts tests/characters-publication-http.test.ts tests/characters-import-http.test.ts tests/characters-appearance.test.ts tests/plugin-global-settings.test.ts`；动了页面结构再跑 `tests/page-interaction-flow.e2e.test.ts tests/agent-action-selection.e2e.test.ts tests/cross-plugin-recovery.e2e.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/characters-native-execution.test.ts tests/characters-actions.test.ts tests/characters-action-handlers.test.ts tests/characters-action-client.test.ts tests/characters-publication-http.test.ts tests/characters-import-http.test.ts tests/characters-appearance.test.ts tests/plugin-global-settings.test.ts`；动了页面结构再跑 `tests/page-interaction-flow.e2e.test.ts tests/agent-action-selection.e2e.test.ts tests/cross-plugin-recovery.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

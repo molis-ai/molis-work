@@ -79,17 +79,26 @@ test("VUX-05: the tooltip shows a cut name, a clamped summary and the cut text u
   const long = "一个很长很长的名字，长到这一行放不下，后面还有一段只有提示里才看得到的结尾";
   const summary = "第一行摘要说的是这件事从哪里来；第二行说它现在到了哪一步；第三行说下一步谁来做、什么时候做完，这一行被截掉了";
   await evaluate(`(() => { const box = document.createElement('div'); box.id = 'box';
-    box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:white;padding:40px;font-size:14px';
+    box.style.cssText = 'position:fixed;inset:0;z-index:99999;background:white;padding:40px;font-size:14px;overflow:auto';
     const cut = 'display:block;width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis';
     box.innerHTML = '<ul style="list-style:none;padding:0">'
       + '<li id="row" tabindex="0"><span id="name" title="旧提示" style="' + cut + '">${long}</span><span id="path" style="' + cut + '">/某个/很深的/目录/里面/的/文件.md</span><button id="act">打开</button></li>'
       + '<li><a id="card" href="#card"><span style="display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden;width:200px">${summary}</span></a></li>'
-      + '<li><button id="whole">完整的名字</button></li></ul><button id="far" style="margin-top:200px">别处</button>';
+      + '<li><button id="whole">完整的名字</button></li></ul><button id="far" style="margin-top:200px">别处</button>'
+      + '<div id="following" style="height:60px;overflow:auto"><div style="height:400px">别处跟着新输出滚动</div></div><div style="height:2000px"></div>';
     document.body.append(box); })()`);
 
   await hover("#name");
   assert.equal(await evaluate<string | null>(TIP), long, "a pointer's rest on a cut name shows it whole");
   assert.deepEqual(await evaluate("[document.querySelector('#name').hasAttribute('title'), document.querySelector('.craft-tip').hasAttribute('data-cut')]"), [false, true], "its native title is held back while it shows; a cut text may wrap");
+  // Before, any scroll on the page put it away, so a cut name could not be read while a conversation or a log elsewhere
+  // followed its output (the board's following specimen hid every tip near it).
+  await evaluate("document.querySelector('#following').scrollTop += 40"); await pause(100);
+  assert.equal(await evaluate<string | null>(TIP), long, "another box scrolling, one following its output, leaves it");
+  await evaluate("document.querySelector('#box').scrollTop += 1"); await pause(100);
+  assert.equal(await evaluate<string | null>(TIP), null, "a scroll that moves the name puts it away");
+  await hover("#name");
+  assert.equal(await evaluate<string | null>(TIP), long);
   await hover("#path");
   assert.equal(await evaluate<string | null>(TIP), "/某个/很深的/目录/里面/的/文件.md", "a second cut text in the row is the one under the pointer");
   await hover("#act");

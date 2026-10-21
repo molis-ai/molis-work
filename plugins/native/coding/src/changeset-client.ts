@@ -2,8 +2,21 @@
 export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   const lifetime=ports.lifetime;
   const {root,q,api}=ports;
-  let runId='',ticket=0,index=0,value=null,comments=[],fixed=false,net=false,netIndices=null;
+  let runId='',ticket=0,index=0,value=null,comments=[],fixed=false,net=false,netIndices=null,anchor=null,opened=new Set();
   const reader=q('[data-coding-change-reader]'),message=q('[data-coding-change-status]');
+  // Unified or side by side is the reader's own choice, kept on this device; switching keeps the line being read in place.
+  const LAYOUT_KEY='molis-coding-diff-layout';let layout='unified';try{if(localStorage.getItem(LAYOUT_KEY)==='split')layout='split';}catch{/* storage refused: start unified */}
+  const showLayout=()=>reader.querySelectorAll('[data-coding-change-layout]').forEach(button=>{const on=button.dataset.codingChangeLayout===layout;button.classList.toggle('is-current',on);button.setAttribute('aria-pressed',String(on));});
+  const numberOf=(row,side)=>row.querySelector(':scope > .diff-'+side)?.textContent.trim() || '';
+  const anchorOf=()=>{const top=q('[data-coding-tools]').getBoundingClientRect().top,row=[...q('[data-coding-change-body]').querySelectorAll('.diff-rows > li:not([hidden]):not(.diff-fold)')].find(li=>li.getBoundingClientRect().bottom>top);
+    return row?{after:numberOf(row,'after'),before:numberOf(row,'before'),offset:row.getBoundingClientRect().top-top}:null;};
+  const unfold=(rows,group)=>{rows?.querySelectorAll('[data-diff-folded="'+group+'"]').forEach(row=>{row.hidden=false;});rows?.querySelector('[data-diff-unfold="'+group+'"]')?.closest('li')?.remove();};
+  const keepPlace=(place)=>{
+    const body=q('[data-coding-change-body]'),list=body.querySelector('.diff-rows');opened.forEach(group=>unfold(list,group));if(!place || !list)return;
+    const row=[...list.children].find(li=>place.after ? numberOf(li,'after')===place.after : place.before!=='' && numberOf(li,'before')===place.before);if(!row)return;
+    if(row.hidden){opened.add(row.dataset.diffFolded);unfold(list,row.dataset.diffFolded);}
+    const tools=q('[data-coding-tools]');tools.scrollTop+=row.getBoundingClientRect().top-tools.getBoundingClientRect().top-place.offset;};
+  showLayout();
   const key=()=> 'molis-coding-feedback:'+root.dataset.codingPrefix+':'+ports.current()+':'+runId;
   const remember=()=>{try{localStorage.setItem(key(),JSON.stringify(comments));}catch{message.textContent='意见暂未保存到本机，请保留当前窗口。';}};
   const close=()=>{ticket++;runId='';value=null;fixed=false;net=false;netIndices=null;reader.hidden=true;};
@@ -63,19 +76,19 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     q('[data-coding-change-summary]').textContent=writes?paths+' 个文件 · '+writes+' 次写入':'这一轮没有文件写入';
   };
   const open=async(nextRun,save=false,nextIndex=0,requireFixed=false,mode='auto')=>{
-    const id=ports.current(),token=++ticket,scrollToStart=!runId || runId!==nextRun || index!==nextIndex || (mode!=='auto' && net!==(mode==='1'));
+    const id=ports.current(),token=++ticket,scrollToStart=!runId || runId!==nextRun || index!==nextIndex || (mode!=='auto' && net!==(mode==='1'));if(scrollToStart){opened=new Set();anchor=null;}
     if(!runId)ports.closeReport();
     if(runId!==nextRun){comments=[];runId=nextRun;try{const saved=JSON.parse(localStorage.getItem(key()) || '[]');if(Array.isArray(saved))comments=saved;}catch{}}
     index=nextIndex;fixed=requireFixed;value=null;reader.hidden=false;
     q('[data-coding-change-save]').disabled=true;q('[data-coding-feedback-return]').disabled=true;
     message.textContent=save?'正在保存原审查的固定版本…':'正在读取本轮审查…';
     try{
-      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index+'&net='+mode+(requireFixed?'&fixed=1':''),save?'POST':'GET');
+      const result=await api('/sessions/'+encodeURIComponent(id)+'/runs/'+encodeURIComponent(nextRun)+'/changeset?change_index='+index+'&net='+mode+'&layout='+layout+(requireFixed?'&fixed=1':''),save?'POST':'GET');
       if(ticket!==token || id!==ports.current())return;
       value=result;net=result.view_mode==='net';netIndices=net?(result.net_groups || []).find(group=>group.indices.includes(index))?.indices || null:null;q('[data-coding-change-body]').innerHTML=result.html;q('[data-coding-change-body]').dataset.codePath=result.change.files[index]?.path || '';
       renderFiles(result.change.files,nextRun);
       if(net){const body=q('[data-coding-change-body]'),whole=q('[data-coding-change-files] .is-net[aria-pressed=true]');
-        whole?.append(counts({added_lines:body.querySelectorAll('.diff-rows li[data-kind=insert]').length,removed_lines:body.querySelectorAll('.diff-rows li[data-kind=delete]').length}));}
+        whole?.append(counts({added_lines:body.querySelectorAll('.diff-rows li[data-kind=insert],.diff-split code[data-kind=insert]').length,removed_lines:body.querySelectorAll('.diff-rows li[data-kind=delete],.diff-split code[data-kind=delete]').length}));}
       const fixedChip=q('[data-coding-change-fixed]'),saveButton=q('[data-coding-change-save]');
       fixedChip.hidden=!result.reference;saveButton.hidden=Boolean(result.reference);saveButton.disabled=Boolean(result.reference);
       if(result.reference){fixedChip.lastElementChild.textContent='已固定 v'+result.reference.version;fixedChip.title='固定于 '+new Date(result.saved_at).toLocaleString('zh-CN');}
@@ -83,14 +96,18 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
       q('[data-coding-feedback-hint]').textContent=result.reference?'点击行号留下意见；加入原任务草稿后由你决定如何发送，意见不代表批准写入。':'固定此版本后，点击行号即可留下意见。';
       const output=q('[data-coding-change-output]'),selected=result.reference && result.output?.artifact_id===result.reference.artifact_id && result.output?.version===result.reference.version;
       output.hidden=!result.reference;
-      if(scrollToStart)q('[data-coding-tools]').scrollTop=0;output.disabled=!result.reference || selected;output.textContent=selected?'已作为变更输出':'设为变更输出';renderComments();
+      showLayout();if(scrollToStart)q('[data-coding-tools]').scrollTop=0;else keepPlace(anchor);anchor=null;output.disabled=!result.reference || selected;output.textContent=selected?'已作为变更输出':'设为变更输出';renderComments();
     }catch(error){if(!lifetime.alive)return;if(ticket===token){message.textContent=error.message;q('[data-coding-change-body]').replaceChildren();q('[data-coding-change-files]').replaceChildren();}}
   };
   lifetime.listen(root,'click',async(event)=>{
     const target=event.target.closest('button');if(!target)return;
     if(target.hasAttribute('data-diff-unfold') && reader.contains(target)){
-      const group=target.dataset.diffUnfold,rows=target.closest('ol');
-      rows?.querySelectorAll('[data-diff-folded="'+group+'"]').forEach(row=>{row.hidden=false;});target.closest('li')?.remove();return;
+      opened.add(target.dataset.diffUnfold);unfold(target.closest('ol'),target.dataset.diffUnfold);return;
+    }
+    if(target.hasAttribute('data-coding-change-layout')){
+      const next=target.dataset.codingChangeLayout;if(next===layout)return;
+      layout=next;try{localStorage.setItem(LAYOUT_KEY,layout);}catch{/* storage refused: the choice lasts for this page */}showLayout();
+      if(runId && value){anchor=anchorOf();await open(runId,false,index,fixed,net?'1':'0');}return;
     }
     if(target.hasAttribute('data-coding-change-open')){ports.onRunOpen?.();await open(target.dataset.codingChangeOpen);return;}
     if(target.hasAttribute('data-coding-change-close')){close();ports.returnToTask?.();return;}

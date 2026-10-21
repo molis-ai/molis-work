@@ -19,7 +19,7 @@ test("a file read into 灵光 becomes a spark, and the spark becomes a Jelly not
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
-  await waitFor("document.body.dataset.desktopSurface === 'jelly' && document.querySelector('[data-jelly-period-title]').textContent.length > 0");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly' && !!document.querySelector('[data-jelly-content] [data-jelly-day]')");
   assert.equal(await evaluate("Boolean(document.querySelector('[data-jelly-view=\"inspirations\"]'))"), false, "Jelly keeps a calendar and notes; ideas live in 灵光");
 
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=lingguang` }, sessionId));

@@ -16,7 +16,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
-  await waitFor("document.body.dataset.desktopSurface === 'jelly' && document.querySelector('[data-jelly-period-title]').textContent.length > 0");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly' && !!document.querySelector('[data-jelly-content] [data-jelly-day]')");
   await click('[data-jelly-view="notes"]'); await click('[data-jelly-new]');
   await waitFor("document.querySelector('[data-jelly-record-title]')");
   await evaluate(`(() => { const input=document.querySelector('[data-jelly-record-title]'); input.value='行动服务验证笔记'; input.dispatchEvent(new InputEvent('input',{bubbles:true})); })()`);
@@ -52,7 +52,7 @@ for (const width of [1440, 390]) test(`Jelly ${width}px: create, edit, manual pl
   if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") {
     await click('[data-plugin-strip] [data-plugin-id=jelly]');
   }
-  await waitFor("document.querySelector('[data-jelly-period-title]').textContent.length > 0");
+  await waitFor("!!document.querySelector('[data-jelly-content] [data-jelly-day]')");
   await click('[data-jelly-mode="list"]'); await waitFor("document.querySelectorAll('[data-jelly-occurrence]').length === 2");
   assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
   await writeFile(new URL(`jelly-calendar-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));

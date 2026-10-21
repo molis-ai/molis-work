@@ -1,4 +1,4 @@
-import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDistance } from "../scroll-follow.js";
+import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDistance, type FollowState as State, type ScrollFollower as Follower } from "../scroll-follow.js";
 
 /**
  * One owner for a growing conversation's scroll (specs/visual-ui-experience §scroll-ownership, VUX-26):
@@ -17,11 +17,6 @@ import { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, followDista
  *   image decoding or a block opening above keeps the paragraph being read where it is. One mechanism per shift.
  * - `dispose()` lets go of every listener, observer and frame, for a view that unmounts.
  */
-type State = "following" | "detached";
-type Follower = {
-  readonly state: State;
-  pin(): void; toLatest(): void; resume(): void; restore(top: number): void; release(): void; dispose(): void;
-};
 
 const owners = new WeakMap<HTMLElement, Follower>();
 const FOLLOWING = "following", DETACHED = "detached";
@@ -97,5 +92,4 @@ function molisFollow(scroller: HTMLElement, options: { onChange?: (state: State)
   return follower;
 }
 
-declare global { interface Window { molisFollow?: typeof molisFollow } }
 window.molisFollow ??= molisFollow;

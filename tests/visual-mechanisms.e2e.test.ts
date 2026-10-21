@@ -76,6 +76,23 @@ test("VUX-19 copy feedback: done only after the clipboard took it, same width, r
   await sleep(100);
 });
 
+test("VUX-19 an icon-only copy button answers with a check or a cross in its own box, and its words are read out", { timeout: 60_000 }, async t => {
+  const page = await openPage(t, `<p><button id="copy" aria-label="复制" style="width:32px;height:32px;padding:0"><svg aria-hidden="true" width="16" height="16"><use href="#icon-copy"></use></svg></button></p>`);
+  if (!page) return;
+  await page.evaluate(`Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: (text) => text === "坏" ? Promise.reject(new Error("denied")) : Promise.resolve() } })`);
+  const box = () => page.evaluate<number[]>(`(() => { const r = document.getElementById("copy").getBoundingClientRect(); return [r.width, r.height]; })()`);
+  const before = await box();
+  await page.evaluate(`void window.molisCopy(document.getElementById("copy"), "正文", { done: "已复制", failed: "复制失败" })`);
+  await page.wait(`document.getElementById("copy").dataset.copy === "done"`);
+  assert.deepEqual(await page.evaluate(`[...document.querySelectorAll("#copy > [data-copy-face]")].map((n) => [n.dataset.copyFace, n.textContent.trim(), n.querySelector("use")?.getAttribute("href") ?? ""])`),
+    [["idle", "", "#icon-copy"], ["done", "", "#icon-check"], ["failed", "", "#icon-x"]], "no words inside an icon button: a check for done, a cross for failed");
+  assert.deepEqual(await box(), before, "the icon button keeps its size");
+  await page.wait(`document.querySelector("[role=status].mw-sr-only")?.textContent === "已复制"`);
+  await page.evaluate(`void window.molisCopy(document.getElementById("copy"), "坏", { done: "已复制", failed: "复制失败" })`);
+  await page.wait(`document.getElementById("copy").dataset.copy === "failed"`);
+  await page.wait(`document.querySelector("[role=status].mw-sr-only")?.textContent === "复制失败"`);
+});
+
 test("VUX-22 a collapsible opens to its natural height, reverses midway, grows with its content and keeps no hidden focus", { timeout: 60_000 }, async t => {
   const body = renderCollapsible({ summary: "详情", body: `<p id="line">第一行</p><button id="inside">里面的按钮</button>` });
   const page = await openPage(t, `<div id="host">${body}</div><p id="after">之后的段落</p>`);

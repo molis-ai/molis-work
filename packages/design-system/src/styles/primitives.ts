@@ -368,13 +368,13 @@ export const PRIMITIVE_STYLES = `
     box-shadow: var(--shadow); color: var(--action-ink); font-size: 13px;
   }
   .mw-spinner { width: 20px; height: 20px; display: inline-block; color: currentColor; }
-  /* One loading rule everywhere: a quiet line with the spinner, which appears only if the wait passes 250ms
-     (a quick load never flashes). Skeletons (static, never shimmer) and busy buttons wait the same; reduced motion drops only the fade. */
+  /* One loading rule everywhere: a quiet line with the spinner, shown only past a 250ms wait (a quick load never flashes). Skeletons (static),
+     busy buttons and a plugin's dimmed region (mw-busy-dim to --busy-dim) wait the same, as animations; reduced motion drops only the fade. */
   .mw-loading {
     display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px;
     animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;
   }
-  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes mw-loading-in { from { opacity: 0; } to { opacity: 1; } } @keyframes mw-busy-dim { to { opacity: var(--busy-dim, .65); } }
   @media (prefers-reduced-motion: reduce) { .mw-loading, .mw-skeleton, .mw-btn[data-loading] > * { animation-duration: 0s; } }
   .mw-skeleton {
     display: block; height: 12px; border-radius: 4px; animation: mw-loading-in var(--dur-move) var(--ease-quint) var(--dur-move) both;

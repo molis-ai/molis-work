@@ -64,7 +64,7 @@ function executorPlugin() {
   return { definition, handled, runs };
 }
 
-test("S-51 a follow-up scheduled before its executor plugin's grant is revoked is refused when due, and none of the executor's actions runs", { timeout: 120_000 }, async t => {
+test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, or the plugin stopped, is refused when due, and none of the executor's actions runs", { timeout: 120_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-executor-revoked-"));
   const created = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "执行方撤权", actor_id: "owner" }));
   const reference = molisWorkHostProjectReference({ databasePath: created.database_path, projectId: created.project_id });
@@ -120,8 +120,24 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked i
     await pending.ran();
     const last = service.followUps.list(sent.work.work_id).find(row => row.followup_id === pending.standing.followup_id)!.last!;
     assert.equal(last.outcome, "failed", "the round is refused when it comes due");
+    assert.match(last.detail ?? "", /没有可用的 Coding 插件/u, "refused because the person's directory no longer offers the executor's actions, not by something else failing");
     assert.deepEqual(executor.handled.slice(handledBefore), [], "none of the executor's actions ran after its grant was withdrawn, reads included");
     assert.equal(executor.runs.length, 1, "no round started in the executor");
     assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for the refused follow-up");
+    await service.followUps.remove(pending.standing.followup_id);
+
+    // The grant given back, a follow-up scheduled while the executor runs, then the plugin stopped (as revoking or disabling it does
+    // in the product) before it comes due: its actions are gone, and the round is refused without reaching it.
+    repository.save({ ...runtime.get(installId), grants: [USE] });
+    const stopping = await ranOnce("停用以后的定时");
+    await runtime.stop(installId);
+    const handledBeforeStop = executor.handled.length;
+    await stopping.ran();
+    const stopped = service.followUps.list(sent.work.work_id).find(row => row.followup_id === stopping.standing.followup_id)!.last!;
+    assert.equal(stopped.outcome, "failed", "the round is refused when it comes due");
+    assert.match(stopped.detail ?? "", /没有可用的 Coding 插件/u, "refused because the stopped executor's actions are gone, not by something else failing");
+    assert.deepEqual(executor.handled.slice(handledBeforeStop), [], "none of the stopped executor's actions ran");
+    assert.equal(executor.runs.length, 1, "no round started in the stopped executor");
+    assert.equal(store.rounds(sent.work.work_id).length, roundsBefore, "the work records no round for either refused follow-up");
   });
 });

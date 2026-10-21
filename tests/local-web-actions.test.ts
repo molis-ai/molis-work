@@ -11,7 +11,7 @@ import {
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";
@@ -295,6 +295,20 @@ test("VUX-35 a bound client refuses a write revoked after it was bound, and a gr
   await regrant([...without, "todo:write"]);
   await assert.rejects(boundWhileRevoked.invoke(create, { title: "授权之前绑定的客户端看不到新授权" }), { code: "actions.forbidden" });
   await bindLocalWebActions(host, undefined, owner).invoke(create, { title: "授权之后新绑定的客户端记得下" });
+});
+
+// S-51 (C8-1): the control a dispatch hands its bound client (whether the follow-up still counts) joins that client's checks, at the
+// dispatcher's validation and at its last synchronous check, so a control that no longer counts stops the write before the handler.
+test("S-51 a bound client passes its call's control on: a control refusing at beforeEffect or at its last check stops the write", { timeout: 90_000 }, async t => {
+  const { host } = await serveHomeRuntime(t);
+  const [create, list] = ["todo.items.create", "todo.items.list"].map(id => todoManifest.actions!.find(definition => definition.capability_id === id)!) as [ActionDefinition, ActionDefinition];
+  const client = bindLocalWebActions(host, undefined, ["todo:read", "todo:write"]), gone = () => new ActionError("actions.cancelled", "这次跟进已经不算数");
+  const total = async () => (await client.invoke(list, { all_projects: true }) as { counts: { all: number } }).counts.all, before = await total();
+  await assert.rejects(client.invoke(create, { title: "control 在 beforeEffect 拒绝" }, { beforeEffect: async () => { throw gone(); } }), { code: "actions.cancelled" });
+  await assert.rejects(client.invoke(create, { title: "control 在最后一次检查拒绝" }, { beforeEffect: async () => {}, assert_authority_current: () => { throw gone(); } }), { code: "actions.cancelled" });
+  assert.equal(await total(), before, "neither write reached Todo");
+  const made = await client.invoke(create, { title: "control 放行时记得下" }, { beforeEffect: async () => {}, assert_authority_current: () => {} }) as { item: { title: string } };
+  assert.equal(made.item.title, "control 放行时记得下"); assert.equal(await total(), before + 1, "the same client writes once its control lets it");
 });
 
 // §4 o of privileges.md (PG-007): a Runtime route's own permission is the person's only as far as its installation holds it, whatever else

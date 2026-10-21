@@ -28,7 +28,9 @@ test("PG-036 a role action that does not keep its role's contract is refused", (
     { ...state, action: { ...state.action, audiences: ["agent"] } },
     { ...state, action: { ...state.action, scope: "home" } },
     { ...state, operation: "command" },
+    { ...state, action: { ...state.action, kind: "operation" } },
     { ...open, action: { ...open.action, input_schema: { type: "object" } } },
+    { ...open, action: { ...open.action, output_schema: { type: "object" } } },
     // Half a role: one type of `state`, the other of `session.read`.
     { ...state, action: { ...state.action, output_type: WORK_EXECUTOR_PROTOCOL["session.read"].output_type } },
   ];

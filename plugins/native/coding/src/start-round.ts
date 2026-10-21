@@ -17,7 +17,7 @@ import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import type { CodingExecution } from "./routes.js";
 import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
 import { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
@@ -28,12 +28,16 @@ import { codingWriterAssignments } from "./writers.js";
 // A round started here is followed until it settles, so the session's recorded state — which the directory and the
 // cross-project background list read — stays right while no page is open. One follower per session; a newer round
 // replaces it, and a Host that stops answering (the plugin closing) ends it.
-const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecutionPorts,
+const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecution,
   sessionId: string, session: { runtime_id: string; session_id: string }, run: { session_id: string; run_id: string }, workspaceId: string) => {
   const { context, projectId, stopped, following } = a;
   const token = Symbol(sessionId);
   following.set(sessionId, token);
   const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
+  // What a write of the follower waits for. The follower runs outside any action (it outlives the one that started the round), so
+  // the platform has no original call to check for it: the only currency it has is its own, that the activation is alive and no
+  // newer round has taken the session over. Throwing ends the follower, as the checks around each write did before.
+  const stillFollowing = async () => { if (!current()) throw new Error("这一轮的跟随已结束"); };
   // The activation's follower, not the request's: it outlives the action that started the round.
   a.detach(() => void (async () => {
     let since: string | null = null;
@@ -43,7 +47,7 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
       const view = waited.view;
       since = waited.version;
       const record = execution.sessions.get(projectId, sessionId), next = sessionState(view);
-      if (next !== record.state) execution.sessions.setState(projectId, sessionId, next, record.updated_at);
+      if (next !== record.state) await execution.sessions.setState(stillFollowing, projectId, sessionId, next, record.updated_at);
       if (["completed", "failed", "stopped", "cancelled", "reconcile-required"].includes(view.phase)) {
         // Notification only: terminal does not mean every tool succeeded or that a file changed.
         // The activation-owned events client rejects publication after stop/revocation.
@@ -54,7 +58,7 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
         // A round that ended parked (waiting for an answer or a command) shows as waiting from here on.
         if (view.phase !== "reconcile-required" && await a.waits.openWaitOf(execution.sessions.get(projectId, sessionId)).catch(() => undefined)) {
           if (!current()) return;
-          execution.sessions.setState(projectId, sessionId, "queued", new Date().toISOString());
+          await execution.sessions.setState(stillFollowing, projectId, sessionId, "queued", new Date().toISOString());
           a.waits.wakeLoop(api, execution, session.runtime_id);
         }
         break;
@@ -68,8 +72,10 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
  * done. The same checks run either way; nothing about a queued round is decided at the moment it starts.
  */
 export const startRound = async (a: CodingActivation, record: CodingSessionRecord, body: Record<string, unknown>, actorId: string,
-  api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite = Object.assign(async () => {}, { assert_current: () => a.stopped.signal.throwIfAborted() })) => {
-  const { context, projectId, ports } = a;
+  api: Capabilities, execution: CodingExecution,
+  // A round woken by the activation's own loop (an answer arrived, a wait ended) has no call to answer to; it answers to the activation.
+  beforeWrite: CodingBeforeWrite = Object.assign(async () => a.stopped.signal.throwIfAborted(), { assert_current: () => a.stopped.signal.throwIfAborted() })) => {
+  const { context, projectId } = a;
   // Continuing an earlier round's unfinished graph uses that round's own confirmed revision, whatever the draft is now.
   const continueOf = body.continue_step_board_of === undefined ? undefined : text(body.continue_step_board_of, "被继续的轮次", 200);
   if (continueOf !== undefined && (typeof body.plan_revision !== "number" || !Number.isSafeInteger(body.plan_revision) || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("继续计划需要原计划修订，并以执行或并行写入方式开始");
@@ -142,7 +148,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
-  if (!record.runtime_session_id) execution.sessions.setRuntimeSession(projectId, record.session_id, session.session_id, new Date().toISOString());
+  if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
   // A long session carries its earlier rounds as a digest once replaying them verbatim would crowd out this round,
   // or when the person asked for it; if the runtime still finds the replay too large, the round starts from the digest.
   let earlier: AgentRunView[] | undefined;
@@ -190,8 +196,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     await beforeWrite(); beforeWrite.assert_current();
     if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
     // A session named by default takes its name from the first task, the way a person would label it.
-    if (firstRound && execution.sessions.get(projectId, record.session_id).title === DEFAULT_SESSION_TITLE) execution.sessions.rename(projectId, record.session_id, codingSessionTitleFrom(task), new Date().toISOString());
-    execution.sessions.setState(projectId, record.session_id, "running", new Date().toISOString());
+    // The name and the running state are one write: the directory never shows the new name beside the old state.
+    await execution.sessions.roundStarted(beforeWrite, projectId, record.session_id, new Date().toISOString(), firstRound ? { from: DEFAULT_SESSION_TITLE, to: codingSessionTitleFrom(task) } : null);
     // How this round was started, so a round woken later (an answer arrived) starts the same way.
     // A round woken later is a plain round in the same way of working: without the plan it ran or the directory split.
     // A round continued from a breakpoint goes on with the task it continues, not the continuation's own wording.
@@ -205,7 +211,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
     // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
-    follow(a, context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
+    follow(a, context.services!.capabilities!, execution, record.session_id, session, run.ref, workspace.workspace_id);
   }
 };
 
@@ -215,7 +221,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
  * returned; 「从断点继续」 starts it later. A session still being recovered is read once and the round tried once more.
  */
 export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
-  api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
+  api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
   const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
   if (!saved) return { started: false, reason: "读不到这一轮是怎样开始的" };
   const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");

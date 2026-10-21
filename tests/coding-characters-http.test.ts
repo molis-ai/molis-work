@@ -9,10 +9,10 @@ import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("Coding saves exact Character versions, blocks unavailable selection before SDK creation, and preserves task drafts across reopen", async () => {
   const home = mkdtempSync(join(tmpdir(), "coding-characters-")), dbPath = join(home, "board.db");
@@ -29,8 +29,8 @@ test("Coding saves exact Character versions, blocks unavailable selection before
   publish(1);
   personal.service.update(draft.character_id, 2, { title: "新的角色", instructions: "新要求", host_tools: null });publish(2);
   const ref = { artifact_id: `character:${DEMO_PROJECT_ID}:${draft.character_id}`, version: 1 };
-  const sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "new"]) sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
+  const sessions = codingSessions(store);
+  for (const id of ["app", "new"]) await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const starts: AgentStartRequest[] = []; let created = 0;
   const host = () => ({ store, homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,

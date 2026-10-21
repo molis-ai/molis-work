@@ -195,6 +195,13 @@ export interface ActionMetadata {
   readonly file_source?: FileSourceDeclaration;
   /** Common owner protocol for reading a discussion and committing its fixed reply destination. */
   readonly thread_source?: { readonly role: "context" | "reply"; readonly subject_kind: string };
+  /**
+   * The Home may call this query in every open project and keep each project's answer apart (PG-043), as it gathers the background
+   * work still running. It only reads: a query of project scope that calls no model and costs nothing, with the `output_type` the
+   * Home asks for. Declaring it grants nothing: each call is made in its project with that project's grants, and where the plugin
+   * is off or not granted it is not called.
+   */
+  readonly home_aggregate?: true;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */

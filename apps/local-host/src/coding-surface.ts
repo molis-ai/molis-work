@@ -13,14 +13,12 @@ import {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,
   CODING_UI_CONTRIBUTION_ID,
-  CodingSessionStore,
-  toDirectoryEntries,
   renderCodingReport,
   codingNetChange,
   HISTORY_DIGEST_MARKER,
   codingFollowUps,
   type CodingFollowUpRun,
-  type CodingUiModel,
+  type CodingUiHostModel,
 } from "@molis-ai/molis-work-plugin-coding";
 import {
   DIFF_PLUGIN_ID,
@@ -102,21 +100,18 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
   const contribution = record.platform.supervisor.contribution(CODING_PLUGIN_ID);
   const views = (contribution as { views?: ReadonlyArray<{
     descriptor: { contribution_id: string };
-    render(request: { surface: string; model: CodingUiModel }): string;
+    render(request: { surface: string; model: CodingUiHostModel }): string;
   }> } | null)?.views ?? [];
   const view = views.find((entry) => entry.descriptor.contribution_id === CODING_UI_CONTRIBUTION_ID);
   if (!view) return { plugin_id: CODING_PROJECT_PLUGIN_ID, panel: failedStage("coding", "Coding 页面未注册") };
 
   try {
-    const sessions = toDirectoryEntries(
-      new CodingSessionStore(ports.store.db).list(ports.projectId),
-      ports.goalTitle,
-    );
-    const model: CodingUiModel = {
+    // The session directory is not the Host's to fill: Coding's own view reads it from Coding's store at render
+    // (codingUiView), so the Host hands over only what is the Host's — the page's face, companions and primitives.
+    const model: CodingUiHostModel = {
       route_prefix: ports.routePrefix ?? "",
       face: "sessions",
       filter: "all",
-      sessions,
       tools: [],
       workspace_path: null,
       companion_directory: renderFilesBrowserDirectory() + renderGitBrowserDirectory(),

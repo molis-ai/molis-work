@@ -7,8 +7,9 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/ai-interaction-experience AC-09 (Coding's report): the report opens from its fixed versions, with or without a runtime.
 test("AC-09: formal report routes freeze real Artifact versions, distinguish missing/failed evidence, and reopen without a runtime", async () => {
@@ -16,10 +17,10 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   let store = new LocalProjectDatabase(dbPath);
   let api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  let sessionStore = new CodingSessionStore(store.db);
+  let sessionStore = codingSessions(store);
   for (const id of ["app", "other"]) {
-    sessionStore.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
-    sessionStore.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
+    await sessionStore.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: '<img src=x onerror="bad()">', runtime_id: "prologue", at: "2026-09-21T00:00:00Z" });
+    await sessionStore.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "sdk-other", "2026-09-21T00:00:00Z");
   }
   let runtimeAvailable = true;
   const run: AgentRunView = {
@@ -154,8 +155,8 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
   const dbPath = join(dir, "board.db"); seedDemoBoard(dbPath);
   const store = new LocalProjectDatabase(dbPath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "登录", runtime_id: "prologue", at: "2026-10-17T00:00:00Z" });
-  new CodingSessionStore(store.db).setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", "2026-10-17T00:00:00Z");
+  await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "登录", runtime_id: "prologue", at: "2026-10-17T00:00:00Z" });
+  await codingSessions(store).setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-10-17T00:00:00Z");
   const run = steerRun();
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value, execution: { ready: async () => {}, models: async () => [] },

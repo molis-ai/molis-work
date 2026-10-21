@@ -524,6 +524,7 @@ export interface ActionMetadata {
         readonly role: "context" | "reply";
         readonly subject_kind: string;
     };
+    readonly home_aggregate?: true;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;

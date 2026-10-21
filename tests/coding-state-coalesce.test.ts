@@ -6,18 +6,18 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("however many pages poll the Coding directory at once, one read runs and at most one waits; a request mid-read gets the next read", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-state-coalesce-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
+  const sessions = codingSessions(store);
   for (const id of ["a", "b", "c"]) {
-    sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
-    sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString());
+    await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `会话 ${id}`, runtime_id: "prologue", at: new Date().toISOString() });
+    await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `sdk-${id}`, new Date().toISOString());
   }
   let reads = 0, inFlight = 0, most = 0; const batches: string[][] = [];
   const host = () => ({ store, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", goalTitle: () => undefined,
@@ -94,7 +94,7 @@ const PLUGIN = "/api/plugins/io.molis.work.coding";
 async function harness(initial: Entry[]) {
   const root = mkdtempSync(join(tmpdir(), "coding-runtime-choice-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
+  const sessions = codingSessions(store);
   const calls: Array<[string, unknown]> = [];
   const world = { runtimes: initial, noLetters: false, created: 0 };
   const actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -232,7 +232,7 @@ test("PG-054 a Runtime whose matrix offers no MCP shows no MCP servers and refus
 test("PG-054 a delegation is made on the Runtime of the session that asks, and a Runtime with no letters between sessions refuses before sending anything", { timeout: 30_000 }, async () => {
   const h = await harness([runtime("beta"), runtime("prologue")]);
   const at = new Date().toISOString();
-  h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "发起", runtime_id: "beta", at });
+  await h.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "发起", runtime_id: "beta", at });
   try {
     const sent = await h.call("/sessions/a/delegations", { task: "整理会议记录" });
     assert.equal(sent.status, 200, JSON.stringify(sent.body));
@@ -254,8 +254,8 @@ test("PG-054 integrating a child's work needs sub-agents in the session's own Ru
   const h = await harness([runtime("beta", { subagents: "unsupported" }), runtime("prologue")]);
   const at = new Date().toISOString();
   for (const [id, runtime_id] of [["a", "beta"], ["b", "prologue"]] as const) {
-    h.sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id, at });
-    h.sessions.setRuntimeSession(DEMO_PROJECT_ID, id, `rt-${id}`, at);
+    await h.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id, at });
+    await h.sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, `rt-${id}`, at);
   }
   try {
     const none = await h.call("/sessions/a/runs/r1/subagents/c1/integration");

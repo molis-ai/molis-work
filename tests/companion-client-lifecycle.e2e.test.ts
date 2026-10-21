@@ -12,7 +12,8 @@ import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/scrip
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { CodingSessionStore, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { createDiffPlugin, renderDiff, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
@@ -74,10 +75,10 @@ const state = (name: string) => name === "files" ? { workspace: { workspace_id: 
 test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and repeated paths; refresh, reopen and late responses keep the chosen index", { timeout: 60_000 }, async t => {
   const directory = await mkdtemp(join(tmpdir(), "coding-fixed-diff-")), path = join(directory, "project.db");
   seedDemoBoard(path);
-  const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
+  const store = new LocalProjectDatabase(path), sessions = codingSessions(store);
   const at = "2026-09-28T10:00:00.000Z", ref = { session_id: "runtime-session", run_id: "run-one" };
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "coding-one", title: "Fixed changes", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "coding-one", ref.session_id, at);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "coding-one", title: "Fixed changes", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "coding-one", ref.session_id, at);
   let readable = true, reads = 0;
   const rows = [["empty.txt", "", ""], ["cart.mjs", "old\n", "new\n"], ["cart.mjs", "new\n", "latest <script>\n"]].map(([target, before, after], index) => ({
     request: { review_id: "review-" + index, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",
@@ -100,7 +101,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
       throw new Error("Unexpected capability " + definition.capability_id);
     } },
   });
-  const started = await platform.start([{ definition: createCodingPlugin({ execution: { sessions, ready: async () => {}, models: async () => [], goalTitle: () => undefined } }), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  const started = await platform.start([{ definition: createCodingPlugin({ execution: { ready: async () => {}, models: async () => [], goalTitle: () => undefined } }), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {

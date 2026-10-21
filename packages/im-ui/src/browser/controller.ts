@@ -60,11 +60,8 @@ export function startIm(factories: {
     form.querySelector<HTMLButtonElement>('button[type=submit]')!.disabled = busy || !loaded || !inputFor(kind).value.trim() || !target(kind);
     inputFor(kind).disabled = busy || !loaded;
   }
-  function resizeInput(kind: StreamKind) {
-    const input = inputFor(kind);
-    input.style.height = 'auto';
-    input.style.height = Math.min(input.scrollHeight, matchMedia('(max-height:300px)').matches ? 34 : matchMedia('(max-width:640px)').matches ? 75 : 130) + 'px';
-  }
+  // The field grows with what is written (data-fit, the shared intrinsic sizing); a value set here sends no input event.
+  const resizeInput = (kind: StreamKind) => window.molisFit?.(inputFor(kind));
   function restoreDraft(kind: StreamKind) {
     inputFor(kind).value = drafts.get(target(kind))?.body || '';
     paintQuote(kind);

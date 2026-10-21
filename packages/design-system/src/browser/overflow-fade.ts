@@ -2,8 +2,8 @@ import { overflowSides } from "../overflow-sides.js";
 
 /**
  * The overflow fade's one sensor per document (specs/visual-ui-experience §overflow-fade, VUX-27). A strip marked
- * `data-overflow-fade` is measured in the next frame after it scrolls, resizes, its content, class, style or direction changes,
- * or fonts load, and `data-more` is written only when the answer changes. Strips are found on load, after each click or
+ * `data-overflow-fade` is measured in the next frame after it scrolls, resizes, its content, class, style, direction or
+ * visibility (hidden / aria-hidden) changes, or fonts load, and `data-more` is written only when the answer changes. Strips are found on load, after each click or
  * focus, as the segmented thumbs are, and when a page puts one in later (a list row drawn after load). A box that does not scroll (overflow visible) is never masked: the mask would cut off
  * what it lets show.
  */
@@ -34,7 +34,7 @@ function watch(node: HTMLElement) {
   seen.add(node);
   node.addEventListener("scroll", () => check(node), { passive: true });
   sized?.observe(node);
-  new MutationObserver(() => check(node)).observe(node, { childList: true, subtree: true, characterData: true, attributeFilter: ["class", "style", "dir"] });
+  new MutationObserver(() => check(node)).observe(node, { childList: true, subtree: true, characterData: true, attributeFilter: ["class", "style", "dir", "hidden", "aria-hidden"] });
   check(node);
 }
 let queued = false;

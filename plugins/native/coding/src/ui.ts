@@ -99,6 +99,20 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   },
 };
 
+/** What the Host hands Coding's page when it renders: everything but the session directory, which Coding reads from its own tables. */
+export type CodingUiHostModel = Omit<CodingUiModel, "sessions">;
+
+/**
+ * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
+ * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14).
+ */
+export function codingUiView(directory: () => readonly CodingSessionEntry[]): UiContribution<CodingUiHostModel> {
+  return {
+    descriptor: codingUiDescriptor,
+    render: request => codingUiContribution.render({ ...request, model: { ...request.model, sessions: directory() } }),
+  };
+}
+
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
   const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(face.label)}" aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");
@@ -296,7 +310,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
           ${renderButton({label:"独立工作树",icon:"git-branch",variant:"ghost",attrs:{"data-coding-writer-directories-open":""}})}${renderButton({label:"并排打开会话",icon:"columns",iconOnly:true,variant:"ghost",attrs:{"data-coding-open-beside":"",title:"在右侧并排打开另一个会话（也可以按住 ⌘ 或 Ctrl 点会话）"}})}${renderButton({label:"重命名",icon:"edit",iconOnly:true,variant:"ghost",attrs:{"data-coding-rename":"",hidden:true,title:"重命名会话"}})}${renderButton({label:"归档会话",variant:"ghost",attrs:{"data-coding-archive":"",hidden:true}})}<small data-coding-goal-label></small></div>
           <div class="coding-composer-shell">
             <label class="mw-sr-only" for="coding-task">任务或补充要求</label>
-            <textarea class="mw-textarea" id="coding-task" data-coding-task rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
+            <textarea class="mw-textarea" id="coding-task" data-coding-task data-fit rows="3" placeholder="描述任务，或补充这一轮的要求…（输入 / 查看命令）" aria-describedby="coding-slash-help" disabled></textarea>
             <span class="mw-sr-only" id="coding-slash-help">在空的输入框里输入斜杠打开命令列表，用上下方向键选择，回车执行。</span>
             <div class="coding-slash" id="coding-slash-menu" data-coding-slash-menu role="listbox" aria-label="命令" hidden></div>
             <div class="coding-composer-bar">

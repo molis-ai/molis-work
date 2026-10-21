@@ -1,14 +1,15 @@
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingSurface, type CodingExecutionPorts } from "../../plugins/native/coding/dist/routes.js";
+import type { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 
 /**
  * Unit fixtures run Coding without a Plugin Runtime. The curated routes forward to Coding's owner-bound actions, so
  * this redeems those actions for the fixture owner exactly as the Runtime would, and signs route calls as that owner.
  */
-export function codingFixtureRoutes(context: PluginStartContext, ports: CodingExecutionPorts): PluginRouteBinding[] {
+export function codingFixtureRoutes(context: PluginStartContext, sessions: CodingSessionStore, ports: CodingExecutionPorts): PluginRouteBinding[] {
   const fixture = context as unknown as Record<string, unknown> & { services: Record<string, unknown> };
   fixture.actor_id ??= "web-user"; fixture.install_id ??= "coding-fixture"; fixture.requireGrant ??= () => {};
-  const surface = codingSurface(context, ports);
+  const surface = codingSurface(context, sessions, ports);
   fixture.services.actions = {
     discover: async () => surface.actions.map(handler => ({ capability_id: handler.capability_id, version: handler.version,
       provider: { provider_id: fixture.install_id, plugin_install_id: fixture.install_id }, availability: { available: true } })),

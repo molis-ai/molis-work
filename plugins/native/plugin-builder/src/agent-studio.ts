@@ -20,7 +20,7 @@ export function renderAgentStudio(text: (zh: string, values?: Record<string, str
     + '<a class="as-model-setup" data-as-model-setup href="/settings/models" hidden>' + text('打开模型设置') + '</a></div></header>'
     + '<aside class="as-left" aria-label="' + text('协作') + '"><div class="as-feed" data-as-feed aria-live="polite"></div>'
     + '<label class="as-select" data-as-edit-label hidden><span>' + edit + '</span><select data-as-edit-mode aria-label="' + edit + '"><option value="message">' + text('功能与界面') + '</option><option value="visual">' + text('只调整界面') + '</option></select></label>'
-    + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input rows="2" maxlength="48000" aria-label="' + text('描述或修改') + '"></textarea>'
+    + '<form class="as-composer" data-as-composer><div class="as-target" data-as-target hidden></div><textarea data-as-input data-fit rows="2" maxlength="48000" aria-label="' + text('描述或修改') + '"></textarea>'
     + '<button class="as-send" type="submit" aria-label="' + send + '" title="' + send + '"><svg aria-hidden="true"><use href="#icon-send"/></svg></button></form>'
     + '<p class="as-model-note" data-as-model-note></p>'
     // The build check's packaging step downloads the dependencies a generated plugin declares from the npm registry (W2-18 decision 14).
@@ -68,7 +68,7 @@ export const AGENT_STUDIO_STYLES = String.raw`
 .as-gates{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
 .as-controls{display:flex;gap:8px}
 .as-composer{position:relative;margin:0 16px 8px;border:1px solid var(--as-line);border-radius:12px;background:var(--as-paper);padding:8px 48px 8px 12px}.as-composer:focus-within{border-color:color-mix(in srgb, var(--accent) 42%, transparent);box-shadow:0 0 0 3px var(--accent-soft)}
-.as-composer textarea{display:block;width:100%;resize:none;border:0;outline:0;font:inherit;background:transparent;max-height:180px}.as-send{position:absolute;right:9px;bottom:9px;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink,var(--action));color:var(--paper,var(--action-ink));display:flex;align-items:center;justify-content:center}.as-send:disabled{background:var(--line-strong)}
+.as-composer textarea{--fit-max:180px;display:block;width:100%;border:0;outline:0;font:inherit;background:transparent}.as-send{position:absolute;right:9px;bottom:9px;width:32px;height:32px;border:0;border-radius:50%;background:var(--ink,var(--action));color:var(--paper,var(--action-ink));display:flex;align-items:center;justify-content:center}.as-send:disabled{background:var(--line-strong)}
 .as-target{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:12px;color:var(--accent)}.as-target button{border:0;background:none;padding:0 4px;color:var(--as-muted)}
 .as-model-note{margin:0 16px 12px;color:var(--as-muted);font-size:12px;text-align:center}
 .as-model-setup{align-self:center;color:var(--as-muted);font-size:12px;white-space:nowrap}
@@ -442,7 +442,7 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen(root,'click',e=>{const el=e.target.closest('button,a');if(!el||!root.contains(el))return;
   if(el.dataset.asOpenPlugin){e.preventDefault();host.openPlugin('app-'+el.dataset.asOpenPlugin);return;}
   if(el.matches('[data-as-model-setup]')){e.preventDefault();host.openSettings('/settings/models');return;}
-  if(el.dataset.asExample){input.value=el.dataset.asExample;input.focus();return;}
+  if(el.dataset.asExample){input.value=el.dataset.asExample;window.molisFit?.(input);input.focus();return;}
   if(el.dataset.asOpen){run(()=>open(el.dataset.asOpen));return;}
   if(el.hasAttribute('data-as-catalog')){const which=el.dataset.asCatalog||'components';catalogOpen=catalogOpen===which?'':which;tip.hidden=true;renderBoard();return;}
   if(el.dataset.asCandidate){preview=el.dataset.asCandidate;rendered='';schedule();return;}
@@ -474,8 +474,8 @@ const partEl=id=>{const el=id&&pluginRoot.querySelector('[data-component-id="'+C
  lifetime.listen(input,'keydown',e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.isComposing){e.preventDefault();$('[data-as-composer]').requestSubmit();}});
  lifetime.listen($('[data-as-composer]'),'submit',e=>{e.preventDefault();const text=input.value.trim();if(!text||busy)return;
   const go=fresh=>run(async()=>{
-   if(!current||fresh){const v=await api('/builds','POST',{brief:text});input.value='';await refreshState();await open(v.build.id);return;}
-   const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});input.value='';target=null;});
+   if(!current||fresh){const v=await api('/builds','POST',{brief:text});input.value='';window.molisFit?.(input);await refreshState();await open(v.build.id);return;}
+   const node=target&&current.nodes.find(n=>n.id===target);await act($('[data-as-edit-mode]').value,{message:node?'［'+node.purpose+'］'+text:text});input.value='';window.molisFit?.(input);target=null;});
   if(current?.design&&!target&&/^(我|帮我|请)?(要|想|需要|来)?(做|建|创建|新建|开发|搭)(一个|个|一款|款)/.test(text))
    ask(L('做一个新插件，还是修改「{name}」？',{name:current.design.title}),'“'+text.slice(0,80)+'”',[['new',L('做成新插件'),true],['modify',L('修改「{name}」',{name:current.design.title})],['cancel',L('取消')]]).then(choice=>{if(choice==='new')go(true);else if(choice==='modify')go(false);});
   else go(false);});

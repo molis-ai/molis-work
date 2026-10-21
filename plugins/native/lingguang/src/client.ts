@@ -460,6 +460,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderContext(payload.sparks || []);
     renderMessages(payload.messages || []);
     chatInput.value = "";
+    window.molisFit?.(chatInput);
     chatInput.focus();
   };
   const copyDispatch = async (button) => {
@@ -632,7 +633,7 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
       conversation = payload.conversation;
       renderContext(payload.sparks || []);
       renderMessages(payload.messages || []);
-      if (chatInput.value === body) chatInput.value = "";
+      if (chatInput.value === body) { chatInput.value = ""; window.molisFit?.(chatInput); }
     } catch (error) {
       draft.remove();
       if (conversation?.id === conversationId) showNote(error.name === "AbortError" ? L("已停止，回复没有保存") : error.message || L("灵光请求失败"), error.name !== "AbortError");

@@ -9,7 +9,8 @@ import { codingEventTypes } from "./events.js";
 import { codingManifest } from "./manifest.js";
 import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
-import { codingSettingsContribution, codingUiContribution } from "./ui.js";
+import { codingSettingsContribution, codingUiView } from "./ui.js";
+import { CodingSessionStore, toDirectoryEntries } from "./store.js";
 import { codingSurface, stopCodingSurface, type CodingExecutionPorts } from "./routes.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
@@ -66,10 +67,16 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       for (const permission of codingManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
-      const surface = codingSurface(context, ports.execution);
+      // The session tables are Coding's own, in the project's library: the platform lends them as `services.project_database`
+      // (made when the library opened, `databases.project`). Without it nothing here can keep a session, so the plugin does not start.
+      const database = context.services?.project_database;
+      if (!database) throw new Error("宿主没有提供项目库（services.project_database），Coding 无法保存会话，不能启动");
+      const sessions = new CodingSessionStore(database), goalTitle = ports.execution?.goalTitle ?? (() => undefined);
+      const surface = codingSurface(context, sessions, ports.execution);
       return {
         kind: "app",
-        views: [codingUiContribution, codingSettingsContribution],
+        // The page's session directory is read from this store at render, not by the Host from Coding's tables.
+        views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitle)), codingSettingsContribution],
         routes: surface.routes,
         actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context)],
         /**

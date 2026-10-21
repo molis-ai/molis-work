@@ -238,6 +238,8 @@ export { placementCallPorts } from "./placement-call.js";
 export { ALCHEMIST_SEARCH_BASELINE, createAlchemistSearchPort } from "./alchemist-search.js";
 export { ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME, AssistantStore } from "./assistant/assistant-store.js";
 export { AssistantService } from "./assistant/assistant-service.js";
+// The Home's one Assistant as the Host composes it, its person clients included: what a check of who it calls as runs against.
+export { assistantServiceFor, closeAssistantService, type AssistantHttpPorts } from "./assistant/assistant-http.js";
 export { assistantSurroundings, repositoryName } from "./assistant/assistant-surroundings.js";
 export { AssistantFollowUps, AssistantFollowUpRecords, FOLLOW_UP_KIND, type AssistantFollowUpPorts } from "./assistant/assistant-followups.js";
 export { agentQuestionHtml, questionErrors } from "./agent-question-card.js";
@@ -277,8 +279,7 @@ export { projectOrNull } from "./catalog-lookup.js";
 export { createProjectArrivalHttp } from "./project-arrival-http.js";
 export { handleAttentionHttp, type AttentionSources } from "./attention-http.js";
 export { handleBrowserHttp } from "./browser/browser-http.js";
-export { codingBackgroundTasks } from "./coding-background-tasks.js";
-export { homeBackgroundTasks } from "./web-catalog.js";
+export { homeBackgroundTasks, type HomeBackgroundTaskRow } from "./home-background-tasks.js";
 export { startWebProjectSchedulers } from "./web-project-schedulers.js";
 export { hostLog, captureHostLog, logPreviewFailure, logSearchIndexFailure, repeatingFailure, type HostLogEntry, type HostLogField, type HostLogLevel } from "./host-log.js";
 

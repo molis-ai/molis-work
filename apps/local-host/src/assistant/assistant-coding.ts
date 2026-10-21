@@ -1,4 +1,4 @@
-import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionDefinition, ActionExecutionContext, ActionView, BoundActionClient, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMcpServerView, AgentMcpToolRef, AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { L } from "../web-locale.js";
@@ -6,17 +6,13 @@ import { L } from "../web-locale.js";
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
   discover(): Promise<readonly ActionView[]>;
-  invoke(reference: ExactActionReference, input: unknown, beforeDispatch?: () => void): Promise<unknown>;
+  invoke(reference: ExactActionReference, input: unknown): Promise<unknown>;
 }
 
-/** The page client retains its own authority checks and adds the standing request's liveness at the common final boundary. */
-export function withPersonDispatchGuard(caller: ActionCallContext, beforeDispatch?: () => void): ActionCallContext {
-  if (!beforeDispatch) return caller;
-  return { ...caller, validate_authority: async selected => { await caller.validate_authority?.(selected); beforeDispatch(); },
-    assert_authority_current: (reference, requiredPermissions) => {
-      caller.assert_authority_current?.(reference, requiredPermissions); beforeDispatch();
-    } };
-}
+/** What says whether the call still counts (a follow-up not removed since it fired), joined to the person's own checks at each call's final boundary. */
+export type CodingControl = Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">;
+/** A dispatch's control from its own check (a follow-up removed or edited since it fired stops): asked at each call's final check and at each effect inside the executor's action. */
+export const dispatchControl = (assertCurrent: () => void): CodingControl => ({ beforeEffect: async () => assertCurrent(), assert_authority_current: assertCurrent });
 
 export interface CodingSessionRead {
   session: { session_id: string; runtime_session_id?: string | null; state?: string; title?: string };
@@ -43,20 +39,21 @@ export class CodingExecutor {
   // dispatcher still checks each call's current definition and availability).
   private offered: Promise<readonly ActionView[]> | null = null;
 
-  constructor(private readonly actions: PersonActions, private readonly beforeDispatch?: () => void) {}
+  constructor(private readonly actions: BoundActionClient, private readonly dispatch?: CodingControl) {}
 
-  private async reference(name: CodingActionName): Promise<ExactActionReference> {
+  private async definition(name: CodingActionName): Promise<ActionDefinition> {
     this.offered ??= this.actions.discover();
     const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === VERSIONS[name]);
     if (!view) throw new CodingUnavailable(L("这个项目还没有可用的 Coding 插件"), "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
-    return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
+    return { capability_id: view.capability_id, version: view.version, operation: view.operation, action: view.action, provider_id: view.provider.provider_id };
   }
 
   private async call<T>(name: CodingActionName, input: Record<string, unknown>): Promise<T> {
-    const reference = await this.reference(name);
-    this.beforeDispatch?.();
-    return await this.actions.invoke(reference, input, this.beforeDispatch) as T;
+    const definition = await this.definition(name);
+    // The dispatch's control is asked before anything is sent, then again by the person's client at validation, its last synchronous check and each effect.
+    this.dispatch?.assert_authority_current?.();
+    return await this.actions.invoke(definition, input, this.dispatch) as T;
   }
 
   async createSession(title: string): Promise<string> {

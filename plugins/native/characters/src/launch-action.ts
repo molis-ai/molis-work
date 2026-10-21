@@ -1,7 +1,7 @@
 import { requireSynchronous, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { CharacterLaunchControl } from "./imports.js";
+import type { CharacterLaunchControl } from "./handlers.js";
 
 /** Keep the owner binder's original caller through the native launch's final await. */
 export function bindCharacterLaunch<Input, Output>(context: PluginStartContext, definition: ActionDefinition<Input, Output>,

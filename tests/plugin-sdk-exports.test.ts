@@ -30,6 +30,7 @@ const sdk = await import(pathToFileURL(join(sdkDirectory, sdkEntry)).href) as Sd
 /** Helpers a plugin does not take from the SDK, with why. An entry that is exported after all, or no longer exists, fails the test. */
 const NOT_FOR_PLUGINS: Readonly<Record<string, string>> = {
   bindActionClient: "Host and test side: binds a client to a call context; a running plugin uses `context.services.actions`",
+  withControlChecks: "Host side: joins a control into the checks of a client that forwards it; a plugin's control reaches them through `context.services.actions`",
 };
 
 const HELPER = /^export (?:async )?function ((?:define|bind|with)[A-Z]\w*)/gmu;

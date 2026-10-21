@@ -99,13 +99,10 @@ export {
 export {
   CodingSessionStore,
   CODING_ACTIVE_STATES,
-  holdsCodingSessions,
-  listCodingBackgroundSessions,
   toDirectoryEntries,
   type CodingBackgroundSession,
   type CodingBeforeEffect,
   type CodingSessionRecord,
-  type CodingSqliteDatabase,
   type CodingWriteGuard,
   type CreateCodingSessionInput,
 } from "./store.js";

@@ -880,7 +880,7 @@ export const PRIMITIVE_STYLES = `
   .mw-catalog__specimens {
     display: grid; gap: 24px;
   }
-  .mw-catalog__specimen { display: grid; gap: 12px; min-width: 0; }
+  .mw-catalog__specimen { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; min-width: 0; }
   .mw-catalog__specimen figcaption,
   .mw-catalog__specimen > span {
     margin: 0; color: var(--muted); font-size: 11px; font-weight: var(--weight-control, 500); letter-spacing: .01em;
@@ -926,7 +926,7 @@ export const PRIMITIVE_STYLES = `
   .mw-compose__code { overflow-x: auto; margin: 0 0 12px; padding: 12px 12px; border-radius: 8px; background: var(--rail); color: var(--ink); font-size: 12px; white-space: pre; }
   .mw-compose__nested { max-height: 110px; overflow: auto; overscroll-behavior: contain; margin: 0 0 12px; padding: 8px 12px; border-radius: 10px; background: var(--surface-soft); box-shadow: inset 0 0 0 1px var(--line); }
   .mw-compose__nested p { margin: 4px 0; }
-  .mw-compose--narrow { display: grid; gap: 12px; }
+  .mw-compose--narrow { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; }
   .mw-compose__density { display: flex; align-items: center; gap: 12px; color: var(--muted); font-size: 12px; font-weight: var(--weight-control, 500); }
   .mw-compose__resizable { container-type: inline-size; resize: horizontal; overflow: auto; width: 560px; min-width: 260px; max-width: 100%; padding: 12px; border-radius: 14px; background: var(--paper); box-shadow: var(--surface-shadow); }
   .mw-compose__resizable .mw-toolbar { margin-bottom: 8px; flex-wrap: nowrap; }

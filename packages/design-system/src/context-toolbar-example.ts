@@ -6,7 +6,7 @@ import { CONTEXT_TOOLBAR_CLIENT_SCRIPT, CONTEXT_TOOLBAR_STYLES } from './context
  */
 
 const STATIC_STYLES = `
-.mw-ctx--static { position: static; display: inline-flex; animation: none; }
+.mw-ctx--static { position: static; display: inline-flex; max-width: 100%; overflow-x: auto; animation: none; }
 .mw-ctx-demo { display: grid; gap: 12px; }
 .mw-ctx-demo__text { margin: 0; padding: 16px; max-width: 560px; border-radius: var(--r-card, 12px); background: var(--paper); line-height: 1.8; }
 .mw-ctx-demo__log { margin: 0; font-size: 12px; color: var(--muted); min-height: 1.5em; }

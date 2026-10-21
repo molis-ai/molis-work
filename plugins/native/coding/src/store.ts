@@ -105,6 +105,13 @@ function mapSession(row: Row): CodingSessionRecord {
 /** What a write waits for before it begins: the original call is still current. The platform asks again at the transaction itself. */
 export type CodingBeforeEffect = () => Promise<void>;
 
+/**
+ * A check of the plugin's own that must hold when the write lands (no round is starting on the session): it runs first in the
+ * transaction body, after `BEGIN` and in the same turn as `COMMIT`, so nothing that happened while `beforeEffect` waited slips past
+ * it. A throw writes nothing.
+ */
+export type CodingWriteGuard = () => void;
+
 const sessionIn = (reader: PluginDatabaseReader, projectId: string, sessionId: string): CodingSessionRecord => {
   const row = reader.get("SELECT * FROM coding_sessions WHERE project_id = ? AND session_id = ?", [projectId, sessionId]);
   if (!row) throw codingStoreErrors.session_unknown(`找不到这条会话：${sessionId}`);
@@ -131,8 +138,10 @@ export class CodingSessionStore {
     return planIn(this.db, projectId, sessionId);
   }
 
-  async savePlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, expected: number, draft: CodingPlanDraft): Promise<CodingPlanDraft> {
+  async savePlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, expected: number, draft: CodingPlanDraft,
+    guard?: CodingWriteGuard): Promise<CodingPlanDraft> {
     return this.db.transaction(beforeEffect, tx => {
+      guard?.();
       sessionIn(tx, projectId, sessionId);
       if (!Number.isSafeInteger(expected) || expected < 0 || draft.revision !== expected + 1) throw new Error("计划修订无效");
       const result = expected === 0
@@ -145,8 +154,10 @@ export class CodingSessionStore {
     });
   }
 
-  async confirmPlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, draft: CodingPlanDraft): Promise<CodingPlanDraft> {
+  async confirmPlan(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, draft: CodingPlanDraft,
+    guard?: CodingWriteGuard): Promise<CodingPlanDraft> {
     return this.db.transaction(beforeEffect, tx => {
+      guard?.();
       const result = tx.run("UPDATE coding_plan_drafts SET draft_json = ? WHERE project_id = ? AND session_id = ? AND revision = ?",
         [JSON.stringify(draft), projectId, sessionId, draft.revision]);
       if (Number(result.changes) !== 1) throw new Error("计划已变化，请重新查看并确认当前修订");
@@ -237,8 +248,9 @@ export class CodingSessionStore {
     });
   }
 
-  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string): Promise<CodingSessionRecord> {
+  async archive(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, at: string, guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
+      guard?.();
       if (sessionIn(tx, projectId, sessionId).archived) throw codingStoreErrors.session_unknown("会话已归档");
       tx.run("UPDATE coding_sessions SET archived = 1, updated_at = ? WHERE project_id = ? AND session_id = ?", [at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);
@@ -246,8 +258,10 @@ export class CodingSessionStore {
   }
 
   /** Attaching a Goal is optional and reversible; passing null detaches. */
-  async setGoal(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, goalId: string | null, at: string): Promise<CodingSessionRecord> {
+  async setGoal(beforeEffect: CodingBeforeEffect, projectId: string, sessionId: string, goalId: string | null, at: string,
+    guard?: CodingWriteGuard): Promise<CodingSessionRecord> {
     return this.db.transaction(beforeEffect, tx => {
+      guard?.();
       sessionIn(tx, projectId, sessionId);
       tx.run("UPDATE coding_sessions SET goal_id = ?, updated_at = ? WHERE project_id = ? AND session_id = ?", [goalId, at, projectId, sessionId]);
       return sessionIn(tx, projectId, sessionId);

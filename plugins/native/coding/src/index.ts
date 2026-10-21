@@ -106,6 +106,7 @@ export {
   type CodingBeforeEffect,
   type CodingSessionRecord,
   type CodingSqliteDatabase,
+  type CodingWriteGuard,
   type CreateCodingSessionInput,
 } from "./store.js";
 export {

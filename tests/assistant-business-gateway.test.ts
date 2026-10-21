@@ -771,6 +771,24 @@ test("a round that changed nothing has its ending reviewed against its facts; on
   } finally { await f.close(); }
 });
 
+// PRR-04: a card offer is an act, but it is not a save; a false "已保存" is still reviewed against the facts.
+test("PRR-04 a suggest-action returned does not excuse a saved claim", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, [
+    () => reply({ name: "suggest-action", input: { title: "保存这条笔记", summary: "把“会后发纪要”存进项目笔记", capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes", input: { text: "会后发纪要" } } }),
+    () => reply(undefined, "已保存。"),
+    () => reply(undefined, reviewAnswer(["changed"])),
+    () => reply(undefined, "还没有保存。"),
+  ], { review: true });
+  try {
+    const sent = await f.service.send({ text: "保存这条笔记", request_id: "req-00000090" }, {});
+    await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
+    assert.ok(f.requests.length >= 3, "the ending was reviewed even though a card was offered");
+    assert.equal(f.requests[2].tools, undefined, "the review has no tools");
+    assert.match(JSON.stringify(f.requests[2].system), /AI 助理在这一轮结束时/);
+    assert.match(JSON.stringify(f.requests[3] ?? {}), /已保存|没有成功的改动/);
+  } finally { await f.close(); }
+});
+
 // ADH-16
 test("an ending the review finds true to the facts, and one it could not review, end as they are", { timeout: 60_000 }, async t => {
   for (const [answer, request] of [[reviewAnswer([]), "req-00000032"], ["这一段不是要的 JSON", "req-00000033"]] as const) {
@@ -1304,7 +1322,7 @@ test("the project layer of a project work is the project's guidance, read throug
   const work = { work_id: "work", project_ref } as StoredWork;
   try {
     const management = managementGoals(host.actionClient(project_ref, false), "assistant-guided");
-    await management.invoke(goalsActions.initialize, { title: "说明", idempotency_key: "init" });
+    await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     await management.invoke(goalsActions.guidanceAdd, { kind: "constraint", content: "保留源文件。", reason: "项目边界", confirmation_summary: "用户确认", user_confirmed: true, idempotency_key: "add" });
     const settled = watchSettlements(host);
 

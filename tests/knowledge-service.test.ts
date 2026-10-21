@@ -4,7 +4,7 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_READ_MAX_CHARS, knowledgeActions, type KnowledgeListEntry, type KnowledgeListRequest, type KnowledgeListResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-import { knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
+import { codingManifest, knowledgeCatalogMaterial, withKnowledgeTools } from "@molis-ai/molis-work-plugin-coding";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KnowledgeService, PLAIN_SECTION_CHARS, grepLines, outlineOf } from "@molis-ai/molis-work-service-knowledge";
 import { openKnowledgeCards } from "@molis-ai/molis-work-storage";
@@ -22,6 +22,10 @@ async function fixture(t: import("node:test").TestContext) {
 }
 const HANDBOOK = ["试用手册的开头说明。", "", "# 准备", "安装 Molis Work。", "", "## 账号", "每人一个账号，编号 MW-0042。", "", "```", "# 这不是标题", "```", "", "# 反馈", "把试用反馈写进 Goal。"].join("\n");
 
+test("PRR-05 Coding consumes knowledge.list for the project catalog", () => {
+  assert.ok(codingManifest.capabilities?.consumes.includes(knowledgeActions.list.capability_id), "the real client refuses an action the Manifest does not consume");
+});
+
 test("PMAT-01 PMAT-38 the seven knowledge actions are reads every audience reaches through the directory", () => {
   const definitions = Object.values(knowledgeActions);
   assert.deepEqual(definitions.map(item => item.capability_id), ["knowledge.list", "knowledge.search", "knowledge.outline", "knowledge.read", "knowledge.grep", "knowledge.glob", "knowledge.locate"]);
@@ -31,8 +35,12 @@ test("PMAT-01 PMAT-38 the seven knowledge actions are reads every audience reach
     assert.equal(item.action.effect, "read");
     assert.equal(item.action.scope, "project");
     assert.deepEqual(item.action.audiences, ["user", "agent", "workflow", "mcp", "plugin"]);
-    assert.deepEqual(item.action.permissions, ["knowledge:read"]);
+    if (item === knowledgeActions.locate) {
+      assert.deepEqual(item.action.permissions, ["knowledge:read", "model:invoke"]);
+      assert.deepEqual(item.action.execution, { cost: "metered" });
+    } else assert.deepEqual(item.action.permissions, ["knowledge:read"]);
   }
+  assert.equal(knowledgeActions.locate.operation, "query", "it stays a read; model:invoke keeps it out of external waits");
 });
 
 test("PMAT-09 search answers with cards from the caller's project only, never a quotable passage", async t => {

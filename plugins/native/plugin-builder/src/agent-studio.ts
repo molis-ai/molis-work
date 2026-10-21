@@ -110,7 +110,7 @@ export const AGENT_STUDIO_STYLES = String.raw`
 .as-cap-row[data-used]{background:var(--green-soft,var(--green-soft))}.as-cap-row[data-off]{opacity:.55}.as-cap-row .as-chip{font-size:11px;padding:0 8px}
 .as-recent{display:grid;gap:8px}.as-recent h3{font-weight:500;margin-bottom:4px}.as-recent-item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 8px;text-align:left;border:1px solid var(--as-line);border-radius:10px;background:var(--as-paper);padding:8px 12px}.as-recent-item:hover{border-color:var(--as-line)}.as-recent-item b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.as-recent-item small{grid-column:1/-1;color:var(--as-muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .as-status{display:flex;justify-content:space-between;gap:12px;min-height:34px;align-items:center;color:var(--as-muted);font-size:12px}
-html:has(.as-preview-page),body:has(.as-preview-page){margin:0;background:var(--canvas,var(--rail))}
+html:has(> body > .as-preview-page),body:has(> .as-preview-page){margin:0;background:var(--canvas,var(--rail))}
 .as-preview-page{display:block;max-width:980px;margin:0 auto 32px;padding:32px clamp(16px,5%,56px);background:var(--as-paper);min-height:calc(100vh - 56px);border-radius:0 0 14px 14px}
 .as-install{margin-top:12px;padding-top:12px;border-top:1px solid var(--as-line)}
 .as-dialog{border:1px solid var(--as-line);border-radius:14px;padding:24px 24px;max-width:420px;width:calc(100% - 32px);box-shadow: var(--lift-3);color:var(--as-ink)}.as-dialog::backdrop{background:var(--scrim)}.as-dialog h3{font-size:15px;margin-bottom:8px}.as-dialog ul{margin:8px 0 12px;padding-left:16px}.as-dialog li{margin:4px 0}

@@ -10,22 +10,26 @@ import { registeredInstructionBody, resolveModelPrompt } from "./agent-definitio
 import { hostTextGeneration, textModelAvailability, textModelMissing, textModelRequired, type HostTextRequestOptions, type HostTextGenerationFailure } from "./host-complete-text.js";
 import { configuredModelChoices, openConfiguredModels, selectConfiguredTextModel } from "./configured-models.js";
 import { withPluginModelImages } from "./plugin-model-images.js";
+import { rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
 import type { PluginPlatformHome } from "./home-side.js";
 
 /**
- * `services.model` for a plugin this Host runs itself: declared `model:invoke`, not sandboxed, on a platform that reaches a Home.
- * The Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
+ * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
+ * reaches a Home. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
  * `beforeEffect` agreeing before and after); the port below only makes it, through `hostTextGeneration`, which is agent-host's
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => item.permission === "model:invoke")) return undefined;
+  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
   const gate = { install_id: context.install_id, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),
   });
 }
+
+/** Either builds the service: `model:read` for the list and availability, `model:invoke` for those and requests. */
+const MODEL_PERMISSIONS: readonly string[] = ["model:read", "model:invoke"];
 
 const unavailable = (reason: string): ActionAvailability => ({ available: false, code: "actions.connection_required", reason });
 
@@ -41,17 +45,20 @@ export function createPluginModelPort(home: PluginPlatformHome): PluginModelPort
       const injected = home.completeText();
       // A model the Host was given for a test is handed images as they are.
       if (injected !== undefined) return injected === null ? unavailable(textModelMissing()) : { available: true, vision: true };
-      let label: string | undefined, vision = false;
-      const state = textModelAvailability(() => {
-        if (!configured(selection)) return false;
-        const catalog = openConfiguredModels(home.directory);
-        try {
-          const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
-          if (selected) { label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
-          return true;
-        } finally { catalog?.storage.close(); }
+      // Every model action of every plugin asks this within one directory: read the settings once per Home and selection there.
+      return rememberInDirectoryPass(createPluginModelPort, JSON.stringify([home.directory, selection ?? null]), () => {
+        let label: string | undefined, vision = false;
+        const state = textModelAvailability(() => {
+          if (!configured(selection)) return false;
+          const catalog = openConfiguredModels(home.directory);
+          try {
+            const selected = catalog && selectConfiguredTextModel(home.directory, catalog.store, selection);
+            if (selected) { label = `Prologue · ${selected.provider.display_name} · ${selected.model.model_id}`; vision = selected.model.vision === true; }
+            return true;
+          } finally { catalog?.storage.close(); }
+        });
+        return state.available && label ? { ...state, runtime_label: label, vision } : state;
       });
-      return state.available && label ? { ...state, runtime_label: label, vision } : state;
     },
     complete: (owner, prompt, dispatch) => runWithMolisWorkHome(home.directory, () => withPluginModelImages(dispatch, async images => {
       const injected = home.completeText();

@@ -46,6 +46,9 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     assert.deepEqual(new Set(afterEdit.revisions.map(revision => revision.content)), new Set([input.content, update.content]));
     assert.match(afterEdit.runtime_prompt_prefix, /导出前由用户明确确认/);
     assert.doesNotMatch(afterEdit.runtime_prompt_prefix, /用户数据只保存在本机/);
+    // PLIB-15 (S8): the prefix no longer carries a "Project: <name>" line; the board has no name any more and the Host adds no layer to bring it back.
+    assert.doesNotMatch(afterEdit.runtime_prompt_prefix, /^Project:/m);
+    assert.doesNotMatch(afterEdit.runtime_prompt_prefix, /Guidance/);
     const change = { guidance_id: legacy.entry.guidance_id, reason: "用户改变项目设置", confirmation_summary: "已确认", user_confirmed: true };
     await bound.invoke(goalsActions.guidanceUpdate, { ...change, action: "deactivate", idempotency_key: "off" });
     const disabled = await bound.invoke(goalsActions.guidanceRead, {});

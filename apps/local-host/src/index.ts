@@ -17,10 +17,12 @@ export { PluginHostExecutor } from "./plugin-executor.js";
 export { HomePluginHost, type HomePluginEntry, type HomePluginPlatform } from "./home-plugins.js";
 export { localWebActionContext } from "./local-web-actions.js";
 export { openPluginDatabase } from "./plugin-database.js";
+export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
+export { openHostShelfFiles, openHostShelfStore } from "./shelf-actions.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, readOriginalFile, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
 export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, PluginPlatformOptions } from "./plugin-platform.js";
@@ -287,3 +289,5 @@ export { assistantConnectionCheckers } from "./assistant/assistant-connection-au
 export { connectorLocalActions } from "./connector-local-actions.js";
 
 export { connectorCliActions } from "./connector-cli-actions.js";
+
+export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService } from "./plugin-directory-service.js";

@@ -10,7 +10,7 @@ export const IMMERSIVE_DIRECTORY_STYLES = `
   body.immersive-workbench .tree-resizer:is(:hover, :focus-visible, .is-dragging)::after { width: 2px; background: var(--blue); }
   body.immersive-workbench .is-directory-collapsed > .tree-resizer,
   body.immersive-workbench .is-plugin-directory-empty > .tree-resizer { display: none; }
-  body.immersive-workbench .immersive-workspace:has(.tree-resizer.is-dragging) { cursor: col-resize; user-select: none; }
+  body.immersive-workbench .immersive-workspace.is-tree-resizing { cursor: col-resize; user-select: none; }
 
   body.immersive-workbench .tree-pane .tree-row { min-height: 28px; padding: 0; align-items: center; }
   body.immersive-workbench .tree-pane .tree-entry { min-height: 28px; height: 28px; box-shadow: none; }

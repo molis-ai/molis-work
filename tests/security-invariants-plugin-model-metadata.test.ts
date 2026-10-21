@@ -35,7 +35,7 @@ test("S-18 RAC-39 model display metadata follows current configuration without c
     await platform.runtime.stop(install.install_id);
     assert.deepEqual(model.availability(), { available: false, code: "actions.provider_stopped", reason: "此插件实例已停止" });
     await grantHomeProbe(f.host, probe, probe.permissions.filter(permission => permission !== "model:invoke"));
-    assert.deepEqual(probe.contexts.at(-1)!.services!.model!.availability(), { available: false, code: "actions.plugin_permission", reason: "插件缺少模型调用授权" });
+    assert.deepEqual(probe.contexts.at(-1)!.services!.model!.availability(), { available: false, code: "actions.plugin_permission", reason: "插件缺少模型授权" });
     assert.equal(reads, 0); assert.equal(requests, 0);
   } finally { catalog.close(); }
 });

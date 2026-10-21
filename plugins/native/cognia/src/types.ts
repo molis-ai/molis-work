@@ -29,6 +29,7 @@ export const cogniaErrors = defineErrorCodes("cognia", {
   model_unavailable: "unavailable",
   not_found: "not_found",
   too_large: "too_large",
+  directory_unavailable: "unavailable",
 });
 export function requireCognia(condition: unknown, message: string, raise: (message: string) => ActionError = cogniaErrors.invalid): asserts condition { if (!condition) throw raise(message); }
 export function stringField(value: unknown, label: string, max = 500): string { requireCognia(typeof value === "string" && value.trim().length > 0 && value.length <= max, label); return value.trim(); }

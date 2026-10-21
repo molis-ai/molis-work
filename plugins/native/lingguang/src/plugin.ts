@@ -26,11 +26,11 @@ export function createLingguangPlugin(): PluginDefinition {
       ...(materials?.extract ? { readFile: async (input, caller) => {
         const source = decodeMaterialUpload(input);
         const material = await materials.extract!(source, { pdfMode: "ocr", allowModelDownload: input.allow_model_download,
-          signal: caller.signal, onProgress: caller.on_progress });
+          signal: caller.signal });
         return { text: material.text, coverage: material.coverage, file_name: source.file_name };
       } } : {}),
       ...(materials?.readSource ? { readSource: (input, caller) => materials.readSource!(input.url, {
-        allowModelDownload: input.allow_model_download, signal: caller.signal, onProgress: caller.on_progress,
+        allowModelDownload: input.allow_model_download, signal: caller.signal,
       }) } : {}),
     };
     return { kind: "app", views: [lingguangUiContribution],

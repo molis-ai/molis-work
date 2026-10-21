@@ -1,5 +1,5 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxHostMessage, SandboxJson, SandboxOperations, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 const send = (value: unknown) => write(JSON.stringify(value) + '\n');
@@ -30,6 +30,11 @@ function sdk(callId: string): SandboxSdk {
     events: { publish: async (id, payload) => { await invoke('events.publish', [id, payload]); } },
     network: { request: request => invoke('network.request', [request as unknown as SandboxJson]) as unknown as ReturnType<SandboxSdk['network']['request']> },
     resource: { read: name => invoke('resource.read', [name]) as Promise<string> },
+    projectDatabase: {
+      get: (sql, parameters) => invoke('projectDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
+      all: (sql, parameters) => invoke('projectDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
+      transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+    },
   };
 }
 async function receive(message: SandboxHostMessage): Promise<void> {

@@ -253,7 +253,7 @@ export function renderInteractionNextSteps(steps: InteractionNextStep[], label =
   const shown = max === undefined ? [...steps.filter(step => step.primary !== false).slice(0, 1), ...steps.filter(step => step.primary === false).slice(0, 1)] : steps.slice(0, Math.max(0, max));
   const rest = max === undefined ? 0 : steps.length - shown.length;
   const more = rest > 0 && options?.more ? `<button type="button" class="mw-ix-step mw-ix-steps__more" data-ix-steps-more="${rest}" data-secondary>${esc(options.more(rest))}</button>` : "";
-  return `<div class="mw-ix-steps" data-ix-steps role="group" aria-label="${esc(label)}">${shown.map((step, index) => `<button type="button" class="mw-ix-step" data-ix-step="${index}" data-ix-step-id="${esc(step.id)}" title="${esc(step.source)}"${
+  return `<div class="mw-ix-steps" data-ix-steps data-overflow-fade role="group" aria-label="${esc(label)}">${shown.map((step, index) => `<button type="button" class="mw-ix-step" data-ix-step="${index}" data-ix-step-id="${esc(step.id)}" title="${esc(step.source)}"${
     step.primary === false ? " data-secondary" : ""}${step.waiting ? " data-waiting" : ""}${step.busy ? ' data-busy aria-busy="true"' : ""}${step.disabled || step.busy ? " disabled" : ""}><span class="mw-ix-step__glyph" aria-hidden="true">${icon("arrow")}</span><span class="mw-spinner mw-ix-step__spin" aria-hidden="true"></span>${
     step.waiting && step.waitingLabel ? `<span class="mw-sr-only">${esc(step.waitingLabel)}</span>` : ""}<span data-ix-step-label>${esc(step.label)}</span></button>`).join("")}${more}</div>`;
 }

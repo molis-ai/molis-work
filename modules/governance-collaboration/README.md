@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/goal-tree-event-flow.test.ts tests/goal-events-
 ## 开发要求
 
 - 负责：Goal Tree 结构提案、可信用户决定与确认来源。
-- 不负责：直接修改 Goal、Artifact、Project 事实。
+- 不负责：直接修改 Goal、Artifact、Project 事实；这些表的建表语句（归 `plugins/native/goals`，在它的 Manifest `databases.project` 里声明，S8；本包暂用自己的 SQL 读写，登记在 `tooling/gates/table-owners.json`，S9 搬进插件后删）。
 - 公开入口：`@molis-ai/molis-work-module-governance-collaboration`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/governance-collaboration`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：

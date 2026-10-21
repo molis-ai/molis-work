@@ -6,7 +6,8 @@ import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
 
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
-const BODY_BYTES = 36_000_000;
+const MATERIAL_BYTES = 36_000_000;
+const BODY_BYTES = 1_000_000;
 
 export const lingguangManifest: PluginManifest = {
   schema_version: 2,
@@ -27,7 +28,7 @@ export const lingguangManifest: PluginManifest = {
     { route_id: "lingguang.list", method: "GET", path: "/sparks" },
     { route_id: "lingguang.create", method: "POST", path: "/sparks", max_body_bytes: BODY_BYTES },
     { route_id: "lingguang.discard_many", method: "POST", path: "/sparks/discard", max_body_bytes: BODY_BYTES },
-    { route_id: "lingguang.material_read", method: "POST", path: "/sparks/material", max_body_bytes: BODY_BYTES, stream: "ndjson" },
+    { route_id: "lingguang.material_read", method: "POST", path: "/sparks/material", max_body_bytes: MATERIAL_BYTES, stream: "ndjson" },
     { route_id: "lingguang.source_read", method: "POST", path: "/sparks/source", max_body_bytes: BODY_BYTES, stream: "ndjson" },
     { route_id: "lingguang.conversation_open", method: "POST", path: "/sparks/conversations", max_body_bytes: BODY_BYTES },
     { route_id: "lingguang.conversation_message", method: "POST", path: "/sparks/conversations/:id/messages", max_body_bytes: BODY_BYTES, stream: "ndjson" },
@@ -39,6 +40,7 @@ export const lingguangManifest: PluginManifest = {
   ui: {
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
+      { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
       { view_id: "island", slot: "island", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
       { view_id: "side", slot: "side", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10 },
     ],

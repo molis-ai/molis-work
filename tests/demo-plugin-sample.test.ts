@@ -15,12 +15,12 @@ import { DEMO_PROJECT_ID,
   LocalProjectDatabase,
   
   createLocalFeedApplication,
+  openHostShelfStore,
   openWorkSessionRegistry,
   seedDemoBoard,
   seedDemoPluginSurfaces,
   seedDemoProjectExtras } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
 
 async function withDirectory<T>(prefix: string, run: (directory: string) => Promise<T>): Promise<T> {
@@ -102,7 +102,7 @@ async function assertDemoPluginFacts(input: {
     registry.close();
   }
   assert.ok(
-    openShelfStore(input.homeDirectory).snapshot().materials.some((item) => item.name === "试用示例.pdf"),
+    (await openHostShelfStore(input.homeDirectory).snapshot()).materials.some((item) => item.name === "试用示例.pdf"),
   );
 }
 
@@ -134,7 +134,6 @@ test("plugin samples are written under the project id they are given", async () 
     try {
       new GoalProjectApplication(store).initializeBoard({
         project_id: "goalboard-v1-demo",
-        title: "Molis Work 示例项目",
         actor_id: "demo-user",
         idempotency_key: "demo-old-board",
       });

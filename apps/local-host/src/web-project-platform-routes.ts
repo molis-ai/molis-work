@@ -21,6 +21,7 @@ import { handleAttentionHttp } from "./attention-http.js";
 import { handleMemoryHttp } from "./memory/memory-host.js";
 import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
+import { directoryForHome } from "./plugin-directory-service.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
@@ -35,6 +36,20 @@ import type { WebRoute } from "./web-route-table.js";
 
 // The project's own platform routes (specs/repository-anti-corruption W5-07). None names a plugin package; the plugin
 // surfaces' entries, and the order of the whole table, are in web-request.ts.
+
+/** PRR-03 option B: the person authorizes one directory; a Plugin only ever sees the grant id. */
+export const directoryGrantRoute: WebRoute<ProjectRequestContext> = { id: "directory-grant", handle: async ({ request, response, url, serverOptions }) => {
+  if (url.pathname !== "/api/host/directory-grants" || request.method !== "POST") return false;
+  if (!serverOptions.homeDirectory) { sendJson(response, 501, { error: "这个 Host 没有 Home，不能授权目录" }); return true; }
+  try {
+    const body = await readBody(request), path = typeof body.path === "string" ? body.path.trim() : "";
+    if (!path || path.length > 2000) throw new Error("请选择一个绝对目录路径");
+    sendJson(response, 200, await directoryForHome(serverOptions.homeDirectory).authorize(path));
+  } catch (error) {
+    sendJson(response, 400, { error: error instanceof Error ? error.message : "目录授权失败" });
+  }
+  return true;
+} };
 
 /** A plugin's side panel tab (specs/archive/side-panel D13): the declared `side` view, served for a plugin enabled here. */
 export const sideViewRoute: WebRoute<ProjectRequestContext> = { id: "side-view", handle: async ({ request, response, url, options, shownPlugins, composition, controlToken }) => {

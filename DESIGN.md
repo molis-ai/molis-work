@@ -312,7 +312,7 @@ There is no global sidebar; the work spans the window and one resident bar at it
 
 Every Dock glyph, resident button and switcher entry opens its plugin through the same entry, so navigation has one path. The bar is a set of switches: pressed again while its plugin is showing, a Dock glyph or resident puts back the place the pane had before it (the latest earlier place in the pane's history that belongs to something else; the project's home when there is none). 项目首页 is where panes start and is not a switch. A menu entry that opened a cover (设置, 项目设置, 能力, 插件市场) is marked current while its cover is up and closes it when chosen again. Menus from the bar rise from it, anchored at the edge nearest their control. Tooltips are graphite, sit above the bar, appear only where a name is hidden, and name the shortcut: ⌥1…⌥9 for the first nine Dock glyphs, ignored while typing, in a terminal, or with a dialog or popover open.
 
-**Where am I.** When a pane shows a plugin's own page, that plugin's tab is current; pressed again, it returns the page to its list. When market, capabilities or settings covers the panes, a cover chip (插件市场 / 能力 / 设置 / 项目设置) leads the strip with its own close button; Esc (outside a field, menu or dialog), the titlebar Back and the entry that opened it close it too, and the panes show exactly what they showed. While a cover is up the switcher and the window title name the cover, and no Dock entry claims to be current beneath it. Cover chips are not tabs: they never group or share width.
+**Where am I.** The personal space omits the generic Home titlebar entry because its permanent bottom HOME control already owns that destination. Goals uses the plugin tab group described above, including tabs for concrete Goals. When a pane shows a plugin's own page, that plugin's tab is current; pressed again, it returns the page to its list. When market, capabilities or settings covers the panes, a cover chip (插件市场 / 能力 / 设置 / 项目设置) leads the strip with its own close button; Esc (outside a field, menu or dialog), the titlebar Back and the entry that opened it close it too, and the panes show exactly what they showed. While a cover is up the switcher and the window title name the cover, and no Dock entry claims to be current beneath it. Cover chips are not tabs: they never group or share width.
 
 ## Elevation & depth
 
@@ -541,18 +541,21 @@ Project Workspaces settings replace the standalone Workspace navigator. Show ass
 - **Do** state settings scope, keep global and project preferences independent and provide a direct return to prior work.
 - **Do** pair form Cancel and Submit, label independently saved regions, preserve drafts on failure, and carry project context through global settings.
 - **Do** put a shared control, state or composition on `/__ui/catalog` when it meets the bar.
+- **Do** answer a copy with `window.molisCopy(button, text, labels)` (`packages/design-system/src/browser/copy-feedback.ts`): "copied" only after the clipboard took the text, ~2.5s, same width as the idle label, a newer press renews it and an older result never covers a newer failure. Open details with `.mw-collapsible` (natural height, 0fr → 1fr, reversible midway), and write a number that changes while it is read as `.mw-num` with the widest value of its range in `data-num-ghost`, so its width never moves the controls beside it in any font.
+- **Do** mark a horizontal strip that hides its scrollbar (tabs, chips, views, steps) with `data-overflow-fade`: the design system's one sensor fades only the side that really has more, 28px with eight alpha samples, clears it at the edge, keeps a focused item clear and shows the scrollbar under forced colours (`packages/design-system/src/styles/overflow-fade.ts`, specimen on the board under 视觉机制). Do not write a local sensor or mask, and keep close buttons and main actions outside the strip.
 
 ### Don't
 
 - **Don't** add a global left sidebar, a second persistent navigation, or a plugin identity colour; plugins are found in the Dock and the switcher.
 - **Don't** fight an earlier rule with `!important`, a per-plugin override or a restated token value; fix the source.
 - **Don't** force a font weight globally, synthesise bold, or use weights other than 400 / 500 / 600.
-- **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or use gradients outside the opening and Welcome's ambient light and the goal card's warm light.
+- **Don't** outline a floating layer, draw a card inside the sheet by default, blur the scrim, or paint gradients outside the opening and Welcome's ambient light and the goal card's warm light (the overflow fade is a mask, not a painted band).
 - **Don't** fill a button with copper, draw focus in ink or blue, or remove a focus indicator.
 - **Don't** celebrate anything but a real completion or a real arrival, and never on first render.
 - **Don't** hide a complex feature, disable an entry, swallow an error or show placeholder data to make a page look calmer.
 - **Don't** turn a disabled composer, Session demo, reserved module or browser screenshot into a claim of an integrated feature.
 - **Don't** infer completion from child counts, activity or missing requirements, or treat UI selection as execution authority.
 - **Don't** make status colour the only explanation, allow long paths to widen the viewport, or hide the current tab when resizing.
+- **Don't** style from a `:has()` on the page root (other than its own children), the work area, the bar or the switcher, or from a `:has()` placed before a combinator on any large container: Chrome then restyles the whole subtree on every related change. Mark the state on the element with a class or attribute where it changes (`tests/style-has-scope.test.ts`).
+- **Don't** measure the page (rects, computed style, scroll offsets, `checkVisibility`) inside a mutation callback, a microtask or a loop over every descendant: queue it to the frame, read everything first and write after, and track what scrolled instead of reading every node.
 - **Don't** use prototype or review screenshots as product imagery, or claim browser review verifies the native package or every low-frequency form.
-

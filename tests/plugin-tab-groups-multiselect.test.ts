@@ -40,6 +40,7 @@ class Node {
   }
   get textContent(): string { return this.text + this.children.map((child) => child.textContent).join(""); }
   add(...nodes: Node[]) { for (const node of nodes) { node.parent = this; this.children.push(node); } return this; }
+  append(...nodes: Node[]) { return this.add(...nodes); }
   getAttribute(name: string) { return this.attrs[name] ?? null; }
   setAttribute(name: string, value: string) { this.attrs[name] = value; }
   removeAttribute(name: string) { delete this.attrs[name]; }
@@ -56,7 +57,7 @@ class Node {
 function tabGroups() {
   const listeners = new Map<string, (event: unknown) => void>(), opened: unknown[] = [];
   const window = { addEventListener: (type: string, listener: (event: unknown) => void, capture: boolean) => { assert.equal(capture, true); listeners.set(type, listener); } };
-  const document = { createElement: (tag: string) => new Node(tag) };
+  const document = { createElement: (tag: string) => new Node(tag), body: new Node("body"), addEventListener() {} };
   const factory = vm.runInNewContext(`(${FACTORY})`, { window, document });
   factory({ getState: () => ({}), ops: { pluginOfSurface: (surface: string) => surface }, apply() {}, persist() {}, L: (text: string) => text,
     rows: ROWS, embedded: true, notify: (type: string, detail: object) => opened.push({ type, detail: { ...detail } }), editable: () => false, appendTab() {} });

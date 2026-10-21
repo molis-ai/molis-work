@@ -1,4 +1,8 @@
-export const GOAL_EVENT_STATE_SCHEMA_SQL = `
+// Event work's derived state in a project's library, as GOALS_PROJECT_DATABASE (./project-database.ts) declares it. Moved here whole
+// from modules/goals (S8, PG-020); the text of each statement is as it was.
+
+/** Who owns a Goal's event state, its agreements, summaries, concerns, decisions, conclusions, closures and status. */
+export const GOALS_EVENT_STATE_SQL = `
   CREATE TABLE IF NOT EXISTS goal_event_state_owners (
     project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
     goal_id TEXT NOT NULL REFERENCES goals(goal_id) ON DELETE CASCADE,

@@ -75,8 +75,11 @@ function createFindView(translate: Translate | undefined): PluginView {
   input.className = "mw-input";
   input.type = "search";
   input.placeholder = t(translate, "在文中查找");
+  // Its width is the widest two-digit position ("88/88" ghost), so typing a query never pushes the replace field.
   const count = document.createElement("span");
-  count.className = "pages-find-count";
+  count.className = "pages-find-count mw-num";
+  count.dataset.align = "end";
+  count.dataset.numGhost = "88/88";
   const replaceInput = document.createElement("input");
   replaceInput.className = "mw-input";
   replaceInput.type = "text";

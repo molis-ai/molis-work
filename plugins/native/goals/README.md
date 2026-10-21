@@ -31,7 +31,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 
 `goalsActions` 当前提供 65 项 project 动作（2026-10-07 从构建产物数出），由 Manifest 声明并在项目动作服务中注册，其中 59 项可按授权供 MCP 使用，6 项仅供受保护的用户操作；另有 2 项 Home 动作 `personalPlanningActions`（见下文个人方法）：
 
-- 本地管理：`goals.board.initialize`，只接受可信 management 用户上下文。CLI 与管理 MCP 经宿主造的管理动作端口调用这一动作，已登记且连接到 Home 的项目转交常驻宿主，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
+- 本地管理：`goals.board.initialize`（版本 2：输入只有 `idempotency_key`，项目的名字是项目目录的，Goals 的看板不再记它，S8），只接受可信 management 用户上下文。CLI 与管理 MCP 经宿主造的管理动作端口调用这一动作，已登记且连接到 Home 的项目转交常驻宿主，身份由宿主定为本机这个人（`LOCAL_PERSON_ACTOR_ID`），输入不带 `actor_id`；普通 MCP/Agent/插件不获管理权。原初始化回执与禁止覆盖保持。V3 导入已删（2026-10-04，用户决定不留旧数据入口）。
 - 目录、创建、便笺：`goals.list`、`goals.create`、`goals.note`。
 - 对象上下文、搜索与片段：`goals.subject.read`（目标上下文，供调用者明确引用）、`goals.search.entries`（系统搜索条目）、`goals.fragment.offers`（按选中的片段准备本插件真实动作的参数，不执行）。这三项与 `goals.list`、`goals.note` 同样向已安装插件开放。
 - 资料与成果输入：`goals.inputs.bind`、`goals.inputs.release`、`goals.inputs.list` 把文档、演示稿、问卷、数据表、Shelf 材料等记为目标的绑定资料，不复制、不移动原对象；`goals.inputs.confirm` 由拥有来源的插件（目前是 Feed 的「升格为 Goal」）调用，让 Goals 记下：这条来源按确认时内容的摘要，是这个目标的输入（重复确认返回原记录，写的是 Goals 自己的回执，记在调用者的身份下）。它是普通的 Goals 命令（权限 `goals:write`，受众 user、agent、workflow、mcp，声明 `authorship: "session"`），可单独授权、被 MCP 与内置 Agent 直接调用；只有用户（本人）调用时记为已确认，助理、Agent、工作流和外部工具调用只记为待确认（`proposed`），与成果库的条目一样；待确认的输入由本人在 Goals 里认可（`goals.inputs.accept`，受众只有 user，`proposed` 记为 `confirmed`）或用 `goals.inputs.release` 移除（它也能停用来源材料的输入；已确认的来源输入只有用户能移除，其他调用者只能撤回待确认的提议），Goal 的输入列表写「待确认／已确认」并给「认可这条输入」「移除」两个按钮（页面经 `POST /api/goals/{id}/inputs`）；本人对一条还在待确认的来源再调 `goals.inputs.confirm` 会被拒绝（`goals.input_proposed`），要先认可；Goals 不核对来源是否存在，也不核对摘要真伪，只收严格形状的输入：摘要必须是 `sha256:` 加 64 位小写十六进制，理由 1–300 字，名称与来源标识各 1–200 字，来源种类目前只有 `feed_item`；`goals.deliverables.add`、`.remove`、`.list`、`.pin`、`.candidates` 与 `goals.artifact_inputs.add`、`.remove`、`.list`、`.pin` 把成果库里的一版记为目标的交付物或输入，或把资料当前内容固定成新的一版再记入。助理、Coding、工作流或 MCP 调用时只记为提议（附理由），等用户确认；移除已确认的条目只有用户能做。
@@ -41,7 +41,7 @@ Host 注入各 Module 的公开端口。`GoalEventApplication` 连接创建、�
 - 项目长期说明：`goals.guidance.read`、`goals.guidance.add`、`goals.guidance.update`。读取完整修订与提示词；新增/编辑/停用/恢复保留明确确认、原因、确认摘要、原去重及幂等回执。
 - 工作记录与状态写入：`goals.events.configure`、`goals.events.report`、`goals.progress.record`、`goals.concerns.apply`、`goals.decisions.request`、`goals.decisions.cite`、`goals.agreement.set`、`goals.closure.submit`、`goals.work.resume`。
 - 项目规划：`goals.planning.catalog`（只读列出可用方法与已启用的组合，不含正文）、`goals.planning.read`、`goals.planning.save`、`goals.planning.apply`、`goals.planning.impact`、`goals.planning.graph.check`。方法与组合、版本、事件类型及默认要求沿用原 Planning Engine；保存/采用要求明确确认，每次保存生成新版本，不自动重试。
-- 完整资料：`goals.snapshot.read` 返回项目快照（目标、关系、规划方法、项目指导与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则、项目指导与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
+- 完整资料（`goals.snapshot.read`、`goals.contract.read` 与下面的 `goals.collection.read` 在 S8 升到版本 2：看板不再带 `title`）：`goals.snapshot.read` 返回项目快照（目标、关系、规划方法、项目指导与目标树提案），`goals.contract.read` 返回单个目标的约定、上级约定覆盖、关系、生效规则、项目指导与目标树提案。CLI/typed 快照均调用共同动作；网页 Session 交接同时读取授权约定与当前状态，失败不创建交接包。
 - 完整集合：`goals.collection.read` 返回当前/归档/回收站集合、历史、覆盖和输入/规则绑定；整页、Board JSON、fragment 和复用页面资料的消费者等待同一动作，缓存命中仍重新校验权限。
 - 目标正文：`goals.document.read`，组合当前状态、原始说明、混合历史首屏、关系、关注项、规划方法与继续方式。网页完整页和正文 fragment 与标准 MCP 共同读取，归档/回收站历史保持。
 - 当前状态与目录项：`goals.state.read`、`goals.directory.read`。
@@ -92,8 +92,8 @@ W3-07 PR-5 删除了余下十个 Goals typed 桥及注册/出口：初始化、�
 
 问题的解决/推翻提交后续事件 `supporting_event_ids` 或已有可信用户决定，拒绝时保留输入。Goal 规则只展示现行项目默认和事件记录中的完成要求；要求修改沿事件表单，项目默认沿项目设置。规划详情按请求和当前选择回写，关闭或页面拆除后忽略迟到成功与失败。
 
-- 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）。
-- 不负责：Goal 事实与 Store（归 `modules/goals`，由宿主组合；本插件不导入它）、其他插件的实现。
+- 负责：Goals 的导航、界面、命令与组合（每个项目都带的内置插件）；Goals 与 Governance 在项目库里的表声明（Manifest 的 `databases.project`，即 `GOALS_PROJECT_DATABASE`，`src/project-database.ts`，建表语句在 `src/project-database-*.ts`；S8，PG-020）。
+- 不负责：Goal 事实与 Store 的读写（归 `modules/goals` 和 `modules/governance-collaboration`，由宿主组合；本插件不导入它们，它们暂用自己的 SQL 读写这些表，登记在 `tooling/gates/table-owners.json`，S9 搬进插件后删）、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-goals`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-design-system`（共享状态呈现）。方向：只依赖合同、SDK 与声明过的 Service/UI 包；不导入 Module 实现包，也不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1、2 节）。
 - 不变量：

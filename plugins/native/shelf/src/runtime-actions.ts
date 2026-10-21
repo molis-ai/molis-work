@@ -1,9 +1,11 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { ArtifactReference, FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
-import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
+import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { checkedDocument, shelfCopyOf } from "./coding-result.js";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
@@ -31,42 +33,52 @@ export const shelfRuntimeActions = {
 export const SHELF_RUNTIME_ACTIONS: readonly ActionDefinition[] = Object.values(shelfRuntimeActions);
 
 export interface ShelfResultPorts {
-  references(): ArtifactReference[];
-  preview(record: FixedVersionRecord): ShelfArtifactPreview;
-  receive(preview: ShelfArtifactPreview): { item: ShelfItemRecord; snapshot: ShelfSnapshot };
+  /** Where this project's pages are served from: a copy's source names it, so the Shelf can open the original. */
+  projectPath(): string;
+  receive(preview: ShelfArtifactPreview): Promise<{ item: ShelfItemRecord; snapshot: ShelfSnapshot }>;
 }
 
 /** What the artifact service refuses (a version that is not there) is the caller's mistake (400), not a failure of ours. */
-const refused = <T>(run: () => T): T => {
-  try { return run(); }
+const refused = async <T>(run: () => T | Promise<T>): Promise<T> => {
+  try { return await run(); }
   catch (error) { throw error instanceof ActionError ? error : shelfErrors.invalid(error instanceof Error ? error.message : "Shelf 请求无效"); }
 };
 
-/** Owner-bound: the results land in the local user's personal Shelf. */
-export function shelfRuntimeActionHandlers(context: PluginStartContext, results?: ShelfResultPorts): ActionHandlerBinding[] {
+/** Owner-bound: the results land in the local user's personal Shelf. `manifest` is Shelf's own: its input ports and the types it consumes. */
+export function shelfRuntimeActionHandlers(context: PluginStartContext, results: ShelfResultPorts | undefined,
+  manifest: Pick<PluginManifest, "ports" | "artifacts" | "process_items">): ActionHandlerBinding[] {
   const services = context.services;
-  const read = (ref: ArtifactReference) => {
+  const consumed = new Set([...manifest.artifacts.consumes, ...manifest.process_items?.consumes ?? []].map(type => type.artifact_type_id));
+  // The version is read here, as this plugin; its text is the producer's own, asked for through the action this plugin consumes.
+  const read = async (ref: ArtifactReference) => {
     if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
-    const record = refused(() => services?.artifacts?.read(ref));
+    const record = await refused(() => services?.artifacts?.read(ref));
     if (!record || record.lifecycle_state !== "active" || record.availability !== "available") throw shelfErrors.unavailable("原成果已归档、不可用或不存在");
-    return results.preview(record);
+    const actions = services?.actions, projectId = context.project_id;
+    if (!actions || !projectId) throw shelfErrors.unavailable("项目成果接收尚未装配");
+    const document = checkedDocument(await refused(() => actions.invoke(codingResultDocument, { reference: ref })));
+    return shelfCopyOf(record, document, { project_id: projectId, project_path: results.projectPath() });
   };
   return [
-    bindOwnerPluginAction(context, shelfRuntimeActions.results, () => {
+    bindOwnerPluginAction(context, shelfRuntimeActions.results, async () => {
       if (!results) throw shelfErrors.unavailable("项目成果接收尚未装配");
-      const connected = ["coding-report", "coding-changeset"].flatMap(port => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
-      const seen = new Set<string>();
-      return { results: [...connected, ...results.references()].flatMap(ref => {
-        const key = JSON.stringify([ref.artifact_id, ref.version]); if (seen.has(key)) return []; seen.add(key);
-        try { const value = read(ref); return [{ reference: value.source.reference, title: value.title, connected: connected.some(item => item.artifact_id === ref.artifact_id && item.version === ref.version) }]; }
-        catch { return []; }
-      }) };
+      const connected = (manifest.ports?.inputs ?? []).flatMap(({ port }) => { const ref = services?.inputs?.reference(port); return ref ? [ref] : []; });
+      const listed = (services?.artifacts?.listConsumable() ?? []).filter(row => consumed.has(row.artifact_type_id)).map(({ artifact_id, version }) => ({ artifact_id, version }));
+      const seen = new Set<string>(), rows: { reference: ArtifactReference; title: string; connected: boolean }[] = [];
+      for (const ref of [...connected, ...listed]) {
+        const key = JSON.stringify([ref.artifact_id, ref.version]); if (seen.has(key)) continue; seen.add(key);
+        // A version its producer will not turn into text (archived, forged, another kind) is simply not offered.
+        const value = await read(ref).catch(() => null);
+        if (value) rows.push({ reference: value.source.reference, title: value.title, connected: connected.some(item => item.artifact_id === ref.artifact_id && item.version === ref.version) });
+      }
+      return { results: rows };
     }),
     bindOwnerPluginAction(context, shelfRuntimeActions.preview, input => read(input.reference)),
-    // Commands are rechecked by the owner binding before they run; the reads and writes below do not yield.
-    bindOwnerPluginAction(context, shelfRuntimeActions.receive, input => {
-      const value = read(input.reference);
+    // The owner binding confirms a command before it runs; the reads above wait on the producer, so the call is confirmed once more right before the write.
+    bindOwnerPluginAction(context, shelfRuntimeActions.receive, async (input, beforeWrite) => {
+      const value = await read(input.reference);
       if (input.expected_fingerprint !== value.fingerprint) throw shelfErrors.conflict("成果与已查看的版本不一致，请重新预览后接收");
+      await beforeWrite();
       return results!.receive(value);
     }),
   ];

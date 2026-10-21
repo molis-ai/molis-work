@@ -10,7 +10,7 @@ import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_CLIENT_F
 import { alchemistFixture } from "./fixtures/alchemist-actions.js";
 
 /**
- * W5-01-ALC-RES09: a Pulse is stopped through `runCancel`, the one action the page's 「停止」 (POST /runs/:jobId/cancel), MCP and
+ * W5-01-ALC-RES11: a Pulse is stopped through `runCancel`, the one action the page's 「停止」 (POST /runs/:jobId/cancel), MCP and
  * every other caller share, while a source waits on the network. The cancel is the job's own `cancelled` and the run's, in one
  * transaction; after it, what the source brings back, an answer or a failure, is never recorded (RES07, QA-023: this is the
  * job's own cancel, now through its entry), and the next source is never asked. The studio's close is the other way a Pulse
@@ -21,7 +21,7 @@ import { alchemistFixture } from "./fixtures/alchemist-actions.js";
  */
 const FACTS = ["jobs", "job_events", "pulse_runs", "source_fetches", "supply_signals", "pulse_reports", "activity_events"];
 
-for (const entry of ["page", "mcp"] as const) test(`W5-01-ALC-RES09 QA-023 RES07: a Pulse stopped from the ${entry === "page" ? "page's HTTP route" : "MCP"} while a source waits records nothing after the stop`, async t => {
+for (const entry of ["page", "mcp"] as const) test(`W5-01-ALC-RES11 QA-023 RES07: a Pulse stopped from the ${entry === "page" ? "page's HTTP route" : "MCP"} while a source waits records nothing after the stop`, async t => {
   for (const fail of [false, true]) await t.test(fail ? "the source fails late" : "the source answers late", async t => {
     const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-")), library = join(home, "a.sqlite");
     const entered = Promise.withResolvers<AbortSignal>(), release = Promise.withResolvers<void>();
@@ -64,7 +64,7 @@ for (const entry of ["page", "mcp"] as const) test(`W5-01-ALC-RES09 QA-023 RES07
   });
 });
 
-test("W5-01-ALC-RES09: a Pulse that has ended, or a job that is not one, cannot be stopped, and the refusal writes nothing", async t => {
+test("W5-01-ALC-RES11: a Pulse that has ended, or a job that is not one, cannot be stopped, and the refusal writes nothing", async t => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-"));
   const f = alchemistFixture(home);
   t.after(async () => { await f.close(); await rm(home, { recursive: true, force: true }); });
@@ -129,7 +129,7 @@ function openClient(f: ReturnType<typeof alchemistFixture>, saved: { collection:
 }
 const stopButton = (html: string, label: string) => new RegExp(`<button[^>]*data-alc-action="cancel"[^>]*>${label}</button>`, "u").test(html);
 
-for (const lease of ["queued, never claimed", "running, its process gone"]) test(`BL-370 W5-01-ALC-RES09: a Pulse waiting for confirmation to continue (${lease}) shows 「停止」 and the click stops it, writing nothing after`, async t => {
+for (const lease of ["queued, never claimed", "running, its process gone"]) test(`BL-370 W5-01-ALC-RES11: a Pulse waiting for confirmation to continue (${lease}) shows 「停止」 and the click stops it, writing nothing after`, async t => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-"));
   const f = alchemistFixture(home);
   t.after(async () => { await f.close(); await rm(home, { recursive: true, force: true }); });
@@ -157,7 +157,7 @@ for (const lease of ["queued, never claimed", "running, its process gone"]) test
   assert.deepEqual(facts(), atStop, "nothing is written after the stop, and no source is asked");
 });
 
-test("BL-370 W5-01-ALC-RES09: a study waiting for confirmation to continue shows 「停止研究」 and the click stops it, writing nothing after", async t => {
+test("BL-370 W5-01-ALC-RES11: a study waiting for confirmation to continue shows 「停止研究」 and the click stops it, writing nothing after", async t => {
   const home = await mkdtemp(join(tmpdir(), "alchemist-pulse-cancel-"));
   const f = alchemistFixture(home);
   t.after(async () => { await f.close(); await rm(home, { recursive: true, force: true }); });

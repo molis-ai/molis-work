@@ -378,15 +378,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (object.open && host.openItem) host.openItem(object.open.surface, object.open.id, object.title);
   };
 
-  /* The Host draws text and code from raw words; only reading interactions live here. */
+  /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
+     the design system's one copy feedback; a refusal also says how to copy by hand. */
+  const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
   const bindText = (root) => {
     root.querySelectorAll(".assistant-code").forEach((figure) => {
       const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
-      copy.addEventListener("click", async () => {
-        try { await navigator.clipboard.writeText(figure.querySelector("pre code").textContent); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
-        copy.textContent = L("已复制"); copy.dataset.done = "";
-        setTimeout(() => { copy.textContent = L("复制"); delete copy.dataset.done; }, 1400);
-      });
+      copy.addEventListener("click", () => copyFrom(copy, () => figure.querySelector("pre code").textContent));
       more?.addEventListener("click", () => {
         figure.toggleAttribute("data-folded");
         more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");
@@ -622,11 +620,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         if (kind === "assistant") {
           const copy = keyed(node, "data-entry", "copy:" + turn.turn_id, () => {
             const btnEl = el("button", "assistant-copy", L("复制")); btnEl.type = "button";
-            btnEl.addEventListener("click", async () => {
-              try { await navigator.clipboard.writeText(bubble.dataset.text || ""); } catch { host.showToast?.(L("没能复制，请手动选中文字")); return; }
-              btnEl.textContent = L("已复制"); btnEl.dataset.done = "";
-              setTimeout(() => { btnEl.textContent = L("复制"); delete btnEl.dataset.done; }, 1400);
-            });
+            btnEl.addEventListener("click", () => copyFrom(btnEl, () => bubble.dataset.text || ""));
             return btnEl;
           });
           put(copy);

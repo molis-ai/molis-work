@@ -457,13 +457,13 @@ export function requireSynchronous<T>(value: T, message = "此操作需要异步
   return value as Exclude<T, PromiseLike<unknown>>;
 }
 
-/** An entrypoint binds its authenticated context once; callers supply only business input. */
 /** One progress event a running action reports; on a streamed route the Host writes it as a `progress` line. */
 export type ActionProgressEvent = Parameters<NonNullable<ActionCallContext["on_progress"]>>[0];
 
 /** Where a call's progress goes. It carries no identity or authority, so it never changes whose call this is. */
 export interface ActionInvokeTransport { readonly on_progress?: (event: ActionProgressEvent) => void }
 
+/** An entrypoint binds its authenticated context once; callers supply only business input. */
 export interface BoundActionClient {
   discover(): Promise<readonly ActionView[]>;
   invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: Pick<ActionExecutionContext, "signal" | "beforeEffect" | "page_context" | "assert_authority_current" | "retainBackgroundAuthority" | "query_only">, transport?: ActionInvokeTransport): Promise<Output>;

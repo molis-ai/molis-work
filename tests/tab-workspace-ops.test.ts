@@ -464,6 +464,22 @@ test("PTG-04 a tab in a user group leaves its plugin group; pinned tabs join no 
   assert.equal(pane.tabs[0].id, g1.id);
 });
 
+test("PRR-07 a pinned plugin tab is not an automatic-group head and closes only itself", () => {
+  const ops = grouped();
+  const state = ops.create();
+  const paneId = state.focusedPaneId;
+  ops.openPlugin(state, "goals");
+  const pane = ops.focused(state);
+  const head = pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === "goals")!;
+  ops.togglePinned(state, paneId, head.id);
+  const item = ops.openItem(state, "goals", "g1", "发布");
+  assert.equal(pane.tabs.filter((tab) => tab.kind === "plugin" && tab.plugin === "goals").length, 1, "no second plugin tab");
+  assert.deepEqual(ops.pluginGroup(pane, "goals").map((tab) => tab.id), [item.id], "the pinned head is not part of the automatic group");
+  const record = ops.closePluginGroup(state, paneId, "goals");
+  assert.deepEqual(record.tabs.map((entry) => entry.tab.id), [head.id], "closing the pinned tab closes only it");
+  assert.ok(pane.tabs.some((tab) => tab.id === item.id), "the loose item stays");
+});
+
 test("PTG-05 closing a plugin tab closes its group, and reopening puts every tab back in order", () => {
   const ops = grouped();
   const state = ops.create();

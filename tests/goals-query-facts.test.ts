@@ -12,7 +12,7 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     const coordinator = new GoalProjectApplication(store);
     const goals = new GoalsModule(store.db, {});
     for (const board of ["query-main", "query-other"]) coordinator.initializeBoard({
-      project_id: board, title: board, actor_id: "user", idempotency_key: `init:${board}`,
+      project_id: board, actor_id: "user", idempotency_key: `init:${board}`,
     });
     for (const id of ["subject", "dep-a", "dep-z", "replacement-a", "replacement-z", "foreign"]) {
       goals.commands.createGoal(id === "foreign" ? "query-other" : "query-main", {

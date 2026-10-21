@@ -32,19 +32,6 @@ export const FEED_CATEGORY_LABEL: Record<FeedCategory, string> = {
   general_news: "综合新闻",
 };
 
-/** Display order for category chips (unknown categories sort last). */
-export const FEED_CATEGORY_ORDER: readonly FeedCategory[] = Object.freeze([
-  "finance",
-  "policy",
-  "tech_cn",
-  "tech_global",
-  "ai_research",
-  "dev",
-  "security",
-  "science",
-  "general_news",
-]);
-
 export interface FeedSourceCatalogEntry {
   sourceId: string;
   name: string;
@@ -522,18 +509,4 @@ export function listFeedUrls(): readonly string[] {
   return Object.freeze(
     listRegisterableFeeds().map((source) => source.feedUrl),
   );
-}
-
-export function getFeedById(
-  sourceId: string,
-): FeedSourceCatalogEntry | undefined {
-  return listRegisterableFeeds().find((s) => s.sourceId === sourceId);
-}
-
-/** Categories present in the current catalog, stable order. */
-export function listFeedCategories(): readonly FeedCategory[] {
-  const present = new Set(
-    listRegisterableFeeds().map((s) => s.category),
-  );
-  return Object.freeze(FEED_CATEGORY_ORDER.filter((c) => present.has(c)));
 }

@@ -1,0 +1,371 @@
+{
+  "at": "2026-10-20T04:30:09.090Z",
+  "commit": "0744d7dd3b0ab4dc4ee11a4c10176f964e4fc849",
+  "dirty": 0,
+  "environment": {
+    "node": "v24.14.0",
+    "os": "25.3.0",
+    "arch": "arm64",
+    "cpu": "Apple M5",
+    "logicalCpus": 10,
+    "memoryBytes": 17179869184,
+    "loadStart": [
+      3.75439453125,
+      4.7568359375,
+      4.62353515625
+    ],
+    "loadEnd": [
+      3.6689453125,
+      4.6240234375,
+      4.5791015625
+    ]
+  },
+  "conditions": {
+    "viewport": "1440x900@1",
+    "motion": "enabled (navigator.webdriver hidden)",
+    "chrome": "headless, fresh profile, cache on"
+  },
+  "scope": "Browser timings of the production workbench with seeded data. No model, no native shell, no real display refresh.",
+  "scenarios": {
+    "open": [
+      {
+        "label": "first open, empty cache",
+        "operableFromNavigateMs": 1673.61,
+        "responseStart": 1090.5,
+        "domContentLoaded": 1362.1,
+        "load": 1372.6,
+        "firstPaint": 1276,
+        "firstContentfulPaint": 1276,
+        "documentBytes": 772112,
+        "requests": 18,
+        "transferBytes": 4190690,
+        "decodedBytes": 4185290,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 80,
+        "longestTaskMs": 80,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.89,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 72,
+        "recalcStyleCount": 206
+      },
+      {
+        "label": "reopen 1, warm cache",
+        "operableFromNavigateMs": 538.62,
+        "responseStart": 276.4,
+        "domContentLoaded": 412.8,
+        "load": 423.5,
+        "firstPaint": 308,
+        "firstContentfulPaint": 308,
+        "documentBytes": 772112,
+        "requests": 17,
+        "transferBytes": 914766,
+        "decodedBytes": 909666,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 80,
+        "longestTaskMs": 80,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.87,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 72,
+        "recalcStyleCount": 208
+      },
+      {
+        "label": "reopen 2, warm cache",
+        "operableFromNavigateMs": 569.78,
+        "responseStart": 286.7,
+        "domContentLoaded": 388.9,
+        "load": 403.2,
+        "firstPaint": 384,
+        "firstContentfulPaint": 384,
+        "documentBytes": 772112,
+        "requests": 17,
+        "transferBytes": 914766,
+        "decodedBytes": 909666,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 54,
+        "longestTaskMs": 54,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.91,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 71,
+        "recalcStyleCount": 203
+      },
+      {
+        "label": "reopen 3, warm cache",
+        "operableFromNavigateMs": 522.49,
+        "responseStart": 270.9,
+        "domContentLoaded": 371.9,
+        "load": 386.3,
+        "firstPaint": 368,
+        "firstContentfulPaint": 368,
+        "documentBytes": 772112,
+        "requests": 17,
+        "transferBytes": 914766,
+        "decodedBytes": 909666,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 54,
+        "longestTaskMs": 54,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.91,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 70,
+        "recalcStyleCount": 203
+      },
+      {
+        "label": "reopen 4, warm cache",
+        "operableFromNavigateMs": 535.84,
+        "responseStart": 279.3,
+        "domContentLoaded": 385.1,
+        "load": 399.2,
+        "firstPaint": 380,
+        "firstContentfulPaint": 380,
+        "documentBytes": 772112,
+        "requests": 17,
+        "transferBytes": 914766,
+        "decodedBytes": 909666,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 58,
+        "longestTaskMs": 58,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.91,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 72,
+        "recalcStyleCount": 207
+      },
+      {
+        "label": "reopen 5, warm cache",
+        "operableFromNavigateMs": 550.95,
+        "responseStart": 277,
+        "domContentLoaded": 385.5,
+        "load": 400.3,
+        "firstPaint": 380,
+        "firstContentfulPaint": 380,
+        "documentBytes": 772112,
+        "requests": 17,
+        "transferBytes": 914766,
+        "decodedBytes": 909666,
+        "cachedRequests": 0,
+        "longTasks": 1,
+        "longTaskMs": 59,
+        "longestTaskMs": 59,
+        "layoutShift": 0,
+        "nodes": 22620,
+        "listeners": 1027,
+        "heapUsedMB": 3.91,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 70,
+        "recalcStyleCount": 200
+      }
+    ],
+    "pluginFirstEntry": [
+      {
+        "id": "pages",
+        "readyMs": 416.24,
+        "press": [
+          104,
+          88,
+          88
+        ],
+        "longTasks": 1,
+        "longTaskMs": 63
+      },
+      {
+        "id": "todo",
+        "readyMs": 165.56,
+        "press": [
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "feed",
+        "readyMs": 99.92,
+        "press": [],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "coding",
+        "readyMs": 149.84,
+        "press": [
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "issues",
+        "readyMs": 118.52,
+        "press": [
+          80,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      }
+    ],
+    "pluginReturn": [
+      {
+        "id": "pages",
+        "readyMs": 99.95,
+        "press": [],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "todo",
+        "readyMs": 101.24,
+        "press": [
+          80,
+          80,
+          80,
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "feed",
+        "readyMs": 99.89,
+        "press": [
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "coding",
+        "readyMs": 117.57,
+        "press": [
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      },
+      {
+        "id": "issues",
+        "readyMs": 101,
+        "press": [
+          88,
+          72,
+          72
+        ],
+        "longTasks": 0,
+        "longTaskMs": 0
+      }
+    ],
+    "switchRounds": [
+      {
+        "round": 0,
+        "nodes": 23870,
+        "listeners": 1374,
+        "heapUsedMB": 6.02,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 314,
+        "recalcStyleCount": 963
+      },
+      {
+        "round": 2,
+        "nodes": 23862,
+        "listeners": 1374,
+        "heapUsedMB": 6.11,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 544,
+        "recalcStyleCount": 1683
+      },
+      {
+        "round": 4,
+        "nodes": 23862,
+        "listeners": 1374,
+        "heapUsedMB": 6.18,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 775,
+        "recalcStyleCount": 2407
+      },
+      {
+        "round": 6,
+        "nodes": 23862,
+        "listeners": 1374,
+        "heapUsedMB": 6.24,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 1005,
+        "recalcStyleCount": 3121
+      },
+      {
+        "round": 8,
+        "nodes": 23863,
+        "listeners": 1374,
+        "heapUsedMB": 6.36,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 1236,
+        "recalcStyleCount": 3847
+      },
+      {
+        "round": 10,
+        "nodes": 23862,
+        "listeners": 1374,
+        "heapUsedMB": 6.4,
+        "documents": 7,
+        "frames": 6,
+        "layoutCount": 1466,
+        "recalcStyleCount": 4561
+      }
+    ],
+    "typing": {
+      "characters": 55,
+      "typedMs": 72.92,
+      "valueLength": 55,
+      "eventsOver16ms": [
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        40,
+        24,
+        24
+      ],
+      "longestEventMs": 40
+    }
+  }
+}

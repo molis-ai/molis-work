@@ -235,12 +235,34 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// A2-3 (#805, independently reviewed 2026-10-20): settings CRUD, dialogs, focus and conflict recovery need
-// 5,222 B from main's exact budget, including 80 B to preserve quoted/backslash arguments on edit. Text and templates
-// stay in the host-rendered section, the client is minified, and global settings do not carry it. No new asset.
-// The spent proposal-confirmation and project-knowledge stylesheet allowances are removed, not accumulated.
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
+// admission from the exact #805 + #848 + #853 predecessor (#851 carries #854, #856 and #860; reviewed 2026-10-20):
+// - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
+//   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
+// - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
+//   assistant strip's own: +879 B of workbench.js, +460–488 B of each stylesheet; tried first: one gradient for both sides
+//   and directions, short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet);
+// - the shared copy feedback (VUX-19), the natural-height disclosure and the measured thumb's triggers (VUX-22), reserved-width
+//   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
+//   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
+//   face; Coding's own copy code went (−185 B).
+// - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
+//   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
+//   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
+// - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
+//   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
+// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,264 B, and the three
+// stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
+// The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129726, 1134948],
+  // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
+  // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
+  "/assets/molis-work-workbench.js": [1134920, 1138184],
+  "/assets/molis-work-workbench.css": [1603130, 1604761],
+  "/assets/molis-work-settings.css": [988929, 990556],
+  "/assets/molis-work-arrival.css": [698519, 700146],
+  "/assets/molis-work-pages-editor.js": [706933, 707336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -2,7 +2,8 @@ import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
 import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
-/** Workbench composes bundled project entries and exact Artifact contributions. */
+/** Workbench composes bundled project entries and exact Artifact contributions. The menus holding the market's update count
+ * light their dot from `data-market-updates`: a style rule that looked inside them restyled each whole menu on every change. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
@@ -24,6 +25,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
       updateCount.textContent = updates.length ? String(updates.length) : "";
+      updateCount.closest(".plugin-picker, .account-global-menu")?.toggleAttribute("data-market-updates", updates.length > 0);
     }
     if (marketLink) marketLink.setAttribute("aria-label", updates.length
       ? L("插件市场") + "，" + updates.length + L("个可用更新")

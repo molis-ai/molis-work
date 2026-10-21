@@ -2742,15 +2742,15 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 - **Goal 标题**：经 Goals 的公开读动作 `goals.list@1`（目录，一次带回大多数标题）和 `goals.contract.read@2`（目录不列的归档或丢弃的目标，按 id 读一次），二者都在 `capabilities.consumes` 里，由平台核授权。目录面板当场渲染、等不了一次动作，所以 Coding 记下最近一次读到的标题（进程内加写入插件私有存储，重启后还在）；页面一打开就读的 `coding.state`、会话读取、搜索条目和所选 Goal 都会刷新它。从没读到过、或读不到的 Goal，目录首屏显示 Goal 的 id，页面里显示「关联 Goal 暂不可用」，和 Goal 读不到时一向的样子一样。
 - **Character**：经 Characters 的两个公开动作 `characters.list@1`（已发布的固定版本）与 `characters.execution@1`（这个版本现在能不能跑，由 Characters 自己给原因）。两个动作新增 `plugin` 受众（形状、版本和 MCP 工具名不变），Coding 在 `capabilities.consumes` 里列出它们。合同影响：已授权的要在设置页重新授权。
 
-1. **W5-01-CODING-22** Manifest：`model:read` 必需、没有 `model:invoke`，Coding 的动作也没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.execution`。测试：`tests/coding-input-ports.test.ts`。
-2. **W5-01-CODING-23** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read`；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
-3. **W5-01-CODING-24** V-13 只有一份模型列表：Coding 列出的与同一个 Home 里另一个持 `model:read` 的插件拿到的相同、同序，停用的模型两边都没有。测试：`tests/coding-input-ports.test.ts`。
-4. **W5-01-CODING-25** 会话关联的 Goal 标题，经 Goals 的公开列表动作、以插件受众（`host_plugin` 是 Coding）读到；读之前目录首屏给 id，读之后目录显示标题；Goals 读不到了标题保持，插件重启后目录里仍是这个标题。测试：`tests/coding-input-ports.test.ts`、`tests/coding-surface.test.ts`（20）。
-5. **W5-01-CODING-26** 目录不列的 Goal（归档、丢弃）按 id 经 `goals.contract.read` 读一次；读不到的 Goal 没有标题，这不是错误；已知的标题不重复读。测试：`tests/coding-input-ports.test.ts`。
-6. **W5-01-CODING-27** 角色列表与「能不能跑」经 `characters.list`、`characters.execution`，以插件受众、Coding 的身份调用；不能跑的版本带 Characters 给的原因。测试：`tests/coding-input-ports.test.ts`、`tests/coding-characters-http.test.ts`（真实 Characters 的整条链）。
-7. **W5-01-CODING-28** S-15：清单没有把 `characters.execution` 列进 `consumes` 的插件，调它得 `actions.forbidden`，Characters 不被问到；列了的才够得到。测试：`tests/coding-input-ports.test.ts`。
-8. **W5-01-CODING-29** S-15：人撤回授权（停用后收回再启动）之后，列了的动作得 `plugin.grant_denied`，Characters 不被问到；从没被授权的插件同样被拒。测试：`tests/coding-input-ports.test.ts`。
-9. **W5-01-CODING-30** 重启后第一次 Agent 读就失败的恢复循环只试一次就结束，不每 5 秒重试；之后的 `coding.state` 读会再起一个。测试：`tests/coding-input-ports.test.ts`；启动时 Agent 服务未接上、没有 `ready` 可等：`tests/project-plugin-startup.test.ts`（第一次能力调用得「能力未注册」，之后同一实例读到 Home 里新配的模型）。
+1. **W5-01-CODING-23** Manifest：`model:read` 必需、没有 `model:invoke`，Coding 的动作也没有任何一个声明 `model:invoke`；`capabilities.consumes` 里有 Goals 的 `goals.list`、`goals.contract.read` 与 Characters 的 `characters.list`、`characters.execution`。测试：`tests/coding-input-ports.test.ts`。
+2. **W5-01-CODING-24** Coding 从 `services.model` 读模型列表和每个模型的可用性，安装只持有 `model:read`；页面的列表就是它；`complete()` 在发出之前被拒（`plugin.model_action_required`）。测试：`tests/coding-input-ports.test.ts`。
+3. **W5-01-CODING-25** V-13 只有一份模型列表：Coding 列出的与同一个 Home 里另一个持 `model:read` 的插件拿到的相同、同序，停用的模型两边都没有。测试：`tests/coding-input-ports.test.ts`。
+4. **W5-01-CODING-26** 会话关联的 Goal 标题，经 Goals 的公开列表动作、以插件受众（`host_plugin` 是 Coding）读到；读之前目录首屏给 id，读之后目录显示标题；Goals 读不到了标题保持，插件重启后目录里仍是这个标题。测试：`tests/coding-input-ports.test.ts`、`tests/coding-surface.test.ts`（20）。
+5. **W5-01-CODING-27** 目录不列的 Goal（归档、丢弃）按 id 经 `goals.contract.read` 读一次；读不到的 Goal 没有标题，这不是错误；已知的标题不重复读。测试：`tests/coding-input-ports.test.ts`。
+6. **W5-01-CODING-28** 角色列表与「能不能跑」经 `characters.list`、`characters.execution`，以插件受众、Coding 的身份调用；不能跑的版本带 Characters 给的原因。测试：`tests/coding-input-ports.test.ts`、`tests/coding-characters-http.test.ts`（真实 Characters 的整条链）。
+7. **W5-01-CODING-29** S-15：清单没有把 `characters.execution` 列进 `consumes` 的插件，调它得 `actions.forbidden`，Characters 不被问到；列了的才够得到。测试：`tests/coding-input-ports.test.ts`。
+8. **W5-01-CODING-30** S-15：人撤回授权（停用后收回再启动）之后，列了的动作得 `plugin.grant_denied`，Characters 不被问到；从没被授权的插件同样被拒。测试：`tests/coding-input-ports.test.ts`。
+9. **W5-01-CODING-31** 重启后第一次 Agent 读就失败的恢复循环只试一次就结束，不每 5 秒重试；之后的 `coding.state` 读会再起一个。测试：`tests/coding-input-ports.test.ts`；启动时 Agent 服务未接上、没有 `ready` 可等：`tests/project-plugin-startup.test.ts`（第一次能力调用得「能力未注册」，之后同一实例读到 Home 里新配的模型）。
 
 说明：助理（`assistant-http.ts`）与 `agent-host-composition.ts` 仍用 `characters-host.ts` 的 `codingCharacterPorts`，那是 C2b，不在这一片；`characters-host.ts` 因此还从 Coding 包取 `CodingCharacterChoice`、`CodingCharacterPorts` 两个类型。
 

@@ -53,7 +53,7 @@ function directoryHtml(platform: { supervisor: { contribution(pluginId: string):
 const until = async (done: () => boolean, ms = 5_000) => { for (const end = Date.now() + ms; !done() && Date.now() < end;) await new Promise(resolve => setTimeout(resolve, 50)); assert.ok(done(), "the awaited step happened"); };
 const registration = (service: ActionService) => ({ registry: service, client: service, project_id: DEMO_PROJECT_ID });
 
-test("W5-01-CODING-22 Coding declares model:read and never model:invoke, and lists the Goals and Characters actions it reads through under consumes", () => {
+test("W5-01-CODING-23 Coding declares model:read and never model:invoke, and lists the Goals and Characters actions it reads through under consumes", () => {
   const modelPermissions = codingManifest.permissions.filter(declared => declared.permission.startsWith("model:"));
   assert.deepEqual(modelPermissions.map(({ permission, required }) => ({ permission, required })), [{ permission: "model:read", required: true }]);
   // No action of Coding's can ask the model for text either: a call to complete() needs an own action that declares model:invoke.
@@ -64,7 +64,7 @@ test("W5-01-CODING-22 Coding declares model:read and never model:invoke, and lis
   }
 });
 
-test("W5-01-CODING-23 Coding reads the model list and each model's availability from services.model with model:read only; complete() is not available to it", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-24 Coding reads the model list and each model's availability from services.model with model:read only; complete() is not available to it", { timeout: 60_000 }, async t => {
   let model: PluginModelClient | undefined;
   const s = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, async start(context: PluginStartContext) { model = context.services?.model; return definition.start(context); } }) });
   const installed = s.platform.runtime.list().find(record => record.plugin_id === CODING_PLUGIN_ID) ?? assert.fail("Coding is installed");
@@ -83,7 +83,7 @@ test("W5-01-CODING-23 Coding reads the model list and each model's availability 
   await assert.rejects(client.complete(instructed(summarize, "材料")), { code: "plugin.model_action_required" });
 });
 
-test("W5-01-CODING-24 V-13 one model list only: what Coding lists is the list every other plugin with model:read is given, and a disabled model is in neither", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-25 V-13 one model list only: what Coding lists is the list every other plugin with model:read is given, and a disabled model is in neither", { timeout: 60_000 }, async t => {
   const reader = modelReader();
   const s = await codingSdkRuntime(t, { extraPlugins: [{ definition: reader.definition, grants: ["model:read"] }] });
   await seedConfiguredModels(s.home, [{ provider_id: "second", model_id: "on" }, { provider_id: "second", model_id: "off", enabled: false }]);
@@ -93,7 +93,7 @@ test("W5-01-CODING-24 V-13 one model list only: what Coding lists is the list ev
   assert.deepEqual(listed.map(entry => `${entry.provider_id}/${entry.model_id}`), ["fixture/fixture", "second/on"], "the disabled model is dropped from the one list");
 });
 
-test("W5-01-CODING-25 a session's Goal title is read through Goals' public list action as a plugin caller, kept for the directory, and survives a restart with Goals gone", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-26 a session's Goal title is read through Goals' public list action as a plugin caller, kept for the directory, and survives a restart with Goals gone", { timeout: 60_000 }, async t => {
   const s = await codingSdkRuntime(t), titles: Record<string, string> = { g1: "让首次使用不再卡住" }, seen: ActionCallContext[] = [];
   fakeGoalDirectory(registration(s.service), () => titles, 100, seen);
   await s.sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "with-goal", title: "带目标的会话", runtime_id: "prologue", goal_id: "g1", at });
@@ -113,7 +113,7 @@ test("W5-01-CODING-25 a session's Goal title is read through Goals' public list 
   assert.match(directoryHtml(s.platform), /让首次使用不再卡住/);
 });
 
-test("W5-01-CODING-26 a Goal the directory does not list (archived or discarded) is read by its id through Goals' contract action, once", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-27 a Goal the directory does not list (archived or discarded) is read by its id through Goals' contract action, once", { timeout: 60_000 }, async t => {
   const s = await codingSdkRuntime(t), reads: string[] = [];
   fakeGoalDirectory(registration(s.service), () => ({}));
   // The directory answers for open Goals only; this stand-in answers the by-id read, whose full schema is Goals' own to test.
@@ -135,7 +135,7 @@ test("W5-01-CODING-26 a Goal the directory does not list (archived or discarded)
   assert.deepEqual(reads.filter(id => id === "archived"), ["archived"], "a title already known is not read again");
 });
 
-test("W5-01-CODING-27 Characters are read through characters.list and characters.execution as a plugin caller; the reason a version cannot run is Characters' own", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-28 Characters are read through characters.list and characters.execution as a plugin caller; the reason a version cannot run is Characters' own", { timeout: 60_000 }, async t => {
   const s = await codingSdkRuntime(t), seen: Array<{ capability_id: string; caller: ActionCallContext }> = [];
   const publication = (artifact_id: string, title: string) => ({ artifact_id, version: 1, lifecycle_state: "active", availability: "available", payload: { title, instructions: "固定要求", host_tools: null } });
   s.service.registerProvider({ provider: { provider_id: "characters-fixture", title: "角色", kind: "system" }, definitions: [characterPluginActions.list, characterPluginActions.execution],
@@ -190,7 +190,7 @@ async function consumers() {
 }
 const reference = { artifact_id: "c-ok", version: 1 };
 
-test("W5-01-CODING-28 S-15 a plugin that does not list characters.execution under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable", { timeout: 60_000 }, async () => {
+test("W5-01-CODING-29 S-15 a plugin that does not list characters.execution under consumes is refused it (actions.forbidden), whatever it holds, while the action it lists is reachable", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
     await item.start("lists-both", [characterPluginActions.list.capability_id, characterPluginActions.execution.capability_id], ["artifact:read"]);
@@ -209,7 +209,7 @@ test("W5-01-CODING-28 S-15 a plugin that does not list characters.execution unde
   } finally { item.close(); }
 });
 
-test("W5-01-CODING-29 S-15 once the person has withdrawn the grant, the listed action is refused (plugin.grant_denied) and Characters is not asked", { timeout: 60_000 }, async () => {
+test("W5-01-CODING-30 S-15 once the person has withdrawn the grant, the listed action is refused (plugin.grant_denied) and Characters is not asked", { timeout: 60_000 }, async () => {
   const item = await consumers();
   try {
     const consumes = [characterPluginActions.list.capability_id, characterPluginActions.execution.capability_id];
@@ -230,7 +230,7 @@ test("W5-01-CODING-29 S-15 once the person has withdrawn the grant, the listed a
   } finally { item.close(); }
 });
 
-test("W5-01-CODING-30 recovery after a restart with a failing first Agent read tries once and ends; the next coding.state read starts a loop again", { timeout: 60_000 }, async t => {
+test("W5-01-CODING-31 recovery after a restart with a failing first Agent read tries once and ends; the next coding.state read starts a loop again", { timeout: 60_000 }, async t => {
   const waits: unknown[] = [];
   const s = await codingSdkRuntime(t, { wrapCapabilities: client => new Proxy(client, { get(target, key) {
     const value = Reflect.get(target, key, target);

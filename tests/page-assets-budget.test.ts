@@ -699,6 +699,9 @@ for (const [asset, old] of [
   // The 工作环境 and 连接与工具 allowance (#873, VUX-08/09) is spent.
   ["/assets/molis-work-workbench.js", 1138483], ["/assets/molis-work-workbench.css", 1605291], ["/assets/molis-work-settings.css", 991066],
   ["/assets/molis-work-arrival.css", 700652],
+  // The 用量 allowance (#874, VUX-11) is spent.
+  ["/assets/molis-work-workbench.js", 1143359], ["/assets/molis-work-workbench.css", 1605330], ["/assets/molis-work-settings.css", 991105],
+  ["/assets/molis-work-arrival.css", 700691],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -714,12 +717,9 @@ for (const [asset, old] of [
 // specs/visual-ui-experience (2026-10-20): the remaining copy buttons and conversations take the shared mechanisms; each
 // asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
 // the new baseline still fails.
-test("VUX-11 the 用量 allowance is bounded and spent once; other assets and later growth still fail", () => {
+test("VUX-08 VUX-09 the Coding MCP tools allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1148828, 1151777],
-    "/assets/molis-work-workbench.css": [1605166, 1605446],
-    "/assets/molis-work-settings.css": [990961, 991241],
-    "/assets/molis-work-arrival.css": [700551, 700831],
+    "/assets/molis-work-workbench.js": [1151777, 1151781],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
@@ -735,7 +735,7 @@ test("VUX-11 the 用量 allowance is bounded and spent once; other assets and la
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured 用量 size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured Coding MCP tools size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

@@ -108,7 +108,8 @@ export const LAYOUT_AUDIT = String.raw`(() => {
   for (const el of document.querySelectorAll('body *')) {
     if (!shown(el)) continue;
     const s = getComputedStyle(el);
-    if (!/(hidden|clip)/.test(s.overflowX) || s.textOverflow === 'ellipsis' || el.clientWidth <= 0) continue;
+    // A 1px box is the screen-reader-only technique: the words are there for a screen reader, not cut from the screen.
+    if (!/(hidden|clip)/.test(s.overflowX) || s.textOverflow === 'ellipsis' || el.clientWidth <= 1) continue;
     if (el.scrollWidth > el.clientWidth + 1 && !el.closest('.mw-sr-only, .sr-only') && ([...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim()) || el.children.length)) {
       add('silent-clip', el, null, { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth });
     }

@@ -234,6 +234,9 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench [data-tab-reorder-slot] { height: 44px; min-height: 44px; }
     body.immersive-workbench .tab-item[data-pinned] { width: 44px; min-width: 44px; max-width: 44px; }
     body.immersive-workbench :is(.tab-item-close, .tab-split-button, .tab-add-button) { width: 44px; height: 44px; }
+    /* A pane's close is a touch target too, and its strip keeps the room for it. */
+    body.immersive-workbench .tab-pane-close { top: 0; width: 44px; height: 44px; }
+    body.immersive-workbench .tab-pane > .tab-strip { padding-right: 50px; }
     body.immersive-workbench :is(.plugin-rail, .assistant-island) .plugin-rail-item { min-height: 44px; height: 44px; width: 40px; }
     body.immersive-workbench .tree-pane .immersive-plugin-link { min-height: 44px; }
     body.immersive-workbench .tree-pane .tree-node,

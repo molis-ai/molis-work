@@ -1,6 +1,6 @@
 import type { BoundActionClient } from "./actions.js";
 import type { ArtifactReference } from "../modules/artifacts.js";
-export type { PluginBackgroundClient, PluginBackgroundExecution } from "./plugin-background.js";
+export type { PluginBackgroundClient, PluginBackgroundExecution, PluginJobControl, PluginJobDeclaration, PluginKeptJob } from "./plugin-background.js";
 import type { ConnectorDriver } from "../services/connector-host.js";
 import type { RawEventAdapter } from "../services/listener-host.js";
 import type { HostCapabilityDefinition } from "./app-host.js";
@@ -309,6 +309,8 @@ export interface PluginManifest {
   upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
   /** The plugin's own tables, by scope (PG-020, specs/plugin-project-database). */
   databases?: import("./plugin-database.js").PluginManifestDatabases;
+  /** v2: jobs an activation may keep (`services.background.keep`, PG-038). */
+  background?: { jobs: readonly import("./plugin-background.js").PluginJobDeclaration[] };
   /** Complete, callable capabilities registered with the system action service. */
   actions?: readonly import("./actions.js").ActionDefinition[];
   /** Actual judgment consumption points, automatically discovered by configuration UIs. */

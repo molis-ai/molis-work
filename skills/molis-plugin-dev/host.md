@@ -53,13 +53,19 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### Home 模型配置与生图
 
-消费者的独立模型设置使用可信条目的 `model_configuration` 与 `services.model.configuration`；真实生图使用 `image_generation` 与 `services.imageGeneration`，任务调度和图片校验仍由插件拥有。不要把 Home 路径或凭据解析器交给插件。生成返回的 revision 必须用于后续写入复核；失效时成功和失败记录都不能写。删项目时平台先停掉插件经 `services.background` 在这个项目里受理的执行，再按原可信 project_data 清理，插件不被通知。调用范围、声明字段和路由字节响应见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)。
+消费者的独立模型设置使用可信条目的 `model_configuration` 与 `services.model.configuration`；真实生图使用 `image_generation` 与 `services.imageGeneration`，任务调度和图片校验仍由插件拥有。不要把 Home 路径或凭据解析器交给插件。生成返回的 revision 必须用于后续写入复核；失效时成功和失败记录都不能写。删项目时平台先停掉插件经 `services.background` 在这个项目里受理的执行和保留的作业，再按原可信 project_data 清理，插件不被通知。调用范围、声明字段和路由字节响应见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)。
 
 ### 已受理的后台执行
 
 需要返回任务编号后继续运行时，在本安装的活跃并发 command 中 `await context.services.background.start(async control => …, { signal? })`；动作须声明 `background_job`，沙箱与升级预检没有服务。句柄的 `result` 交付结果，`cancel()` 取消等待；任务记录、幂等与重启恢复由插件自己拥有，平台不自动重放。回调可用既有模型与数据服务，但写入必须用这个回调的新控制 `await control.beforeEffect()` 并在提交前同步核 `control.assert_authority_current?.()`，不保留旧处理器的 caller。
 
 正常 HTTP/MCP 断开不会取消已经受理的工作；原授权撤销、安装停用/升级、Host 关闭或显式取消后，成功和失败业务写入都拒绝。原身份、项目与注册一直保留，没有独立入口授权时仍沿用原 signal，因此不脱离 Agent 的取消。只受理一次有限执行，不在启动钩子、路由、过期计时器或后台回调里再开一轮。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「已受理的后台执行」。
+
+### 随激活存活的后台作业
+
+一件事要随插件这次激活一直跟着（等外部回信、跟一个会话到结束），先在 Manifest 写 `background: { jobs: [{ job_id, reason, permissions }] }`（`permissions` 只能是 Manifest 声明过的），再 `context.services.background.keep(job_id, async control => …)`。只在三处登记：本安装的命令通过了最后一次授权检查之后（自己的 `await caller.beforeEffect()` 返回过，或平台在它的一次写入前核过、它发的命令返回过），而且登记时这次调用还有效（提交后同步调 `keep()`，检查之后被取消或撤权就被拒）；激活的 `start()` 返回之前；同一激活的另一个还在跑的作业里（停了的作业登记被拒）。别处是 `plugin.background_job_origin`，命令还没通过检查是 `plugin.background_job_unchecked`。
+
+作业只有安装自己的授权：control 里没有原调用者，发出的调用以安装身份、按 `plugin` 受众走。每次写之前 `await control.beforeEffect()`；平台在每次写和每 200 ms 重核激活、安装记录与权限，插件停止、项目关闭或删除、Home 关闭就停，之后经平台服务的写一律拒。单次调用取消、撤权不停它，这只为把已经受理的那件事跟到底、记下真实结果，不发起新的业务（`specs/repository-anti-corruption/spec.md` §12.10）。平台不落盘、不重放：要在重启后接着跟，插件在 `start()` 里读自己的记录再登记。沙箱没有这项服务。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」与 `docs/system/SECURITY-INVARIANTS.md` S-52。
 
 要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineHomeBackgroundTasksAction` 声明、回答 `{ source: { surface }, tasks }`，宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 

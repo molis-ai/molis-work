@@ -23,9 +23,13 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       ...(projectId ? { project_id: projectId } : {}) },
     definitions: manifest.actions ?? [], handlers: (contribution.actions ?? []).map(h => {
       const definition = manifest.actions!.find(d => d.capability_id === h.capability_id && d.version === h.version)!;
-      // The Plugin's services ask which action is running; the Host answers, the Plugin does not say.
-      return { ...h, handle: (context, input) => runInPluginAction({ install_id: installId, definition, caller: context }, () => h.handle(pluginCallbackContext(context), input)),
-        availability: grantAvailability(definition.action.permissions, h.availability) };
+      // The Plugin's services ask which action is running; the Host answers, the Plugin does not say. The call's own `beforeEffect`
+      // returning is one way it passes its last authority check (`PluginActionScope.checked`).
+      return { ...h, handle: (context, input) => {
+        const checked = { passed: false }, view = pluginCallbackContext(context), before = view.beforeEffect;
+        return runInPluginAction({ install_id: installId, definition, caller: context, checked },
+          () => h.handle(before ? { ...view, beforeEffect: async () => { await before(); checked.passed = true; } } : view, input));
+      }, availability: grantAvailability(definition.action.permissions, h.availability) };
     }),
     scenes: manifest.action_scenes ?? [], scene_handlers: (contribution.action_scenes ?? []).map(h => {
       const declaration = manifest.action_scenes!.find(d => d.scene_id === h.scene_id && d.version === h.version)!;

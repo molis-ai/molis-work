@@ -12,6 +12,11 @@ export interface PluginActionScope {
   readonly caller: ActionExecutionContext;
   /** Where this call stands in the order this process began calls in (`lastBegunPluginInvocation`). */
   readonly begun: number;
+  /**
+   * Set once a final authority check of this call passed: its own `beforeEffect` returned, or the Host saw one right before a write
+   * (`markPluginActionChecked`). From then on the call may keep a job (PG-038). Work that carries the call on shares it.
+   */
+  readonly checked?: { passed: boolean };
 }
 
 export interface PluginSceneScope {
@@ -22,7 +27,18 @@ export interface PluginSceneScope {
   readonly begun: number;
 }
 
-export type PluginInvocationScope = PluginActionScope | PluginSceneScope;
+/**
+ * A job an activation keeps (`services.background.keep`, PG-038). Its caller is the installation itself in the job's project, with the
+ * job's own lifetime and checks: it names neither the call that kept the job nor that call's audience.
+ */
+export interface PluginJobScope {
+  readonly install_id: string;
+  readonly job: string;
+  readonly caller: ActionCallContext;
+  readonly begun: number;
+}
+
+export type PluginInvocationScope = PluginActionScope | PluginSceneScope | PluginJobScope;
 const running = new AsyncLocalStorage<PluginInvocationScope>();
 let lastBegun = 0;
 
@@ -62,6 +78,11 @@ export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & {
   return running.run({ ...scope, begun: place(scope.begun) }, handle);
 }
 
+/** Runs a job's work in its own scope: services ask the job's checks, never those of the call that kept it. */
+export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
+  return running.run({ ...scope, begun: place(scope.begun) }, handle);
+}
+
 /**
  * Runs what the Runtime does on its own behalf (starting or stopping a Plugin, delivering an event or an input change) outside
  * every action. Otherwise it keeps the scope of whichever action set it off: a subscriber would answer to the publisher's
@@ -82,14 +103,16 @@ export function currentPluginAction(): PluginActionScope | undefined {
  * current, its call not cancelled and its authority not revoked or moved to another provider. The answer is synchronous, so
  * nothing runs between it and the write; a `beforeEffect` the Plugin hands the service only waits, and the Plugin passes no
  * caller of its own. `installId` is the installation the service writes for: inside another installation's action that action's
- * caller never asked this one to write, so the write is refused. Outside every action (`start`, a route, a timer set up there)
- * there is no caller to ask, and the installation's live grants, which each service checks itself, decide alone.
+ * caller never asked this one to write, so the write is refused. Inside a job (`runInPluginJob`) the job's own checks are asked.
+ * Outside every action and job (`start`, a route, a timer set up there) there is no caller to ask, and the installation's live
+ * grants, which each service checks itself, decide alone.
  */
 export function assertPluginActionCurrent(installId: string): void {
   const scope = currentPluginInvocation();
   if (!scope) return;
   if (pluginInvocationReadOnly(scope)) throw new ActionError("actions.forbidden", "只读场景不能写入业务记录");
   assertCapturedPluginActionCurrent(scope, installId);
+  markPluginActionChecked(scope);
 }
 
 /** A nested call retains the original invocation's authority; query-only narrowing travels separately to its dispatcher. */
@@ -99,4 +122,19 @@ export function assertCapturedPluginActionCurrent(scope: PluginInvocationScope |
   scope.caller.signal?.throwIfAborted();
   requireSynchronous(scope.caller.assert_authority_current?.(), "最终授权检查必须同步完成");
   scope.caller.signal?.throwIfAborted();
+}
+
+/**
+ * Notes that the call passed its last authority check (`PluginActionScope.checked`). Only the Host says so, and only once something
+ * went out: a service's check right before its write (`assertPluginActionCurrent`), or a command the call made (a nested action, a
+ * Host capability) that returned. The check a nested call makes at its entry is not one: the kernel asks the same function there
+ * and before the effect alike, so the Host notes the command's answer, not its checks.
+ */
+export function markPluginActionChecked(scope: PluginInvocationScope | undefined): void {
+  if (scope && "checked" in scope && scope.checked) scope.checked.passed = true;
+}
+
+/** Whether this call passed a final authority check (`PluginActionScope.checked`). */
+export function pluginActionChecked(scope: PluginActionScope): boolean {
+  return scope.checked?.passed === true;
 }

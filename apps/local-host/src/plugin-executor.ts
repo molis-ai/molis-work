@@ -36,6 +36,11 @@ export interface PluginHostExecutorOptions {
    * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
    */
   providerFor?(definition: PluginDefinition, installId: string): string;
+  /**
+   * The installation's record as the Runtime's repository holds it now. An activation's jobs read it before every write
+   * (`services.background.keep`, PG-038); without it a job is refused, never trusted.
+   */
+  record?(installId: string): PluginInstanceRecord | null;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
@@ -91,7 +96,7 @@ export class PluginHostExecutor implements PluginExecutor {
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const session = openHostSession(this.options, definition, context);
     try {
-      const contribution = await definition.start(session.context);
+      const contribution = await session.starting(() => definition.start(session.context));
       this.sessions.set(context.install_id, session);
       return { contribution };
     } catch (error) {

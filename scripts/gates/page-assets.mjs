@@ -258,11 +258,13 @@ const APPROVED_CEILINGS = {
   // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  "/assets/molis-work-workbench.js": [1134920, 1138184],
-  "/assets/molis-work-workbench.css": [1603130, 1604761],
-  "/assets/molis-work-settings.css": [988929, 990556],
-  "/assets/molis-work-arrival.css": [698519, 700146],
-  "/assets/molis-work-pages-editor.js": [706933, 707336],
+  // #861: one scroll owner for a growing conversation and the Assistant's 产出/变更/后台任务 groups folding to natural height
+  // (VUX-26, VUX-08). +408 B of workbench.js and +390 B to each stylesheet, after taking main's copy of the inherited VUX
+  // files; the side-group fold and the follow owner are the only additions left in this slice.
+  "/assets/molis-work-workbench.js": [1138155, 1138563],
+  "/assets/molis-work-workbench.css": [1604761, 1605151],
+  "/assets/molis-work-settings.css": [990556, 990946],
+  "/assets/molis-work-arrival.css": [700146, 700536],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

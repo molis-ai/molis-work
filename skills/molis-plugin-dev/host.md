@@ -67,7 +67,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 作业只有安装自己的授权：control 里没有原调用者，发出的调用以安装身份、按 `plugin` 受众走。每次写之前 `await control.beforeEffect()`；平台在每次写和每 200 ms 重核激活、安装记录与权限，插件停止、项目关闭或删除、Home 关闭就停，之后经平台服务的写一律拒。单次调用取消、撤权不停它，这只为把已经受理的那件事跟到底、记下真实结果，不发起新的业务（`specs/repository-anti-corruption/spec.md` §12.10）。平台不落盘、不重放：要在重启后接着跟，插件在 `start()` 里读自己的记录再登记。沙箱没有这项服务。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」与 `docs/system/SECURITY-INVARIANTS.md` S-52。
 
-要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。
+要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineHomeBackgroundTasksAction` 声明、回答 `{ source: { surface }, tasks }`，宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 
 ### 流式路由
 

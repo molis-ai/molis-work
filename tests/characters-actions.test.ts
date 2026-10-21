@@ -8,6 +8,7 @@ import { CHARACTERS_ACTIONS, charactersActions as c } from "@molis-ai/molis-work
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 
+// RAC-63: the Module's handlers, bound by the plugin, are what the project Runtime redeems; RAC-64: other people are refused.
 test("Character management is redeemed by the project Runtime and bound to the person who owns the drafts", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "characters-actions-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });

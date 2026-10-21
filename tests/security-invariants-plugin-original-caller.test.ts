@@ -10,7 +10,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { openCharacters } from "@molis-ai/molis-work-module-characters";
+import { createCharactersActionHandlers, openCharacters } from "@molis-ai/molis-work-module-characters";
 import { charactersActions, createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
@@ -288,12 +288,14 @@ test("S-18 Characters publish: a caller gone after its beforeWrite is refused by
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
     } finally { characters.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
   });
+  // RAC-64: the handlers are the Module's; the binding still refuses a caller that is gone.
   // Characters checks nothing of its own after `await beforeWrite()`, and its library only reads inside the publish: the 成果
   // is the one write. The caller goes away in that window, after every wait has passed and before the 成果 service runs.
   let gone: (() => void) | undefined;
-  const definition = createCharactersPlugin({ actorId: "user", drafts: characters.service,
+  const characterPorts = { actorId: "user", drafts: characters.service,
     references: () => artifacts.query.listArtifacts(DEMO_PROJECT_ID).map(record => ({ artifact_id: record.artifact_id, version: record.version })),
-    publish: (id, revision, publisher) => { gone?.(); return characters.service.publish(id, revision, publisher); } });
+    publish: (id: string, revision: number, publisher: Parameters<typeof characters.service.publish>[2]) => { gone?.(); return characters.service.publish(id, revision, publisher); } };
+  const definition = createCharactersPlugin({ actorId: "user", handlers: runtime => createCharactersActionHandlers(characterPorts, runtime) });
   assert.deepEqual((await running.start([{ definition, grants: ["artifact:read", "artifact:write"] }])).running, [CHARACTER_PLUGIN_ID]);
   const created = characters.service.create();
   const draft = characters.service.update(created.character_id, created.revision, { title: "Guarded", instructions: "Fixed instructions", host_tools: null });

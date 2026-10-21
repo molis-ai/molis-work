@@ -388,12 +388,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   /* The Host draws text and code from raw words; only reading interactions live here. A copy answers on its button through
      the design system's one copy feedback; a refusal also says how to copy by hand. */
   const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
-  const { bindMore, growCode } = (${createAssistantCodeGrow.toString()})(L);
+  const { bindMore, growCode, paint: paintCode } = (${createAssistantCodeGrow.toString()})(L);
   const bindText = (root) => {
     root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
       figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy");
       copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
-      bindMore(figure);
+      bindMore(figure); if (figure.dataset.paint) paintCode(figure);
     });
     root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
       button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];

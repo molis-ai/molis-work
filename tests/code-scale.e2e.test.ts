@@ -6,6 +6,7 @@ import { codeTokens, createCodingCodePaint, growCodeTokens } from "@molis-ai/mol
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assistantTextModel } from "./fixtures/assistant-text-model.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { assistantTextHtml } from "@molis-ai/molis-work-app-workbench";
 
 // specs/visual-ui-experience VUX-33 and VUX-36 (§code-diff, Worker boundary): colouring costs about a millisecond per
 // thousand characters, nearly all of it putting the nodes in, so a large block is not sent to a Worker; it is shown as text
@@ -122,4 +123,57 @@ test("VUX-33: Coding reopens a turn with a large code block as text at once and 
   // And is coloured exactly as colouring it whole gives, past the old cap.
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${block}.textContent)`);
   await waitFor(`${block}.innerHTML === want`, 30_000);
+});
+
+test("VUX-33: the Assistant sends a large block as its text and a map of its pieces, a small one coloured", () => {
+  const large = assistantTextHtml("```ts\n" + textOf(90_000) + "```", [], (text) => text), small = assistantTextHtml("```ts\n" + textOf(9_000) + "```", [], (text) => text);
+  assert.match(large, /data-paint="[a-z ]+\|[0-9a-z.-]+"/);
+  assert.equal(/<span class="tok-/.test(large), false, "no coloured markup goes out for the large block");
+  assert.match(small, /<span class="tok-keyword">/); assert.equal(small.includes("data-paint"), false);
+});
+
+test("VUX-33: the Assistant's large block streams in place, reopens as text at once and is coloured a slice a frame to the whole colouring", { timeout: 240_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true); if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  const code = textOf(90_000).replace(/\n$/, "");
+  const model = await assistantTextModel(t, homeDirectory, "下面是代码：\n\n```ts\n" + code + "\n```\n\n写完了。", { pieces: 8, pause: 300 });
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
+  await click("[data-assistant-input]");
+  await command("Input.insertText", { text: "写一大段代码" }, sessionId);
+  await click("[data-assistant-send]");
+  await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich strong')?.textContent === '第一段'", 30_000);
+  model.finish();
+  const figure = "document.querySelector('.assistant-msg--assistant .assistant-code')";
+  await waitFor(`${figure}?.querySelector('code .tok-keyword')`, 30_000);
+  await evaluate(`window.block = ${figure}; window.piece = window.block.querySelector('code').firstChild`);
+  await waitFor("document.querySelector('.assistant-msg--assistant .assistant-rich')?.textContent.includes('写完了')", 60_000);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
+  const written = await evaluate<{ same: boolean; piece: boolean; code: string }>(`(() => { const block = ${figure};
+    return { same: block === window.block, piece: block.querySelector('code').firstChild === window.piece, code: block.dataset.code }; })()`);
+  assert.deepEqual([written.same, written.piece], [true, true], "past a slice the block is still the same figure, with the same first piece, from its first lines to its last");
+  assert.equal(written.code, code, "copy gives the code as written");
+  await waitFor(`fetch(${JSON.stringify(`/projects/${projectId}/api/assistant/works`)}).then(r=>r.json()).then(b=>b.works[0]?.state==='completed')`, 30_000);
+
+  // Reopened: each frame, before the page's own work, notes how much of the block reads and how much is coloured.
+  const { identifier } = await command<{ identifier: string }>("Page.addScriptToEvaluateOnNewDocument", { source: `window.samples = []; const tick = () => {
+    const code = document.querySelector('.assistant-msg--assistant .assistant-code code');
+    if (code) samples.push([performance.now(), code.textContent.length, code.querySelectorAll('[class^="tok-"]').length]);
+    if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);` }, sessionId);
+  await navigate(() => command("Page.reload", {}, sessionId));
+  await waitFor(`${figure}?.querySelector('code')`, 30_000);
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.want = (${WHOLE})(${JSON.stringify(code)})`);
+  await waitFor(`${figure}.querySelector('code').innerHTML === want`, 30_000);
+  await command("Page.removeScriptToEvaluateOnNewDocument", { identifier }, sessionId);
+  const samples = await evaluate<Array<[number, number, number]>>("samples.slice()");
+  const total = await evaluate<number>(`${figure}.querySelectorAll('code [class^="tok-"]').length`);
+  const painting = samples.filter(([, , spans]) => spans < total);
+  assert.ok(painting.length >= 3, `coloured over ${painting.length} frames`);
+  assert.ok(painting.every(([, length]) => length === code.length), "every frame while it is coloured reads the whole code");
+  assert.ok(painting.every(([, , spans], index) => !index || spans > painting[index - 1]![2]), "each frame colours more of it");
+  const gaps = painting.slice(1).map(([at], index) => at - painting[index]![0]), longest = Math.max(0, ...gaps);
+  assert.ok(longest < 100, `the longest frame while it is coloured: ${longest.toFixed(1)} ms`);
+  const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
+  await writeFile(new URL("assistant-code-scale.json", evidence), JSON.stringify({ characters: code.length, frames: painting.length, longest: Math.round(longest) }, null, 2));
 });

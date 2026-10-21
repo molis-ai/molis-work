@@ -12,6 +12,21 @@ export const assistantEscape = (text: string): string => text.replace(/&/g, "&am
 const LANGUAGE_NAME: Record<string, string> = { ts: "TypeScript", js: "JavaScript", json: "JSON", py: "Python", sh: "Shell", yaml: "YAML", html: "HTML", css: "CSS", go: "Go", rust: "Rust",
   java: "Java", c: "C", sql: "SQL", diff: "Diff", markdown: "Markdown" };
 
+/**
+ * The pieces of a large code block as kinds and lengths: the kinds it uses, then one mark a piece, its kind's place in that
+ * list ("-" for plain text) followed by its length in base 36, e.g. `keyword string|03.-1.12`. The page builds the
+ * coloured nodes from the block's text by this map, so the tokenizer stays on the Host.
+ */
+export function assistantPaintMap(pieces: ReadonlyArray<[string | null, string]>): string {
+  const kinds: string[] = [];
+  const marks = pieces.map(([kind, value]) => {
+    if (!kind) return "-" + value.length.toString(36);
+    if (!kinds.includes(kind)) kinds.push(kind);
+    return kinds.indexOf(kind).toString(36) + value.length.toString(36);
+  });
+  return kinds.join(" ") + "|" + marks.join(".");
+}
+
 export function assistantCodeHtml(code: string, hint: string, ports: AssistantTextPorts): string {
   // The lines exactly as written, first and last included (VUX-33). Copy takes them from `data-code`, never from the coloured
   // DOM; a blank last line, which a line break at the end of <pre> would not show, is held open by a <br>.
@@ -19,10 +34,11 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const guessed = /^\s*[\[{]/.test(text) && /[\]}]\s*$/.test(text) ? "json" : /^\s*\$ /.test(text) ? "sh" : /^(@@|\+\+\+|---) /m.test(text) ? "diff" : "";
   const resolved = ports.language(hint || "");
   const language = (typeof resolved === "string" ? resolved : "") || guessed, lines = text.split("\n").length;
-  const pieces = language && text.length <= 40000 ? ports.tokens(text, language) : null;
-  const body = pieces ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
+  // A block past a slice goes out as its text and the map of its pieces; the page colours it a slice a frame (assistantPaintMap).
+  const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
+  const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
   const say = (value: string) => assistantEscape(ports.say(value));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${say("{n} 行").replace("{n}", String(lines))}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${say("展开全部 {n} 行").replace("{n}", String(lines))}</button>` : ""}</figure>`;
+  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${say("{n} 行").replace("{n}", String(lines))}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${say("展开全部 {n} 行").replace("{n}", String(lines))}</button>` : ""}</figure>`;
 }
 
 const BT = String.fromCharCode(96);

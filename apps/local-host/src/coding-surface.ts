@@ -29,6 +29,7 @@ import {
   DIFF_PROJECT_PLUGIN_ID,
   DIFF_UI_CONTRIBUTION_ID,
   renderDiff,
+  unifiedPatch,
   compareRunChangeSet,
   type DiffView,
   emptyDiff,
@@ -319,6 +320,8 @@ function decorateCodingResult(result: PluginRouteResponse, request: IncomingMess
     // The reader picks unified or side by side; anything else reads as unified.
     changeBody.html = renderDiff({ view: { ...view, mode: url.searchParams.get("layout") === "split" ? "split" : "unified" }, route_prefix: ports.routePrefix ?? "", line_feedback: Boolean(changeBody.reference), fold_context: 3, sides: false,
       primitives: { escape: value => escapeHtml(String(value)), icon: name => icon(name as Parameters<typeof icon>[0]) } });
+    // 复制补丁 copies the change on show as a patch git takes (VUX-33), written from the same rows.
+    Object.assign(changeBody, { patch: chosen && view.phase === "ready" ? unifiedPatch(view.rows, { path: chosen.path, created: (netFiles?.[0] ?? chosen).kind === "added", removed: (netFiles?.[0] ?? chosen).kind === "deleted" }) : "" });
   }
   // A child's results read as diffs against the main workspace, folded like the change reader, not as two full copies.
   const integrationBody = result.body as { files?: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> } | undefined;

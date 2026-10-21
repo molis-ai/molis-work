@@ -235,17 +235,12 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 30, attachment chips (VUX-16, VUX-18).
-// +3,568 B of the workbench script: a file has its own chip from the moment it is added (reading, read, or why it cannot go,
-// with retry), the strip keeps each chip's element across changes, and one reflow program (`browser/reflow.ts`, 861 B) moves
-// neighbours aside and closes them up; +399 B of each stylesheet for the failed chip. Tried first: the reading moved out of
-// the island instead of beside it (the island falls by its old copy), the served comments went to the outer doc, and the
-// failed chip is three rules on an existing line. Spent once from exactly #912's budget.
+// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 31, patch copy (VUX-33).
+// +301 B of Coding's client: 复制补丁 copies the patch the Host writes beside the reader's rows, through the shared
+// molisCopy, and is off while there is none. Tried first: the patch is written on the Host (Diff's `unifiedPatch`), so the
+// page only hands a string to the copy it already has. Spent once from exactly #913's budget.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1163656, 1167224],
-  "/assets/molis-work-workbench.css": [1608984, 1609383],
-  "/assets/molis-work-settings.css": [992398, 992797],
-  "/assets/molis-work-arrival.css": [702433, 702832],
+  "/assets/molis-work-plugins/coding.js": [373159, 373460],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

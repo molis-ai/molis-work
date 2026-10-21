@@ -53,6 +53,9 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     const split = await request(prefix+'?change_index=1&layout=split'); assert.match(split.body.html, /data-mode="split"/); assert.match(split.body.html, /<ol class="diff-rows diff-split"/);
     assert.match(split.body.html, /latest &lt;script&gt;/); assert.doesNotMatch(split.body.html, /latest <script>/); assert.match(split.body.html, /评论修改后第 1 行/);
     assert.match((await request(prefix+'?change_index=1&layout=columns')).body.html, /data-mode="unified"/, "an unknown layout reads as unified");
+    // VUX-33 复制补丁: the write on show as a patch git takes, each line with its own ending (the CRLF stays), the same in either layout.
+    assert.equal(reading.body.patch, "--- a/cart.mjs\n+++ b/cart.mjs\n@@ -1 +1 @@\n-new\r\n+latest <script>\n");
+    assert.equal(split.body.patch, reading.body.patch);
     const comments = [{ change_index: 1, side: "before", line: 1, comment: "请保留原行尾", text: "forged" }];
     const feedback = await request(prefix+'/feedback', 'POST', { comments }); assert.equal(feedback.status, 200); assert.match(feedback.body.task, /new\\r\\n/); assert.doesNotMatch(feedback.body.task, /forged/);
     assert.equal((await request(prefix+'/feedback', 'POST', { comments: [{ ...comments[0], line: 3 }] })).status, 400);

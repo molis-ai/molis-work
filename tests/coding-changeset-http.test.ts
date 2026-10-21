@@ -5,10 +5,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 // specs/ai-interaction-experience AC-09 (Coding's Diff): the edits reviewed are the ones frozen, feedback lands on their lines.
 test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact lines and restores the same output without runtime reads", async () => {
@@ -30,7 +29,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
       if (definition.capability_id === agent.readRunReviews.capability_id) return structuredClone(rows) as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } });
-  const server = createServer((req, res) => { void handleCodingPluginHttp(req, res, new URL(req.url!, "http://localhost"), host()).catch(error => { res.writeHead(500); res.end(String(error)); }); });
+  const server = createServer((req, res) => { void handleProjectPluginHttp(req, res, new URL(req.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { res.writeHead(500); res.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const prefix = '/api/plugins/io.molis.work.coding/sessions/app/runs/r/changeset';
@@ -69,12 +68,12 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     readable = false; const priorReads = reads;
     assert.deepEqual((await request(prefix, 'POST')).body.reference, saved.body.reference);
     const before = await request();
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.deepEqual((await request()).body, before.body); assert.equal(reads, priorReads);
     assert.deepEqual((await request(catalogPath)).body, catalog.body);
     assert.equal((await request(prefix+'/feedback', 'POST', { comments })).status, 200);
     assert.equal(reads, priorReads);
     const diff = await request(`/api/plugins/io.molis.work.diff/state?artifact_id=${encodeURIComponent(saved.body.reference.artifact_id)}&version=1&change_index=1`);
     assert.equal(diff.status, 200); assert.equal(diff.body.view.rows.at(-1).text, 'latest <script>');
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

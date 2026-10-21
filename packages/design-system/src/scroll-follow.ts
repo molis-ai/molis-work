@@ -12,3 +12,14 @@ export const followDistance = (box: { scrollHeight: number; scrollTop: number; c
 
 /** While following, the pin owns every shift, so the browser's own anchoring stands aside; detached, it keeps the reading place. */
 export const FOLLOW_STYLES = `[data-follow=following]{overflow-anchor:none}`;
+
+/** A scroller's state: following its end, or detached because the person read back. */
+export type FollowState = "following" | "detached";
+/** What `window.molisFollow(scroller, { onChange })` returns; the same element always gets the same one. */
+export type ScrollFollower = {
+  readonly state: FollowState;
+  pin(): void; toLatest(): void; resume(): void; restore(top: number): void; release(): void; dispose(): void;
+};
+declare global {
+  interface Window { molisFollow?: (scroller: HTMLElement, options?: { onChange?: (state: FollowState) => void }) => ScrollFollower }
+}

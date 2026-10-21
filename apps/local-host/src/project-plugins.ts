@@ -6,7 +6,7 @@ import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-p
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { CODING_PLUGIN_ID, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
@@ -47,10 +47,20 @@ export interface ProjectPluginPorts {
 
 export interface ProjectPluginState {
   platform: PluginPlatform | null;
-  running: boolean;
+  /** Why the platform itself did not start. Whether one plugin runs is that plugin's own state (`projectPluginProblem`). */
   error?: string;
   updateObservers?(): void;
   stopObservers?(): void;
+}
+
+/**
+ * Why one plugin of the project is not running, or null when it runs: the project refused its database, or the supervisor's own
+ * state says why. Every plugin is read the same way; `reason` is null when nothing says why (the project does not run it at all).
+ */
+export function projectPluginProblem(state: ProjectPluginState, store: LocalProjectDatabase, pluginId: string): { readonly reason: string | null } | null {
+  const active = state.platform?.supervisor.state(pluginId);
+  if (active?.status === "running") return null;
+  return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
 }
 
 const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
@@ -115,7 +125,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 }
 
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
-  const record: ProjectPluginState = { platform: null, running: false };
+  const record: ProjectPluginState = { platform: null };
   try {
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const artifacts = new ArtifactsModule({ db: ports.store.db, homeOwner: LOCAL_PERSON_ACTOR_ID, appendEvent: event => ports.store.appendEvent(event), eventCursor: projectId => ports.store.eventCursor(projectId) });
@@ -224,10 +234,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
+    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
-    record.running = report.running.includes(CODING_PLUGIN_ID);
-    record.error = projectPluginDatabaseRefusal(ports.store.db, CODING_PLUGIN_ID)?.message ?? [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
@@ -235,8 +243,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       catch (cleanupError) { error = new AggregateError([error, cleanupError], "项目插件启动及清理失败"); }
       record.platform = null;
     }
-    record.error = error instanceof Error ? error.message : "Coding 启动失败";
-    record.running = false;
+    record.error = error instanceof Error ? error.message : "项目插件平台启动失败";
   }
   return record;
 }

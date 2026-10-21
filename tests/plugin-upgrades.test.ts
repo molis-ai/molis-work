@@ -13,8 +13,7 @@ import {
 } from "@molis-ai/molis-work-plugin-runtime";
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import { CODING_PLUGIN_ID, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
-import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -162,7 +161,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     };
     const request = { method: "GET" } as IncomingMessage;
     const { response, recorded } = recordedResponse();
-    const handled = await handleCodingPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports);
+    const handled = await handleProjectPluginHttp(request, response, new URL("http://localhost/api/plugins/runtime/updates"), ports, codingRouteHooks);
     assert.equal(handled, true);
     assert.equal(recorded.statusCode, 200);
     const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string; installed_version: string; target_version: string; mode: string; can_upgrade: boolean; project_plugin_id: string }>;
@@ -170,7 +169,7 @@ test("a bundled plugin's older install moves up when the project starts, so the 
     assert.equal(updates.find(item => item.plugin_id === CODING_PLUGIN_ID), undefined);
     assert.equal(new PluginRuntime(new SqlitePluginRuntimeRepository(store.db)).get(oldInstall.install.install_id).version, currentDefinition.manifest.version);
   } finally {
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
     rmSync(directory, { recursive: true, force: true });
   }
@@ -204,8 +203,8 @@ for (const shape of ["above the build's version", "at the build's version with a
         goalTitle: () => undefined, escapeHtml: String, translate: String, workspaces: [],
       };
       const { response, recorded } = recordedResponse();
-      const handled = await handleCodingPluginHttp({ method: "GET" } as IncomingMessage, response,
-        new URL("http://localhost/api/plugins/runtime/updates"), ports);
+      const handled = await handleProjectPluginHttp({ method: "GET" } as IncomingMessage, response,
+        new URL("http://localhost/api/plugins/runtime/updates"), ports, codingRouteHooks);
       assert.equal(handled, true);
       assert.equal(recorded.statusCode, 200);
       const updates = JSON.parse(recorded.body).updates as Array<{ plugin_id: string }>;
@@ -219,7 +218,7 @@ for (const shape of ["above the build's version", "at the build's version with a
       assert.equal(record.manifest_digest, pluginManifestDigest(currentDefinition.manifest), "the record equals the build, which docs/releases/CHECKLIST.md 4.5 checks");
       assert.equal(record.installation_generation, earlier.installation_generation, "still the same installation");
     } finally {
-      await releaseCodingSurface(store, DEMO_PROJECT_ID);
+      await releaseProjectPlugins(store, DEMO_PROJECT_ID);
       store.close();
       rmSync(directory, { recursive: true, force: true });
     }

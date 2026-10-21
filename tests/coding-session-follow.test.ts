@@ -5,14 +5,13 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 
 for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as const) test(`Coding background follower ${mode}`, { timeout: 30_000 }, async () => {
   const stop = mode === "stop", interruptedReceipt = mode === "cancel-receipt" || mode === "revoke-receipt";
@@ -59,7 +58,7 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   try {
@@ -106,5 +105,5 @@ for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as con
     const events = platform.events.log(DEMO_PROJECT_ID).filter(event => event.event_type_id === "io.molis.work.coding.run-updated");
     assert.equal(events.length, 1);
     assert.deepEqual(events[0]!.payload, { workspace_id: "work", session_id: "sdk", run_id: "r1", phase: "completed" });
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -218,12 +218,14 @@ export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttp
 export {
   codingDirectoryPanel,
   codingNextSteps,
+  codingRouteHooks,
   diffStagePanel,
   filesDirectoryPanel,
   gitDirectoryPanel,
-  releaseCodingSurface,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
+export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
+export { releaseProjectPlugins } from "./project-plugins.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./git-worktrees.js";
 export { readWriterIntegration, prepareWriterIntegration } from "./git-writer-integration.js";
 export { draftText } from "./model-draft.js";

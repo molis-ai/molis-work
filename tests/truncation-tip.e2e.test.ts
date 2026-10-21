@@ -17,7 +17,7 @@ test("VUX-05: text cut short on the board, the project page and every plugin is 
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
   const move = (x: number, y: number) => command("Input.dispatchMouseEvent", { type: "mouseMoved", x, y }, sessionId);
-  const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`],
+  const surfaces: [string, string][] = [["组件板", "/__ui/catalog"], ["项目页", `/projects/${projectId}/`], ["Home", "/"], ["侧栏 Shelf", `/projects/${projectId}/side/shelf/side`],
     ...PLUGINS.map((id): [string, string] => [id, `/projects/${projectId}/?openPlugin=${id}`])];
   const found: string[] = [];
   let checked = 0;

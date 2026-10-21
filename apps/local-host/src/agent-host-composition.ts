@@ -38,6 +38,7 @@ import { memoryForAgentRun } from "./memory/memory-host.js";
 import { assistantConnectionCheckers } from "./assistant/assistant-connection-authority.js";
 import { workAuthorityCheck } from "./agent-work-authority.js";
 import { reviewAuthority } from "./plugin-callers.js";
+import { hostErrors } from "./host-errors.js";
 
 /**
  * Wires the Agent Host into a running Host.
@@ -263,11 +264,11 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     return { review_id: request.review_id, directory: { worktree_id: id, branch: preview.branch, base_commit: preview.base_commit, canonical_path: target, workspace_id: null } };
   });
 
-  const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource) => {
+  const integrationSource = async (project: MolisWorkProjectRuntime, source: WriterIntegrationSource, caller: HostPluginCaller | undefined) => {
     await initialize();
     if (!prologue?.gitReviews || !prologue.subagents) throw new Error("子任务成果整合执行方尚未接通");
     const session = await prologue.readSession({ runtime_id: "prologue", session_id: source.session_id });
-    if (session.owner.project_id !== project.project_id || session.owner.plugin_id !== "io.molis.work.coding" || session.recovery) throw new Error("执行不属于本项目的 Coding 会话，或原结果仍需核对");
+    assertIntegrableSession(session, project.project_id, caller);
     const ref = session.runs.find(run => run.run_id === source.run_id);
     if (!ref) throw new Error("此轮执行不属于原会话");
     const run = await prologue.read(ref);
@@ -289,13 +290,13 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     await prologue.assertDirectoriesIdle([parent.canonical_path, writer.canonical_path]);
     return { workspace_id: parent.workspace_id, writer_workspace_id: writer.workspace_id, grants };
   };
-  const unregisterReadIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.read, async (project, input) => {
-    const source = await integrationSource(project, input);
-    return readWriterIntegration(source, async () => (await integrationSource(project, input)).grants);
+  const unregisterReadIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.read, async (project, input, invocation) => {
+    const source = await integrationSource(project, input, invocation.plugin);
+    return readWriterIntegration(source, async () => (await integrationSource(project, input, invocation.plugin)).grants);
   });
   const unregisterPrepareIntegration = options.localHost.registerCapability(writerIntegrationCapabilities.prepare, async (project, input, invocation) => {
-    const source = await integrationSource(project, input);
-    const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input)).grants);
+    const source = await integrationSource(project, input, invocation.plugin);
+    const prepared = await prepareWriterIntegration({ ...source, files: input.files }, async () => (await integrationSource(project, input, invocation.plugin)).grants);
     const request = await prologue!.gitReviews!.prepare({ project_id: project.project_id, workspace_id: source.workspace_id, operation_id: input.operation_id,
       operation_kind: "git-integration", document: { kind: "git-integration", target_directory: prepared.view.target_path,
         source: { session_id: input.session_id, run_id: input.run_id, subagent_id: input.subagent_id, branch: prepared.view.branch, base_commit: prepared.view.base_commit, directory: prepared.view.source_path },
@@ -335,6 +336,18 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
       await prologue?.close();
     })();
   } };
+}
+
+/**
+ * The session being integrated must belong to this project and to the installation making the call: the owner it recorded when
+ * the Host issued that plugin its caller (plugin and installation together, never read from input), whichever plugin it is (PG-009).
+ * The project is checked first, then that there is a caller at all, then whose session it is, then that its result is settled.
+ */
+function assertIntegrableSession(session: { owner: { project_id: string; plugin_id: string; install_id: string }; recovery?: unknown }, projectId: string, caller: HostPluginCaller | undefined): void {
+  if (session.owner.project_id !== projectId) throw new Error("执行不属于本项目的会话");
+  if (!caller) throw hostErrors.plugin_caller_invalid("整合子任务成果只能由插件发起");
+  if (session.owner.plugin_id !== caller.plugin_id || session.owner.install_id !== caller.install_id) throw new Error("执行不属于发起整合的这份插件安装的会话");
+  if (session.recovery) throw new Error("原结果仍需核对，暂不能整合");
 }
 
 /** Where the runtime keeps the person's after-write checkers; the call that asks has started it. */

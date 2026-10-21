@@ -7,6 +7,9 @@ import { join } from "node:path";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
+import { gitManifest } from "@molis-ai/molis-work-plugin-git";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { reviewPlugins } from "./fixtures/review-plugins.js";
@@ -86,6 +89,19 @@ test("S-50 PG-009 a review kind outside the platform's list is refused when the 
   for (const kind of ["git-index", "git-operation", "git-worktree", "git-integration"]) {
     parsePluginManifest(worktreeManifest(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }]));
   }
+});
+
+test("S-50 PG-009 Git declares exactly review:git-index and review:git-operation, Coding exactly review:git-worktree and review:git-integration, all required", () => {
+  // W5-01-CODING-47: the built-in plugins are declared like any other; the Host no longer knows them by name. Together the two
+  // declare every kind on the platform's list, and each is a required permission so an existing installation is brought up to it.
+  const reviews = (manifest: PluginManifest) => manifest.permissions.filter(declared => declared.permission.startsWith("review:"));
+  const git = reviews(gitManifest), coding = reviews(codingManifest);
+  assert.deepEqual(git.map(declared => declared.permission).sort(), ["review:git-index", "review:git-operation"]);
+  assert.deepEqual(coding.map(declared => declared.permission).sort(), ["review:git-integration", "review:git-worktree"]);
+  assert.ok([...git, ...coding].every(declared => declared.required && declared.reason.trim() !== ""), "required, each with a reason");
+  assert.deepEqual([...git, ...coding].map(declared => declared.permission.slice("review:".length)).sort(), [...PLUGIN_REVIEW_KINDS].sort());
+  parsePluginManifest(gitManifest);
+  parsePluginManifest(codingManifest);
 });
 
 test("S-50 PG-009 an installation that did not declare, was not granted or stopped holding review:git-worktree cannot start one: no review appears and no worktree is made", { timeout: 60_000 }, async t => {

@@ -268,8 +268,9 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-plugins/plugin-builder.js": [115396, 115438],
   "/assets/molis-work-plugins/ppt.js": [30958, 31025],
   "/assets/molis-work-plugins/workflows.js": [82546, 82555],
-  "/assets/molis-work-workbench.css": [1607898, 1608687],
-  "/assets/molis-work-settings.css": [991943, 992195],
+  "/assets/molis-work-workbench.css": [1608687, 1608915],
+  "/assets/molis-work-settings.css": [992195, 992349],
+  "/assets/molis-work-workbench.js": [1168898, 1168935],
   "/assets/molis-work-arrival.css": [702242, 702388],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

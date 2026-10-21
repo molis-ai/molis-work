@@ -2407,3 +2407,16 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 动作 id 不变，只是提供方换了。Coding 对 `characters.list`、`characters.runnable` 的消费要有测试证明照样能用。
   - 已有 Home 里的安装记录：如果要新加兼容或迁移逻辑，先问用户。
   - 内置插件从 26 个变成 25 个。
+- **10-21 ① 批 Characters 并进 Module 的计划**（共享笔记 `characters-into-module-plan.md`，逐行清点在 `characters-inventory.md`）。
+  - 分两片：
+    - CHR-0「搬逻辑，不换装配」：#938 合入后在 Coding 的空档里开；
+    - CHR-1「换装配，删插件」：等 ② 的界面落点和 PG-070。
+  - 对外合同不变：19 个 `characters.*@1` 的定义不变，提供方 id 仍是 `io.molis.work.characters`。快照只是这 19 行从 `actions.tsv` 搬到 `host-actions.tsv`。
+  - 拍板：
+    - **D1**：`kind` 留 `"plugin"`。改成 `"system"` 会让零权限的 create、update、state 对 MCP 默认放行，① 已在 `mcp-action-grants.ts` 核实。来源标签不准，另记一行 BL，等 `ActionProvider.kind` 有了 Module 一类再改。
+    - **本人权限（附条件）**：往 `LOCAL_OWNER_PERMISSIONS` 加 `artifact:*` 是全局集合变大。PR 要证明本人从页面能调的动作集合只多了这 19 个，还要补一条拒绝测试；做不到就改成按提供方限定。要对 `SECURITY-INVARIANTS.md` 核一遍，编号到开 PR 时再取。
+    - **D2**：存量安装记录只在 `CHECKLIST` 记一条维护待办，到真实 Home 维护时再问用户。
+    - **D3**：等 ②。
+    - **D4**：生产方版本取宿主的产品版本。
+    - **D5**：`characters.js` 路径保留，改由宿主发，字节数只许变小。
+    - POLICY、CHECKLIST 里写现状的数字由本片改。

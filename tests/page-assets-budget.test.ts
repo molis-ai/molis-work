@@ -631,7 +631,6 @@ test("the spent Issue draft/preview increase leaves no allowance, even at the Is
 // W5-01 Lingguang then used 1113068→1115299, and plugin tab groups replaced that allowance.
 // Plugin tab groups (#765) then used 1115299→1129841 on the script and 1589812→1593165 on the sheet; receipts review fixes replaced that allowance.
 // Receipts review fixes (#778) then used 1129841→1130036, and the outcome slot with the delivery note replaced that allowance.
-// The outcome slot with the delivery note (#789) then used 1130033→1130475, and W5-02 P0 replaced that allowance.
 for (const [asset, old] of [
   ["/assets/molis-work-plugins/issues.js", 24378], ["/assets/molis-work-pages-editor.js", 698574],
   ["/assets/molis-work-pages-editor.js", 703633], ["/assets/molis-work-plugins/pages.js", 48441], ["/assets/molis-work-workbench.js", 1097484],
@@ -676,13 +675,24 @@ for (const [asset, old] of [
   // The overflow-fade slice's intermediate starts (#856, VUX-27) are retired into the branch's one admission.
   ["/assets/molis-work-workbench.js", 1130116], ["/assets/molis-work-workbench.css", 1603099], ["/assets/molis-work-settings.css", 988881],
   ["/assets/molis-work-arrival.css", 698467],
-  // Main has also spent the W5-02 P0 and proposal starts.
-  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.js", 1129640],
-  ["/assets/molis-work-workbench.js", 1129470],
-  // The visual branch's older stylesheet starts are retired into the exact current predecessor.
-  ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
-  // The after-write checker settings allowance (#805) is spent in the predecessor.
+  // The copy, disclosure and live-number allowances (#860, VUX-19, VUX-22, VUX-42) are spent.
+  ["/assets/molis-work-workbench.js", 1130995], ["/assets/molis-work-workbench.css", 1603559], ["/assets/molis-work-settings.css", 989369],
+  ["/assets/molis-work-arrival.css", 698955], ["/assets/molis-work-pages-editor.js", 706942],
+  // The branch's one admission from main (#851, VUX-19, VUX-27, VUX-35) is spent.
+  ["/assets/molis-work-workbench.js", 1129525], ["/assets/molis-work-workbench.css", 1603154], ["/assets/molis-work-settings.css", 988933],
+  ["/assets/molis-work-arrival.css", 698519], ["/assets/molis-work-pages-editor.js", 706933],
+  // Earlier pre-main and predecessor admissions are spent; only the exact current predecessor may grow.
+  ["/assets/molis-work-workbench.js", 1134948],
+  ["/assets/molis-work-workbench.css", 1603130],
+  ["/assets/molis-work-settings.css", 988929],
   ["/assets/molis-work-workbench.js", 1129726],
+  ["/assets/molis-work-settings.css", 990560],
+  ["/assets/molis-work-workbench.css", 1604785],
+  ["/assets/molis-work-workbench.js", 1132686],
+  ["/assets/molis-work-workbench.js", 1129640],
+  ["/assets/molis-work-workbench.js", 1129470],
+  // Retire prior exact starts when the shared context fix moves this predecessor.
+  ["/assets/molis-work-workbench.js", 1138109],
 ] as const) {
   test(`the spent increase of ${asset} leaves no allowance, even at its old size ${old}`, () => {
     const name = `${asset.replace(/\W+/g, "-").replace(/^-/, "")}-${old}`;
@@ -695,16 +705,12 @@ for (const [asset, old] of [
   });
 }
 
-// specs/visual-ui-experience (2026-10-19): the plugin switch, overflow fade, copy, disclosure and live numbers grow these
-// assets once, from exactly main's budget to the measured size. One byte more, another asset, or growth from the new
-// baseline still fails.
-test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded and spent once; other assets and later growth still fail", () => {
+// specs/visual-ui-experience (2026-10-20): the conversation's one scroll owner and the side groups' natural-height fold; each
+// asset may grow once, from exactly the merge-base budget to the measured size. One byte more, another asset, or growth from
+// the new baseline still fails.
+test("VUX-26 VUX-08 the scroll-owner and side-group allowance is bounded and spent once; other assets and later growth still fail", () => {
   const allowed = {
-    "/assets/molis-work-workbench.js": [1134920, 1138184],
-    "/assets/molis-work-workbench.css": [1603130, 1604761],
-    "/assets/molis-work-settings.css": [988929, 990556],
-    "/assets/molis-work-arrival.css": [698519, 700146],
-    "/assets/molis-work-pages-editor.js": [706933, 707336],
+    "/assets/molis-work-workbench.js": [1138563, 1140293],
   } as const;
   const assets = Object.keys(allowed) as (keyof typeof allowed)[];
   branch("vux-base", () => { for (const asset of assets) sizes[asset] = allowed[asset][0]; putBudget(sizes); });
@@ -720,7 +726,7 @@ test("VUX-19 VUX-22 VUX-27 VUX-35 VUX-42 the branch's one allowance is bounded a
   sizes["/assets/a.css"]++;
   assert.equal(gate("--update", "--base", "vux-base").code, 1, "other assets stay frozen");
   sizes["/assets/a.css"]--; assert.equal(gate("--update", "--base", "vux-base").code, 0);
-  commit("freeze the measured copy and disclosure size"); git("branch", "-f", "vux-frozen");
+  commit("freeze the measured scroll-owner and side-group size"); git("branch", "-f", "vux-frozen");
   for (const asset of assets) {
     sizes[asset]++; putBudget(sizes);
     assert.equal(gate("--base", "vux-frozen").code, 1, `${asset}: the new baseline has no allowance`);

@@ -399,7 +399,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   };
 
   /* ─── Rendering, updated in place so reading and focus are never disturbed ─ */
-  const nearBottom = () => thread.scrollHeight - thread.scrollTop - thread.clientHeight < 48;
+  let follow = null; const scrollOwner = () => follow ||= window.molisFollow?.(thread, { onChange: () => paintJump() }), nearBottom = () => scrollOwner()?.state !== "detached";
   const keyed = (parent, attribute, key, create) => {
     let node = [...parent.children].find((child) => child.getAttribute(attribute) === key);
     if (!node) { node = create(); node.setAttribute(attribute, key); parent.append(node); }
@@ -770,7 +770,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     build();
     if (key) [...node.querySelectorAll("button, select, input, summary")].find((one) => (one.getAttribute("aria-label") || one.textContent) === key)?.focus();
   };
-  /** A block: a heading with its glyph and a badge (folding it is remembered per viewer), then its content; with no content it is not shown. */
+  /** A block: a heading with its glyph and the summary that still says what matters folded (folding is remembered per viewer), then its content; with no content it is not shown. */
   const BLOCKS_KEY = "molis.assistant.blocks";
   const folded = (() => { try { const saved = JSON.parse(store.get(BLOCKS_KEY) || "{}"); return saved && typeof saved === "object" ? saved : {}; } catch { return {}; } })();
   const paintBlock = (node, title, icon, content, badge, attention, fixed) => {
@@ -778,18 +778,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!content) { node.replaceChildren(); return; }
     const key = node.dataset.assistantBlock;
     const head = el(fixed ? "p" : "button", "assistant-block-head" + (fixed ? " is-fixed" : ""));
-    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.append(el("span", "assistant-block-chevron")); }
+    if (!fixed) { head.type = "button"; head.setAttribute("aria-expanded", String(!folded[key])); head.setAttribute("aria-controls", "assistant-block-" + key); head.append(el("span", "assistant-block-chevron")); }
     head.append(glyph(icon), el("span", "assistant-block-title", title));
     if (badge) head.append(el("span", "assistant-block-badge" + (attention ? " is-attention" : ""), badge));
     if (!fixed) head.addEventListener("click", () => {
       folded[key] = !folded[key]; if (!folded[key]) delete folded[key];
-      // Opening lets the content arrive once; folding is immediate.
-      if (!folded[key]) { node.setAttribute("data-opening", ""); setTimeout(() => node.removeAttribute("data-opening"), 300); }
       store.set(BLOCKS_KEY, Object.keys(folded).length ? JSON.stringify(folded) : null);
       node.toggleAttribute("data-folded", Boolean(folded[key])); head.setAttribute("aria-expanded", String(!folded[key]));
     });
     node.toggleAttribute("data-folded", !fixed && Boolean(folded[key]));
-    const body = el("div", "assistant-block-body"); body.append(content);
+    const body = el("div", "assistant-block-body"); body.id = "assistant-block-" + key; body.append(content);
     node.replaceChildren(head, body);
   };
   const group = (label, ...children) => { const box = el("div", "assistant-group"); if (label) box.append(el("p", "assistant-block-sub", label)); box.append(...children); return box; };
@@ -999,7 +997,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       jobs.map((j) => [j.job_id, j.state]), unsettled.map((u) => [u.change_id, u.state, u.detail]), kept.map((m) => [m.change_id, m.state, m.undoable, m.text])]);
     if (node.dataset.signature === signature) return;
     node.dataset.signature = signature;
-    keepFocus(node, () => {
+    keepFocus(node.parentNode, () => {
       const UNDO = { available: "可以撤销", undone: "已撤销", failed: "没能撤销" };
       const made = results.map((o) => pickable(objectCard(o, "done"), o, objectTitle(o)));
       const changes = undoable.slice().reverse().map((change) => card({ icon: change.state === "undone" ? "undo" : "edit", tone: change.state === "failed" ? "blocked" : "",
@@ -1042,14 +1040,12 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         return card({ icon: "sparkles", tone: undone ? "" : "suggest", title: change.text, done: undone,
           sub: [scope, undone ? L(UNDONE[change.kind]) : KEPT[change.kind] ? L(KEPT[change.kind]) : ""].filter(Boolean).join(" · "), actions });
       });
-      const content = el("div", "assistant-group-list");
-      if (made.length) content.append(group("", stack(made)));
-      if (changes.length) content.append(group(L("改动"), stack(changes)));
-      if (background.length) content.append(group(L("后台任务"), stack(background)));
-      if (stopped.length) content.append(group(L("停止时仍在执行"), stack(stopped)));
-      if (remembered.length) content.append(group(L("记住的事"), stack(remembered)));
-      const canUndo = undoable.filter((change) => change.state === "available").length;
-      paintBlock(node, L("产出"), "package", content.children.length ? content : null, canUndo ? canUndo + " " + L("项可撤销") : String(made.length + changes.length + background.length + stopped.length + remembered.length), false);
+      // Three groups of one kind (VUX-08): what it made, what it changed and how each stands, what still runs elsewhere; a failure shows folded.
+      const list = (...parts) => { const box = el("div", "assistant-group-list"); parts.forEach(([label, cards]) => cards.length && box.append(group(label, stack(cards)))); return box.children.length ? box : null; };
+      const failed = undoable.concat(unsettled).filter((one) => one.state === "failed").length, canUndo = undoable.filter((one) => one.state === "available").length, running = jobs.filter((job) => job.state === "running").length, missed = jobs.filter((job) => job.state === "failed").length;
+      paintBlock(node, L("产出"), "package", list(["", made]), String(made.length));
+      paintBlock(blocks.changes, L("变更"), "edit", list(["", changes], [L("停止时仍在执行"), stopped], [L("记住的事"), remembered]), failed ? failed + " " + L("项失败") : canUndo ? canUndo + " " + L("项可撤销") : String(changes.length + stopped.length + remembered.length), failed > 0);
+      paintBlock(blocks.background, L("后台任务"), "clock", list(["", background]), missed ? missed + " " + L("项没有完成") : running ? running + " " + L("项进行中") : String(jobs.length), missed > 0);
     });
   };
 
@@ -1134,7 +1130,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!node) return;
     if (!spacious() && drawerOpen) { drawerOpen = false; paintLayout(); }
     const still = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
+    scrollOwner()?.release(); thread.scrollTo({ top: node.getBoundingClientRect().top - thread.getBoundingClientRect().top + thread.scrollTop - 16, behavior: still ? "auto" : "smooth" });
     node.removeAttribute("data-flash"); void node.offsetWidth; node.setAttribute("data-flash", "");
     setTimeout(() => node.removeAttribute("data-flash"), 700);
     // The card's own decision first (允许执行, 回答, the action), not a copy button inside the code it shows.
@@ -1315,7 +1311,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!jump) return;
     if (unseen && !nearBottom()) {
       jump.textContent = "↓ " + L("新消息");
-      jump.onclick = () => { unseen = false; thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" }); }; jump.hidden = false; return;
+      jump.onclick = () => { unseen = false; scrollOwner()?.toLatest(); paintJump(); }; jump.hidden = false; return;
     }
     unseen = false; jump.hidden = true;
   };
@@ -1355,8 +1351,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     emptyList.replaceChildren(...parts);
   }
   const render = () => {
-    const stick = nearBottom();
-    const before = thread.scrollHeight;
+    const stick = nearBottom(), before = thread.scrollHeight;
     const work = view && view.work.work_id === curId ? view.work : null;
     if (work) {
       const index = works.findIndex((row) => row.work_id === work.work_id);
@@ -1441,7 +1436,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       thread.append(box);
     }
     paintSum(); paintAim(); paintList(); drawTabs(); paintSideDot(work);
-    if (stick) thread.scrollTop = thread.scrollHeight; else if (thread.scrollHeight > before + 4) unseen = true;
+    if (stick) scrollOwner()?.pin(); else if (thread.scrollHeight > before + 4) unseen = true;
     paintJump();
   };
 

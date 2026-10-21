@@ -40,8 +40,8 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
       staged=true;shownId=active.id;island.dataset.assistantStage='';launcher.hidden=false;
       launcher.textContent=L('返回助理');if(expand)expand.hidden=true;if(retract)retract.hidden=false;
       panel.hidden=false;
-      const thread=panel.querySelector('[data-assistant-thread]');if(thread)thread.scrollTop=scroll;
-      const id=active.id;mounting=true;Promise.resolve(switchTo(id)).then(()=>{if(shownId===id)requestAnimationFrame(()=>{if(thread)thread.scrollTop=offsets.get(id)||0;});},error=>showProblem({message:error.message})).finally(()=>{mounting=false;});
+      const thread=panel.querySelector('[data-assistant-thread]'),restore=(top)=>thread.dataset.follow?window.molisFollow(thread).restore(top):thread.scrollTop=top;if(thread)restore(scroll);
+      const id=active.id;mounting=true;Promise.resolve(switchTo(id)).then(()=>{if(shownId===id)requestAnimationFrame(()=>{if(thread)restore(offsets.get(id)||0);});},error=>showProblem({message:error.message})).finally(()=>{mounting=false;});
     }else if(staged&&!open.some(tab=>tab.id===shownId)){
       returnHome();panel.hidden=true;
     }

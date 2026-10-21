@@ -104,3 +104,38 @@ test("Goal 标题在读的时候解析；解析不到就退回 id，会话不会
   assert.equal(entries.length, 2);
   database.close();
 });
+
+test("W5-01-CODING-22: 写入等 beforeEffect 的时候会话开始了一轮，事务里的检查照样拒绝，库里一行不改", async () => {
+  const { database, store } = open();
+  await store.create(noEffect, { project_id: BOARD, session_id: "s1", title: "会话", runtime_id: "prologue", goal_id: "g1", at: "2026-09-19T14:00:00Z" });
+  const source = { session_id: "s1", run_id: "r1", task: "修好连接提示", workspace_path: "." };
+  const content = { title: "计划", steps: [{ title: "改提示", acceptance: "重开后仍显示" }], blockers: "", change_reason: "" };
+  await store.savePlan(noEffect, BOARD, "s1", 0, { revision: 1, content, source, confirmed: null });
+  // 路由自己的检查：写之前过一次，写落下的那一刻（事务体第一句）要再成立一次。
+  const busy = new Set<string>();
+  const guard = () => { if (busy.has("s1")) throw new Error("会话正在提交任务"); };
+  // 写入在等平台核对原调用的这段时间里，同一条会话开始了一轮。
+  const startsRound = async () => { await Promise.resolve(); busy.add("s1"); };
+  const writes = [
+    () => store.archive(startsRound, BOARD, "s1", "2026-09-19T16:00:00Z", guard),
+    () => store.savePlan(startsRound, BOARD, "s1", 1, { revision: 2, content: { ...content, title: "下一版" }, source, confirmed: null }, guard),
+    () => store.confirmPlan(startsRound, BOARD, "s1", { revision: 1, content, source, confirmed: { artifact_id: "coding-plan:s1:1", version: 1 } }, guard),
+    () => store.setGoal(startsRound, BOARD, "s1", "g2", "2026-09-19T16:00:00Z", guard),
+  ];
+  for (const write of writes) {
+    busy.clear();
+    guard();
+    const before = database.committed();
+    await assert.rejects(write(), /会话正在提交任务/);
+    assert.equal(database.committed(), before + 1, "检查在 beforeEffect 之后、事务体里跑");
+  }
+  const record = store.get(BOARD, "s1");
+  assert.equal(record.archived, false);
+  assert.equal(record.goal_id, "g1");
+  assert.equal(record.updated_at, "2026-09-19T14:00:00Z");
+  assert.deepEqual(store.plan(BOARD, "s1"), { revision: 1, content, source, confirmed: null });
+  // 没有一轮插进来，同一个带检查的写照常落下。
+  busy.clear();
+  assert.equal((await store.setGoal(noEffect, BOARD, "s1", "g2", "2026-09-19T16:00:00Z", guard)).goal_id, "g2");
+  database.close();
+});

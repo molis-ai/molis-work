@@ -198,7 +198,10 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       const body = bodyOf(request);
       if (body.archive === true) {
-        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        const notSubmitting = () => {
+          if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
+        };
+        notSubmitting();
         if (record.runtime_session_id) {
           const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
           const snapshot = await api!.invoke(agent.readSession, [session]);
@@ -206,8 +209,9 @@ const ROUTES: RouteMaker[] = [
             throw Object.assign(new Error("请先完成或停止当前执行，再归档会话"), { code: "agent.session_busy" });
           }
         }
-        if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
-        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString()) };
+        // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
+        notSubmitting();
+        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString(), notSubmitting) };
       }
       if (record.archived) throw new Error("会话已归档，不能再修改");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);

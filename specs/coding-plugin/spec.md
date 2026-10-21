@@ -2729,6 +2729,7 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 5. **W5-01-CODING-19** 读一轮时顺手记下会话状态的调用，在提交前被取消或撤权，状态不被改写；后台跟随者带着被拒的调用，不存「运行中」。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-session-follow.test.ts`。
 6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给页面的外观、伙伴页和图元，不再给目标标题（C2 起标题经 Goals 的公开读动作读，见 H 的 25）。测试：`tests/coding-surface.test.ts`。
 7. **W5-01-CODING-21** 激活停止之后，后台跟随者不再写会话状态。测试：`tests/coding-session-follow.test.ts`。
+8. **W5-01-CODING-22** 归档、存计划、确认计划、选目标的「正在提交任务／正在开始执行」检查，在写入的事务体里再做一次（`BEGIN` 之后、与 `COMMIT` 同一段同步代码）：写入等 `beforeEffect` 的时候同一条会话开始了一轮，仍然拒绝，库里一行不改。测试：`tests/coding-store.test.ts`。
 
 说明：没有单独的「消息」表。一轮里的消息走 Agent 宿主，Coding 自己写的是会话状态（`setState`、`roundStarted`），由 15、16、19、21 覆盖。
 

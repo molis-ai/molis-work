@@ -269,7 +269,7 @@ interface ItemAttach {
 - **F12 带到项目讨论**：讨论格的输入框成为右栏上的一个落点。放进去只是放进输入框，不写记录，由用户自己发送。这取代 context-toolbar §10.4 里那条待设计的「讨论草稿入口」。讨论是 iframe 里的 im-ui，现在的 `molis:side-open` 没有草稿入口，IM 的 `quote_id` 也只能引用已有消息，所以 im-ui 要新做两件事：输入框报告落点；接收带出处的外部引文（新格式）。
 - **左→右**：「收进 Shelf」「记下灵光」就是这两个插件的创建入口，不另做一套。落进去之后，右栏自动切到那一格，并高亮新建的那一条（side-shelf 3.1「某件事需要右栏时打开相关的那一格」）。
 - **右栏插件格的标题栏也有「✦ 一句话新建」**，例如灵光、Shelf。
-- **「文件」格收什么（2026-10-09 按[成果库定位](../artifact-positioning/spec.md)核对）**：它是只读的汇总，收三样：项目的成果（固定版本，预览走类型 owner，与成果库同一份渲染）、各插件声明的文件来源（Pages 文档、工作区文件等）、Shelf 的材料（`shelf.files.entries`，个人范围，列材料与结果，不列文件夹和失败的）。**过程项一律不进**：Shelf 交给项目的文字材料 `shelf.text-material.v1`、Coding 的变更集与计划、Files 的快照等，不进「文件」格、成果库和搜索，所以也不会以「文件」格条目的身份成为手上的东西；它们只在消费它的插件里出现（Coding 的材料、Shelf 收下的副本）。Shelf 材料两边都出现：「文件」格只能看，Shelf 格能加工。
+- **「文件」格收什么（2026-10-09 按[成果库定位](../archive/artifact-positioning/spec.md)核对）**：它是只读的汇总，收三样：项目的成果（固定版本，预览走类型 owner，与成果库同一份渲染）、各插件声明的文件来源（Pages 文档、工作区文件等）、Shelf 的材料（`shelf.files.entries`，个人范围，列材料与结果，不列文件夹和失败的）。**过程项一律不进**：Shelf 交给项目的文字材料 `shelf.text-material.v1`、Coding 的变更集与计划、Files 的快照等，不进「文件」格、成果库和搜索，所以也不会以「文件」格条目的身份成为手上的东西；它们只在消费它的插件里出现（Coding 的材料、Shelf 收下的副本）。Shelf 材料两边都出现：「文件」格只能看，Shelf 格能加工。
 - **左边的东西「收进 Shelf」只建个人材料**：底层动作是现有的 `shelf.items.admit`（收文字与标题，个人范围），撤销用 `shelf.items.delete`；它不产生过程项。过程项只在用户把 Shelf 的一份材料交给项目时（`shelf.material.save`，只许人）才产生。
 
 ## 8. 能力总表：扩展的动作和能力都在哪
@@ -526,7 +526,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 ### 15.1 成果库定位
 
-[artifact-positioning](../artifact-positioning/spec.md) 已全部合入：成果只表示固定版本；插件之间的交换数据是**过程项**，存在产生它的插件名下，不进成果库、侧栏「文件」和搜索（门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`）；侧栏的成果预览走类型 owner。对本设计有四处影响，已改进正文：
+[artifact-positioning](../archive/artifact-positioning/spec.md) 已全部合入：成果只表示固定版本；插件之间的交换数据是**过程项**，存在产生它的插件名下，不进成果库、侧栏「文件」和搜索（门禁 `tests/artifact-type-gate.test.ts`、`tests/artifact-declaration-gate.test.ts`）；侧栏的成果预览走类型 owner。对本设计有四处影响，已改进正文：
 
 1. **Coding 报告与变更收进 Shelf**：报告是成果（`coding.report.v1`），变更集是过程项（`coding.changeset.v1`），Shelf 经 `shelf.results.receive` 把两种都收成一份个人副本；收下后就是普通 Shelf 材料（8.5）。
 2. **放进 Coding 下一轮材料**：手上是 Shelf 材料时，`shelf.material.save` 把它交给项目，成为 Shelf 名下的过程项 `shelf.text-material.v1`，Coding 经 `materials` 端口挂到会话；手上是别的东西时，Coding 新增自己名下的文字摘录过程项（8.5）。

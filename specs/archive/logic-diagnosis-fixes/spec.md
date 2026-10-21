@@ -1,5 +1,7 @@
 # 诊断确认的八个逻辑问题
 
+> 归档（2026-10-21）：判定为**已实现**。依据：LOGIC-01～08 各有用例，代码随 #634（`4bea52c84`）合入 main；`tests/schedule-conversation-tasks.test.ts`、`tests/form-draft-questions.test.ts`、`tests/project-scheduler-retry.test.ts`、`tests/alchemist-studio-idle.test.ts`、`tests/form-placement-flush.test.ts`、`tests/pages-blank-discard.test.ts`、`tests/work-placement.test.ts` 覆盖。剩余事项：无。
+
 状态：实现中（2026-10-16）。对照 `origin/main`（`f9989ea51`）源码，八条路径都还在；按下面的行为改，并用对应该行为的测试证明错误结果不再发生。
 
 诊断记在 2026-10-16 那次阅读所覆盖的提交上。这里不重测性能一节的秒数，不把 #593 的 Feed 重试波动当成产品缺陷，不改提示词，不改「何时提醒」的判断，不改 #613 正在改的答题读取（`heard`）。不打开 `~/.molis-work`，不占用 4173 或 4176。

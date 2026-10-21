@@ -1,6 +1,5 @@
-import { defineHomeBackgroundTasksAction, type ActionHandlerBinding, type HomeBackgroundTask, type HomeBackgroundTaskCollection, type HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
+import { bindOwnerPluginAction, defineHomeBackgroundTasksAction, type ActionHandlerBinding, type HomeBackgroundTask, type HomeBackgroundTaskCollection, type HomeBackgroundTaskPhrase } from "@molis-ai/molis-work-plugin-sdk";
 import type { CodingBackgroundSession, CodingSessionStore } from "./store.js";
 
 /**

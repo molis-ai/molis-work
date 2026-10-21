@@ -61,7 +61,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 正常 HTTP/MCP 断开不会取消已经受理的工作；原授权撤销、安装停用/升级、Host 关闭或显式取消后，成功和失败业务写入都拒绝。原身份、项目与注册一直保留，没有独立入口授权时仍沿用原 signal，因此不脱离 Agent 的取消。只受理一次有限执行，不在启动钩子、路由、过期计时器或后台回调里再开一轮。详见 `docs/platform/PLUGIN-DEVELOPMENT.md`「已受理的后台执行」。
 
-要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用合同包 `platform/actions` 的 `defineHomeBackgroundTasksAction` 声明、回答 `{ source: { surface }, tasks }`，宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
+要让首页在各项目里读到这些还在跑的工作，把读它们的项目范围只读查询标 `home_aggregate: true` 并写 `output_type`（不调用模型、不计费）；首页只在打开的项目里、按那个项目的授权逐个调，调用是只读的。规则同上一处。首页标题栏的后台任务列表走这条路：用 SDK 的 `defineHomeBackgroundTasksAction` 声明、回答 `{ source: { surface }, tasks }`，宿主不认识具体插件（写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`，例子是 `plugins/native/coding/src/home-background.ts`）。
 
 ### 流式路由
 

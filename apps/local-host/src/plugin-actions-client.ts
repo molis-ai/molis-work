@@ -2,7 +2,7 @@ import { bindActionClient, ActionError, requireSynchronous, type ActionCallConte
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginActionClient, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ACTIONS_DELEGATE_PERMISSION, declaresActionDelegation, pluginActionDirectory } from "./plugin-action-delegation.js";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, markPluginActionChecked, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import { invokePluginQuery } from "./plugin-action-query.js";
 import { pluginActionProvider } from "./plugin-action-provider.js";
 import { routedPluginCaller } from "./plugin-callers.js";
@@ -92,7 +92,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     return {
       actor_id: options.actor_id, project_id: projectId,
       audience: "user", permissions: context.grants, query_only: pluginInvocationReadOnly(outer), signal: outer?.caller.signal,
-      allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: (options.providerId ?? context.provider_id ?? context.install_id) })), ...required],
+      allowed_actions: [...(manifest.actions ?? []).map(action => ({ ...action, provider_id: ownProvider })), ...required],
       validate_authority: assertAuthority, assert_authority_current: assertAuthority,
     };
   };
@@ -122,6 +122,12 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
   // action of its own still reaches a Host action it consumes. Without either there is nothing to call.
   // The person's original file reaches only this installation's own actions, from the route request that carried it.
   const offered = (scope: { original_file?: HostOfferedOriginalFile }) => scope.original_file?.install_id === context.install_id ? { original_file: scope.original_file } : {};
+  const ownProvider = options.providerId ?? context.provider_id ?? context.install_id;
+  // A command that returned passed every check of the call it was made in: from then on that call may keep a job (PG-038).
+  const passed = <Output>(outer: ReturnType<typeof currentPluginInvocation>, definition: ActionDefinition, output: Output): Output => {
+    if (definition.operation === "command") markPluginActionChecked(outer);
+    return output;
+  };
   const ownActions = (scope: { project_id: string | null; client: ActionClient; original_file?: HostOfferedOriginalFile }, outer?: ReturnType<typeof currentPluginInvocation>) =>
     bindActionClient(scope.client, () => ({ ...actionCaller(scope.project_id, outer), ...offered(scope) }));
   const routedActions = (scope: { project_id: string | null; client: ActionClient; caller?: ActionCallContext; original_file?: HostOfferedOriginalFile }, definition: ActionDefinition,
@@ -152,18 +158,21 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
     invokeQuery: (reference, input) => invokePluginQuery(context, manifest, options, reference, input),
     ...(declaresActionDelegation(manifest) ? { directory: pluginActionDirectory(context, manifest, options) } : {}),
     invoke: async <Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, control?: PluginExecutionControl, transport?: ActionInvokeTransport) => {
-      const outer = currentPluginInvocation();
-      const scope = callScope(options.project_id, options.client, control), projectId = scope.project_id;
+      const outer = currentPluginInvocation(), job = outer && "job" in outer ? outer : undefined;
+      // A job's calls are the installation's own, in the job's project (PG-038): never a request's, whose control names its person.
+      if (job && control && routedControls.has(control)) throw new ActionError("actions.forbidden", "后台作业不能用请求的 control 调用动作");
+      const scope = job ? { project_id: job.caller.project_id, client: options.client } : callScope(options.project_id, options.client, control), projectId = scope.project_id;
       const own = manifest.actions?.find(action => sameAction(action, definition));
-      if (own) return await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output;
-      if (!consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
+      if (own && !job) return passed(outer, own, await routedActions(scope, own, outer).invoke(own, input, control, transport) as Output);
+      if (!own && !consumed.has(definition.capability_id)) throw new ActionError("actions.forbidden", "插件没有声明消费这项动作");
       // A missing grant is said as one before the directory is asked: the directory hides what the plugin may not use, and would
       // otherwise answer that the action is not there.
       options.assertActive();
       for (const permission of definition.action?.permissions ?? []) context.requireGrant(permission);
-      const providerId = await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
+      // Inside a job the installation's own actions too are reached as the plugin audience, not as the person who kept the job.
+      const providerId = own ? ownProvider : await pluginActionProvider(scope.client, { ...dependencyCaller(definition, projectId, outer), ...(control?.signal ? { signal: control.signal } : {}) }, definition);
       options.assertActive();
-      return bindActionClient(scope.client, () => dependencyCaller(definition, projectId, outer, providerId)).invoke(definition, input, control, transport);
+      return passed(outer, definition, await bindActionClient(scope.client, () => dependencyCaller(own ?? definition, projectId, outer, providerId)).invoke(definition, input, control, transport));
     },
   };
 }

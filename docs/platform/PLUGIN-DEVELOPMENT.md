@@ -171,6 +171,21 @@ SDK 导出的 `PLUGIN_ROUTE_STREAM_LIMITS` 固定进度上限：单行 65,536 UT
 
 执行仍在本进程；非配合式外部调用可能继续运行，插件须把控制的 signal 交给它。200 ms 周期复查使用已有 `createExecutionLifetime`，结束即释放；模型和文件服务在等待后另行核权。后台不再向已结束的路由发进度，不能递归接受后台执行；自己的结果结束后，旧控制和迟到模型回调也失效。验收见 `tests/security-invariants-plugin-background.test.ts` 与 `tests/runtime-plugin-http-discovery.test.ts`。
 
+## 随激活存活的后台作业
+
+有些工作要比受理它的那次调用活得长，又不该带着那次调用的授权：一轮 Agent 已经开始，要有人跟到它结束、记下真实结果；插件激活时要接上上次没跟完的事。这类工作用 `services.background.keep(job, async control => …)`，返回 `{ done, cancel() }`。作业属于插件的这次激活，用安装自己的授权跑；单次调用取消或撤权不停它，插件停止、停用、卸载、升级、崩溃或隔离，库里的安装记录撤了作业要的授权或换了世代，作业所在的项目关闭或删除，Home 关闭，它都停。验收与条文见 `docs/system/SECURITY-INVARIANTS.md` 的 S-52。
+
+- **先在 Manifest 声明**：`background: { jobs: [{ job_id, reason, permissions }] }`。`job_id` 是小写字母开头的名字，`reason` 写这个作业在后台做什么，`permissions` 是它的写入要的权限，必须是 Manifest `permissions` 里声明过的。`keep()` 只认声明过的 `job_id`。
+- **只能在三处登记**：
+  - 本插件的命令里，在这次调用通过最后一次授权检查之后：它自己的 `await caller.beforeEffect()` 返回过，或经平台服务写过一次、调过一个返回了的命令。还没通过、检查被拒的调用登记，`plugin.background_job_unchecked`；查询里登记，`plugin.background_job_origin`。登记时平台再同步核一次这次调用：检查之后被取消或撤权的调用登记被拒，错误就是那次取消或撤权。所以提交之后同步调 `keep()`，中间不要再 `await` 别的东西。
+  - 激活的 `start()` 返回之前（接上没跟完的事）。`start()` 返回以后、在那里设的定时器里再登记，`plugin.background_job_origin`。
+  - 同一激活的另一个还在跑的作业里（跟随者发现一轮在等，就起唤醒的作业）。作业已经停了（被取消、所在项目关闭或删除）再登记，被拒；项目关闭或删除之前就开始、还在进行的调用，之后也不能在那个项目里登记。
+- **作业的项目**从登记它的调用来，作业里起的作业继承它；Home 实例在 `start()` 里登记的作业没有项目，所以 Home 插件要为某个项目起作业，得等那个项目里有一次通过了检查的调用。项目不从输入或存储读。
+- **作业以安装的身份做事**：`control` 只有 `job`、`signal`、`beforeEffect()`、`assert_authority_current()` 和 `project_id`，没有原调用者、受众和页面。作业里调动作，一律以安装的身份、按 `plugin` 受众、在作业自己的操作编号里发：调不到只给 `user`、`mcp` 等受众的动作，调用记录里也不出现原调用者；拿请求的路由 control 去调会被拒。
+- **每次写之前** `await control.beforeEffect()`：作业还在、激活还活着、安装记录仍是同一份并授予作业声明的权限。每个激活共用一个 200 ms 定时器把同样的检查跑一遍，不过就中止那个作业的 `signal`，正在等的工作要把 `signal` 交给它等的东西。作业停了以后，经平台服务的写（存储、库、文件、事件、动作调用）都被拒，插件忘了问 `beforeEffect()` 也一样；插件进程里的内存状态平台不管。
+- **原调用被取消、撤权后作业还写**，只在用户 10-12 定的窄例外里成立（`specs/repository-anti-corruption/spec.md` §12.10）：作业只把已经受理的那件事跟到底、记下它的真实结果和回执，不发起新的业务请求、不继续交接、不以记回执为名派发下一步。通过检查之后提交本身失败了（比如 Run 没开成），作业找不到要跟的东西，就什么都不写地结束。平台能强制的是身份和受众；「只跟那件事」是插件的义务。
+- 平台不保存作业、不重试、不在重启后重放；要恢复，插件把要跟的东西记在自己的存储里，下次激活在 `start()` 里登记。`cancel()` 由插件自己调（比如更新的一轮接手了会话）。沙箱插件没有 `services.background`。
+
 首页要把各项目里还在跑的工作列在一处时，插件把读这些工作的查询标上 `action.home_aggregate: true`，并写明 `output_type`：只能是项目范围、`kind: "query"`、只读（`effect` 不写或 `read`）、不调用模型、不计费的查询，别的写法 Manifest 检查就拒（`isHomeAggregateQuery` 是同一条规则）。首页按 `output_type` 找，只在打开的项目里逐个调、用那个项目里安装的授权；插件停用或没授权的项目不调，没打开的项目不为它打开。调用带 `query_only`，查询里再调命令或计费查询会被拒。各项目的答案分开返回，首页按 `plugin_id` 去打开。声明本身不给任何授权。验收见 `tests/security-invariants-home-aggregate.test.ts`（S-49）。
 
 首页标题栏的「后台任务」列表就是这样来的，不需要宿主为某个插件写分支：插件用 SDK（`@molis-ai/molis-work-plugin-sdk`）的 `defineHomeBackgroundTasksAction(能力 id, 标题, 权限)` 声明查询，回答 `{ source: { surface }, tasks: [{ id, title, state, updated_at, waiting, standing, commands }] }`（`surface` 是工作台上打开这个任务的位置，`id` 是在那里打开的项目；`standing` 是几句话，句子可以带 `{n}` 和数字，页面按词典翻译；`commands` 是任务留着的后台命令，`stop_path` 是插件自己的停止路由、相对插件）。宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问一遍，检查后摊平，按提供方插件和项目拼出停止地址；页面只按行里的字段画。例子是 Coding 的 `plugins/native/coding/src/home-background.ts`，验收见 `tests/coding-background-tasks.test.ts`。
@@ -433,6 +448,6 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 
 生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自可信条目；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
 
-删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行（control 的 signal 中止，结果与失败都不交付），再关这个项目的库、跑声明的 project_data purge，中间不 await。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
+删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再关这个项目的库、跑声明的 project_data purge，中间不 await。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
 
 非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。

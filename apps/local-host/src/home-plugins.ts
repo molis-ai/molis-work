@@ -38,6 +38,7 @@ export type HomePluginPlatform = Pick<PluginPlatform, "runtime" | "supervisor" |
 export class HomePluginHost {
   private opening?: Promise<HomePluginPlatform>;
   private platform?: HomePluginPlatform;
+  private executor?: HomePluginExecutor;
   private db?: ReturnType<typeof openHomePluginStore>["db"];
   private closed = false;
   private retryable = false;
@@ -82,6 +83,10 @@ export class HomePluginHost {
     const record = this.installation(providerId);
     if (record) this.platform?.invalidateView(record.plugin_id);
   }
+  /** A project closed: the Home instances' jobs kept in it stop (PG-038). Their bounded executions keep their call's authority and go on. */
+  stopProjectJobs(projectId: string): void {
+    this.executor?.stopProjectJobs(projectId);
+  }
   async close(): Promise<void> {
     if (this.closed) return;
     this.closed = true;
@@ -101,7 +106,7 @@ export class HomePluginHost {
     } finally {
       this.releaseProjectOwners?.(); this.releaseProjectOwners = undefined;
       this.db?.close();
-      this.db = undefined; this.platform = undefined;
+      this.db = undefined; this.platform = undefined; this.executor = undefined;
     }
     if (failures.length) throw new AggregateError(failures, "Home 插件关闭失败");
   }
@@ -137,7 +142,7 @@ export class HomePluginHost {
     const { db, storage } = openHomePluginStore(this.options.home);
     this.db = db;
     const repository = pluginInstallRecords(db);
-    const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
+    const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.

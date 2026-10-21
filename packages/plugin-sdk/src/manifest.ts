@@ -6,6 +6,7 @@ import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
+import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
@@ -180,6 +181,7 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["agent", manifest.agent],
     ["actions", manifest.actions],
     ["action_scenes", manifest.action_scenes],
+    ["background", manifest.background],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
     ["ui.commands", ui.commands],
@@ -229,6 +231,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectPortPermissions(parsed));
   problems.push(...artifactDeclarationProblems(parsed));
   problems.push(...inspectContextDeclarations(parsed));
+  problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions));
   assertNoDeclarationProblems(problems);
 }
 

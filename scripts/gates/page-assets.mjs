@@ -241,6 +241,8 @@ const headErrors = (measured, budget, base) => {
 // Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
 // once from exactly #918's budgets.
 const APPROVED_CEILINGS = {
+  // #965: a failed save rolls back and stays visible.
+  "/assets/molis-work-workbench.js": [1172837, 1173823],
   // #961: a quick load keeps the label until 250 ms, so the three stylesheets gain the same rule once.
   "/assets/molis-work-arrival.css": [702900, 703308],
   "/assets/molis-work-settings.css": [992861, 993269],

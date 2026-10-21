@@ -50,7 +50,7 @@ declare function requestAnimationFrame(step: () => void): number;
  * is bound, a later one only while it is in the page, so no frame builds the nodes of the whole block (about a millisecond
  * per thousand characters). A block that grows keeps the coloured pieces that did not change and goes on from there.
  */
-export function createAssistantCodeGrow(L: (text: string) => string) {
+export function createAssistantCodeGrow(L: (text: string, values?: Record<string, string>) => string) {
   type Mark = [string, number];
   type Job = { text: string; marks: Mark[]; at: number; done: number; nodes: GrowNode[]; rest: GrowText };
   const SLICE = 16000, jobs = new WeakMap<GrowElement, Job>();
@@ -94,7 +94,7 @@ export function createAssistantCodeGrow(L: (text: string) => string) {
   // Folding is the person's once they used it: a block still being written does not fold again past them.
   const bindMore = (figure: GrowElement) => figure.querySelector(".assistant-code-more")?.addEventListener("click", (event) => {
     figure.toggleAttribute("data-folded"); figure.dataset.foldChosen = "";
-    event.currentTarget.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines ?? "") : L("收起");
+    event.currentTarget.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行", { n: figure.dataset.lines ?? "" }) : L("收起");
   });
   // A code block that changed stays the same figure: its leading pieces that did not change stay, the rest is put in, and
   // its line count, copy text and fold follow. Another language puts the block in anew.
@@ -116,7 +116,7 @@ export function createAssistantCodeGrow(L: (text: string) => string) {
     if (lines) lines.textContent = next.querySelector(".assistant-code-lines")?.textContent ?? "";
     const more = next.querySelector(".assistant-code-more"), mine = kept.querySelector(".assistant-code-more");
     if (more && !mine) { kept.append(more); bindMore(kept); if (!("foldChosen" in kept.dataset)) kept.setAttribute("data-folded", ""); }
-    else if (mine && kept.hasAttribute("data-folded")) mine.textContent = L("展开全部 {n} 行").replace("{n}", kept.dataset.lines ?? "");
+    else if (mine && kept.hasAttribute("data-folded")) mine.textContent = L("展开全部 {n} 行", { n: kept.dataset.lines ?? "" });
     return true;
   };
   return { bindMore, growCode, paint };

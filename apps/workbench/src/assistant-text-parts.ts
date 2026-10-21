@@ -1,4 +1,5 @@
 import type { AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
+import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 
 export interface AssistantTextPorts {
   say(text: string): string;
@@ -38,7 +39,9 @@ export function assistantCodeHtml(code: string, hint: string, ports: AssistantTe
   const pieces = language && text.length <= 400000 ? ports.tokens(text, language) : null, paint = pieces && text.length > 16000 ? assistantPaintMap(pieces) : "";
   const body = pieces && !paint ? pieces.map(([kind, value]) => kind ? `<span class="tok-${assistantEscape(kind)}">${assistantEscape(value)}</span>` : assistantEscape(value)).join("") : assistantEscape(text);
   const say = (value: string) => assistantEscape(ports.say(value));
-  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${say("{n} 行").replace("{n}", String(lines))}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${say("展开全部 {n} 行").replace("{n}", String(lines))}</button>` : ""}</figure>`;
+  // The count fills the translated words, so an English count agrees with its number ("1 line", "22 lines"), not just the first {n}.
+  const count = (value: string) => assistantEscape(fillMessage(ports.say(value), { n: lines }));
+  return `<figure class="assistant-code" data-lines="${lines}"${lines > 18 ? " data-folded" : ""} data-code="${assistantEscape(text)}"${paint ? ` data-paint="${assistantEscape(paint)}"` : ""}><figcaption class="assistant-code-head"><span class="assistant-code-lang">${assistantEscape(LANGUAGE_NAME[language] || hint || ports.say("代码"))}</span><span class="assistant-code-lines">${count("{n} 行")}</span><button class="assistant-code-copy" type="button">${say("复制")}</button></figcaption><pre><code>${body}${text.endsWith("\n") ? "<br>" : ""}</code></pre>${lines > 18 ? `<button class="assistant-code-more" type="button">${count("展开全部 {n} 行")}</button>` : ""}</figure>`;
 }
 
 const BT = String.fromCharCode(96);

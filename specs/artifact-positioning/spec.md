@@ -159,7 +159,7 @@
 | P11 | 项目设置 `/projects/<id>/settings/*`、规划方法页 | 整页 | `apps/workbench/src/project-settings-pages.ts:87,143`、`apps/local-host/src/web-goals-read.ts:57`、`web-planning.ts` | 同 P10 | 并入（S6 [#193](https://github.com/molis-ai/molis-work/pull/193)） |
 | P12 | `/`（项目选择）、`/onboarding` | 宿主的进入页（arrival 外壳，与工作台共用底栏） | `web-catalog.ts:400`、`web-onboarding.ts:145`、`apps/workbench/src/arrival/shell.ts` | 不是插件；拟列入例外，问用户 | 列入例外「进入页」：不是插件，宿主的项目选择与 Onboarding |
 | P13 | `/desktop/capsule` | 桌面菜单栏胶囊窗口 | `web-catalog.ts:177`、`apps/desktop/src/capsule-shell.ts` | 原生窗口，拟列入例外 | 列入例外：桌面菜单栏胶囊，原生窗口 |
-| P14 | `/__ui/catalog`、`/__ui/catalog/bar` | 开发用规格板 | `web-catalog.ts:186-201`、`apps/workbench/src/primitive-catalog.ts` | 开发工具，拟列入例外 | 列入例外：开发用规格板 |
+| P14 | `/__ui/catalog`、`/__ui/catalog/bar`、`/__ui/catalog/conditions` | 开发用规格板 | `apps/local-host/src/web-catalog-board.ts`、`apps/workbench/src/primitive-catalog.ts`、`apps/workbench/src/condition-frame.ts` | 开发工具，拟列入例外 | 列入例外：开发用规格板 |
 | P15 | `/projects/<id>/side/<插件>/<视图>` | 宿主排版的侧栏文档 | `apps/local-host/src/web-request.ts:187`、`apps/workbench/src/side-view-document.ts` | 用户已列为例外 | 列入例外：宿主排版的侧栏文档（用户已定） |
 | P16 | 协作服务 `/continuity`、`/im` | 另一个进程（`server/`）的整页 | `server/src/http.ts:58-61`、`packages/im-ui/src/page.ts` | 问用户 | 列入例外：给其他设备与成员用的协作服务，工作台里没有跳到它们的链接 |
 | P17 | 未知地址 | 项目里不存在的页面地址回一段 JSON 错误（`{"error":"页面或接口不存在"}`），不是工作台（排查时误写成「宿主 404 整页」；`web-request.ts:191` 那一处是侧栏文档自己的找不到提示，属 P15） | `apps/local-host/src/web-request.ts:538` | 页面地址打开工作台并提示找不到；接口仍回 JSON 404（S2） | 并入：未知页面地址打开工作台并说明找不到（S2 [#177](https://github.com/molis-ai/molis-work/pull/177)） |
@@ -179,7 +179,7 @@
 | --- | --- | --- |
 | 进入页 | `/`（项目选择）、`/onboarding`；还没有任何项目时的 `/settings/*` | 打开任何项目之前的宿主进入页，与工作台共用底栏与组件；不是插件。没有项目就没有工作台，此时全局设置仍是整页（用户 2026-10-02 定） |
 | 桌面菜单栏胶囊 | `/desktop/capsule` | 原生小窗，不是浏览器页面 |
-| 开发规格板 | `/__ui/catalog`、`/__ui/catalog/bar` | 只给开发者 |
+| 开发规格板 | `/__ui/catalog`、`/__ui/catalog/bar`、`/__ui/catalog/conditions` | 只给开发者 |
 | 宿主排版的侧栏文档 | `/projects/<id>/side/<插件>/<视图>` | 用户在任务里列为例外 |
 | 导出、打印与下载 | 问卷填写页导出、Pages 与 Jelly 导出、PPT 打印、Cognia 素材下载、成果导出 | 给别人用或存到本机的文件 |
 | 沙箱框里的文档 | 试用预览、已安装的生成插件 | 生成代码要隔离；只在工作台的标签或舞台里打开，框内不带品牌、返回链接或自带导航 |

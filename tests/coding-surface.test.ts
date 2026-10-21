@@ -56,7 +56,10 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
       at: "2026-09-19T14:00:00Z",
     });
 
-    const host = ports(store, { g1: "让首次使用不再卡住" });
+    // The route reads titles through Goals' action and no Agent capability, so the Host's capability port is one that answers nothing.
+    const host = { ...ports(store, { g1: "让首次使用不再卡住" }), capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
+      throw new Error(`unexpected capability ${definition.capability_id}`);
+    } } };
     const surface = await codingDirectoryPanel(host);
     assert.notEqual(surface, null, "插件跑起来了就该给出面板");
     assert.equal(surface?.plugin_id, "coding");
@@ -75,8 +78,9 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
       const address = server.address(); assert.ok(address && typeof address === "object");
       const read = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/search/entries`);
-      assert.equal(read.status, 200);
-      assert.match(JSON.stringify(await read.json()), /关联目标：让首次使用不再卡住/);
+      const answer = await read.text();
+      assert.equal(read.status, 200, answer);
+      assert.match(answer, /关联目标：让首次使用不再卡住/);
     } finally { await new Promise<void>(resolve => server.close(() => resolve())); }
     // Goal 标题是读时从 Goals 取的，不是存在 Coding 自己表里的会话字段
     const after = await codingDirectoryPanel(host);

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { AssistantService, AssistantStore, LocalHost, assistantAuthority } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 function reply(): Response {
@@ -138,11 +138,9 @@ for (const stage of ["state", "sessions.update", "runs.start"] as const) {
       } })) });
     const client = local.actionClient(project), store = new AssistantStore(db);
     const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, projectTitle: async () => "Project", timeZone: "UTC",
-      authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => ({
-        discover: () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] }),
-        invoke: (reference, input, beforeDispatch) => client.invoke({ actor_id: "web-user", project_id: project.project_id,
-          audience: "user", permissions: [], validate_authority: beforeDispatch }, reference, input),
-      }) }, "web-user");
+      // The person's client bound as the Host binds it: the follow-up's control joins its checks at each call (bindActionClient).
+      authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => bindActionClient(client,
+        () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] })) }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); coding.close(); await rm(directory, { recursive: true, force: true }); });
     await service.attachSchedule();
     const sent = await service.send({ text: "Start as Assistant", request_id: "coding-followup-0001" }, { project_ref: project });

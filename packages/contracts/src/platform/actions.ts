@@ -26,6 +26,7 @@ export * from "./file-sources.js";
 export * from "./artifact-pins.js";
 export * from "./local-person.js";
 export * from "./placement.js";
+export * from "./work-executors.js";
 
 /** JSON Schema is preserved at the boundary; providers must not invent output guarantees. */
 export type ActionSchema = Readonly<Record<string, unknown>>;
@@ -483,13 +484,25 @@ export function bindActionClient(client: ActionClient, context: () => ActionCall
       const bound = context(), caller = transport?.on_progress ? { ...bound, on_progress: transport.on_progress } : bound;
       return await client.invoke(control ? { ...caller, query_only: caller.query_only || control.query_only || undefined, signal: caller.signal && control.signal ? AbortSignal.any([caller.signal, control.signal]) : control.signal ?? caller.signal, page_context: control.page_context ?? caller.page_context,
         retain_background_authority: control.retainBackgroundAuthority ? (references, additionalPermissions) => boundBackgroundAuthority(caller, definition, references, control.retainBackgroundAuthority!(), additionalPermissions) : undefined,
-        validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
-        assert_authority_current: (reference, requiredPermissions) => {
-          // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
-          requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
-          requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
-        } } : caller, definition, input) as Output;
+        ...withControlChecks(caller, control) } : caller, definition, input) as Output;
     } };
+}
+
+/**
+ * A caller's two authority checks with a control in front of each: the control's fence before the caller's own validation, and
+ * the control's final check before the caller's, both synchronous at the dispatcher's last boundary. Every client that carries a
+ * control into a call it makes (a bound client, the person's own client, a plugin's delegated call) joins it here, so a control
+ * that says the call no longer counts stops it whoever forwards it.
+ */
+export function withControlChecks(caller: ActionCallContext, control: Pick<ActionExecutionContext, "beforeEffect" | "assert_authority_current">): Pick<ActionCallContext, "validate_authority" | "assert_authority_current"> {
+  return {
+    validate_authority: async reference => { await control.beforeEffect(); await caller.validate_authority?.(reference); },
+    assert_authority_current: (reference, requiredPermissions) => {
+      // The control belongs to its original caller; the bound caller owns the child's reference and permissions.
+      requireSynchronous(control.assert_authority_current?.(), "最终授权检查必须同步完成");
+      requireSynchronous(caller.assert_authority_current?.(reference, requiredPermissions), "最终授权检查必须同步完成");
+    },
+  };
 }
 
 /** Keep both identities when a bound client accepts work on behalf of a parent. */

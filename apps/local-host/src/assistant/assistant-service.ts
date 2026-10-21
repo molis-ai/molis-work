@@ -8,7 +8,7 @@ import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-fol
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -37,7 +37,7 @@ import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-too
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
-import { CodingExecutor, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
+import { CodingExecutor, dispatchControl, type CodingControl, type CodingSessionRead, type PersonActions } from "./assistant-coding.js";
 import { AssistantInputs, exactRevision, inputsOf, queuedInputs, typedWords, withdrawInput, type SendIntent } from "./assistant-inputs.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
@@ -67,8 +67,8 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   projectTitle?(projectId: string): Promise<string | null>;
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
-  /** The person's own actions in a work's project, for driving a plugin's Agent (Coding) as its page would. */
-  personActions?(work: StoredWork): Promise<PersonActions>;
+  /** The person's own client in a work's project, to drive a plugin's Agent (Coding) as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
+  personActions?(work: StoredWork, use?: "dispatch"): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
@@ -1267,15 +1267,15 @@ export class AssistantService {
       ...(wanted.kind === "project" ? { project_ref: caller.project_ref! } : {}) });
   }
 
-  private async coding(work: StoredWork, beforeDispatch?: () => void): Promise<CodingExecutor> {
+  private async coding(work: StoredWork, dispatch?: { control?: CodingControl }): Promise<CodingExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用 Coding Agent");
-    return new CodingExecutor(await this.ports.personActions(work), beforeDispatch);
+    return new CodingExecutor(await this.ports.personActions(work, dispatch ? "dispatch" : undefined), dispatch?.control);
   }
 
   /** A work carried by Coding: its round starts, continues or is answered in Coding's own session. */
   private async codingDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("Coding 工作暂时不能带图片；可以把图里的要点写成文字再发");
-    const coding = await this.coding(work, stillCurrent ? () => assertSendCurrent(stillCurrent) : undefined);
+    const coding = await this.coding(work, { control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
     let sessionId = work.executor.kind === "coding" ? work.executor.session_id : null;
     if (!sessionId) {
       sessionId = await coding.createSession(work.title);

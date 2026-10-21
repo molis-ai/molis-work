@@ -9,16 +9,16 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { L } from "../web-locale.js";
-import { localWebActionContext } from "../local-web-actions.js";
+import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
-import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionEffect, bindActionClient, type ActionCallContext, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
 import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService, type AssistantServicePorts } from "./assistant-service.js";
 import { assistantSurroundings } from "./assistant-surroundings.js";
 import { assistantErrors } from "./assistant-errors.js";
-import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
+import type { PersonActions } from "./assistant-coding.js";
 import { ASSISTANT_STORE_NAME, AssistantStore } from "./assistant-store.js";
 import { codingCharacterPorts } from "../characters-host.js";
 import { assistantContributions } from "./assistant-contributions.js";
@@ -95,11 +95,16 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         views.catch(() => { if (directories.get(key)?.views === views) directories.delete(key); });
         return views;
       },
-      invoke: async (action, input, beforeDispatch) => {
-        const caller = await personContext(reference);
-        return client.invoke(withPersonDispatchGuard(caller, beforeDispatch), action, input);
-      },
+      invoke: async (action, input) => client.invoke(await personContext(reference), action, input),
     };
+  };
+  // The same client, bound the way every client that carries a control is (`bindActionClient`): what the Coding executor reads with.
+  const personBound = (reference: LocalHostProjectReference): BoundActionClient => {
+    const person = personClient(reference), client = ports.localHost.actionClient(reference);
+    return { discover: person.discover, invoke: async (definition, input, control, transport) => {
+      const caller = await personContext(reference);
+      return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
+    } };
   };
   let threads: AssistantThreads;
   const servicePorts: AssistantServicePorts = {
@@ -134,10 +139,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     // Methods Plugins offer for business work, from the Home's registry of Agent definitions.
     methods: { list: () => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).methods(),
       read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
-    // The person's own actions in the work's project, as the page there would use them.
-    personActions: async work => {
+    // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
+    // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
+    personActions: async (work, use) => {
       if (!work.project_ref) throw assistantErrors.scope("Coding Agent 在项目里工作");
-      return personClient(work.project_ref);
+      return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
     homeActions: async () => personClient(undefined),

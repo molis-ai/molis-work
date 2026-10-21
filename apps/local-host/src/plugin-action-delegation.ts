@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, withControlChecks, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginActionDirectory, PluginExecutionControl, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { currentPluginAction } from "@molis-ai/molis-work-plugin-runtime";
@@ -37,14 +37,15 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
     const source = () => { grant(); requireSynchronous(original.assert_authority_current?.()); };
     const check = async () => { source(); await original.beforeEffect(); source(); };
     const signal = control?.signal && inherited.signal ? AbortSignal.any([inherited.signal, control.signal]) : control?.signal ?? inherited.signal;
+    // The grant and the original's own fence go first, then the plugin's control, then the original's checks of the target: joined
+    // by the same `withControlChecks` every client that forwards a control uses.
+    const fence = { beforeEffect: async () => { await check(); await control?.beforeEffect(); },
+      assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
+    const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
+      assert_authority_current: original.assert_authority_current };
     const caller: ActionCallContext = { ...inherited, audience: "workflow", delegated_by: manifest.plugin_id,
-      ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}),
-      validate_authority: async target => { await check(); await control?.beforeEffect(); await original.validate_authority?.(target); source(); },
-      validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); },
-      assert_authority_current: (target, permissions) => {
-        source(); requireSynchronous(control?.assert_authority_current?.());
-        requireSynchronous(original.assert_authority_current?.(target, permissions));
-      } };
+      ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}), ...withControlChecks(own, fence),
+      validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); } };
     return { caller, check, source };
   };
   return {

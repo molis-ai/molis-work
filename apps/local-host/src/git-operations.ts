@@ -65,7 +65,7 @@ export async function readGitSummary(workspace: ProjectWorkspaceRef): Promise<Wo
   const remotes = await effectivePushTargets(root);
   const merging = (await optional(root, ["rev-parse", "-q", "--verify", "MERGE_HEAD"])) !== null;
   const staged = status.staged.map(change => ({ path: change.path.join("/"), status: change.code[0] ?? "M" }));
-  const index = await gitText(root, ["diff", "--cached", "--raw", "--no-abbrev", "-z"]);
+  const index = await gitText(root, ["diff", "--cached", "--raw", "--no-abbrev", "-z", "--no-ext-diff", "--no-textconv"]);
   const conflicts = await Promise.all(status.conflicted.map(async change => {
     const name = change.path.join("/"); return [name, await conflictFingerprint(root, name)];
   }));
@@ -148,7 +148,7 @@ export async function prepareGitOperation(workspace: ProjectWorkspaceRef, revisi
       return { tool: ACTION_TOOL.commit, summary: `提交暂存区的 ${summary.staged.length} 个文件`, check,
         fields: [...where, { label: "提交说明", value: message }, { label: "暂存的文件", value: summary.staged.map(file => `${file.status} ${file.path}`).join("\n") || "（完成合并）" },
           { label: "执行范围", value: "只提交已暂存的内容，未暂存的改动保持原样；会运行仓库配置的 Git hooks（如有）；不推送远端。" }],
-        async execute() { await check(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
+        async execute() { await check(); await operationRun("git", root, ["commit", "-F", "-"], message + "\n"); const head = (await gitText(root, ["log", "-1", "--no-show-signature", "--format=%h %s"])).trim(); return `已提交 ${head}`; } };
     }
     case "branch-create": {
       const name = operation.name.trim();

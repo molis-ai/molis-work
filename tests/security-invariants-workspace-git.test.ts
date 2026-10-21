@@ -79,3 +79,17 @@ test("S-52 a repository whose files use a content filter gets no writer's work t
   assert.deepEqual(await port.list(), []);
   assert.deepEqual(await readdir(f.ran), []);
 });
+
+test("S-52 a writer's work tree holding an initialized submodule is not removed, and the submodule's changes stay", async t => {
+  const f = await fixture(t);
+  const port = createGitWorktreePort(f.root), created = await port.create("held", (await port.preview("held")).base_commit);
+  const directory = path.join(f.root, created.directory), inner = path.join(directory, "inner");
+  await f.git(directory, "-c", "protocol.file.allow=always", "submodule", "update", "--init", "-q");
+  await f.git(inner, "config", "filter.inner.clean", await f.helper("inner-filter"));
+  await writeFile(path.join(inner, "inner.txt"), "INNER\n");
+  // The Host's status no longer opens the submodule; Git itself refuses to remove a work tree that holds one.
+  await assert.rejects(port.remove(created));
+  assert.equal(await readFile(path.join(inner, "inner.txt"), "utf8"), "INNER\n", "the submodule's uncommitted change is still there");
+  assert.equal((await port.list()).length, 1);
+  assert.deepEqual(await readdir(f.ran), [], "the submodule's filter did not run");
+});

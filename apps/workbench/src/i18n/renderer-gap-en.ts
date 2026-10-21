@@ -557,4 +557,5 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "拿起": "Pick up",
   // The account a connected document source reads with (home model settings, the side panel's import, Jelly).
   "账号连接": "Account connection",
+  "用它自己的工具与 MCP，在 Coding 里设置": "Uses its own tools and MCP, set up in Coding",
 };

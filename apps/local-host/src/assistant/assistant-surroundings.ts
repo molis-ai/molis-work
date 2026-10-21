@@ -1,4 +1,5 @@
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { AgentMcpServerView, AgentMcpToolRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantWorkConnection, AssistantWorkGit, AssistantWorkSurroundings } from "@molis-ai/molis-work-contracts/services/assistant";
 import { workspaceReadActions, type WorkspaceGitResult } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { connectorManagementActions, type ManagedConnectorView } from "../connector-management-actions.js";
@@ -24,7 +25,9 @@ export interface SurroundingsPorts extends Pick<AssistantServicePorts, "personAc
  * - 工作环境: the work's scope; for a work Coding carries, the session's directory (Coding's `state` and `sessions.read`) and
  *   that directory's repository (`projects.workspace.git.inspect`, a summary). A remote's address is shown as owner/name only.
  * - 连接: the person's connections (`connectors.connections.read`), each by its own status.
- * - 工具: what the work's executor can call now, the same discovery its rounds use, split as a round's directory splits it.
+ * - 工具: what the work's executor can call now, the same discovery its rounds use, split as a round's directory splits it;
+ *   for Coding, the MCP tools chosen for its session (`sessions.read`), each live only while its server is on, connected
+ *   and still offers it (`state`), the way Coding's own run checks them.
  * A part that cannot be read says why; the others still answer.
  */
 export function assistantSurroundings(store: AssistantStore, ports: SurroundingsPorts, actorId: string) {
@@ -42,18 +45,27 @@ export function assistantSurroundings(store: AssistantStore, ports: Surroundings
 
 const why = (error: unknown) => (error instanceof Error ? error.message : String(error)).replace(/\s+/g, " ").trim().slice(0, 200);
 
+type CodingSetup = Awaited<ReturnType<CodingExecutor["setup"]>> & { actions: PersonActions };
+
 async function read(work: StoredWork, ports: SurroundingsPorts): Promise<AssistantWorkSurroundings> {
-  const [environment, connections, tools] = await Promise.all([environmentOf(work, ports), connectionsOf(ports), toolsOf(work, ports)]);
+  // A Coding work's directory and its tools come from the same two reads of Coding, asked once for both groups.
+  const coding = work.executor.kind === "coding" && work.executor.session_id && ports.personActions ? codingSetup(work.executor.session_id, ports.personActions(work)) : null;
+  coding?.catch(() => undefined);
+  const [environment, connections, tools] = await Promise.all([environmentOf(work, ports, coding), connectionsOf(ports), toolsOf(work, ports, coding)]);
   return { environment, ...connections, tools, read_at: new Date().toISOString() };
 }
 
-async function environmentOf(work: StoredWork, ports: SurroundingsPorts): Promise<AssistantWorkSurroundings["environment"]> {
+async function codingSetup(sessionId: string, person: Promise<PersonActions>): Promise<CodingSetup> {
+  const actions = await person;
+  return { ...await new CodingExecutor(actions).setup(sessionId), actions };
+}
+
+async function environmentOf(work: StoredWork, ports: SurroundingsPorts, coding: Promise<CodingSetup> | null): Promise<AssistantWorkSurroundings["environment"]> {
   const scope: AssistantWorkSurroundings["environment"]["scope"] = work.scope.kind === "project"
     ? { kind: "project", project_id: work.scope.project_id, title: work.scope_title ?? await ports.projectTitle?.(work.scope.project_id).catch(() => null) ?? null } : { kind: "personal" };
-  if (work.executor.kind !== "coding" || !work.executor.session_id || !ports.personActions) return { scope };
+  if (!coding) return { scope };
   try {
-    const actions = await ports.personActions(work);
-    const workspace = await new CodingExecutor(actions).workspace(work.executor.session_id);
+    const { workspace, actions } = await coding;
     return { scope, coding: { workspace: workspace && { name: workspace.name, path: workspace.path }, git: workspace ? await gitOf(actions, workspace.workspace_id) : null } };
   } catch (error) { return { scope, coding: { workspace: null, git: null, problem: why(error) } }; }
 }
@@ -93,8 +105,34 @@ async function connectionsOf(ports: SurroundingsPorts): Promise<Pick<AssistantWo
   } catch (error) { return { connections: [], connections_problem: why(error) }; }
 }
 
-async function toolsOf(work: StoredWork, ports: SurroundingsPorts): Promise<AssistantWorkSurroundings["tools"]> {
-  if (work.executor.kind === "coding") return { executor: "coding", callable: [], unavailable: [] };
+/**
+ * Why a chosen MCP tool cannot be called now, or "" when it can: its server is gone, off, not connected, or no longer offers
+ * it. In Chinese, the page translates it: the Host holds a read for a few seconds without a language.
+ */
+function mcpBlocked(ref: AgentMcpToolRef, servers: readonly AgentMcpServerView[]) {
+  const server = servers.find(one => one.id === ref.server);
+  if (!server) return "这个服务的配置已移除";
+  if (!server.enabled) return "服务已关闭";
+  if (server.health === "disconnected") return "服务未连接";
+  if (server.health === "unavailable") return "服务连接不可用";
+  if (server.health === "not-reattached") return "服务需要重新连接";
+  return server.tools.some(tool => tool.tool === ref.tool && (!ref.version || tool.version === ref.version)) ? "" : "服务里已没有这个工具";
+}
+
+async function codingTools(coding: Promise<CodingSetup>): Promise<AssistantWorkSurroundings["tools"]> {
+  try {
+    const { mcp } = await coding, counts = new Map<string, number>(), unavailable: AssistantWorkSurroundings["tools"]["unavailable"] = [];
+    for (const ref of mcp.chosen) {
+      const provider = mcp.servers.find(one => one.id === ref.server)?.label ?? ref.server_label ?? ref.server, reason = mcpBlocked(ref, mcp.servers);
+      if (reason) unavailable.push({ title: ref.tool, provider, reason });
+      else counts.set(provider, (counts.get(provider) ?? 0) + 1);
+    }
+    return { executor: "coding", callable: [...counts].map(([provider, count]) => ({ provider, count })), unavailable: unavailable.slice(0, UNAVAILABLE_SHOWN) };
+  } catch (error) { return { executor: "coding", callable: [], unavailable: [], problem: why(error) }; }
+}
+
+async function toolsOf(work: StoredWork, ports: SurroundingsPorts, coding: Promise<CodingSetup> | null): Promise<AssistantWorkSurroundings["tools"]> {
+  if (work.executor.kind === "coding") return coding ? codingTools(coding) : { executor: "coding", callable: [], unavailable: [] };
   try {
     const authority = await ports.authority(work);
     const { offered, unavailable } = agentActions(authority.actions ? await (await authority.actions(RUNTIME)).discover() : [], Number.MAX_SAFE_INTEGER);

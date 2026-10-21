@@ -22,19 +22,21 @@ export const TEXT_WRAP_AUDIT = `(() => {
     return rows.sort((a, b) => a.top - b.top); };
   const name = (el) => el.tagName.toLowerCase() + (el.className && typeof el.className === 'string' ? '.' + el.className.trim().split(/\\s+/).slice(0, 2).join('.') : '');
   const skip = 'pre, code, kbd, samp, textarea, input, select, svg, [contenteditable=true], .mw-sr-only, [data-overflow-fade]';
-  for (const el of document.querySelectorAll('h1, h2, h3, [role=heading]')) {
+  // An open dialog or menu marked data-audit-scope is read alone.
+  const scope = document.querySelector('[data-audit-scope]') || document.body;
+  for (const el of scope.querySelectorAll('h1, h2, h3, [role=heading]')) {
     if (!shown(el) || el.closest(skip)) continue; const rows = lines(el); if (rows.length < 2) continue;
     const widest = Math.max(...rows.map(r => r.right - r.left)), last = rows.at(-1);
     if ((last.right - last.left) < widest / 3) issues.push({ kind: 'heading', at: name(el), text: el.textContent.trim().slice(0, 60), last: last.text.trim() });
   }
-  for (const el of document.querySelectorAll('p, li, blockquote, figcaption')) {
+  for (const el of scope.querySelectorAll('p, li, blockquote, figcaption')) {
     if (!shown(el) || el.closest(skip)) continue; const rows = lines(el); if (rows.length < 2) continue;
     const last = rows.at(-1).text.trim();
     if (/^[\\u3400-\\u9fff][\\u3000-\\u303f\\uff00-\\uffef]*$/.test(last)) issues.push({ kind: 'orphan', at: name(el), text: el.textContent.trim().slice(0, 60), last });
   }
   const clip = (el) => { for (let node = el.parentElement; node; node = node.parentElement) { const style = getComputedStyle(node);
     if (/auto|scroll/.test(style.overflowX)) return null; if (style.overflowX !== 'visible') return node; } return null; };
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); const range = document.createRange();
+  const walker = document.createTreeWalker(scope, NodeFilter.SHOW_TEXT); const range = document.createRange();
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const el = node.parentElement; if (!el || !node.data.trim() || el.closest(skip) || !shown(el)) continue;
     const box = clip(el); if (!box) continue;

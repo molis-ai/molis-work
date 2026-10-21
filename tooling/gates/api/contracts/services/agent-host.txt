@@ -859,7 +859,7 @@ export interface AgentReviewRequest {
     } | {
         operation_id: string;
         workspace_id: string;
-        kind: "git-index" | "git-worktree" | "git-integration" | "git-operation";
+        kind: PluginReviewKind;
         session_id?: never;
     };
     project_id: string;
@@ -1502,6 +1502,12 @@ export interface InferenceTokenCount {
 }
 
 export type InferenceUsageSource = "reported" | "estimated" | "unknown";
+
+export declare const PLUGIN_REVIEW_KINDS: readonly ["git-index", "git-operation", "git-worktree", "git-integration"];
+
+export declare const PLUGIN_REVIEW_PERMISSION_PREFIX = "review:";
+
+export type PluginReviewKind = (typeof PLUGIN_REVIEW_KINDS)[number];
 
 export declare const agentHostCapabilities: {
     readonly listActions: HostCapabilityDefinition<[runtimeId: string, pluginId: string], readonly ActionView[]>;

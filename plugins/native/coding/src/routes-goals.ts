@@ -77,7 +77,7 @@ const ROUTES: RouteMaker[] = [
         if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
         saveGoalContext(context, record.session_id, value);
       }
-      const session = execution.sessions.setGoal(projectId, record.session_id, goalId, new Date().toISOString());
+      const session = await execution.sessions.setGoal(beforeWrite, projectId, record.session_id, goalId, new Date().toISOString());
       if (!goalId) context.services!.storage!.delete(`goal-context:${record.session_id}`);
       return { session, selected: goalId ? savedGoalContext(context, record.session_id) : null };
     });

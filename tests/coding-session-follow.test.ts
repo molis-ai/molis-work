@@ -6,23 +6,23 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ensureProjectPlugins } from "../apps/local-host/dist/project-plugins.js";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
-for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as const) test(`Coding background follower ${mode}`, { timeout: 30_000 }, async () => {
+for (const mode of ["normal", "stop", "cancel-receipt", "revoke-receipt"] as const) test(`Coding background follower ${mode}${mode === "stop" ? " (W5-01-CODING-21: a stopped follower writes no state)" : mode.endsWith("-receipt") ? " (W5-01-CODING-19: a refused caller saves no running state)" : ""}`, { timeout: 30_000 }, async () => {
   const stop = mode === "stop", interruptedReceipt = mode === "cancel-receipt" || mode === "revoke-receipt";
   const controller = new AbortController(); let valid = true;
   const assertCurrent = () => { controller.signal.throwIfAborted(); if (!valid) throw new ActionError("actions.forbidden", "original call revoked"); };
   const root = mkdtempSync(join(tmpdir(), "coding-follow-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: new Date().toISOString() });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "s", "sdk", new Date().toISOString());
+  const sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s", title: "会话", runtime_id: "prologue", at: new Date().toISOString() });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "s", "sdk", new Date().toISOString());
   const phases = ["running", "awaiting-review", "completed"];
   const seenStates: string[] = [];
   let waits = 0;

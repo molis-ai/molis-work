@@ -4,29 +4,30 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 import { codingBackgroundTasks } from "../apps/local-host/dist/coding-background-tasks.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
-test("the background list shows Coding sessions under way or waiting in every project, and marks ones from before a restart", () => {
+test("the background list shows Coding sessions under way or waiting in every project, and marks ones from before a restart", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-background-"));
   try {
-    const project = (name: string, sessions: Array<[string, string, string, { mine: number; subtasks: number; unowned: number }?]>) => {
+    const project = async (name: string, sessions: Array<[string, string, string, { mine: number; subtasks: number; unowned: number }?]>) => {
       const path = join(root, `${name}.db`); seedDemoBoard(path);
-      const store = new LocalProjectDatabase(path), coding = new CodingSessionStore(store.db);
+      const store = new LocalProjectDatabase(path), coding = codingSessions(store);
       for (const [id, state, at, steps] of sessions) {
-        coding.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `${name} ${id}`, runtime_id: "prologue", at });
-        coding.setState(DEMO_PROJECT_ID, id, state as never, at);
-        if (steps) coding.setSteps(DEMO_PROJECT_ID, id, steps);
+        await coding.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `${name} ${id}`, runtime_id: "prologue", at });
+        await coding.setState(noEffect, DEMO_PROJECT_ID, id, state as never, at);
+        if (steps) await coding.setSteps(noEffect, DEMO_PROJECT_ID, id, steps);
       }
       store.close();
       return path;
     };
     const started = "2026-09-26T10:00:00.000Z";
-    const alpha = project("alpha", [["a1", "running", "2026-09-26T11:00:00.000Z", { mine: 0, subtasks: 2, unowned: 0 }], ["a2", "done", "2026-09-26T11:30:00.000Z"],
+    const alpha = await project("alpha", [["a1", "running", "2026-09-26T11:00:00.000Z", { mine: 0, subtasks: 2, unowned: 0 }], ["a2", "done", "2026-09-26T11:30:00.000Z"],
       ["a3", "waiting-approval", "2026-09-26T11:10:00.000Z"],
       // The round ended, but the person holds one of its open steps: it waits on them. One with only a subtask's step does not.
       ["a4", "done", "2026-09-26T11:20:00.000Z", { mine: 1, subtasks: 0, unowned: 0 }], ["a5", "done", "2026-09-26T11:25:00.000Z", { mine: 0, subtasks: 1, unowned: 1 }]]);
-    const beta = project("beta", [["b1", "running", "2026-09-26T09:00:00.000Z"], ["b2", "reconcile-required", "2026-09-26T08:00:00.000Z"], ["b3", "idle", "2026-09-26T12:00:00.000Z"]]);
+    const beta = await project("beta", [["b1", "running", "2026-09-26T09:00:00.000Z"], ["b2", "reconcile-required", "2026-09-26T08:00:00.000Z"], ["b3", "idle", "2026-09-26T12:00:00.000Z"]]);
     // A project that never used Coding has no such table; a missing or unreadable file lists nothing.
     const plain = join(root, "plain.db"); seedDemoBoard(plain);
     const broken = join(root, "broken.db"); writeFileSync(broken, "not a database");

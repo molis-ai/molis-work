@@ -5,13 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { fakeKnowledgeReader, pluginActions } from "./fixtures/plugin-actions.js";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { createRequire } from "node:module";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 // The SDK's own delivery box stands behind the messages capability: its rules, not a copy of them, decide each move.
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createDeliveryBox } = await import(requireSdk.resolve("@prologue/sdk"));
@@ -19,7 +19,7 @@ const { createDeliveryBox } = await import(requireSdk.resolve("@prologue/sdk"));
 test("委派与交付走会话间的信：只由对应一方推进，发送即开始，交付可退回再交，收下后成为下一轮材料；结束后的答复只记录；重启后回执不变；旧记录只读", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-cooperation-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
+  await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "A", title: "发起的会话", runtime_id: "prologue", at: new Date().toISOString() });
   const at = new Date().toISOString(), runs = new Map<string, { ref: { session_id: string; run_id: string } }>();
   const box = createDeliveryBox({ newId: () => crypto.randomUUID(), canReceive: () => true });
   const made: string[] = [], session = (id: string) => ({ kind: "session", id, revision: 1 }), letter = (id: string) => ({ kind: "envelope", id, revision: 1 });

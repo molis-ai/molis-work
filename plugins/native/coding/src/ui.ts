@@ -99,6 +99,20 @@ export const codingUiContribution: UiContribution<CodingUiModel> = {
   },
 };
 
+/** What the Host hands Coding's page when it renders: everything but the session directory, which Coding reads from its own tables. */
+export type CodingUiHostModel = Omit<CodingUiModel, "sessions">;
+
+/**
+ * Coding's page as one started plugin gives it: the session directory is read from the plugin's own store (`directory`) each time
+ * the page renders, so the Host never reads Coding's tables to draw it (PG-091, V-14).
+ */
+export function codingUiView(directory: () => readonly CodingSessionEntry[]): UiContribution<CodingUiHostModel> {
+  return {
+    descriptor: codingUiDescriptor,
+    render: request => codingUiContribution.render({ ...request, model: { ...request.model, sessions: directory() } }),
+  };
+}
+
 export function renderCodingDirectory(model: CodingUiModel): string {
   const { primitives: p } = model;
   const faces = CODING_DIRECTORY_FACES.map((face) => `<button type="button" class="mw-toggle coding-face" data-coding-face="${face.face}" aria-pressed="${face.face === model.face}" title="${p.escape(face.label)}" aria-label="${p.escape(face.label)}">${p.icon(face.icon)}</button>`).join("");

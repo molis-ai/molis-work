@@ -6,20 +6,20 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationSessionView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
 import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/prologue-adoption §4.6.10: the Host keeps the wait on the session's step; the plugin keeps the queued send and starts it once the step may go on.
 test("a round told to wait for another session's work waits on it, starts on its own when that work is done, waits for the person when it is not, can be given up, and a start refused (revoked, cancelled) writes nothing", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-queued-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });
+  const sessions = codingSessions(store), at = new Date().toISOString();
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改标签格式", runtime_id: "prologue", at });
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "b", title: "标签加前缀", runtime_id: "prologue", at });
   const work: any[] = [{ work_id: "wa", session_id: "sdk-a", run_id: "ra", title: "改标签格式", task: "改 src/label.ts 的格式", state: "running", directory: root, paths: ["src/label.ts"], updated_at_ms: 1 }];
   // The Host's side, as the plugin sees it: each session's wait and its step's continuation (the task graph's, not the plugin's).
   const waits: Array<Required<Pick<AgentCollaborationSessionView, "wait" | "continuation">> & { session_id: string }> = [], calls: Array<[string, unknown]> = [];
@@ -112,8 +112,8 @@ test("a round told to wait for another session's work waits on it, starts on its
     // wait up is first set off by the person's send below, inside that send's action. It belongs to the activation and
     // keeps starting rounds and writing after the send has returned (S-18).
     assert.equal((await call("/sessions/b")).status, 200);
-    sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at); sessions.setState(DEMO_PROJECT_ID, "a", "running", at);
-    sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
+    await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "a", "sdk-a", at); await sessions.setState(noEffect, DEMO_PROJECT_ID, "a", "running", at);
+    await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "b", "sdk-b", at);
     // Before sending: A is working on the same file in the same directory.
     const check = await call("/sessions/b/scope-check", send);
     assert.equal(check.status, 200, JSON.stringify(check.body));

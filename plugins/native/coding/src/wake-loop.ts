@@ -26,8 +26,6 @@ export interface CodingWakeDeps<Execution> {
   detach(run: () => void): void;
   records(execution: Execution): CodingSessionRecord[];
   record(execution: Execution, sessionId: string): CodingSessionRecord;
-  /** The activation's own execution ports, which a loop started from a request reads and starts with. */
-  activation(execution: Execution): Execution;
   startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution, beforeWrite?: CodingBeforeWrite): Promise<unknown>;
 }
 
@@ -99,10 +97,10 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   /**
    * One loop per runtime: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up.
    * It belongs to the activation, not to the request that started it: it reads and starts with the activation's own
-   * capabilities and execution ports.
+   * capabilities and execution (the same object for every request, route-entry.ts).
    */
-  const wakeLoop = (_api: Capabilities, from: Execution, runtimeId: string) => {
-    const api = context.services!.capabilities!, execution = deps.activation(from);
+  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string) => {
+    const api = context.services!.capabilities!;
     if (waking.has(runtimeId) || deps.stopped.aborted) return;
     waking.add(runtimeId);
     deps.detach(() => void (async () => {

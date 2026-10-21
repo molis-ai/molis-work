@@ -11,15 +11,16 @@ import { SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime"
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
-import { CodingSessionStore, createCodingPlugin, codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingPlugin, codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 // W2-18-CODING-EFFECT-01: production action/route, Host capability bridge, SDK read and both owner stores.
 for (const output of ["report", "changeset", "plan"] as const) for (const stop of ["cancel", "revoke", "replace"] as const)
-  test(`Coding ${output} has no late commit after ${stop} during a real SDK read`, { timeout: 30_000 }, async t => {
+  test(`Coding ${output} has no late commit after ${stop} during a real SDK read${output === "plan" ? " (W5-01-CODING-18: the plan row of the session library too)" : ""}`, { timeout: 30_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), "coding-effect-")); seedDemoBoard(join(home, "project.db")); const store = new LocalProjectDatabase(join(home, "project.db"));
-    const sessions = new CodingSessionStore(store.db), service = new ActionService(), reviews = new AgentReviewQueue(), agentHost = new AgentHost({ reviews });
+    const sessions = codingSessions(store), service = new ActionService(), reviews = new AgentReviewQueue(), agentHost = new AgentHost({ reviews });
     const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-effect-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" }); agentHost.register(adapter);
     const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: join(home, "project.db") };
@@ -45,12 +46,12 @@ for (const output of ["report", "changeset", "plan"] as const) for (const stop o
     });
     const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: null,
       actions: { registry: service, client: service, project_id: DEMO_PROJECT_ID }, capabilities: local.client(reference), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
-    await platform.start([{ definition: createCodingPlugin({ execution: { sessions, goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "storage:private", "workspace:read"] }]);
+    await platform.start([{ definition: createCodingPlugin({ execution: { goalTitle: () => undefined, ready: async () => {}, models: async () => [{ provider_id: "fixture", model_id: "fixture", label: "Fixture" }] } }), grants: ["goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "storage:private", "workspace:read"] }]);
     t.after(async () => { releaseRead(); await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
       await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
     t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "Fixture plan", steps: [{ title: "Read fixture", acceptance: "Keep source" }], blockers: "", change_reason: "" })));
     const router = platform.router(), path = "/api/plugins/io.molis.work.coding/sessions/app";
-    sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "Fixture", runtime_id: "prologue", at: new Date().toISOString() });
+    await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "Fixture", runtime_id: "prologue", at: new Date().toISOString() });
     const started = await router.dispatch({ method: "POST", pathname: path + "/runs", actor_id: "web-user", body: { task: "Plan the fixture", intent: "plan", workspace_id: "work", provider_id: "fixture", model_id: "fixture" } });
     assert.equal(started?.status, 200, JSON.stringify(started?.body)); const run = (started!.body as { run: { ref: AgentRunRef } }).run.ref;
     await new Promise<void>((resolve, reject) => { let off = () => {}; const timer = setTimeout(() => reject(new Error("SDK planning did not finish")), 10_000);

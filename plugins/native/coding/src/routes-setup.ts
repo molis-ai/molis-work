@@ -132,7 +132,7 @@ const ROUTES: RouteMaker[] = [
       await beforeWrite(); beforeWrite.assert_current();
       if (current?.confirmed && !proposal.content.change_reason) throw new Error("调整已确认计划时，请说明变更理由");
       if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
-      const plan = execution.sessions.savePlan(projectId, record.session_id, Number(expected), {
+      const plan = await execution.sessions.savePlan(beforeWrite, projectId, record.session_id, Number(expected), {
         ...proposal, revision: Number(expected) + 1, confirmed: null,
       });
       return { plan };
@@ -140,7 +140,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, busy, route } = a;
-    return route("coding.confirm-plan", async (request, _api, execution) => {
+    return route("coding.confirm-plan", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), draft = execution.sessions.plan(projectId, record.session_id);
       if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后确认下一版计划");
       if (!draft || draft.revision !== bodyOf(request).expected_revision) throw new Error("计划已变化，请重新查看当前修订");
@@ -154,7 +154,7 @@ const ROUTES: RouteMaker[] = [
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);
       if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
-      return { plan: execution.sessions.confirmPlan(projectId, record.session_id, fixed) };
+      return { plan: await execution.sessions.confirmPlan(beforeWrite, projectId, record.session_id, fixed) };
     });
   },
   (a) => {

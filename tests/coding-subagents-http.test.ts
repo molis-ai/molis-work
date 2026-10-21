@@ -6,13 +6,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test('Coding child controls bind original run, keep acceptance separate, reject stale and foreign requests',async()=>{
   const home=mkdtempSync(join(tmpdir(),'coding-child-http-')),dbPath=join(home,'board.db');seedDemoBoard(dbPath);let store=new LocalProjectDatabase(dbPath);
-  const sessions=new CodingSessionStore(store.db);sessions.create({project_id:DEMO_PROJECT_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});sessions.setRuntimeSession(DEMO_PROJECT_ID,'app','sdk',new Date().toISOString());
+  const sessions=codingSessions(store);await sessions.create(noEffect, {project_id:DEMO_PROJECT_ID,session_id:'app',title:'App',runtime_id:'prologue',at:new Date().toISOString()});await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID,'app','sdk',new Date().toISOString());
   let state='running',cancels=0;
   const host=()=>({store,homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:pluginActions(store,DEMO_PROJECT_ID),actorId:'web-user',goalTitle:()=>undefined,escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
     execution:{ready:async()=>{},models:async()=>[]},capabilities:{async invoke<I,O>(definition:{capability_id:string},args:I):Promise<O>{

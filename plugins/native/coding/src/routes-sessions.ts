@@ -3,9 +3,9 @@ import { characterSelection, characterSkillSelection } from "./characters.js";
 import { materialSelection } from "./materials.js";
 import { confirmedPlan } from "./plans.js";
 import { type Capabilities, type CodingActivation, selected, sessionState, priorityOf } from "./route-activation.js";
-import { codingActionControl } from "./route-entry.js";
+import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { bodyOf, methodSelection, mcpSelection, mcpSources, unlessMissing } from "./route-selections.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import type { CodingExecution } from "./routes.js";
 import { nextConfiguration, runControl, text } from "./run-inputs.js";
 import { projectRuntime, requireProjectRuntime, supports } from "./runtime-choice.js";
 import { DEFAULT_SESSION_TITLE, codingSessionTitleFrom } from "./session-title.js";
@@ -24,7 +24,8 @@ const codingRunErrors = defineErrorCodes("coding", { run_not_found: "not_found",
 /** Coding routes for sessions and their rounds: the directory, creating and changing a session, starting, queueing and steering a round. */
 
   // The directory a page shows: every session's current state, with what a new round needs. Read by coding.state.
-const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecutionPorts) => {
+// The recorded states it brings up to date are written with the `beforeWrite` of the call that runs the read (one read serves every page that asks).
+const readState = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => {
   const { context, projectId } = a;
   const runtimes = await api.invoke(agent.listRuntimes, []);
   // Every session's standing in one Host call per runtime, rather than one queued read per session.
@@ -36,12 +37,13 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     catch (error) { for (const id of ids) statuses.set(`${runtimeId}:${id}`, { session_id: id, error: error instanceof Error ? error.message : "会话暂不可读" }); }
   }
   // Parked sessions, from the SDK; the loop that takes fired waits up is (re)started here, after a restart too.
-  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId);
+  const parked = new Map<string, CodingWaitView>(), backgroundUnreadable = await codingBackgroundState(api, records, execution.sessions, projectId, beforeWrite);
   for (const runtimeId of new Set(records.filter(record => record.runtime_session_id).map(record => record.runtime_id))) {
     try { for (const [session, wait] of await a.waits.openWaits(runtimeId)) parked.set(`${runtimeId}:${session}`, wait); } catch { /* shown as not waiting */ }
     a.waits.wakeLoop(api, execution, runtimeId);
   }
-  const sessions = records.map(record => {
+  // One session after the other: each recorded state is its own write, and the writes keep the order the sessions are listed in.
+  const describe = async (record: CodingSessionRecord) => {
     const background_unreadable = backgroundUnreadable.has(record.runtime_id);
     let checkpointBusy = false, steps = execution.sessions.stepsOf(projectId, record.session_id);
     // A parked session waits whatever its last round did — unless a round is under way right now.
@@ -49,7 +51,7 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
     const status = record.runtime_session_id ? statuses.get(`${record.runtime_id}:${record.runtime_session_id}`) : undefined;
     const active = status && !("error" in status) && status.latest_phase && !isTerminalAgentPhase(status.latest_phase);
     if (wait && !active) {
-      if (record.state !== "queued") record = execution.sessions.setState(projectId, record.session_id, "queued", record.updated_at);
+      if (record.state !== "queued") record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", record.updated_at);
       return { ...record, background_unreadable, checkpoint_busy: false, ...(steps ? { steps } : {}), queued: a.waits.waitView(wait),
         goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
     }
@@ -58,17 +60,19 @@ const readState = async (a: CodingActivation, api: Capabilities, execution: Codi
       if (status && !("error" in status)) {
         checkpointBusy = status.checkpoint_busy;
         const read = status.steps ?? null;
-        if (JSON.stringify(read) !== JSON.stringify(steps)) { execution.sessions.setSteps(projectId, record.session_id, read); steps = read; }
+        if (JSON.stringify(read) !== JSON.stringify(steps)) { await execution.sessions.setSteps(beforeWrite, projectId, record.session_id, read); steps = read; }
         const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";
-        if (next !== record.state) record = execution.sessions.setState(projectId, record.session_id, next, record.updated_at);
+        if (next !== record.state) record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, next, record.updated_at);
       } else if (record.state !== "reconcile-required") {
         // One unreadable ledger must not hide other sessions or make the
         // directory call completed work safe to continue.
-        record = execution.sessions.setState(projectId, record.session_id, "reconcile-required", record.updated_at);
+        record = await execution.sessions.setState(beforeWrite, projectId, record.session_id, "reconcile-required", record.updated_at);
       }
     }
     return { ...record, background_unreadable, checkpoint_busy: checkpointBusy, ...(steps ? { steps } : {}), ...(priorityOf(a, record.session_id) ? { priority: true } : {}), goal_title: record.goal_id ? execution.goalTitle(record.goal_id) ?? null : null };
-  });
+  };
+  const sessions = [];
+  for (const record of records) sessions.push(await describe(record));
   // The methods and MCP servers are the project's Runtime's, and only what its own capability matrix offers (PG-054).
   const { runtime: library } = projectRuntime(runtimes);
   const methods = library && supports(library, "skills") ? await api.invoke(agent.listSkills, [library.runtime_id, context.plugin_id]) : [];
@@ -91,7 +95,7 @@ const directoryOf = async (api: Capabilities, workspaceId: unknown) => {
   return workspace.canonical_path;
 };
 /** Other sessions' work that overlaps what a send names: its text, and its plan's steps when it runs one. */
-const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecutionPorts, record: CodingSessionRecord, body: Record<string, unknown>) => {
+const overlapsFor = async (a: CodingActivation, api: Capabilities, execution: CodingExecution, record: CodingSessionRecord, body: Record<string, unknown>) => {
   const { context, projectId } = a;
   const directory = await directoryOf(api, body.workspace_id);
   const draft = body.plan_revision !== undefined ? execution.sessions.plan(projectId, record.session_id) : null;
@@ -111,11 +115,11 @@ type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBindi
 const ROUTES: RouteMaker[] = [
   (a) => {
     const { route } = a;
-    return route("coding.state", async (_request, api, execution) => {
+    return route("coding.state", async (_request, api, execution, beforeWrite) => {
       // Every open page polls this, and each read asks the Host about every session, one call at a time in the
       // project's queue. However many pages ask, one read runs and at most one waits behind it; a request that arrives
       // mid-read gets the next one, so it still sees what was just changed. Each caller gets its own copy.
-      const run = () => { a.state.read = readState(a, api!, execution).finally(() => { a.state.read = null; }); return a.state.read; };
+      const run = () => { a.state.read = readState(a, api!, execution, beforeWrite).finally(() => { a.state.read = null; }); return a.state.read; };
       if (!a.state.read) return structuredClone(await run());
       a.state.next ??= a.state.read.catch(() => undefined).then(() => { a.state.next = null; return a.state.read ?? run(); });
       return structuredClone(await a.state.next);
@@ -123,11 +127,11 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { projectId, route } = a;
-    return route("coding.create-session", async (request, api, execution) => {
+    return route("coding.create-session", async (request, api, execution, beforeWrite) => {
       const body = bodyOf(request);
       // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
       const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
-      const record = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(),
+      const record = await execution.sessions.create(beforeWrite, { project_id: projectId, session_id: crypto.randomUUID(),
         title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };
     });
@@ -182,7 +186,7 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, projectId, busy, route } = a;
-    return route("coding.update-session", async (request, api, execution) => {
+    return route("coding.update-session", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
       const body = bodyOf(request);
       if (body.archive === true) {
@@ -195,7 +199,7 @@ const ROUTES: RouteMaker[] = [
           }
         }
         if (busy.has(record.session_id)) throw Object.assign(new Error("会话正在提交任务，请稍后归档"), { code: "agent.session_busy" });
-        return { session: execution.sessions.archive(projectId, record.session_id, new Date().toISOString()) };
+        return { session: await execution.sessions.archive(beforeWrite, projectId, record.session_id, new Date().toISOString()) };
       }
       if (record.archived) throw new Error("会话已归档，不能再修改");
       const materials = body.materials === undefined ? undefined : materialSelection(body.materials);
@@ -231,7 +235,7 @@ const ROUTES: RouteMaker[] = [
       }
       const title = body.title === undefined ? undefined : text(body.title, "会话名称");
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
-      return { session: title === undefined ? record : execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString()) };
+      return { session: title === undefined ? record : await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString()) };
     });
   },
   (a) => {
@@ -253,15 +257,15 @@ const ROUTES: RouteMaker[] = [
           const identity = { project_id: projectId, plugin_id: context.plugin_id, install_id: context.install_id, actor_id: request.actor_id };
           const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
             : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory: { canonical_path: directory, realpath_verified: true }, title: record.title }]);
-          if (!record.runtime_session_id) execution.sessions.setRuntimeSession(projectId, record.session_id, session.session_id, new Date().toISOString());
+          if (!record.runtime_session_id) await execution.sessions.setRuntimeSession(beforeWrite, projectId, record.session_id, session.session_id, new Date().toISOString());
           const task = typeof body.task === "string" && body.task.trim() ? body.task : "（按计划执行）";
           const title = record.title === DEFAULT_SESSION_TITLE ? codingSessionTitleFrom(task) : record.title;
-          if (title !== record.title) execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString());
+          if (title !== record.title) await execution.sessions.rename(beforeWrite, projectId, record.session_id, title, new Date().toISOString());
           const { wait_for: _dropped, ...rest } = body;
           // The session's step waits on that work; the send is kept here, by the wait, to start when the work is done.
           const item = await api!.invoke(agent.queueProjectRound, [record.runtime_id, { session, directory, task, after: target.work_id, title }]);
           if (item.wait_id) a.waits.keepQueued(item.wait_id, rest, request.actor_id, item.work_id);
-          execution.sessions.setState(projectId, record.session_id, "queued", new Date().toISOString());
+          await execution.sessions.setState(beforeWrite, projectId, record.session_id, "queued", new Date().toISOString());
           a.waits.wakeLoop(api!, execution, record.runtime_id);
           return { queued: { work_id: item.work_id, ...(item.wait_id ? { wait_id: item.wait_id } : {}), after: target } };
         }
@@ -288,7 +292,7 @@ const ROUTES: RouteMaker[] = [
       if (action === "cancel") {
         // Giving up a wait for an answer withdraws the request; for the person's own wait, its project work item goes.
         await a.waits.cancel(api, record, wait, beforeWrite);
-        execution.sessions.setState(projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
+        await execution.sessions.setState(beforeWrite, projectId, record.session_id, record.runtime_session_id ? "done" : "idle", new Date().toISOString());
         return { cancelled: true };
       }
       if (action !== "start") throw new Error("请选择现在开始或取消等待");

@@ -40,6 +40,7 @@ export {
   CODING_SETTINGS_UI_CONTRIBUTION_ID,
   CODING_UI_CONTRIBUTION_ID,
   codingUiContribution,
+  codingUiView,
   codingUiDescriptor,
   codingSettingsContribution,
   codingSettingsDescriptor,
@@ -58,6 +59,7 @@ export {
   type CodingUsageModel,
   type CodingReviewCardModel,
   type CodingUiModel,
+  type CodingUiHostModel,
   type CodingUiPrimitives,
   type CodingUiSurface,
 } from "./ui.js";
@@ -99,6 +101,7 @@ export {
   listCodingBackgroundSessions,
   toDirectoryEntries,
   type CodingBackgroundSession,
+  type CodingBeforeEffect,
   type CodingSessionRecord,
   type CodingSqliteDatabase,
   type CreateCodingSessionInput,
@@ -121,7 +124,7 @@ export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
-export type { CodingExecutionPorts, CodingModelChoice } from "./routes.js";
+export type { CodingExecution, CodingExecutionPorts, CodingModelChoice } from "./routes.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
   projectMcp,

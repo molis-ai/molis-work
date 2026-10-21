@@ -2698,6 +2698,20 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 - E2 浏览器页与终端页在对应 Capability 注册之前，显示为真实不可用。
 - E3 批准不等于已发生：`effect_settled` 要等真实回执。
 
+### G. 会话库走平台服务（2026-10-21，V-14，C1）
+
+会话表（`coding_sessions`、`coding_plan_drafts`，Manifest `databases.project`）归 Coding，只经宿主借给它的 `services.project_database` 读写：读是同步的 `get/all`，写只在 `transaction(beforeEffect, 同步体)` 里，平台在提交前再核一次原调用。宿主不再递原始库句柄（`CodingExecutionPorts.sessions` 已删），`apps/local-host/src/coding-surface.ts` 不再读 Coding 的表。关闭 `privileges.md` 的 V-14 和 PG-091 的原始库部分。
+
+1. **W5-01-CODING-15** 会话库的每一种写（建会话、改状态、开一轮、改名、归档、绑目标、记 runtime 会话、写步骤、写后台命令、存计划、确认计划）先等调用方的 `beforeEffect()`；被拒（撤权、取消、停用）就什么都不写，同一调用方式换成未被拒的调用则写入。用宿主真实的 `services.project_database` 证明。测试：`tests/coding-session-effect-control.test.ts`。
+2. **W5-01-CODING-16** 一次逻辑写动了几行，就是一个事务：一轮开始时的改名和置为运行中是一次提交，存计划和对会话的核对是一次提交；被拒或体内失败不留半截。测试：`tests/coding-session-effect-control.test.ts`。
+3. **W5-01-CODING-17** Coding 在 `start` 里用 `services.project_database` 自己建会话库；宿主没有借出这项服务时 `start` 失败，错误信息指明缺的是 `services.project_database`；有服务时它启动，路由写下的会话在项目库里，另一个客户端读得到。测试：`tests/coding-session-effect-control.test.ts`。
+4. **W5-01-CODING-18** 建会话、改名、归档、存计划的调用在提交前被取消或撤权，就不留会话、不改名、不归档、不改计划；一轮真实 SDK 读取途中被取消、撤权、被换掉提供方，计划行也不留。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-effect-control.test.ts`。
+5. **W5-01-CODING-19** 读一轮时顺手记下会话状态的调用，在提交前被取消或撤权，状态不被改写；后台跟随者带着被拒的调用，不存「运行中」。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-session-follow.test.ts`。
+6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给目标标题等宿主才知道的东西。测试：`tests/coding-surface.test.ts`。
+7. **W5-01-CODING-21** 激活停止之后，后台跟随者不再写会话状态。测试：`tests/coding-session-follow.test.ts`。
+
+说明：没有单独的「消息」表。一轮里的消息走 Agent 宿主，Coding 自己写的是会话状态（`setState`、`roundStarted`），由 15、16、19、21 覆盖。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |

@@ -6,16 +6,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("parallel assignment routes retain drafts, freeze trusted roots and task bodies, and reject revoked or foreign directories before execution", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-assignment-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "并行分工", runtime_id: "prologue", at: new Date().toISOString() });
+  await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "并行分工", runtime_id: "prologue", at: new Date().toISOString() });
   const roots = ["main", "writer-a", "writer-b", "foreign"].map(id => ({ workspace_id: id, canonical_path: join(root, id), realpath_verified: true }));
   let grants = roots.slice(), owned = roots.slice(1, 3).map((grant, i) => ({ ...grant, branch: `writer/${i}`, base_commit: "abc123" }));
   const starts: AgentStartRequest[] = []; let created = 0;

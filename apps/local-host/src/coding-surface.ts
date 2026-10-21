@@ -129,8 +129,8 @@ async function codingPanel(ports: CodingSurfacePorts, surface: "directory" | "wo
       sessions,
       tools: [],
       workspace_path: null,
-      companion_directory: renderFilesBrowserDirectory(L) + renderGitBrowserDirectory(),
-      companion_result: renderFilesBrowserResult(L) + renderGitBrowserResult(),
+      companion_directory: renderFilesBrowserDirectory(L) + renderGitBrowserDirectory(L),
+      companion_result: renderFilesBrowserResult(L) + renderGitBrowserResult(L),
       primitives: {
         escape: ports.escapeHtml,
         icon: (name) => icon(name as Parameters<typeof icon>[0]),
@@ -492,8 +492,8 @@ export async function codingCompanionStages(ports: CodingSurfacePorts, enabled: 
     const openWorkspace = `<a class="mw-btn mw-btn--ghost companion-manage" href="${escapeHtml(ports.routePrefix ?? "")}/settings/workspaces">${icon("folder-tree")}<span>${escapeHtml(L("工作目录设置"))}</span>${icon("chevron-right")}</a>`;
     let body: string;
     if (id === "files" || id === "git") {
-      const directory = id === "files" ? renderFilesBrowserDirectory(L) : renderGitBrowserDirectory();
-      const result = id === "files" ? renderFilesBrowserResult(L) : renderGitBrowserResult();
+      const directory = id === "files" ? renderFilesBrowserDirectory(L) : renderGitBrowserDirectory(L);
+      const result = id === "files" ? renderFilesBrowserResult(L) : renderGitBrowserResult(L);
       body = `<div class="companion-layout">${renderSidebar({className:"companion-directory",header:openWorkspace,body:directory})}<div class="companion-result">${renderEmpty({className:"companion-empty",icon:id === "files" ? "file" : "git-branch",title:L(id === "files" ? "打开文件，开始阅读" : "查看工作区的改动"),body:L(id === "files" ? "从目录选择文件，阅读内容、保存选区，或固定两份快照进行对比。" : "从目录选择一项改动，查看读取时的固定差异，再决定是否暂存。")})}${result}</div></div>`;
     } else {
       // Diff and Text Stats are plugin pages: the stage draws their heading and one sentence, the actions sit at the right,

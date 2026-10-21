@@ -148,7 +148,7 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
 for (const name of ["files", "git", "diff", "text-stats"]) {
   test(`${name} owns visible queries and listeners across hide, detach and remount`, { timeout: 30_000 }, async t => {
     const body = name === "files" ? renderFilesBrowserDirectory(pageText("zh")) + renderFilesBrowserResult(pageText("zh"))
-      : name === "git" ? renderGitBrowserDirectory() + renderGitBrowserResult() : fixedMarkup;
+      : name === "git" ? renderGitBrowserDirectory(pageText("zh")) + renderGitBrowserResult(pageText("zh")) : fixedMarkup;
     const f = await fixture(t, `<section data-companion="${name}">${body}</section>`, `
       ${pageTextScript("zh")}
       const host={mountPluginClient:mount,translate:globalThis.L,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),
@@ -251,7 +251,7 @@ test("Host reviews retain decisions across hiding without rendering stale result
 
 for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, resumes after disconnect and stops while hidden`, { timeout: 30_000 }, async t => {
   let revision = 1;
-  const markup = name === "files" ? renderFilesBrowserDirectory(pageText("zh")) + renderFilesBrowserResult(pageText("zh")) : renderGitBrowserDirectory() + renderGitBrowserResult();
+  const markup = name === "files" ? renderFilesBrowserDirectory(pageText("zh")) + renderFilesBrowserResult(pageText("zh")) : renderGitBrowserDirectory(pageText("zh")) + renderGitBrowserResult(pageText("zh"));
   const f = await fixture(t, `<section data-companion="${name}">${markup}</section>`, `
     ${pageTextScript("zh")}
       const host={mountPluginClient:mount,translate:globalThis.L,route:path=>path,headers:()=>({}),icons:{},openPlugin:()=>{},reviewFactory:(${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}),gitFactory:(${GIT_CLIENT_FACTORY_SCRIPT}),filesFactory:(${FILES_CLIENT_FACTORY_SCRIPT}),

@@ -24,7 +24,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       codingRoot?.querySelector('[data-coding-tools]')?.removeAttribute('data-companion-open');
       if(codingRoot){codingRoot.dataset.codingResults='false';if(!codingRoot.querySelector('[data-coding-session][aria-current="true"]'))codingRoot.dataset.codingDetail='false';}
     };
-    const gitBrowser = codingRoot ? gitFactory({mountPluginClient,root:codingRoot,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
+    const gitBrowser = codingRoot ? gitFactory({mountPluginClient,root:codingRoot,translate:L,request:companionRequest,openResult:()=>openCompanionResult('git'),closeResult:closeCompanionResult,
       showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders(),onDecision:outcome=>gitBrowser?.afterDecision(outcome)})}) : null;
     const filesBrowser = codingRoot ? filesFactory({mountPluginClient,root:codingRoot,translate:L,
       icons: ${JSON.stringify({ folder: icon("folder"), file: icon("file") })},

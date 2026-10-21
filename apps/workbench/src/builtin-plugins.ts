@@ -9,7 +9,7 @@ import { ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest, artifactReferenceUiCont
 import { CODING_PROJECT_PLUGIN_ID, CODING_INSTRUCTIONS, codingManifest, codingPrompts, codingMethods, codingSettingsContribution } from "@molis-ai/molis-work-plugin-coding";
 import { DIFF_PROJECT_PLUGIN_ID, diffManifest, DIFF_MESSAGES } from "@molis-ai/molis-work-plugin-diff";
 import { FILES_PROJECT_PLUGIN_ID, filesManifest, FILES_MESSAGES } from "@molis-ai/molis-work-plugin-files";
-import { GIT_PROJECT_PLUGIN_ID, gitManifest } from "@molis-ai/molis-work-plugin-git";
+import { GIT_PROJECT_PLUGIN_ID, gitManifest, GIT_MESSAGES } from "@molis-ai/molis-work-plugin-git";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest, TEXT_STATS_MESSAGES } from "@molis-ai/molis-work-plugin-text-stats";
 import { FEED_PROJECT_PLUGIN_ID, feedManifest, feedUiContribution, FEED_STYLES } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PROJECT_PLUGIN_ID, goalsManifest, goalsContextUiContribution, goalsDecisionResultsUiContribution, goalsDialogsUiContribution, goalsDocumentUiContribution, goalsFactorsUiContribution, goalsMomentumUiContribution, goalsPlanningUiContribution, goalsPolicyUiContribution, goalsProposalUiContribution, goalsRelationUiContribution, goalsSettingsUiContribution, goalsStatusUiContribution, goalsTreeUiContribution } from "@molis-ai/molis-work-plugin-goals";
@@ -357,6 +357,7 @@ export const BUILTIN_PLUGIN_CATALOG: readonly PluginRegistration[] = [
   {
     project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24,
     manifest: gitManifest,
+    messages: GIT_MESSAGES,
     workbench: { order: 22, contributions: [], clientFrom: CODING_PROJECT_PLUGIN_ID },
     summary: "查看工作区的版本与变更。",
   },

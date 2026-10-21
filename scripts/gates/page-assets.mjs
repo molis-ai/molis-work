@@ -235,15 +235,8 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience (2026-10-20, under the 10 KB review admits, AGENTS.md): slice 35, no Chinese left in English
-// pages (VUX-40). +88 B of the Jelly script: its fixed "uncategorized" category is named in the page's language by id, in
-// the five places categories are listed (one helper; each place got shorter by a byte). +24 B of the Coding script: the
-// Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
-// once from exactly #918's budgets.
-const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/jelly.js": [91179, 91267],
-  "/assets/molis-work-plugins/coding.js": [373460, 373484],
-};
+// No growth is admitted now (slice 36 made the Coding script 709 B lighter); the next one is written here when it is reviewed.
+const APPROVED_CEILINGS = {};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

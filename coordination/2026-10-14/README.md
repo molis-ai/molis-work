@@ -2359,3 +2359,12 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - `installed-plugin-host` 只在 macOS 上跑，那条 30 秒超时由 ⑤ 在本机拿 main（`0641e1f69`）的检出单独比对。
   - main 上有一条由 #901 带进来的灵光用例是红的，② 已告诉 ⑤。
 - **② 下一片是 C4 的平台一半**（PG-038、PG-043），然后是 C5。
+- **10-21 ③ 开了 C1，是 #932**（`migrate/coding-c1-database` @ `ddc13cd4f`），已交 ⑤，正在跑门禁。
+  - 做了什么：Coding 的会话库改走 `services.project_database`，宿主不再递原始库句柄。
+    - 主要在 `store.ts`（+113 -88），以及 `routes-*.ts`、`route-activation.ts`、`start-round.ts`、`wake-loop.ts`；
+    - 宿主只改了 `coding-surface.ts`、`project-plugins.ts`；
+    - 测试 31 个文件，新增 `coding-session-effect-control.test.ts`。
+  - 合同、动作快照和 API 快照都没动。门禁数字和 merge-base 一样。
+  - 和 #926 有 19 个文件重叠，谁后合谁 merge。
+  - 和计划不同的一处：`action-cards.ts` 的 `assert_current()` 留着。它守的是私有存储的 `compareAndSet`，平台的事务替代不了。① 同意。
+- **③ 下一片是 C2**，叠在 C1 的分支上开，只用 merge。

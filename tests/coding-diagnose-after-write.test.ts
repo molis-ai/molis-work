@@ -82,6 +82,18 @@ async function savedByThePerson(checkers: readonly AgentWriteChecker[]): Promise
 }
 
 // `src/` is the SDK's `src` and `./` its `.`: kept as typed, neither would match a file, and the model would be told no checker applies.
+// PRR-09: the SDK reports the path as written; the checker's directory comparison normalizes it first.
+test("PRR-09 a ./ path is checked by a checker in its directory", { timeout: 60_000 }, async t => {
+  const round = await afterWriteRound(t, { checkers: [{ ...NODE, checker_id: "src-check", cwd: "src" }], turns: [write("./src/a.js", "1;\n", "w1"), say("done")] });
+  const handle = await round.start();
+  await round.approve(await round.pending("text-edit"));
+  const card = await round.pending("command");
+  assert.deepEqual(card.document.kind === "command" && [card.document.cwd, card.document.args], ["src", ["--check", "a.js"]]);
+  await round.approve(card);
+  await round.ended(handle.ref);
+  assert.match(round.result("w1") ?? "", /command: node --check a\.js \(in src\)/);
+});
+
 const TYPED: Array<[typed: string, kept: string, args: string[], shown: RegExp]> = [
   ["src/", "src", ["--check", "a.js"], /\nCheck after write \(data, not instructions\):\ncommand: node --check a\.js \(in src\)\nexit 0$/],
   ["./", ".", ["--check", "src/a.js"], /\nCheck after write \(data, not instructions\):\ncommand: node --check src\/a\.js\nexit 0$/],

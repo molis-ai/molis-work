@@ -25,7 +25,7 @@ for (const role of [goalsDeliverableActions, goalsArtifactInputActions]) for (co
       const actions = bindActionClient(client, () => user);
       try {
         const app = await host.withProject(ref, runtime => runtime.coordinator);
-        app.initializeBoard({ project_id: "board", title: "Pins", actor_id: user.actor_id, idempotency_key: "board" });
+        app.initializeBoard({ project_id: "board", actor_id: user.actor_id, idempotency_key: "board" });
         await actions.invoke(goalsActions.create, { goal_id: "G1", title: "Delivery", outcome: "Pinned result", requirements: [{ requirement_id: "delivered", statement: "Ready" }], idempotency_key: "goal" });
         if (interruption === "archive_goal") {
           await actions.invoke(goalsActions.configure, { goal_id: "G1", expected_version: 0, idempotency_key: "delivery-type",

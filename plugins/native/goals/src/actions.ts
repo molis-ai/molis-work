@@ -70,8 +70,9 @@ export const goalsActions = {
   decide: goalDecisionAction,
   document: goalDocumentAction,
   collection: goalsCollectionAction,
-  snapshot: action<Record<string, never>, BoardSnapshot>("goals.snapshot.read", "读取项目目标完整快照",
-    "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema),
+  /** Version 2 (S8): the board in the snapshot no longer carries a name. */
+  snapshot: { ...action<Record<string, never>, BoardSnapshot>("goals.snapshot.read", "读取项目目标完整快照",
+    "读取当前项目的目标资料：全部目标、关系、规划方法、项目长期说明和结构提案；不含事件正文，需要时用 goals.events.list 或 goals.history.list 读取", "query", object({}), boardSnapshotSchema), version: 2 },
   contract: goalPluginActions.contract,
   progressReceipt: goalPluginActions.receipt,
   list: goalPluginActions.list,

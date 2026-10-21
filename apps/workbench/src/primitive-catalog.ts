@@ -117,12 +117,6 @@ const SPECIMEN_SCRIPT = `
   const elapsed = document.querySelector("[data-catalog-elapsed]");
   let seconds = 0;
   if (elapsed) setInterval(() => { seconds = (seconds + 7) % 3600; elapsed.textContent = seconds < 60 ? seconds + " 秒" : Math.floor(seconds / 60) + " 分 " + (seconds % 60) + " 秒"; }, 400);
-  // A log that keeps growing: it follows while at the end; scrolled up, the lines wait behind the button.
-  const log = document.querySelector("[data-catalog-follow]"), latest = document.querySelector("[data-catalog-latest]");
-  const follow = log && window.molisFollow?.(log, { onChange: (state) => { if (state === "following") latest.hidden = true; } });
-  let line = 0;
-  if (follow) setInterval(() => { const row = document.createElement("div"); row.textContent = "第 " + (++line) + " 行 · 运行中"; log.append(row); if (follow.state === "following") follow.pin(); else latest.hidden = false; }, 700);
-  latest?.addEventListener("click", () => follow?.toLatest());
 })();
 (() => {
   const arrival = window.molisArrival;

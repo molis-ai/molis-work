@@ -90,23 +90,23 @@ export const SHELF_ACTION_PERMISSIONS = [...new Set(SHELF_ACTIONS.flatMap(defini
 /** The personal Shelf store, bound by the Host to this Home. */
 export interface ShelfActionPorts {
   aiStatus?(): ShelfAiStatus;
-  snapshot(): ShelfSnapshot;
+  snapshot(): ShelfSnapshot | Promise<ShelfSnapshot>;
   settings(): ShelfDeviceSettings;
-  saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings;
+  saveSettings(patch: ShelfSettingsPatch): ShelfDeviceSettings | Promise<ShelfDeviceSettings>;
   admit(input: ShelfAdmitInput, control?: ShelfExecutionControl): ShelfItemRecord | Promise<ShelfItemRecord>;
   admitText(body: string, title?: string, capture?: boolean, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
-  admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord;
+  admitFolder(input: ShelfAdmitFolderInput): ShelfItemRecord | Promise<ShelfItemRecord>;
   readChild(itemId: string, relative: string): { name: string; mime: string; bytes: Buffer };
-  seedSample(): ShelfItemRecord;
-  hide(itemId: string): void;
-  deleteCopy(itemId: string): void;
+  seedSample(): ShelfItemRecord | Promise<ShelfItemRecord>;
+  hide(itemId: string): void | Promise<void>;
+  deleteCopy(itemId: string): void | Promise<void>;
   runJob(input: ShelfRunJobInput, control?: ShelfExecutionControl): Promise<ShelfJobOutcome>;
-  cancelJob(jobId: string): ShelfJobRecord;
-  useAsMaterial(itemId: string): ShelfItemRecord;
-  addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null;
+  cancelJob(jobId: string): ShelfJobRecord | Promise<ShelfJobRecord>;
+  useAsMaterial(itemId: string): ShelfItemRecord | Promise<ShelfItemRecord>;
+  addClipboard(body: string, extra?: { concealed?: boolean; types?: readonly string[] }): ShelfClipboardRecord | null | Promise<ShelfClipboardRecord | null>;
   clipboardToMaterial(clipId: string, control?: ShelfExecutionControl): Promise<ShelfItemRecord>;
-  deleteClipboard(clipId: string): void;
-  writeCopy(itemId: string, text: string): ShelfItemRecord;
+  deleteClipboard(clipId: string): void | Promise<void>;
+  writeCopy(itemId: string, text: string): ShelfItemRecord | Promise<ShelfItemRecord>;
   readFile(itemId: string): { item: ShelfItemRecord; bytes: Buffer };
 }
 
@@ -125,8 +125,8 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
   };
   return [
     bind(shelfActions.snapshot, () => ports.snapshot()),
-    bind(shelfActions.list, () => {
-      const { materials, results, running_jobs } = ports.snapshot();
+    bind(shelfActions.list, async () => {
+      const { materials, results, running_jobs } = await ports.snapshot();
       return { materials: [...materials], results: [...results], running_jobs: [...running_jobs] };
     }),
     bind(shelfActions.readText, input => {
@@ -147,28 +147,28 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
       return { item: await ports.admit({ filename, bytes: bytes(input.bytes_base64), mime: input.mime?.trim() || undefined, origin_realpath: input.origin_realpath?.trim() || null },
         { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) };
     }),
-    bind(shelfActions.admitFolder, input => ({ item: ports.admitFolder({ name: input.name.trim(), origin_realpath: input.origin_realpath?.trim() || null,
+    bind(shelfActions.admitFolder, async input => ({ item: await ports.admitFolder({ name: input.name.trim(), origin_realpath: input.origin_realpath?.trim() || null,
       entries: input.entries.map(entry => ({ relative: entry.relative, bytes: bytes(entry.bytes_base64), mime: entry.mime || undefined })) }) })),
-    bind(shelfActions.sample, () => ({ item: ports.seedSample() })),
-    bind(shelfActions.hide, input => { ports.hide(input.item_id); return { hidden: true as const }; }),
-    bind(shelfActions.delete, input => { ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
-    bind(shelfActions.useAsMaterial, input => ({ item: ports.useAsMaterial(input.item_id) })),
-    bind(shelfActions.edit, input => ({ item: ports.writeCopy(input.item_id, input.text) })),
+    bind(shelfActions.sample, async () => ({ item: await ports.seedSample() })),
+    bind(shelfActions.hide, async input => { await ports.hide(input.item_id); return { hidden: true as const }; }),
+    bind(shelfActions.delete, async input => { await ports.deleteCopy(input.item_id); return { deleted: true as const }; }),
+    bind(shelfActions.useAsMaterial, async input => ({ item: await ports.useAsMaterial(input.item_id) })),
+    bind(shelfActions.edit, async input => ({ item: await ports.writeCopy(input.item_id, input.text) })),
     ...[shelfActions.generate, shelfActions.extract].map(definition => bind(definition, async (input, caller) => {
       if (!input.item_id && !input.item_ids?.length) throw shelfErrors.invalid("请选择动作和材料");
       const beforeEffect = () => caller.beforeEffect();
       await beforeEffect();
       return ports.runJob(input, { signal: caller.signal, beforeEffect });
     })),
-    bind(shelfActions.cancelJob, input => ({ job: ports.cancelJob(input.job_id) })),
+    bind(shelfActions.cancelJob, async input => ({ job: await ports.cancelJob(input.job_id) })),
     bind(shelfActions.settings, () => ports.settings()),
     bind(shelfActions.saveSettings, input => {
       const parsed = parseSettingsWriteBody(input);
       if ("error" in parsed) throw shelfErrors.invalid(parsed.error);
       return ports.saveSettings(parsed.ok);
     }),
-    bind(shelfActions.clip, input => ({ clip: ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
-    bind(shelfActions.deleteClip, input => { ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
+    bind(shelfActions.clip, async input => ({ clip: await ports.addClipboard(input.text, { concealed: input.concealed === true, types: input.types ?? [] }) })),
+    bind(shelfActions.deleteClip, async input => { await ports.deleteClipboard(input.clip_id); return { deleted: true as const }; }),
     bind(shelfActions.clipToMaterial, async (input, caller) => ({ item: await ports.clipboardToMaterial(input.clip_id, { signal: caller.signal, beforeEffect: () => caller.beforeEffect() }) })),
     ...createShelfSearchHandlers(() => ports.snapshot(), itemId => ports.readFile(itemId)),
   ];

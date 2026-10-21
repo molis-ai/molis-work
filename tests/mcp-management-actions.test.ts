@@ -81,7 +81,7 @@ async function propose(host: MolisWorkLocalHost, databasePath: string, input: ob
 
 test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI proposals across a real Host close/restart", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host);
-  const initialize = fixture.args({ title: 17, idempotency_key: 42, actor_id: "forged-runtime", actor_kind: "runtime" });
+  const initialize = fixture.args({ idempotency_key: 42, actor_id: "forged-runtime", actor_kind: "runtime" });
   const initialized = await success<{ project_id: string; replayed: boolean; observed_event_cursor: number }>(host, management,
     "molis_work_v1_initialize", initialize, "goals.board.initialize");
   assert.deepEqual([initialized.project_id, initialized.replayed], [PROJECT, false]);
@@ -130,7 +130,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
 
 test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each action-layer refusal has one real Goals row and changes no facts", async t => {
   const fixture = await setup(t), host = fixture.host(), management = fixture.server(host), runtime = fixture.server(host, "runtime");
-  await success(host, management, "molis_work_v1_initialize", fixture.args({ title: "拒绝边界", idempotency_key: "initialize" }), "goals.board.initialize");
+  await success(host, management, "molis_work_v1_initialize", fixture.args({ idempotency_key: "initialize" }), "goals.board.initialize");
   const before = await fixture.facts(host);
   const refusal = async (server: LocalMcpServer, name: string, input: Record<string, unknown>, code: string, action?: string) => {
     const rows = host.callLog!.list(PROJECT), count = recordCount(host), result = await message(server, name, fixture.args(input));
@@ -153,7 +153,7 @@ test("W3-07-4-01 / W3-07-4-02: pre-action refusals have no number or row; each a
   }
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", runtime_actor_id: "forged" }, "actions.input_invalid");
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", authority: { actor_id: "forged" } }, "goals.goal_tree_proposal.authority_source_invalid");
-  await refusal(management, "molis_work_v1_initialize", { title: "", idempotency_key: "invalid-init" }, "actions.input_invalid", "goals.board.initialize");
+  await refusal(management, "molis_work_v1_initialize", { idempotency_key: "" }, "actions.input_invalid", "goals.board.initialize");
   await refusal(management, "molis_work_v1_event_decide", { ...event, conclusion: "" }, "actions.input_invalid", "goals.decisions.record");
   await refusal(management, "molis_work_v1_goal_tree_decide", { proposal_id: "absent", idempotency_key: "tree", confirm_all_pending: "yes" }, "actions.input_invalid", "goals.tree.decide");
 });

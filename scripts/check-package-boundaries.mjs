@@ -497,8 +497,14 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
-    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
+  // S8 (PG-020): Goals' tables are Goals' own. The baseline no longer composes them; the platform makes them from the Manifest.
+  const baselineSchema = read("apps/local-host/src/project-database-schema.ts");
+  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")
+      || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
+  }
+  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
+    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE)");
   }
 
   for (const relativePath of [
@@ -661,7 +667,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const requiredOwnerFiles = [
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
-    "modules/governance-collaboration/src/schema.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",

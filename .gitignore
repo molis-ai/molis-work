@@ -48,3 +48,6 @@ coverage/
 # decision 2026-10-08): product material lives under docs/, never in a root outputs/ folder.
 /outputs/
 /.zcode/
+
+# Jelly's native helper build output (swift build; generated locally, not source).
+/plugins/native/jelly/native/

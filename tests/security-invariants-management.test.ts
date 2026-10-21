@@ -21,7 +21,7 @@ test("S-03/S-07 W3-07-7-02 management HTTP refuses missing Origin, foreign Origi
     assert.deepEqual(env.host.callLog!.find(body.call_id), []);
     assert.deepEqual(await env.facts(), original);
   }
-  const replayInput = { title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` };
+  const replayInput = { idempotency_key: `project-catalog-create-${env.project.project_id}` };
   const key = randomUUID(), body = env.body(replayInput);
   const replay = await env.post(body, { "x-molis-work-idempotency-key": key });
   assert.equal(replay.status, 200); assert.equal((replay.body.result as { replayed: boolean }).replayed, true);
@@ -44,7 +44,9 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     [{ ...base, database_path: other.database_path }, "actions.scope_mismatch"],
     [{ ...base, project_id: other.project_id }, "actions.scope_mismatch"],
     [{ ...base, capability: { ...base.capability, provider_id: "forged" } }, "actions.input_invalid"],
-    [{ ...base, capability: { ...base.capability, version: 2 } }, "actions.dependency_missing"],
+    // S8 (PLIB-15): the action is at version 2 now, so the version the platform no longer serves is 1 (replaced, not kept beside it) and 3 is the one that never existed.
+    [{ ...base, capability: { ...base.capability, version: 1 } }, "actions.dependency_missing"],
+    [{ ...base, capability: { ...base.capability, version: 3 } }, "actions.dependency_missing"],
     [{ ...base, capability: { capability_id: "goals.progress.record", version: 1 } }, "actions.dependency_missing"],
   ];
   for (const [body, code] of cases) {
@@ -52,7 +54,7 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
     assert.equal("call_id" in reply.body, false); assert.deepEqual(await env.facts(), original);
   }
   assert.deepEqual(env.host.callLog!.find(base.call_id), []);
-  const identity = env.body({ title: "伪造身份", idempotency_key: "forged", actor_id: "other-user" });
+  const identity = env.body({ idempotency_key: "forged", actor_id: "other-user" });
   const refused = await env.post(identity); assert.equal(refused.status, 400); assert.equal(refused.body.code, "actions.input_invalid");
   assert.equal(refused.body.call_id, identity.call_id, "an action schema refusal has its original findable operation number");
   const diagnostic = env.host.callLog!.find(identity.call_id);
@@ -60,7 +62,7 @@ test("S-07 W3-07-7-02 management HTTP keeps its body closed, trusts the catalog 
   assert.deepEqual([diagnostic[0]!.capability_id, diagnostic[0]!.actor_id, diagnostic[0]!.ok, diagnostic[0]!.code], ["goals.board.initialize", LOCAL_PERSON_ACTOR_ID, false, "actions.input_invalid"]);
   assert.deepEqual(await env.facts(), original);
   const alias = join(env.home, "same-owner.db"); await symlink(env.project.database_path, alias);
-  assert.equal((await env.post({ ...env.body({ title: env.project.display_name, idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias })).status, 200);
+  assert.equal((await env.post({ ...env.body({ idempotency_key: `project-catalog-create-${env.project.project_id}` }), database_path: alias })).status, 200);
 });
 
 for (const mode of ["cancel", "disconnect"] as const) {
@@ -78,7 +80,7 @@ for (const mode of ["cancel", "disconnect"] as const) {
     t.after(async () => { release(); await fallbackHost.close(); });
     const controller = new AbortController(); armed = true;
     const operation = runV1Cli(["init", "--db", env.project.database_path, "--json", JSON.stringify({
-      project_id: env.project.project_id, title: "不能迟到写入", idempotency_key: mode })],
+      project_id: env.project.project_id, idempotency_key: mode })],
       { homeDirectory: env.home, actionServiceUrl: env.origin, localHost: fallbackHost, signal: controller.signal });
     const rejected = assert.rejects(operation, { code: mode === "cancel" ? "actions.cancelled" : "actions.delivery_unknown" });
     await entered; assert.ok(signal);

@@ -1,7 +1,6 @@
 import { COPY_FEEDBACK_STYLES } from "./copy-feedback.js";
 import { DISCLOSURE_STYLES } from "./disclosure.js";
 import { NUMBER_STYLES } from "./numbers.js";
-import { FOLLOW_STYLES } from "../scroll-follow.js";
 import { OVERFLOW_FADE_STYLES } from "./overflow-fade.js";
 
 /** Micro-interactions, in the places where movement carries information.
@@ -132,7 +131,7 @@ export const MICRO_INTERACTION_STYLES = `
     :is(.mw-menu, .mw-select-picker__menu, .assistant-composer):popover-open,
     .mw-select-picker__menu.is-open { animation: none; }
   }
-${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}${FOLLOW_STYLES}`;
+${OVERFLOW_FADE_STYLES}${COPY_FEEDBACK_STYLES}${DISCLOSURE_STYLES}${NUMBER_STYLES}`;
 
 /** The travelling thumb is positioned inside the scrollable track, so visible deltas are not enough. */
 export function segmentThumbOffsets(

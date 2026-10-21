@@ -23,7 +23,6 @@ function contractFixture(databasePath: string, projectId: string, goalId: string
   const coordinator = new GoalProjectApplication(store);
   coordinator.initializeBoard({
     project_id: projectId,
-    title: "Recovery",
     actor_id: "owner",
     idempotency_key: `${projectId}-init`,
   });

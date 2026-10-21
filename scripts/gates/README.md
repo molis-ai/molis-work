@@ -2,7 +2,7 @@
 
 `pnpm health:check`（入口 `scripts/check-health-gates.mjs`，CI 里对照 merge-base 跑）里，和数字门禁并列的一组规则：文档指向的东西必须存在，仓库根目录和 `.impeccable/` 只许变少，`contracts` 不许有占位子路径，`docs/` 下不放原始采集和开发机路径，页面里的 DOM 事件都在合同里登记。设计来源：[specs/repository-anti-corruption](../../specs/repository-anti-corruption/spec.md) §4.12–§4.14（W1-06）。
 
-入口引入四处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）和 `kernel-contextual.mjs`（内核的两半，见再下一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
+入口引入五处：`doc-gates.mjs`（文档与仓库形状的规则都经它）、`dom-events.mjs`（页面事件，直接挂在入口的 `absolute()` 里，因为它读的是浏览器源码和一份合同，不属于文档类）、`table-owners.mjs`（库与表的 owner，见下一节）、`kernel-contextual.mjs`（内核的两半，见再下一节）和 `dual-instance.mjs`（双实例插件，见「双实例插件」一节）；每条规则一个模块，互不引用（共用的只有两个读取模块：Markdown 在 `markdown.mjs`，根目录允许名单在 `allowlist.mjs`）。哪些顶层文件夹算文档、哪些能起头一个被引用的路径，只有一份来源：`tooling/gates/root-allowlist.json`（`allowlist.mjs` 的 `allowedRoots` 读它）；往名单里加一个文件夹，它的 `.md` 链接和被引用的路径就自动被查，名单之外的（stray）两者都不查。
 
 ## 两种规则
 
@@ -75,6 +75,22 @@
 | 读不到的（已知限制） | 拼出来的能力 id（`"pages" + ".discard"`）、不带点的前缀比较（`startsWith("pages")`）、从合同包导入的能力 id 常量；没有类型检查器：别名、变量里的模块名、通过全局对象的依赖；核心里参数不是字面量的动态导入（情境排序里的会报）；经一串 K1 没点名的转出链取到的名字（链上的每一环自己就是 K1 的命中）。名叫 `contextual-*.ts`、不在 `contextual/` 目录里的文件按核心算，所以拆文件请进目录 |
 
 W4-08 给记忆、放置、搜索加同类规则时，可以在同一个模块里加表项，或改名为 `platform-product-services.mjs`。验证：`node scripts/run-tests.mjs tests/health-gates-kernel-contextual.test.ts`（真实的内核没有问题；每条规则在内存里的内核源码上被违反一次，必须报出对应的规则编号；拆成 `contextual/` 目录、情境排序导入新的核心文件、核心自己的错误码与定时器不能变红；入口里的接线在临时仓库里验证，`--base main` 要失败，改 `baseline.json` 没用）。该测试文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。
+
+## 双实例插件（`dual-instance.mjs`，S0-2b-2）
+
+双实例插件是一个 `plugin_id`、一份 Manifest，分两半：Home 一半是 Home 目录里 `runtime` 写了 `dual_instance: true` 的条目，项目一半是项目启动名单 `apps/local-host/src/project-plugins.ts` 里的一条（[specs/dual-instance-plugins](../../specs/dual-instance-plugins/spec.md)）。配错的宿主启动时已经拒绝（`apps/local-host/src/plugin-scope-entries.ts`）；这个门禁在评审时就说出来，再加一条宿主不查的。入口 `check-health-gates.mjs` 在 `absolute()` 里单独引入它，在工作树上量，没有基线，出现一处就失败（和上面「问题」同一类）。它只新增检查，不放宽任何已有规则。
+
+| 项 | 说明 |
+| --- | --- |
+| 怎么判 | 用 TypeScript 语法树读，不执行。插件按包名认：Home 条目取 `runtime.package_name`，项目条目看 `definition: create…(…)` 的工厂从哪个包导入。目录条目由 `catalog-entries.mjs` 给出，和别的看目录的门禁（`home-runtime-entries.mjs`、包边界检查）同一份读法 |
+| D1 标记与两份名单 | 带 `dual_instance` 的 Home 条目，项目启动名单里要有同一个包的条目；同一个包两份名单都在，Home 条目就要带标记。`dual_instance` 只写字面量 `true`（或不写） |
+| D2 两半都随宿主发 | 目录条目都随宿主发，所以项目那一半写 `bundled: true` |
+| D3 没有可选权限 | 用户 2026-10-20 定（U1）：带标记的插件，Manifest 的每条权限都是对象字面量，写字面量 `required: true`。宿主不查这一条，只有门禁查；不带标记的插件不受影响 |
+| 失败时说什么 | `<目录条目文件>: runtime.dual_instance marks <包> as a dual-instance plugin, but … starts no project half of it`、`…project-plugins.ts: <包> is also a Home catalog entry (…); a plugin on both start lists says runtime.dual_instance: true on its Home entry`、`…: the project half of the dual-instance plugin <包> must say bundled: true…`、`…: the dual-instance plugin <包> has a permission that is not \`required: true\` as a literal (…)`，以及下面「读不到的」几种 |
+| 怎么办 | D1：要么给 Home 条目加标记、在启动名单里加项目那一半，要么两边都不放；D2：项目条目写 `bundled: true`；D3：把可选权限改成必需（双实例插件的两份授权记录不能分叉），或者不做双实例 |
+| 读不到的（已知限制） | 读不懂的写法报错，不放过：带标记条目的 Manifest、权限列表或某一条权限不是门禁能跟到的写法（展开、算出来的 `required`、函数调用），以及项目条目的 `definition` 不是导入工厂的调用（`cannot read the Manifest…`、`cannot read the permissions…`、`cannot tell which plugin package the entry … starts`）。跟名字只跟插件自己的相对文件（`import`、`export { … } from`、`export *`、顶层 `const`，去掉 `as`、`satisfies` 和括号）；用函数造的 Manifest 不跟。项目启动名单里写在别的文件、再拼进来的条目读不到 |
+
+验证：`node scripts/run-tests.mjs tests/health-gates-dual-instance.test.ts`。每条规则在内存里的小树上违反一次，必须报出对应的话；仓库自己的树没有问题；入口里的接线在临时仓库里验证，`--base main` 要失败。文件名落在 CI「Health gates reject what they claim to」那一步的 `tests/health-gates-*.test.ts` 里，不用改 `ci.yml`。
 
 ## 错误模型（`error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 

@@ -459,12 +459,11 @@ export function settlePluginTabs(pane, newPluginTab, loose) {
   if (active?.kind === "plugin") { pane.viewPlugin = active.plugin; pane.activeTabId = null; }
   const heads = new Set();
   pane.tabs = pane.tabs.filter((tab) => tab.kind !== "plugin" || !heads.has(tab.plugin) && Boolean(heads.add(tab.plugin)));
-  const headOf = (plugin) => pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
   for (let index = 0; index < pane.tabs.length; index += 1) {
     const tab = pane.tabs[index];
-    if (tab.kind === "item" && loose(tab) && !headOf(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); index += 1; }
+    if (tab.kind === "item" && loose(tab) && !heads.has(tab.plugin)) { pane.tabs.splice(index, 0, newPluginTab(tab.plugin)); index += 1; }
   }
-  if (pane.viewPlugin && pane.viewPlugin !== "home" && !headOf(pane.viewPlugin)) pane.tabs.push(newPluginTab(pane.viewPlugin));
+  if (pane.viewPlugin && pane.viewPlugin !== "home" && !heads.has(pane.viewPlugin)) pane.tabs.push(newPluginTab(pane.viewPlugin));
   const members = new Map();
   pane.tabs.forEach((tab) => { if (loose(tab)) members.set(tab.plugin, [...(members.get(tab.plugin) || []), tab]); });
   const anchors = new Map([...members].map(([plugin, group]) => [plugin, (group.find((tab) => tab.kind === "plugin") || group[0]).id]));
@@ -494,13 +493,12 @@ export function withPluginGroups(base, settlePane, loose) {
     return plugin === "home" ? shown : base.focused(state).tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
   };
   ops.isLoose = loose;
-  /** The tabs a plugin tab closes with it: itself and its plugin's loose tabs in the pane. */
-  ops.pluginGroup = (pane, plugin) => pane.tabs.filter((tab) => tab.plugin === plugin && (tab.kind === "plugin" || loose(tab)));
-  /** Close a plugin's group; answers what is needed to put it back exactly. */
+  ops.pluginGroup = (pane, plugin) => pane.tabs.filter((tab) => tab.plugin === plugin && loose(tab));
   ops.closePluginGroup = (state, paneId, plugin) => {
     const pane = paneOf(state, paneId);
     if (!pane) return null;
-    const closing = ops.pluginGroup(pane, plugin);
+    const head = pane.tabs.find((tab) => tab.kind === "plugin" && tab.plugin === plugin);
+    const closing = head && !loose(head) ? [head] : ops.pluginGroup(pane, plugin);
     if (!closing.length && pane.viewPlugin !== plugin) return null;
     const shown = base.shownPlugin(pane) === plugin;
     const closed = { paneId, plugin, shown, activeTabId: pane.activeTabId, tabs: closing.map((tab) => ({ tab, index: pane.tabs.indexOf(tab) })) };

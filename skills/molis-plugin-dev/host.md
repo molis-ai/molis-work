@@ -12,7 +12,9 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 ### 个人 Home 插件
 
-个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files?, model_configuration?, image_generation? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
+个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export, database?, files?, model_configuration?, image_generation? }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
+
+Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 `runtime.database` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
@@ -20,15 +22,28 @@ Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升�
 
 项目里宿主自己运行的内置插件（`project-plugins.ts` 的启动名单）要有 Home 里的库，也是同一个 `context.services.database`：在名单条目上写 `database`（`PluginPlatformEntry`），不是插件定义里的字段，插件自己选不了库名。库必须在 Home 存储登记中归该插件所有、与登记的基线一致，并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 声明 `storage:private` 和库的读写权限，沙箱插件拿不到。数据由插件自己按项目分区，写入必须 `transaction(caller.beforeEffect, tx => …)`。Form 与灵光已这样装配。
 
-项目库里插件自己的表（`specs/plugin-project-database`）：Manifest 写 `databases: { project: { store_name, version, schema, read_permission, write_permission } }`，`parsePluginManifest` 检查形状，两个权限必须在 `permissions` 里，自己的表两项都写 `storage:private`。`schema` 只能是 `CREATE TABLE` 与 `CREATE [UNIQUE] INDEX`，外键只指自己的表或 `project_root(project_id)`，不用 `AUTOINCREMENT`，名字不能和库里已有的对象重。现在只对内置的项目级插件生效：宿主开库时经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记下发布者和版本，之后每次打开核对，不符只停这个插件（动作不进目录，页面说明原因），不修补、不重建。改表就升 `version`，同时改 `docs/releases/CHECKLIST.md` §3 那一行并写维护。装进项目的插件写了声明也还不建表，运行时读写项目库的服务在 L2 才有，之前不要依赖。例子：`plugins/native/coding/src/database.ts`。
+项目库里插件自己的表（`specs/plugin-project-database`）：Manifest 写 `databases: { project: { store_name, version, schema, read_permission, write_permission } }`，`parsePluginManifest` 检查形状，两个权限必须在 `permissions` 里，自己的表两项都写 `storage:private`。`schema` 只能是 `CREATE TABLE` 与 `CREATE [UNIQUE] INDEX`，外键只指自己的表或 `project_root(project_id)`，不用 `AUTOINCREMENT`，名字不能和库里已有的对象重。宿主开库时为内置的项目级插件经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记下发布者和版本，之后每次打开核对，不符只停这个插件（动作不进目录，页面说明原因），不修补、不重建；经 Plugin Runtime 启动的插件（项目里的 Runtime 插件、装进项目的插件、沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。改表就升 `version`，同时改 `docs/releases/CHECKLIST.md` §3 那一行并写维护。例子：`plugins/native/coding/src/database.ts`。
+
+运行时读写自己的表用 `context.services.project_database`，与 Home 库同一个 `PluginDatabase` 接口，经 Plugin Runtime 启动、Manifest 声明了 `databases.project` 的插件才有：读用 `get`、`all`，只认 `SELECT`、`WITH`；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`。每一句运行前平台用 `EXPLAIN` 带着参数核对它的步骤：只许碰本插件声明的表与索引，`project_root` 只许读（外键检查读它也算）；建、删、改表与索引，`PRAGMA`，事务控制，别的插件或平台的表，`temp` 与附加的库，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。表结构只能升 `version` 走维护，运行时改不了。停用、撤权、取消之后句柄写不进去，与 Home 库相同。沙箱插件在操作的 effects 里写 `projectDatabase: ['read']` 或 `['read', 'write']`（查询只能读），人批准后经 `sdk.projectDatabase.get(sql, parameters)`、`all(sql, parameters)`、`transaction([{ sql, parameters }])` 走同一份检查；参数只许 null、有限数和字符串，BLOB 与超出 2^53 的整数传不回来，一个事务 1 到 64 句，一句被拒整个不写。创作台生成的 Manifest 现在还写不出 `databases.project`（BL-358），所以生成插件还用不上它。
 
 原生插件自己的二进制文件用 `services.files`，在可信 Host 条目声明 `files: { store_name, directory, max_file_bytes, read_permission, write_permission }`；存储登记的 owner 必须匹配。`list/read` 不创建目录；`create(caller, name, bytes)` 排他创建，`remove(caller, name)` 删除，缺失可重试。只收单层非隐藏 ASCII 文件名，拒绝越界、符号链接与超限字节；不向插件传 Home 路径。当前安装与授权每次检查，停用后旧句柄失效，沙箱与升级预检没有它。文件与数据库提交间的业务一致性、失败后未引用文件清理由插件拥有。
 
-Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `model:invoke`，用 `context.services.model.complete(instructed(自己的指令, 数据))`，不再写宿主里的绑定文件。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调（其余位置 `plugin.model_*` 拒绝，动作返回之后是 `actions.expired`）；指令在 `PluginDefinition.instructions` 里声明（没有目录条目时），`owner_id` 是自己的插件 id；写入之前仍要自己 `await caller.beforeEffect()`。沙箱插件没有它。细则见 `docs/platform/PROLOGUE-AI.md` 第 4 节。
+Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `model:invoke`，用 `context.services.model.complete(instructed(自己的指令, 数据))`，不再写宿主里的绑定文件。只要模型列表和能不能用、不发请求的（比如让人选模型），声明只读的 `model:read`：它只开 `choices()` 与 `availability()`，`complete()` 仍只认 `model:invoke`。只在自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调（其余位置 `plugin.model_*` 拒绝，动作返回之后是 `actions.expired`）；指令在 `PluginDefinition.instructions` 里声明（没有目录条目时），`owner_id` 是自己的插件 id；写入之前仍要自己 `await caller.beforeEffect()`。沙箱插件没有它。细则见 `docs/platform/PROLOGUE-AI.md` 第 4 节。
 
 模型原图用 `images: [{ bytes, label? }]`，不传路径或 URL；可选模型从只读 `choices()` 获取。结果保留实际推理 `execution` 与同步 `validateResult()`：先等待本次 `beforeEffect()`，再调用结果自己的 `validateResult()`，紧接同步提交。可记账失败同样检查，不补造未知用量或复用已结束动作的结果。原图限额、失败回执与完整写法见上述手册。
 
 下面的目录、资源、英文和公开包登记仍适用；第 3 步只给实际导入者登记依赖（Home 的可信工厂来自 Workbench 目录，不必给 Local Host 增加插件专属 import），第 6、7 步的项目监督器名单由 Home 声明和实际启动测试代替。第 8 步使用通用 Home 页面与运行实例 contribution；不再添加插件专属 Host 渲染函数。
+
+### 双实例：同一个插件的 Home 实例和项目实例
+
+个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半在 `registration` 写 `runtime: { scope: "home", dual_instance: true, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
+
+- **标记只在 Home 那一半、只来自宿主**：目录条目的 `runtime.dual_instance`；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
+- **两半要么都随宿主发布（`bundled`），要么都不是**，这样两半登记同一个提供方，钉死的引用和 MCP 授权不分叉；不一致在启动前被拒，目录条目在评审时由门禁 `scripts/gates/dual-instance.mjs` 查。
+- **每一项各归一半**：Manifest 的每个动作、场景、路由、视图恰好由一半的 `start` 返回处理器，互相引用的（撤销、后台任务、片段与事项目标）放在同一半。端口、事件、成果与过程项归项目那一半：Home 那一半启动时不因 Manifest 有这些声明被拒，也拿不到这些服务。运行时只放宽「声明了没提供」，「提供了没声明」照旧拒绝。
+- **权限全部 `required: true`**（用户 2026-10-20 定，U1），门禁 `scripts/gates/dual-instance.mjs` 检查（`pnpm health:check`）：每条权限写成对象字面量、字面量 `required: true`，展开或算出来的它读不懂，也算失败。每个实例各一条授权记录，人只在 Home 那条上看和管，一个实例的授权不借给另一个。项目记录因此也持有只有 Home 一半才用的权限：项目一半没有那些处理器，用不到。
+- **路由**：Manifest 声明过的路由，Home 正在运行的一半绑定了的由 Home 答，其余交给项目实例；Manifest 没声明的路径照旧由 Home 答 404。项目路径（`/projects/<id>/api/plugins/<插件>/…`）下两半各答自己的，都在那个项目里；不带前缀时只有 Home 一半的路由，项目一半的路由和别的不带项目的项目路由一样答 400、请人先选项目。Home 一半停了就不绑定任何路由：项目路径下请求交给项目实例，它不代答自己没绑定的路由（`actions.execution_failed`）。
+- **只给宿主装配的插件**（用户 2026-10-20 定，U2）：第三方与沙箱插件不能声明。这和「插件待遇一样」之间的差距，是同一个平台缺口（外部插件还装不了 Home 实例），不是给内置插件开的私路，记在[防腐 spec](../../specs/repository-anti-corruption/spec.md) §1。
 
 ### Home 主人文件树
 

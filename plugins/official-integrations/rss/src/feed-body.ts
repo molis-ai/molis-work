@@ -86,11 +86,3 @@ export function classifyFeedBody(
     reason: "无法识别为 RSS/Atom 正文；同步未成功导入内容。",
   };
 }
-
-/** True when the body is safe to hand to the RSS/Atom parser. */
-export function isParseableFeedBody(
-  body: string,
-  contentType?: string | null,
-): boolean {
-  return classifyFeedBody(body, contentType).class === "rss_xml";
-}

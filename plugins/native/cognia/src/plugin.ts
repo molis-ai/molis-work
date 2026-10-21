@@ -28,6 +28,7 @@ export function createCogniaPlugin(): PluginDefinition {
       } : { unavailableReason: state && !state.available ? state.reason : "请先在「模型设置」里连接文字模型" };
     };
     return { kind: "app", views: [cogniaUiContribution], routes: cogniaRoutes(context),
-      actions: createCogniaActionHandlers({ ...stores, model, ai: caller => ({ ...model(), signal: caller.signal }), actions, scan: scanCogniaDirectory }) };
+      actions: createCogniaActionHandlers({ ...stores, model, ai: caller => ({ ...model(), signal: caller.signal }), actions,
+        scan: (grantId, path, signal) => scanCogniaDirectory(context.services?.directory, grantId, path, signal) }) };
   } };
 }

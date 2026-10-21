@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { comparePluginVersions } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
-import { assertContributionMatchesManifest, offeredManifest, type RedemptionScope } from "./contribution.js";
+import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type RedemptionScope } from "./contribution.js";
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, bundledGrants, followBundledBuild, keptDataRefusal, normalizeGrants, recordToFollow, validateInstalledManifest } from "./install-rules.js";
@@ -19,6 +19,7 @@ export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
+export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
 export {
   createPluginRuntimeReleaseArtifact,
   MemoryPluginRuntimeReleaseArtifactRepository,
@@ -30,7 +31,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, currentPluginAction, currentPluginInvocation, pluginInvocationReadOnly, outsidePluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, currentPluginAction, currentPluginInvocation, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction } from "./action-scope.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
 export type { PluginOwnerFilesGate } from "./owner-files-service.js";
 export { createPluginBackgroundClient } from "./background-service.js";
@@ -653,7 +654,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     contribution: PluginContribution,
   ): Promise<void> {
     try {
-      assertContributionMatchesManifest(definition.manifest, contribution, this.options.redemption?.(definition));
+      assertContributionMatchesManifest(definition.manifest, contribution, redemptionIn(this.options.redemption?.(definition), this.options.actions?.project_id));
       const manifest = offeredManifest(definition.manifest, contribution);
       if ((manifest.actions?.length ?? 0) > 0 || (manifest.action_scenes?.length ?? 0) > 0) {
         const actions = this.options.actions;

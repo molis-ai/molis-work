@@ -62,14 +62,14 @@ test("CLI help and failed input retain storage side effects, error order and inj
     assert.equal(existsSync(databasePath), false);
     assert.equal(opens, 0, "failed input must not open a runtime");
 
-    const input = { project_id: "cli-input-board", title: "从文件初始化", actor_id: "user", idempotency_key: "init" };
+    const input = { project_id: "cli-input-board", actor_id: "user", idempotency_key: "init" };
     const file = join(directory, "payload.json");
     writeFileSync(file, JSON.stringify(input));
     const output = await captureCli(() => runV1Cli(["init", "--db", databasePath, "--file", file], { localHost: host }));
     assert.match(output[0]!, /\n  "/, "JSON output remains indented");
     const reference = molisWorkHostProjectReference({ databasePath, projectId: input.project_id });
     const snapshot = await managementGoals(host.actionClient(reference, false), input.project_id).invoke(goalsActions.snapshot, {});
-    assert.equal(snapshot.board.title, "从文件初始化");
+    assert.equal(snapshot.board.project_id, input.project_id);
     await assert.rejects(runV1Cli(["unknown", "--db", databasePath, "--project-id", input.project_id], { localHost: host }), {
       message: "未知 V1 operation: unknown",
     });
@@ -118,7 +118,7 @@ test("one CLI command is one operation: everything it calls shares a call number
   const databasePath = join(directory, "project.db");
   const host = new NumberedHost();
   try {
-    const input = { project_id: "cli-call-id", title: "编号", actor_id: "user", idempotency_key: "init" };
+    const input = { project_id: "cli-call-id", actor_id: "user", idempotency_key: "init" };
     await captureCli(() => runV1Cli(["init", "--db", databasePath, "--json", JSON.stringify(input)], { localHost: host }));
     const init = host.seen.filter(entry => entry.capability_id.startsWith("goals.")).splice(0);
     host.seen.length = 0;

@@ -108,6 +108,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目标 `bundled` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
+Home 插件的数据按项目放时，`runtime.database` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
 Home 的 `services.storage` 复用安装隔离 KV 与原子 `compareAndSet`；升级校验只给 `get`，候选启动失败恢复原 KV。`services.model` 和指令登记使用项目执行器同一入口与限制；只在自己的 concurrent 动作中调用，停用、取消、撤权或动作结束后的结果不交付。数据库、模型、动作和 KV 句柄随实例与安装世代失效，停止钩子开始时也不能继续写。普通关闭保留启用意图，用户停用跨重启保留，重装不继承旧授权。
@@ -145,7 +147,11 @@ Home 插件可声明 `ui.views.slot: "side"`，对应 contribution 的 `workbenc
 - 平台第一次为这个插件打开项目库时建表，在账本 `plugin_project_databases` 记下插件、发布者签名、库名、版本和表名；之后每次打开核对。库里已有同名对象、库名归了别的插件、发布者不同、版本不同、表被改过，都拒绝，库原样不动；被拒的插件只停它自己，项目与别的插件照常。
 - 版本不就地升级：改表就升 `version`，在 `docs/releases/CHECKLIST.md` §3 改那一行，并按 `docs/releases/POLICY.md` 第 5 节写一次性维护。
 
-现在只有内置的项目级插件生效：宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Schedule）。装进项目的插件写了也还不建表，插件在运行时读写项目库的服务（L2）还没有。
+宿主开库时为 `BUILTIN_PLUGIN_CATALOG` 里声明了它的条目建表、核对（Coding、Feed、Goals、Schedule；Goals 的 31 张表含 `boards` 与治理的 4 张）；经 Plugin Runtime 启动的插件（含装进项目的与沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。
+
+- 运行时读写：`context.services.project_database`（`PluginDatabase`，与 Home 库的 `services.database` 同一个接口、同一份客户端），只给经 Plugin Runtime 启动、声明了 `databases.project` 的插件。读 `get`、`all` 只认 `SELECT`、`WITH`，走只读连接；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`，走宿主自己的连接（同一个文件只用一份 SQLite 库）。
+- 逐句检查（`pluginStatementGuard`）：关键字过后，平台用 `EXPLAIN` 带着参数读这一句的步骤。名单外的步骤（建、删、改表与索引，`PRAGMA`，`VACUUM`，事务控制）、不是本插件表与索引的根页（`project_root` 只许读）、`temp` 或附加的库、读里的写步、两个 JSON 函数之外的虚表，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。步骤名单按 SQLite 3.51.3 写成，宿主的 SQLite 换了版本就全拒，直到重新核对。
+- 沙箱插件：操作的 effects 写 `projectDatabase: ["read"]` 或 `["read", "write"]`（查询不能声明写），人批准后经 `sdk.projectDatabase.get`、`all`、`transaction` 跨通道读写，宿主一侧是同一份客户端与检查。通道上参数只许 null、有限数、字符串，BLOB 与超出 2^53 的整数不传回；一个事务 1 到 64 句，在宿主一侧整个提交或整个不写；宿主的拒绝码原样交给插件。创作台生成的 Manifest 还写不出 `databases.project`（BL-358）。宿主一侧的语句在主线程上同步执行，现在没有时间与结果大小的上限（BL-395），BL-358 要等它补上。
 
 ## Runtime 流式路由
 
@@ -287,7 +293,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 - 在插件的 `src/prompts.ts` 用 `defineInstructionPrompt`（`@molis-ai/molis-work-contracts/platform/model-prompts`）声明，写明 `title`、`purpose`、`used_by`，从包入口导出 `<插件>_INSTRUCTIONS`。
 - 调用时传 `instructed(指令, 数据)`：指令只写要求，用户材料、本次参数放在数据里（数据不会被当成指令）。模型端口类型写 `InstructedPrompt` 或 `ModelPromptInput`，不收裸字符串。
 - Host 适配器经 `resolveModelPrompt` 取有效正文；内置插件在自己包 `src/registration.ts` 的 `registration` 上声明 `instructions`，Host 从共同目录派生登记，`builtin-instructions.ts` 的 `BUILTIN_INSTRUCTIONS` 除目录派生的之外只列 Host 自己的 `system:*` 题面，不点名插件的指令。改指令正文要升 `version`，用户已改过的会显示“默认已更新”，不会被静默覆盖。
-- 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`；只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
+- 宿主自己运行的 Runtime 插件（非沙箱执行）调模型用 `context.services.model`，不写宿主绑定文件：Manifest 声明 `model:invoke`（只列模型、问能不能用、不发请求的插件声明只读的 `model:read`，它只开 `choices()` 与 `availability()`）；`complete()` 只在插件自己的、声明了 `model:invoke` 且 `scheduling: "concurrent"` 的动作处理器里能调；传 `instructed(自己的指令, 数据)`，发送用户改过的版本；发出前、返回后宿主各问一次这次调用的 `beforeEffect()`，动作返回之后再调是 `actions.expired`。没有目录条目的插件在 `PluginDefinition.instructions` 里声明自己的指令（SDK 导出 `defineInstructionPrompt`、`instructed`）；有目录条目的内置插件仍在条目上声明；目录已经为某个主人登记了角色或方法而没有指令（Schedule、助理、Issues）的，也算有条目，`PluginDefinition.instructions` 对它启动失败。一个主人的定义只在一处。交给模型的材料（用户的文件、网页，含 `services.materials` 读到的）放在数据里，用 contracts 的 `fencedMaterials(材料, "MATERIALS_" + randomUUID())` 围起来：「不可信」声明写在代码里，用户怎么改指令它都在，指令里不再写这句（`@molis-ai/molis-work-contracts/platform/model-prompts`）。限额、错误码和不做的事见 [Prologue AI 手册第 4 节](PROLOGUE-AI.md)。
 - 模型请求可带 `selection: { provider_id, model_id }`，可用性用 `services.model.availability(selection)`；明确选择失败不改用默认模型。仅指定已有目录项，地址、凭据和供应商配置仍由 Host 管理。
 - `services.model.choices()` 只返回当前可用模型的名称与能力，不解密或联网。原图输入用 `images: [{ bytes, label? }]`，首次等待前复制，最多 50 张、单张 32 MiB、合计 128 MiB，不收路径或 URL；Host 临时副本和 SDK intake 各自清理。成功结果带真实 `execution` 回执和同步 `validateResult()`，失败及 JSON 解码失败在已有推理事实时也保留回执；未知用量保持未知。写业务前先 `await caller.beforeEffect()`，随后立即 `result.validateResult()` 再同步提交；失败记账用相同检查，不能借另一动作或新模型绑定提交旧结果。细节与示例见 Prologue AI 手册第 4 节。
 - 门禁 `tests/prompt-registration.test.ts`：没登记的指令、收裸字符串的端口、绕开登记直接调模型的 Host 模块都会失败；确需过渡的写进清单并写明原因。

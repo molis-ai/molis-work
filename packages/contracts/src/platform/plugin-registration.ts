@@ -1,7 +1,7 @@
 import type { ProjectDataDeclaration } from "../modules/projects.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
-import type { HomeStoreDeclaration, PluginDatabaseDeclaration } from "./plugin-database.js";
+import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginFilesDeclaration } from "./plugin-files.js";
 import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
@@ -79,7 +79,7 @@ export interface PluginRegistration {
   readonly runtime?: {
     readonly scope: "home";
     readonly create: () => PluginDefinition;
-    readonly database?: PluginDatabaseDeclaration;
+    readonly database?: HomePluginDatabaseDeclaration;
     readonly files?: PluginFilesDeclaration;
     readonly model_configuration?: PluginModelConfigurationDeclaration;
     readonly image_generation?: PluginImageGenerationDeclaration;
@@ -87,6 +87,12 @@ export interface PluginRegistration {
     readonly factory_export: string;
     /** The chord (`Mod+Shift+<letter>`) that summons this Home tool's side view from anywhere; global keys are the Host's to give. */
     readonly keys?: string;
+    /**
+     * This Home instance is one half of a dual-instance plugin (docs/system/GLOSSARY.md): the same plugin also runs as each
+     * project's instance from the project start list, and each half offers only its share of the one Manifest. Trusted, as above:
+     * no Manifest or installed package can say it. Every permission of such a Manifest is required (specs/dual-instance-plugins).
+     */
+    readonly dual_instance?: true;
   };
   /**
    * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted (the

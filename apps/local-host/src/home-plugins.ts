@@ -1,6 +1,6 @@
 import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import type { PluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
 import { PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -21,13 +21,14 @@ export interface HomePluginEntry {
   readonly scope: "home";
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
-  readonly database?: PluginDatabaseDeclaration;
+  readonly database?: HomePluginDatabaseDeclaration;
   readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
   readonly owner_files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesDeclaration;
   readonly initialize_owner_files?: (writer: import("@molis-ai/molis-work-contracts/platform/plugin").PluginOwnerFilesWriter) => void;
   readonly model_configuration?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration;
   readonly image_generation?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration;
   readonly project_data?: PluginProjectCleanup;
+  readonly dual_instance?: true;
   readonly package_name: string;
   readonly factory_export: string;
 }
@@ -69,6 +70,11 @@ export class HomePluginHost {
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest
       ?? pluginFixtureEntries(this.options.fixtures ?? []).find(entry => entry.definition.manifest.plugin_id === pluginId)?.definition.manifest;
   }
+  /** Whether the Host's start list (a catalog entry's `runtime`, or a Home fixture) says this is the Home half of a dual-instance plugin. */
+  dualInstance(pluginId: string): boolean {
+    return this.options.entries.some(entry => entry.dual_instance === true && entry.manifest.plugin_id === pluginId)
+      || (this.options.fixtures ?? []).some(fixture => !("manifest" in fixture) && fixture.dual_instance === true && fixture.definition.manifest.plugin_id === pluginId);
+  }
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
   }
@@ -104,12 +110,13 @@ export class HomePluginHost {
     const shipped = this.options.entries.map(entry => {
       const definition = entry.create();
       return { definition, bundled: true, database: entry.database, files: entry.files, owner_files: entry.owner_files, initialize_owner_files: entry.initialize_owner_files,
-        model_configuration: entry.model_configuration, image_generation: entry.image_generation, project_data: entry.project_data,
+        model_configuration: entry.model_configuration, image_generation: entry.image_generation, project_data: entry.project_data, dual_instance: entry.dual_instance,
         releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => {
           const released = factory();
           identity.remember([{ definition: released, bundled: true, database: entry.database, files: identity.filesFor(definition),
             owner_files: identity.ownerFilesFor(definition)?.declaration, initialize_owner_files: identity.ownerFilesFor(definition)?.initialize,
-            model_configuration: identity.modelConfigurationFor(definition), image_generation: identity.imageGenerationFor(definition), project_data: identity.projectDataFor(definition) }]);
+            model_configuration: identity.modelConfigurationFor(definition), image_generation: identity.imageGenerationFor(definition), project_data: identity.projectDataFor(definition),
+            dual_instance: entry.dual_instance }]);
           return released;
         }) };
     });
@@ -121,7 +128,7 @@ export class HomePluginHost {
     }
     const home = pluginHomeFor(this.options.home);
     assertOwnerFilesEntries(entries, fixtureDeclarationsFor(this.options.home, "project"), home);
-    assertDatabaseEntries(entries, home);
+    assertDatabaseEntries(entries, home, "home");
     assertFilesEntries(entries, home);
     assertModelConfigurationEntries(entries, home);
     assertImageGenerationEntries(entries, home);
@@ -132,12 +139,13 @@ export class HomePluginHost {
     const repository = pluginInstallRecords(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor, ownerFiles: identity.ownerFilesFor,
-      providerFor: identity.providerFor });
-    const runtime = new PluginRuntime(repository, executor, { actions: { registry: this.options.registry,
-      providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
+      providerFor: identity.providerFor, dualInstance: identity.dualInstance });
+    // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
+    const runtime = new PluginRuntime(repository, executor, { redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
+      actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id) } });
     this.releaseProjectOwners = registerPluginProjectCleanup(this.options.home, runtime, entries.map(entry => ({
-      definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
-    })));
+      definition: entry.definition, project_data: identity.projectDataFor(entry.definition), database: identity.databaseFor(entry.definition),
+    })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     const epoch = randomUUID(), revisions = new Map<string, number>();
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),

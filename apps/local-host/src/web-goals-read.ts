@@ -18,9 +18,8 @@ import { sendLocalWebJson as sendJson } from "./web-http.js";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { L } from "./web-locale.js";
 import {
-  codingCompanionStages,
+  builtinStagePanels,
   codingWorkbenchPanel,
-  charactersWorkbenchPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 
@@ -137,8 +136,8 @@ export function createLocalGoalsReadHttp(ports: {
             workspaces: projectConfiguration.workspaces,
             routePrefix: view.route_prefix,
           };
-          const characterStage = await charactersWorkbenchPanel(surfacePorts);
-          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), characterStage.panel, await builderWorkbenchPanel(surfacePorts), ...await codingCompanionStages(surfacePorts, projectConfiguration.plugins)] };
+          const builtinStages = await builtinStagePanels(surfacePorts, projectConfiguration.plugins);
+          view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...builtinStages.html, await builderWorkbenchPanel(surfacePorts)], plugin_stage_ids: builtinStages.ids };
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,

@@ -2173,6 +2173,10 @@ export interface HomeOpenTarget {
     label: string;
 }
 
+export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
+    readonly partition?: "project";
+}
+
 export interface HomeStoreDeclaration {
     readonly path: string;
     readonly library?: {
@@ -2181,6 +2185,7 @@ export interface HomeStoreDeclaration {
             readonly schema: string;
         };
         readonly file?: string;
+        readonly partition?: "project";
     };
 }
 
@@ -2750,11 +2755,13 @@ export interface PluginHostServices {
     readonly actions?: PluginActionClient;
     readonly storage?: PluginPrivateStorage;
     readonly database?: import("platform/plugin-database").PluginDatabase;
+    readonly project_database?: import("platform/plugin-database").PluginDatabase;
     readonly files?: import("platform/plugin-files").PluginFilesClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
+    readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -3445,7 +3452,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

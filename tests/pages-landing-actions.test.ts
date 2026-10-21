@@ -27,7 +27,7 @@ async function fixture(run: (f: { client: ReturnType<MolisWorkLocalHost["actionC
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   const client = host.actionClient(ref);
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Pages", actor_id: "owner", idempotency_key: "init" }));
+    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
     await run({ client, caller, bound: bindActionClient(client, () => caller) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }

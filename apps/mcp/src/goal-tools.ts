@@ -15,7 +15,7 @@ export const V1_TOOLS: McpToolDefinition[] = [
         ...V1_COMMON,
         ...goalsActions.initialize.action.input_schema.properties as Record<string, unknown>,
       },
-      required: ["project_id", "title", "idempotency_key"],
+      required: ["project_id", "idempotency_key"],
     },
   },
   {

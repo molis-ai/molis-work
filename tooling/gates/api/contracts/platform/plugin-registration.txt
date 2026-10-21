@@ -13,13 +13,14 @@ export interface PluginRegistration {
     readonly runtime?: {
         readonly scope: "home";
         readonly create: () => PluginDefinition;
-        readonly database?: PluginDatabaseDeclaration;
+        readonly database?: HomePluginDatabaseDeclaration;
         readonly files?: PluginFilesDeclaration;
         readonly model_configuration?: PluginModelConfigurationDeclaration;
         readonly image_generation?: PluginImageGenerationDeclaration;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;
+        readonly dual_instance?: true;
     };
     readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;

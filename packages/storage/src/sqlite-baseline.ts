@@ -47,10 +47,10 @@ export function applySqliteBaseline(db: SqliteBaselineDatabase, path: string, ba
 }
 
 /** `openHomeSqliteDatabase` with one current schema: the store is created at, or must already be at, `baseline.version`. */
-export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline): DatabaseSync {
-  const db = openHomeSqliteDatabase(homeDirectory, storeName);
+export function openBaselineHomeSqlite(homeDirectory: string, storeName: string, baseline: SqliteBaseline, projectId?: string): DatabaseSync {
+  const db = openHomeSqliteDatabase(homeDirectory, storeName, projectId);
   try {
-    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName), baseline);
+    applySqliteBaseline(db, homeSqlitePath(homeDirectory, storeName, projectId), baseline);
     return db;
   } catch (error) {
     db.close();

@@ -7,6 +7,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
+import { openHostShelfFiles } from "@molis-ai/molis-work-app-local-host";
 import { ShelfStore } from "../modules/shelf/dist/store.js";
 import { SHELF_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-shelf";
 import { createShelfRouteHandlers } from "@molis-ai/molis-work-plugin-shelf";
@@ -27,8 +28,8 @@ async function openShelfBrowser(t: TestContext) {
   const chrome = locateTestChrome();
   if (!chrome) { t.skip("Chrome is required for Shelf boundary E2E"); return null; }
   const home = await mkdtemp(join(tmpdir(), "shelf-client-boundaries-"));
-  const shelf = new FixtureShelfStore(join(home, "shelf"), { disabled: true });
-  shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
+  const shelf = new FixtureShelfStore(join(home, "shelf"), openHostShelfFiles(home), { disabled: true });
+  await shelf.admit({ filename: "目录材料.md", bytes: Buffer.from("# Shelf 专用测试页\n"), mime: "text/markdown" });
   const routes = new ShelfPluginRouteTable(createShelfRouteHandlers({ actions: directShelfActions(shelf) }));
   const requests: string[] = [];
   let delayNextRead: (() => Promise<void>) | undefined;
@@ -51,7 +52,7 @@ async function openShelfBrowser(t: TestContext) {
     :root{--content-side:#f5f5f4;--content-paper:#fff;--content-ink:#242424;--content-muted:#777;--content-line:#ddd}
     [data-shelf=workbench]{display:grid;grid-template-columns:280px minmax(0,1fr);min-height:900px}
     ${SHELF_STYLES}</style></head><body data-desktop-surface="shelf">
-    ${renderShelfWorkbench({ ...shelf.snapshot(), selected_id: null, primitives: { escape, text: value => value } })}
+    ${renderShelfWorkbench({ ...(await shelf.snapshot()), selected_id: null, primitives: { escape, text: value => value } })}
     <script src="/fixture.js"></script></body></html>`;
   const script = `document.querySelector('[data-shelf=workbench]').hidden=false;
     window.molisWorkControlHeaders=()=>({'content-type':'application/json'});
@@ -134,7 +135,7 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
     await command("DOM.setFileInputFiles", { nodeId: input.nodeId, files: [file] }, sessionId);
     await waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('PICKER_END_SENTINEL') && document.querySelector('[data-shelf-file]').value === ''");
     assert.equal(requests.filter(value => value === "POST /api/shelf/items").length, before + 1);
-    const item = shelf.snapshot().materials.find(item => item.name === filename);
+    const item = (await shelf.snapshot()).materials.find(item => item.name === filename);
     assert.ok(item); itemId = item.item_id;
     assert.equal(shelf.readFile(item.item_id).bytes.toString("utf8"), text);
     assert.ok(requests.includes(`GET /api/shelf/items/${itemId}/file`), "full preview must read the real copy endpoint");
@@ -170,7 +171,7 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
       document.querySelector('[data-shelf=directory]').dispatchEvent(event);
     })()`);
     await waitFor("document.querySelector('[data-shelf-bar-hint]').textContent.includes('fixture unreadable file')");
-    const materials=shelf.snapshot().materials;
+    const materials=(await shelf.snapshot()).materials;
     const folder=materials.find(item=>item.name==='混合目录');
     const file=materials.find(item=>item.name==='外部.txt');
     assert.ok(folder);assert.ok(file);
@@ -183,7 +184,7 @@ test("Shelf isolated client boundaries use production UI and real file HTTP", { 
 test("W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted page and after remount", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, evaluate, waitFor } = browser;
-  const clip = shelf.addClipboard("The original private clipboard body 7731"); assert.ok(clip);
+  const clip = await shelf.addClipboard("The original private clipboard body 7731"); assert.ok(clip);
   const select = `document.querySelector('[data-shelf=workbench]').dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(clip.clip_id)}}}))`;
   await evaluate(select);
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('clipboard body 7731')");
@@ -192,7 +193,7 @@ test("W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted
   await new Promise(resolve => setTimeout(resolve, 50));
   await evaluate(`shelfParent.append(oldShelf);bootShelf();${select}`);
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('clipboard body 7731')");
-  const material = shelf.snapshot().materials[0]!;
+  const material = (await shelf.snapshot()).materials[0]!;
   await evaluate(`oldShelf.dispatchEvent(new CustomEvent('molis-work:select-item',{detail:{itemId:${JSON.stringify(material.item_id)}}}))`);
   await waitFor("document.querySelector('[data-shelf-chrome-tag]').textContent.includes('材料')");
 });
@@ -200,12 +201,12 @@ test("W2-18-SHELF-OPEN-01: a selected clipboard ID opens its body on the mounted
 test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier file response cannot restore old bytes", { timeout: 35_000 }, async t => {
   const browser = await openShelfBrowser(t); if (!browser) return;
   const { shelf, evaluate, waitFor, delayFile } = browser;
-  const item = shelf.admit({ filename: "editable.md", bytes: Buffer.from("# Original\n" + "a".repeat(25_000) + "\nORIGINAL_END"), mime: "text/markdown" });
+  const item = await shelf.admit({ filename: "editable.md", bytes: Buffer.from("# Original\n" + "a".repeat(25_000) + "\nORIGINAL_END"), mime: "text/markdown" });
   await evaluate(`window.dispatchEvent(new CustomEvent('molis-shelf-refresh',{detail:{item_ids:[${JSON.stringify(item.item_id)}]}}))`);
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('ORIGINAL_END')");
   const delayed = delayFile(); t.after(() => delayed.release());
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
-  shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END");
+  await shelf.writeCopy(item.item_id, "# Current\n" + "b".repeat(25_000) + "\nCURRENT_END");
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('CURRENT_END')");
   delayed.release(); await new Promise(resolve => setTimeout(resolve, 100));
@@ -213,7 +214,7 @@ test("W2-18-SHELF-CACHE-01: owner edits invalidate same-ID text and an earlier f
   assert.ok(text.includes("CURRENT_END")); assert.ok(!text.includes("ORIGINAL_END"));
   await evaluate("window.shelfRoot=document.querySelector('[data-shelf=workbench]');shelfRoot.hidden=true");
   await new Promise(resolve => setTimeout(resolve, 50));
-  shelf.writeCopy(item.item_id, "# Return\nRETURN_END");
+  await shelf.writeCopy(item.item_id, "# Return\nRETURN_END");
   await evaluate("shelfRoot.hidden=false");
   await waitFor("document.querySelector('[data-shelf-preview]').textContent.includes('RETURN_END')");
 });
@@ -244,7 +245,7 @@ test("Shelf keeps the latest snapshot and releases global handlers across hide, 
   const reads = () => requests.filter(request => request === "GET /api/shelf").length;
   const delayed = delaySnapshot();
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))"); await delayed.started;
-  shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
+  await shelf.admit({ filename: "更新后的材料.md", bytes: Buffer.from("# 最新内容"), mime: "text/markdown" });
   await evaluate("window.dispatchEvent(new CustomEvent('molis-shelf-refresh'))");
   await waitFor("document.querySelector('[data-shelf-list=materials]').textContent.includes('更新后的材料')");
   delayed.release(); await pause(100);

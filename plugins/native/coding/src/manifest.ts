@@ -71,6 +71,7 @@ export const codingManifest: PluginManifest = {
       ...Object.values(agentOfferActions).map((entry) => entry.capability_id),
       ...Object.values(goalPluginActions).map(entry => entry.capability_id),
       knowledgeActions.read.capability_id,
+      knowledgeActions.list.capability_id,
       projectsCapabilities.readWorkspace.capability_id,
       workspaceReadActions.file.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,

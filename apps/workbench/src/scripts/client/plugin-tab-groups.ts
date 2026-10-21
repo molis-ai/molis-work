@@ -27,6 +27,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     while (end < pane.tabs.length && ops.isLoose(pane.tabs[end]) && pane.tabs[end].plugin === plugin) end += 1;
     const members = pane.tabs.slice(index, end);
     const head = members.find((tab) => tab.kind === "plugin");
+    if (!head) return -1;
     const wrap = document.createElement("div");
     wrap.className = "tab-group tab-plugin-group";
     wrap.dataset.pluginGroup = plugin;
@@ -55,11 +56,11 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
   // Screen readers hear that a group closed and how to get it back; the chip itself appears with the next render.
   const live = document.createElement("div");
   live.setAttribute("role", "status"); live.className = "mw-sr-only";
-  if (!embedded) document.body.append(live);
+  document.body.append(live);
   /** Close a plugin's group and keep a way back: the strip offers it for a few seconds, ⌘⇧T / Ctrl+Shift+T after that. */
   const close = (paneId, plugin) => {
     const record = ops.closePluginGroup(getState(), paneId, plugin);
-    if (!record || embedded) return record;
+    if (!record) return record;
     closed.push({ record, until: Date.now() + UNDO_MS });
     live.textContent = L("已关闭 {plugin} 标签组", { plugin: L(ops.pluginTitle(plugin)) }) + " · " + undoLabel(record);
     if (closed.length > 10) closed.shift();
@@ -96,7 +97,7 @@ export const PLUGIN_TAB_GROUPS_FACTORY = String.raw`({ getState, ops, apply, per
     if (items > 0) add(L(tab.collapsed ? "展开标签组" : "收起标签组"), "chevron-down", "toggle-plugin-group", () => ops.togglePluginGroup(getState(), paneId, tab.plugin));
     return true;
   };
-  if (!embedded) document.addEventListener("keydown", (event) => {
+  document.addEventListener("keydown", (event) => {
     if (event.key.toLowerCase() !== "t" || !event.shiftKey || event.altKey || !(event.metaKey || event.ctrlKey) || editable(event.target)) return;
     if (reopen()) event.preventDefault();
   });

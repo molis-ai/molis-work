@@ -61,7 +61,7 @@ export function afterWriteExecutor(round: AfterWriteRound): ToolRunner {
     try { await round.beforeDispatch?.(); } catch { return unchecked("这一轮的授权已收回"); }
     const workspace = await round.workspaceAt(round.projectId, round.rootPath);
     if (!workspace) return unchecked("工作区授权已撤回");
-    const path = String(call.args.path), extension = posix.extname(path);
+    const path = posix.normalize(String(call.args.path)).replace(/^\.\//, ""), extension = posix.extname(path);
     const { version, checkers } = await round.store.read(round.projectId, workspace);
     const checker = checkers.find(each => each.applies_to.includes(extension) && inside(each.cwd, path));
     if (!checker) return unchecked(`没有适用于 ${extension || "无扩展名文件"} 的检查器`);

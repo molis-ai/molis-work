@@ -273,6 +273,10 @@
     "./modules/goal-actions": {
       "types": "./dist/modules/goal-actions.d.ts",
       "import": "./dist/modules/goal-actions.js"
+    },
+    "./platform/plugin-directory": {
+      "types": "./dist/platform/plugin-directory.d.ts",
+      "import": "./dist/platform/plugin-directory.js"
     }
   },
   "files": [

@@ -164,10 +164,13 @@ function standing(connection: PluginRuntimeDatabase, declared: DeclaredSchema, i
 
 interface LedgerRow { plugin_id: string; publisher_signature: string; store_name: string; version: number; tables_json: string; created_at: string }
 
-const record = (row: LedgerRow): PluginProjectDatabaseRecord => ({
-  plugin_id: row.plugin_id, publisher_signature: row.publisher_signature, store_name: row.store_name, version: Number(row.version),
-  objects: JSON.parse(row.tables_json) as string[], created_at: row.created_at,
-});
+const record = (row: LedgerRow, where = ""): PluginProjectDatabaseRecord => {
+  let objects: string[];
+  try { objects = JSON.parse(row.tables_json) as string[]; }
+  catch { throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的账本记录读不出来：objects 不是 JSON 字符串数组`); }
+  return { plugin_id: row.plugin_id, publisher_signature: row.publisher_signature, store_name: row.store_name, version: Number(row.version),
+    objects, created_at: row.created_at };
+};
 
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no
@@ -191,11 +194,11 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
         throw pluginProjectDatabaseErrors.version_mismatch(`${where} 是第 ${row.version} 版，这次声明的是第 ${declaration.version} 版`,
           { path: options.path, store_name: declaration.store_name, recorded_version: Number(row.version), declared_version: declaration.version });
       }
-      if (row.store_name !== declaration.store_name || canonical(record(row).objects) !== canonical(declared.objects)
+      if (row.store_name !== declaration.store_name || canonical(record(row, where).objects) !== canonical(declared.objects)
         || standing(connection, declared, inspector) !== canonical(declared.shape)) {
         throw pluginProjectDatabaseErrors.shape_mismatch(`${where} 的表和索引与声明不同（账本记的库名 ${row.store_name}）`);
       }
-      opened = { record: record(row), created: false };
+      opened = { record: record(row, where), created: false };
     } else {
       const holder = connection.prepare("SELECT plugin_id FROM plugin_project_databases WHERE store_name = ?").get(declaration.store_name) as { plugin_id: string } | undefined;
       if (holder) throw pluginProjectDatabaseErrors.object_taken(`${where}：库名已归插件 ${holder.plugin_id}`);
@@ -211,12 +214,14 @@ export function openPluginProjectDatabase(connection: PluginRuntimeDatabase,
         version: declaration.version, tables_json: JSON.stringify(declared.objects), created_at: (options.now?.() ?? new Date()).toISOString() };
       connection.prepare("INSERT INTO plugin_project_databases (plugin_id, publisher_signature, store_name, version, tables_json, created_at) VALUES (?, ?, ?, ?, ?, ?)")
         .run(created.plugin_id, created.publisher_signature, created.store_name, created.version, created.tables_json, created.created_at);
-      opened = { record: record(created), created: true };
+      opened = { record: record(created, where), created: true };
     }
     connection.exec("COMMIT");
     return opened;
   } catch (error) {
-    connection.exec("ROLLBACK");
+    // SQLite may already have rolled the transaction back (SQLITE_FULL, SQLITE_IOERR, SQLITE_NOMEM); a second ROLLBACK then
+    // throws "cannot rollback - no transaction is active" and would hide the real failure. Keep the original error.
+    try { connection.exec("ROLLBACK"); } catch { /* the transaction is already gone */ }
     throw error;
   }
 }

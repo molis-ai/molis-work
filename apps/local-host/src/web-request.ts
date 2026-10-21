@@ -46,7 +46,7 @@ import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
 import {
-  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
+  agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sessionsAddressRoute, sideFilesRoute, sideViewRoute,
 } from "./web-project-platform-routes.js";
 
@@ -131,6 +131,7 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
     return true;
   } },
   homePluginsRoute,
+  directoryGrantRoute,
   sideViewRoute,
   sideFilesRoute,
   { id: "project-runtime", handle: async context => {

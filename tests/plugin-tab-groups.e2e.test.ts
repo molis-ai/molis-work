@@ -82,6 +82,13 @@ test("PTG-01 PTG-06 PTG-07 PTG-09 plugins stay on the strip as coloured groups; 
   await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tree-item][data-goal-id=CORE] .tree-node').dispatchEvent(new f.contentWindow.MouseEvent('click', { bubbles: true, cancelable: true, metaKey: true, ctrlKey: true })); })()`);
   await waitFor(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
   assert.equal(await evaluate(`${goalsPane}.querySelector('[data-plugin-group=goals] .tab-item[aria-current]')?.dataset.tabKind`), "plugin", "the pane stays on the Goals page");
+
+  // PRR-07 PTG-05 in the split pane the group closes with a way back; the undo chip restores the group and its current tab.
+  await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tab-kind=plugin][data-plugin=goals] [data-tab-close]').click(); })()`);
+  await waitFor(`!${frame}.contentDocument.querySelector('[data-plugin-group=goals] [data-tab-kind=plugin][data-plugin=goals]')`);
+  await waitFor(`${frame}.contentDocument.querySelector('[data-tab-undo]')`, 10_000);
+  await evaluate(`(() => { const f = ${frame}; f.contentDocument.querySelector('[data-tab-undo]').click(); })()`);
+  await waitFor(`${frame}.contentDocument.querySelector('[data-plugin-group=goals] .tab-item[data-tab-kind=item][data-item-id=CORE]')`);
 });
 
 test("D24 a list that picks several keeps ⌘-click for picking; a middle click there still opens the page behind", { timeout: 90_000 }, async (t) => {

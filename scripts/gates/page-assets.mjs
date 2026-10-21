@@ -255,6 +255,9 @@ const headErrors = (measured, budget, base) => {
 // stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
 // The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
+  // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
+  // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
+  "/assets/molis-work-plugins/cognia.js": [23703, 24042],
   "/assets/molis-work-workbench.js": [1134920, 1138184],
   "/assets/molis-work-workbench.css": [1603130, 1604761],
   "/assets/molis-work-settings.css": [988929, 990556],

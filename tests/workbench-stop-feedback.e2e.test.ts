@@ -6,7 +6,7 @@ import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-ho
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { emptyCapabilityMatrix } from "@molis-ai/molis-work-service-agent-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { armResponse, openAuditBrowser, releaseResponse, waitHeld, type AuditBrowser } from "./fixtures/workbench-audit-browser.js";
 
 // A public Runtime port around a real disposable child process. No model, shell, user files or global process control.
@@ -15,16 +15,16 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
   const host = browser.localHost, projectId = browser.projectId!;
   await withMolisWorkProjectCatalog({ homeDirectory: browser.homeDirectory }, catalog => catalog.addProjectPlugin({ project_id: projectId, plugin_id: "coding", actor_id: "audit" }));
   const reference = molisWorkHostProjectReference({ databasePath: browser.databasePath, projectId });
-  const store = await host.withProject(reference, runtime => new CodingSessionStore(runtime.store.db));
+  const store = await host.withProject(reference, runtime => codingSessions(runtime.store));
   const at = new Date().toISOString(), sessionId = "audit-command-session", runtimeId = "audit-command-runtime";
-  store.create({ project_id: projectId, session_id: sessionId, title: "Audit background process", runtime_id: runtimeId, at });
-  store.setRuntimeSession(projectId, sessionId, sessionId, at); store.setState(projectId, sessionId, "done", at);
+  await store.create(noEffect, { project_id: projectId, session_id: sessionId, title: "Audit background process", runtime_id: runtimeId, at });
+  await store.setRuntimeSession(noEffect, projectId, sessionId, sessionId, at); await store.setState(noEffect, projectId, sessionId, "done", at);
   let child: ChildProcess, denied = true, attempts = 0, generation = 0, taskId = "", started = 0;
   const start = async () => {
     child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1000)"], { stdio: "ignore", cwd: browser.homeDirectory });
     await new Promise<void>((resolve, reject) => { child.once("spawn", resolve); child.once("error", reject); });
     taskId = "audit-command-" + ++generation; started = Date.now();
-    store.setBackground(projectId, sessionId, [{ task_id: taskId, summary: "Fixture interval process " + taskId, started_at_ms: started }]);
+    await store.setBackground(noEffect, projectId, sessionId, [{ task_id: taskId, summary: "Fixture interval process " + taskId, started_at_ms: started }]);
   };
   await start();
   const ended = () => child.exitCode !== null || child.signalCode !== null;
@@ -48,7 +48,7 @@ async function backgroundCommand(browser: AuditBrowser, t: import("node:test").T
   };
   host.ensureAgentService(browser.homeDirectory, () => { throw new Error("The web Host must own its Agent service"); }).agentHost.register(adapter);
   return { sessionId, start, ended, allow: () => { denied = false; }, attempts: () => attempts,
-    pause: () => store.setState(projectId, sessionId, "paused", new Date().toISOString()),
+    pause: () => store.setState(noEffect, projectId, sessionId, "paused", new Date().toISOString()),
     sync: async () => { const response = await fetch(browser.origin + "/projects/" + projectId + "/api/plugins/io.molis.work.coding/state"); assert.equal(response.status, 200); await response.text(); } };
 }
 

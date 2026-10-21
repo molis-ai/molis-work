@@ -2,7 +2,7 @@ import { ActionError, requireSynchronous, type ActionExecutionContext, type Acti
 import type { PluginCapabilityClient, PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import type { CodingExecution } from "./routes.js";
 
 export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal };
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
@@ -10,10 +10,14 @@ type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_
 export function codingActionControl(beforeWrite: CodingBeforeWrite): Control {
   return { signal: beforeWrite.signal, beforeEffect: beforeWrite, assert_authority_current: beforeWrite.assert_current };
 }
-type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
+type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execution: CodingExecution, beforeWrite: CodingBeforeWrite) => Promise<unknown>;
 
-/** Transport and per-call control; accepted background work uses the activation's original ports instead. */
-export function codingRouteEntry(context: PluginStartContext, ports: CodingExecutionPorts | undefined, actions: ActionHandlerBinding[],
+/**
+ * Transport and per-call control. The execution is the activation's own, the same object for a request and for the background
+ * work it sets off: a write is fenced by the `beforeWrite` the caller hands the store (`store.ts`), which the platform checks
+ * again inside the transaction, not by wrapping every store call.
+ */
+export function codingRouteEntry(context: PluginStartContext, execution: CodingExecution | undefined, actions: ActionHandlerBinding[],
   alive: () => boolean, failure: (error: unknown) => { status: number; body: unknown }) {
   const check = (control?: Control, ownerCheck?: () => Promise<void>, permissions: readonly string[] = []): CodingBeforeWrite => {
     const assert_current = () => {
@@ -26,8 +30,8 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
   };
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite) => {
     const api = context.services?.capabilities;
-    if (!ports || !api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
-    await ports.ready();
+    if (!execution || !api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
+    await execution.ready();
     if (request.method !== "GET") await beforeWrite();
     beforeWrite.assert_current();
     const controlled: PluginCapabilityClient = { availability: definition => api.availability(definition),
@@ -40,11 +44,7 @@ export function codingRouteEntry(context: PluginStartContext, ports: CodingExecu
         },
       }),
     };
-    const sessions = new Proxy(ports.sessions, { get(target, key) {
-      const value: unknown = Reflect.get(target, key);
-      return typeof value === "function" ? (...args: unknown[]) => { beforeWrite.assert_current(); return Reflect.apply(value, target, args); } : value;
-    } });
-    return { api: controlled, execution: { ...ports, sessions } };
+    return { api: controlled, execution };
   };
   return (route_id: string, handle: Handler): PluginRouteBinding => {
     const action = codingRouteActions[route_id];

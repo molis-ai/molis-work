@@ -105,7 +105,8 @@ const ROUTES: RouteMaker[] = [
     const { projectId, busy, route } = a;
     return route("coding.save-plan", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
+      const notStarting = () => { if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划"); };
+      notStarting();
       const expected = body.expected_revision;
       if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw new Error("请先读取计划修订");
       const current = execution.sessions.plan(projectId, record.session_id);
@@ -131,18 +132,20 @@ const ROUTES: RouteMaker[] = [
       }
       await beforeWrite(); beforeWrite.assert_current();
       if (current?.confirmed && !proposal.content.change_reason) throw new Error("调整已确认计划时，请说明变更理由");
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
-      const plan = execution.sessions.savePlan(projectId, record.session_id, Number(expected), {
+      notStarting();
+      // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
+      const plan = await execution.sessions.savePlan(beforeWrite, projectId, record.session_id, Number(expected), {
         ...proposal, revision: Number(expected) + 1, confirmed: null,
-      });
+      }, notStarting);
       return { plan };
     });
   },
   (a) => {
     const { context, projectId, busy, route } = a;
-    return route("coding.confirm-plan", async (request, _api, execution) => {
+    return route("coding.confirm-plan", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), draft = execution.sessions.plan(projectId, record.session_id);
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后确认下一版计划");
+      const notStarting = () => { if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后确认下一版计划"); };
+      notStarting();
       if (!draft || draft.revision !== bodyOf(request).expected_revision) throw new Error("计划已变化，请重新查看当前修订");
       if (draft.content.blockers) throw new Error("计划仍有未解决阻塞，请先调整计划");
       if (draft.confirmed) return { plan: draft };
@@ -154,7 +157,8 @@ const ROUTES: RouteMaker[] = [
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);
       if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
-      return { plan: execution.sessions.confirmPlan(projectId, record.session_id, fixed) };
+      // Checked inside the write: a round started while the write waited on `beforeWrite` is still refused.
+      return { plan: await execution.sessions.confirmPlan(beforeWrite, projectId, record.session_id, fixed, notStarting) };
     });
   },
   (a) => {

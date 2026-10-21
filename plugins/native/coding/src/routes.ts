@@ -20,13 +20,16 @@ export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.j
 export interface CodingModelChoice { provider_id: string; model_id: string; label: string;
   /** The person marked this model as taking a reasoning effort; only then is one offered and sent. */
   reasoning_effort?: boolean }
+/** What the Host lends Coding to run a round. The session store is not among them: the plugin opens it from `services.project_database`. */
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
-  sessions: CodingSessionStore;
   goalTitle(goalId: string): string | undefined;
   ready(): Promise<void>;
   models(): Promise<readonly CodingModelChoice[]>;
 }
+
+/** The ports plus the session store the plugin opened itself: what every route and background loop of one activation runs with. */
+export interface CodingExecution extends CodingExecutionPorts { readonly sessions: CodingSessionStore }
 
 // A refused answer's problems, with the questions they are about, for the Host to word beside each field.
 const problemsOf = (error: unknown) => {
@@ -48,9 +51,9 @@ const failure = (error: unknown) => {
  * Coding owns intent and organization; execution is always obtained through Host capabilities. Each resource's routes
  * are in their own file (routes-*.ts) and share one activation (route-activation.ts).
  */
-export function codingSurface(context: PluginStartContext, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
   const actions: ActionHandlerBinding[] = [];
-  const activation = startCodingActivation(context, ports, actions, failure);
+  const activation = startCodingActivation(context, ports && { ...ports, sessions }, actions, failure);
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   return { routes, actions };
 }

@@ -68,16 +68,18 @@ const ROUTES: RouteMaker[] = [
     const { context, projectId, busy, route } = a;
     return route("coding.select-goal", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
+      const notSubmitting = () => { if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标"); };
+      notSubmitting();
       const goalId = body.goal_id === null ? null : text(body.goal_id, "目标");
       if (goalId) {
         const value = await currentGoalContext(context, goalId, codingActionControl(beforeWrite));
         if (value.reference.artifact_id !== body.expected_artifact_id) throw new Error("目标内容已变化，请重新查看后确认");
         await beforeWrite(); beforeWrite.assert_current();
-        if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
+        notSubmitting();
         saveGoalContext(context, record.session_id, value);
       }
-      const session = execution.sessions.setGoal(projectId, record.session_id, goalId, new Date().toISOString());
+      // Checked again inside the write: a round started while the write waited on `beforeWrite` is still refused.
+      const session = await execution.sessions.setGoal(beforeWrite, projectId, record.session_id, goalId, new Date().toISOString(), notSubmitting);
       if (!goalId) context.services!.storage!.delete(`goal-context:${record.session_id}`);
       return { session, selected: goalId ? savedGoalContext(context, record.session_id) : null };
     });

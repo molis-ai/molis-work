@@ -6,7 +6,7 @@ import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-p
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
@@ -40,7 +40,7 @@ export interface ProjectPluginPorts {
   workspaces?: readonly ProjectWorkspaceRef[];
   capabilities?: PluginCapabilityPort;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
-  execution?: Omit<CodingExecutionPorts, "sessions" | "goalTitle">;
+  execution?: Omit<CodingExecutionPorts, "goalTitle">;
   routePrefix?: string;
   homeDirectory?: string;
 }
@@ -168,7 +168,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           await ports.execution.ready();
         },
         models: () => ports.execution?.models() ?? Promise.resolve([]),
-        sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
+        goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
       } };
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,

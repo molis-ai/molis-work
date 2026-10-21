@@ -268,8 +268,13 @@ test("incompatible upgrade preflight failure leaves the old plugin available and
 test("persisted running state rehydrates a plugin contribution after process restart", async () => {
   const { MemoryPluginRuntimeRepository } = await import("@molis-ai/molis-work-plugin-runtime");
   const repository = new MemoryPluginRuntimeRepository();
-  const { createCodingPlugin } = await import("@molis-ai/molis-work-plugin-coding");
-  const definition = createCodingPlugin();
+  const { createCodingPlugin, CODING_PROJECT_DATABASE } = await import("@molis-ai/molis-work-plugin-coding");
+  const { memoryPluginDatabase } = await import("./fixtures/plugin-database.js");
+  // Coding keeps its sessions in the project library the Host lends it (`services.project_database`) and does not start without
+  // it. This bare Runtime has no Host, so the test lends one of its own; nothing else about the start changes.
+  const library = memoryPluginDatabase(CODING_PROJECT_DATABASE.schema, ["project-rehydrate"]);
+  const coding = createCodingPlugin();
+  const definition: PluginDefinition = { ...coding, start: context => coding.start({ ...context, services: { ...context.services!, project_database: library } }) };
   // Coding redeems its declared actions at start, so each process has its own action registry. Its Manifest requires goals:read and
   // goals:write (W3-07 PR-8), so both installs grant every required permission; the Runtime still refuses a start without them.
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
@@ -287,6 +292,7 @@ test("persisted running state rehydrates a plugin contribution after process res
   assert.equal(reopened.contribution(installed.install.install_id)?.kind,"app");
   assert.equal((await reopened.start(installed.install.install_id)).replayed,true);
   await reopened.stop(installed.install.install_id);
+  library.close();
 });
 
 test("atomic private storage rejects stale writers across connections without overwriting the winner", () => {

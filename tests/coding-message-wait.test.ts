@@ -6,21 +6,21 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationCondition, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 // The surface and its release from the same module: a second copy would not know the plugin this one started.
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/prologue-adoption §4.6.10: the wait hangs on the session's step; once it is over the plugin starts the next round, which takes the continuation up.
 test("a round that ends waiting on an answer or a background command waits as the task graph keeps it, goes on with its task, keeps waiting across a restart, and can be given up", { timeout: 60_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-message-wait-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); const store = new LocalProjectDatabase(dbPath);
-  const sessions = new CodingSessionStore(store.db), at = new Date().toISOString();
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "a", "sdk-a", at);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "b", "sdk-b", at);
+  const sessions = codingSessions(store), at = new Date().toISOString();
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "a", title: "改接口", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "a", "sdk-a", at);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "b", title: "调用方", runtime_id: "prologue", at });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "b", "sdk-b", at);
   // The task graph's waits, as the Host serves them. B's model waits in each round it runs: on a request, or a command.
   type Held = { session_id: string; wait: AgentCollaborationWait; continuation: AgentContinuationView };
   const waits: Held[] = [], parks: Array<{ wait_id: string; condition: Omit<AgentCollaborationCondition, "last">; reason: string; until?: "settled"; on_failure?: "continue" }> = [];

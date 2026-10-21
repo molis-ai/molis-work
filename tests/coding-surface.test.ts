@@ -12,7 +12,7 @@ import {
   releaseProjectPlugins,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 /**
  * 目录面板由**运行中的 Coding 插件**渲染，而不是壳自己画。
@@ -39,11 +39,11 @@ function ports(store: LocalProjectDatabase, goalTitle: (id: string) => string | 
   };
 }
 
-test("面板来自运行中的插件，会话来自它自己的库", async () => {
+test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的库", async () => {
   const directory = mkdtempSync(join(tmpdir(), "coding-surface-"));
   try {
     const store = project(directory);
-    new CodingSessionStore(store.db).create({
+    await codingSessions(store).create(noEffect, {
       project_id: DEMO_PROJECT_ID,
       session_id: "s1",
       title: "修好 runtime 连接提示",
@@ -71,7 +71,7 @@ test("会话标题里的标记不会原样进页面", async () => {
   const directory = mkdtempSync(join(tmpdir(), "coding-surface-"));
   try {
     const store = project(directory);
-    new CodingSessionStore(store.db).create({
+    await codingSessions(store).create(noEffect, {
       project_id: DEMO_PROJECT_ID,
       session_id: "s1",
       title: '<img src=x onerror="alert(1)">',
@@ -109,9 +109,9 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
   const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
-  const store = project(directory), sessions = new CodingSessionStore(store.db);
-  sessions.create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "中断", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
-  sessions.setRuntimeSession(DEMO_PROJECT_ID, "app", "sdk", "2026-09-20T00:00:00Z");
+  const store = project(directory), sessions = codingSessions(store);
+  await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "中断", runtime_id: "prologue", at: "2026-09-20T00:00:00Z" });
+  await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, "app", "sdk", "2026-09-20T00:00:00Z");
   const report = { session_id: "sdk", blockers: [], runs: [{ run_id: "run", version: 1, live: false, waiting: 0,
     can_close: true, blockers: [], operations: [{ effect_id: "effect", kind: "edit", summary: "cart.mjs", outcome: "not-dispatched" }] }] };
   const host = { ...ports(store), execution: { ready: async () => {}, models: async () => [] }, capabilities: {

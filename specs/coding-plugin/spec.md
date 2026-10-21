@@ -2718,6 +2718,21 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 13. **W5-01-CODING-13** 在真实宿主上，声明了 Shelf 所声明的、持有授权的插件拿到 Coding 的 Markdown；项目里没有的版本得到 Coding 自己的拒绝。
 14. **W5-01-CODING-14** 在真实宿主上：没声明消费得 `actions.forbidden`，没有授权得 `plugin.grant_denied`，项目没装 Coding 得 `actions.plugin_disabled`；人、Agent、工作流、MCP 的调用得 `actions.forbidden`，MCP 的动作目录里看不到这一项。
 
+### G. 会话库走平台服务（2026-10-21，V-14，C1）
+
+会话表（`coding_sessions`、`coding_plan_drafts`，Manifest `databases.project`）归 Coding，只经宿主借给它的 `services.project_database` 读写：读是同步的 `get/all`，写只在 `transaction(beforeEffect, 同步体)` 里，平台在提交前再核一次原调用。宿主不再递原始库句柄（`CodingExecutionPorts.sessions` 已删），`apps/local-host/src/coding-surface.ts` 不再读 Coding 的表。关闭 `privileges.md` 的 V-14 和 PG-091 的原始库部分。
+
+1. **W5-01-CODING-15** 会话库的每一种写（建会话、改状态、开一轮、改名、归档、绑目标、记 runtime 会话、写步骤、写后台命令、存计划、确认计划）先等调用方的 `beforeEffect()`；被拒（撤权、取消、停用）就什么都不写，同一调用方式换成未被拒的调用则写入。用宿主真实的 `services.project_database` 证明。测试：`tests/coding-session-effect-control.test.ts`。
+2. **W5-01-CODING-16** 一次逻辑写动了几行，就是一个事务：一轮开始时的改名和置为运行中是一次提交，存计划和对会话的核对是一次提交；被拒或体内失败不留半截。测试：`tests/coding-session-effect-control.test.ts`。
+3. **W5-01-CODING-17** Coding 在 `start` 里用 `services.project_database` 自己建会话库；宿主没有借出这项服务时 `start` 失败，错误信息指明缺的是 `services.project_database`；有服务时它启动，路由写下的会话在项目库里，另一个客户端读得到。测试：`tests/coding-session-effect-control.test.ts`。
+4. **W5-01-CODING-18** 建会话、改名、归档、存计划的调用在提交前被取消或撤权，就不留会话、不改名、不归档、不改计划；一轮真实 SDK 读取途中被取消、撤权、被换掉提供方，计划行也不留。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-effect-control.test.ts`。
+5. **W5-01-CODING-19** 读一轮时顺手记下会话状态的调用，在提交前被取消或撤权，状态不被改写；后台跟随者带着被拒的调用，不存「运行中」。测试：`tests/coding-session-effect-control.test.ts`、`tests/coding-session-follow.test.ts`。
+6. **W5-01-CODING-20** 目录面板由运行中的 Coding 渲染，会话来自它自己的库；宿主只给目标标题等宿主才知道的东西。测试：`tests/coding-surface.test.ts`。
+7. **W5-01-CODING-21** 激活停止之后，后台跟随者不再写会话状态。测试：`tests/coding-session-follow.test.ts`。
+8. **W5-01-CODING-22** 归档、存计划、确认计划、选目标的「正在提交任务／正在开始执行」检查，在写入的事务体里再做一次（`BEGIN` 之后、与 `COMMIT` 同一段同步代码）：写入等 `beforeEffect` 的时候同一条会话开始了一轮，仍然拒绝，库里一行不改。测试：`tests/coding-store.test.ts`。
+
+说明：没有单独的「消息」表。一轮里的消息走 Agent 宿主，Coding 自己写的是会话状态（`setState`、`roundStarted`），由 15、16、19、21 覆盖。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |

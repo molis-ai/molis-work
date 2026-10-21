@@ -4,10 +4,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore, CODING_ACTIVE_STATES, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_ACTIVE_STATES, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 import { listFeedMaterialContentRefs } from "@molis-ai/molis-work-module-feed";
 import { listListenerRunReceipts, saveListenerRun } from "@molis-ai/molis-work-service-listener-host";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/repository-anti-corruption W2-06: a table is read and written only by the package that creates it
 // (scripts/gates/table-owners.mjs). The host used to run SQL on four tables it does not own; these are the owners' own
@@ -30,22 +31,22 @@ test("seeding the demo project makes V1 the active Goal through the Goals comman
 });
 
 test("Coding lists the sessions that are active or hold the person's open steps, and tolerates a column it cannot parse", async () => {
-  await withProject("owner-readers-coding-", (store) => {
-    const coding = new CodingSessionStore(store.db);
-    const add = (id: string, state: string, at: string) => {
-      coding.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: `session ${id}`, runtime_id: "prologue", at });
-      coding.setState(DEMO_PROJECT_ID, id, state as never, at);
+  await withProject("owner-readers-coding-", async (store) => {
+    const coding = codingSessions(store);
+    const add = async (id: string, state: string, at: string) => {
+      await coding.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: `session ${id}`, runtime_id: "prologue", at });
+      await coding.setState(noEffect, DEMO_PROJECT_ID, id, state as never, at);
     };
-    add("idle", "idle", "2026-10-01T10:00:00.000Z");
-    add("running", "running", "2026-10-01T11:00:00.000Z");
-    add("done-with-steps", "done", "2026-10-01T12:00:00.000Z");
-    add("done-subtask-only", "done", "2026-10-01T12:30:00.000Z");
-    add("archived", "running", "2026-10-01T13:00:00.000Z");
-    add("bad-json", "queued", "2026-10-01T14:00:00.000Z");
-    coding.setSteps(DEMO_PROJECT_ID, "done-with-steps", { mine: 2, subtasks: 0, unowned: 0 });
-    coding.setSteps(DEMO_PROJECT_ID, "done-subtask-only", { mine: 0, subtasks: 3, unowned: 0 });
-    coding.setBackground(DEMO_PROJECT_ID, "running", [{ task_id: "t1", summary: "dev server", started_at_ms: 1 }]);
-    coding.archive(DEMO_PROJECT_ID, "archived", "2026-10-01T13:30:00.000Z");
+    await add("idle", "idle", "2026-10-01T10:00:00.000Z");
+    await add("running", "running", "2026-10-01T11:00:00.000Z");
+    await add("done-with-steps", "done", "2026-10-01T12:00:00.000Z");
+    await add("done-subtask-only", "done", "2026-10-01T12:30:00.000Z");
+    await add("archived", "running", "2026-10-01T13:00:00.000Z");
+    await add("bad-json", "queued", "2026-10-01T14:00:00.000Z");
+    await coding.setSteps(noEffect, DEMO_PROJECT_ID, "done-with-steps", { mine: 2, subtasks: 0, unowned: 0 });
+    await coding.setSteps(noEffect, DEMO_PROJECT_ID, "done-subtask-only", { mine: 0, subtasks: 3, unowned: 0 });
+    await coding.setBackground(noEffect, DEMO_PROJECT_ID, "running", [{ task_id: "t1", summary: "dev server", started_at_ms: 1 }]);
+    await coding.archive(noEffect, DEMO_PROJECT_ID, "archived", "2026-10-01T13:30:00.000Z");
     store.db.prepare("UPDATE coding_sessions SET steps_json = 'not json', background_json = '{' WHERE session_id = 'bad-json'").run();
 
     const sessions = listCodingBackgroundSessions(store.db);
@@ -63,8 +64,8 @@ test("Coding lists the sessions that are active or hold the person's open steps,
 });
 
 test("Coding's reader writes nothing and creates nothing: a database that never held Coding throws, and a read-only handle works", async () => {
-  await withProject("owner-readers-coding-readonly-", (store, directory) => {
-    new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "s1", title: "s1", runtime_id: "prologue", at: "2026-10-01T10:00:00.000Z" });
+  await withProject("owner-readers-coding-readonly-", async (store, directory) => {
+    await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "s1", title: "s1", runtime_id: "prologue", at: "2026-10-01T10:00:00.000Z" });
     store.db.prepare("UPDATE coding_sessions SET state = 'running' WHERE session_id = 's1'").run();
     const readOnly = new LocalSqliteStorage(join(directory, "project.db"), { readonly: true });
     try { assert.deepEqual(listCodingBackgroundSessions(readOnly.db).map((session) => session.session_id), ["s1"]); } finally { readOnly.close(); }

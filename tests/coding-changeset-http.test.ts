@@ -6,14 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/ai-interaction-experience AC-09 (Coding's Diff): the edits reviewed are the ones frozen, feedback lands on their lines.
 test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact lines and restores the same output without runtime reads", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-changeset-http-")), path = join(root, "board.db"); seedDemoBoard(path);
-  const store = new LocalProjectDatabase(path), sessions = new CodingSessionStore(store.db);
-  for (const id of ["app", "foreign"]) { sessions.create({ project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); sessions.setRuntimeSession(DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }
+  const store = new LocalProjectDatabase(path), sessions = codingSessions(store);
+  for (const id of ["app", "foreign"]) { await sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() }); await sessions.setRuntimeSession(noEffect, DEMO_PROJECT_ID, id, id === "app" ? "sdk" : "other-sdk", new Date().toISOString()); }
   const ref = { session_id: "sdk", run_id: "r" };
   let readable = true, reads = 0;
   const rows = [false, true].map((applied, n) => ({ request: { review_id: `review-${n}`, project_id: DEMO_PROJECT_ID, plugin_id: "io.molis.work.coding", run: ref, kind: "text-edit",

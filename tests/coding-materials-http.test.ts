@@ -8,10 +8,10 @@ import { createServer } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/project-knowledge PMAT-18: what the person picks for Coding's next round is pieces of project knowledge, named by their
 // subject, and each is read through `knowledge.read` as the round starts. Coding has no reader of its own by type any more.
@@ -22,7 +22,7 @@ const REPORT = artifactSubjectId({ artifact_id: "report:1", version: 2 });
 test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.read; a piece that cannot be read stops the round before it starts", async () => {
   const root = mkdtempSync(join(tmpdir(), "coding-materials-http-")), dbPath = join(root, "board.db");
   seedDemoBoard(dbPath); let store = new LocalProjectDatabase(dbPath);
-  new CodingSessionStore(store.db).create({ project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
+  await codingSessions(store).create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: "app", title: "项目资料", runtime_id: "prologue", at: new Date().toISOString() });
   // The project's knowledge, as the knowledge service answers for it (its own reads, refusals and receipts are tested in tests/knowledge-*.test.ts).
   const pieces = new Map<string, Piece>([
     ["page:p1", { title: "试用说明", text: "试用期两周。", revision: "4" }],

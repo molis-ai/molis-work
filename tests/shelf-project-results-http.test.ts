@@ -6,9 +6,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { LocalProjectDatabase, GoalProjectApplication, openHostShelfStore, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
-import { CodingSessionStore } from "@molis-ai/molis-work-plugin-coding";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));
@@ -18,7 +18,7 @@ test("Shelf explicitly receives a genuine fixed Coding report, preserves edited 
   catalogStore.addProjectPlugin({project_id:project.project_id,plugin_id:'artifacts',actor_id:'web-user'});catalogStore.close();
   const databasePath=project.database_path,projectId=project.project_id,prefix='/projects/'+project.project_id;
   const store = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(store);
-  new CodingSessionStore(store.db).create({ project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
+  await codingSessions(store).create(noEffect, { project_id: projectId, session_id: "app", title: "下一轮", runtime_id: "prologue", at: new Date().toISOString() });
   const token = 'shelf-result-test-control-token-123456789';
   let server = createMolisWorkWebServer({ homeDirectory: home, controlToken: token });
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));

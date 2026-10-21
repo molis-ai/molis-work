@@ -69,6 +69,8 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
       const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
       if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
+      // A publication made from a draft revision that does not exist is not one to run (the check a plugin running a Character relies on, PG-086).
+      if (requireActive && draft && content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     const a = charactersActions;

@@ -1,4 +1,5 @@
-import { parseExactActionReferences, type ExactActionReference } from "../platform/actions.js";
+import { parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
+import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
 export { characterErrors } from "./characters-errors.js";
@@ -85,3 +86,37 @@ export function parseCharacterTools(value: unknown): string[] | null {
     || !/^[a-z][a-z0-9-]{0,79}$/.test(tool)) || new Set(value).size !== value.length) throw new Error("Character 工具范围无效或重复");
   return [...value] as string[];
 }
+
+const versionReference: ActionSchema = { type: "object",
+  properties: { artifact_id: { type: "string", minLength: 1, maxLength: 200 }, version: { type: "integer", minimum: 1 } }, required: ["artifact_id", "version"], additionalProperties: false };
+const closedObject = (properties: Record<string, unknown>): ActionSchema => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+
+/**
+ * The two Characters reads that a plugin running a person's Character consumes (PG-086), defined once: Characters answers them, and
+ * Coding names their `capability_id` in its Manifest `capabilities.consumes` and invokes them through `services.actions`, never
+ * reaching Characters' implementation or the Host's frozen-Character helper. The person (and, for `list`, agents, workflows and MCP
+ * clients) keep them as before; the plugin audience is added with the same version and shape. A caller needs `artifact:read`.
+ */
+export const characterPluginActions: {
+  /** The person's drafts and this project's published Character versions, as the 成果库 and the picker show them. */
+  readonly list: ActionDefinition<Record<string, never>, { drafts: unknown[]; publications: unknown[] }>;
+  /**
+   * Whether this published version can run now, and what a native launch needs. Characters refuses a version that is not a current
+   * publication of this project, or whose Character is disabled or deleted; a plugin that only has to know a version is runnable
+   * calls it and reads nothing from the answer.
+   */
+  readonly execution: ActionDefinition<{ reference: ArtifactReference }, unknown>;
+} = {
+  list: {
+    capability_id: "characters.list", version: 1, operation: "query",
+    action: { title: "角色列表", description: "读取本人的角色草稿和本项目已发布的固定版本", kind: "query", scope: "project",
+      audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
+      input_schema: closedObject({}), output_schema: closedObject({ drafts: { type: "array" }, publications: { type: "array" } }) },
+  },
+  execution: {
+    capability_id: "characters.execution", version: 1, operation: "query",
+    action: { title: "角色运行准备", description: "读取用本机 Agent 运行此发布版本所需的程序与工作目录", kind: "query", scope: "project",
+      audiences: ["user", "plugin"], permissions: ["artifact:read"], subject_kinds: ["character"],
+      input_schema: closedObject({ reference: versionReference }), output_schema: { type: "object" } },
+  },
+};

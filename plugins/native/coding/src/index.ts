@@ -126,7 +126,8 @@ export { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.
 export { CODING_ACTIONS, codingRouteActions } from "./route-actions.js";
 export { runControl } from "./run-inputs.js";
 export { reaskMaterial as codingReaskMaterial, codingReaskErrors } from "./reask.js";
-export type { CodingExecution, CodingExecutionPorts, CodingModelChoice } from "./routes.js";
+export type { CodingExecution } from "./routes.js";
+export type { CodingModelChoice } from "./models.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE, planContinuesAfterTalk } from "./routes.js";
 export {
   projectMcp,

@@ -11,7 +11,8 @@ import { codingMethods } from "./methods.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiView } from "./ui.js";
 import { CodingSessionStore, toDirectoryEntries } from "./store.js";
-import { codingSurface, stopCodingSurface, type CodingExecutionPorts } from "./routes.js";
+import { codingSurface, stopCodingSurface } from "./routes.js";
+import { codingGoalTitles } from "./goal-titles.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
 import { codingResultDocumentHandler } from "./results-document.js";
 
@@ -45,7 +46,6 @@ function commandTitle(commandId: string): string {
 }
 
 export interface CodingPluginPorts {
-  execution?: CodingExecutionPorts;
   /** Called on stop so the Plugin can release what it opened. */
   onStop?(context: PluginStartContext): void | Promise<void>;
   /**
@@ -71,12 +71,14 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
       // (made when the library opened, `databases.project`). Without it nothing here can keep a session, so the plugin does not start.
       const database = context.services?.project_database;
       if (!database) throw new Error("宿主没有提供项目库（services.project_database），Coding 无法保存会话，不能启动");
-      const sessions = new CodingSessionStore(database), goalTitle = ports.execution?.goalTitle ?? (() => undefined);
-      const surface = codingSurface(context, sessions, ports.execution);
+      // The directory draws at once and cannot wait for an action, so the titles it shows are the ones the routes last read from Goals
+      // (goal-titles.ts); the routes and the directory share this one cache.
+      const sessions = new CodingSessionStore(database), goalTitles = codingGoalTitles(context);
+      const surface = codingSurface(context, sessions, goalTitles);
       return {
         kind: "app",
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
-        views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitle)), codingSettingsContribution],
+        views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitles.known)), codingSettingsContribution],
         routes: surface.routes,
         actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context)],
         /**

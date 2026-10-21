@@ -18,8 +18,8 @@ export type Capabilities = NonNullable<NonNullable<PluginStartContext["services"
  */
 export interface CodingActivation {
   readonly context: PluginStartContext;
-  /** The Host's ports with the session store this activation opened; none when the Host lent no execution ports. */
-  readonly execution: CodingExecution | undefined;
+  /** What this activation runs with: the session store it opened and the platform services and public actions Coding reads models, Goal titles and Characters through. */
+  readonly execution: CodingExecution;
   readonly projectId: string;
   /** Aborted when the plugin stops or a newer activation starts. */
   readonly stopped: AbortController;
@@ -49,7 +49,7 @@ export function stopCodingSurface(context: PluginStartContext): void {
 }
 
 /** `failure` turns a route's error into its answer (routes.ts). */
-export function startCodingActivation(context: PluginStartContext, execution: CodingExecution | undefined, actions: ActionHandlerBinding[],
+export function startCodingActivation(context: PluginStartContext, execution: CodingExecution, actions: ActionHandlerBinding[],
   failure: (error: unknown) => { status: number; body: unknown }): CodingActivation {
   const projectId = context.project_id ?? "";
   activations.get(activationKey(context))?.abort();
@@ -77,12 +77,12 @@ export function startCodingActivation(context: PluginStartContext, execution: Co
   const activation: CodingActivation = { context, execution, projectId, stopped, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
     state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, () => !stopped.signal.aborted, failure), waits, detach, pause };
   // Recovery after a restart: only a project with sessions tied to an Agent run starts the Agent runtime here. Starting the
-  // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake.
-  const resumable = () => new Set(execution!.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
-  if (execution && context.services?.capabilities && resumable().size) void execution.ready().then(() => {
-    if (stopped.signal.aborted) return;
-    for (const runtimeId of resumable()) waits.wakeLoop(context.services!.capabilities!, execution, runtimeId);
-  }).catch(() => undefined);
+  // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake. Coding does not
+  // wait for the runtime to be ready first: the Agent capability handlers initialize it themselves (agent-host-composition.ts),
+  // so the loop's first read does that. If that first read fails, the loop ends instead of retrying (wake-loop.ts, `recovery`);
+  // the next `coding.state` read or round starts it again.
+  const resumed = new Set(execution.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
+  if (context.services?.capabilities && resumed.size) for (const runtimeId of resumed) waits.wakeLoop(context.services.capabilities, execution, runtimeId, true);
   return activation;
 }
 

@@ -1,7 +1,9 @@
 import { ACTION_ERROR_CODE, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { CodingCharacterPorts } from "./characters.js";
+import { codingCharacters, type CodingCharacters } from "./character-source.js";
+import { codingGoalTitles, type CodingGoalTitles } from "./goal-titles.js";
+import { codingModels } from "./models.js";
 import { startCodingActivation } from "./route-activation.js";
 import { cardsRoutes } from "./routes-cards.js";
 import { changesetsRoutes } from "./routes-changesets.js";
@@ -17,19 +19,19 @@ export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 
-export interface CodingModelChoice { provider_id: string; model_id: string; label: string;
-  /** The person marked this model as taking a reasoning effort; only then is one offered and sent. */
-  reasoning_effort?: boolean }
-/** What the Host lends Coding to run a round. The session store is not among them: the plugin opens it from `services.project_database`. */
-export interface CodingExecutionPorts {
-  characters?: CodingCharacterPorts;
-  goalTitle(goalId: string): string | undefined;
-  ready(): Promise<void>;
-  models(): Promise<readonly CodingModelChoice[]>;
-}
+export type { CodingModelChoice } from "./models.js";
 
-/** The ports plus the session store the plugin opened itself: what every route and background loop of one activation runs with. */
-export interface CodingExecution extends CodingExecutionPorts { readonly sessions: CodingSessionStore }
+/**
+ * What every route and background loop of one activation runs with. Nothing in it is lent by the Host: the session store is opened from
+ * `services.project_database`, models come from `services.model`, and Goal titles and Characters are read through the public actions
+ * Goals and Characters answer (PG-047, PG-086, PG-091).
+ */
+export interface CodingExecution {
+  readonly sessions: CodingSessionStore;
+  readonly models: ReturnType<typeof codingModels>;
+  readonly goalTitles: CodingGoalTitles;
+  readonly characters: CodingCharacters;
+}
 
 // A refused answer's problems, with the questions they are about, for the Host to word beside each field.
 const problemsOf = (error: unknown) => {
@@ -49,11 +51,13 @@ const failure = (error: unknown) => {
 /**
  * Routes for the workbench, and the owner-bound actions the Runtime instance redeems for Coding's business surface.
  * Coding owns intent and organization; execution is always obtained through Host capabilities. Each resource's routes
- * are in their own file (routes-*.ts) and share one activation (route-activation.ts).
+ * are in their own file (routes-*.ts) and share one activation (route-activation.ts). `goalTitles` is the one cache the page's
+ * synchronous directory and the routes share (plugin.ts); a caller with none gets its own.
  */
-export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, ports?: CodingExecutionPorts): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
+export function codingSurface(context: PluginStartContext, sessions: CodingSessionStore, goalTitles: CodingGoalTitles = codingGoalTitles(context)): { routes: PluginRouteBinding[]; actions: ActionHandlerBinding[] } {
   const actions: ActionHandlerBinding[] = [];
-  const activation = startCodingActivation(context, ports && { ...ports, sessions }, actions, failure);
+  const execution: CodingExecution = { sessions, models: codingModels(context), goalTitles, characters: codingCharacters(context) };
+  const activation = startCodingActivation(context, execution, actions, failure);
   const routes = [writersRoutes, changesetsRoutes, goalsRoutes, setupRoutes, sessionsRoutes, timelineRoutes, delegationsRoutes, cardsRoutes].flatMap(group => group(activation));
   return { routes, actions };
 }

@@ -76,6 +76,8 @@ const ROUTES: RouteMaker[] = [
         await beforeWrite(); beforeWrite.assert_current();
         if (busy.has(record.session_id)) throw new Error("正在提交任务，请稍后修改下一轮目标");
         saveGoalContext(context, record.session_id, value);
+        // The title the person has just chosen it by is the one the directory shows from now on.
+        execution.goalTitles.remember(goalId, value.snapshot.goal.title);
       }
       const session = await execution.sessions.setGoal(beforeWrite, projectId, record.session_id, goalId, new Date().toISOString());
       if (!goalId) context.services!.storage!.delete(`goal-context:${record.session_id}`);

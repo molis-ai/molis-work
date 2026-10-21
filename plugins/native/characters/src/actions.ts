@@ -1,6 +1,6 @@
 import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { CharacterDraft, CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
+import { characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
 import { charactersArtifactPreview } from "./artifact-preview.js";
 
 const text = { type: "string" };
@@ -27,8 +27,8 @@ export type CharacterLaunchInput = { reference: ArtifactReference; workspace_id:
 export const charactersActions = {
   /** A published character as the 成果库 and side panel show it (artifact-positioning A4). */
   artifactPreview: charactersArtifactPreview,
-  list: define<Record<string, never>, { drafts: unknown[]; publications: unknown[] }>("list", "角色列表", "读取本人的角色草稿和本项目已发布的固定版本",
-    "query", object({}), object({ drafts: { type: "array" }, publications: { type: "array" } }), ["artifact:read"]),
+  /** Defined in the contracts, where Coding (which consumes it) finds it too. */
+  list: characterPluginActions.list,
   actions: define<Record<string, never>, { actions: unknown[] }>("actions.catalog", "角色可选能力", "读取可交给内置 Agent 的授权能力目录，用于角色的能力范围",
     "query", object({}), object({ actions: { type: "array" } }), ["artifact:read"]),
   create: define<Record<string, never>, { draft: CharacterDraft }>("create", "新建角色", "新建一份标题为「新角色」、做事方式为空的角色草稿并返回它；只创建，不发布。填写内容用「修改角色草稿」，固定成项目里的版本用「发布角色」", "command", object({}), object({ draft }), []),
@@ -50,8 +50,7 @@ export const charactersActions = {
   draftFile: define<Record<string, unknown>, unknown>("drafts.file", "预览草稿来源文件", "预览草稿导入快照中的文件", "query", { type: "object", required: ["id"] }, { type: "object" }, [], LOCAL),
   publicationFile: define<Record<string, unknown>, unknown>("publications.file", "预览发布来源文件", "预览已发布版本导入快照中的文件", "query",
     { type: "object", required: ["reference"] }, { type: "object" }, ["artifact:read"], LOCAL),
-  execution: define<{ reference: ArtifactReference }, unknown>("execution", "角色运行准备", "读取用本机 Agent 运行此发布版本所需的程序与工作目录",
-    "query", object({ reference }), { type: "object" }, ["artifact:read"], LOCAL),
+  execution: characterPluginActions.execution,
   /** Where a capability sits in this person's Character scopes; the capability library reads it next to other owners' references. */
   usages: defineActionUsagesAction("characters.usages", "角色里的使用位置", []),
   launch: define<CharacterLaunchInput, unknown>("launch", "用本机 Agent 运行角色", "在所选工作目录启动本机 Agent 执行任务", "command",

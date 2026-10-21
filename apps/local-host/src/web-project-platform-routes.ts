@@ -9,6 +9,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
 import { handleAgentStudioHttp } from "./plugin-builder/agent-surface.js";
+import { configuredModelChoices } from "./configured-models.js";
 import { handleSideFilesHttp } from "./side-files-http.js";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { handleAgentReviewHttp } from "./agent-review-http.js";
@@ -111,18 +112,19 @@ export const projectWriteCheckersRoute: WebRoute<ProjectRuntimeContext> = { id: 
 } };
 
 /** The agent-built plugin studio: Prologue designer and code agent, sandboxed plugin backends. */
-export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, codingServices, composition, controlToken }) =>
+export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-studio", handle: ({ request, response, url, store, options, serverOptions, pluginServices, composition, controlToken }) =>
   handleAgentStudioHttp(request, response, url, { store, projectId: options.projectId, homeDirectory: serverOptions.homeDirectory,
     routePrefix: projectRoutePrefix(options),
-    models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID,
-    actions: codingServices.actions,
+    // The one model list the platform keeps (V-13): what plugins read through `services.model`.
+    models: async () => serverOptions.homeDirectory ? configuredModelChoices(serverOptions.homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID,
+    actions: pluginServices.actions,
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
       const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
       if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
-    ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }, controlToken) };
+    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }, controlToken) };
 
 /**
  * Runtime plugins' HTTP and the plugin update stream. Bundled installations retain project policy; other plugins are

@@ -114,6 +114,7 @@ coding.plans.save	1	io.molis.work.coding	io.molis.work.coding	command	operation	
 coding.reports.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	d746974fa9af	a2c799262a3c	-
 coding.reports.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	251a5e9a8685	a2c799262a3c	-
 coding.reports.save	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	artifact:read,artifact:write	coding_session	-	-	993e3b323156	a2c799262a3c	-
+coding.results.document	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	plugin	artifact:read	-	-	-	c8e7ccee276b	2abc3616118a	-
 coding.runs.control	7	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	-	coding_session	-	-	3d3d1535dab3	a2c799262a3c	-
 coding.runs.list	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	df78a3a805ad	a2c799262a3c	-
 coding.runs.start	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	concurrent	user	artifact:read,storage:private	coding_session	-	-	5939250200b3	a2c799262a3c	613063238287
@@ -123,7 +124,7 @@ coding.sessions.read	1	io.molis.work.coding	io.molis.work.coding	query	query	pro
 coding.sessions.update	1	io.molis.work.coding	io.molis.work.coding	command	operation	project	write	-	user	storage:private	coding_session	-	-	4aabd3af2f6e	a2c799262a3c	-
 coding.state	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	coding_session	-	-	d746974fa9af	a2c799262a3c	-
 coding.subject.read	1	io.molis.work.coding	io.molis.work.coding	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifact:read	coding_session	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	1b694155359d	-
-cognia.directory.scan	1	io.molis.work.cognia	io.molis.work.cognia	query	query	home	read	concurrent	agent,mcp,user,workflow	cognia:read-local-files	cognia_material	-	-	e05fc55d8f30	2a9db3372b05	-
+cognia.directory.scan	2	io.molis.work.cognia	io.molis.work.cognia	query	query	home	read	concurrent	user	directory:read	cognia_material	-	-	799db27b19e8	2a9db3372b05	-
 cognia.domain.create	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	ea4982ee1c39	b749234ee261	-
 cognia.domain.delete	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	irreversible	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	05f552142a78	07a9ad95ba37	-
 cognia.domain.update	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	9cf5ff5db43d	b749234ee261	-
@@ -133,7 +134,7 @@ cognia.draft.save	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	
 cognia.files.entries	1	io.molis.work.cognia	io.molis.work.cognia	query	query	home	read	concurrent	user	cognia:read	cognia_material	molis.files.entries.window.v1	molis.files.entries.page.v1	09d161bb4729	fef9b910b93e	0d45eec66e70
 cognia.import.cancel	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	8ffe27b9dfa9	f15d8376353e	-
 cognia.import.commit	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	8ffe27b9dfa9	3188bb04c578	-
-cognia.import.directory_preview	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	concurrent	agent,mcp,user,workflow	cognia:read,cognia:read-local-files,cognia:write	cognia_material	-	-	865465fd7c9d	b0aa0debc167	21690c015350
+cognia.import.directory_preview	2	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	concurrent	user	cognia:read,cognia:write,directory:read	cognia_material	-	-	e40a7f872373	b0aa0debc167	8e414ffd75ff
 cognia.import.preview	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	-	agent,mcp,user,workflow	cognia:read,cognia:write	cognia_material	-	-	15307faf8d85	b0aa0debc167	-
 cognia.knowledge.query	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	concurrent	agent,mcp,user,workflow	cognia:read,cognia:write,model:invoke	cognia_material	-	-	299ac878637b	9f0142e9a4f6	613063238287
 cognia.knowledge.synthesize	1	io.molis.work.cognia	io.molis.work.cognia	command	operation	home	write	concurrent	agent,mcp,user,workflow	cognia:read,cognia:write,model:invoke	cognia_material	-	-	b59616bf2b6a	9f0142e9a4f6	613063238287

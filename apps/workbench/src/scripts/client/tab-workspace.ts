@@ -72,7 +72,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const TAB_SHARE_MIN = ${TAB_SHARE_MIN};
   const TAB_SHARE_MIN_TOUCH = ${TAB_SHARE_MIN_TOUCH};
   const storageKey = "molis-work-tab-workspace:" + (getProjectId() || "board");
-  const paneParams = new URLSearchParams(location.search);
+  const paneParams = new URLSearchParams(location.search), personal = getProjectId() === "personal";
   // A link that asked for a plugin page (onboarding sends the person to Todo) is honored over "entering starts at home".
   let pluginRequestedOnLoad = false;
   const embedded = window.parent !== window && paneParams.has("workbenchPane");
@@ -344,11 +344,8 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   const surfaceShows = new Map();
   const {rememberScroll,restoreScroll} = (${SCROLL_MEMORY_FACTORY})();
   const paneMarkup = () => '<nav class="tab-strip" data-tab-strip></nav><div class="tab-pane-body" data-tab-pane-body></div><button type="button" class="tab-pane-close" data-tab-pane-close aria-label="' + L("关闭分栏") + '"><svg aria-hidden="true"><use href="#icon-x"></use></svg></button><div class="tab-drop-edges" data-tab-edges><button type="button" data-tab-edge="left" aria-label="' + L("拆到左侧") + '"></button><button type="button" data-tab-edge="right" aria-label="' + L("拆到右侧") + '"></button><button type="button" data-tab-edge="top" aria-label="' + L("拆到上方") + '"></button><button type="button" data-tab-edge="bottom" aria-label="' + L("拆到下方") + '"></button></div>';
-  const tabLabel = (tab) => {
-    if (tab.plugin === "home") return document.body.dataset.projectId === "personal" ? L("个人首页") : L("项目首页");
-    if (tab.kind === "plugin") return L(ops.pluginTitle(tab.plugin));
-    return tab.title;
-  };
+  const tabLabel = (tab) => tab.plugin === "home" ? (personal ? L("个人首页") : L("项目首页"))
+    : tab.kind === "plugin" ? L(ops.pluginTitle(tab.plugin)) : tab.title;
   const tabIcon = (plugin) => PLUGIN_TAB_ICON[plugin] || "frame";
   const iconMarkup = (plugin) => '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-' + tabIcon(plugin) + '"></use></svg>';
   /* The entries that open a cover, wherever the bar keeps them. Pressed again while their cover is up, they close it. */
@@ -371,7 +368,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
   };
   const appendTab = (parent, pane, tab) => {
-    const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab);
+    if (personal && tab.kind === "home") return; const selected = tab.id === pane.activeTabId || pluginGroups.shows(pane, tab), label = tabLabel(tab);
     const button = document.createElement("div");
     button.className = "tab-item" + (selected ? " is-active" : "");
     button.dataset.tabId = tab.id;
@@ -381,25 +378,25 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     if (tab.pinned) button.dataset.pinned = "true";
     button.style.setProperty("--plugin-color", PLUGIN_COLOR[tab.plugin] || "var(--muted)");
     button.draggable = true;
-    button.title = tabLabel(tab);
+    button.title = label;
     if (selected) button.setAttribute("aria-current", "page");
     const trigger = document.createElement("button");
     trigger.type = "button";
     trigger.role = "tab";
     trigger.className = "tab-item-trigger";
     trigger.tabIndex = selected ? 0 : -1;
-    trigger.setAttribute("aria-label", tabLabel(tab));
+    trigger.ariaLabel = label;
     trigger.setAttribute("aria-selected", String(selected));
     const name = document.createElement("span");
-    name.textContent = tabLabel(tab);
+    name.textContent = label;
     const close = document.createElement("button");
     close.type = "button";
     close.className = "tab-item-close";
     close.dataset.tabClose = tab.id;
     // A plugin tab closes its whole group.
     const closeWords = L(tab.kind === "plugin" ? "关闭标签组" : "关闭标签");
-    close.setAttribute("aria-label", closeWords);
-    close.title = closeWords + " · " + tabLabel(tab);
+    close.ariaLabel = closeWords;
+    close.title = closeWords + "·" + label;
     close.tabIndex = selected ? 0 : -1;
     close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
     trigger.innerHTML = tab.kind === "system" ? '<svg class="tab-item-icon" aria-hidden="true"><use href="#icon-sparkles"></use></svg>' : iconMarkup(tab.plugin);

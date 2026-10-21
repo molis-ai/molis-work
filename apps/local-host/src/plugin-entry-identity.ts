@@ -12,6 +12,7 @@ export function pluginEntryIdentity() {
   const configurations = new WeakMap<PluginDefinition, PluginModelConfigurationDeclaration>();
   const images = new WeakMap<PluginDefinition, PluginImageGenerationDeclaration>();
   const projectData = new WeakMap<PluginDefinition, PluginProjectCleanup>();
+  const dual = new WeakSet<PluginDefinition>();
   return {
     providerFor: (definition: PluginDefinition, installId: string) => bundled.has(definition) ? definition.manifest.plugin_id : installId,
     databaseFor: (definition: PluginDefinition) => databases.get(definition),
@@ -20,12 +21,15 @@ export function pluginEntryIdentity() {
     modelConfigurationFor: (definition: PluginDefinition) => configurations.get(definition),
     imageGenerationFor: (definition: PluginDefinition) => images.get(definition),
     projectDataFor: (definition: PluginDefinition) => projectData.get(definition),
+    /** Whether the Host's start list said this definition is one half of a dual-instance plugin; nothing the plugin declares does. */
+    dualInstance: (definition: PluginDefinition) => dual.has(definition),
     /** Whether this Manifest object is the one a bundled definition on the Host's start list carries. */
     shipsWithHost: (manifest: PluginManifest | undefined) => manifest !== undefined && bundledManifests.has(manifest),
     remember(entries: readonly (PluginOwnerFilesEntry & { bundled?: boolean; database?: HomePluginDatabaseDeclaration; files?: PluginFilesDeclaration;
       model_configuration?: PluginModelConfigurationDeclaration; image_generation?: PluginImageGenerationDeclaration; project_data?: PluginProjectCleanup })[]) {
       for (const entry of entries) {
         if (entry.bundled) { bundled.add(entry.definition); bundledManifests.add(entry.definition.manifest); }
+        if (entry.dual_instance) dual.add(entry.definition);
         if (entry.database) databases.set(entry.definition, entry.database);
         if (entry.files) files.set(entry.definition, Object.freeze({ ...entry.files }));
         if (entry.owner_files) ownerFiles.set(entry.definition, Object.freeze({

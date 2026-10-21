@@ -94,7 +94,7 @@
 
 | 文件 | 行数 | 判定 |
 | --- | ---: | --- |
-| [`server/src/auth.ts`](../../server/src/auth.ts#L1) | 4 | **死文件**：只是 `ImAuth`/`ImSession` 的兼容别名，没有任何包、测试或脚本导入，也没有从 `server/src/index.ts` 转出 |
+| `server/src/auth.ts`（已于 PR #896 删除） | 4 | **死文件**：只是 `ImAuth`/`ImSession` 的兼容别名，没有任何包、测试或脚本导入，也没有从 `server/src/index.ts` 转出 |
 | [`plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/bootstrap.ts#L1) | 68 | **死文件**：5 个 DTO（`DirectionDto`、`IdeaCardDto`、`ExplorationDto`、`IdeaSummaryDto`、`BootstrapDto`）没有任何引用 |
 | [`plugins/native/alchemist/src/studio/shared/contracts/job.ts`](../../plugins/native/alchemist/src/studio/shared/contracts/job.ts#L1) | 16 | **死文件**：两个 zod schema 与 `JobEventDto` 都没有引用 |
 | [`packages/plugin-sandbox/src/worker.ts`](../../packages/plugin-sandbox/src/worker.ts#L1) | — | 保留：由 [`runner.ts`](../../packages/plugin-sandbox/src/runner.ts#L71) 按路径复制进沙箱，不是 import 入口 |

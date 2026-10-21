@@ -63,6 +63,7 @@ git log origin/main --first-parent --since=2026-09-28 --format=%H | while read m
 
 ## 3. 合并
 
+- **合并前的硬条件（2026-10-20 复审后补）**：PR 只能在最后一轮评审的「要改」全部落实或被评审明确豁免后入队；共享核心（`packages/contracts`、`packages/plugin-sdk`、`packages/plugin-runtime`、`horizontal/agent-host` 等）必须在最终 head 上跑完 full-suite，贴运行链接，不能拿合并后的补跑替代；入队前在最终 head 上跑 `pnpm health:check`、`pnpm boundary:check`、页面资源和 `pnpm secrets:check`；stacked PR 写明父 PR，MERGEED 不等于在 main，父 PR 合入并确认目标分支后才算完成。
 - 合同与扩展点先合，实现后合；体量大的需求按包与层拆开（`docs/prompts/repository-anti-corruption.md` §4.7）。
 - **合并队列**（spec §1，2026-10-15，取代 2026-10-02「不开合并队列」和 2026-10-03「合并前把分支同步到最新 main」）：CI 通过后用 `gh pr merge <号> --squash`（或网页上的 Merge when ready）把 PR 放进队列，不用再手动同步分支、等 CI 重跑。队列把 PR 建在 main 和排在它前面的 PR 之上，`Verify` 在这个提交上通过就合入；没通过的出队，前面的 PR 不受影响。队列里的 CI 是 `ci.yml` 的 `merge_group` 事件：健康门禁、资源预算与 Studio 回放以 `merge_group.base_sha` 为比较点（`scripts/ci-health-base.mjs`），密钥扫描从那里扫；不挡合并的作业（`security-invariants`、`product-subset`）不进队列。和别的 PR 冲突的 PR 仍要自己解冲突再进队列。
 - main 的分支保护（2026-10-08 用 `gh api repos/molis-ai/molis-work/branches/main/protection` 读到；2026-10-15 去掉了「必须与 main 同步」，加了带合并队列的规则集）：必需检查只有 `Verify`（对应 `.github/workflows/ci.yml` 的 `verify` 作业，它等 `gates`、`health-gate-rules`（两份）、`architecture-boundaries`、`action-contracts`、`secret-scan`、`native-checks`、`shell-checks` 都成功；改这个作业的名字就等于改保护规则）；必需的批准数是 0，没有开「必须由代码所有者批准」。

@@ -1,5 +1,6 @@
 import { codingArtifacts, CODING_REPORT_TYPE, CODING_CHANGESET_TYPE } from "./artifacts.js";
 import { codingChangeSetReference, codingChangeSetPreview, readCodingChangeSet, createCodingChangeSet, codingChangeFeedback } from "./changeset.js";
+import { codingOutputs } from "./outputs.js";
 import { COMMIT_DRAFT_ROUNDS, commitDraftMaterial, commitMessageFrom } from "./commit-draft.js";
 import { runGoalContext } from "./goal-context.js";
 import { artifactReferenceOf } from "./materials.js";
@@ -114,10 +115,9 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.reports", async (_request, _api, execution) => {
-      if (!execution.reportReferences) throw new Error("报告目录尚未装配");
-      const reports = execution.reportReferences().flatMap(reference => {
-        const value = codingReportPreview(codingArtifacts(context).read(reference));
+    return route("coding.reports", async () => {
+      const reports = codingOutputs(context, [CODING_REPORT_TYPE]).flatMap(({ record }) => {
+        const value = codingReportPreview(record);
         if (!value) return [];
         const { body_markdown: _body, ...entry } = value;
         return [entry];
@@ -127,10 +127,8 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.artifacts", async (_request, _api, execution) => {
-      if (!execution.reportReferences || !execution.changeSetReferences) throw new Error("成果目录尚未装配");
-      const artifacts = [...execution.reportReferences(), ...execution.changeSetReferences()].flatMap(reference => {
-        const record = codingArtifacts(context).read(reference);
+    return route("coding.artifacts", async () => {
+      const artifacts = codingOutputs(context, [CODING_REPORT_TYPE, CODING_CHANGESET_TYPE]).flatMap(({ record }) => {
         const report = codingReportPreview(record);
         if (report) { const { body_markdown: _body, ...entry } = report; return [{ ...entry, kind: "report", file_count: 0 }]; }
         const saved = codingChangeSetPreview(record);

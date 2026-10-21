@@ -1,6 +1,5 @@
 import { ACTION_ERROR_CODE, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { PluginRouteBinding, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { CodingCharacterPorts } from "./characters.js";
 import { startCodingActivation } from "./route-activation.js";
@@ -24,9 +23,6 @@ export interface CodingModelChoice { provider_id: string; model_id: string; labe
 /** What the Host lends Coding to run a round. The session store is not among them: the plugin opens it from `services.project_database`. */
 export interface CodingExecutionPorts {
   characters?: CodingCharacterPorts;
-  reportReferences?(): ArtifactReference[];
-  changeSetReferences?(): ArtifactReference[];
-  planReferences?(): ArtifactReference[];
   goalTitle(goalId: string): string | undefined;
   ready(): Promise<void>;
   models(): Promise<readonly CodingModelChoice[]>;

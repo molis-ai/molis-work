@@ -13,6 +13,7 @@ import { codingSettingsContribution, codingUiView } from "./ui.js";
 import { CodingSessionStore, toDirectoryEntries } from "./store.js";
 import { codingSurface, stopCodingSurface, type CodingExecutionPorts } from "./routes.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
+import { codingResultDocumentHandler } from "./results-document.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -77,7 +78,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         // The page's session directory is read from this store at render, not by the Host from Coding's tables.
         views: [codingUiView(() => toDirectoryEntries(sessions.list(context.project_id ?? ""), goalTitle)), codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, codingArtifactPreviewHandler],
+        actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context)],
         /**
          * A command is offered only when it can actually do something. Opening
          * a change set needs a session; opening a report needs a report. An

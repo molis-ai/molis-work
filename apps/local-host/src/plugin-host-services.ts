@@ -3,6 +3,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityCallOptions, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-plugin-artifacts";
 import {
@@ -26,6 +27,7 @@ import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
+import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
 
 /** What the executor keeps of one started Plugin until it stops. */
 export interface HostSession {
@@ -73,9 +75,13 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
     }
     withdrawAgentDefinitions = registerPluginAgentDefinitions(options.home, definition, context.install_id);
     background = pluginBackgroundFor(definition, context, assertActive);
+    const directory = options.home && manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION)
+      ? directoryForHome(options.home.directory) : undefined;
+    const directoryService: PluginDirectoryService | undefined = directory
+      ? { read: (request, signal) => { assertActive(); context.requireGrant(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
     const hosted = hostedContext(options, manifest, context, { pluginCaller, providerId, artifactService, ui, assertActive, isActive: () => active,
       database: library?.client, project_database: projectLibrary?.client, files: files?.client, model: pluginModelFor(options.home, definition, context, assertActive),
-      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client });
+      materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), background: background?.client, directory: directoryService });
     return { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose };
   } catch (error) {
     dispose();
@@ -130,10 +136,12 @@ interface SessionParts {
   /** The plugin's own tables in the project's library, if its Manifest declares them (`openProjectTables`). */
   readonly project_database: PluginDatabase | undefined;
   readonly files: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesClient | undefined;
-  /** The Host's text model, when the Manifest declares `model:invoke` and the Host runs the plugin itself (`pluginModelFor`). */
+  /** The Host's text model, when the Manifest declares `model:read` or `model:invoke` and the Host runs the plugin itself (`pluginModelFor`); only `model:invoke` sends requests. */
   readonly model: PluginModelClient | undefined;
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
+  /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
+  readonly directory: PluginDirectoryService | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -158,6 +166,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
+      ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

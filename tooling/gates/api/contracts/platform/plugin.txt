@@ -2761,6 +2761,7 @@ export interface PluginHostServices {
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
     readonly materials?: PluginMaterialsClient;
+    readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
     readonly ui: PluginUiClient;
@@ -3451,7 +3452,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "background"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "files" | "ownerFiles" | "model" | "imageGeneration" | "materials" | "directory" | "background"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

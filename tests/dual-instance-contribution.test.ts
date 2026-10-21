@@ -116,6 +116,9 @@ test("DUAL-04: ports and events reach only project instances, so a partial half 
   const silent = () => plugin({ actions: [projectRead.handler] }, declared);
   await assert.rejects(start(runtime(new ActionService(), () => ({ partial: true }), PROJECT), silent()),
     unredeemed("声明了事件订阅但没有提供 onEvent", "声明了输入端口但没有提供 onUpstreamReady"));
+  // Whether a half is outside any project is the Runtime's own project, not the Host's word: in a project the half still owes them.
+  await assert.rejects(start(runtime(new ActionService(), () => ({ partial: true, outside_project: true }), PROJECT), silent()),
+    unredeemed("声明了事件订阅但没有提供 onEvent", "声明了输入端口但没有提供 onUpstreamReady"));
   const answering = plugin({ actions: [projectRead.handler], onEvent: () => {}, onUpstreamReady: () => {} }, declared);
   assert.equal((await start(runtime(new ActionService(), () => ({ partial: true }), PROJECT), answering)).state, "running");
   // No project's ports or events reach a Home half, so it need not answer them.

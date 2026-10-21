@@ -101,10 +101,6 @@ export const selected = (a: CodingActivation, request: PluginRouteRequest, execu
 
 export const sessionTitle = (a: CodingActivation, execution: CodingExecution) => (id: string) => { try { return execution.sessions.get(a.projectId, id).title; } catch { return undefined; } };
 
-/** Every fixed output of this project's Coding sessions, with the session it came from. */
-export const sessionOutputs = (execution: CodingExecution) => [...execution.reportReferences?.() ?? [], ...execution.changeSetReferences?.() ?? [], ...execution.planReferences?.() ?? []]
-  .flatMap(reference => { const [, encoded] = reference.artifact_id.split(":"); return encoded ? [{ reference, session_id: decodeURIComponent(encoded) }] : []; });
-
 const sideOf = (a: CodingActivation, execution: CodingExecution, id: string | null) => {
   if (!id) return null;
   try { const record = execution.sessions.get(a.projectId, id); return { session_id: id, title: record.title, state: record.state, updated_at: record.updated_at }; }

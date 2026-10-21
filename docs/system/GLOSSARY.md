@@ -43,6 +43,7 @@
 | AI 记下的约定 | 助理侧栏列出的、AI 在处理说明里自称采纳为约束、目标或完成条件的补充；只是 AI 的自称，Molis 没有核对，不可编辑，要改就从那条补充发更正（`specs/ai-input-receipts/spec.md` §9.2、D41） | AI 记下的约定（英文 What the AI noted as agreed；2026-10-19 起，此前叫「当前约定」） | 当前约定（指它时）、已生效的约定 |
 | 处理说明（acknowledge） | AI 对一条补充、笔记、要求或本人的决定说「我读到了，我这样处理」；是 AI 的自称，不证明已经照做，Molis 没有核对。落点分两处：`acknowledge-inputs` 是运行时的系统工具，说明落在运行账里，说的是对话里的补充；`goals.events.acknowledge` 是 Goals 的动作，说明落在 Goal 时间线上，说的是 `gevt-` 记录（笔记、要求、本人的决定），只给 MCP 与助理、Agent 调用（`specs/ai-input-receipts/spec.md` §8.4、RCPT-376～383） | 处理说明（时间线上的类型名同；英文 How it will be handled） | 回执（读到状态才叫读到回执）、确认 |
 | 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：改成按声明与授权，实现前代码仍如此）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
+| 双实例插件 | 同一个 `plugin_id`、同一份 Manifest，既作 Home 实例由 Home 监督器装配，又作项目实例由项目启动名单在每个项目里装配；两半的 `install_id` 与提供方相同，动作、路由各归一半，记录各在自己的库里。只有宿主自己的启动名单能这样标：目录条目的 `runtime.dual_instance`（代码），夹具写在 Home 那一半的同名选项上；Manifest、安装记录和项目那一半都说不了（`docs/system/SECURITY-INVARIANTS.md` S-15，`specs/dual-instance-plugins/spec.md`）。Home 实例、项目实例分别指它的两半 | 无（用户看到的是一个插件） | 拆插件、两个插件（它不拆 id）；部分兑现、`partial`（那是 Runtime 对一次启动放宽的范围，`RedemptionScope`，不是这个标记） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
 

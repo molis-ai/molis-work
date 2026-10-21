@@ -140,7 +140,7 @@ function companionPage(root: HTMLElement, ports: CompanionPorts): void {
       showReviews: ports.reviews({ mountPluginClient: ports.mountPluginClient, route: ports.route, headers: ports.headers, onDecision: outcome => browser?.afterDecision?.(outcome) }) });
     const panel = q(`[data-${plugin}-browser]`), back = q(`[data-${plugin}-close]`);
     if (panel) panel.hidden = false;
-    if (back && BACK_LABEL[plugin]) back.textContent = BACK_LABEL[plugin];
+    if (back && BACK_LABEL[plugin]) back.textContent = ports.translate(BACK_LABEL[plugin]);
     return;
   }
   let read = 0, view: AbortSignal | undefined, index = 0;

@@ -1,6 +1,6 @@
 # 项目库里的插件表
 
-状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；有 v7 项目库的 Home 要先做维护八。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（BL-358）；Home 库的声明搬进 `databases.home`（L4）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
+状态：执行中（2026-10-21）。L1a、L1b（#867）、S8（#881）已合：Manifest 的 `databases.project`、账本和打开函数；项目库升 v8，项目的身份是 `project_root`；宿主开库时为声明了表的内置插件（Coding、Feed、Goals、Schedule）建表、记账本、再打开时核对，被拒的插件只停它自己；Goals 的 31 张表由它自己声明；有 v7 项目库的 Home 要先做维护八。L2、L3 待审（同一个 PR，进集成批）：`services.project_database` 与 Home 库共用一份客户端，每一句过了关键字再对照账本逐句检查；经 Plugin Runtime 启动的插件启动时建表或核对；沙箱插件经 broker 的 `sdk.projectDatabase` 读写，检查相同。还没有的：Coding 的代码改用这个服务（③ 的 C1）；创作台写不出 `databases.project`（创作台防腐收尾后删除，BL-377）；Home 库的声明搬进 `databases.home`（L4）；Goals 上 Runtime（S9）之前，宿主仍替它调打开函数、建看板。
 
 依据：
 
@@ -145,7 +145,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-20 | S8 并进维护八的两步 | `boards` 改建（去 `title`、外键指 `project_root`、行与 rowid 不变）和 Goals 的账本行，加进 `tests/fixtures/project-maintenance-v8.sql` 同一个事务，放在「正好一个看板」那句检查和它的临时表删掉之后；开头仍先核对 v7 的 73 张表；演练要证明维护后的库与新建的 v8 库（四个插件的声明都已打开）逐表相同，再打开不往账本添一行 | ③ 裁定，② 补充 |
 | 2026-10-20 | 建看板的请求哈希改成空请求，维护八换掉旧回执的哈希 | S8 的建看板请求不再带看板名，版本 7 的回执哈希里有它：不换的话，维护前用过的键重试会被当成键被别的请求用过（`goals.request.idempotency_key_reused`）。请求哈希按空请求算（回执的主键里已经有项目，请求里没有别的），是一个常量，维护八在重建 `idempotency_records` 之后把 `initialize_board` 的回执换成它；SQLite 里没有 sha256，按 `{project_id}` 算 SQL 写不出来。读取时不兜底旧哈希 | ⑤ 评审修，③ 认 |
 | 2026-10-21 | 沙箱插件的 Home 库（L3 日常取舍） | L3 只接项目库。沙箱定义拿 Home 库今天由 `assertDatabaseEntries` 拒绝（只有可信条目带 `database:`），等 L4 把声明搬进 `databases.home` 时一起开；broker 的服务写成通用的 `SandboxDatabaseService`，L4 接 Home 库时照用。计划原把两者都放在 L3 | ② |
-| 2026-10-21 | 创作台写不写 `databases.project`（L3 日常取舍） | 不在 L3 里写。`generatedPluginManifest` 不带它，设计答卷也没有声明表的地方；改答卷、Manifest 生成和创作台挂载的 Skill 章节要跑回放语料，记成 BL-358。L3 的用例按宿主装进项目的样子在定义上加声明 | ② |
+| 2026-10-21 | 创作台写不写 `databases.project`（L3 日常取舍） | 不在 L3 里写。`generatedPluginManifest` 不带它，设计答卷也没有声明表的地方；改答卷、Manifest 生成和创作台挂载的 Skill 章节要跑回放语料，记成一条 BACKLOG（10-21 作废删行：创作台不迁，防腐收尾后删除，见 BL-377）。L3 的用例按宿主装进项目的样子在定义上加声明 | ② |
 | 2026-10-21 | 通道上的值（L3 日常取舍） | 参数只许 null、有限数、字符串；返回的 BLOB、无穷与超出 2^53 的整数以 `sandbox.database_error` 拒绝，不悄悄改值。沙箱的 JSON 通道带不了字节 | ② |
 | 2026-10-21 | 拒绝码过不过通道（L3 日常取舍） | 宿主的 `ActionError` 带着码过通道（如 `plugin.project_database.statement_refused`），插件能按码处理；别的错误一律 `sandbox.database_error`，说明截到 2048 字 | ② |
 | 2026-10-21 | 逐句检查放在哪（L2 日常取舍） | 关键字过滤之后才 `EXPLAIN`：SQLite 准备语句时就执行设标志的 `PRAGMA` 与 `REINDEX`，准备之前必须先挡住。`EXPLAIN` 带着真实参数；判过的语句按文本缓存，`schema_version` 一变全部重判 | ② |
@@ -154,7 +154,7 @@ interface PluginManifestDatabases { readonly project?: PluginDatabaseDeclaration
 | 2026-10-21 | 没有文件的项目库（L2 日常取舍） | 插件平台的库不是宿主自己连到文件的 better-sqlite3 连接（内存库、别的驱动）时，声明了 `databases.project` 的插件不启动，不退回到别的路 | ② |
 | 2026-10-21 | Coding 什么时候改用新服务 | 服务在 L2 里给到 Coding（它已声明表，启动时拿到）；Coding 的代码改用它、删掉宿主给 Coding 的那条路是 ③ 的 C1，排在 L2 之后，按统筹 10-20 的派单。改了 2026-10-19「L2 里由 ② 做」那一行 | 统筹派单 |
 | 2026-10-21 | Home 级插件拿不拿项目库（L2） | 不拿：`HomePluginExecutor` 不给 `project_database`；Home 级插件按项目的数据放在 S0a 分区后的 Home 库里 | ② |
-| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句在宿主主线程上同步跑，没有时间与结果大小的上限。L3 不修，记成已知缺口（`docs/system/SECURITY-INVARIANTS.md` §4）与 BL-395；修法属于信任边界的设计，要问用户；要在 BL-358 让创作台写出 `databases.project` 之前做完 | ⑤ 评审 |
+| 2026-10-21 | 沙箱插件的语句跑多久（L3 评审） | 逐句检查只管碰得到哪些表；沙箱插件的语句在宿主主线程上同步跑，没有时间与结果大小的上限。L3 不修，记成已知缺口（`docs/system/SECURITY-INVARIANTS.md` §4）与 BL-395；修法属于信任边界的设计，要问用户；要在第一个能给沙箱插件开项目库的生产路径（第三方安装、重做的创作台）之前做完 | ⑤ 评审 |
 
 ## 5. 验收标准
 

@@ -121,7 +121,10 @@ export interface PluginHostServices {
   /** Owner-scoped binary files, only for a trusted Host entry declaring their directory. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly files?: import("./plugin-files.js").PluginFilesClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;
-  /** The Host's text model, for a plugin the Host runs itself that declares `model:invoke`; usable only from its own concurrent actions that declare it. */
+  /**
+   * The Host's text model, for a plugin the Host runs itself that declares `model:read` (the list and availability only) or
+   * `model:invoke`; requests only from its own concurrent actions that declare `model:invoke`.
+   */
   readonly model?: PluginModelClient;
   /** Image inference and connection binding, only for a trusted Home entry declaring this consumer. 2026-10-18 改: by Manifest declaration (PG-102). */
   readonly imageGeneration?: import("./plugin-image-generation.js").PluginImageGenerationClient;

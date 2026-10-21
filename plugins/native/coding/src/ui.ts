@@ -351,7 +351,7 @@ export function renderCodingWorkbench(model: CodingUiModel): string {
         <section class="coding-change" data-coding-change-reader aria-labelledby="coding-change-title" hidden>
           <header class="coding-change-head">
             <div class="coding-change-heading"><h3 id="coding-change-title">本轮变更</h3><p data-coding-change-summary></p></div>
-            <div class="coding-change-actions"><div class="mw-toggle-group coding-change-layout" data-slot="toggle-group" role="group" aria-label="对比方式"><button type="button" class="mw-toggle is-current" aria-pressed="true" data-coding-change-layout="unified">统一</button><button type="button" class="mw-toggle" aria-pressed="false" data-coding-change-layout="split">并排</button></div>
+            <div class="coding-change-actions"><div class="mw-toggle-group coding-change-layout" data-slot="toggle-group" role="group" aria-label="对比方式"><button type="button" class="mw-toggle is-current" aria-pressed="true" data-coding-change-layout="unified">统一</button><button type="button" class="mw-toggle" aria-pressed="false" data-coding-change-layout="split">并排</button></div><button class="mw-btn mw-btn--ghost" type="button" data-coding-change-patch disabled title="复制这个文件改动的统一补丁，可以用 git apply 应用">复制补丁</button>
               <span class="coding-change-fixed" data-coding-change-fixed hidden>${p.icon("lock")}<span></span></span>
               <button class="mw-btn mw-btn--primary" type="button" data-coding-change-save>固定此版本</button>
               <button class="mw-btn mw-btn--ghost" type="button" data-coding-change-output disabled>设为变更输出</button>

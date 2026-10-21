@@ -241,6 +241,10 @@ const headErrors = (measured, budget, base) => {
 // Files client words what it says through the page's translator. Tried first: one helper instead of five lookups. Spent
 // once from exactly #918's budgets.
 const APPROVED_CEILINGS = {
+  // #961: a quick load keeps the label until 250 ms, so the three stylesheets gain the same rule once.
+  "/assets/molis-work-arrival.css": [702900, 703308],
+  "/assets/molis-work-settings.css": [992861, 993269],
+  "/assets/molis-work-workbench.css": [1609427, 1609835],
   // #920: the English surfaces add one translation branch to Cognia.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
 };

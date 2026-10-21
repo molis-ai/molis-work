@@ -291,12 +291,6 @@ export function normalizeBlock(value: string): string {
   return value.trim().replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n");
 }
 
-export function normalizeTrailingNewline(value: string): string {
-  const trimmed = value.replace(/[ \t]+$/gm, "").replace(/\s+$/, "");
-  return trimmed ? `${trimmed}\n` : "";
-}
-
 export function digest(value: string): string {
   return createHash("sha256").update(value).digest("hex");
 }
-

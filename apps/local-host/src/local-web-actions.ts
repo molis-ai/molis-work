@@ -20,8 +20,9 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
   // The installation a provider's grants come from is the one its registration names, not whatever its provider id looks like:
   // a plugin that ships with the Host registers under its plugin_id, and its Host-assembled providers share that id. A project's
   // Plugin Runtime registers with its project_id, the Home's without, and that decides which database's record is the provider's.
+  const inProject = (provider: ActionProvider) => Boolean(provider.project_id);
   const installOf = (provider: ActionProvider) => provider.plugin_install_id === undefined ? undefined
-    : (provider.project_id ? projectRecords : homeRecords).get(provider.plugin_install_id);
+    : (inProject(provider) ? projectRecords : homeRecords).get(provider.plugin_install_id);
   // The person's own permissions reach only what the Host registers itself. A provider the Plugin Runtime registered, built in
   // or not, names its installation, and is reached through that installation's grants alone.
   const ownerReaches = (view: ActionView) => view.provider.plugin_install_id === undefined
@@ -56,11 +57,10 @@ export async function localWebActionContext(host: MolisWorkLocalHost, reference:
       if (original && ownerReaches(original)) return;
       // Re-read the original grant owner directly, rather than rediscovering every provider on each nested call.
       // The common dispatcher separately checks current definitions, source lifetime and action availability.
-      // The record comes from the database `installOf` reads, so its generation is only ever compared with that database's record.
+      // The record comes from the database `installOf` reads, by the same test, so its generation is only ever compared with that database's record.
       const installId = original?.provider.plugin_install_id;
-      const install = installId && original?.provider.project_id && reference
-        ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId))
-        : installId ? host.homePlugins?.installations().find(record => record.install_id === installId) : null;
+      const install = !installId || !original ? null : !inProject(original.provider) ? host.homePlugins?.installations().find(record => record.install_id === installId)
+        : reference ? await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db).get(installId)) : null;
       if (!original || !install || install.state !== "running" || install.plugin_id !== original.provider.plugin_id
         || install.installation_generation !== installOf(original.provider)?.installation_generation
         || !original.action.permissions.every(permission => install.grants.includes(permission))) {

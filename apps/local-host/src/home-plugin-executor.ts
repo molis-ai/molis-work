@@ -33,6 +33,8 @@ export class HomePluginExecutor implements PluginExecutor {
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
     projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
+    /** The Host's start list said this is the Home half of a dual-instance plugin (specs/dual-instance-plugins). */
+    dualInstance(definition: PluginDefinition): boolean;
     storage: SqlitePluginPrivateStorage;
     active(): boolean;
     record(installId: string): PluginInstanceRecord | null;
@@ -40,8 +42,9 @@ export class HomePluginExecutor implements PluginExecutor {
 
   async start(definition: PluginDefinition, context: PluginStartContext) {
     const manifest = definition.manifest;
-    if (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length
-      || manifest.artifacts.produces.length || manifest.artifacts.consumes.length || manifest.process_items?.produces.length || manifest.process_items?.consumes.length) {
+    // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
+    if (!this.options.dualInstance(definition) && (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length
+      || manifest.artifacts.produces.length || manifest.artifacts.consumes.length || manifest.process_items?.produces.length || manifest.process_items?.consumes.length)) {
       throw new Error("Home Runtime 尚未提供项目成果、端口或事件服务");
     }
     let active = true;

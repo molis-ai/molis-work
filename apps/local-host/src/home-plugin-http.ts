@@ -6,6 +6,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { readLocalWebBody, requestHost, sendLocalWebJson } from "./web-http.js";
@@ -44,9 +45,13 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     sendLocalWebJson(response, missing.status, missing.body); return true;
   }
   if (operation === "retry" && request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 重试启动" }); return true; }
+  // A dual-instance plugin's routes are split between its halves (specs/dual-instance-plugins): the Home answers those its running half
+  // binds and leaves every other declared route to the project's instance, next in the request chain. Only the Host's start list marks a plugin so.
+  const split = Boolean(route) && !HOME_ONLY_OPERATIONS.has(operation) && host.homePlugins.dualInstance(pluginId);
   let platform;
   try { platform = await (operation === "retry" ? host.homePlugins.retry() : host.homePlugins.ready()); }
   catch (error) {
+    if (split) return false;
     const message = error instanceof Error ? error.message : String(error);
     if (page && entry) {
       response.writeHead(503, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
@@ -55,6 +60,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     return true;
   }
   const install = host.homePlugins.installation(pluginId);
+  if (split && projectHalfRoute(platform, install, request.method, url.pathname)) return false;
   if (route && !install) {
     const missing = actionErrorResponse(new ActionError("actions.missing", "这个 Home 插件未安装"));
     sendLocalWebJson(response, missing.status, missing.body); return true;
@@ -62,7 +68,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   let project: LocalHostProjectReference | undefined;
   if (prefixed) {
-    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
     if (found instanceof ActionError) { const refused = actionErrorResponse(found); sendLocalWebJson(response, refused.status, refused.body); return true; }
     project = found;
   }
@@ -102,7 +108,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
-      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins);
+      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
     }, caller);
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
@@ -123,16 +129,31 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
 /** The Host's lifecycle operations, which are the Home's and not a project's: under a project's path only the plugin's declared routes run. */
 const HOME_ONLY_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade", "view-revision"]);
 
-/** The project the path names, while it exists and shows this plugin; otherwise why not. Asked when the route starts and before each write. */
-async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined)
+/**
+ * The project the path names, while it exists and shows this plugin; otherwise why not. Asked when the route starts and before each write.
+ * A dual-instance plugin with no catalog entry (a Host's fixture) has no key in the project's list: like its project half, which every
+ * project reaches, it is shown wherever the project exists.
+ */
+async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined, dualInstance: boolean)
   : Promise<LocalHostProjectReference | ActionError> {
   let projectId: string;
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
   const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
-  if (!entry || !found.plugins.includes(entry.project_plugin_id)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+  if (entry ? !found.plugins.includes(entry.project_plugin_id) : !dualInstance) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return molisWorkHostProjectReference({ databasePath: found.database_path, projectId });
+}
+
+/**
+ * Whether this request is the project half's: it matches a route the Manifest declares and the Home half does not bind now (a half that
+ * is not running binds none). A path the Manifest does not declare stays the Home's, which answers it as for any Home plugin.
+ */
+function projectHalfRoute(platform: HomePluginPlatform, install: PluginInstanceRecord | null, method: string | undefined, pathname: string): boolean {
+  const match = platform.router().match(method ?? "GET", pathname);
+  if (!match) return false;
+  const contribution = install?.state === "running" ? platform.runtime.contribution(install.install_id) : null;
+  return !(contribution?.kind === "app" && (contribution.routes ?? []).some(binding => binding.route_id === match.route_id));
 }
 
 /** The browser's same-origin page locator is a client report; it does not prove what was on screen. */

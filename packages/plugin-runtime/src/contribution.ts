@@ -24,6 +24,11 @@ export interface RedemptionScope {
   readonly outside_project?: boolean;
 }
 
+/** A Runtime that serves a project (its own `actions.project_id`) is never outside one, whatever its Host says of a definition. */
+export function redemptionIn(scope: RedemptionScope | undefined, projectId: string | undefined): RedemptionScope {
+  return projectId ? { ...scope, outside_project: false } : scope ?? {};
+}
+
 export function viewContributionId(manifest: PluginManifest, viewId: string): string {
   const declared = (manifest.ui.views ?? []).find((view) => view.view_id === viewId);
   return declared?.contribution_id ?? `${manifest.plugin_id}.${viewId}`;

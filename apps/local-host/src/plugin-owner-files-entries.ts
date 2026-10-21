@@ -10,6 +10,11 @@ export interface PluginOwnerFilesEntry {
   readonly files?: PluginFilesDeclaration;
   readonly owner_files?: PluginOwnerFilesDeclaration;
   readonly initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void;
+  /**
+   * On a Home fixture: this is the Home half of a dual-instance plugin, and the project fixture of the same plugin_id is its other
+   * half (`PluginRegistration.runtime.dual_instance` for a shipped plugin). A project entry never says it; the scope check does.
+   */
+  readonly dual_instance?: true;
 }
 export interface PluginOwnerFilesBinding {
   readonly declaration: PluginOwnerFilesDeclaration;

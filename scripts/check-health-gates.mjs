@@ -40,6 +40,7 @@ import { checkApiSnapshots } from "./gates/api-snapshot.mjs";
 import { docGateInputs, docGateMetrics, docGateProblems } from "./gates/doc-gates.mjs";
 import { DOCS_JSON_LIMIT_KEY } from "./gates/doc-raw-data.mjs";
 import { domEventProblems } from "./gates/dom-events.mjs";
+import { dualInstanceProblems } from "./gates/dual-instance.mjs";
 import { kernelContextualProblems } from "./gates/kernel-contextual.mjs";
 import { createTranslationMetric } from "./gates/translations.mjs";
 import { createImpeccableMetric } from "./gates/impeccable-files.mjs";
@@ -503,7 +504,7 @@ const limitErrors = () => {
 const exceptionErrors = () => Object.entries(exceptions).flatMap(([unit, entry]) => (!Object.hasOwn(head.giant, unit)
   ? [`giant exception for ${unit} is stale: it is not a giant unit any more (split, shrunk or renamed); delete the entry from tooling/gates/giant-exceptions.json, or key it by the new name after a rename`]
   : problemsOfException(entry).map((problem) => `giant exception for ${unit}: ${problem}`)));
-const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...productSubsetProblems(root)];
+const absolute = () => [...METRICS.flatMap((metric) => metric.absolute?.(head[metric.id]) ?? []), ...specProblems(), ...exceptionErrors(), ...(packageRegistry ? inventoryProblems(workingTree(), packageRegistry) : []), ...(packageRegistry ? pluginRegistryProblems(workingTree(), packageRegistry) : []), ...docGateProblems(workingTree()), ...domEventProblems(workingTree()), ...vendoredProvenanceProblems(root), ...tableOwnerProblems(workingTree(), { isSource }), ...kernelContextualProblems(workingTree()), ...dualInstanceProblems(workingTree()), ...productSubsetProblems(root)];
 // The public API of the contracts and the plugin SDK against the snapshots in tooling/gates/api (scripts/gates/api-snapshot.mjs):
 // not a number that falls but a list that never changes silently. With a merge-base it also lists what changed against it.
 const apiSnapshots = () => checkApiSnapshots({ root, git, mergeBase });

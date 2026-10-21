@@ -67,7 +67,7 @@ export function renderIssuesWorkbench(): string {
     <div class="issues-toast" data-issue-toast role="status" hidden><span></span><button type="button" class="mw-btn mw-btn--sm" data-issue-toast-action></button></div>
     <input type="file" accept="image/png,image/jpeg,image/webp" multiple hidden data-issue-files>
     <dialog class="mw-dialog issues-preview" data-issue-preview data-issue-i18n aria-label="截图">
-      <form method="dialog"><header><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom data-issue-i18n type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-i18n>关闭</button></header><div class="issues-preview-body"><img alt=""></div></form>
+      <form method="dialog"><header><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-zoom data-issue-i18n type="button">原始尺寸</button><button class="mw-btn mw-btn--secondary mw-btn--sm" data-issue-i18n>关闭</button></header><div class="issues-preview-body"><div class="issues-preview-view" data-issue-picture><img alt=""></div></div></form>
     </dialog>
     <dialog class="mw-dialog mw-dialog--form" data-issue-dialog aria-labelledby="issue-dialog-title">
       <form method="dialog" class="mw-dialog__shell mw-form"><div class="mw-form__body"><h2 id="issue-dialog-title"></h2><p></p></div>
@@ -126,8 +126,9 @@ export const ISSUES_STYLES = `
 dialog.issues-preview{width:calc(100vw - 32px);max-width:1440px;height:calc(100dvh - 32px);padding:0;overflow:hidden}
 .issues-preview form{height:100%;display:grid;grid-template-rows:auto minmax(0,1fr)}
 .issues-preview header{display:flex;justify-content:flex-end;gap:8px;padding:10px}
-.issues-preview-body{overflow:auto;display:grid;place-items:safe center;padding:16px}
-.issues-preview img{max-width:100%;max-height:100%;object-fit:contain}.issues-preview[data-zoom] img{max-width:none;max-height:none}
+.issues-preview-body{display:grid;grid-template:minmax(0,1fr)/minmax(0,1fr);min-height:0;padding:16px}
+.issues-preview-view:not(.mw-media-zoom){overflow:auto;display:grid;place-items:safe center}
+.issues-preview-view:not(.mw-media-zoom) img{max-width:100%;max-height:100%;object-fit:contain}.issues-preview[data-zoom] .issues-preview-view img{max-width:none;max-height:none}
 @media(max-width:760px){.issues textarea{font-size:16px}}
 @media(prefers-reduced-motion:reduce){.issues-row.is-new,.issues-toast{animation:none}}
 `;

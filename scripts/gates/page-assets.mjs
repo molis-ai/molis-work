@@ -258,13 +258,12 @@ const APPROVED_CEILINGS = {
   // PRR-03: the person's directory grant request and the path branch in Cognia's client need 339 B. Sharing kind/domain/source
   // and dropping the fallback saved the rest; the branch still has to ask the Host and pass only the grant id to the plugin.
   "/assets/molis-work-plugins/cognia.js": [23703, 24042],
-  // #871: 上下文 keeps pending, this round and earlier rounds apart; the workbench page adds 2,361 B.
-  "/assets/molis-work-workbench.js": [1151777, 1151781],
-  "/assets/molis-work-workbench.css": [1605166, 1605446],
-  "/assets/molis-work-settings.css": [990961, 991241],
-  "/assets/molis-work-arrival.css": [700551, 700831],
-  // #866/#868/#869: the remaining copy/scroll consumers, one show-more and the assistant's 产出 split.
-  // +1,101 B over #866's workbench base (1,140,490 B).
+  // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
+  "/assets/molis-work-workbench.js": [1151781, 1155557],
+  "/assets/molis-work-workbench.css": [1605446, 1606003],
+  "/assets/molis-work-settings.css": [991241, 991798],
+  "/assets/molis-work-arrival.css": [700831, 701388],
+  "/assets/molis-work-plugins/issues.js": [23871, 24401],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

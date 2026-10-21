@@ -121,6 +121,8 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 - 不引入 React/shadcn。HTML Slot：`mw-*` + `data-slot`。
 - 插件样式放包内 `styles.ts`，经 Workbench pack 的 `stylesheet` 注入；只写本插件的布局，不重画共享控件。
 
+媒体预览缩放用 `window.molisMediaZoom(viewport, image, { onChange })`（VUX-32），不要自己写 pan/zoom；缩放围绕实际看的位置、平移有边界。
+
 终层（`packages/design-system/src/styles/craft-finish.ts`，最后加载）：
 
 - 舞台已经在连续的白色工作面上。不要再给自己的舞台画外框、圆角卡片或整页阴影；需要分区用间距、字重和分隔线。

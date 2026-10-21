@@ -416,4 +416,11 @@ test("AC-10-6: while Coding waits, the page reads the run again and the card, th
     return { same: document.querySelector(${JSON.stringify(card)}) === window.__card, value: input.value, caret: [input.selectionStart, input.selectionEnd], focused: document.activeElement === input }; })()`);
   assert.deepEqual(after, { same: true, value: "写到一半的话", caret: [3, 3], focused: true }, "three reads later the card is the same node, with the words, the caret and focus where they were");
   assert.deepEqual(await evaluate(position), before, "and the thread is where the person scrolled it");
+  // VUX-26: the thread has one scroll owner. Detached, 回到最新 is offered; it is the one trip back, and the thread follows again.
+  const latest = `${coding} [data-coding-latest]`;
+  assert.equal(await evaluate(`document.querySelector(${JSON.stringify(turns)}).dataset.follow`), "detached");
+  await waitFor(`document.querySelector(${JSON.stringify(latest)})?.hidden === false`);
+  await click(latest);
+  await waitFor(`(() => { const node = document.querySelector(${JSON.stringify(turns)}); return node.dataset.follow === 'following' && node.scrollHeight - node.clientHeight - node.scrollTop < 8; })()`, 10_000);
+  await waitFor(`document.querySelector(${JSON.stringify(latest)}).hidden === true`);
 });

@@ -13,7 +13,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
   const immersiveNavigation = { hideDirectory: host.hideDirectory };
   // Coding and its companions share one copy of each plugin client they call: written once, called where each needs it.
   const reviewFactory = (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}), gitFactory = (${GIT_CLIENT_FACTORY_SCRIPT}), filesFactory = (${FILES_CLIENT_FACTORY_SCRIPT});
-    const companionRequest = (plugin,path,method="GET",body,signal) => molisWorkRequest(route('/api/plugins/io.molis.work.'+plugin+path),{method,body:method==='GET'?undefined:body??{},signal,fallback:'无法读取文件工作区'});
+    const companionRequest = (plugin,path,method="GET",body,signal) => molisWorkRequest(route('/api/plugins/io.molis.work.'+plugin+path),{method,body:method==='GET'?undefined:body??{},signal,fallback:L('无法读取文件工作区')});
     const codingRoot = host.root.matches("[data-coding-workbench]") ? host.root : null;
     const openCompanionResult = (name) => {
       if(codingRoot){codingRoot.dataset.codingDetail="true";codingRoot.dataset.codingResults="true";}
@@ -38,7 +38,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
       showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),
       addWorkspace: async (workspace_path) => {
-        const result=await molisWorkRequest(route("/api/workspaces"),{body:{workspace_path,user_confirmed:true},fallback:"无法关联工作区"});
+        const result=await molisWorkRequest(route("/api/workspaces"),{body:{workspace_path,user_confirmed:true},fallback:L("无法关联工作区")});
         return result.workspace;
       },
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title),

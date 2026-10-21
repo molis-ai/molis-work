@@ -29,7 +29,7 @@ export const GOALS_DOCUMENT_EN: Record<string, string> = {
   "Goal 详情": "Goal details",
   "这些条件决定这条 Goal 是否真的完成。": "These conditions determine whether this Goal is actually complete.",
   "还没有可以判断完成的条件。": "There are no completion criteria to evaluate yet.",
-  "查看全部 {count} 条要求": "View all {count} requirements",
+  "查看全部 {count} 条要求": "View all {count} {count|requirement|requirements}",
   "查看完整要求与边界": "View full requirements and scope",
   "这条 Goal 已从日常列表移除，但内容和历史仍然保留。": "This Goal is removed from the active list, but its content and history are preserved.",
   "可以这样处理：": "How to resolve it: ",

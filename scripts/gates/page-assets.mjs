@@ -238,11 +238,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-33 (slice 48): a streamed code block coloured from its last line — the growth function and
-  // the hunk-aware diff reading carried as source, and the block's grow step. Measured 19.5 → 3.7 ms per update on 1,000 lines.
-  "/assets/molis-work-plugins/coding.js": [372329, 375625],
-  // The same slice: the Assistant's code figure grows in place and keeps a fold the person opened.
-  "/assets/molis-work-workbench.js": [1168510, 1170057],
+  // specs/visual-ui-experience VUX-40 (slice 49): Settings opened inside a project drew the connector page without its own
+  // sheet (3 cramped columns, labels running out of the cards); the workbench sheet now carries it, as the settings sheet did.
+  "/assets/molis-work-workbench.css": [1609507, 1617234],
+  // The same slice: a connector card's state wraps inside the card, and its body track no longer grows past the card.
+  "/assets/molis-work-settings.css": [992921, 993089],
+  // The same slice: the page's L fills values through the SDK's fillMessage, with the word that agrees with a count.
+  "/assets/molis-work-workbench.js": [1170057, 1170060],
+  "/assets/molis-work-plugins/coding.js": [375625, 375631],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

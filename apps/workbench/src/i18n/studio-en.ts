@@ -52,7 +52,7 @@ export const STUDIO_EN: Record<string, string> = {
   "等你选择方案": "Waiting for you to choose a proposal",
   "等你选择组件": "Waiting for you to choose a component",
   "等你决定要不要启用插件": "Waiting for you to decide whether to enable plugins",
-  "已接通 {done}/{total} 项功能 · 输入会保留": "Connected {done}/{total} features · your input is kept",
+  "已接通 {done}/{total} 项功能 · 输入会保留": "Connected {done}/{total} {total|feature|features} · your input is kept",
 
   // The first screen and the conversation.
   "一起把想法做出来": "Let's build your idea together",
@@ -181,7 +181,7 @@ export const STUDIO_EN: Record<string, string> = {
   "，也不能联网": ", and it cannot go online",
 
   // The collaboration record and the acceptance results.
-  "同时在写 {n} 项功能": "Writing {n} features at once",
+  "同时在写 {n} 项功能": "Writing {n} {n|feature|features} at once",
   "各自只改自己的文件": "each edits only its own files",
   "协作记录 · {n} 步已完成": "Collaboration log · steps done: {n}",
   "更早的 {n} 步已折叠": "Earlier steps collapsed: {n}",

@@ -268,7 +268,7 @@ Plugins carry no identity colour on screen, with one exception: on the tab strip
 
 **Scale.** Eight fixed steps and no fluid sizes: **11 / 12 / 13 / 15 / 17 / 20 / 24 / 30px**, and a page uses at most four of them. Body 13px / 1.5 at `-.011em`. Captions, counts and meta 12px; 11px only for the smallest group labels. Directory titles 13px. Section and dialog titles 15px / 600. Page headings 24px / 600 at `-.02em` (20px on phones); display (Home heading, a Goal document title, onboarding question, settings heading) 30px / 600 at `-.03em`. Reading bodies use 13–15px with 1.6–1.8 line height, bounded to 76ch. Fields use 16px at 760px and below so iOS does not zoom. Only content itself goes above 30px (a Pages document title, the onboarding greeting word). `tests/soft-workbench-refinement.test.ts` enforces the steps.
 
-Status copy stays direct and specific. Timeline events use human-readable labels rather than raw event names; original IDs and sources remain available as secondary facts. Interface language changes between Chinese and English without rewriting user titles or record bodies.
+Status copy stays direct and specific. Timeline events use human-readable labels rather than raw event names; original IDs and sources remain available as secondary facts. Interface language changes between Chinese and English without rewriting user titles or record bodies. A count is filled into a whole sentence, and in English the word that follows it agrees with it ("1 staged file", "2 staged files"), through `{count|one|other}` in the plugin SDK's `fillMessage`. Switching language keeps the page, any open Settings, the split panes and their layout; English text that runs longer wraps inside its control rather than spilling out of it.
 
 ## Layout
 

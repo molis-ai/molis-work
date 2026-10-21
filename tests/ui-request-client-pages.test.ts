@@ -37,7 +37,7 @@ const OWN_HEADERS_FUNCTION = /molisWorkControlHeaders = \(\) =>/;
 function assertCarriesHelper(name: string, html: string) {
   assert.equal(count(html, UI_REQUEST_CLIENT_SCRIPT), 1, `${name}: the request helper, once`);
   assert.doesNotMatch(html, OWN_HEADERS_FUNCTION, `${name}: no second copy of the headers function`);
-  assert.ok(html.indexOf("globalThis.L = function L") >= 0 && html.indexOf("globalThis.L = function L") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
+  assert.ok(html.indexOf("globalThis.L = ") >= 0 && html.indexOf("globalThis.L = ") < html.indexOf(UI_REQUEST_CLIENT_SCRIPT), `${name}: the translator is defined first`);
   assert.match(html, new RegExp(`<meta name="molis-work-control-token" content="${TOKEN}">`), `${name}: the token the helper reads is in the page`);
 }
 

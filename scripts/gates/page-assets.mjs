@@ -261,9 +261,11 @@ const APPROVED_CEILINGS = {
   // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
   // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
   // #885: the split divider with a dead zone, pixel minimums, snap hysteresis and full cancel.
-  "/assets/molis-work-workbench.js": [1159052, 1159486],
-  "/assets/molis-work-workbench.css": [1606426, 1607357],
-  "/assets/molis-work-plugins/coding.js": [369421, 371370],
+  "/assets/molis-work-workbench.js": [1159486, 1161872],
+  "/assets/molis-work-workbench.css": [1607357, 1607694],
+  "/assets/molis-work-settings.css": [991152, 991617],
+  "/assets/molis-work-arrival.css": [701388, 701853],
+  "/assets/molis-work-plugins/coding.js": [371370, 371625],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

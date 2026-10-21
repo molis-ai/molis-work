@@ -11,6 +11,7 @@ import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modu
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isDeepStrictEqual } from "node:util";
+import { codingFailure, codingText } from "./words.js";
 
 /** Coding routes for what the next round takes: materials, action tools, MCP, methods, plans, Characters, and the files named with @. */
 
@@ -26,13 +27,14 @@ const ROUTES: RouteMaker[] = [
       const characterRef = savedCharacter(context, record.session_id);
       let character: ReturnType<NonNullable<CodingExecutionPorts["characters"]>["resolve"]> | undefined;
       let character_error: string | undefined;
+      const say = codingText(execution.locale);
       try { if (characterRef) character = execution.characters?.resolve(characterRef); }
-      catch (error) { character_error = error instanceof Error ? error.message : "原角色不可用"; }
-      if (characterRef && !character && !character_error) character_error = "原角色不可用";
+      catch (error) { character_error = error instanceof Error ? error.message : say("coding.server.character-gone"); }
+      if (characterRef && !character && !character_error) character_error = say("coding.server.character-gone");
       return { actions: tools.map(view => ({ ...view, availability: character_error
         ? { available: false, code: "agent.character_unavailable", reason: character_error }
         : character?.action_tools && !character.action_tools.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && ref.provider_id === view.provider.provider_id)
-          ? { available: false, code: "agent.character_scope", reason: "当前 Character 未开放此能力" } : view.availability })), selected: savedActions(context, record.session_id) };
+          ? { available: false, code: "agent.character_scope", reason: say("coding.server.character-scope") } : view.availability })), selected: savedActions(context, record.session_id) };
     });
   },
   (a) => {
@@ -46,7 +48,7 @@ const ROUTES: RouteMaker[] = [
       if (input.transport === "stdio") {
         const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
         const workspace = workspaces.find(item=>item.workspace_id === body.workspace_id);
-        if (!workspace?.realpath_verified) throw new Error("请选择当前项目已授权的 MCP 工作区");
+        if (!workspace?.realpath_verified) throw codingFailure("coding.server.mcp-workspace");
         input.directory = { canonical_path: workspace.canonical_path, realpath_verified: true };
       }
       return { server: await api!.invoke(agent.saveMcp, [runtime.runtime_id, context.plugin_id, input]) };
@@ -56,9 +58,9 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.control-mcp", async (request, api) => {
       const action = bodyOf(request).action;
-      if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw new Error("MCP 操作无效");
+      if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw codingFailure("coding.server.mcp-action");
       const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "mcp");
-      await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"MCP 服务"), action as "connect" | "disconnect" | "cancel" | "remove"]);
+      await api!.invoke(agent.controlMcp, [runtime.runtime_id, context.plugin_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
   },
@@ -69,16 +71,16 @@ const ROUTES: RouteMaker[] = [
       const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
-      if (!workspace?.realpath_verified) throw new Error("请先选择这个项目已授权的工作区");
+      if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
       return { candidates: await api!.invoke(agent.discoverSkills, [runtime.runtime_id, context.plugin_id,
-        { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "方法目录", 1000)]) };
+        { canonical_path: workspace.canonical_path, realpath_verified: true }, text(body.path, "coding.field.method-path", 1000)]) };
     });
   },
   (a) => {
     const { context, route } = a;
     return route("coding.install-method", async (request, api) => {
       const runtime = libraryRuntime(await api!.invoke(agent.listRuntimes, []), "skills");
-      return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "候选方法")]) };
+      return { method: await api!.invoke(agent.installSkill, [runtime.runtime_id, context.plugin_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
     });
   },
   (a) => {
@@ -95,7 +97,7 @@ const ROUTES: RouteMaker[] = [
       const record = selected(a, request, execution);
       if (request.query?.revision !== undefined) {
         const revision = Number(request.query.revision);
-        if (!Number.isSafeInteger(revision) || revision < 1) throw new Error("固定计划修订无效");
+        if (!Number.isSafeInteger(revision) || revision < 1) throw codingFailure("coding.server.plan-revision");
         return { plan: confirmedPlan(context, record.session_id, revision), fixed: true };
       }
       return { plan: execution.sessions.plan(projectId, record.session_id) };
@@ -105,18 +107,18 @@ const ROUTES: RouteMaker[] = [
     const { projectId, busy, route } = a;
     return route("coding.save-plan", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), body = bodyOf(request);
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
+      if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-plan-adjust");
       const expected = body.expected_revision;
-      if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw new Error("请先读取计划修订");
+      if (!Number.isSafeInteger(expected) || Number(expected) < 0) throw codingFailure("coding.server.plan-read-first");
       const current = execution.sessions.plan(projectId, record.session_id);
-      if ((current?.revision ?? 0) !== expected) throw new Error("计划已变化，请重新打开后合并修改");
+      if ((current?.revision ?? 0) !== expected) throw codingFailure("coding.server.plan-changed-merge");
       let proposal;
       if (body.run_id !== undefined) {
-        if (!record.runtime_session_id) throw new Error("没有可读取的规划轮次");
+        if (!record.runtime_session_id) throw codingFailure("coding.server.no-planning-turn");
         const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
         const snapshot = await api!.invoke(agent.readSession, [session]);
         const ref = snapshot.runs.find(run => run.run_id === body.run_id);
-        if (!ref) throw new Error("规划轮次不属于当前会话");
+        if (!ref) throw codingFailure("coding.server.planning-turn-elsewhere");
         // The planning rounds just before this one, back to the round that started planning, give the plan its task.
         const earlier: AgentRunView[] = [];
         for (let at = snapshot.runs.indexOf(ref) - 1; at >= 0; at--) {
@@ -126,12 +128,12 @@ const ROUTES: RouteMaker[] = [
         }
         proposal = planFromRun(record.session_id, await api!.invoke(agent.readRun, [session, ref]), earlier);
       } else {
-        if (!current) throw new Error("请先从规划轮次形成计划");
+        if (!current) throw codingFailure("coding.server.plan-from-turn");
         proposal = { source: current.source, content: parseCodingPlan(body.content) };
       }
       await beforeWrite(); beforeWrite.assert_current();
-      if (current?.confirmed && !proposal.content.change_reason) throw new Error("调整已确认计划时，请说明变更理由");
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后调整下一版计划");
+      if (current?.confirmed && !proposal.content.change_reason) throw codingFailure("coding.server.plan-change-reason");
+      if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-plan-adjust");
       const plan = execution.sessions.savePlan(projectId, record.session_id, Number(expected), {
         ...proposal, revision: Number(expected) + 1, confirmed: null,
       });
@@ -142,9 +144,9 @@ const ROUTES: RouteMaker[] = [
     const { context, projectId, busy, route } = a;
     return route("coding.confirm-plan", async (request, _api, execution) => {
       const record = selected(a, request, execution), draft = execution.sessions.plan(projectId, record.session_id);
-      if (busy.has(record.session_id)) throw new Error("正在开始执行，请稍后确认下一版计划");
-      if (!draft || draft.revision !== bodyOf(request).expected_revision) throw new Error("计划已变化，请重新查看当前修订");
-      if (draft.content.blockers) throw new Error("计划仍有未解决阻塞，请先调整计划");
+      if (busy.has(record.session_id)) throw codingFailure("coding.server.busy-plan-confirm");
+      if (!draft || draft.revision !== bodyOf(request).expected_revision) throw codingFailure("coding.server.plan-changed-view");
+      if (draft.content.blockers) throw codingFailure("coding.server.plan-blocked");
       if (draft.confirmed) return { plan: draft };
       const reference = planReference(record.session_id, draft.revision), fixed = { ...draft, confirmed: reference };
       planMaterial(fixed);
@@ -153,7 +155,7 @@ const ROUTES: RouteMaker[] = [
         content: { kind: "inline", payload: JSON.parse(JSON.stringify(fixed)) },
         metadata: { title: fixed.content.title, session_id: record.session_id, run_id: fixed.source.run_id } });
       const saved = confirmedPlan(context, record.session_id, draft.revision);
-      if (!isDeepStrictEqual(saved, fixed)) throw new Error("固定计划与当前草稿不一致，不能确认");
+      if (!isDeepStrictEqual(saved, fixed)) throw codingFailure("coding.server.plan-mismatch");
       return { plan: execution.sessions.confirmPlan(projectId, record.session_id, fixed) };
     });
   },
@@ -169,9 +171,9 @@ const ROUTES: RouteMaker[] = [
     const { context, fileIndexes, route } = a;
     return route("coding.files", async (request, api, execution) => {
       selected(a, request, execution);
-      const workspaceId = text(request.query?.workspace_id, "工作区", 200);
+      const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200);
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
-      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
+      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
       const held = fileIndexes.get(workspaceId);
       if (held && Date.now() - held.at < 30_000) return await held.value;
       const value = workspaceFileIndex(workspaceFileReader(context), workspaceId);
@@ -184,10 +186,10 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.symbols", async (request, api, execution) => {
       selected(a, request, execution);
-      const workspaceId = text(request.query?.workspace_id, "工作区", 200), path = text(request.query?.path, "文件", 1000);
+      const workspaceId = text(request.query?.workspace_id, "coding.field.workspace", 200), path = text(request.query?.path, "coding.field.file", 1000);
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
-      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw new Error("请先为这个项目选择已授权的工作区目录");
-      if (path.split("/").includes("..")) throw new Error("文件路径无效");
+      if (!workspaces.some(entry => entry.workspace_id === workspaceId && entry.realpath_verified)) throw codingFailure("coding.server.authorize-workspace");
+      if (path.split("/").includes("..")) throw codingFailure("coding.server.file-path");
       const file = await workspaceFileReader(context)({ workspace_id: workspaceId, path: path.split("/").filter(Boolean), kind: "text" });
       return { path, symbols: file.outcome === "text" ? symbolsIn(path, file.text) : [], ...(file.outcome === "text" ? {} : { unreadable: file.outcome }) };
     });

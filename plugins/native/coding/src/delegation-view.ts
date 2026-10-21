@@ -5,7 +5,8 @@
  * on the request's history. Everything here reads letters; nothing touches storage or the Host.
  */
 import type { AgentMessageAttachment, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { DELEGATION_STATE_LABEL, type DelegationState } from "./cooperation.js";
+import { DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
+import { type CodingText, codingZh } from "./words.js";
 
 export const isDelegation = (letter: AgentSessionMessage) => letter.audience === "people" && letter.kind === "request";
 export const letterBody = (letter: AgentSessionMessage): Record<string, unknown> => {
@@ -31,8 +32,8 @@ export interface DelegationSides<Side> {
   sideOf(sessionId: string | null): Side;
 }
 
-/** What the page shows about one delegation letter and the replies to it. */
-export function delegationViewOf<Side>(letter: AgentSessionMessage, letters: readonly AgentSessionMessage[], sides: DelegationSides<Side>) {
+/** What the page shows about one delegation letter and the replies to it; `say` words the state in the page's language. */
+export function delegationViewOf<Side>(letter: AgentSessionMessage, letters: readonly AgentSessionMessage[], sides: DelegationSides<Side>, say: CodingText = codingZh) {
   const said = letterBody(letter), history = letter.history ?? [];
   const replies = letters.filter(one => one.audience === "people" && one.kind === "reply" && one.in_reply_to === letter.message_id);
   const deliveries = replies.map(reply => {
@@ -48,7 +49,7 @@ export function delegationViewOf<Side>(letter: AgentSessionMessage, letters: rea
     ...(entry.late ? { recorded_only: true as const } : {}) }));
   const state = delegationStateOf(letter.state, history), from = sides.codingOf(letter.from_session), to = sides.codingOf(letter.to_session);
   return { delegation_id: letter.message_id, from_session: from, to_session: to, title: String(said.title ?? ""), task: String(said.task ?? ""),
-    materials: (letter.attachments ?? []).flatMap(one => artifactOf(one) ?? []), hops: letter.hops ?? 1, state, state_label: DELEGATION_STATE_LABEL[state],
+    materials: (letter.attachments ?? []).flatMap(one => artifactOf(one) ?? []), hops: letter.hops ?? 1, state, state_label: say(DELEGATION_STATE_KEY[state]),
     // Every step either letter took: an action named against an older count is refused as a change under it.
     revision: history.length + replies.reduce((sum, reply) => sum + (reply.history?.length ?? 0), 0), deliveries, receipts,
     created_at: iso(letter.sent_at_ms), from: sides.sideOf(from), to: sides.sideOf(to) };

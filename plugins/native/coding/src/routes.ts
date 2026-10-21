@@ -13,6 +13,7 @@ import { setupRoutes } from "./routes-setup.js";
 import { timelineRoutes } from "./routes-timeline.js";
 import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
+import { codingZh } from "./words.js";
 
 export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
@@ -46,7 +47,7 @@ const failure = (error: unknown) => {
   const code = (error as { code?: string }).code;
   return { status: code === "coding.session_unknown" || code === "actions.missing" ? 404 : code === "agent.session_busy" ? 409
     : code === "actions.forbidden" || code === "actions.owner_mismatch" ? 403 : code === "actions.unredeemed" ? 503 : ACTION_ERROR_CODE.test(code ?? "") ? actionHttpStatus(error) : 400,
-    body: { error: error instanceof Error ? error.message : "Coding 操作失败", ...(code ? { code } : {}), ...problemsOf(error) } };
+    body: { error: error instanceof Error ? error.message : codingZh("coding.server.failed"), ...(code ? { code } : {}), ...problemsOf(error) } };
 };
 
 /**

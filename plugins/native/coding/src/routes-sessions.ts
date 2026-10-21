@@ -129,7 +129,7 @@ const ROUTES: RouteMaker[] = [
       // The first Runtime in the platform's directory that can host a session; with none, the session is refused and nothing is created.
       const runtime = requireProjectRuntime(await api!.invoke(agent.listRuntimes, []));
       const record = execution.sessions.create({ project_id: projectId, session_id: crypto.randomUUID(),
-        title: text(body.title ?? DEFAULT_SESSION_TITLE, "会话名称"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
+        title: text(body.title ?? DEFAULT_SESSION_TITLE, "coding.field.session-title"), runtime_id: runtime.runtime_id, at: new Date().toISOString() });
       return { session: record };
     });
   },
@@ -230,7 +230,7 @@ const ROUTES: RouteMaker[] = [
         else if (typeof tokens !== "number" || !Number.isSafeInteger(tokens) || tokens < 1_000 || tokens > 10_000_000_000) throw codingFailure("coding.server.budget-range");
         else context.services!.storage!.set(`budget:${record.session_id}`, JSON.stringify({ tokens }));
       }
-      const title = body.title === undefined ? undefined : text(body.title, "会话名称");
+      const title = body.title === undefined ? undefined : text(body.title, "coding.field.session-title");
       if (materials) context.services!.storage!.set(`materials:${record.session_id}`, JSON.stringify(materials));
       return { session: title === undefined ? record : execution.sessions.rename(projectId, record.session_id, title, new Date().toISOString()) };
     });

@@ -1,7 +1,8 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_MESSAGES } from "./messages.js";
 
-type Values = Readonly<Record<string, string | number>>;
+/** A value is a word or number as it is, or another of Coding's keys worded in the same language (a field's name). */
+type Values = Readonly<Record<string, string | number | { readonly key: string }>>;
 export type CodingText = (key: string, values?: Values) => string;
 
 /**
@@ -9,8 +10,12 @@ export type CodingText = (key: string, values?: Values) => string;
  * (the run report, the Agent's context) and a call no page made (a model's tool call, background work) use it.
  */
 export function codingText(locale: ActionLocale = "zh"): CodingText {
-  return (key, values = {}) => ((CODING_MESSAGES as Record<string, { zh: string; en: string }>)[key]?.[locale] ?? key)
-    .replace(/\{(\w+)\}/g, (all, name: string) => name in values ? String(values[name]) : all);
+  const say: CodingText = (key, values = {}) => ((CODING_MESSAGES as Record<string, { zh: string; en: string }>)[key]?.[locale] ?? key)
+    .replace(/\{(\w+)\}/g, (all, name: string) => {
+      const value = values[name];
+      return value === undefined ? all : typeof value === "object" ? say(value.key) : String(value);
+    });
+  return say;
 }
 
 export const codingZh = codingText("zh");
@@ -32,9 +37,10 @@ export function codingError<E extends Error>(make: (message: string) => E, key: 
 /** The plain `Error` form of `codingError`. */
 export const codingFailure = (key: string, values?: Values): Error => codingError(message => new Error(message), key, values);
 
-/** A route's error in its caller's language, when Coding worded it from a key; any other error passes as it is. */
+/** A route's error in its caller's language, when Coding worded it from a key; any other error passes as it is, and a throw that is not an error becomes Coding's plain failure. */
 export function codingErrorIn(error: unknown, locale: ActionLocale | undefined): unknown {
-  if (!(error instanceof Error) || !locale || locale === "zh") return error;
+  if (!(error instanceof Error)) return codingErrorIn(codingFailure("coding.server.failed"), locale);
+  if (!locale || locale === "zh") return error;
   const known = worded.get(error);
   if (known) error.message = codingText(locale)(known.key, known.values);
   return error;

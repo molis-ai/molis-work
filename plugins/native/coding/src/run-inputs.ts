@@ -4,6 +4,7 @@ import { AGENT_INPUT_KEY_PATTERN, AGENT_INPUT_SOURCES, AGENT_STEER_MODES, type A
 import { QUESTION_LIMITS, questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { codingWriterAssignments } from "./writers.js";
 import type { CodingModelChoice } from "./routes.js";
+import { codingFailure } from "./words.js";
 
 const identity = {
   session_id: { type: "string", minLength: 1, maxLength: 200 },
@@ -39,7 +40,7 @@ function controlBranch(kind: string, extra: Record<string, unknown>, required: r
 export function controlInput(input: Record<string, unknown>): Record<string, unknown> {
   if (input.kind !== "answer" || input.values === undefined) return input;
   const { values, ...rest } = input, answer = cardAnswer(values);
-  if (!answer) throw new Error("请回答每一道问题后再提交");
+  if (!answer) throw codingFailure("coding.server.answer-every");
   return { ...rest, ...answer };
 }
 
@@ -70,17 +71,17 @@ export const codingRunControlInput: ActionSchema = {
 /** What the page sends to start, steer or answer a round, checked before it reaches the Host. */
 
 export function text(value: unknown, label: string, maximum = 200): string {
-  if (typeof value !== "string" || !value.trim() || value.length > maximum) throw new Error(`${label}不能为空，且不能超过 ${maximum} 字符`);
+  if (typeof value !== "string" || !value.trim() || value.length > maximum) throw codingFailure("coding.server.field-invalid", { label: { key: label }, maximum });
   return value.trim();
 }
 
 /** The next round's saved choices; an effort that is not quick, balanced or deep is dropped, not guessed. */
 export function nextConfiguration(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("下一轮配置格式无效");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw codingFailure("coding.server.next-config");
   const config = value as Record<string, unknown>;
-  if (!["discuss", "plan", "collaborate", "parallel", "edit", "execute", "review"].includes(String(config.intent))) throw new Error("执行方式无效");
+  if (!["discuss", "plan", "collaborate", "parallel", "edit", "execute", "review"].includes(String(config.intent))) throw codingFailure("coding.server.intent");
   for (const key of ["provider_id", "model_id", "workspace_id"]) {
-    if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw new Error("模型或工作区配置无效");
+    if (typeof config[key] !== "string" || (config[key] as string).length > 1000) throw codingFailure("coding.server.model-workspace");
   }
   // The effort the person chose for the next round; one that is not quick, balanced or deep is dropped, not guessed.
   const effort = (AGENT_REASONING_EFFORTS as readonly unknown[]).includes(config.reasoning_effort) ? { reasoning_effort: config.reasoning_effort as AgentReasoningEffort } : {};
@@ -91,38 +92,38 @@ export function nextConfiguration(value: unknown) {
 
 /** Picked objects as a reference question's answer: within the SDK's limits, each a kind, an id and a label as text. */
 function pickedObjects(given: unknown[]): Array<{ kind: string; id: string; label: string }> {
-  if (given.length > QUESTION_LIMITS.maxReferences) throw new Error(`一道题最多选 ${QUESTION_LIMITS.maxReferences} 个对象`);
+  if (given.length > QUESTION_LIMITS.maxReferences) throw codingFailure("coding.server.pick-limit", { count: QUESTION_LIMITS.maxReferences });
   return given.map(item => {
     const { kind, id, label } = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
-    if (![kind, id, label].every(field => typeof field === "string" && field.length <= QUESTION_LIMITS.maxReferenceChars)) throw new Error("选中的对象格式无效");
+    if (![kind, id, label].every(field => typeof field === "string" && field.length <= QUESTION_LIMITS.maxReferenceChars)) throw codingFailure("coding.server.pick-shape");
     return { kind: kind as string, id: id as string, label: label as string };
   });
 }
 
 export function questionAnswer(body: Record<string, unknown>): Extract<AgentRunControl, { kind: "answer" }> {
-  const pending_id = text(body.pending_id, "问题引用");
+  const pending_id = text(body.pending_id, "coding.field.question");
   const pending_revision = body.pending_revision;
-  if (typeof pending_revision !== "number" || !Number.isInteger(pending_revision) || pending_revision < 1) throw new Error("问题版本无效，请重新读取原问题");
+  if (typeof pending_revision !== "number" || !Number.isInteger(pending_revision) || pending_revision < 1) throw codingFailure("coding.server.question-version");
   if (body.answers === undefined) {
-    text(body.text, "回答", 100_000);
+    text(body.text, "coding.field.answer", 100_000);
     // Validate blank/oversized input without rewriting the user's answer.
     return { kind: "answer", pending_id, pending_revision, text: body.text as string };
   }
-  if (body.text !== undefined || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 10) throw new Error("问卷回答格式无效");
+  if (body.text !== undefined || !Array.isArray(body.answers) || body.answers.length < 1 || body.answers.length > 10) throw codingFailure("coding.server.answers-shape");
   const answers = body.answers.map(value => {
-    if (!value || typeof value !== "object") throw new Error("问卷回答格式无效");
+    if (!value || typeof value !== "object") throw codingFailure("coding.server.answers-shape");
     const { question, indexes, other, value: given } = value as Record<string, unknown>;
     // A question that is not a choice is answered with a value: words, a date or a moment as text, a number, picked objects,
     // or nothing. Only the shape is read here; whether it fits its question (one or several, which kinds) is the Runtime's
     // to judge, and whether the person may hand the objects over is the Host's (S-26).
     if (indexes === undefined && typeof question === "number" && Number.isInteger(question)) {
       if (Array.isArray(given) && other === undefined) return { question, value: pickedObjects(given) };
-      if (!(given === null || typeof given === "string" && given.length <= 2000 || typeof given === "number" && Number.isFinite(given)) || other !== undefined) throw new Error("问题的回答格式无效");
+      if (!(given === null || typeof given === "string" && given.length <= 2000 || typeof given === "number" && Number.isFinite(given)) || other !== undefined) throw codingFailure("coding.server.answer-shape");
       return { question, value: given as string | number | null };
     }
     if (typeof question !== "number" || !Number.isInteger(question) || !Array.isArray(indexes) || indexes.length > 20
       || !indexes.every(index => typeof index === "number" && Number.isInteger(index))
-      || other !== undefined && (typeof other !== "string" || other.length > 500)) throw new Error("问题或选项编号无效");
+      || other !== undefined && (typeof other !== "string" || other.length > 500)) throw codingFailure("coding.server.answer-index");
     return { question, indexes: indexes as number[], ...(other === undefined ? {} : { other: other as string }) };
   });
   return { kind: "answer", pending_id, pending_revision, answers };
@@ -131,7 +132,7 @@ export function questionAnswer(body: Record<string, unknown>): Extract<AgentRunC
 /** The reasoning effort a round is started with: one of the three, and only for a model marked as taking one. */
 export function chosenEffort(body: Record<string, unknown>, model: CodingModelChoice): AgentReasoningEffort | undefined {
   const effort = body.reasoning_effort === undefined || body.reasoning_effort === "" ? undefined : String(body.reasoning_effort);
-  if (effort !== undefined && (!(AGENT_REASONING_EFFORTS as readonly string[]).includes(effort) || !model.reasoning_effort)) throw new Error("所选模型没有标注可调思考力度，或力度不是快速、平衡、深入之一");
+  if (effort !== undefined && (!(AGENT_REASONING_EFFORTS as readonly string[]).includes(effort) || !model.reasoning_effort)) throw codingFailure("coding.server.effort");
   return effort as AgentReasoningEffort | undefined;
 }
 
@@ -147,16 +148,16 @@ export type CodingRunControl = AgentRunControl | { kind: "steer"; send: AgentInp
  */
 export async function runControl(body: Record<string, unknown>, models: () => Promise<readonly CodingModelChoice[]>): Promise<CodingRunControl> {
   if (body.kind === "answer") return questionAnswer(body);
-  if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "补充要求", 100_000),
+  if (body.kind === "steer") return { kind: "steer", send: { text: text(body.text, "coding.field.supplement", 100_000),
     ...(typeof body.source === "string" ? { source: body.source as AgentInputSource } : {}),
     ...(typeof body.key === "string" ? { key: body.key } : {}), ...(typeof body.mode === "string" ? { mode: body.mode as AgentSteerMode } : {}),
     ...(typeof body.about === "string" ? { about: body.about } : {}) } };
-  if (body.kind === "withdraw") return { kind: "withdraw", input_id: text(body.input_id, "补充引用") };
+  if (body.kind === "withdraw") return { kind: "withdraw", input_id: text(body.input_id, "coding.field.supplement-ref") };
   if (body.kind === "stop" || body.kind === "pause" || body.kind === "resume") return { kind: body.kind };
   if (body.kind === "switch-model") {
     const model = (await models()).find(entry => entry.provider_id === body.provider_id && entry.model_id === body.model_id);
-    if (!model) throw new Error("所选模型不可用，请在全局模型设置中检查配置");
+    if (!model) throw codingFailure("coding.server.model-missing");
     return { kind: "switch-model", provider_id: model.provider_id, model_id: model.model_id };
   }
-  throw new Error("不支持的控制动作");
+  throw codingFailure("coding.server.control");
 }

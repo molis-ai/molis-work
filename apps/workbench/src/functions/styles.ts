@@ -125,7 +125,7 @@ export const FUNCTIONS_STYLES = `
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(64px, .3fr) auto; gap: 8px; align-items: start;
   }
   .functions-criterion:has([data-score-level]) { grid-template-columns: 32px minmax(0, 1fr) auto; align-items: center; }
-  .functions-criterion:has([data-score-level]) > button { margin-top: 0; }
+  .functions-criterion > [data-score-level] ~ .mw-btn { margin-top: 0; }
   .functions-criterion [data-score-index] { align-self: center; font-size: 11px; color: var(--muted); }
   .functions-sample { display: flex; align-items: center; gap: 8px; }
   .functions-sample [data-sample-load] { flex: none; }

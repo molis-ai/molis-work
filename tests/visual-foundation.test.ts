@@ -319,7 +319,13 @@ test("visual foundation keeps the Goal navigator dense and relationships progres
 test("expanded desktop Goal Tree parents compact without hiding dependency metadata", () => {
   assert.match(
     VISUAL_FOUNDATION_STYLES,
-    /\.tree-item:not\(\.is-collapsed\):has\(> \.tree-children\)[^{]*\.tree-title-line strong \{[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/,
+    /\.tree-item:not\(\.is-collapsed\):has\(> \.tree-children\)[^{]*\.tree-title-line \{[^}]*--tree-title-overflow: ellipsis;[^}]*--tree-title-space: nowrap;/,
+  );
+  // Passed to the title rather than named after the :has() (VUX-36: a rule ending in a bare tag there makes every node put in
+  // the page check every <strong>).
+  assert.match(
+    VISUAL_FOUNDATION_STYLES,
+    /\.desktop-goal-directory \.tree-title-line strong \{[^}]*text-overflow: var\(--tree-title-overflow, clip\);[^}]*white-space: var\(--tree-title-space, normal\);/,
   );
   assert.match(
     VISUAL_FOUNDATION_STYLES,

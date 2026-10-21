@@ -1,5 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { GIT_CLIENT_FACTORY_SCRIPT, GIT_PROJECT_PLUGIN_ID, gitManifest } from "./index.js";
+import { GIT_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,6 +8,7 @@ import { GIT_CLIENT_FACTORY_SCRIPT, GIT_PROJECT_PLUGIN_ID, gitManifest } from ".
  */
 export const registration: PluginRegistration = {
   project_plugin_id: GIT_PROJECT_PLUGIN_ID, catalog_order: 24,
+  messages: GIT_MESSAGES,
   manifest: gitManifest,
   workbench: { order: 22, contributions: [], clientFactory: GIT_CLIENT_FACTORY_SCRIPT, clientFrom: "coding" },
   summary: "查看工作区的版本与变更。",

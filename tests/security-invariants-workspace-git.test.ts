@@ -15,7 +15,7 @@ const exec = promisify(execFile);
 
 /** A repository with a submodule; helpers that leave a mark under `ran` when anything executes them. */
 async function fixture(t: import("node:test").TestContext) {
-  const home = await realpath(await mkdtemp(path.join(tmpdir(), "s52-writer-"))), root = path.join(home, "repo"), ran = path.join(home, "ran");
+  const home = await realpath(await mkdtemp(path.join(tmpdir(), "s53-writer-"))), root = path.join(home, "repo"), ran = path.join(home, "ran");
   t.after(() => rm(home, { recursive: true, force: true }));
   const source = path.join(home, "source");
   await mkdir(root); await mkdir(ran); await mkdir(source);
@@ -88,7 +88,7 @@ test("S-53 a writer's work tree holding an initialized submodule is not removed,
   await f.git(inner, "config", "filter.inner.clean", await f.helper("inner-filter"));
   await writeFile(path.join(inner, "inner.txt"), "INNER\n");
   // The Host's status no longer opens the submodule; Git itself refuses to remove a work tree that holds one.
-  await assert.rejects(port.remove(created));
+  await assert.rejects(port.remove(created), /submodules cannot be moved or removed/);
   assert.equal(await readFile(path.join(inner, "inner.txt"), "utf8"), "INNER\n", "the submodule's uncommitted change is still there");
   assert.equal((await port.list()).length, 1);
   assert.deepEqual(await readdir(f.ran), [], "the submodule's filter did not run");

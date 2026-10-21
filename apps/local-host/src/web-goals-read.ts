@@ -1,4 +1,5 @@
 import { builderWorkbenchPanel } from "./plugin-builder-surface.js";
+import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
@@ -23,6 +24,12 @@ import {
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 
+
+/** The page still opens without the installed plugins' entries; why they are missing is written. */
+/** The project settings page each path opens; `/settings` alone opens 常规. */
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
+  .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
+const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
   renderer: Pick<ReturnType<typeof createLocalHostWorkbenchRenderer>, "renderMolisWorkProjectSettingsHub" | "renderMolisWorkMomentumFragment" | "renderMolisWorkRefreshFragment" | "renderMolisWorkWeb" | "renderGoalDocumentFragment">;
@@ -35,13 +42,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
   ): Promise<boolean> {
-    const open = url.pathname === "/settings/workspaces" ? "workspaces"
-      : url.pathname === "/settings/guidance" ? "guidance"
-      : url.pathname === "/settings/memory" ? "memory"
-      : url.pathname === "/settings/rules" ? "rules"
-      : url.pathname === "/settings/planning" ? "planning"
-      : url.pathname === "/settings/general" || url.pathname === "/settings" ? "general"
-      : null;
+    const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
       const view = await readWebView();
       if (!view.project) {
@@ -141,7 +142,7 @@ export function createLocalGoalsReadHttp(ports: {
           // Installed execution supplies rail entries and stages independently of opening the authoring studio.
           const installed = await installedPluginStages({ store, projectId: options.projectId, homeDirectory, routePrefix: view.route_prefix,
             models: async () => await codingServices.execution?.models() ?? [], actorId: LOCAL_PERSON_ACTOR_ID, actions: codingServices.actions,
-            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(() => []);
+            ...(codingServices.capabilities ? { capabilities: codingServices.capabilities } : {}) }).catch(noInstalledStages);
           if (installed.length) view = { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)], plugin_rail: installed.map(({ surface, label }) => ({ surface, label })) };
           if (projectConfiguration.plugins.includes("coding")) {
             const stage = await codingWorkbenchPanel(surfacePorts);

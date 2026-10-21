@@ -15,7 +15,7 @@
 
 ## 工作区与权限边界
 
-- 仓库：`/Users/oreal/adeptify-home/repos/molis-work`。
+- 仓库：`~/adeptify-home/repos/molis-work`。
 - 最近核对分支：`main`；HEAD：`f25ea171271ce3cfb417e19621de90194141fafd`。接手时重新核对。
 - 工作区已有大量未提交改动，覆盖 Feed、Inbox、Pages、Functions、工作台等；审计时也有其他任务持续修改。这些都不是本次修复产生的改动。先记录当前 diff 与文件状态，再做局部修改；不要 reset、clean、整文件覆盖或全量暂存。
 - 用户授权的是修复与验证。没有授权提交、推送、合并、发布、安装覆盖用户 App、调用付费模型、向第三方发送内容或删除用户数据。
@@ -127,10 +127,10 @@
 
 | 入口 | 当时来源 | 使用边界 |
 | --- | --- | --- |
-| `http://127.0.0.1:4176` | 主仓库 `dist/web/server.js`，PID 8289，home 为 `/Users/oreal/.codex/previews/molis-feed-loop` | 本次 6 项复现的主要预览 |
-| `http://127.0.0.1:4173` | `/Users/oreal/.molis-work/releases/molis-work-0.2.0/dist/web/server.js` | 已安装旧版，不能代表当前源码 |
-| 4198 | `/Users/oreal/.codex/worktrees/molis-coding-complete/molis-work` | 其他工作树；只核对过有 47 个 Coding session、2 个 Goal，未实操 |
-| 4201 | `/Users/oreal/.codex/worktrees/f09f/molis-work` | 其他工作树；有 19 个 Goal，未用其替代当前版验收 |
+| `http://127.0.0.1:4176` | 主仓库 `dist/web/server.js`，PID 8289，home 为 `~/.codex/previews/molis-feed-loop` | 本次 6 项复现的主要预览 |
+| `http://127.0.0.1:4173` | `~/.molis-work/releases/molis-work-0.2.0/dist/web/server.js` | 已安装旧版，不能代表当前源码 |
+| 4198 | `~/.codex/worktrees/molis-coding-complete/molis-work` | 其他工作树；只核对过有 47 个 Coding session、2 个 Goal，未实操 |
+| 4201 | `~/.codex/worktrees/f09f/molis-work` | 其他工作树；有 19 个 Goal，未用其替代当前版验收 |
 
 主要项目 URL：`http://127.0.0.1:4176/projects/project-43a4e132-96b5-4938-b09f-883de66389c0`，名称“研究信息闭环验证”。审计时 Pages 数量和 Inbox 状态由其他工作发生变化，不能依赖固定计数。
 
@@ -162,14 +162,14 @@ UI 工具遵循接手环境允许的浏览器方式。上轮浏览器连接后�
 
 ## 截图与交付要求
 
-完整审计报告：视觉与交互审计（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/视觉与交互审计.md`）。该目录在本机仓库之外；如果接手环境拿不到附件，按上文步骤在隔离预览重新复现即可，不假称已经看过截图。
+完整审计报告：视觉与交互审计（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/视觉与交互审计.md`）。该目录在本机仓库之外；如果接手环境拿不到附件，按上文步骤在隔离预览重新复现即可，不假称已经看过截图。
 
 | 问题 | 原始截图 |
 | --- | --- |
-| 分屏跳首页 | split-loses-goals.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/split-loses-goals.png`） |
-| 搜索重复 | search-duplicate-pages.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/search-duplicate-pages.png`） |
-| Inbox 标题 | inbox-title-desktop.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/inbox-title-desktop.png`） |
-| Pages Escape | pages-more-after-escape.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/pages-more-after-escape.png`） |
-| 低高度菜单 | layout-menu-1024x340.png（`/Users/oreal/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/layout-menu-1024x340.png`） |
+| 分屏跳首页 | split-loses-goals.png（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/split-loses-goals.png`） |
+| 搜索重复 | search-duplicate-pages.png（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/search-duplicate-pages.png`） |
+| Inbox 标题 | inbox-title-desktop.png（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/inbox-title-desktop.png`） |
+| Pages Escape | pages-more-after-escape.png（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/pages-more-after-escape.png`） |
+| 低高度菜单 | layout-menu-1024x340.png（`~/.codex/visualizations/2026/09/22/01a0c887-cc94-7cc1-8ecd-5cefb8bed388/layout-menu-1024x340.png`） |
 
 交付时按 #1–#8 逐项写明：改了什么、工程验证结果、在哪个构建/端口实操、仍有哪些未知。检查自己新增的 diff 是否混入他人改动；给视觉项保留相同窗口尺寸的对照截图。没有完成的项写明具体阻塞，不用测试数量代替端到端行为；等待真人验收不阻塞其余独立修复。

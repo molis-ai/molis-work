@@ -3,7 +3,7 @@ import test from "node:test";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import {
-  agentQuestionHtml, assistantCardHtml, assistantNextSteps, assistantStepRow, drawAssistantReply, questionErrors,
+  agentQuestionHtml, assistantCardHtml, assistantOutcomeSteps, assistantStepRow, drawAssistantReply, questionErrors,
 } from "@molis-ai/molis-work-app-local-host";
 import { cardInputValues, instantIn, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -53,13 +53,27 @@ test("AC-21: what the card sends becomes the Runtime's answer: every question on
   assert.deepEqual(questionAnswer({ pick: ["team"], text: " 只发给我 " }), { text: "只发给我" });
   assert.equal(questionAnswer({ pick: [], text: "  " }), null);
   assert.equal(questionAnswer("q0"), null);
-  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "too-early" }], say),
-    { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field");
+  assert.deepEqual(questionErrors([{ question: 0, reason: "required" }, { question: 1, reason: "wrong-shape" }], say),
+    { q0: "这一题需要回答", q1: "这一题的回答不能提交，请改一下" }, "each refused question gets a line beside its own field; a reason without its own words gets the general one");
 });
 
 const card = (status: AssistantCard["status"], fields: AssistantCard["fields"] = []): AssistantCard => ({
   card_id: "card-1", revision: 3, run_id: "run-1", title: "新建待办", summary: "把「报销」记成待办", provider: "待办", capability_title: "新建待办", capability_id: "todo.items.create",
   effect: "write", fields, missing: [], status, created_at: "2026-10-13T00:00:00.000Z", updated_at: "2026-10-13T00:00:00.000Z" });
+
+test("ASC-08 ASC-36: a completed operation exposes its protected result as navigation without an execution hook", () => {
+  const presentation = { summary: "接入方案已准备", title: "知识库 <工作>", link: { label: "继续接入", href: "/capabilities/connections?setup=request-1&from=assistant" } };
+  const html = assistantCardHtml({ ...card("done"), presentation }, say);
+  assert.match(html, /知识库 &lt;工作&gt;/);
+  assert.match(html, /<a href="\/capabilities\/connections\?setup=request-1&amp;from=assistant"[^>]*class="mw-btn mw-btn--primary mw-btn--sm"/);
+  assert.doesNotMatch(html, /data-ix-action="result"|data-ix-action="run"/);
+  for (const status of ["failed", "unknown", "running", "stale"] as const) {
+    assert.doesNotMatch(assistantCardHtml({ ...card(status), presentation }, say), /<a\b[^>]*href=|继续接入/);
+  }
+  for (const href of ["javascript:alert(1)", "//outside.example", "/\\outside.example", "/\noutside.example"]) {
+    assert.doesNotMatch(assistantCardHtml({ ...card("done"), presentation: { ...presentation, link: { label: "Open", href } } }, say), /<a\b[^>]*href=/);
+  }
+});
 
 test("RING-07: Host action headings distinguish execution states from irreversible effects", () => {
   const expected = { ready: "ready", running: "running", done: "done", failed: "failed", unknown: "verify", stale: "stale", dismissed: "cancelled", "needs-input": "answer" } as const;
@@ -118,21 +132,88 @@ test("AC-23: a card's controls come back as the strings its input takes; a momen
 });
 
 const view = (phase: string, extra: Partial<AssistantWorkView> = {}): AssistantWorkView => ({
-  work: { work_id: "w1" }, reviews: [], cards: [], objects: [],
+  work: { work_id: "w1", executor: { kind: "assistant" } }, reviews: [], cards: [], objects: [],
   rounds: [{ run_id: "run-1", text: "整理周报", phase, awaiting_input: [], turns: [], activity: [], materials: [], context: null, started_at: "", ended_at: null }],
   ...extra } as AssistantWorkView);
 
-test("AC-23: the steps under the latest round derive from the work: open what it made, or send the same words again", () => {
-  assert.deepEqual(assistantNextSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);
+test("AC-23, SLOT-01: the outcome slot under the latest round derives from the work: open what it made, at most two, or send the same words again", () => {
+  assert.deepEqual(assistantOutcomeSteps(view("failed"), say), [{ id: "retry", label: "用同样的话再试一次", source: "整理周报" }]);
   const made = (id: string, title: string): AssistantWorkView["objects"][number] => ({ relation: "result", open: { surface: "pages", id }, state: "current", subject: { kind: "page", id }, title,
     recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" });
-  const steps = assistantNextSteps(view("completed", { objects: [made("a", "周报"), made("b", "纪要"), made("c", "附件")] }), say);
+  const steps = assistantOutcomeSteps(view("completed", { objects: [made("a", "周报"), made("b", "纪要"), made("c", "附件")] }), say);
   assert.deepEqual(steps.map(step => [step.id, step.label, step.primary]), [["open:page:a", "打开「周报」", undefined], ["open:page:b", "打开「纪要」", false]]);
-  assert.deepEqual(assistantNextSteps(view("running"), say), []);
+  assert.deepEqual(assistantOutcomeSteps(view("running"), say), []);
+});
+
+test("SLOT-01: the outcome slot follows whatever waits on the person; the row still shows three and folds the rest", () => {
+  const made = (id: string): AssistantWorkView["objects"][number] => ({ relation: "result", open: { surface: "pages", id }, state: "current", subject: { kind: "page", id }, title: id,
+    recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" });
+  const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
+  const done = view("completed", { cards: [card("ready")], objects: [made("a"), made("b"), made("c")] });
+  assert.deepEqual(ids(assistantStepRow(done, say).next_all_html), ["card:card-1:run", "open:page:a", "open:page:b"], "the card that waits first, then two outcomes");
+  const crowded = view("completed", { cards: done.cards, objects: done.objects,
+    reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }] });
+  const row = assistantStepRow(crowded, say);
+  assert.deepEqual(ids(row.next_html), ["review:r1", "card:card-1:run", "open:page:a"]);
+  assert.match(row.next_html, /data-ix-steps-more="1" data-secondary>还有 1 项</, "an outcome never pushes what waits out of the first three");
+  const delegated = assistantStepRow(view("completed", { objects: done.objects, reviews: crowded.reviews,
+    delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }] }), say);
+  assert.deepEqual(ids(delegated.next_all_html), ["review:r1", "work:child-1", "open:page:a", "open:page:b"]);
+  assert.deepEqual(ids(delegated.next_html), ["review:r1", "work:child-1", "open:page:a"], "nor a sub-task that waits on the person");
+  const shut = made("b"); delete shut.open;
+  const missing = view("completed", { objects: [{ ...made("a"), state: "missing" }, shut] });
+  assert.deepEqual(assistantOutcomeSteps(missing, say), [], "a result that is gone or cannot be opened is not a step");
+});
+
+// specs/ai-interaction-experience §15.11: the card that ran last puts its result in the outcome slot.
+const RESULT = { summary: "接入方案已准备", title: "知识库", link: { label: "继续接入", href: "/capabilities/connections?setup=request-1" } };
+const ranCard = (id: string, status: AssistantCard["status"], at: string, extra: Partial<AssistantCard> = {}): AssistantCard =>
+  ({ ...card(status), card_id: id, updated_at: at, ...(status === "done" ? { presentation: RESULT } : {}), ...extra });
+const roundMade: AssistantWorkView["objects"][number] = { relation: "result", open: { surface: "pages", id: "a" }, state: "current", subject: { kind: "page", id: "a" }, title: "周报",
+  recorded_revision: null, current_revision: null, recorded_at: "2026-10-13T00:00:00.000Z" };
+/** A work whose latest round began at 01:00 and is now `phase`, with these cards and one result of its own. */
+const afterCards = (cards: AssistantCard[], phase = "completed"): AssistantWorkView => {
+  const shown = view(phase, { cards, objects: [roundMade] });
+  shown.rounds[0]!.started_at = "2026-10-13T01:00:00.000Z";
+  return shown;
+};
+
+test("AC-06-1: the card's result offers its 「打开」 to the row, and the step presses exactly that control", () => {
+  const done = ranCard("c1", "done", "2026-10-13T01:05:00.000Z");
+  assert.deepEqual(assistantOutcomeSteps(afterCards([done]), say), [{ id: "card:c1:open", label: "打开「知识库」", source: "来自操作卡" }]);
+  assert.match(assistantCardHtml(done, say), /<a href="\/capabilities\/connections\?setup=request-1"[^>]*data-ix-press="open"[^>]*>[\s\S]*?继续接入/,
+    "the card draws the control the step names, on the result's own link");
+  const plain = assistantOutcomeSteps(afterCards([{ ...done, presentation: { ...RESULT, title: undefined } }]), say);
+  assert.equal(plain[0]?.label, "打开「新建待办」", "a result without a title of its own is named by its card");
+});
+
+test("AC-06-2: only the card that ran last counts, and only when its result can be opened and the round is over", () => {
+  const ids = (shown: AssistantWorkView) => assistantOutcomeSteps(shown, say).map(step => step.id);
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "done", "2026-10-13T01:09:00.000Z")])), ["card:c2:open"], "the later of two");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "dismissed", "2026-10-13T01:09:00.000Z"), ranCard("c3", "stale", "2026-10-13T01:09:00.000Z")])),
+    ["card:c1:open"], "a card put away or gone stale did not run");
+  const failedLast = afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z"), ranCard("c2", "failed", "2026-10-13T01:09:00.000Z")]);
+  assert.deepEqual(ids(failedLast), ["open:page:a"], "the card that ran last failed: no card result, the round's own comes");
+  assert.ok([...assistantStepRow(failedLast, say).next_all_html.matchAll(/data-ix-step-id="([^"]*)"/g)].some(match => match[1] === "card:c2"), "the failed card is reached among what waits");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "unknown", "2026-10-13T01:05:00.000Z")])), ["open:page:a"], "nor an unconfirmed one");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T00:59:00.000Z")])), ["open:page:a"], "a card that ran before this round began is not its outcome");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z", { presentation: { summary: "已建好" } })])), ["open:page:a"], "a result with nothing to open");
+  for (const phase of ["running", "awaiting-input", "reconcile-required", "unknown"]) assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], phase)), [], phase);
+  const stopped = afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "stopped");
+  assert.deepEqual(ids(stopped), ["card:c1:open"], "a round the person stopped is over too");
+  assert.deepEqual(ids(afterCards([ranCard("c1", "done", "2026-10-13T01:05:00.000Z")], "failed")), ["retry"], "a failed round leaves the slot to its retry alone (context-program §21.9)");
+  assert.deepEqual(ids({ ...stopped, rounds: [] }), ["card:c1:open"], "a page's card, with no round at all");
+});
+
+test("AC-06-3, SLOT-01: the card's result takes the outcome slot alone, after what waits, before the round's own result", () => {
+  const ids = (html: string) => [...html.matchAll(/data-ix-step-id="([^"]*)"/g)].map(match => match[1]);
+  const shown = afterCards([card("ready"), ranCard("c1", "done", "2026-10-13T01:05:00.000Z")]);
+  assert.deepEqual(ids(assistantStepRow(shown, say).next_all_html), ["card:card-1:run", "card:c1:open"], "one outcome at a time: the round's 「周报」 waits for the next");
+  assert.deepEqual(ids(assistantStepRow(afterCards([card("ready")]), say).next_all_html), ["card:card-1:run", "open:page:a"]);
 });
 
 test("FLOW-04, FLOW-05: the row above the input puts what waits first, shows three and folds the rest; nothing in it re-runs an unknown result", () => {
-  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check" } as AssistantWorkView["work"],
+  const busy = view("needs-check", { work: { work_id: "w1", state: "needs-check", executor: { kind: "assistant" } } as AssistantWorkView["work"],
     reviews: [{ review_id: "r1", run_id: "run-1", kind: "change", summary: "删除「报销」", fields: [], requested_at: "", expires_at: null }],
     cards: [card("ready"), { ...card("unknown"), card_id: "card-2" }, { ...card("done"), card_id: "card-3" }],
     delegated: [{ work_id: "child-1", title: "查价格", state: "waiting-input", follow_ups: 0 }, { work_id: "child-2", title: "已收回", state: "waiting-input", follow_ups: 0, taken_back: true }] });
@@ -162,6 +243,39 @@ test("AC-21, AC-23: a reply's views and cards are drawn wherever it carries them
   const single = { work_id: "w1", card: card("done") };
   drawAssistantReply(single, { say, drafts: () => ({}), card: () => "<drawn>" });
   assert.equal((single.card as AssistantCard & { html?: string }).html, "<drawn>", "a reply that carries one card gets it drawn");
+});
+
+// specs/ai-interaction-experience D34: the Host says once which waiting question words from the composer answer; the page only reads the mark.
+test("AC-27-5, D34: a question in words, or a questionnaire's one text question, is marked from_composer; anything else is not", () => {
+  const text = (index: number) => ({ index, prompt: "标题", type: "text" as const, required: true, options: [], multiple: false, allow_other: false });
+  const marked = (awaiting: AgentPendingQuestion[]) => {
+    const waiting = view("awaiting-input"); waiting.rounds[0]!.awaiting_input = structuredClone(awaiting);
+    drawAssistantReply(waiting, { say, drafts: () => ({}), card: () => "" });
+    return waiting.rounds[0]!.awaiting_input.map(item => (item as { from_composer?: boolean }).from_composer === true);
+  };
+  const words: AgentPendingQuestion = { pending_id: "w", kind: "question", prompt: "哪里坏了？", options: [], allows_free_text: true };
+  const oneText: AgentPendingQuestion = { ...questionnaire, pending_id: "t", questions: [text(0)] };
+  assert.deepEqual(marked([words]), [true], "a question in words");
+  assert.deepEqual(marked([oneText]), [true], "a questionnaire whose one question asks for words");
+  assert.deepEqual(marked([questionnaire]), [false], "choice questions stay on the card");
+  assert.deepEqual(marked([{ ...oneText, questions: [text(0), { ...text(1), type: "number" }] }]), [false], "two questions stay on the card");
+  assert.deepEqual(marked([words, oneText]), [false, false], "with two waiting, the composer cannot tell which one it answers");
+});
+
+// R4 (D14): a questionnaire whose one text question sits among others takes the composer's words into that field's draft, never as the answer.
+test("AC-03, R4: among other questions, a questionnaire's one text question is marked draft_from_composer with its field; never both marks", () => {
+  const text = (index: number) => ({ index, prompt: "补充要求", type: "text" as const, required: false, options: [], multiple: false, allow_other: false });
+  const marks = (awaiting: AgentPendingQuestion[]) => {
+    const waiting = view("awaiting-input"); waiting.rounds[0]!.awaiting_input = structuredClone(awaiting);
+    drawAssistantReply(waiting, { say, drafts: () => ({}), card: () => "" });
+    return waiting.rounds[0]!.awaiting_input.map(item => { const { from_composer, draft_from_composer } = item as { from_composer?: true; draft_from_composer?: string }; return { from_composer, draft_from_composer }; });
+  };
+  const mixed: AgentPendingQuestion = { ...questionnaire, pending_id: "m", questions: [...questionnaire.questions!, text(questionnaire.questions!.length)] };
+  const field = `t${questionnaire.questions!.length}`;
+  assert.deepEqual(marks([mixed]), [{ from_composer: undefined, draft_from_composer: field }], "the words go into that field's draft");
+  assert.deepEqual(marks([{ ...mixed, questions: [...mixed.questions!, text(9)] }]), [{ from_composer: undefined, draft_from_composer: undefined }], "two text questions: the composer cannot tell which field");
+  assert.deepEqual(marks([mixed, mixed]), [{ from_composer: undefined, draft_from_composer: undefined }, { from_composer: undefined, draft_from_composer: undefined }], "two waiting: neither");
+  assert.deepEqual(marks([{ ...mixed, questions: [text(0)] }]), [{ from_composer: true, draft_from_composer: undefined }], "one text question alone is answered from the composer (D34)");
 });
 
 

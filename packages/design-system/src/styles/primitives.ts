@@ -576,7 +576,7 @@ export const PRIMITIVE_STYLES = `
   @media (prefers-reduced-motion: reduce) {
     :is(.mw-disclosure, .mw-collapsible, .form-disclosure, .record-templates, .form-export-panel, .characters-location, .feed-task-extra, .artifact-raw, .coding-material, .coding-checkpoints) > summary::before { transition: none; }
   }
-  .mw-collapsible__body { display: grid; gap: 12px; padding: 0 0 12px; }
+  .mw-collapsible__body { display: grid; gap: 12px; }
   .mw-accordion { display: grid; gap: 4px; }
   .mw-combobox { display: grid; gap: 4px; }
   .mw-combobox__list {

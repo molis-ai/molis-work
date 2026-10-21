@@ -10,7 +10,7 @@ import { ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION, alchemistA
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
 // AI entry inventory 7.4: an action that cannot work for want of a model or a connection says so in the directory, so the
 // Assistant sees the reason before it calls. The directory says so to the Assistant, MCP clients, workflows and plugins; the
@@ -107,15 +107,15 @@ test("without a model the Assistant is told which Alchemist actions cannot run, 
   const gone = await f.mcp();
   const names = (await gone.tools).map(tool => tool.name);
   for (const action of NEEDS_MODEL) {
-    const name = actionMcpToolName({ ...action, version: 1 });
+    const name = actionMcpToolName(action);
     assert.ok(!names.includes(name), `${name} is left out of tools/list`);
     await assert.rejects(gone.callTool(name, {}), { code: "actions.connection_required" });
   }
-  assert.ok(names.includes(actionMcpToolName({ ...alchemistActions.pulseStart, version: 1 })), "the market pulse needs no model and stays listed");
+  assert.ok(names.includes(actionMcpToolName(alchemistActions.pulseStart)), "the market pulse needs no model and stays listed");
   f.configureModel();
   for (const action of NEEDS_MODEL) assert.deepEqual(await f.availability(action.capability_id, AGENT), { available: true }, action.capability_id);
   const listed = (await f.mcp().tools).map(tool => tool.name);
-  for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName({ ...action, version: 1 })), `${action.capability_id} comes back with a model`);
+  for (const action of NEEDS_MODEL) assert.ok(listed.includes(actionMcpToolName(action)), `${action.capability_id} comes back with a model`);
 });
 
 test("the person's own Alchemist page keeps its handling without a model: it can still send a message and start a run that is recorded as stopped", async t => {
@@ -156,8 +156,13 @@ test("generating an image is unavailable to the Assistant until an image service
   assert.equal((await f.availability(imagesActions.start.capability_id, AGENT)).available, false);
 });
 
-test("asking the directory whether images can be generated does not create the images store", async t => {
+test("W5-01-IMGPORT-01 Images startup opens its owned store; directory availability does not write business data", async t => {
   const f = await fixture(t);
   await f.availability(imagesActions.start.capability_id, AGENT);
-  assert.equal(existsSync(join(f.home, "images")), false, "discovery alone opens nothing");
+  const path = homeSqlitePath(f.home, "images");
+  assert.ok(existsSync(path), "the Home Runtime opens and recovers Images before publishing its actions");
+  const contents = () => [path, path + "-wal"].map(file => existsSync(file) ? readFileSync(file) : null);
+  const before = contents();
+  for (const audience of ["agent", "mcp", "workflow", "plugin", "user"] as const) await f.availability(imagesActions.start.capability_id, audience);
+  assert.deepEqual(contents(), before, "directory reads never change Images' store or write-ahead log");
 });

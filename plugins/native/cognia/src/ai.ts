@@ -1,16 +1,16 @@
-import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
+import { fencedMaterials, instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { COGNIA_ANSWER } from "./prompts.js";
 import { randomUUID } from "node:crypto";
 import { COGNIA_LIMITS, cogniaErrors, requireCognia, stringField, type Draft, type Reference } from "./types.js";
-import type { CogniaStore } from "./store.js";
+import type { CogniaStores } from "./store.js";
 export interface CogniaAiPorts { runtimeLabel?: string; unavailableReason?: string; completeText?: (prompt: InstructedPrompt, options?: { signal?: AbortSignal; beforeDispatch?: () => Promise<void> }) => Promise<string>; signal?: AbortSignal; beforeEffect?: () => Promise<void> }
-export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStore) => T) => T, input: Record<string, unknown>, ports: CogniaAiPorts): Promise<Draft> {
+export async function generateCogniaDraft(stores: CogniaStores, input: Record<string, unknown>, ports: CogniaAiPorts): Promise<Draft> {
   requireCognia(ports.completeText, ports.unavailableReason ?? "尚未配置文字模型。请在宿主配置文字模型后重试；导入、搜索和阅读仍可使用。", cogniaErrors.model_unavailable);
   requireCognia(input.mode === "synthesize" || input.mode === "query", "整理方式无效");
   const mode = input.mode;
   const question = input.mode === "query" ? stringField(input.question, "请输入问题", 2000) : typeof input.question === "string" && input.question.trim() ? stringField(input.question, "问题过长，请缩短到 2000 字符以内", 2000) : "整理共同主题、差异、结论与证据不足的部分";
   ports.signal?.throwIfAborted();
-  const materials = withStore(store => {
+  const materials = stores.read(store => {
     let materials;
     if (input.mode === "synthesize") {
       if (input.material_refs !== undefined) {
@@ -34,8 +34,7 @@ export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStor
   requireCognia(materials.every(m => m.role !== "attachment"), "附件未做文字提取，请选择 Markdown 或文本材料");
   const references: Reference[] = materials.map((m, i) => ({ label: "S" + (i + 1), material_id: m.id, revision: m.revision, title: m.title, path: m.path, body: m.body }));
   requireCognia(references.reduce((n, r) => n + r.body.length, 0) <= COGNIA_LIMITS.ai_characters, "选中材料超过 100,000 字符，请缩小选择；内容未被截断。", cogniaErrors.too_large);
-  const boundary = "UNTRUSTED_MATERIAL_" + randomUUID();
-  const prompt = instructed(COGNIA_ANSWER, `用户任务：${JSON.stringify(question)}\nBEGIN_${boundary}\n${JSON.stringify(references)}\nEND_${boundary}`);
+  const prompt = instructed(COGNIA_ANSWER, `用户任务：${JSON.stringify(question)}\n${fencedMaterials(references, "MATERIALS_" + randomUUID())}`);
   const raw = await ports.completeText(prompt, { signal: ports.signal, beforeDispatch: ports.beforeEffect });
   requireCognia(!ports.signal?.aborted, "生成已取消，未保存草稿", cogniaErrors.cancelled);
   const heading = /^# ([^\r\n]+)\r?\n([\s\S]*)$/u.exec(raw.trim());
@@ -44,6 +43,5 @@ export async function generateCogniaDraft(withStore: <T>(run: (store: CogniaStor
   const citations = [...body.matchAll(/\[S(\d+)\]/gu)].map(m => "S" + m[1]);
   requireCognia(citations.length > 0 && citations.every(c => references.some(r => r.label === c)), "模型缺少来源引用或引用了不存在的资料，未写入知识库；请重试。", cogniaErrors.model_invalid);
   const domain_id = materials.every(m => m.domain_id === materials[0]!.domain_id) ? materials[0]!.domain_id : null;
-  await ports.beforeEffect?.();
-  return withStore(store => store.addDraft({ id: randomUUID(), title, body, references, mode, domain_id, saved_id: null, created_at: new Date().toISOString() }));
+  return stores.write({ beforeEffect: async () => { await ports.beforeEffect?.(); } }, store => store.addDraft({ id: randomUUID(), title, body, references, mode, domain_id, saved_id: null, created_at: new Date().toISOString() }));
 }

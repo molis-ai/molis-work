@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -123,6 +123,8 @@ function manifestFor(input: {
 }
 
 interface Harness {
+  actions: ReturnType<typeof pluginActions>;
+  runtime: PluginRuntime;
   artifacts: ArtifactsModule;
   processItems: ProcessItemsModule;
   supervisor: PluginSupervisor;
@@ -186,6 +188,8 @@ function harness(definitions: (register: Harness) => PluginDefinition[]): Harnes
   });
 
   const rig: Harness = {
+    actions: pluginActions(store, DEMO_PROJECT_ID),
+    runtime,
     artifacts,
     processItems,
     supervisor,
@@ -484,7 +488,7 @@ test("W4-04-02 a plugin reads back a version it pinned itself, archived and not 
   } finally { rig.close(); }
 });
 
-test("a process item port keeps its own version sequence: selecting an older version guards stale choices and never rewinds generation", async () => {
+test("W5-01-D1-06: a process item port keeps its own version sequence: selecting an older version guards stale choices and never rewinds generation", async () => {
   const rig = harness(() => []);
   try {
     const producer = manifestFor({ id: PRODUCER, outputs: ["payload"] });
@@ -505,10 +509,25 @@ test("a process item port keeps its own version sequence: selecting an older ver
     outputs.select({ port: "payload", reference: first, expected_reference: second });
     await rig.wiring.drain();
     assert.deepEqual(rig.services[CONSUMER]!.inputs!.reference("payload"), { artifact_id: first.artifact_id, version: 1 });
-    assert.equal(outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "第三版" } } }).artifact.version, 3, "selecting an old version must not rewind generation");
+    const third = outputs.publish({ port: "payload", content: { kind: "inline", payload: { note: "第三版" } } }).artifact;
+    assert.equal(third.version, 3, "selecting an old version must not rewind generation");
+    const process = rig.services[PRODUCER]!.processItems!;
+    assert.deepEqual(process.head(first.artifact_id), { version: 3 });
+    assert.deepEqual(process.readOwn(first), first);
+    assert.deepEqual(process.readOwn(third), third);
+    const unbound = process.record({ artifact_id: "unbound-process", version: 1, artifact_type_id: TYPE, schema_version: 1,
+      content: { kind: "inline", payload: { note: "未连端口也能读取" } }, metadata: { title: "独立过程项" } }).artifact;
+    const catalogue = rig.services[CONSUMER]!.artifacts!.listConsumable();
+    assert.deepEqual(catalogue.map(row => [row.artifact_id, row.version]), rig.processItems.query.listArtifacts(DEMO_PROJECT_ID).map(row => [row.artifact_id, row.version]));
+    assert.equal(catalogue.find(row => row.artifact_id === unbound.artifact_id)?.title, "独立过程项");
     const foreign = rig.services[CONSUMER]!.outputs!.publish({ port: "other", content: { kind: "inline", payload: { note: "另一个生产者" } } }).artifact;
     assert.throws(() => outputs.select({ port: "payload", reference: foreign, expected_reference: outputs.reference("payload") }), /自己的/);
     assert.throws(() => outputs.select({ port: "undeclared", reference: first, expected_reference: null }), /没有输出/);
+    await rig.runtime.stop(rig.supervisor.state(PRODUCER)!.install_id!);
+    assert.deepEqual(rig.services[CONSUMER]!.artifacts!.read(first), first, "producer stop does not invalidate a fixed consumable version");
+    assert.ok(rig.services[CONSUMER]!.artifacts!.listConsumable().some(row => row.artifact_id === unbound.artifact_id));
+    assert.throws(() => process.readOwn(first), { code: "plugin.grant_denied" });
+    assert.throws(() => process.head(first.artifact_id), { code: "plugin.grant_denied" });
   } finally { rig.close(); }
 });
 
@@ -525,9 +544,9 @@ test("Shelf's Runtime action wraps an outside IO error before the SDK route can 
     });
   };
   try {
-    const definition = createShelfPlugin({ references: () => [], preview: () => assert.fail("the failed IO must not reach preview"),
-      receive: () => assert.fail("a failed read must not import a copy") });
-    await rig.supervisor.start([{ definition }]);
+    const definition = createShelfPlugin({ projectPath: () => "", receive: () => assert.fail("a failed read must not import a copy") });
+    // Shelf is a 常开插件: only an install that ships with the Host may carry the mark (S-34).
+    await rig.supervisor.start([{ definition, bundled: true }]);
     const contribution = rig.supervisor.contribution(definition.manifest.plugin_id);
     assert.equal(contribution?.kind, "app");
     if (contribution?.kind !== "app") throw new Error("Expected Shelf app contribution");
@@ -538,5 +557,43 @@ test("Shelf's Runtime action wraps an outside IO error before the SDK route can 
     assert.equal(reads, 1, "the real action reached the outside artifact IO port");
     assert.deepEqual(result, { status: 400, body: { error: "外部读取被拒绝", code: "shelf.invalid" } },
       "an outside code, kind and call_id cannot become Shelf's response or fake a recorded diagnostic id");
+  } finally { rig.close(); }
+});
+
+// The actual Runtime action scope, rather than a supplied author callback, must determine attribution through the Host.
+test("W5-01-D1-04 W5-01-D1-06: Host services retain the current action author and reject another actor's personal process recovery", async () => {
+  const rig = harness(() => []);
+  try {
+    const producer = manifestFor({ id: PRODUCER, inputs: ["input"], outputs: ["payload"] });
+    const preview = artifactPreview(PRODUCER, "example.note");
+    const record: ActionDefinition = { capability_id: `${PRODUCER}.record`, version: 1, operation: "command", action: {
+      title: "记下当前调用者", description: "用宿主绑定的身份固定结果", kind: "operation", scope: "project", audiences: ["user"],
+      permissions: ["artifact:write"], subject_kinds: [], input_schema: { type: "object", properties: {}, required: [], additionalProperties: false },
+      output_schema: { type: "null" },
+    } };
+    producer.actions = [preview.definition, record];
+    producer.artifacts.produces = [preview.type];
+    const handlers: NonNullable<PluginAppContribution["actions"]> = [preview.handler, { ...record, execution: "sync", handle() {
+      const services = rig.services[PRODUCER]!;
+      services.artifacts!.publish({ artifact_id: "host-authored-report", version: 1, artifact_type_id: "example.note", schema_version: 1,
+        ...pinnedArtifact("Action report"), content: { kind: "inline", payload: {} } });
+      services.processItems!.record({ artifact_id: "host-authored-process", version: 1, artifact_type_id: TYPE, schema_version: 1,
+        content: { kind: "inline", payload: {} } });
+      return null;
+    } }];
+    await rig.supervisor.start([{ definition: definitionFor(rig, producer, handlers) }]);
+    await rig.actions.client.invoke({ actor_id: "actual-caller", project_id: DEMO_PROJECT_ID, audience: "user", permissions: ["artifact:write"] }, record, {});
+    const report = rig.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "host-authored-report", version: 1 });
+    const process = rig.processItems.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "host-authored-process", version: 1 });
+    assert.ok(report && process);
+    assert.equal(report.created_by, "actual-caller");
+    assert.equal(report.owner_actor_id, "actual-caller", "without Home owner, the Module keeps its existing author default");
+    assert.equal(process.created_by, "actual-caller");
+    assert.equal(process.owner_actor_id, "actual-caller");
+    const services = rig.services[PRODUCER]!;
+    assert.deepEqual(services.artifacts!.readOwn(report), report, "artifact own is not tightened to the installation actor");
+    assert.throws(() => services.processItems!.head(process.artifact_id), { code: "artifacts.plugin_denied" });
+    assert.throws(() => services.processItems!.readOwn(process), { code: "artifacts.plugin_denied" });
+    assert.equal(services.artifacts!.listConsumable().some(row => row.artifact_id === process.artifact_id), false);
   } finally { rig.close(); }
 });

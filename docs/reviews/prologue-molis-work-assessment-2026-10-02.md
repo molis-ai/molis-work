@@ -6,7 +6,7 @@
 
 ## 评估依据
 
-- Molis Work 快照：`/Users/yijunwang/code/goalboard`，`main@3b038660`。Prologue 快照：`/Users/yijunwang/code/prologue`，`main@3f9d5ff6`。评估基于本地代码、公开合同、对应文档、定向测试和隔离探针。
+- Molis Work 快照：Molis Work 仓库的本地检出，`main@3b038660`。Prologue 快照：Prologue 仓库的本地检出，`main@3f9d5ff6`。评估基于本地代码、公开合同、对应文档、定向测试和隔离探针。
 - Molis Work 声明、锁定并实际安装的是 `@prologue/sdk@0.0.0-rc.1` 的 `prologue-sdk-0.0.0-rc.1-side-panel-memory.tgz`，构建来源为 `9fc3b173`。Prologue 主线也标为 `0.0.0-rc.1`，因此应比较构建来源与提交，不能只比较版本号。依赖声明（`horizontal/agent-host/package.json:29`）、构建来源（`vendor/prologue-sdk/README.md:3`）、主线包（Prologue `packages/sdk/package.json:3`）。
 - 比较范围是 `9fc3b173..3f9d5ff6`。相关更新包括推理力度、模型切换、微压缩、只读工具提前执行、逐轮变更、写后诊断、子任务回灌与让出、休眠、App 会话条目、记忆边界、密钥扫描、副本血缘、租约排队、Host 代理/CA、审计导出和点名扩权。主要功能来自 `62e2a44e` 及后续提交，`3f9d5ff6` 主要整理架构与存量实现。
 - Prologue 根 README 仍有早期状态描述；能力判断以现役实现和公开合同为准。部分公开积木标为 experimental，导出名存在不等于稳定产品承诺。公开面说明（Prologue `packages/sdk/README.md:11`）。
@@ -194,7 +194,7 @@
 
 ## 可复现命令
 
-在 `/Users/yijunwang/code/goalboard` 运行 Molis 定向测试：
+在 Molis Work 检出里运行 Molis 定向测试：
 
 ~~~sh
 node scripts/run-tests.mjs tests/prologue-stream.test.ts tests/prologue-inference-native.test.ts tests/prologue-recovery.test.ts tests/agent-budget-prologue.test.ts tests/assistant-work-continuity.test.ts tests/schedule-task-runner.test.ts tests/memory-agent-runs.test.ts
@@ -202,7 +202,7 @@ node scripts/run-tests.mjs tests/host-inference-completion.test.ts tests/linggua
 node scripts/run-tests.mjs tests/assistant-delegation.test.ts
 ~~~
 
-在 `/Users/yijunwang/code/prologue` 运行 Prologue 定向测试：
+在 Prologue 检出里运行 Prologue 定向测试：
 
 ~~~sh
 pnpm exec vitest run packages/sdk/test/model-reasoning-effort.test.ts packages/sdk/test/agent-model-switch.test.ts packages/sdk/test/agent-streaming-tools.test.ts packages/sdk/test/context-micro-compaction.test.ts packages/sdk/test/evidence-turn-changes.test.ts packages/sdk/test/subagent-writeback.test.ts packages/sdk/test/agent-sleep.test.ts packages/sdk/test/host-lease-queue.test.ts packages/sdk/test/workspace-secret-scan.test.ts packages/sdk/test/observability-exporter.test.ts --maxWorkers=2

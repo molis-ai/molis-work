@@ -15,12 +15,14 @@ export const platformPluginAgentContract = {
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
 
 /**
- * Host tools a business role (`workspace: "business"`) may name. None of them reads or writes a directory: asking the
- * person, the round's todo list, looking up deferred tool schemas, and the context room left. A business role's real
- * work is the unified actions it is given at start; `operate` lets it call commands among them, each under the effect
- * policy, while `read-only` limits it to queries.
+ * Host tools a business role (`workspace: "business"`) may name. None of them reads or writes a directory or runs a
+ * command: asking the person, the round's todo list, looking up deferred tool schemas, the context room left,
+ * registering a wait on the round's step (`board-wait`), and saying how it handles the person's supplements
+ * (`acknowledge-inputs`: the runtime records it on its own input ledger as the AI's claim, and shows the model each
+ * supplement's id only when a round lists it; specs/ai-input-receipts 3e-0). A business role's real work is the unified actions it is given at start; `operate` lets it call commands among them,
+ * each under the effect policy, while `read-only` limits it to queries.
  */
-export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining"] as const;
+export const BUSINESS_HOST_TOOLS = ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"] as const;
 
 /**
  * Tools a method for business work may name: the capability gateway and the tools that touch no directory. A method a
@@ -48,8 +50,20 @@ export interface AgentRoleDeclaration {
   prompts?: string[];
   /** Host tool names this role may call. Implementation and effect class stay with the Host. */
   host_tools?: string[];
+  /** The methods that go with this role's purpose. Omitted: the role names none of its own. */
+  skills?: AgentRoleSkillsDeclaration;
   /** Read-only parent roles that must hand each child its own directory. */
   subagent_workspaces?: "required";
+}
+
+/**
+ * One purpose's methods. `allowed` are the block's `skills` a person may pick for this role; `default` are already picked
+ * when a round of this role starts, and the person may take them off. Every allowed method's tools are among the role's
+ * `host_tools`, so a method never asks for what the role cannot give.
+ */
+export interface AgentRoleSkillsDeclaration {
+  allowed: string[];
+  default?: string[];
 }
 
 export interface AgentSubagentRoleDeclaration {
@@ -99,6 +113,14 @@ export interface AgentPromptDeclaration {
 export interface AgentCompactionDeclaration {
   prompt_id: string;
   above_tokens: number;
+}
+
+/**
+ * The prompt a writable round's last words are checked with against the round's facts when the round changed nothing
+ * (D1②): what they say it did, or will now do, that the facts do not show is held once and continued. Absent: not checked.
+ */
+export interface AgentEndingReviewDeclaration {
+  prompt_id: string;
 }
 
 export interface AgentSkillDeclaration {
@@ -165,6 +187,7 @@ export interface AgentManifest {
   roles: AgentRoleDeclaration[];
   prompts: AgentPromptDeclaration[];
   compaction?: AgentCompactionDeclaration;
+  ending_review?: AgentEndingReviewDeclaration;
   skills?: AgentSkillDeclaration[];
   mcp?: boolean;
   /** Absent means Character input is not accepted. Selection always names a fixed Artifact. */

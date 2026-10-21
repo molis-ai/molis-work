@@ -12,7 +12,7 @@ import { PLUGIN_NOTIFICATIONS_FACTORY_SCRIPT } from "./plugin-notifications.js";
 import { SETTINGS_DIRECTORY_FACTORY_SCRIPT } from "./settings-directory.js";
 import { CONNECTORS_SETTINGS_CLIENT_SCRIPT } from "../connectors-settings.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./assistant-island.js";
-import { INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
+import { INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES } from "@molis-ai/molis-work-design-system";
 import { PLACEMENT_FACTORY_SCRIPT } from "./placement.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./context-actions.js";
 import { SIDE_FILES_FACTORY_SCRIPT } from "../../side-panel-files.js";
@@ -89,7 +89,7 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       setMobileView: (...args) => setMobileView(...args),
       noteSearchActivity: (...args) => noteSearchActivity(...args),
       openTabItem: (plugin, id, title, mode) => tabWorkspace?.openItem(plugin, id, title, undefined, mode),
-      expandDirectory: (id) => setPluginSectionExpanded(id === "sources" ? "feed" : id, true, true),
+      expandDirectory: (id) => setPluginSectionExpanded(id),
     });
     projectHome = (${PROJECT_HOME_FACTORY_SCRIPT})({
       getState: () => state, translate: L, route,
@@ -110,20 +110,24 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
       },
     });
     // The question and action cards' shared client: one copy for the Assistant and every plugin that shows them (A1, A2).
-    const interaction = (${INTERACTION_CLIENT_SCRIPT_TYPED_DATES});
+    // A reference field searches this project through search.references (T2); a pick is <kind> <id> for the SDK's questionAnswer.
+    // The receipt under a supplement, the same way: one copy for the Assistant and every plugin that takes supplements (receipts 3c).
+    const interaction = (client => (root, host) => client(root, { references: (source, query) => molisWorkRequest(route("/api/search/references"), { body: { kinds: source.split(","), query, limit: 8 }, fallback: L("暂时搜不了，稍后再试") }).then(found => ({ items: found.candidates.map(item => ({ value: item.kind + " " + item.id, label: item.label, meta: item.plugin_title })) })), ...host }))((${INTERACTION_CLIENT_SCRIPT_TYPED_DATES})), receipts = (${INPUT_RECEIPTS_CLIENT_SCRIPT})(L);
     deferredClients = (${DEFERRED_PLUGIN_CLIENT_FACTORY_SCRIPT})({
-      mountPluginClient, interaction, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
+      mountPluginClient, interaction, receipts, scope: boardLifetime, translate: L, projectId: () => state.project?.project_id || document.body.dataset.projectId || "",
       projectTitle: () => state.project?.display_name || "", api, route, headers: () => molisWorkControlHeaders(),
       openItem: (...args) => tabWorkspace?.openItem(...args), openBeside: (...args) => tabWorkspace?.openBeside(...args),
       openPlugin: (...args) => tabWorkspace?.openPlugin(...args), hideDirectory: () => immersiveNavigation?.hideDirectory(), showToast,
+      // The plugin calls this only after the person has picked and confirmed the folder.
+      addWorkspace: p => api("/api/workspaces", "POST", { workspace_path: p, user_confirmed: true }, "无法关联工作区"),
     });
     ${pluginWorkbenchClientBootstrap(undefined, true)}
     ${CODING_SETTINGS_CLIENT_SCRIPT}
-    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction,
+    (${ASSISTANT_ISLAND_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), interaction, receipts,
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), pluginTitle: (plugin) => tabWorkspace?.pluginTitle(plugin),
-      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || state.snapshot.board.title || "" },
+      project: { id: state.project?.project_id || state.snapshot.board.project_id, title: state.project?.display_name || "" },
     });
-    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(),
+    (${CONTEXT_ACTIONS_FACTORY_SCRIPT})({ translate: L, showToast, route, headers: () => molisWorkControlHeaders(), paneMessages,
       openSearch: (query) => globalSearchPalette?.open(document.activeElement, query) });
     globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({ translate: L, route, headers: () => molisWorkControlHeaders(),
       openItem: (plugin, id, title) => tabWorkspace?.openItem(plugin, id, title), openPluginRecord: (plugin, id) => tabWorkspace?.openPluginRecord(plugin, id),
@@ -177,7 +181,6 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         return;
       }
       if (handleGoalFactorKeyboard(event)) return;
-      if (handleMobileSwitchKeyboard(event)) return;
       if (handleTreeKeyboard(event)) return;
       if (event.key === "Escape" && !feedFilterPanel?.hidden) {
         event.preventDefault();

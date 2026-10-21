@@ -4,7 +4,7 @@
   "private": true,
   "description": "Publishable Module, service, and platform Contract subpaths.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -70,6 +70,10 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
+    "./modules/coding": {
+      "types": "./dist/modules/coding.d.ts",
+      "import": "./dist/modules/coding.js"
+    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
@@ -125,6 +129,10 @@
     "./platform/plugin-sandbox": {
       "types": "./dist/platform/plugin-sandbox.d.ts",
       "import": "./dist/platform/plugin-sandbox.js"
+    },
+    "./platform/plugin-registration": {
+      "types": "./dist/platform/plugin-registration.d.ts",
+      "import": "./dist/platform/plugin-registration.js"
     },
     "./platform/plugin-agent": {
       "types": "./dist/platform/plugin-agent.d.ts",
@@ -217,6 +225,10 @@
     "./services/scheduler": {
       "types": "./dist/services/scheduler.d.ts",
       "import": "./dist/services/scheduler.js"
+    },
+    "./services/knowledge": {
+      "types": "./dist/services/knowledge.d.ts",
+      "import": "./dist/services/knowledge.js"
     },
     "./services/search": {
       "types": "./dist/services/search.d.ts",

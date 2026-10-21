@@ -175,7 +175,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     node.textContent = text;
     return node;
   };
-
+  const api = "/api/plugins/io.molis.work.ppt/ppt";
   const projectId = () => (typeof host.projectId === "function" ? host.projectId() : host.projectId) || "";
   const headers = () => typeof molisWorkControlHeaders === "function"
     ? molisWorkControlHeaders()
@@ -187,7 +187,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const request = async (method, path, body, signal) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
-    const response = await fetch(withProject(path), {
+    const response = await fetch(withProject(host.route(path)), {
       method,
       headers: headers(), signal,
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
@@ -450,7 +450,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const loadList = async () => {
     const seq = ++listSeq;
-    const payload = await request("GET", "/api/plugins/ppt");
+    const payload = await request("GET", api);
     if (seq !== listSeq) return;
     records = payload.presentations || [];
     aiAvailable = payload.ai_available === true;
@@ -482,7 +482,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (select && select.dataset.loaded === "true") return;
     if (note) { note.hidden = false; note.textContent = L("正在读取文档…"); }
     try {
-      const payload = await request("GET", "/api/plugins/ppt/outline-pages");
+      const payload = await request("GET", api + "/outline-pages");
       const documents = payload.documents || [];
       if (select) {
         select.replaceChildren(...documents.map((doc) => { const option = document.createElement("option"); option.value = doc.id; option.textContent = doc.title || L("无标题"); return option; }));
@@ -545,7 +545,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       await save();
       if (outReq !== attempt || !outBox.open || sel?.id !== attempt.id || editRev !== attempt.revision) return;
       const record = sel;
-      const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(record.id) + (attempt.mode === "ai" ? "/outline-ai" : "/outline"),
+      const payload = await request("POST", api + "/" + encodeURIComponent(record.id) + (attempt.mode === "ai" ? "/outline-ai" : "/outline"),
         { ...(pageId ? { page_id: pageId } : { text }), replace, expected_version: record.version }, attempt.controller.signal);
       if (outReq !== attempt || !outBox.open || sel?.id !== record.id || editRev !== attempt.revision || sel.version !== record.version) return;
       slideKey = payload.presentation.slides[replace ? 0 : Math.max(0, payload.presentation.slides.length - payload.slide_count)]?.id || slideKey;
@@ -584,7 +584,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const revision = editRev;
         const draft = draftFromDom();
         try {
-          const payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(sel.id), { ...draft, expected_version: sel.version });
+          const payload = await request("POST", api + "/" + encodeURIComponent(sel.id), { ...draft, expected_version: sel.version });
           const laterDraft = editRev > revision ? draftFromDom() : null;
           savedRev = revision;
           remember(laterDraft ? { ...payload.presentation, ...laterDraft } : payload.presentation, false);
@@ -619,7 +619,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         clearTimeout(saveTimer);
         if (savePromise) await savePromise.catch(() => {});
         if ((saveError || editRev > savedRev) && !await ask(L("重新读取会丢弃未保存的编辑。继续吗？"), L("重新读取"))) return;
-        const payload = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id));
+        const payload = await request("GET", api + "/" + encodeURIComponent(sel.id));
         fillEditor(payload.presentation); await loadList(); return;
       }
       const swatch = event.target.closest("[data-ppt-swatch]");
@@ -632,7 +632,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const create = event.target.closest("[data-ppt-new]");
       if (create) {
         await save();
-        const payload = await request("POST", "/api/plugins/ppt", {});
+        const payload = await request("POST", api, {});
         await loadList();
         slideKey = payload.presentation.slides[0]?.id || "";
         fillEditor(payload.presentation);
@@ -649,10 +649,10 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const record = sel?.id === id ? sel : records.find(item => item.id === id);
         let payload;
         try {
-          payload = await request("POST", "/api/plugins/ppt/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
+          payload = await request("POST", api + "/" + encodeURIComponent(id) + "/promote", { expected_version: record.version });
         } catch (error) {
           if (error.code !== "ppt.conflict") {
-            const fresh = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(id)).catch(() => null);
+            const fresh = await request("GET", api + "/" + encodeURIComponent(id)).catch(() => null);
             if (fresh && sel?.id === id) remember(fresh.presentation, false);
             await loadList().catch(() => {});
           }
@@ -667,7 +667,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       const row = event.target.closest("[data-ppt-id]");
       if (row) {
         await save();
-        const payload = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(row.dataset.pptId));
+        const payload = await request("GET", api + "/" + encodeURIComponent(row.dataset.pptId));
         fillEditor(payload.presentation);
         return;
       }
@@ -746,13 +746,13 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
         const format = exportButton.dataset.pptExport || "pptx";
         if (format === "pdf") { printDeck(liveRecord()); return; }
         if (format === "pptx") {
-          const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/pptx?expected_version=" + sel.version);
+          const exported = await request("GET", api + "/" + encodeURIComponent(sel.id) + "/pptx?expected_version=" + sel.version);
           const bytes = Uint8Array.from(atob(exported.content_base64), (char) => char.charCodeAt(0));
           download(exported.filename, new Blob([bytes], { type: exported.mime_type }));
           placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("PowerPoint · {count} 页，含讲者备注", { count: exported.slide_count }) } });
           return;
         }
-        const exported = await request("GET", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/export?expected_version=" + sel.version);
+        const exported = await request("GET", api + "/" + encodeURIComponent(sel.id) + "/export?expected_version=" + sel.version);
         download(exported.filename, new Blob([exported.content], { type: exported.mime_type }));
         placed({ verb: "exported", title: sel.title, file: { name: exported.filename, format: L("数据文件，不是演示文稿") } });
         return;
@@ -760,7 +760,7 @@ export const PPT_CLIENT_FACTORY_SCRIPT = `(host) => {
       if (event.target.closest("[data-ppt-delete]") && sel) {
         if (!await ask(L("删除这份演示稿？"), L("删除"))) return;
         await save();
-        await request("POST", "/api/plugins/ppt/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
+        await request("POST", api + "/" + encodeURIComponent(sel.id) + "/delete", { expected_version: sel.version });
         closeEditor();
         await loadList();
       }

@@ -13,7 +13,7 @@ import { BUSINESS_HOST_TOOLS, orderPromptsByLayer } from "@molis-ai/molis-work-c
 import type {
   AgentActionClient,
   AgentHostApi,
-
+  AgentSessionRef,
   AgentRunHandle,
   AgentRuntimeAdapter,
   AgentRuntimeCapability,
@@ -30,6 +30,7 @@ import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/a
 
 import { AgentReviewQueue } from "./reviews.js";
 import { freezeExecutionPlan, STEP_TOOLS } from "./execution-plan.js";
+import { SUGGEST_HOST_TOOL } from "./adapters/prologue-action-tools.js";
 
 export { AgentReviewQueue } from "./reviews.js";
 export { emptyCapabilityMatrix } from "./capabilities.js";
@@ -47,6 +48,7 @@ export {
   type ResolvedModelSelection,
 } from "./model-configuration.js";
 export { registerAgentHostCapabilities, runViewVersion } from "./capability-registration.js";
+export { actionDigest } from "./action-digest.js";
 export type {
   AgentCapabilityPorts,
   AgentCapabilityRegistrar,
@@ -57,12 +59,13 @@ export { surfaceRules } from "./adapters/prologue-surfaces.js";
 export { deliverDesktopAct } from "./adapters/desktop-act-delivery.js";
 export { screenModelMaterial } from "./adapters/prologue-screening.js";
 export { projectQuestion, answerProblems } from "./adapters/prologue-questions.js";
+export { boundReferenceKinds, type ReferenceKindCandidate, type ReferenceKindProblem, type ReferenceKindsFor } from "./adapters/prologue-reference-kinds.js";
 export { createPluginBuilderAgent } from "./adapters/plugin-builder.js";
 export type { PluginBuilderAgentOptions, BuilderAgentRequest, BuilderAgentRecord, BuilderAgentActivity } from "./adapters/plugin-builder.js";
 export { resolveModelHostname } from "./adapters/node-model-dns.js";
 export { PrologueApprovalBridge } from "./adapters/prologue-approvals.js";
 export {
-  applyPrologueEvent,
+  applyRunEvent,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,
@@ -121,6 +124,13 @@ const EXECUTION_CAPABILITIES: Readonly<Record<AgentRoleExecution, AgentRuntimeCa
   operate: [],
 };
 
+/** A prompt the Agent sends on the side of its rounds (compaction, the ending review), at the version its manifest declares. */
+function declaredSidePrompt(authority: AgentStartAuthority, promptId: string | undefined): AgentPromptText | undefined {
+  const declaration = promptId === undefined ? undefined : authority.manifest.prompts?.find(item => item.prompt_id === promptId);
+  const prompt = authority.prompts?.find(item => item.prompt_id === declaration?.prompt_id && item.version === declaration.version);
+  return prompt?.body.trim() ? { ...prompt } : undefined;
+}
+
 /**
  * The prompt bodies this role runs with, layer by layer.
  *
@@ -149,7 +159,7 @@ function composeRolePrompts(
   const own = named === undefined
     ? (() => {
       const declared = new Set((authority.manifest.prompts ?? []).map((item) => item.prompt_id));
-      return available.filter((prompt) => declared.has(prompt.prompt_id) && prompt.prompt_id !== authority.manifest.compaction?.prompt_id);
+      return available.filter((prompt) => declared.has(prompt.prompt_id) && prompt.prompt_id !== authority.manifest.compaction?.prompt_id && prompt.prompt_id !== authority.manifest.ending_review?.prompt_id);
     })()
     : named.flatMap((promptId) => {
       const found = available.find((prompt) => prompt.prompt_id === promptId);
@@ -219,7 +229,7 @@ export interface AgentStartAuthority {
   beforeDispatch?(): void | Promise<void>;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
-  actions?(runtimeId: string, validate?: () => void | Promise<void>): Promise<AgentActionClient>;
+  actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef): Promise<AgentActionClient>;
   /** Host-bound source resolver; browser/plugin-supplied bodies are never authority. */
   resolveCharacter?(reference: ArtifactReference, actorId: string): AgentFrozenCharacter;
   /** The Plugin's own Agent block. A role outside it can never start. */
@@ -257,6 +267,22 @@ export interface AgentStartAuthority {
 /** Looks up the text a registered prompt runs with now. Returns the prompt unchanged when the person has not edited it. */
 export interface AgentPromptResolver {
   effective(ownerId: string, prompt: AgentPromptText): AgentPromptText;
+}
+
+/** Suggesting offers the person one of the round's own actions as a button: only a role that may change things may do it. */
+function assertMaySuggest(hostTools: readonly string[], execution: string | undefined): void {
+  if (hostTools.includes(SUGGEST_HOST_TOOL) && execution !== "workspace-write" && execution !== "operate") {
+    throw agentErrors.role_execution_exceeded("当前执行方式只读，不能向人建议操作，请更换执行方式");
+  }
+}
+
+/** A per-action round's client: discovering, checking and invoking only, each rechecking the Character it runs as. */
+function frozenActionClient(source: AgentActionClient, validateCharacter: (() => void) | undefined): AgentActionClient {
+  return {
+    discover: async () => { validateCharacter?.(); return source.discover(); },
+    ...(source.check ? { check: async (ref: ExactActionReference, input: unknown) => { validateCharacter?.(); return source.check!(ref, input); } } : {}),
+    invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
+  };
 }
 
 export class AgentHost implements AgentHostApi {
@@ -494,6 +520,7 @@ export class AgentHost implements AgentHostApi {
     }
     const actionRefs = parseExactActionReferences(request.action_tools ?? []);
     if (request.action_gateway && actionRefs.length) throw agentErrors.capability_unavailable("能力网关与逐项能力不能同时使用");
+    assertMaySuggest(hostTools, execution);
     let actions: NonNullable<AgentStartRequest["role"]>["actions"];
     if (actionRefs.length) {
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw agentErrors.capability_unavailable("当前执行引擎尚未接入动作服务");
@@ -501,11 +528,8 @@ export class AgentHost implements AgentHostApi {
       if (character?.action_tools && actionRefs.some(ref => !character.action_tools!.some(allowed => key(allowed) === key(ref)))) {
         throw agentErrors.role_execution_exceeded("所选能力超出了这个 Character 的工具范围");
       }
-      const source = await authority.actions(runtimeId, validateCharacter);
-      const client: AgentActionClient = {
-        discover: async () => { validateCharacter?.(); return source.discover(); },
-        invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
-      };
+      const source = await authority.actions(runtimeId, validateCharacter, session.session);
+      const client = frozenActionClient(source, validateCharacter);
       const directory = await client.discover();
       const tools = actionRefs.map(ref => {
         const view = directory.find(view => view.capability_id === ref.capability_id && view.version === ref.version && view.provider.provider_id === ref.provider_id);
@@ -521,13 +545,13 @@ export class AgentHost implements AgentHostApi {
     if (request.action_gateway) {
       if (workspace !== "business") throw agentErrors.capability_unavailable("能力网关只用于业务角色");
       if (!adapter.descriptor.supports_action_tools || !authority.actions) throw agentErrors.capability_unavailable("当前执行引擎尚未接入动作服务");
-      const source = await authority.actions(runtimeId, validateCharacter);
+      const source = await authority.actions(runtimeId, validateCharacter, session.session);
       gateway = { operate: execution === "operate", client: {
         discover: async () => { validateCharacter?.(); return source.discover(); },
         ...(source.check ? { check: (ref: ExactActionReference, input: unknown) => source.check!(ref, input) } : {}),
         ...(source.offer ? { offer: (offer: import("@molis-ai/molis-work-contracts/services/agent-host").AgentActionOffer) => { validateCharacter?.(); return source.offer!(offer); } } : {}),
         ...(source.delegate ? { delegate: source.delegate } : {}),
-        ...(source.memory ? { memory: source.memory } : {}),
+        ...(source.memory ? { memory: source.memory } : {}), ...(source.reader ? { reader: source.reader } : {}),
         // Which changes may run without a confirmation stays the caller's call (a declared undo, the person's setting).
         ...(source.direct ? { direct: (view: import("@molis-ai/molis-work-contracts/platform/actions").ActionView) => source.direct!(view) } : {}),
         invoke: async (ref, input, signal) => { validateCharacter?.(); return source.invoke(ref, input, signal); },
@@ -550,13 +574,12 @@ export class AgentHost implements AgentHostApi {
     let compaction: { prompt: AgentPromptText; above_tokens: number } | undefined;
     const declaredCompaction = authority.manifest.compaction;
     if (declaredCompaction && adapter.descriptor.capabilities.compaction !== "unsupported") {
-      const declaration = authority.manifest.prompts?.find(item => item.prompt_id === declaredCompaction.prompt_id);
-      const prompt = authority.prompts?.find(item => item.prompt_id === declaration?.prompt_id && item.version === declaration.version);
-      if (!prompt?.body.trim() || !Number.isSafeInteger(declaredCompaction.above_tokens) || declaredCompaction.above_tokens < 1) {
-        throw agentErrors.capability_unavailable("上下文整理声明缺少对应版本的正文或有效阈值");
-      }
-      compaction = { prompt: { ...prompt }, above_tokens: declaredCompaction.above_tokens };
+      const prompt = declaredSidePrompt(authority, declaredCompaction.prompt_id);
+      if (!prompt || !Number.isSafeInteger(declaredCompaction.above_tokens) || declaredCompaction.above_tokens < 1) throw agentErrors.capability_unavailable("上下文整理声明缺少对应版本的正文或有效阈值");
+      compaction = { prompt, above_tokens: declaredCompaction.above_tokens };
     }
+    const endingReview = declaredSidePrompt(authority, authority.manifest.ending_review?.prompt_id);
+    if (authority.manifest.ending_review && !endingReview) throw agentErrors.capability_unavailable("收尾核对声明缺少对应版本的正文");
     let subagents: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[] | undefined;
     let childWorkspaces: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[] | undefined;
     if (role.subagent_workspaces === "required") {
@@ -615,7 +638,7 @@ export class AgentHost implements AgentHostApi {
         prompts: prompts.map((prompt) => ({ ...prompt })),
         ...(memory && memory.pinned.length ? { memory: structuredClone(memory) } : {}),
         skills,
-        ...(compaction ? { compaction } : {}),
+        ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
     }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });

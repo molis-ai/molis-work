@@ -7,23 +7,23 @@ import { PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/p
 import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/form";
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
-import { pagesActions, createPagesActionHandlers, openPagesStore, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions, createPagesActionHandlers, openPagesStore, ownPagesStores, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { datasetActions, createDatasetActionHandlers, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { pptActions, createPptActionHandlers, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
+import { datasetActions, createDatasetActionHandlers, openDatasetStore, ownDatasetStores } from "@molis-ai/molis-work-plugin-dataset";
+import { pptActions, createPptActionHandlers, openPptStore, ownPptStores } from "@molis-ai/molis-work-plugin-ppt";
 
 // 「原文已改」 (specs/artifact-positioning A4b): the owner compares a pinned version with the object it came from. An object
 // moved to another place still exists; only one that is gone is "missing", and the 成果库 must not call a move a deletion.
 const unavailable = () => ({ available: false as const, code: "actions.connection_required", reason: "no model" });
 const owners = [
   { name: "Pages", type: PAGES_ARTIFACT_TYPE_ID, kind: PAGES_SUBJECT_KIND, definition: pagesActions.artifactCompare,
-    open: openPagesStore, handlers: (withStore: any) => createPagesActionHandlers({ withStore, modelAvailability: unavailable, prepareImport: async () => { throw new Error("n/a"); } }) },
+    open: openPagesStore, handlers: (withStore: any) => createPagesActionHandlers({ ...ownPagesStores(withStore), modelAvailability: unavailable, prepareImport: async () => { throw new Error("n/a"); } }) },
   { name: "Form", type: FORM_ARTIFACT_TYPE_ID, kind: "form", definition: formActions.artifactCompare,
     open: openFormStore, handlers: (withStore: any) => createFormActionHandlers({ ...ownFormStores(withStore), modelAvailability: unavailable }) },
   { name: "Dataset", type: DATASET_ARTIFACT_TYPE_ID, kind: "dataset", definition: datasetActions.artifactCompare,
-    open: openDatasetStore, handlers: (withStore: any) => createDatasetActionHandlers({ withStore, modelAvailability: unavailable }) },
+    open: openDatasetStore, handlers: (withStore: any) => createDatasetActionHandlers({ ...ownDatasetStores(withStore), modelAvailability: unavailable }) },
   { name: "PPT", type: PPT_ARTIFACT_TYPE_ID, kind: PPT_SUBJECT_KIND, definition: pptActions.artifactCompare,
-    open: openPptStore, handlers: (withStore: any) => createPptActionHandlers({ withStore }) },
+    open: openPptStore, handlers: (withStore: any) => createPptActionHandlers({ ...ownPptStores(withStore) }) },
 ];
 
 for (const owner of owners) {

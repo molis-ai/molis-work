@@ -12,6 +12,7 @@ import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiContribution } from "./ui.js";
 import { codingSurface, stopCodingSurface, type CodingExecutionPorts } from "./routes.js";
 import { codingArtifactPreviewHandler } from "./artifact-preview.js";
+import { codingResultDocumentHandler } from "./results-document.js";
 
 /**
  * Coding as something Plugin Runtime starts, isolated, rather than something
@@ -70,10 +71,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
         kind: "app",
         views: [codingUiContribution, codingSettingsContribution],
         routes: surface.routes,
-        actions: [...surface.actions, codingArtifactPreviewHandler],
-        // The picker reads current inputs on demand. Upstream changes must not
-        // replace private draft selections or any already-frozen Run material.
-        onUpstreamReady: () => {},
+        actions: [...surface.actions, codingArtifactPreviewHandler, codingResultDocumentHandler(context)],
         /**
          * A command is offered only when it can actually do something. Opening
          * a change set needs a session; opening a report needs a report. An

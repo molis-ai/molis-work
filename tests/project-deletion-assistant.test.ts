@@ -24,8 +24,8 @@ async function assistantHome(t: { after(fn: () => Promise<void> | void): void })
   for (const work of [gone, archived, kept, personal]) {
     store.followUps.save(ACTOR, { followup_id: `fu-${work.work_id}`, work_id: work.work_id, label: "每周回看", text: "回看进度", repeat: "weekly", next_at: new Date(Date.now() + 86_400_000).toISOString(),
       time_zone: "Asia/Shanghai", enabled: true, created_at: new Date().toISOString() });
-    store.saveJob(ACTOR, { key: `job-${work.work_id}`, job_id: "j1", work_id: work.work_id, title: "后台任务", state: "running", started_at: new Date().toISOString(),
-      status: { capability_id: "x.status", version: 1, provider_id: "x" }, input: "id", path: "state", done: ["done"], failed: ["failed"], checks: 0 });
+    // Rows left in the table no longer written (jobs are steps on the work's graph now) still go with their work.
+    db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?)").run(`job-${work.work_id}`, ACTOR, work.work_id, "{}");
     store.raiseNotice(ACTOR, { kind: "result", work_id: work.work_id, work_title: work.title, text: "做完了" }, `notice-${work.work_id}`);
     store.addRound(work.work_id, { run_id: `run-${work.work_id}`, text: "第一轮", materials: [], context: null, started_at: new Date().toISOString() });
     store.relations.link({ work_id: work.work_id, project_id: work.project_ref?.project_id ?? null }, "origin", { kind: "pages.doc", id: `doc-${work.work_id}`, revision: "1" }, "从文稿开始");
@@ -84,8 +84,8 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   const db = openHomeSqliteDatabase(home, ASSISTANT_STORE_NAME);
   const store = new AssistantStore(db);
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, ACTOR);
-  t.after(async () => { db.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, ACTOR);
+  t.after(async () => { db.close(); service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
   assert.equal(await service.attachSchedule(), true);
   const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-purge-1" }, { project_ref: { project_id: "project-gone", storage_key: "memory:project" } });
   for (let i = 0; i < 300 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));

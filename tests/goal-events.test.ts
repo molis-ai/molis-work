@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -13,6 +13,7 @@ import {
 } from "@molis-ai/molis-work-module-goals";
 import { GoalEventApplication } from "@molis-ai/molis-work-plugin-goals";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 import type {
   GoalEventFieldDefinition,
@@ -26,9 +27,11 @@ const OTHER_BOARD = "board-other";
 const OTHER_GOAL = "goal-other";
 
 function hooks(db: LocalProjectDatabase["db"]) {
+  // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
+  const { records } = new GovernanceCollaborationModule({ db });
   return {
-    supersedePendingContractProposals: (...args: Parameters<GovernanceRecordStore["supersedePendingContractProposals"]>) =>
-      new GovernanceRecordStore(db).supersedePendingContractProposals(...args),
+    supersedePendingContractProposals: (...args: Parameters<typeof records.supersedePendingContractProposals>) =>
+      records.supersedePendingContractProposals(...args),
     currentActionToken: () => "unused",
     authorizeRiskUpdate: () => undefined,
     authorizeRiskState: () => undefined,
@@ -46,9 +49,9 @@ function fixture(options: { human?: boolean } = {}) {
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const module = openModule(store);
+  writeProjectRoot(store.db, BOARD, "2026-10-20T00:00:00.000Z");
   module.commands.initializeBoard({
     project_id: BOARD,
-    title: "事件事实",
     actor_id: "user-1",
     idempotency_key: "init-board",
   });
@@ -326,8 +329,9 @@ test("latest related report updates only that requirement; human_decision stays 
 test("invalid structure, missing required fields, cross-goal refs and a later batch item roll back", () => {
   const data = fixture();
   try {
+    writeProjectRoot(data.store.db, OTHER_BOARD, "2026-10-20T00:00:00.000Z");
     data.module.commands.initializeBoard({
-      project_id: OTHER_BOARD, title: "另一个项目", actor_id: "user-1", idempotency_key: "init-other",
+      project_id: OTHER_BOARD, actor_id: "user-1", idempotency_key: "init-other",
     });
     data.module.commands.createGoal(OTHER_BOARD, {
       goal_id: OTHER_GOAL, title: "其他 Goal", outcome: "隔离", why: "跨引用", business_logic: "不可借用。",
@@ -589,8 +593,9 @@ test("a project keeps its Goals and journal across reopening, and a fresh projec
     try {
       assert.ok(fresh.db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'goal_work_events'").get());
       const module = openModule(fresh);
+      writeProjectRoot(fresh.db, BOARD, "2026-10-20T00:00:00.000Z");
       module.commands.initializeBoard({
-        project_id: BOARD, title: "新库", actor_id: "user-1", idempotency_key: "fresh-board",
+        project_id: BOARD, actor_id: "user-1", idempotency_key: "fresh-board",
       });
       module.commands.createGoal(BOARD, {
         goal_id: GOAL, title: "新库 Goal", outcome: "同样能力", why: "建库路径", business_logic: "新库直接可用。",

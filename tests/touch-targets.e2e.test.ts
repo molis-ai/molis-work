@@ -11,10 +11,11 @@ import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 // cleanly with them. The Assistant line stays inside its pill in the states the seeded project does not start in (a current
 // work with its chip and the chip's mark, the chips that come and go beside the input, and the crowd of them all) at the widths
 // where it is tight: 320, 360 and 390px phones and the 640, 667, 740 and 852px sideways phones. A line that cannot hold them at
-// 44px folds in steps (the choosers, then the work chip's mark, then the materials and the notice into the "+" menu); each
-// step is taken only when the one before it still overflowed, and nothing it folds is lost. The states are the ones the island can
-// show (a Character belongs to a work that is not Coding and the mode to one that is), the page object behind the materials chip is
-// a real one, and a tap into the input and away again (the phone hides the chips while typing) leaves the steps where they were.
+// 44px folds in steps (the choosers, then the work chip's mark, then the notice into the "+" menu); each step is taken only when
+// the one before it still overflowed, and nothing it folds is lost. The states are the ones the island can show (a Character
+// belongs to a work that is not Coding and the mode to one that is), and a tap into the input and away again (the phone hides the
+// chips while typing) leaves the steps where they were. What the next Send carries is the strip above the line (context-program
+// §21.2 point 1), measured with what the bar opens.
 // A fine-pointer window of 1280px keeps the sizes the exception names and does not sink below its floor, also in a short window
 // and at 700px, where a crowded line squeezes its chips narrower but never shorter.
 
@@ -28,8 +29,7 @@ const KINDS: Record<string, string> = {
   "[data-assistant-send]": "assistant send",
   "[data-plugin-picker-toggle]": "plugin switcher",
   ".dock-pin": "dock",
-  ".bar-resident": "resident",
-  ".bar-chat": "discussion",
+  ".bar-chat": "side panel",
   ".navigator-project-selector": "project",
   "[data-home-plugin-open]": "home plugin", // ISSUE-30: the declared Home tools remain visible in the titlebar.
   ".immersive-show-directory, .navigator-directory-toggle": "directory toggle",
@@ -39,24 +39,23 @@ const KINDS: Record<string, string> = {
   ".tab-add-button": "open plugin",
   ".tab-split-button": "layout",
   "[data-home-plugin-open]": "home tool",
-  ".tab-view-chip": "location chip",
   ".tab-view-chip-close": "cover close",
   ".assistant-target-main": "work chip",
   ".assistant-target-clear": "work chip clear",
-  ".assistant-materials-button": "materials chip",
+  ".assistant-strip-act, .assistant-strip-chip.is-work": "strip chip",
   ".assistant-attention": "attention chip",
   "[data-assistant-executor]": "executor chip",
   "[data-assistant-character]": "character chip",
   "[data-assistant-mode]": "mode chip",
 };
 /** The chips of the Assistant line that exist only in some states; the base screens do not show them. */
-const LINE_KINDS = ["work chip", "work chip clear", "materials chip", "attention chip", "executor chip", "character chip", "mode chip"];
+const LINE_KINDS = ["work chip", "work chip clear", "strip chip", "attention chip", "executor chip", "character chip", "mode chip"];
 
 /** What each step of the island's fold takes off a line that is still over its pill's edge, in order; a step includes the ones before it. */
 const FOLD_STEPS: Array<[string, string[]]> = [
   ["choosers", ["executor chip", "character chip", "mode chip"]],
   ["mark", ["work chip clear"]],
-  ["chips", ["materials chip", "attention chip"]],
+  ["chips", ["attention chip"]],
 ];
 const foldedAt = (stage: string) => {
   const reached = FOLD_STEPS.findIndex(([name]) => name === stage);
@@ -64,20 +63,19 @@ const foldedAt = (stage: string) => {
 };
 
 /** Shows chips of the Assistant line as the island paints them when they have something to say (it hides them otherwise). */
-const OPTIONAL_CHIPS = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-executor]", "[data-assistant-character]", "[data-assistant-mode]"];
+const OPTIONAL_CHIPS = ["[data-assistant-attention]", "[data-assistant-executor]", "[data-assistant-character]", "[data-assistant-mode]"];
 const showChips = (selectors: string[]) => `(() => {
   for (const selector of ${JSON.stringify(OPTIONAL_CHIPS)}) { const chip = document.querySelector(selector); chip.hidden = true; chip.removeAttribute("data-chosen"); }
-  const words = { "[data-assistant-materials-label]": "正在看：需求说明", "[data-assistant-materials-count]": "1", "[data-assistant-attention-count]": "3", "[data-assistant-mode-label]": "方式：执行", "[data-assistant-character-label]": "角色：评审" };
+  const words = { "[data-assistant-attention-count]": "3", "[data-assistant-mode-label]": "方式：执行", "[data-assistant-character-label]": "角色：评审" };
   for (const selector of ${JSON.stringify(selectors)}) {
     const chip = document.querySelector(selector);
     chip.hidden = false;
     if (/executor|character/.test(selector)) chip.setAttribute("data-chosen", "");
   }
-  const paged = !!document.querySelector("[data-test-page-object]");
-  for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]") && !(paged && /materials/.test(selector))) span.textContent = text; }
+  for (const [selector, text] of Object.entries(words)) { const span = document.querySelector(selector); if (span && !span.closest("[hidden]")) span.textContent = text; }
 })()`;
-/** The page object behind the materials chip: the island names it on the chip itself (and repaints the chip from it whenever the input
- * takes focus), so a state with materials has one and a state without has none. Its title is as long as the chip's words were forced to be. */
+/** A page object on show, with a passage of it selected: the strip above the line offers the object as a dashed chip with + and
+ * carries the passage as a chip with ×, so both of its buttons are measured. */
 const PAGE_TITLE = "本周需求说明文档";
 const lookAtPage = (on: boolean) => `(() => {
   document.querySelectorAll("[data-test-page-object]").forEach(el => el.remove());
@@ -87,6 +85,9 @@ const lookAtPage = (on: boolean) => `(() => {
   page.style.cssText = "position:fixed;top:60px;left:10px;width:50px;height:20px";
   document.body.append(page);
   page.setAttribute("data-assistant-context", JSON.stringify({ plugin_id: "todo", object: { kind: "todo_item", id: "touch-targets-page", title: ${JSON.stringify(PAGE_TITLE)} } }));
+  page.textContent = "本周需求";
+  const range = document.createRange(); range.selectNodeContents(page);
+  getSelection().removeAllRanges(); getSelection().addRange(range);
 })()`;
 const chipsShown = (selectors: string[]) => `${JSON.stringify(selectors)}.every(selector => document.querySelector(selector)?.hidden === false)`;
 
@@ -164,14 +165,14 @@ const DOCK_FOLD = `(async () => {
 })()`;
 
 /** Every popover the bar opens, with the controls inside it that are shorter or narrower than 44px. The notices are the island's own rows,
- * fed by an answer to its read of them; the materials list has a page object behind it. `present` names what must be in the list, so a
+ * fed by an answer to its read of them; the strip has a page object to offer. `present` names what must be in the list, so a
  * list that did not open (or lost its buttons) cannot pass by having nothing to measure. */
 const POPOVER_CONTENTS: Array<[string, string, string, string[]]> = [
   ["the + menu", "[data-assistant-attach]", "[data-assistant-more]", [".assistant-more-item"]],
   ["who does it", "[data-assistant-executor]", "[data-assistant-executors]", [".assistant-starter"]],
   ["the mode", "[data-assistant-mode]", "[data-assistant-modes]", [".assistant-starter"]],
   ["the Character", "[data-assistant-character]", "[data-assistant-characters]", [".assistant-starter"]],
-  ["the materials", "[data-assistant-materials]", "[data-assistant-materials-list]", [".assistant-material-remove"]],
+  ["the strip", "[data-assistant-input]", "[data-assistant-context-strip]", [".assistant-strip-act[aria-label^='加入']", ".assistant-strip-act[aria-label^='不带上']"]],
   ["the notices", "[data-assistant-attention]", "[data-assistant-notices]", ["[data-notice-action=open]", "[data-notice-action=dismiss]", "summary"]],
   ["the plugin switcher", "[data-plugin-picker-toggle]", "[data-plugin-picker-popover]", ["[data-dock-choice]", "[data-plugin-toggle]"]],
   ["the project menu", ".navigator-project-selector", ".navigator-project-menu-popover", [".navigator-project-option", ".navigator-project-manage"]],
@@ -201,7 +202,8 @@ const popoversScript = (floor: number) => `(async () => {
     const opener = button ? document.querySelector(button) : { isConnected: true, click() {}, hidden: false };
     if (!opener || !opener.isConnected) { out[name] = null; continue; }
     opener.hidden = false;
-    if (button) opener.click();
+    // The strip shows while the input has focus.
+    if (button) { if (opener.matches("input")) opener.focus(); else opener.click(); }
     else window.dispatchEvent(new CustomEvent("molis:assistant-message", { detail: { message_id: "touch-offer", purpose: "suggest", source: { surface: "todo", title: "待办" }, text: "整理本周的待办" } }));
     await wait(300);
     const pop = document.querySelector(popover);
@@ -211,7 +213,7 @@ const popoversScript = (floor: number) => `(async () => {
       shown, missing: present.filter(selector => !controls.some(el => el.matches(selector))),
       small: controls.map(el => { const box = el.getBoundingClientRect(); return { cls: String(el.className).split(" ")[0] || el.tagName.toLowerCase(), label: (el.getAttribute("aria-label") || el.textContent || "").trim().slice(0, 16), w: Math.round(box.width), h: Math.round(box.height) }; }).filter(item => Math.min(item.w, item.h) < ${floor}),
     };
-    if (!pop.hidden && button) opener.click();
+    if (!pop.hidden && button) { if (opener.matches("input")) opener.blur(); else opener.click(); }
     await wait(120);
   }
   window.fetch = real;
@@ -226,7 +228,7 @@ const TYPING = `(() => {
   const composer = document.querySelector("[data-assistant-composer]"), pill = composer.getBoundingClientRect(), send = document.querySelector("[data-assistant-send]").getBoundingClientRect();
   return { stage: composer.dataset.crowded ?? "", fit: composer.dataset.fit ?? "", overflow: composer.scrollWidth - composer.clientWidth, sendRight: Math.round(send.right), pillRight: Math.round(pill.right),
     focused: document.activeElement?.matches("[data-assistant-input]") === true,
-    chips: [...composer.querySelectorAll(".assistant-target, .assistant-executor, .assistant-materials-button, .assistant-attention")].filter(el => el.checkVisibility()).map(el => String(el.className).split(" ")[0]) };
+    chips: [...composer.querySelectorAll(".assistant-target, .assistant-executor, .assistant-attention")].filter(el => el.checkVisibility()).map(el => String(el.className).split(" ")[0]) };
 })()`;
 
 /** The menus the strip opens, as a person opens them: the "+" of the strip (open a plugin), the layout button, a right-click on a tab (it makes
@@ -356,7 +358,7 @@ const PANEL_BODY = `(async () => {
 })()`;
 
 /** A finding that is about the strip or the bar (the page behind them has its own audits). */
-const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-resident|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
+const IN_SHELL = /bar-composer|assistant-composer|dock-pin|bar-side|bar-chat|plugin-picker|navigator-project|navigator-directory|immersive-show|workbench-bar|bar-start|bar-end|tab-view-chip|tab-item|tab-strip|tab-add|tab-split|workspace-history/;
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
@@ -423,7 +425,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     attach.click(); await wait(120);
     const first = [...more.querySelectorAll(".assistant-more-item")];
     const out = { open: !more.hidden, labels: first.map((row) => row.querySelector(".assistant-more-label").textContent), heights: first.map((row) => Math.round(row.getBoundingClientRect().height)), opens: {}, closes: {} };
-    for (const [key, label, list, how] of [["notices", "需要你看看", "[data-assistant-notices]", "Escape"], ["materials", "本次发送带上的材料", "[data-assistant-materials-list]", "click elsewhere"]]) {
+    for (const [key, label, list, how] of [["notices", "需要你看看", "[data-assistant-notices]", "Escape"]]) {
       if (more.hidden) { attach.click(); await wait(120); }
       const row = [...more.querySelectorAll(".assistant-more-item")].find((candidate) => candidate.querySelector(".assistant-more-label").textContent === label);
       if (!row) continue;
@@ -441,10 +443,10 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
 
   /** The Assistant line with some chips shown: they are the ones the island shows beside the input in that state. A crowded line takes
    * chips off in steps (the island marks which), so what must be on it is `present` less what that step folds; what is folded is not lost:
-   * the work chip's mark is the panel's own "new work", the choosers are in the side pane, the materials and the notice are in the "+" menu. */
+   * the work chip's mark is the panel's own "new work", the choosers are in the side pane, the notice is in the "+" menu. */
   const line = async (name: string, chips: string[], present: string[], floor: number, chipWidthFree = false, insidePill = true) => {
     if (present.includes("work chip")) await waitFor("document.querySelector('[data-assistant-target-wrap]')?.getClientRects().length > 0", 10_000);
-    await evaluate(lookAtPage(chips.includes("[data-assistant-materials]")));
+    await evaluate(lookAtPage(false));
     // The island repaints its chips when its first answers come back and would hide what was shown; show them again until they stay.
     let bar: Control[] = [];
     let kinds = new Set<string>();
@@ -472,7 +474,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
     assert.ok(fit.input >= (floor >= 44 ? 44 : 28), `${name}: the input keeps its box (${fit.input}px)`);
     // Taking chips off is the last resort: the step the island took was needed, and with none taken the line fits as it is.
     if (fit.stage) assert.equal(await evaluate<boolean | null>(stepBefore), true, `${name}: one step less folded than "${fit.stage}" would run over the pill, so the fold was needed`);
-    // A dot on the "+" says the materials or the notice are in its menu: it is there when they are folded into it, and not otherwise.
+    // A dot on the "+" says the notice is in its menu: it is there when it is folded into it, and not otherwise.
     const dot = await evaluate<{ content: string; background: string; size: string }>(DOT);
     if (fit.stage === "chips" && fit.touchRules) {
       assert.notEqual(dot.content, "none", `${name}: the "+" carries a dot while its menu holds the folded chips`);
@@ -480,11 +482,10 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
       assert.notEqual(dot.background, "rgba(0, 0, 0, 0)", `${name}: and it is painted, not an empty box`);
     } else assert.equal(dot.content, "none", `${name}: the "+" has no dot while nothing is folded into it (stage "${fit.stage}")`);
     // What a crowded line folded into the "+" menu is there, as tall as a touch target, and opens the same list the chip did.
-    const aside = present.filter(kind => ["materials chip", "attention chip"].includes(kind) && !expected.includes(kind));
+    const aside = present.filter(kind => kind === "attention chip" && !expected.includes(kind));
     if (aside.length) {
       const menu = await evaluate<{ open: boolean; labels: string[]; heights: number[]; opens: Record<string, boolean>; closes: Record<string, boolean> }>(MORE_MENU);
       assert.equal(menu.open, true, `${name}: the "+" button opens its menu`);
-      if (aside.includes("materials chip")) { assert.ok(menu.labels.includes("本次发送带上的材料"), `${name}: the "+" menu lists the folded materials (${menu.labels})`); assert.equal(menu.opens.materials, true, `${name}: and opens their list`); assert.equal(menu.closes.materials, true, `${name}: which a click elsewhere puts away`); }
       if (aside.includes("attention chip")) { assert.ok(menu.labels.includes("需要你看看"), `${name}: the "+" menu lists the folded notice (${menu.labels})`); assert.equal(menu.opens.notices, true, `${name}: and opens the notices`); assert.equal(menu.closes.notices, true, `${name}: which Escape puts away, focus going back to the "+"`); }
       assert.deepEqual(menu.heights.filter(height => height < 44), [], `${name}: and its rows are 44px on touch (${menu.heights})`);
     }
@@ -492,7 +493,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   };
 
   /** A tap into the input and away again, as a person does to type and dismiss the keyboard. The phone hides the chips while the input has
-   * focus and the focus repaints the materials chip; the line must come back as it was, the same steps and inside its pill (it is measured
+   * focus; the line must come back as it was, the same steps and inside its pill (it is measured
    * with its chips on it, whether or not typing hides them). */
   const typeAndLeave = async (name: string, before: LineFit, phoneWidth: boolean) => {
     type Typing = { stage: string; fit: string; overflow: number; sendRight: number; pillRight: number; focused: boolean; chips: string[] };
@@ -542,7 +543,7 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   /** The bar's second row against the window, and the Dock's fold against its list: what a window of this width shows must fit and be reachable. */
   const rowFit = () => evaluate<{ count: number; vw: number; overlap: number; where: string; outside: number; width: number }>(ROW_FIT);
   const dockFold = () => evaluate<{ hidden: string[]; listed: string[]; reachable: string[]; more: boolean; home: boolean }>(DOCK_FOLD);
-  /** Opens every popover of the bar (the page has a page object behind the materials chip) and reports what is in each and which controls are under 44px. */
+  /** Opens every popover of the bar and the strip (the page has an object on show for it) and reports what is in each and which controls are under 44px. */
   const popovers = async (floor: number) => {
     await evaluate(lookAtPage(true));
     await settle();
@@ -596,21 +597,21 @@ function windowsOf(browser: Browser, scheme: "light" | "dark", touch: boolean) {
   return { start, open, short, settle, shellFindings, rowFit, dockFold, popovers, switcherOps, stripMenus, panelHeader, panelBody, menuRows, line, typeAndLeave, moreLabels, makeCurrentWork, escapeReturns, evaluate, waitFor };
 }
 
-const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
-const NEW_WORK_KINDS = ["executor chip", "materials chip", "attention chip", "mode chip"];
+const NEW_WORK = ["[data-assistant-executor]", "[data-assistant-attention]", "[data-assistant-mode]"];
+const NEW_WORK_KINDS = ["executor chip", "attention chip", "mode chip"];
 /** What a work's line can show at most: the island shows a Character only on a work that is not Coding and the mode only on a Coding one. */
-const WITH_CHARACTER = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-character]"];
-const WITH_MODE = ["[data-assistant-materials]", "[data-assistant-attention]", "[data-assistant-mode]"];
-const BASE = ["work chip", "work chip clear", "materials chip", "attention chip"];
+const WITH_CHARACTER = ["[data-assistant-attention]", "[data-assistant-character]"];
+const WITH_MODE = ["[data-assistant-attention]", "[data-assistant-mode]"];
+const BASE = ["work chip", "work chip clear", "attention chip"];
 /** The windows where a phone's Assistant line is tight: 320 and 360 are the narrow phones, 390 the common one, and 640, 667 and
  * 740 are phones held sideways (the Dock and residents trays leave the line 214, 241 and 314px), 852 the one that has room. */
 const LINE_WINDOWS = [[320, 568], [360, 740], [390, 844], [640, 360], [667, 375], [740, 360], [852, 393]] as const;
 const LINE_STATES = [
   ["a current work", [], ["work chip", "work chip clear"]],
-  ["a current work with its materials and a notice", ["[data-assistant-materials]", "[data-assistant-attention]"], BASE],
+  ["a current work with a notice", ["[data-assistant-attention]"], BASE],
   ["a Coding work", ["[data-assistant-mode]"], ["work chip", "work chip clear", "mode chip"]],
-  ["a work with materials, a notice and a Character", WITH_CHARACTER, [...BASE, "character chip"]],
-  ["a Coding work with its materials and a notice", WITH_MODE, [...BASE, "mode chip"]],
+  ["a work with a notice and a Character", WITH_CHARACTER, [...BASE, "character chip"]],
+  ["a Coding work with a notice", WITH_MODE, [...BASE, "mode chip"]],
 ] as const;
 
 for (const scheme of ["light", "dark"] as const) {
@@ -620,7 +621,7 @@ for (const scheme of ["light", "dark"] as const) {
     const w = windowsOf(browser, scheme, true);
     await w.start();
 
-    // A phone. Three screens carry every control: the project's home, a plugin's page (its location chip), and the project's
+    // A phone. Three screens carry every control: the project's home, a plugin's page (its plugin tab), and the project's
     // settings (a cover chip with its close mark, and the directory toggle: the widest the bar gets, eight 44px targets in its
     // second row). The row's targets touch one another, so it is an exact sum: eight need 375px as they are. Narrower than 375px
     // the bar's column gap and side padding give way, which holds eight from 356px and seven from 312px; below that a window
@@ -628,7 +629,7 @@ for (const scheme of ["light", "dark"] as const) {
     // (a decision of the Dock's round four), and the switcher lists what the Dock dropped. 390, 375 and 360px keep the "+N";
     // 350 and 320px are the windows that cannot.
     const seen = new Set<string>();
-    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('.tab-view-chip')"] as const;
+    const HOME = ["home", "", "true"] as const, PLUGIN = ["a plugin's page", "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]')"] as const;
     const SETTINGS = ["the project's settings", "settings", "!!document.querySelector('.tab-view-chip-close')"] as const;
     const moreShown: Record<string, boolean> = {};
     for (const [width, height] of [[390, 844], [375, 667], [360, 740], [350, 640], [320, 568]] as const) {
@@ -651,8 +652,10 @@ for (const scheme of ["light", "dark"] as const) {
         moreShown[`${width} ${name}`] = dock.more;
       }
     }
-    for (const width of [390, 375, 360]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
-    for (const width of [350, 320]) assert.equal(moreShown[`${width} the project's settings`], false, `${width}px cannot hold 项目首页 and the "+N" button beside the directory button: the "+N" gives way, 项目首页 does not`);
+    // One button at the bar's end instead of three (side-shelf §3.1) leaves every width room for 项目首页 and the "+N" button,
+    // even beside the directory button at 320px. Should the row ever run short, the "+N" gives way and the check above holds
+    // the dropped buttons to the switcher's list.
+    for (const width of [390, 375, 360, 350, 320]) assert.equal(moreShown[`${width} the project's settings`], true, `${width}px holds the widest row with 项目首页 and the "+N" button`);
     assert.equal(moreShown["320 home"], true, "without the directory button the row holds the \"+N\" button even at 320px");
     assert.deepEqual(Object.values(KINDS).filter(kind => !LINE_KINDS.includes(kind) && !seen.has(kind)), [], "the three screens showed every kind of control, so none went unmeasured");
 
@@ -676,7 +679,7 @@ for (const scheme of ["light", "dark"] as const) {
     }
 
     // What the bar opens is a 44px target too: the lists of the Assistant's line (the "+" menu, who does it, the mode, the Character,
-    // the materials with their remove buttons, the notices with their buttons), the plugin switcher with its pin and add buttons,
+    // the notices with their buttons, the strip's add and remove buttons), the plugin switcher with its pin and add buttons,
     // the Dock's "+N" list and the project menu. The folding steps above send people into these lists, so a row that is smaller
     // than a finger is a step that does not work.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
@@ -695,7 +698,7 @@ for (const scheme of ["light", "dark"] as const) {
     // The strip's own menus (open a plugin, the layout, a tab, a tab group) are lists too: their rows, the group's name input and its colour
     // swatches are 44px targets on a phone and on a tablet, the swatches drawn small inside their target.
     for (const [name, width, height] of [["a phone", 390, 844], ["a narrow phone", 360, 740], ["a tablet", 1024, 768]] as const) {
-      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+      await w.open(width, height, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
       const menus = await w.stripMenus();
       for (const [menu, report] of Object.entries(menus)) {
         assert.equal(report.shown, true, `${name} · ${width}: ${menu} opens`);
@@ -766,15 +769,24 @@ for (const scheme of ["light", "dark"] as const) {
     }
     // The steps, window by window: a line that fits folds nothing, and the narrower the window the more it folds, never a chip it
     // could keep. These are the stages the island reaches at 44px targets; a change here is a change in what a phone's line shows.
+    // With the materials chip gone from the line (it is the strip above it now, §21.2 point 1), 390px folds nothing and 360px
+    // folds one step less than it did. With one button at the bar's end instead of three (side-shelf §3.1), 667px, where the
+    // trays leave the line least room, folds nothing either.
     assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => /^(390|360|667) /.test(key))), {
-      "390 a current work": "", "390 a current work with its materials and a notice": "", "390 a Coding work": "",
-      "390 a work with materials, a notice and a Character": "choosers", "390 a Coding work with its materials and a notice": "choosers",
-      "360 a current work": "", "360 a current work with its materials and a notice": "mark", "360 a Coding work": "",
-      "360 a work with materials, a notice and a Character": "mark", "360 a Coding work with its materials and a notice": "mark",
-      "667 a current work": "", "667 a current work with its materials and a notice": "chips", "667 a Coding work": "choosers",
-      "667 a work with materials, a notice and a Character": "chips", "667 a Coding work with its materials and a notice": "chips",
+      "390 a current work": "", "390 a current work with a notice": "", "390 a Coding work": "",
+      "390 a work with a notice and a Character": "", "390 a Coding work with a notice": "",
+      "360 a current work": "", "360 a current work with a notice": "", "360 a Coding work": "",
+      "360 a work with a notice and a Character": "choosers", "360 a Coding work with a notice": "choosers",
+      "667 a current work": "", "667 a current work with a notice": "", "667 a Coding work": "",
+      "667 a work with a notice and a Character": "", "667 a Coding work with a notice": "",
     }, "the steps the island takes at 390, 360 and 667px");
-    assert.equal(stages["640 a current work"], "mark", "a bare current work in a 640×360 window folds the mark and nothing else");
+    // A 640×360 window: with the bar's end down to one button, a bare current work folds nothing and the fullest line only the
+    // choosers (it folded the mark, and the chips, while the end held three). The mark still folds first at 320px.
+    assert.deepEqual(Object.fromEntries(Object.entries(stages).filter(([key]) => key.startsWith("640 "))), {
+      "640 a current work": "", "640 a current work with a notice": "", "640 a Coding work": "",
+      "640 a work with a notice and a Character": "choosers", "640 a Coding work with a notice": "choosers",
+    }, "the steps the island takes in a 640×360 window");
+    assert.equal(stages["320 a current work with a notice"], "mark", "at 320px a current work with a notice folds the mark and nothing else");
 
     // A tablet's line, with every chip a work can show.
     await w.open(1024, 768, "", "true");
@@ -807,7 +819,7 @@ for (const scheme of ["light", "dark"] as const) {
     // What a plugin page's menu holds is 34px on a desktop window, as DESIGN.md writes it.
     assert.deepEqual([...new Set(await w.menuRows(1280, 800))], [34], "mw-menu items keep their 34px with a fine pointer");
 
-    // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller, the materials' remove mark included.
+    // What the bar opens keeps the desktop floor too (32px, 28px compact): nothing in its lists is smaller.
     await w.open(1280, 800, "", "true");
     const lists = await w.popovers(32);
     for (const [list] of POPOVER_CONTENTS) {
@@ -835,7 +847,7 @@ for (const scheme of ["light", "dark"] as const) {
     }
 
     // The strip's own menus keep the rows they have on a desktop window (34px and up, short of 44px), the name input and the swatches included.
-    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('.tab-view-chip') && !!document.querySelector('.tab-item-trigger')");
+    await w.open(1280, 800, "?openPlugin=todo", "!!document.querySelector('[data-tab-kind=\"plugin\"]') && !!document.querySelector('.tab-item-trigger')");
     for (const [menu, report] of Object.entries(await w.stripMenus())) {
       assert.equal(report.shown, true, `1280: ${menu} opens`);
       assert.deepEqual(report.rows.filter(row => row < 34 || row >= 44), [], `1280: the rows of ${menu} stay a desktop menu's rows, 34px at least and short of the 44px of touch (${report.rows})`);
@@ -894,7 +906,8 @@ for (const scheme of ["light", "dark"] as const) {
       const { fit } = await w.line(`${name} · 620`, [...chips], [...kinds], floors.bar, true, false);
       assert.equal(fit.touchRules, false, "a fine-pointer window of 620px does not take the phone's rules");
       assert.equal(fit.stage, "", `${name} · 620: so the island marks no step`);
-      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
+      // In a project the menu also offers the project-knowledge picker (PMAT-17; specs/project-knowledge/spec.md §9 and §14).
+      assert.deepEqual(await w.moreLabels(), ["添加文件或图片…", "选择项目资料…", "引用项目里的内容", "用一个能力或方法"], `${name} · 620: and the "+" menu lists its usual rows, not the chips that are still on the line`);
     }
   });
 }

@@ -1,26 +1,12 @@
 import { handleSearchHttp } from "./search-http.js";
+import { connectorSettingsView } from "./web-connector-settings.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
 import { mcpAccessPageModel } from "./mcp-action-access.js";
-import { handleImagesNativePluginHttp } from "./images-native-plugin-http.js";
-import { IMAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-images";
-import { handlePptNativePluginHttp } from "./ppt-native-plugin-http.js";
-import { PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
-import { handleDatasetNativePluginHttp } from "./dataset-native-plugin-http.js";
-import { DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
-import { COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
-import { handleCogniaNativePluginHttp } from "./cognia-native-plugin-http.js";
-import { JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
-import { handleJellyNativePluginHttp } from "./jelly-native-plugin-http.js";
-import { TODO_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-todo";
-import { handleTodoNativePluginHttp } from "./todo-native-plugin-http.js";
-import { handlePagesNativePluginHttp } from "./pages-native-plugin-http.js";
-import { PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
-import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { molisWorkHostProjectReference } from "./project-host.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { handleFunctionsHttp } from "./functions-http.js";
 import { functionsConnectionStatus } from "./functions-host.js";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -44,17 +30,16 @@ import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js
 import { SHELF_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
 import { SHELF_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-shelf";
 import { CHARACTERS_SETTINGS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
-import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_SETTINGS_UI_CONTRIBUTION_ID, codingAgentManifest, holdsCodingSessions, listCodingBackgroundSessions } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRuntimeDescriptor } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { handleLocalRuntimeSettingsHttp, serviceProcessId } from "./web-runtime-settings.js";
 import { handleMcpActionSettingsHttp } from "./web-mcp-action-settings.js";
 import { handleLocalConnectorsSettingsHttp } from "./web-connectors-settings.js";
 import { handleConnectorConnectionsHttp } from "./web-connector-connections.js";
 import { handleConnectorMethodsHttp } from "./web-connector-methods.js";
-import { listConnectorConnectionViews } from "./web-connector-connections.js";
+import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { selectedTypeSafeConnection } from "./typesafe-connection.js";
-import { listConnectorSettingsCards } from "./connector-directory.js";
 import { installationDiagnostics } from "./web-project-presentation.js";
 import { molisWorkOnboardingStatus } from "./onboarding.js";
 import { codingBackgroundTasks } from "./coding-background-tasks.js";
@@ -66,7 +51,8 @@ import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 const projectArrivalHttps = new WeakMap<MolisWorkLocalHost, ReturnType<typeof createProjectArrivalHttp>>();
 
 /** Coding sessions running or waiting on the person in any project: the title bar's background tasks, read with the page's attention (W4-10). */
-export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, listCodingBackgroundSessions);
+// A project that never held Coding lists nothing quietly; one whose store cannot be read is written (W5-13).
+export const homeBackgroundTasks = (projects: readonly WebProjectNavigation[]) => codingBackgroundTasks(projects, db => holdsCodingSessions(db) ? listCodingBackgroundSessions(db) : []);
 
 export async function handleLocalCatalogWebRequest(
   request: IncomingMessage, response: ServerResponse, url: URL, serverOptions: WebServerOptions,
@@ -96,50 +82,6 @@ export async function handleLocalCatalogWebRequest(
   if (serverOptions.homeDirectory && await handleFunctionsHttp(request, response, url, serverOptions.homeDirectory, {
     actions: bindLocalWebActions(localHost, undefined, ["functions:invoke", "functions:manage"]),
   })) return;
-  if (serverOptions.homeDirectory && await handlePagesNativePluginHttp(request, response, url, async input => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: PAGES_ACTION_PERMISSIONS })) };
-  })) return;
-  if (serverOptions.homeDirectory && await handleDatasetNativePluginHttp(request, response, url, async (input, transport) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: DATASET_ACTION_PERMISSIONS, ...transport })) };
-  })) return;
-  if (serverOptions.homeDirectory && await handleImagesNativePluginHttp(request, response, url, async (input) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (projectId === undefined || projectId === "") return { projectId: "", actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })) };
-    if (typeof projectId !== "string") throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: IMAGES_ACTION_PERMISSIONS })) };
-  })) return;
-  if (serverOptions.homeDirectory && await handlePptNativePluginHttp(request, response, url, async (input, transport) => {
-    const projectId = input.query.get("project_id") ?? input.body.project_id;
-    if (typeof projectId !== "string" || !projectId.trim()) throw new ActionError("actions.project_required", "请选择项目");
-    const project = await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.getProject(projectId));
-    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    return { projectId: project.project_id,
-      actions: bindActionClient(localHost.actionClient(reference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: reference.project_id,
-        audience: "user", permissions: PPT_ACTION_PERMISSIONS, ...transport })) };
-  })) return;
-  if (serverOptions.homeDirectory && await handleJellyNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: JELLY_ACTION_PERMISSIONS, ...transport })))) return;
-  // Without a project the person reaches personal and unplaced todos only.
-  if (serverOptions.homeDirectory && await handleTodoNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: TODO_ACTION_PERMISSIONS, ...transport })))) return;
-  if (serverOptions.homeDirectory && await handleCogniaNativePluginHttp(request, response, url, transport =>
-    bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: COGNIA_ACTION_PERMISSIONS, ...transport })))) return;
   if (serverOptions.homeDirectory && await handlePersonalNativePluginHttp(request, response, url, {
     shelf: { actions: bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS })) },
   })) return;
@@ -238,9 +180,7 @@ export async function handleLocalCatalogWebRequest(
       hidden_plugins: membership.hidden,
       runtimes,
       mcp_access,
-      connectors: section === "connectors" ? listConnectorSettingsCards() : [],
-      connector_connections: section === "connectors" && serverOptions.homeDirectory
-        ? listConnectorConnectionViews(serverOptions.homeDirectory) : [],
+      ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url) : {}),
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
@@ -326,8 +266,8 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
+  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
-  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
   if (await handleLocalRuntimeSettingsHttp(request, response, url, runtimeIntegrations, webService)) return;

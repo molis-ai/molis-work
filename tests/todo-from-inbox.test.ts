@@ -7,7 +7,7 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { renderInboxWorkbench, type InboxUiEntry } from "@molis-ai/molis-work-plugin-inbox";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({
@@ -45,7 +45,7 @@ test("a todo made from an Inbox entry or a 灵光 keeps it as its source; conver
   const store = openTodoStore(home);
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
-    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ withStore: run => run(store) }) });
+    definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)) }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const inA = bindActionClient(service, () => ({ actor_id: "web-user", project_id: "project-a", audience: "user", permissions: TODO_ACTION_PERMISSIONS }));
   const fromInbox = { title: "回复供应商报价", placement: "project" as const, request_id: "inbox:entry-1",

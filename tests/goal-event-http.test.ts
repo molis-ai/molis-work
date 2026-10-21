@@ -31,7 +31,7 @@ test("HTTP event APIs persist intent, blank planning, typed reports, decisions a
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "HTTP 事件", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "空白互动故事", outcome: "一段可玩片段", actor_id: "web-user",
     actor_kind: "user", idempotency_key: "intent-1",
@@ -150,7 +150,7 @@ test("HTTP event-close rejects unknown kind without recording an event", async (
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "kind", actor_id: "user-1", idempotency_key: "init-kind" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-kind" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "无效收尾", outcome: "不能默认为完成",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-kind",
@@ -198,7 +198,7 @@ test("HTTP writes persist typed reports, scoped concerns and closure through the
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "HTTP 写入", actor_id: "user-1", idempotency_key: "init-write" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-write" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "HTTP 写入目标", outcome: "经 HTTP 保存后再读回",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-write",
@@ -304,7 +304,7 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "cursor", actor_id: "user-1", idempotency_key: "init-cursor" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-cursor" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "空白进展", outcome: "第一次摘要",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-cursor",
@@ -440,7 +440,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "draft-owner", actor_id: "user-1", idempotency_key: "init-draft-http" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-draft-http" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "事件目标", outcome: "原事件约定",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-draft-http",
@@ -505,7 +505,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "definition-read", actor_id: "user-1", idempotency_key: "init-definition-http" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-definition-http" });
   const goal = {
     goal_id: "legacy-definition-http",
     title: "保留原目标的输入输出",
@@ -574,7 +574,7 @@ test("HTTP event-agree rejects unknown fields and omitted agreement version with
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "agree", actor_id: "user-1", idempotency_key: "init-agree" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-agree" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "约定未知字段", outcome: "原结果",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-agree-http",
@@ -621,7 +621,7 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "http-expire", actor_id: "user-1", idempotency_key: "init-expire" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-expire" });
   const created = app.goalEvents.createIntent({
     project_id: BOARD, title: "真实购买", outcome: "用户可以完成真实购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "intent-expire",
@@ -731,8 +731,11 @@ test("HTTP outcome replacement expires all current supports; stale agreement_cha
         idempotency_key: "http-stale-approve",
       }),
     });
-    assert.equal(staleApproval.status, 400, await staleApproval.clone().text());
-    const staleBody = await staleApproval.json() as { error?: string };
+    // D26: an approval of a decision the Goal has moved past is "the data moved on" — goals.event_decision.stale_commitment
+    // is declared conflict, so it answers 409 (it was 400 while the code was declared invalid).
+    assert.equal(staleApproval.status, 409, await staleApproval.clone().text());
+    const staleBody = await staleApproval.json() as { error?: string; code?: string };
+    assert.equal(staleBody.code, "goals.event_decision.stale_commitment");
     assert.match(String(staleBody.error), /变化|变更|匹配|过期|基线|版本/);
     const afterStale = app.goalEvents.readState(BOARD, goalId);
     assert.equal(afterStale.goal_event_cursor, beforeStale.goal_event_cursor);
@@ -750,7 +753,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "HTTP 创建", actor_id: "user-1", idempotency_key: "init-create" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-create" });
   const parent = app.goalEvents.createIntent({
     project_id: BOARD, title: "购买体验", outcome: "用户完成购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "http-parent", source_kind: "web",
@@ -913,7 +916,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "HTTP 树决定", actor_id: "user-1", idempotency_key: "init-tree-http" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-tree-http" });
   const treeItem = (id: string) => ({
     item_id: `item-${id}`,
     kind: "goal" as const,
@@ -1015,7 +1018,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
   const databasePath = join(directory, "project.db");
   const store = new LocalProjectDatabase(databasePath);
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "关系冲突退回", actor_id: "user-1", idempotency_key: "init-rel-conflict" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init-rel-conflict" });
   const parent = app.goalEvents.createIntent({
     project_id: BOARD, title: "购买体验", outcome: "用户完成购买",
     actor_id: "web-user", actor_kind: "user", idempotency_key: "rel-conflict-parent", source_kind: "web",

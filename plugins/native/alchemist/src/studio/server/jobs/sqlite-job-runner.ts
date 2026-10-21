@@ -1,6 +1,7 @@
 import type { Clock, IdFactory } from "../../domain/kernel/identity.js";
 import type { RunStatus } from "../../domain/kernel/run.js";
 import type { SqliteDatabase } from "../db/open-database.js";
+import { alchemistStateErrors } from "../../errors.js";
 
 export interface PersistedJob {
   id: string;
@@ -132,25 +133,21 @@ export class SqliteJobRunner {
     return this.database.prepare("SELECT 1 FROM jobs WHERE status IN ('queued', 'running') LIMIT 1").get() !== undefined;
   }
 
-  claimNext(): PersistedJob | undefined {
+  claim(jobId: string): PersistedJob | undefined {
     return this.database.transaction(() => {
-      const row = this.database
-        .prepare("SELECT * FROM jobs WHERE status = 'queued' ORDER BY created_at, id LIMIT 1")
-        .get() as JobRow | undefined;
-      if (!row) return undefined;
       const now = this.options.clock.now();
-      const leaseExpiresAt = new Date(Date.parse(now) + this.leaseMs).toISOString();
-      const update = this.database
-        .prepare(
-          `UPDATE jobs
-           SET status = 'running', lease_owner = ?, lease_expires_at = ?, attempt = attempt + 1,
-               error_code = NULL, updated_at = ?
-           WHERE id = ? AND status = 'queued'`,
-        )
-        .run(this.options.workerId, leaseExpiresAt, now, row.id);
+      const job = this.get(jobId);
+      if (!job) return undefined;
+      const expires = new Date(Date.parse(now) + this.leaseMs).toISOString();
+      const update = this.database.prepare(`UPDATE jobs
+        SET status = 'running', lease_owner = ?, lease_expires_at = ?, attempt = attempt + 1,
+          error_code = NULL, updated_at = ?
+        WHERE id = ? AND (status IN ('queued', 'interrupted', 'failed')
+          OR (status = 'running' AND lease_expires_at <= ?))`)
+        .run(this.options.workerId, expires, now, jobId, now);
       if (update.changes !== 1) return undefined;
-      this.appendEvent(row.id, "running", { attempt: row.attempt + 1 });
-      return this.get(row.id);
+      this.appendEvent(jobId, "running", { attempt: job.attempt + 1 });
+      return this.get(jobId);
     }).immediate();
   }
 
@@ -197,33 +194,6 @@ export class SqliteJobRunner {
     }).immediate();
   }
 
-  recoverExpired(): number {
-    const now = this.options.clock.now();
-    return this.database.transaction(() => {
-      const expired = this.database
-        .prepare(
-          `SELECT * FROM jobs
-           WHERE status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at <= ?
-           ORDER BY created_at, id`,
-        )
-        .all(now) as JobRow[];
-      for (const row of expired) {
-        this.database
-          .prepare("UPDATE jobs SET status = 'interrupted', updated_at = ? WHERE id = ?")
-          .run(now, row.id);
-        this.appendEvent(row.id, "interrupted", { previousWorker: row.lease_owner });
-        this.database
-          .prepare(
-            `UPDATE jobs
-             SET status = 'queued', lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
-             WHERE id = ?`,
-          )
-          .run(now, row.id);
-        this.appendEvent(row.id, "queued", { reason: "recovered_after_interruption" });
-      }
-      return expired.length;
-    }).immediate();
-  }
 
   listEvents(jobId: string, afterSequence = 0): PersistedJobEvent[] {
     return (
@@ -273,7 +243,7 @@ export class SqliteJobRunner {
 
   private require(id: string): PersistedJob {
     const job = this.get(id);
-    if (!job) throw new Error("alchemist.job_not_found");
+    if (!job) throw alchemistStateErrors.job_not_found("没有找到这次运行。");
     return job;
   }
 }

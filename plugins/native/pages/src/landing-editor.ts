@@ -2,6 +2,7 @@ import type { Node } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
 import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { headingPath } from "./focus.js";
 
 /**
  * Pages as the landing on the left (specs/context-program §3.4, §21.8 steps 3 and 5).
@@ -13,6 +14,9 @@ import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
  *   written at that place and writes nothing itself: confirming runs the choice through the Host (`run`, bound by the row
  *   to the landing it was ranked with) and shows the saved document. If the document changed after the landing was
  *   reported, nothing is written and the person chooses the place again.
+ * - When the bar asks where something would go (`molis:surface-landing-flash`: a way to put it here is hovered or focused),
+ *   the landing shows itself once without covering the text: a copper line at the cursor or the end, a light background
+ *   under a selection. Not again while it shows, and not at all when the person asked for less motion.
  */
 const PLUGIN_ID = "io.molis.work.pages";
 const AROUND = 200;
@@ -28,17 +32,18 @@ export interface PagesLandingPort {
 }
 
 interface Reported { readonly key: string; readonly doc: Node | null; readonly from: number; readonly to: number }
+const NONE: Reported = { key: "", doc: null, from: 0, to: 0 };
 /** What a Pages landing action is prepared with (landing-actions.ts), as far as the preview shows it. */
 type Prepared = { anchor?: number; head?: number; text?: string; source?: { title?: string } } | undefined;
 
 export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
   const L = port.translate;
   let touched = "";
-  let shown: Reported = { key: "", doc: null, from: 0, to: 0 };
+  let shown = NONE;
   const send = (detail: unknown) => port.bench.dispatchEvent(new CustomEvent("molis:surface-landing", { bubbles: true, detail }));
   const report = () => {
     const view = port.view(), open = port.open();
-    if (!view || !open) { if (shown.key) { shown = { key: "", doc: null, from: 0, to: 0 }; send(null); } return; }
+    if (!view || !open) { if (shown.key) { shown = NONE; send(null); } return; }
     if (view.hasFocus()) touched = open.id;
     const { doc, selection } = view.state;
     const position = !selection.empty ? "selection" : touched === open.id ? "cursor" : "end";
@@ -49,7 +54,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     const text = position === "selection" ? doc.textBetween(from, to, "\n") : "";
     send({ pane_id: "", plugin_id: PLUGIN_ID, object: { kind: "pages_document", id: open.id, title: open.title }, position, version: open.version,
       targets: [{ kind: "text_range", role: "paragraph", text: text.slice(0, 4000), ...(text.length > 4000 ? { truncated: true } : {}), anchor: from, head: to }],
-      surroundings: { heading_path: [], before: doc.textBetween(Math.max(0, from - AROUND), from, "\n"), after: doc.textBetween(to, Math.min(doc.content.size, to + AROUND), "\n") } });
+      surroundings: { heading_path: headingPath(doc, from), before: doc.textBetween(Math.max(0, from - AROUND), from, "\n"), after: doc.textBetween(to, Math.min(doc.content.size, to + AROUND), "\n") } });
   };
 
   let pop: HTMLElement | null = null;
@@ -58,8 +63,8 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     close();
     const box = pop = document.createElement("div"), base = shown;
     box.className = "pages-pop";
-    box.setAttribute("role", "dialog");
-    box.setAttribute("aria-label", chosen.title);
+    box.role = "dialog";
+    box.ariaLabel = chosen.title;
     box.innerHTML = '<p></p><div class="pages-landing-preview" hidden></div><div class="pages-pop-actions"><button type="button" class="mw-btn mw-btn--ghost"></button><button type="button" class="mw-btn mw-btn--primary" hidden></button></div>';
     const lead = box.querySelector("p")!, text = box.querySelector<HTMLElement>(".pages-landing-preview")!, [cancel, ok] = [...box.querySelectorAll("button")] as [HTMLButtonElement, HTMLButtonElement];
     const fail = (message: string) => { lead.textContent = message; lead.className = "pages-pop-error"; ok.disabled = false; };
@@ -99,5 +104,25 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     void preview(chosen, view);
   });
   document.addEventListener("keydown", (event) => { if (event.key === "Escape" && pop) close(); });
+  let flashing = false;
+  port.bench.addEventListener("molis:surface-landing-flash", () => {
+    const view = port.view(), { key, from, to } = shown;
+    if (flashing || !view || !key || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    flashing = true;
+    let clear = () => {};
+    if (from === to) {
+      const at = view.coordsAtPos(Math.min(from, view.state.doc.content.size)), line = document.createElement("span");
+      line.className = "pages-landing-flash";
+      line.style.cssText = `left:${at.left - 1}px;top:${at.top}px;height:${at.bottom - at.top}px`;
+      document.body.append(line);
+      clear = () => line.remove();
+    } else if (CSS.highlights) {
+      const range = document.createRange(), start = view.domAtPos(from), end = view.domAtPos(to);
+      range.setStart(start.node, start.offset); range.setEnd(end.node, end.offset);
+      CSS.highlights.set("pages-landing", new Highlight(range));
+      clear = () => CSS.highlights.delete("pages-landing");
+    }
+    setTimeout(() => { clear(); flashing = false; }, 640);
+  });
   return { report };
 }

@@ -11,6 +11,8 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { actionKey, assistantAuthority } from "../apps/local-host/dist/assistant/assistant-authority.js";
+import { roundParts } from "./fixtures/round-parts.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -70,17 +72,17 @@ test("a change that can be undone runs when asked without a confirmation, and th
   ];
   const requests: string[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(JSON.parse(body));
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     // The person's own actions, for taking a change back by their click.
@@ -117,12 +119,12 @@ test("a change that can be undone runs when asked without a confirmation, and th
     assert.ok(requests.at(-1)!.includes("Add a note（修改）"));
     assert.equal(waiting.rounds[0]!.activity[0]!.state, "failed", "the direct route is refused for it");
     assert.equal(notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing ran before the person confirms");
-  } finally { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { unregister(); service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a round that makes exactly an offered undo's change spends that undo: the panel stops offering a take-back that can only fail", () => {
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
   const work = store.create({ actor_id: "web-user", title: "今日要闻", scope: { kind: "personal" }, origin: null });
   const view = (definition: ActionDefinition) => ({ ...definition, provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, availability: { available: true } }) as never;
   service.recordResult(work, view(add), { text: "周三前交方案" }, { note: { id: "note-1" } });
@@ -154,48 +156,48 @@ async function undoFixture(t: import("node:test").TestContext, script: Array<(bo
       } }] });
   const requests: string[] = [];
   let turn = 0;
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(undefined, text), async (_url: unknown, init: RequestInit) => {
     const body = typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array);
     requests.push(body);
     return (script[turn++] ?? (() => reply()))(JSON.parse(body));
-  });
+  }));
   const flags = { model: true };
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-undo-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => flags.model ? { protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" } : null, resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), undefined, (view, input, output) => service.recordResult(work, view, input, output),
       undefined, undefined, undefined, () => store.confirmAlways("web-user")),
     scopeActions: async () => ({ discover: async () => local.actionClient(project).discover({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }),
       invoke: async (action, input) => local.actionClient(project).invoke({ actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:write"] }, action, input) }),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" }, "web-user");
   const noteAdded = () => reply({ name: "change-reversible", input: { capability_id: "fixture.notes.add", version: 1, provider_id: "fixture.notes", input: { text: "周三前交方案" } } });
-  return { service, store, requests, flags, removes, project, notes, noteAdded,
-    close: async () => { unregister(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, host, requests, flags, removes, project, notes, noteAdded,
+    close: async () => { unregister(); service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
-test("a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {
+test("W2-18-JOB-03: a round that could not start has told the next one nothing: undone changes, ended background work and settled changes are still to be told", { timeout: 60_000 }, async t => {
   const f = await undoFixture(t, [() => f.noteAdded(), () => reply(undefined, "记下了。"), () => reply(undefined, "好的。"), () => reply(undefined, "好的。")]);
   try {
     const sent = await f.service.send({ text: "记一下：周三前交方案", request_id: "undo-told-1" }, { project_ref: f.project });
     const workId = sent.work.work_id;
     const done = await until(async () => { const v = await f.service.read(workId); return v.work.state === "completed" ? v : undefined; }, "round");
     await f.service.undo(workId, done.undoable![0]!.undo_id);
-    // Background work that ended and a change that settled after a stop: both for the next round to hear once.
-    const at = new Date().toISOString();
-    f.store.saveJob("web-user", { key: "job-key-1", job_id: "job-1", work_id: workId, title: "Research · Start research", state: "completed", last_state: "completed", started_at: at, ended_at: at,
-      status: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: "id", path: "status", done: ["completed"], failed: ["failed"], checks: 1 });
+    // Background work that ended (its step on the work's graph, §6.0o) and a change that settled after a stop: both for the next round to hear once.
+    const at = new Date().toISOString(), works = f.host.adapter("prologue").collaboration!.works!, graph_id = f.store.get("web-user", workId).graph_id!;
+    const { node_id } = await works.follow({ graph_id, key: `${workId}.research`, job_id: "job-1", title: "Research · Start research", deadline_ms: 3_600_000, every: { first_ms: 60_000, max_ms: 60_000 },
+      query: { action: { capability_id: "fixture.jobs.status", version: 1, provider_id: "fixture.jobs" }, input: { id: "job-1" }, path: ["status"], done: ["completed"], failed: ["failed"] } });
+    await works.end({ graph_id, node_id, note: "不再跟进" });
     f.store.saveUnsettled("web-user", { change_id: "chg-1", work_id: workId, title: "Notes · Add a note", started_at: at, state: "completed", settled_at: at });
-    const untold = () => ({ undos: f.store.undos("web-user", workId).filter(undo => undo.state === "undone" && !undo.told).length,
-      jobs: f.store.jobs("web-user", workId).filter(job => !job.told).length, unsettled: f.store.unsettled("web-user", workId, true).length });
-    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 });
+    const untold = () => ({ undos: f.store.undos("web-user", workId).filter(undo => undo.state === "undone" && !undo.told).length, unsettled: f.store.unsettled("web-user", workId, true).length });
+    assert.deepEqual(untold(), { undos: 1, unsettled: 1 });
 
     // The send fails before any round exists (no model): nothing was told.
     f.flags.model = false;
     await assert.rejects(f.service.send({ text: "继续", request_id: "undo-told-2", work_id: workId }, {}), /模型/);
-    assert.deepEqual(untold(), { undos: 1, jobs: 1, unsettled: 1 }, "a round that never started told nobody");
+    assert.deepEqual(untold(), { undos: 1, unsettled: 1 }, "a round that never started told nobody");
     assert.equal((await f.service.read(workId)).rounds.length, 1);
 
     // The next round that does start hears all three, and then they are told.
@@ -203,9 +205,14 @@ test("a round that could not start has told the next one nothing: undone changes
     await f.service.send({ text: "继续", request_id: "undo-told-3", work_id: workId }, {});
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 2 && v.work.state === "completed"; }, "second round");
     // The role's own text names these sections, so what counts is the data line each puts in the round.
-    const told = (body: string) => ({ undo: body.includes("用户已经撤销；除非用户再次要求"), job: body.includes("（任务 job-1）"), unsettled: body.includes("停止后已完成：不要再次提交") });
+    const told = (body: string) => { const { data } = roundParts(body);
+      return { undo: data.includes("下面这些你做过的修改，用户已经撤销："), job: data.includes("（任务 job-1）"), unsettled: data.includes("「Notes · Add a note」：停止后已完成") }; };
     assert.deepEqual(told(f.requests.at(-1)!), { undo: true, job: true, unsettled: true }, "the round that started was told all three");
-    assert.deepEqual(untold(), { undos: 0, jobs: 0, unsettled: 0 }, "told once the round has started");
+    // ADH-12: the data says what happened; what follows from it (not redoing, not re-sending) is the role's, said once.
+    const round = roundParts(f.requests.at(-1)!);
+    assert.doesNotMatch(round.data, /除非用户再次要求|不要重新做|不要再次提交/);
+    assert.ok(round.role.includes("用户撤销过的修改，除非用户再次要求，不再做") && round.role.includes("不要再次提交同一修改"), "the role says it");
+    assert.deepEqual(untold(), { undos: 0, unsettled: 0 }, "told once the round has started");
     await f.service.send({ text: "再继续", request_id: "undo-told-4", work_id: workId }, {});
     await until(async () => { const v = await f.service.read(workId); return v.rounds.length === 3 && v.work.state === "completed"; }, "third round");
     assert.ok(!told(f.requests.at(-1)!).undo && !told(f.requests.at(-1)!).job && !told(f.requests.at(-1)!).unsettled, "and not told again");

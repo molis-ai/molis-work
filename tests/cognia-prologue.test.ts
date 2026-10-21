@@ -14,7 +14,6 @@ import { COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/m
 import { ModelProviderStore, createModelProviderTables } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { createCogniaProloguePort } from "../apps/local-host/dist/cognia-prologue.js";
 import { ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import { agentDefinitionsFor } from "../apps/local-host/dist/agent-definitions/agent-definitions.js";
@@ -50,12 +49,12 @@ test("Cognia discovery never decrypts or starts Prologue; actual packed SDK rece
     requests++; const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     assert.equal(body.model, "fixture-model"); assert.equal(body.tools?.length ?? 0, 0);
     assert.match(JSON.stringify(body.system), /COGNIA_ROLE_OVERRIDE/, "shared inference preserves the editable Cognia role instructions");
-    assert.match(JSON.stringify(body.messages), /ORIGINAL_FIXED_EVIDENCE/); assert.match(JSON.stringify(body.messages), /不可信资料/);
+    assert.match(JSON.stringify(body.messages), /ORIGINAL_FIXED_EVIDENCE/); assert.match(JSON.stringify(body.messages), /不可信数据/);
     assert.doesNotMatch(JSON.stringify(body), /UNSELECTED_EVIDENCE/);
     return response("# SDK 知识草稿\n已读取固定证据 [S1]");
   });
   assert.equal((await f.bound.discover()).find(d => d.capability_id === actions.synthesize.capability_id)!.availability.available, true);
-  const port = createCogniaProloguePort({ homeDirectory: f.home }); assert.match(port.runtimeLabel!, /Prologue/);
+  const workspace = await f.bound.invoke(actions.workspace, {}); assert.equal(workspace.ai_runtime, "Prologue · Cognia model · fixture-model");
   assert.equal(reads, 0); assert.equal(requests, 0); assert.equal(existsSync(join(f.home, "cognia", "runtime")), false);
   const { material } = await f.bound.invoke(actions.createMaterial, { title: "Selected", body: "ORIGINAL_FIXED_EVIDENCE" });
   await f.bound.invoke(actions.createMaterial, { title: "Private", body: "UNSELECTED_EVIDENCE" });

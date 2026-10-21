@@ -10,6 +10,8 @@ import { AssistantStore, MolisWorkLocalHost, resolveWebControlToken, withConnect
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import type { PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { asideReply } from "./fixtures/ending-review.js";
+import { isKnowledgeOrganize, organizedCard } from "./fixtures/knowledge-organize.js";
 
 interface Status { work_id: string; revision: number; state: string; error?: string }
 
@@ -20,7 +22,10 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
   let current = true, armed = race === "reply-last-wait", intercepted = false, priorRounds = 0;
   const pending: ServerResponse[] = [];
   const model = createServer(async (req, res) => {
-    for await (const _chunk of req) { /* the actual Host/SDK provider transport remains intact */ }
+    let raw = ""; for await (const chunk of req) raw += chunk;
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found" without spending a scripted turn.
+    const review = asideReply(raw);
+    if (review) { res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed(review)); return; }
     if (race === "stop-post-start-reader" && armed) { pending.push(res); return; }
     res.writeHead(200, { "content-type": "text/event-stream" }); res.end(streamed("回复仍只属于原评论"));
   });
@@ -88,9 +93,9 @@ test((race === "reply-last-wait" ? "PAS-10 S-18-102-02" : "PAS-10 S-18-102-03") 
           ...(body ? { body: JSON.stringify(body) } : {}) });
         return { status: response.status, body: await response.json() };
       };
-      const made = await request("/api/plugins/pages", { title: "Original", markdown: "原文档保持原样。" });
+      const made = await request("/api/plugins/io.molis.work.pages/pages", { title: "Original", markdown: "原文档保持原样。" });
       assert.equal(made.status, 200); const page = made.body.document as PagesRecord;
-      const path = "/api/plugins/pages/" + page.id + "/comments";
+      const path = "/api/plugins/io.molis.work.pages/pages/" + page.id + "/comments";
       const first = await request(path, { thread_id: "discussion", request_id: "first", body: "请在这里回复", expected_version: page.version, anchor: { kind: "document" } });
       assert.equal(first.status, 200); let thread = first.body.thread as PagesCommentThread;
       const target = { provider_id: "io.molis.work.pages", subject_kind: "pages_document", subject_id: page.id, thread_id: thread.thread_id };
@@ -150,7 +155,9 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
   const home = await mkdtemp(join(tmpdir(), "assistant-thread-"));
   const requests: string[] = [];let hold = false;let pending: ServerResponse | null = null;
   const model = createServer(async (req, res) => {
-    let text = "";for await (const chunk of req) text += String(chunk);requests.push(text);
+    let text = "";for await (const chunk of req) text += String(chunk);
+    if (isKnowledgeOrganize(text)) { res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed(organizedCard));return; }
+    requests.push(text);
     if (hold) { pending = res;return; }
     res.writeHead(200, { "content-type": "text/event-stream" });res.end(streamed("只在原评论里的答复"));
   });
@@ -179,9 +186,9 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
         "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
       const value = await response.json();assert.equal(response.status, 200, JSON.stringify(value));return (path === "/api/assistant/threads/status" ? value.status : value) as T;
     };
-    const create = async (title: string) => (await api<{ document: PagesRecord }>("/api/plugins/pages", { title, markdown: "# 专属上下文\n\n这篇正文必须保留。" })).document;
+    const create = async (title: string) => (await api<{ document: PagesRecord }>("/api/plugins/io.molis.work.pages/pages", { title, markdown: "# 专属上下文\n\n这篇正文必须保留。" })).document;
     const a = await create("原文档 A"), b = await create("另一个文档 B");
-    const path = (id: string) => `/api/plugins/pages/${id}/comments`;
+    const path = (id: string) => `/api/plugins/io.molis.work.pages/pages/${id}/comments`;
     const { thread } = await api<{ thread: PagesCommentThread }>(path(a.id), { thread_id: "discussion", request_id: "first", body: "请回答 A 的问题", expected_version: a.version, anchor: { kind: "document" } });
     assert.equal(requests.length, 0, "ordinary comments never start a model");
     const target = { provider_id: "io.molis.work.pages", subject_kind: "pages_document", subject_id: a.id, thread_id: thread.thread_id };
@@ -224,7 +231,7 @@ test("PAS-04 PAS-05 PAS-10: real Host and Prologue keep replies in the original 
       await new Promise(resolve => setTimeout(resolve, 1000));
       assert.equal((await api<Status>("/api/assistant/threads/status", { target })).state, "stopped");
       assert.equal((await api<{ threads: PagesCommentThread[] }>(path(a.id))).threads[0]!.messages.length, 3);
-      assert.equal((await api<{ document: PagesRecord }>(`/api/plugins/pages/${a.id}`)).document.version, a.version);
+      assert.equal((await api<{ document: PagesRecord }>(`/api/plugins/io.molis.work.pages/pages/${a.id}`)).document.version, a.version);
     } finally { db.close(); }
   }); } finally {
     if (server) { server.closeAllConnections();await new Promise<void>(resolve => server!.close(() => resolve())); }

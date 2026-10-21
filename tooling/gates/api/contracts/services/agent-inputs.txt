@@ -4,13 +4,41 @@
 
 export declare const AGENT_INPUT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$";
 
+export declare const AGENT_INPUT_SOURCES: readonly AgentInputSource[];
+
 export declare const AGENT_STEER_MODES: readonly AgentSteerMode[];
+
+export type AgentInputImpact = "objective" | "scope" | "priority" | "approach" | "acceptance" | "outputs" | "constraint";
+
+export type AgentInputKind = "supplement" | "correction" | "constraint" | "request" | "question";
+
+export interface AgentInputModelClaim {
+    treatment: AgentInputTreatment;
+    kind?: AgentInputKind;
+    targets: AgentInputTarget[];
+    impacts: AgentInputImpact[];
+    note?: string;
+    call_id?: string;
+    tool_call_id?: string;
+    revisions: number;
+}
+
+export interface AgentInputQuestion {
+    pending_id: string;
+    state: "open" | "settled" | "expired" | "cancelled" | "unresolved";
+}
+
+export interface AgentInputRef {
+    session_id: string;
+    input_id: string;
+}
 
 export interface AgentInputSend {
     text: string;
     source?: AgentInputSource;
     key?: string;
     mode?: AgentSteerMode;
+    about?: string;
 }
 
 export type AgentInputSendRequest = AgentInputSend & {
@@ -21,8 +49,32 @@ export type AgentInputSendRequest = AgentInputSend & {
 
 export type AgentInputSource = "person" | "host";
 
+export type AgentInputTarget = {
+    kind: "input" | "app-ref" | "todo" | "pending";
+    id: string;
+} | {
+    kind: "board-node";
+    board: string;
+    id: string;
+};
+
+export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "needs-clarification" | "not-adopted" | "answered" | "noted" | "merged";
+
+export type AgentInputWithdrawRequest = {
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+    input_id: string;
+};
+
+export interface AgentInputWithdrawal {
+    input_id: string;
+    from: "run" | "queued";
+}
+
 export interface AgentInputsPort {
     send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
+    withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
 }
 
 export interface AgentQueuedInput {
@@ -30,6 +82,7 @@ export interface AgentQueuedInput {
     text: string;
     source: AgentInputSource | "peer";
     key?: string;
+    about?: string;
     left_by?: {
         run_id: string;
         applied: boolean;
@@ -46,8 +99,18 @@ export interface AgentSteerReceipt {
     delivered: "run" | "queued";
 }
 
+export interface AgentTurnSteer {
+    id: string;
+    state: "received" | "applied" | "read" | "unread" | "withdrawn";
+    key?: string;
+    about?: string;
+    model_claim?: AgentInputModelClaim;
+    questions?: AgentInputQuestion[];
+}
+
 export declare const agentInputActions: {
     readonly send: ActionDefinition<AgentInputSendRequest, AgentSteerReceipt>;
+    readonly withdraw: ActionDefinition<AgentInputWithdrawRequest, AgentInputWithdrawal>;
 };
 
 export declare const servicesAgentInputsContract: {

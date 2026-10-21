@@ -96,6 +96,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     Element: (globalThis as Record<string, unknown>).Element, innerWidth: (globalThis as Record<string, unknown>).innerWidth,
     innerHeight: (globalThis as Record<string, unknown>).innerHeight, matchMedia: (globalThis as Record<string, unknown>).matchMedia,
     getSelection: (globalThis as Record<string, unknown>).getSelection, addEventListener: (globalThis as Record<string, unknown>).addEventListener,
+    MutationObserver: (globalThis as Record<string, unknown>).MutationObserver,
     location: (globalThis as Record<string, unknown>).location, molisWorkRequest: (globalThis as Record<string, unknown>).molisWorkRequest,
     molisWorkControlHeaders: (globalThis as Record<string, unknown>).molisWorkControlHeaders };
   t.after(() => Object.assign(globalThis, saved));
@@ -106,8 +107,8 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     requested.push(path);
     const gate = held.get(path);
     if (gate) await gate.promise;
-    if (path === "/api/plugins/pages") return json({ documents: [DOC], folders: [] });
-    if (path === "/api/plugins/pages/" + DOC.id) return json({ document: DOC });
+    if (path === "/api/plugins/io.molis.work.pages/pages") return json({ documents: [DOC], folders: [] });
+    if (path === "/api/plugins/io.molis.work.pages/pages/" + DOC.id) return json({ document: DOC });
     if (path === "/api/contextual/surfaces") return json({ surfaces: { pages: { kind: "pages_document", plugin_id: "io.molis.work.pages" } } });
     if (path === "/api/board") return json({ goals: [] });
     if (path in routes) return json(routes[path]);
@@ -122,9 +123,11 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
     Element: FakeElement,
     // What the toolbar program reads from the page it is drawn in.
     innerWidth: 1440, innerHeight: 900, matchMedia: () => ({ matches: false }), getSelection: () => null, addEventListener() {},
+    // It watches the panels that can cover a passage (none on this page).
+    MutationObserver: class { observe() {} },
     window: windowStub,
     document: {
-      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, append() {} },
+      body: { dataset: { routePrefix: "" }, hasAttribute: () => false, matches: () => false, append() {} },
       documentElement: { dataset: {} as Record<string, string> },
       activeElement: null,
       querySelector: (selector: string) => selector === "[data-pages=workbench]" ? surface : null,
@@ -178,7 +181,7 @@ const ownNaming = { kind: "pages_document", id: DOC.id, version: DOC.version, ti
 test("reloaded into an open document: Pages names it itself, even when it finishes while the workbench reads the surfaces", async (t) => {
   const page = await workbench(t);
   // A reload: the document and the surfaces directory both answer slowly; the workbench's 250 ms check finds nothing yet.
-  const documentRead = page.hold("/api/plugins/pages/" + DOC.id);
+  const documentRead = page.hold("/api/plugins/io.molis.work.pages/pages/" + DOC.id);
   const surfacesRead = page.hold("/api/contextual/surfaces");
   page.selectItem(DOC.id);
   await page.advance(250);
@@ -196,7 +199,7 @@ test("reloaded into an open document: Pages names it itself, even when it finish
 
 test("the workbench names the document first when Pages is slower, and Pages' own naming replaces it", async (t) => {
   const page = await workbench(t);
-  const documentRead = page.hold("/api/plugins/pages/" + DOC.id);
+  const documentRead = page.hold("/api/plugins/io.molis.work.pages/pages/" + DOC.id);
   page.selectItem(DOC.id);
   await page.advance(250);
   assert.equal(page.context()?.named_by, "workbench");

@@ -37,7 +37,12 @@ tests/goals-web-actions.test.ts
 tests/home-event-actions.test.ts
 tests/i18n.test.ts
 tests/inbox-action-scenes.test.ts
+tests/issue-naming.test.ts
 tests/jelly-actions.test.ts
+tests/home-plugin-project-cleanup.test.ts
+tests/home-plugin-project-routes.test.ts
+tests/plugin-model-configuration.test.ts
+tests/plugin-image-generation.test.ts
 tests/local-web-actions.test.ts
 tests/mcp.test.ts
 tests/pages-actions.test.ts
@@ -66,6 +71,8 @@ tests/agent-host.test.ts
 tests/agent-pending-questions.test.ts
 tests/agent-plugin-identity.test.ts
 tests/agent-prompt-layers.test.ts
+tests/agent-question-types.test.ts
+tests/agent-reference-questions.test.ts
 tests/agent-review-http.test.ts
 tests/agent-review-surface.test.ts
 tests/agent-run-wait.test.ts
@@ -114,6 +121,7 @@ tests/coding-artifacts.test.ts
 tests/coding-background-tasks.test.ts
 tests/coding-background-wait.test.ts
 tests/coding-changeset-http.test.ts
+tests/coding-checkers-settings.test.ts
 tests/coding-client-scripts.test.ts
 tests/coding-collab-handoff.test.ts
 tests/coding-commands.test.ts
@@ -122,8 +130,10 @@ tests/coding-companion-inputs.test.ts
 tests/coding-continuation.test.ts
 tests/coding-delegation-waits.test.ts
 tests/coding-delegation.test.ts
+tests/coding-diagnose-after-write.test.ts
 tests/coding-events.test.ts
 tests/coding-experience.test.ts
+tests/coding-history-requirements.test.ts
 tests/coding-long-session.test.ts
 tests/coding-mcp-settings-client.test.ts
 tests/coding-mcp.test.ts
@@ -153,6 +163,16 @@ tests/coding-writers.test.ts
 tests/connector-api-oauth.test.ts
 tests/connector-authorization-recovery.test.ts
 tests/connector-cli.test.ts
+tests/connector-local-actions.test.ts
+tests/security-invariants-local-mcp.test.ts
+tests/connector-setup.test.ts
+tests/security-invariants-connector-intent.test.ts
+tests/security-invariants-connector-install.test.ts
+tests/security-invariants-cli-install.test.ts
+tests/security-invariants-cli-configuration.test.ts
+tests/security-invariants-native-cli.test.ts
+tests/security-invariants-graph-cli-install.test.ts
+tests/connector-record-actions.test.ts
 tests/connector-document-import.test.ts
 tests/connector-method-directory.test.ts
 tests/connector-oauth-choice.test.ts
@@ -194,6 +214,7 @@ tests/goal-momentum.test.ts
 tests/goal-tree-event-flow.test.ts
 
 # goals
+tests/goals-client-request.test.ts
 tests/goals-command-module.test.ts
 tests/goals-context-ui.test.ts
 tests/goals-dialogs-ui.test.ts
@@ -250,6 +271,7 @@ tests/plugin-isolation-restart.test.ts
 tests/plugin-lifecycle-states.test.ts
 tests/plugin-market-catalog.test.ts
 tests/plugin-model-generation.test.ts
+tests/plugin-model-selection.test.ts
 tests/plugin-notification-bell.test.ts
 tests/plugin-package.test.ts
 tests/plugin-panel-seam.test.ts
@@ -258,6 +280,7 @@ tests/plugin-private-storage.test.ts
 tests/plugin-rail-selection.test.ts
 tests/plugin-release-artifact.test.ts
 tests/plugin-runtime-integration.test.ts
+tests/plugin-tab-groups-multiselect.test.ts
 
 # project
 tests/project-arrival-chooser.test.ts
@@ -283,6 +306,7 @@ tests/prologue-compaction.test.ts
 tests/prologue-git.test.ts
 tests/prologue-inference-images.test.ts
 tests/prologue-inference-native.test.ts
+tests/prologue-input-claims.test.ts
 tests/prologue-materials.test.ts
 tests/prologue-model-controls.test.ts
 tests/prologue-model-retry.test.ts
@@ -316,6 +340,8 @@ tests/session-tui-capture.test.ts
 # Other areas
 tests/alchemist-actions.test.ts
 tests/alchemist-plugin.test.ts
+tests/alchemist-pulse-cancel.test.ts
+tests/alchemist-pulse-close.test.ts
 tests/alchemist-runtime.test.ts
 tests/alchemist-structured-output.test.ts
 tests/announce-guard.test.ts
@@ -328,6 +354,7 @@ tests/chrome-inner-scroll.test.ts
 tests/cli-protocol.test.ts
 tests/codex-transport.test.ts
 tests/cognia-ai.test.ts
+tests/cognia-runtime.test.ts
 tests/cognia-workbench.test.ts
 tests/contextual-interaction.test.ts
 tests/coss-control-language.test.ts
@@ -343,6 +370,7 @@ tests/execution-lifetime.test.ts
 tests/feishu-cli-status.test.ts
 tests/files-plugin.test.ts
 tests/form-draft-questions.test.ts
+tests/form-draft-retry.test.ts
 tests/functions-agent-references.test.ts
 tests/generated-action-costs.test.ts
 tests/generated-plugin-prompts.test.ts
@@ -365,6 +393,9 @@ tests/images-service.test.ts
 tests/import-boundary-template.test.ts
 tests/inbox-native-plugin.test.ts
 tests/inbox-prepared-pages.test.ts
+tests/interaction-examples.test.ts
+tests/interaction-reask.test.ts
+tests/interaction-recovery.test.ts
 tests/jelly-calendar.test.ts
 tests/jelly-content.test.ts
 tests/lingguang-store.test.ts
@@ -415,6 +446,7 @@ tests/uninstall-catalog.test.ts
 tests/v1.test.ts
 tests/visual-foundation.test.ts
 tests/web-mutation-key-settle.test.ts
+tests/web-route-table.test.ts
 tests/web-service-settings-client.test.ts
 tests/work-placement.test.ts
 tests/work-session-ui.test.ts
@@ -425,7 +457,15 @@ tests/workbench-local-links.test.ts
 tests/workbench-ui-platform.test.ts
 tests/workflow-content-actions.test.ts
 tests/workflow-station-kinds.test.ts
+tests/workflows-delegation.test.ts
+tests/workflows-project-deletion.test.ts
 tests/workflows-stop-and-token.test.ts
 tests/workspace-directory.test.ts
 tests/workspace-git-index.test.ts
 tests/workspace-git-read.test.ts
+tests/workspace-production-events.test.ts
+tests/security-invariants-plugin-files.test.ts
+tests/security-invariants-plugin-background.test.ts
+
+tests/connector-status.test.ts
+tests/connector-consumer-usages.test.ts

@@ -62,7 +62,7 @@
 
 ## 拆分完成时的 Git 边界
 
-- 工作树：`/Users/oreal/.codex/worktrees/eea6/molis-work`
+- 工作树：`~/.codex/worktrees/eea6/molis-work`
 - 分支：`codex/split-completed-goal-fixes`
 - 拆分基线：`63e1246`
 - 已合入 `main` 的修复提交范围：`1feac8d..6435a74`（共 7 个提交），集成边界为 `140d25e`

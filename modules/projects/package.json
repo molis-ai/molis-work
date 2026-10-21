@@ -4,7 +4,7 @@
   "private": true,
   "description": "Project identity, Catalog, membership, lifecycle, and project_id migration facts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

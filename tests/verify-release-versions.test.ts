@@ -220,7 +220,7 @@ test("a plugin-owned database declaration has a listed literal baseline with the
 
 test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
-  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown) { return openBaselineHomeSqlite(home, declaration.store_name, declaration); }";
+  const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
   put("apps/local-host/src/plugin-database.ts", bridge); assert.equal(run().code, 0, run().out);
   put("apps/alpha/src/bridge.ts", bridge);
   failsWith(run(), "apps/alpha/src/bridge.ts: openBaselineHomeSqlite is called with declaration");
@@ -228,6 +228,8 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   put("apps/local-host/src/plugin-database.ts", bridge + "\nopenBaselineHomeSqlite(home, 'other', { version: 1, schema: `` });");
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with an inline baseline");
   put("apps/local-host/src/plugin-database.ts", bridge.replace("declaration: PluginDatabaseDeclaration", "declaration: unknown"));
+  failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+  put("apps/local-host/src/plugin-database.ts", bridge.replace("partition?.project_id)", "partition?.project_id, extra)"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
 });
 
@@ -320,4 +322,20 @@ test("an unusable command line exits 2, not 0 or 1", () => {
     assert.equal(result.status, 2, `${args.join(" ")}\n${result.stdout}${result.stderr}`);
     assert.match(result.stderr, /usage: verify-release-versions\.mjs/);
   }
+});
+
+// REL-03: native Manifest versions are checked before any build or tag publication.
+test("a bundled plugin with a different or nonliteral version refuses release; integrations remain independent", () => {
+  edit("pnpm-workspace.yaml", "  - 'server'", "  - 'server'\n  - 'plugins/native/*'\n  - 'plugins/official-integrations/*'");
+  put("plugins/native/alpha/package.json", JSON.stringify({ name: "native-alpha", version: "0.0.0", private: true }));
+  put("plugins/native/alpha/src/manifest.ts", `export const manifest = { schema_version: 2, version: '${VERSION}' };`);
+  put("plugins/official-integrations/alpha/package.json", JSON.stringify({ name: "integration-alpha", version: "0.0.0", private: true }));
+  put("plugins/official-integrations/alpha/src/manifest.ts", `export const manifest = { version: "9.0.0" };`);
+  assert.equal(run().code, 0);
+  edit("plugins/native/alpha/src/manifest.ts", VERSION, "1.0.0");
+  failsWith(run(), "plugins/native/alpha/src/manifest.ts", "1.0.0", VERSION);
+  put("plugins/native/alpha/src/manifest.ts", "export const manifest = { version: dynamicVersion };");
+  failsWith(run(), "bundled Manifest version not found");
+  rmSyncFile("plugins/native/alpha/src/manifest.ts");
+  failsWith(run(), "plugins/native/alpha/src/manifest.ts", "missing");
 });

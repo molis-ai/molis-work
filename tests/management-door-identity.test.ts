@@ -11,11 +11,13 @@ import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/mod
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityCallOptions, HostCapabilityDefinition } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 const retiredDevelopment: HostCapabilityDefinition<unknown, unknown> = { capability_id: "io.molis.work.local-host.plugin.development", version: 1, operation: "command" };
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { managementGoals } from "./goal-management-caller.js";
+import { callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /**
  * The management door (the CLI and the management MCP) has no caller identity of its own: the Host records
@@ -25,11 +27,11 @@ import { managementGoals } from "./goal-management-caller.js";
 const IDENTITY_FIELDS = [{ runtime_actor_id: "forged-runtime" }, { actor_id: "someone-else" }, { actor_kind: "runtime" }, { audit_actor_id: "runtime:forged:session" },
   { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
 
-async function structureProject(name: string) {
+async function structureProject(name: string, plugins: readonly PluginDefinition[] = []) {
   const home = await mkdtemp(join(tmpdir(), `management-door-${name}-`));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: name, actor_id: LOCAL_PERSON_ACTOR_ID }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [...plugins] } });
   const typed = host.client(ref), project_id = project.project_id;
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
     audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
@@ -205,14 +207,14 @@ test("the management MCP's event_decide records the person on this machine and h
 });
 
 /** docs/mcp.md says so: `initialize` is the one management tool that does not refuse an identity field, it does not read one. */
-test("the management MCP's initialize reads only project_id, title and idempotency_key: an identity in its arguments is ignored, not read", async () => {
+test("the management MCP's initialize reads only project_id and idempotency_key: an identity in its arguments is ignored, not read", async () => {
   const home = await mkdtemp(join(tmpdir(), "management-door-initialize-"));
   const databasePath = join(home, "project.db"), project_id = "project/initialize";
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const call = async (extra: Record<string, unknown>) => JSON.parse(await management.callTool("molis_work_v1_initialize",
-      { database_path: databasePath, project_id, title: "身份", idempotency_key: "init", ...extra })) as { replayed: boolean };
+      { database_path: databasePath, project_id, idempotency_key: "init", ...extra })) as { replayed: boolean };
     assert.equal((await call({ actor_id: "someone-else", actor_kind: "runtime" })).replayed, false, "a forged identity does not stop the call");
     // The same operation of the same person replays whatever identity fields ride along: had one been read, it would be someone else's request.
     for (const identity of IDENTITY_FIELDS) assert.equal((await call(identity)).replayed, true, `ignores ${Object.keys(identity).join(" and ")}`);
@@ -230,7 +232,7 @@ test("a management tool call is one operation: its single Goals action leaves a 
   const management = new MolisWorkServer("management", null, null, host);
   try {
     const reply = await management.handleMessage({ id: 1, method: "tools/call", params: { name: "molis_work_v1_initialize",
-      arguments: { database_path: databasePath, project_id, title: "编号", idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
+      arguments: { database_path: databasePath, project_id, idempotency_key: "init-call-id" }, _meta: { "molis-work/callId": "11111111-2222-4333-8444-555555555555" } } }) as { result: { isError: boolean; _meta?: Record<string, unknown> } };
     assert.equal(reply.result.isError, false, JSON.stringify(reply));
     const id = String(reply.result._meta?.["molis-work/callId"]);
     assert.match(id, /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
@@ -254,11 +256,13 @@ test("the management MCP's goal_tree_decide schema names no identity", () => {
 
 /** A plugin that lists these entries under capabilities.consumes would otherwise be recorded as the person, or run unsigned code with the grants it names. */
 test("a plugin that lists the plugin development run under consumes is refused", async () => {
-  const { typed, decision, decisions, project_id, done } = await structureProject("plugin");
-  const asPlugin = (actor_id: string): HostCapabilityCallOptions => ({ consumer: "plugin", before_effect: async () => {},
-    plugin_caller: { plugin_id: "io.molis.work.test.door-writer", install_id: "install-1", actor_id, project_id,
-      declaration: { manifest: {} as HostPluginCaller["declaration"]["manifest"] }, assertActive: () => {} } });
+  const writer = callerPlugin("doorwriter", "project");
+  const { host, ref, typed, decision, decisions, project_id, done } = await structureProject("plugin", [writer.definition]);
   try {
+    const probe = registerProbe(host.actionRegistry(ref), "project");
+    await startProjectPlugins(host, ref);
+    // The caller the Host issued the plugin's session: the refusal below is the retired entry's, not the gateway's.
+    const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", before_effect: async () => {}, plugin_caller: await issuedCaller(probe, writer, project_id) };
     const entries = [
       { name: "run plugin development", capability: retiredDevelopment,
         input: { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true } as unknown },
@@ -274,7 +278,7 @@ test("a plugin that lists the plugin development run under consumes is refused",
       await assert.rejects(sdk.invoke(capability, input), { code: "actions.dependency_missing" }, `${name}: through the plugin client`);
       const forged = { ...capability, host_only: false };
       await assert.rejects(sdk.invoke(forged, input), { code: "actions.dependency_missing" }, `${name}: through an unflagged copy`);
-      await assert.rejects(typed.invoke(capability, input, asPlugin("plugin-person")), { code: "actions.dependency_missing" }, `${name}: with the plugin's own call context`);
+      await assert.rejects(typed.invoke(capability, input, asPlugin), { code: "actions.dependency_missing" }, `${name}: with the plugin's own call context`);
     }
     assert.deepEqual(await decisions(), [], "nothing was decided");
   } finally { await done(); }

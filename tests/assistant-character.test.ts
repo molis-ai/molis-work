@@ -12,6 +12,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -39,10 +40,10 @@ async function fixture(t: import("node:test").TestContext) {
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const project = { project_id: "project", storage_key: "memory:project" };
   const requests: any[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
     requests.push(JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array)));
     return reply();
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-character-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
@@ -55,14 +56,14 @@ async function fixture(t: import("node:test").TestContext) {
     { reference: { artifact_id: EDITOR.reference.artifact_id, version: 1 }, title: EDITOR.title, available: false, reason: "这个版本已停用" },
   ];
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set()),
       resolveCharacter: reference => {
         if (!published || reference.version !== published.reference.version) throw new Error("所选 Character 版本不可用，请明确选择其他版本或移除角色后再执行");
         return structuredClone(published);
       } }),
     characters: async () => choices(), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, "web-user");
-  return { service, store, requests, project, withdraw: () => { published = null; }, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+  return { service, store, requests, project, withdraw: () => { published = null; }, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 test("a Character the person chose really carries the round: its instructions reach the model and the round says who carried it", { timeout: 60_000 }, async t => {
@@ -141,18 +142,18 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
     () => toolReply("delegate-work", { title: "法务审阅", brief: "审一下。", acceptance: "有结论", character: "法务专员" }),
     body => { assert.match(JSON.stringify(body.messages), /没有叫「法务专员」的专业角色/); return reply("一部分交给了严格的编辑；没有法务角色，法务那部分没有委托。"); },
   ];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
     const body = JSON.parse(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
-    if (JSON.stringify(body.messages).includes("委托给你的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
+    if (JSON.stringify(body.messages).includes("委托的子任务")) { childRequests.push(body); return reply("改写：本周完成三项交付。"); }
     parentRequests.push(body);
     return (script[step++] ?? (() => reply()))(body);
-  });
+  }));
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-role-delegation-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => ({ ...assistantAuthority(local, work, () => new Set(), undefined, undefined, service.delegation(work)),
       resolveCharacter: reference => { if (reference.version !== 2) throw new Error("所选 Character 版本不可用"); return structuredClone(EDITOR); } }),
     characters: async () => [{ reference: { artifact_id: EDITOR.reference.artifact_id, version: 2 }, title: EDITOR.title, available: true },
@@ -168,5 +169,5 @@ test("with no role chosen, the Assistant hands a part to a professional role by 
     assert.ok(JSON.stringify(childRequests[0]).includes("每次回答先列出三处可改进的地方"), "the role's instructions reach the sub-task's model");
     assert.deepEqual(child.work.delegated_by?.work_id, sent.work.work_id, "where it came from stays visible");
     assert.equal(done.delegated!.length, 1, "the role not on offer started nothing");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

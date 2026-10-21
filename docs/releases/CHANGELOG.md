@@ -4,7 +4,22 @@
 
 ## [Unreleased]
 
-下一个版本是 0.3.0（用户 2026-10-08 的决定，见 [POLICY.md](POLICY.md)）。以下是 v0.2.0（2026-09-11）之后合入 main 的变化，按 PR 编号可在 GitHub 上查到。这是第一次整理，发布 0.3.0 时要对着 `git log v0.2.0..` 补全再定稿。
+### 升级须知（需要动手）
+
+- **项目库 v8：项目是自己的根，插件的表由插件声明**（`feat/project-library-l1b`，PG-020、PG-021，`specs/plugin-project-database` L1b）：项目库多一张 `project_root`（一库一行，项目本身）和插件的表的账本 `plugin_project_databases`；原来指向 Goals 看板 `boards` 的 11 张表改指 `project_root`；Coding、Feed、Goals、Schedule 的表不再在基线里，改由各自 Manifest 的 `databases.project` 声明，宿主开库时建表、记账本、再打开时核对，不符只停那个插件（Goals 的 31 张表含 `boards` 与治理的 4 张，S8）；`boards` 去掉 `title` 列，外键指 `project_root`，项目名只在项目目录里。新构建拒绝 v7 的项目库（`SqliteSchemaVersionError`），有 v7 项目库的 Home 在维护之前不装新构建：先做 `docs/releases/CHECKLIST.md` 4.3 维护八里的项目库一项（脚本 `tests/fixtures/project-maintenance-v8.sql`，演练 `tests/project-maintenance-v8.test.ts`），维护应用之后这两份文件与 v7 的建库快照一起删，这里写明哪个提交还有它们。
+- **Goals 的看板不再有名字，四个动作升版本**（`feat/goals-s8-project-database`，S8，`specs/plugin-project-database`）：`boards` 去掉 `title` 列，项目的名字只在项目目录里；`goals.board.initialize` 由 v1 升 v2（输入只有 `idempotency_key`），输出里带看板的 `goals.snapshot.read`、`goals.contract.read`、`goals.collection.read` 也各升到 v2，直接替换，不留 v1，固定旧版本的客户端要重新发现：MCP 的动作工具名 `molis_work_v1_action_goals.snapshot.read__v1`、`…goals.contract.read__v1`、`…goals.collection.read__v1` 变成 `__v2`；管理 MCP 工具 `molis_work_v1_initialize` 名字不变，不再收 `title`；命令行 `v1 init` 不再收标题；Feed 的 `feed.goals.context` 所需的 `goals.contract.read` 固定到 v2（`feed.goals.context@1` 的输入输出不变，动作合同快照只在它的依赖声明一格上变了；它只给用户入口，仓库里没有固定它的引用，所以不升版本）。快照、目标约定、目标集合和 `board.created` 事件的内容里不再有看板名字，项目长期说明的提示词前缀不再有 “Project: …” 一行。
+- **插件 Agent 的连接器接入按会话核对。** 一轮直接调用动作或人点该轮建议，都带宿主核过的原会话；同一插件的另一会话不能继续它准备的接入。升级前在会话里准备但尚未完成的接入，请回原会话重新准备，再继续连接。
+- **插件 Agent 的 Goals 提议按会话区分幂等键。** 作者和提交会话取宿主核过的运行记录；同一个幂等键在不同会话里会分别产生提议。升级前已用过的幂等键不再回放旧提议，重新提交前先查看已有提议，避免把同一内容再提交一份。
+- **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
+- **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
+
+### 变化
+
+- **合作源码许可**：Molis Work 项目代码（含 SDK、contracts 与内置插件）从 MIT 声明切换为 [Molis AI Cooperation Source License](../../LICENSE)。合作方可在约定范围内阅读和参与开发；对外销售、提供收费服务或转授权须事先取得实际著作权人或其合法授权代表的明确书面授权。Molis AI 的主体公司尚未设立，未来公司须取得相应权利或授权。第三方许可、独立工作成果以及旧版本已合法授予的权利保留；本条不追溯改变过去的发行物。
+
+## [0.3.0] - 2026-10-16
+
+本版汇集 v0.2.0 之后至 main `aadce77ac` 的变化。发布范围与实际验证见 [v0.3.0.md](v0.3.0.md)。
 
 ### 升级须知（需要动手）
 
@@ -12,8 +27,8 @@
 
 - **改名。** 产品名从 GoalBoard 改为 Molis Work（`9824f6e6`，2026-09-15；v0.2.0 的 tag 仍是旧名）。npm 包 `@adeptify/goalboard` 现在是 `@molis-ai/molis-work`；命令 `goalboard`、`goalboard-mcp`、`goalboard-web` 现在是 `molis-work`、`molis-work-mcp`、`molis-work-web`；默认 Home `~/.goalboard` 现在是 `~/.molis-work`；环境变量 `GOALBOARD_*` 现在是 `MOLIS_WORK_*`，代码不再认旧名；MCP 工具名前缀 `goalboard_v1_` 现在是 `molis_work_v1_`。按旧名写的 Runtime 接入配置不再有效（MCP 会报「MCP 宿主没有提供 Runtime 标识」），要用产品自己的 Runtime 接入流程重写（「设置 → AI 与执行工具」）。
 - **每个库只认一个当前版本，不就地升级。** 项目库、目录库、会话库和 Home 级的库各留一份当前建库代码加版本号，版本不符就拒绝打开（#255、#260、#261、#264、#265、#267；有特殊处理的见检查清单）；v0.2.0 里按序执行的数据库迁移链和 V3 导入已经删除。v0.2.0 的目录库是 10、会话库是 5，现在分别是 22 和 7；各库现行版本见 [CHECKLIST.md](CHECKLIST.md) 第 3 节。所以 v0.2.0 的 Home 不能直接用新版本打开，产品里也没有随发行的升级工具：要保留数据，发布者按检查清单第 4 节先备份、在副本上演练，再做一次性维护。
-- **`board_id` 全部改为 `project_id`**（#287）：存储列、平台自己存的 JSON 键、索引名（项目库 v6、Functions v3、目录库 v21）、命令行参数 `--board-id` 改为 `--project-id`。Casebook 导出合同里的合同修订号保持 1，不改外部合同版本。
-- **MCP 只留一套工具**（#269）：连接工具加用户授权的动作工具。动作工具只在用户给这个客户端、这个范围逐项授权后出现，授权存在 `config/mcp-tools.json`（`version` 2；其他版本读成空，授权需要重新给）。工具清单见 [docs/mcp.md](../mcp.md)。Runtime 要加载新版 MCP 与 `goal-advance` Skill 并新开 Session。
+- **`board_id` 全部改为 `project_id`**（#287）：存储列、平台自己存的 JSON 键、索引名（项目库 v6、Functions v3、目录库 v21）、命令行参数 `--board-id` 改为 `--project-id`。Casebook 对接随后已移除，见本版「移除」。
+- **MCP 只留一套工具**（#269）：连接工具加用户授权的动作工具。动作工具只在用户给这个客户端、这个范围逐项授权后出现，授权存在 `config/mcp-tools.json`（`version` 2；其他版本明确拒绝读取并保留原文件，须修复后恢复）。工具清单见 [docs/mcp.md](../mcp.md)。Runtime 要加载新版 MCP 与 `goal-advance` Skill 并新开 Session。
 - **根包不再导出代码**（#262）：v0.2.0 的 0.1.x 根 SDK 已删，`@molis-ai/molis-work` 只提供命令和打包内容。
 - **凭据只在「连接」里**（#273、#275）：模型、图片服务、TypeSafe 的密钥只从连接读取；Feed 的 Gmail 按邮箱安装、单账号默认安装、旧引用镜像、Notion 旧槽位删除。
 - **旧历史删除。** 事件模型之前的运行、领取、依据、评审等旧历史连表带显示删除（#268）；治理的旧提案三张表删除（#263）；Goal 的风险、合同修订与退役提案条目删除（#272）。
@@ -29,6 +44,10 @@
 
 ### 新增
 
+- **Issue**：个人问题记录、整理与重新整理，跨项目共享（#395、#396、#520、#521）。
+- **助理与 Coding 的输入和上下文**：输入回执、同键重发、补充输入与恢复报告；输入上方的上下文条；Coding 回合可给出操作建议（#552、#554、#564、#571、#573）。
+- **Pages 评论与上下文落点**：文档评论线程、把当前材料写入选定位置；Pages 库基线由 1 变为 2。
+
 - **项目到达流程**：项目选择页、开场、Welcome 与新建项目引导（#159）；首页一屏（#147）。
 - **插件切换器**：Feed 与 Coding 的添加、移除也就地生效，不再整页刷新（#171）；插件通知并入底栏「需要你看看」，标题栏不再有第二个铃铛（#140）。
 - **系统助理**（#98）：页面带着准备好的操作卡开工作（#105）；开发者诊断页「助理与执行服务」（#121）。
@@ -40,12 +59,15 @@
 
 ### 变化
 
+- **统一产品版本 0.3.0**：桌面端、宿主与 26 个内置插件 Manifest 同版；工作区包仍为私有 0.0.0，官方集成和第三方插件独立编号。
+- **插件运行与 AI**：Form 接入 Plugin Runtime；Manifest 方法生效；Prologue 更新到 main `e4afd1a7` 的合成包，恢复按需发现工具（#551、#562、#581）。
+- **工作台与宿主**：共用 Coding 客户端、减少注意力轮询、构建和浏览器测试按机器槽位排队、宿主部分启动失败时仍能正常关闭（#555、#578、#584）。
+
 - **管理 MCP 复用 Goals 动作**（W3-07 PR-4）：`initialize`、`event_decide`、`goal_tree_decide` 经 Host 现有管理工厂，以本机这个人和原 management 出处各调用一个 Goals 动作，消除 typed 业务的重复结算。工具名/schema、成功 JSON、身份拒绝、显式路径与幂等键不变；真正进入动作才留单一行与 Host 编号，前置拒绝可无行、无号。
 
 - **工作台是唯一的外壳**：插件只提供内容、挂在工作台的位置，不出自己的整页、不开第二个浏览器标签页（#176、#177、#186、#187、#193、#195、#197、#198）；门禁 `tests/shell-page-gate.test.ts` 在 CI 里跑（#196）。
 - **Soft Workbench 全局升级**（#101）；页面动线与导航（#114）；Characters 只在「设置 › 角色」（#141）。
 - **收想法只在灵光**：Jelly 去掉灵感页，灵光接上导入文件、读取链接和转成 Jelly 笔记（#153）。
-- **Casebook 对外合同改用 Molis Work 的名字**（#248）。
 - **删除项目时，各数据所有者一起清、可重试**（`fix/project-deletion-owners`，#325）：Pages、Form（含全部回答）、Dataset、PPT、Workflows、Todo、Functions、灵光、Images、炼金术士、插件创作台、记忆、助理工作各自清掉按项目保存的数据；删除回执里每个所有者一步，失败的步骤保持 pending，用同一个删除请求重试，运行中的 Web 服务也会接着做完；确认框列出会一起删的数据。
 - **「卸载并清除用户数据」也清掉「讨论」库**（W2-12，防腐 spec 决定 4 与决定 20；`fix/im-home-registration`，#349）：右栏「讨论」页签的群聊与 Thread 存在 `server/server.sqlite`，以前它不在 `PERSONAL_HOME_SQLITE_STORES` 里，`uninstall --purge-user-data` 会留着它。现在 `server` 登记进这份名单，确认后的清除会永久删除整个 `server/` 目录（群聊正文、成员显示名、房间邀请令牌）；普通卸载仍保留。备份表同时登记这个库：必备份，副本因含明文房间邀请令牌按密钥对待，见 [HOME-DATA.md](../system/HOME-DATA.md) 3.4。`server` 包由基础包改归业务包，SSOT 对应行同步。
 - **调用记录每行带诊断编号，被拒绝的调用也记一行「未执行」**（用户 2026-10-10 决定，W3-01 B）：`logs/action-calls.jsonl` 里每个命令一行，读取只在失败时记，处理器之前就被拒的调用（取消、撤权、停用、无权、输入不合、限流）记一行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），失败的读取同；每行带这次操作的编号。没有编号的旧行不再显示，文件下次整理时去掉（不需要动手，也不写迁移）。硬规则「被取消、撤权、停用的调用不再写任何记录」改写为只管业务记录。页面自己找项目没有的插件的区域（Feed、Inbox、Schedule、Artifacts，含 Feed 的定时拉取）时得到的「未启用」是它要的答案，不记行，但只免这一次调用自己的拒绝，处理器再调的被拒了照常记，免记也只在页面自己那次调用还没结束时有效。执行过又失败的命令照旧另存一句错误信息（至多 200 字），其中带合同校验错误码（`actions.input_invalid`、`actions.output_invalid`、`actions.output_invalid_after_effect`）的只存到第一个「：」为止，不存字段路径。
@@ -72,7 +94,8 @@
 
 ## [0.2.0] - 2026-09-11
 
-事件工作流与 Runtime 简化：Goal 详情收敛为当前整体进展、时间线和事件阅读；Runtime 工具从 57 个收敛为 35 个，移除旧 Claim、Run、Evidence、Review、Draft Dialogue 入口；事件类型可以演化，人工验收要求真实保存；安装器校验源码与构建产物一致。完整说明见 [v0.2.0.md](v0.2.0.md)（正文里「旧项目有数据库升级路径」一句对今天的 main 已不成立，见上面 `[Unreleased]` 的升级须知）。公开 macOS 安装包尚未提供，需要 Developer ID 签名与 Apple 公证。
+事件工作流与 Runtime 简化：Goal 详情收敛为当前整体进展、时间线和事件阅读；Runtime 工具从 57 个收敛为 35 个，移除旧 Claim、Run、Evidence、Review、Draft Dialogue 入口；事件类型可以演化，人工验收要求真实保存；安装器校验源码与构建产物一致。完整说明见 [v0.2.0.md](v0.2.0.md)（正文里「旧项目有数据库升级路径」一句对今天的 main 已不成立，见上面 `[0.3.0]` 的升级须知）。公开 macOS 安装包尚未提供，需要 Developer ID 签名与 Apple 公证。
 
-[Unreleased]: https://github.com/molis-ai/molis-work/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/molis-ai/molis-work/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/molis-ai/molis-work/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/molis-ai/molis-work/compare/v0.1.14...v0.2.0

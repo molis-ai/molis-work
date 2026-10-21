@@ -108,6 +108,7 @@ export { readMolisWorkSnapshot, type MolisWorkSnapshotPorts } from "./board-snap
 
 
 
+export { GOALS_DOCUMENT_STYLES } from "./document-styles.js";
 export { TRASH_GOAL_STYLES } from "./trash-document-styles.js";
 
 export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBinding } from "./document-view.js";
@@ -120,4 +121,5 @@ export { handleGoalsWebHttp } from "./http/index.js";
 export { handleGoalEventDecisionHttp } from "./http/event-decisions.js";
 export type { GoalsHttpContext } from "./http/types.js";
 export { GOALS_PLUGIN_ID, GOALS_PROJECT_PLUGIN_ID, goalsManifest } from "./manifest.js";
+export { GOALS_PROJECT_DATABASE } from "./project-database.js";
 export { GOALS_SETTINGS_UI_CONTRIBUTION_ID, goalsSettingsUiContribution, goalsSettingsUiDescriptor } from "./settings-ui.js";

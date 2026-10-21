@@ -1,3 +1,4 @@
+import { AsyncResource } from "node:async_hooks";
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentRunView, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -31,6 +32,8 @@ export interface CodingActivation {
   readonly state: { read: Promise<unknown> | null; next: Promise<unknown> | null };
   readonly route: ReturnType<typeof codingRouteEntry>;
   readonly waits: ReturnType<typeof codingWakeLoop<CodingExecutionPorts>>;
+  /** Runs `run` in the context this activation was started in, outside the action of whichever request set it off. */
+  detach(run: () => void): void;
   /** Resolves after `ms`, or as soon as the activation stops; never keeps the process alive on its own. */
   pause(ms: number): Promise<void>;
 }
@@ -60,13 +63,17 @@ export function startCodingActivation(context: PluginStartContext, ports: Coding
     stopped.signal.addEventListener("abort", done, { once: true });
   });
   const busy = new Set<string>();
+  // A loop a request sets off (a send, a directory read) belongs to this activation, not to that request: it runs in the
+  // context `start` created the activation in, so what it writes after the request has returned answers to no action that
+  // has ended (S-18).
+  const detach = AsyncResource.bind((run: () => void) => run());
   // A session's step that waits, and the loop that takes up its continuation once the wait is over (wake-loop.ts). The
   // loop belongs to this activation: it reads and starts with the activation's own capabilities and execution ports.
-  const waits = codingWakeLoop<CodingExecutionPorts>({ context, projectId, busy, stopped: stopped.signal, pause, records: execution => execution.sessions.list(projectId),
+  const waits = codingWakeLoop<CodingExecutionPorts>({ context, projectId, busy, stopped: stopped.signal, pause, detach, records: execution => execution.sessions.list(projectId),
     record: (execution, id) => execution.sessions.get(projectId, id), activation: execution => ports ?? execution,
     startRound: (record, body, actor, api, execution, beforeWrite) => startRound(activation, record, body, actor, api, execution, beforeWrite) });
   const activation: CodingActivation = { context, ports, projectId, stopped, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
-    state: { read: null, next: null }, route: codingRouteEntry(context, ports, actions, () => !stopped.signal.aborted, failure), waits, pause };
+    state: { read: null, next: null }, route: codingRouteEntry(context, ports, actions, () => !stopped.signal.aborted, failure), waits, detach, pause };
   // Recovery after a restart: only a project with sessions tied to an Agent run starts the Agent runtime here. Starting the
   // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake.
   const resumable = () => new Set(ports!.sessions.list(projectId).filter(record => record.runtime_session_id).map(record => record.runtime_id));
@@ -91,10 +98,6 @@ export const selected = (a: CodingActivation, request: PluginRouteRequest, execu
   execution.sessions.get(a.projectId, request.params.sessionId ?? "");
 
 export const sessionTitle = (a: CodingActivation, execution: CodingExecutionPorts) => (id: string) => { try { return execution.sessions.get(a.projectId, id).title; } catch { return undefined; } };
-
-/** Every fixed output of this project's Coding sessions, with the session it came from. */
-export const sessionOutputs = (execution: CodingExecutionPorts) => [...execution.reportReferences?.() ?? [], ...execution.changeSetReferences?.() ?? [], ...execution.planReferences?.() ?? []]
-  .flatMap(reference => { const [, encoded] = reference.artifact_id.split(":"); return encoded ? [{ reference, session_id: decodeURIComponent(encoded) }] : []; });
 
 const sideOf = (a: CodingActivation, execution: CodingExecutionPorts, id: string | null) => {
   if (!id) return null;

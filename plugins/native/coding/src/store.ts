@@ -47,10 +47,10 @@ export interface CreateCodingSessionInput {
   at: string;
 }
 
-/** The Coding session tables, as one current schema; the host composes them into the project database baseline. */
+/** The Coding session tables, as one current schema; Coding declares them as its project database (`CODING_PROJECT_DATABASE`). */
 export const CODING_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS coding_sessions (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       session_id TEXT NOT NULL,
       title TEXT NOT NULL,
       state TEXT NOT NULL,
@@ -101,9 +101,8 @@ function mapSession(row: Row): CodingSessionRecord {
 }
 
 export class CodingSessionStore {
-  constructor(private readonly db: CodingSqliteDatabase) {
-    db.exec(CODING_SCHEMA_SQL);
-  }
+  /** The tables are already there: the platform made them when the project's library opened with Coding. */
+  constructor(private readonly db: CodingSqliteDatabase) {}
 
   plan(projectId: string, sessionId: string): CodingPlanDraft | null {
     this.get(projectId, sessionId);
@@ -260,6 +259,11 @@ export interface CodingBackgroundSession {
  * runs: nothing here opens a runtime. It writes nothing and creates no table, so a read-only connection works; a database that
  * never held Coding has no such table and the read throws, which the caller treats as "nothing to list".
  */
+/** Whether a project database ever held Coding: the Host's background list asks first, so a project without Coding is not a failure to read. */
+export function holdsCodingSessions(db: Pick<CodingSqliteDatabase, "prepare">): boolean {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'coding_sessions'").get());
+}
+
 export function listCodingBackgroundSessions(db: Pick<CodingSqliteDatabase, "prepare">): CodingBackgroundSession[] {
   const rows = db.prepare(`SELECT session_id, title, state, updated_at, steps_json, background_json FROM coding_sessions
     WHERE archived = 0 AND (state IN (${CODING_ACTIVE_STATES.map(() => "?").join(", ")}) OR steps_json IS NOT NULL OR background_json IS NOT NULL) ORDER BY updated_at DESC`).all(...CODING_ACTIVE_STATES) as Row[];

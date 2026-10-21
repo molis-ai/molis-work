@@ -13,10 +13,10 @@
  */
 export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const lifetime=ports.lifetime;
-  const {board,current,navigate,status,ownTask,amend,roleName}=ports;
+  const {board,current,navigate,status,ownTask,amend,roleName,from}=ports;
   const outline=ports.outline||null,progress=ports.progress||(()=>{}),onShow=ports.onShow||(()=>true);
   const list=board.querySelector('[data-coding-board-list]'),notice=board.querySelector('[data-coding-board-status]'),title=board.querySelector('[data-coding-board-title]'),meta=board.querySelector('[data-coding-board-meta]');
-  let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set();
+  let owner='',data=null,key='',outlineKey='',loadError='';const collapsed=new Set(),empty='这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。';
   // The outline's rows are redrawn whole; one listener on the list finds a row's target by its key.
   const outlineTargets=new Map();
   if(outline)lifetime.listen(outline,'click',event=>{const row=event.target.closest('.coding-outline-row'),target=row&&outlineTargets.get(row.dataset.boardKey);if(target)void navigate(owner,target).catch(error=>status(error.message,true));});
@@ -194,7 +194,10 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const main=el('button','coding-board-node');main.type='button';if(row.hint)main.title=row.hint;
     if(row.label)main.append(el('span','coding-board-key',row.label));main.append(el('strong','',row.title));
     lifetime.listen(main,'click',()=>void navigate(owner,row.target).catch(error=>status(error.message,true)));
-    lead.append(main);entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
+    // A step a person added for a supplement links back to its receipt in the conversation.
+    lead.append(main);
+    const source=from(row.node);if(source)lead.append(source);
+    entry.append(lead,renderState(row.state),renderProgress(row.progress),renderDeps(row),renderMeta(row));
     const controls=tools(row,entry);if(controls)entry.append(controls);
     item.append(entry);
     if(row.children.length&&open){const children=el('ul','coding-board-children');for(const child of row.children)children.append(renderRow(child,depth+1));item.append(children);}
@@ -235,7 +238,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const next=fingerprint();if(next===outlineKey)return;outlineKey=next;
     const groups=tree(),line=summary();
     brief.textContent=line.text;brief.hidden=!line.text;if(expand)expand.disabled=false;
-    note.textContent=loadError||data.error||(groups.length?'点一行查看详情；「展开任务图」可以调整步骤。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    note.textContent=loadError||data.error||(groups.length?'点一行查看详情；「展开任务图」可以调整步骤。':empty);
     rows.replaceChildren();outlineTargets.clear();
     for(const group of groups){
       const heading=el('h2','mw-dir__heading',group.label+' ');heading.append(el('small','',group.count||String(group.items.length)));rows.append(heading);
@@ -251,7 +254,7 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     const scroll=board.scrollTop,groups=tree();
     title.textContent='TaskBoard';
     meta.textContent=summary().text;
-    notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':'这个会话还没有计划或子任务。在对话里用「规划」或「协作」开始，它们会出现在这里。');
+    notice.textContent=loadError||data.error||(groups.length?'状态来自任务图回报、子代理记录和审查，不从模型的回答推断。点一行查看详情。':empty);
     list.replaceChildren();
     for(const group of groups){
       const fold=el('details','coding-board-fold');fold.open=!collapsed.has('group:'+group.id);fold.dataset.boardGroup=group.id;
@@ -268,6 +271,8 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     renderBoard();renderOutline();
   };
   return {
+    // How a step reads, the same on the plan card in the conversation (plan-progress-client.ts).
+    stepOf,skipped,settled,
     loading(id){if(id!==owner){owner=id;data=null;key='';outlineKey='';loadError='';collapsed.clear();board.scrollTop=0;}render();},
     update(id,value){if(id!==current())return;if(id!==owner){key='';outlineKey='';collapsed.clear();board.scrollTop=0;}owner=id;data=value;loadError='';render();},
     fail(id,message){if(id!==owner)return;loadError='任务暂不可读：'+message+'；已显示内容可能过期。';key='';outlineKey='';render();},

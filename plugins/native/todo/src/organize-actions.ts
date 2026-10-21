@@ -6,7 +6,7 @@ import { todoErrors } from "./error.js";
 import { organizeParts, organizePrompt, parseOrganizeOutput, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";
 import { TodoOrganizer, validEdits, type TodoApplyResult, type TodoCandidateDecision } from "./organize.js";
 import { TODO_ORGANIZE_BASIC, TODO_ORGANIZE_ORGANIZER } from "./prompts.js";
-import type { TodoAccess, TodoStore } from "./store.js";
+import type { TodoAccess, TodoStores } from "./store.js";
 
 export const TODO_BATCH_SUBJECT_KIND = "todo_batch";
 
@@ -75,8 +75,7 @@ export const todoOrganizeActions = {
   subject: defineSubjectContextAction("todo.batch.subject.read", TODO_BATCH_SUBJECT_KIND, "整理结果", ["todo:read"], "home"),
 };
 
-export interface TodoOrganizePorts {
-  withStore<T>(run: (store: TodoStore) => T): T;
+export interface TodoOrganizePorts extends TodoStores {
   modelAvailability(): ActionAvailability;
   completeText?(prompt: InstructedPrompt, options: { signal?: AbortSignal }): Promise<string>;
   today?(): string;
@@ -99,14 +98,15 @@ export function batchText(batch: TodoBatch): string {
 export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
-  const organizer = <T>(run: (value: TodoOrganizer, store: TodoStore) => T) => ports.withStore(store => run(new TodoOrganizer(store), store));
+  const reading = <T>(run: (value: TodoOrganizer) => T) => ports.read(store => run(new TodoOrganizer(store)));
+  const writing = <T>(caller: ActionExecutionContext, run: (value: TodoOrganizer) => T) => ports.write(caller, store => run(new TodoOrganizer(store)));
   return [
     bind(todoOrganizeActions.extract, async (input, caller) => {
       const access = ports.access(caller);
-      const replay = input.request_id ? organizer(value => value.byRequest(input.request_id!, access)) : null;
+      const replay = input.request_id ? reading(value => value.byRequest(input.request_id!, access)) : null;
       if (replay) return { batch: replay, replayed: true };
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
-      const existing = ports.withStore(store => store.list(access).filter(item => item.archived_at === null));
+      const existing = ports.read(store => store.list(access).filter(item => item.archived_at === null));
       const byId = new Map(existing.map(item => [item.id, item]));
       const today = ports.today?.() ?? localDate();
       const drafts: TodoCandidateDraft[] = [];
@@ -128,18 +128,17 @@ export function createTodoOrganizeHandlers(ports: TodoOrganizePorts): ActionHand
         reference.push(...parsed.reference_only);
         unverified += parsed.unverified;
       }
-      await caller.beforeEffect();
-      return organizer(value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
+      return writing(caller, value => value.create({ title: input.title ?? "", origin: input.origin === "onboarding" ? "onboarding" : caller.audience === "agent" ? "assistant" : "manual", method: method.prompt_id,
         materials: input.materials, candidates: drafts, reference_only: reference, unverified, request_id: input.request_id }, access));
     }, () => ports.modelAvailability()),
-    bind(todoOrganizeActions.list, (input, caller) => organizer(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),
-    bind(todoOrganizeActions.get, (input, caller) => organizer(value => ({ batch: value.get(input.id, ports.access(caller, caller.audience === "user")) }))),
-    bind(todoOrganizeActions.apply, (input, caller) => organizer(value => {
+    bind(todoOrganizeActions.list, (input, caller) => reading(value => ({ batches: value.list(ports.access(caller, caller.audience === "user"), input.status ?? "open") }))),
+    bind(todoOrganizeActions.get, (input, caller) => reading(value => ({ batch: value.get(input.id, ports.access(caller, caller.audience === "user")) }))),
+    bind(todoOrganizeActions.apply, (input, caller) => writing(caller, value => {
       if (!input.decisions.every(entry => validEdits(entry.edits))) throw todoErrors.invalid("日期或时间写法不对");
       return value.apply(input.id, input.decisions, input.expected_revision, ports.access(caller, caller.audience === "user"));
     })),
-    bind(todoOrganizeActions.close, (input, caller) => organizer(value => ({ batch: value.close(input.id, ports.access(caller, caller.audience === "user")) }))),
-    { ...todoOrganizeActions.subject, handle: (caller, input) => organizer(value => {
+    bind(todoOrganizeActions.close, (input, caller) => writing(caller, value => ({ batch: value.close(input.id, ports.access(caller, caller.audience === "user")) }))),
+    { ...todoOrganizeActions.subject, handle: (caller, input) => reading(value => {
       let found: TodoBatch;
       try { found = value.get((input as { subject_id: string }).subject_id, ports.access(caller)); }
       catch { throw todoErrors.not_found("这份整理结果不在当前范围内"); }

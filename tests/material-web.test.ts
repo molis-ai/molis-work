@@ -8,9 +8,8 @@ import { join } from 'node:path';
 import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
-import { openShelfStore } from '@molis-ai/molis-work-module-shelf';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
-import { shelfActionProvider } from '../apps/local-host/src/shelf-actions.js';
+import { openHostShelfStore, shelfActionProvider } from '../apps/local-host/src/shelf-actions.js';
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'material-web-'));
@@ -48,7 +47,7 @@ async function fixture(t: test.TestContext) {
   let authorized = true;
   const caller = { actor_id: 'person', audience: 'user' as const, project_id: null, permissions: SHELF_ACTION_PERMISSIONS,
     validate_authority: () => { if (!authorized) throw new ActionError('actions.revoked', 'revoked'); } };
-  const store = () => openShelfStore(home, { disabled: true });
+  const store = () => openHostShelfStore(home, { disabled: true });
   t.after(async () => {
     dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(home, { recursive: true, force: true });
@@ -96,8 +95,8 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   if (entry === 'admit' && stop === 'delete-clipboard') continue;
   test(`Shelf ${entry} ${stop} during real capture leaves no material or file and can recover`, { timeout: 20_000 }, async t => {
   const f = await fixture(t), controller = new AbortController();
-  const original = f.store().snapshot().materials, files = await readdir(join(f.home, 'shelf', 'files'));
-  const clip = f.store().addClipboard(f.origin + '/hold')!;
+  const original = (await f.store().snapshot()).materials, files = await readdir(join(f.home, 'shelf', 'files'));
+  const clip = (await f.store().addClipboard(f.origin + '/hold'))!;
   const pending = f.service.invoke({ ...f.caller, signal: controller.signal }, entry === 'admit' ? shelfActions.admit : shelfActions.clipToMaterial,
     entry === 'admit' ? { text: f.origin + '/hold' } : { clip_id: clip.clip_id });
   const rejected = assert.rejects(pending, stop === 'cancel' ? { name: 'AbortError' } : { code: stop === 'revoke' ? 'actions.revoked' : stop === 'withdraw' ? 'actions.provider_changed' : 'shelf.item_not_found' });
@@ -105,10 +104,10 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   if (stop === 'cancel') controller.abort();
   if (stop === 'revoke') f.revoke();
   if (stop === 'withdraw') f.dispose();
-  if (stop === 'delete-clipboard') f.store().deleteClipboard(clip.clip_id);
+  if (stop === 'delete-clipboard') await f.store().deleteClipboard(clip.clip_id);
   response.writeHead(200, { 'content-type': 'text/html' }); response.end('<p>late body</p>');
   await rejected; await f.closed;
-  assert.deepEqual(f.store().snapshot().materials, original);
+  assert.deepEqual((await f.store().snapshot()).materials, original);
   assert.deepEqual(await readdir(join(f.home, 'shelf', 'files')), files);
   // A new authorized provider/call can still save a real page after any of these interruptions.
   const recovered = new ActionService(), dispose = recovered.registerProvider(shelfActionProvider(f.home));

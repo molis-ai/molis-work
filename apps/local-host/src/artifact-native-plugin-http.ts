@@ -1,4 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { logPreviewFailure } from "./host-log.js";
 import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -10,10 +11,11 @@ import {
 import { artifactWorkbench, artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, BUILTIN_PLUGIN_CATALOG, type ArtifactTypeDeclaration } from "@molis-ai/molis-work-app-workbench";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
+import { answerPluginRouteStream } from "./plugin-route-stream.js";
 
 export interface ArtifactHttpContext {
   readonly projectId: string;
@@ -44,7 +46,7 @@ async function ownerPreview(artifact: ArtifactVersionRecord | null, declarations
     || artifact.producer_plugin_id !== declaration.plugin_id) return undefined;
   let content: FileContent;
   try { content = await context.ownerActions(declaration.preview.action.permissions).invoke(declaration.preview, { artifact }) as FileContent; }
-  catch { return undefined; }
+  catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return undefined; }
   const pinned = artifact.origin.kind === "pinned" ? artifact.origin.subject : null;
   // 「原文已改」 (A4b): the owner compares the version with its work object as it is now.
   let compared: ArtifactCompareResult["state"] | null = null;
@@ -89,11 +91,23 @@ export function createLocalArtifactHttp() {
         if (input.source === "file" && typeof input.content !== "string" && input.original_file === undefined) {
           throw documentErrors.content_invalid("请选择要导入的文件");
         }
-        const saved = input.source === "file"
-          ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport)
-          : await context.actions.invoke(artifactsActions.importExternal, input as unknown as ArtifactExternalImport);
-        const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
-        sendLocalWebJson(response, result.reused ? 200 : 201, { ...result, warnings: result.warnings.map(warning => L(warning)) });
+        const answer = async (on_progress?: (event: ActionProgressEvent) => void) => {
+          const transport = on_progress ? { on_progress } : undefined;
+          const saved = input.source === "file"
+            ? await context.actions.invoke(artifactsActions.importFile, input as unknown as ArtifactFileImport, undefined, transport)
+            : await context.actions.invoke(artifactsActions.importExternal, input as unknown as ArtifactExternalImport, undefined, transport);
+          const result = { ...saved, url: context.routePrefix + artifactVersionPath(saved) };
+          return { status: result.reused ? 200 : 201, body: { ...result, warnings: result.warnings.map(warning => L(warning)) } };
+        };
+        // A page that waits on a slow reading (the speech model's download, a transcription) asks for its progress as NDJSON (PMAT-48).
+        if (requestHeader(request, "accept")?.includes("application/x-ndjson")) return answerPluginRouteStream(response, emit => answer(emit), () => undefined);
+        const result = await answer();
+        sendLocalWebJson(response, result.status, result.body);
+        return true;
+      }
+      // Which document services are connected, for an import dialog outside the 成果库 (the side panel's 资料, specs/project-knowledge §8.1).
+      if (pathname === "/api/artifacts/import/sources" && request.method === "GET") {
+        sendLocalWebJson(response, 200, await context.actions.invoke(artifactsActions.importSources, {}));
         return true;
       }
       if (pathname === "/api/artifacts/continue" && request.method === "POST") {
@@ -184,11 +198,8 @@ export function createLocalArtifactHttp() {
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      // The directory carries the 成果库's one import entry (A3); its dialog needs the connected document services.
-      const available = compact ? null : await context.actions.invoke(artifactsActions.importSources, {});
       response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers, pluginInputs,
-        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])),
-        ...(available ? { importForm: { connectionStatus: available.sources, connections: available.connections } } : {}) }, compact ? "frame-block" : "detail"));
+        typeTitles: Object.fromEntries([...declarations].map(([type, declaration]) => [type, declaration.title])) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {
       // The status is the one of the failure's kind. This is the one edge where the Host translates a failure's message itself.

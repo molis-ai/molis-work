@@ -1,20 +1,144 @@
-import type { AgentStartExecution } from "./agent-host-start.js";
-export type { AgentStartExecution } from "./agent-host-start.js";
-import type { ActionCallOrigin, ActionView, ExactActionReference } from "../platform/actions.js";
-import type {
-  AgentPromptLayer,
-  AgentPromptText,
-  AgentRoleExecution,
-  AgentSkillDeclaration,
-  AgentSkillDefinition,
-} from "../platform/plugin-agent.js";
-import type { HostCapabilityDefinition } from "../platform/app-host.js";
 import type { ContractDescriptor } from "../platform/package.js";
-import type { ArtifactReference, ArtifactProducerIdentity } from "../modules/artifacts.js";
-import type { CharacterContent } from "../modules/characters.js";
-import type { AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryCapability, AgentMemoryRecallFact, AgentRecalledMemory } from "./agent-host-memory.js";
-import type { AgentAnswerControl, AgentPendingQuestion } from "./agent-interaction.js";
-import type { AgentCollaborationPort, AgentCollaborationSessionView } from "./agent-collaboration.js";
+import type { AgentRuntimeAdapter, AgentRuntimeDescriptor, AgentRuntimeCapabilityMatrix, AgentSessionRef, AgentRunRef } from "./agent-host-runtime.js";
+import type { AgentReviewQueueApi, AgentReviewRequest, AgentReviewReceipt, AgentReviewStatus } from "./agent-host-reviews.js";
+import type { HostCapabilityDefinition } from "../platform/app-host.js";
+import type { ActionView } from "../platform/actions.js";
+import type { AgentCreateSessionInput, AgentSkillRef, AgentWorkingDirectory, AgentStartRequest } from "./agent-host-start.js";
+import type { AgentSubagentView, AgentSkillCatalogEntry, AgentSkillCandidate, AgentMcpServerView, AgentMcpServerInput, AgentRecoveryReport, AgentCheckpoint } from "./agent-host-ports.js";
+import type { AgentProjectWork, AgentProjectWorkOverlap, AgentSessionMessage, AgentPeopleMessageInput, AgentPeopleMessageAction, AgentMessageAttachment, AgentBackgroundTask } from "./agent-host-session.js";
+import type { AgentSessionView, AgentSessionStatus, AgentRunHandle, AgentRunView, AgentRunControl, AgentCommandOutputRef, AgentCommandOutput } from "./agent-host-run-view.js";
+import type { AgentCollaborationSessionView } from "./agent-collaboration.js";
+import type { AgentSkillDefinition } from "../platform/plugin-agent.js";
+// Declared by domain in the agent-host-*.ts files beside this one (W5-09); this subpath exports all of them.
+export { AGENT_RUNTIME_CAPABILITIES, isTerminalAgentPhase } from "./agent-host-runtime.js";
+export type {
+  AgentRuntimeCapability,
+  AgentCapabilitySupport,
+  AgentRuntimeCapabilityMatrix,
+  AgentRuntimeDescriptor,
+  AgentRuntimeHealthStatus,
+  AgentRuntimeHealth,
+  AgentSessionRef,
+  AgentRunRef,
+  AgentRunPhase,
+  AgentRuntimeDiagnostics,
+  AgentRuntimeAdapter,
+} from "./agent-host-runtime.js";
+export { agentTextMaterialContent, AGENT_REASONING_EFFORTS, parseAgentRunBudget } from "./agent-host-start.js";
+export type {
+  AgentWorkingDirectory,
+  AgentWorkspace,
+  AgentTextMaterial,
+  AgentImageMaterial,
+  AgentSkillRef,
+  AgentMcpToolRef,
+  AgentMcpSourceRef,
+  AgentReasoningEffort,
+  AgentRunBudget,
+  AgentExecutionPlan,
+  AgentFrozenCharacter,
+  AgentFrozenStart,
+  AgentCreateSessionInput,
+  AgentFrozenSubagentRole,
+  AgentSubagentWorkspace,
+  AgentDelegatedWork,
+  AgentDelegation,
+  AgentMemoryTools,
+  AgentActionClient,
+  AgentFrozenRole,
+  AgentStartRequest,
+} from "./agent-host-start.js";
+export type {
+  AgentProjectWork,
+  AgentProjectWorkOverlap,
+  AgentProjectWorkCapability,
+  AgentSessionMessage,
+  AgentMessageAttachment,
+  AgentPeopleMessageInput,
+  AgentPeopleMessageAction,
+  AgentSessionMessagesCapability,
+  AgentBackgroundTask,
+  AgentBackgroundCapability,
+  AgentStepOwner,
+  AgentStepBoard,
+  AgentStepAmendment,
+} from "./agent-host-session.js";
+export type {
+  AgentRunHandle,
+  AgentRunControl,
+  AgentTurnKind,
+  AgentTurnView,
+  AgentToolActivityState,
+  AgentToolActivity,
+  AgentTokenCount,
+  AgentUsageCoverage,
+  AgentRunUsage,
+  AgentCommandOutputRef,
+  AgentCommandOutput,
+  AgentTodoItem,
+  AgentRunView,
+  AgentTurnChanges,
+  AgentSessionView,
+  AgentSessionStatus,
+} from "./agent-host-run-view.js";
+export type {
+  AgentReviewKind,
+  AgentTextReviewDocument,
+  AgentCommandReviewDocument,
+  AgentCommandGrants,
+  AgentToolOperationReviewDocument,
+  AgentMcpReviewDocument,
+  AgentRewindReviewDocument,
+  AgentGitIndexReviewDocument,
+  AgentGitIntegrationReviewDocument,
+  AgentReviewDocument,
+  AgentReviewStatus,
+  AgentReviewRequest,
+  AgentReviewDecisionInput,
+  AgentReviewReceipt,
+  AgentGitIndexObservation,
+  AgentReviewRecoveryView,
+  AgentReviewRecoveryInput,
+  AgentReviewQueueApi,
+} from "./agent-host-reviews.js";
+export type {
+  AgentCheckpoint,
+  AgentCheckpointsCapability,
+  AgentSkillCatalogEntry,
+  AgentSkillOwner,
+  AgentSkillCandidate,
+  AgentSkillLibrary,
+  AgentSkillsCapability,
+  AgentMcpServerHealth,
+  AgentMcpServerInput,
+  AgentMcpServerView,
+  AgentMcpLibrary,
+  AgentMcpToolDescriptor,
+  AgentMcpCallResult,
+  AgentMcpCapability,
+  AgentSubagentState,
+  AgentSubagentView,
+  AgentSubagentsCapability,
+  AgentRecoveryReport,
+  AgentScheduledTask,
+  AgentScheduleCapability,
+  AgentRecoveryCapability,
+} from "./agent-host-ports.js";
+export type {
+  BuilderAgentActivity,
+  BuilderSkill,
+  BuilderAgentRequest,
+  BuilderAgentRecord,
+  BoundedInferenceReceipt,
+  InferenceUsageSource,
+  InferenceTokenCount,
+} from "./agent-host-builder.js";
+
+export type { AgentStartExecution } from "./agent-host-start.js";
+
+export { agentOfferActions, type AgentActionOffer, type AgentOfferRunRequest, type AgentRunOffer } from "./agent-host-offers.js";
+export { agentWriteCheckerActions, type AgentWriteChecker, type AgentWriteCheckerList, type AgentWriteCheckerSave, type AgentWriteCheckerStore, type AgentWriteCheckNote } from "./agent-host-write-checkers.js";
+
 // Memory and documents through the runtime: declared beside this file, part of the same contract.
 export type { AgentMemoryExecutionControl, AgentMemoryEntry, AgentMemoryMeta, AgentMemoryCandidateEntry, AgentPinnedMemory, AgentRecalledMemory, AgentMemoryRecallFact, AgentDocumentParser, AgentDocumentCapability, AgentMemoryCapability, AgentMemoryCandidateCapability } from "./agent-host-memory.js";
 
@@ -25,1218 +149,6 @@ export const servicesAgentHostContract = {
   maturity: "contract-only",
   ssot: "docs/horizontal/agent-host.md",
 } as const satisfies ContractDescriptor;
-
-export const AGENT_RUNTIME_CAPABILITIES = [
-  "session.create",
-  "session.read",
-  "session.resume",
-  "run.start",
-  "run.observe",
-  "run.control",
-  "text-edit",
-  "command",
-  /**
-   * Can report what a command it already ran produced.
-   *
-   * Separate from `command` on purpose: a Runtime may be unable to execute a
-   * command under Host approval while still being able to say what it did run.
-   * Folding the two together forced a surface that shows receipts to gate on
-   * execution, which is a different question.
-   */
-  "command.receipts",
-  "checkpoint",
-  "rewind",
-  "skills",
-  "mcp",
-  "subagents",
-  "compaction",
-  "usage",
-] as const;
-
-export type AgentRuntimeCapability = (typeof AGENT_RUNTIME_CAPABILITIES)[number];
-
-export type AgentCapabilitySupport = "supported" | "partial" | "unsupported";
-
-/**
- * What a Runtime can actually do. The product degrades against this matrix and
- * shows an unsupported capability as truly unavailable; it never simulates one.
- */
-export type AgentRuntimeCapabilityMatrix = Record<AgentRuntimeCapability, AgentCapabilitySupport>;
-
-export interface AgentRuntimeDescriptor {
-  supports_action_tools?: boolean;
-  supports_workspace_none?: boolean;
-  /** Runs business roles: no directory, the unified actions given at start and the root-free host tools. */
-  supports_workspace_business?: boolean;
-  runtime_id: string;
-  display_name: string;
-  provider_version: string;
-  capabilities: AgentRuntimeCapabilityMatrix;
-}
-
-export type AgentRuntimeHealthStatus = "ready" | "needs_setup";
-
-export interface AgentRuntimeHealth {
-  ok: boolean;
-  status: AgentRuntimeHealthStatus;
-  message: string;
-  /** One concrete next step for the user. Never a raw provider diagnostic. */
-  action?: string;
-}
-
-export interface AgentSessionRef {
-  session_id: string;
-  runtime_id: string;
-}
-
-export interface AgentRunRef {
-  run_id: string;
-  session_id: string;
-}
-
-export type AgentRunPhase =
-  | "starting"
-  | "running"
-  | "awaiting-review"
-  | "awaiting-input"
-  | "paused"
-  | "compacting"
-  | "completed"
-  | "failed"
-  | "cancelled"
-  | "stopped"
-  | "reconcile-required";
-
-const TERMINAL_AGENT_PHASES: readonly AgentRunPhase[] = [
-  "completed",
-  "failed",
-  "cancelled",
-  "stopped",
-];
-
-/** `reconcile-required` is not terminal: an unsettled effect still needs a decision. */
-export function isTerminalAgentPhase(phase: AgentRunPhase): boolean {
-  return TERMINAL_AGENT_PHASES.includes(phase);
-}
-
-/** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */
-export interface AgentWorkingDirectory {
-  canonical_path: string;
-  realpath_verified: boolean;
-}
-
-/** Absence retains the historical workspace requirement. No process cwd fallback is permitted. */
-export type AgentWorkspace =
-  | { workspace?: "required"; directory: AgentWorkingDirectory }
-  | { workspace: "none"; directory?: never }
-  /** Business work: no directory; the Host gives it unified actions (by effect) and root-free tools only. */
-  | { workspace: "business"; directory?: never };
-
-export interface AgentTextMaterial {
-  material_id: string;
-  title: string;
-  /** Verbatim text the model may read. Frozen before the Run starts. */
-  text: string;
-  source_artifact_id: string;
-  source_version: number;
-}
-
-/**
- * An image the person brought, already taken in by the runtime (its bytes stay with the runtime; this is only the
- * reference). The model sees it in the Run it is attached to, and only there.
- */
-export interface AgentImageMaterial {
-  material_id: string;
-  title: string;
-  resource: { id: string; revision: number };
-  media_type: string;
-}
-
-/** Metadata and verbatim body share one data resource, never a role/system prompt. */
-export function agentTextMaterialContent(material: AgentTextMaterial): string {
-  if (!material || typeof material.title !== "string" || material.title.length > 2000
-    || typeof material.material_id !== "string" || !material.material_id || material.material_id.length > 240
-    || typeof material.source_artifact_id !== "string" || !material.source_artifact_id || material.source_artifact_id.length > 200
-    || !Number.isSafeInteger(material.source_version) || material.source_version < 1 || typeof material.text !== "string") {
-    throw new Error("固定材料的标题、来源或版本无效");
-  }
-  const header = JSON.stringify({ title: material.title, artifact_id: material.source_artifact_id, version: material.source_version });
-  const content = `${header}\n\n${material.text}`;
-  // Prologue's required text resources reject more than 20,000 UTF-16 units.
-  if (content.length > 20_000) throw new Error("材料连同来源超过 20,000 字符，请在文件中选择较小片段后重新保存");
-  return content;
-}
-
-export interface AgentSkillRef {
-  skill_id: string;
-  version: number;
-}
-
-export interface AgentMcpToolRef {
-  server: string;
-  tool: string;
-  /** Required for execution; older unversioned selections must be reselected. */
-  version?: string;
-  server_label?: string;
-  /** Pins the endpoint, credentials and launch configuration, independently of tool schema. */
-  configuration_version?: number;
-}
-
-/** Explicit access to the documents of a configured MCP service, without its external tools. */
-export type AgentMcpSourceRef = Pick<AgentMcpToolRef, "server" | "configuration_version" | "server_label">;
-
-/** How much the model may think for a round: quick, balanced or deep (the provider's own low / medium / high). */
-export type AgentReasoningEffort = "low" | "medium" | "high";
-export const AGENT_REASONING_EFFORTS: readonly AgentReasoningEffort[] = ["low", "medium", "high"];
-
-export interface AgentRunBudget {
-  max_turns?: number;
-  max_output_tokens?: number;
-  max_total_tokens?: number;
-  max_duration_ms?: number;
-}
-
-/** Runtime limits are explicit positive safe integers; omitted values keep SDK defaults. */
-export function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRunBudget | undefined {
-  if (value === undefined) return undefined;
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("执行预算格式无效");
-  const budget: AgentRunBudget = {};
-  for (const field of ["max_turns", "max_output_tokens", "max_total_tokens", "max_duration_ms"] as const) {
-    const limit = value[field];
-    if (limit === undefined) continue;
-    if (!Number.isSafeInteger(limit) || limit < 1 || field === "max_duration_ms" && limit > 2_147_483_647) throw new Error(`执行预算 ${field} 必须为有效的正整数`);
-    budget[field] = limit;
-  }
-  return budget;
-}
-
-/** Ordered steps supplied by the caller from its immutable confirmed Artifact. */
-export interface AgentExecutionPlan {
-  source: ArtifactReference;
-  title: string;
-  /** `depends_on` names earlier steps this one waits for; absent, a step waits for the one before it. */
-  steps: Array<{ id: string; title: string; acceptance: string; depends_on?: string[] }>;
-}
-
-/** Original SDK facts. A reported success is never a user acceptance. */
-/**
- * One piece of work in a project: a round under way or ended, or a round waiting for another to finish. Items live on
- * the project's SDK task graph; `paths` is what the work named or wrote, used to find overlaps.
- */
-export interface AgentProjectWork {
-  work_id: string;
-  /** The runtime session doing it. */
-  session_id: string;
-  run_id?: string;
-  /** The session's title. */
-  title: string;
-  /** The round's task, bounded. */
-  task: string;
-  state: "waiting" | "running" | "done" | "failed" | "stopped";
-  directory: string;
-  paths: string[];
-  /** Work items this one waits for. */
-  waits_for?: string[];
-  updated_at_ms: number;
-  /** For a waiting item: the session's wait that starts it (agent-collaboration). */
-  wait_id?: string;
-}
-
-/** Other work under way in the same directory whose files overlap a scope. */
-export interface AgentProjectWorkOverlap {
-  work: AgentProjectWork;
-  paths: string[];
-}
-
-export interface AgentProjectWorkCapability {
-  /** `probe`: a round about to start (its directory and task or plan text); overlaps are found against it. */
-  read(project: string, probe?: { session_id?: string; directory: string; text: string }): Promise<{ items: AgentProjectWork[]; overlaps: AgentProjectWorkOverlap[] }>;
-  /**
-   * Hold a round until another piece of work finishes; the person decided. The session's step waits on that work (a
-   * wait by "app"); the round itself is kept by whoever starts it once the step may go on.
-   */
-  queue(project: string, input: { session: AgentSessionRef; directory: string; task: string; after: string; title?: string }, actorId: string): Promise<AgentProjectWork>;
-  /** Give up a waiting item; `note` says why. */
-  release(project: string, workId: string, actorId: string, note: string): Promise<void>;
-}
-
-/** A message one session of a project sent another (the SDK's envelope). Data for its recipient, never an approval. */
-export interface AgentSessionMessage {
-  message_id: string;
-  from_session: string;
-  to_session: string;
-  from_title: string;
-  to_title: string;
-  kind: "request" | "notice" | "reply" | "handoff";
-  body: string;
-  state: "queued" | "delivered" | "accepted" | "rejected" | "completed" | "expired" | "cancelled";
-  sent_at_ms: number;
-  in_reply_to?: string;
-  /** The sender waits for the answer before going on. */
-  await_reply?: true;
-  /** For the people working the sessions (a delegation), never handed to a model. */
-  audience?: "people";
-  /** The App's own references it carries (fixed outputs, materials). */
-  attachments?: AgentMessageAttachment[];
-  /** Every step it went through, oldest first. */
-  history?: Array<{ event: string; state: AgentSessionMessage["state"]; at_ms: number; by?: string; note?: string; attachments?: AgentMessageAttachment[]; late?: true }>;
-  /** How many times the work has been passed on. */
-  hops?: number;
-}
-
-export interface AgentMessageAttachment { kind: string; id: string; version?: number; title?: string }
-
-/** A message the App sends for a person, to the people working another session. */
-export interface AgentPeopleMessageInput {
-  from_session: string;
-  to_session: string;
-  kind: "request" | "reply";
-  body: string;
-  in_reply_to?: string;
-  attachments?: AgentMessageAttachment[];
-  ttl_ms?: number;
-  hops?: number;
-}
-
-/** What a person does with a message for people; `event` names it in the App's words, `note` says why. */
-export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
-
-export interface AgentSessionMessagesCapability {
-  read(project: string, sessionId?: string): Promise<AgentSessionMessage[]>;
-  cancel(project: string, messageId: string): Promise<void>;
-  /**
-   * The person made a session the priority: the sessions whose work under way overlaps its own (at most five) are
-   * told, on its behalf, to make way for those files. Nothing is paused; who stops is still the person's call.
-   */
-  prioritize?(project: string, sessionId: string, actorId: string): Promise<{ notified: string[]; paths: string[] }>;
-  /** Send a message for people (a delegation, a delivery) on a person's behalf. */
-  sendForPeople?(project: string, input: AgentPeopleMessageInput, actorId: string): Promise<AgentSessionMessage>;
-  /** Move a message for people on: delivered, accepted or rejected (with why), completed, cancelled, or a note. */
-  act?(project: string, messageId: string, action: AgentPeopleMessageAction, detail: { event?: string; note?: string; attachments?: AgentMessageAttachment[] }, actorId: string): Promise<AgentSessionMessage>;
-}
-
-/** A background command of a session: it keeps running after the round that started it, until it ends or is stopped. */
-export interface AgentBackgroundTask {
-  task_id: string;
-  session_id: string;
-  run_id?: string;
-  summary: string;
-  state: "running" | "succeeded" | "failed" | "stopped" | "interrupted";
-  exit_code?: number;
-  started_at_ms: number;
-  ended_at_ms?: number;
-}
-
-export interface AgentBackgroundCapability {
-  read(project: string, sessionId?: string): Promise<AgentBackgroundTask[]>;
-  /** The person stops a running command. */
-  stop(project: string, taskId: string): Promise<boolean>;
-}
-
-/** Who holds a step: only its holder reports on it. */
-export interface AgentStepOwner {
-  kind: "session" | "subtask" | "person" | "none" | "other";
-  /** How the holder reads: 本会话, 子任务「…」, 用户, 没人认领. */
-  label: string;
-  /** The subtask holding it, as listed in the round's subagents. */
-  subagent_id?: string;
-  /** The person holding it. */
-  actor_id?: string;
-  /** A session holds it but has no round running and has not moved it for two hours: the person may reassign it. */
-  expired?: true;
-}
-
-export interface AgentStepBoard {
-  project_id: string;
-  version: number;
-  terminal: boolean;
-  /** In execution order: dependencies first, the original plan order breaking ties. */
-  nodes: Array<{
-    id: string;
-    state: "not-started" | "ready" | "running" | "waiting" | "succeeded" | "failed" | "cancelled" | "blocked" | "needs-reconciliation";
-    /** Who reported (本会话, 子任务「…」, 用户); a handover says so. */
-    reports: Array<{ note: string; at_ms: number; by?: string; handover?: true }>;
-    owner?: AgentStepOwner;
-    /** The SDK node title; a person's inserted step carries its own. */
-    title?: string;
-    depends_on?: string[];
-    /** Added by a person during the run, not part of the confirmed plan. */
-    inserted?: boolean;
-  }>;
-}
-
-/**
- * A person's change to a running plan. Each one is an SDK board operation recorded as a report on the
- * board itself; the confirmed plan Artifact is never rewritten.
- */
-export type AgentStepAmendment =
-  | { kind: "skip"; node: string; reason: string }
-  /** `mine`: the person takes the new step on themselves. */
-  | { kind: "insert"; after: string; title: string; acceptance: string; mine?: true }
-  | { kind: "unblock"; node: string; note: string }
-  | { kind: "move"; node: string; direction: "up" | "down" }
-  /** Hand an unfinished step to the person themselves, or back to the round's session. */
-  | { kind: "assign"; node: string; to: "me" | "session" }
-  /** The person's own result on a step they hold. */
-  | { kind: "resolve"; node: string; state: "succeeded" | "failed"; note: string };
-
-/**
- * Exactly what the Host froze for one Run. Later settings changes never alter a
- * started Run; the product shows this, not the next-run selection.
- */
-export interface AgentFrozenCharacter extends CharacterContent {
-  reference: ArtifactReference;
-  project_id: string;
-  content_digest: string;
-  producer: ArtifactProducerIdentity;
-  published_at: string;
-}
-
-interface AgentFrozenStartFields {
-  action_tools?: ExactActionReference[];
-  /** The run used the Host's action gateway (see AgentStartRequest.action_gateway). */
-  action_gateway?: true;
-  /** Exact imported Skill ids used by this Run; the full Character snapshot remains immutable. */
-  character_skill_ids?: string[];
-  execution_plan?: AgentExecutionPlan;
-  /** The earlier round of this session whose unfinished step graph this Run continues, instead of a new graph. */
-  continues_step_board_of?: string;
-  /** Child directory grants frozen for this run; never a grant to write the parent. */
-  subagent_workspaces?: AgentSubagentWorkspace[];
-  /** Authoritative fixed Character content and source at start, never looked up for history. */
-  character?: AgentFrozenCharacter;
-  role_id: string;
-  role_version: number;
-  execution: AgentRoleExecution;
-  model_id: string;
-  /** Host-frozen context selection policy, absent when not wired for this runtime. */
-  compaction?: { prompt_id: string; version: number; above_tokens: number };
-  /**
-   * The window this Run was packed against (the model's own, capped by the runtime), and whether the provider's input
-   * count already includes cached prompt tokens. Absent on runs started before it was recorded.
-   */
-  model_context?: { window_tokens: number; prompt_includes_cache: boolean };
-  /** Present when this Run started from the Host's digest of earlier rounds instead of their verbatim history. */
-  history?: "digest";
-  /** Present when the model was asked to think before answering (the provider's setting when the Run started). */
-  thinking?: "adaptive";
-  /** The reasoning effort every model call of this Run was sent with; absent when none was chosen. */
-  reasoning_effort?: AgentReasoningEffort;
-  /**
-   * Exactly the prompts this Run was frozen with, layer included.
-   *
-   * The layer travels so a surface can show *who* said each part — product,
-   * Plugin role, or project. Without it the list is a flat set of ids that
-   * nobody can attribute, which is the state this used to be in.
-   */
-  prompts: Array<{ prompt_id: string; version: number; layer: AgentPromptLayer;
-    /** Present when the run used the person's edit of this prompt (its revision) instead of the default. */
-    user_revision?: number }>;
-  skills: AgentSkillDeclaration[];
-  mcp_tools: AgentMcpToolRef[];
-  mcp_sources?: AgentMcpSourceRef[];
-  host_tools: string[];
-  text_materials: Array<{ material_id: string; title?: string; source_artifact_id: string; source_version: number }>;
-  /** Images the model was shown in this Run (references only). */
-  image_materials?: Array<{ material_id: string; title: string; media_type: string }>;
-  budget: AgentRunBudget | null;
-}
-export type AgentFrozenStart = AgentFrozenStartFields & AgentWorkspace & ActionCallOrigin;
-
-interface AgentCreateSessionFields {
-  project_id: string;
-  plugin_id: string;
-  install_id: string;
-  actor_id: string;
-  title: string;
-}
-export type AgentCreateSessionInput = AgentCreateSessionFields & (
-  | { workspace?: "required"; directory: AgentWorkingDirectory; role_id?: string }
-  | { workspace: "none"; directory?: never; role_id: string }
-  | { workspace: "business"; directory?: never; role_id: string }
-);
-
-/**
- * The role as the Host froze it, taken from the Plugin's own declarations.
- *
- * An adapter receives this and never invents a prompt, a version or a wider
- * execution level: prompt bodies belong to the Plugin package, and the Host is
- * the only place allowed to decide what a Run is permitted to do.
- */
-export interface AgentFrozenSubagentRole {
-  role_id: string; version: number; name: string; execution: AgentRoleExecution;
-  prompts: AgentPromptText[]; host_tools: string[];
-}
-
-export interface AgentSubagentWorkspace {
-  workspace_id: string;
-  directory: AgentWorkingDirectory;
-}
-
-/**
- * An action the model proposes for the person to run with one click: the exact capability and prepared input, what
- * it does in plain words, and which fields the person may adjust or must still supply. A proposal runs nothing.
- */
-export interface AgentActionOffer {
-  /** The button's words, verb first ("加入计划（3 项）"). */
-  title: string;
-  /** What clicking does: to which object, with which key values, in the person's words. */
-  summary: string;
-  reference: ExactActionReference;
-  input: unknown;
-  /** Top-level input fields the person may change before running it. */
-  editable?: string[];
-  /** Fields still needed, each with the question to ask; the card cannot run until they are given. */
-  missing?: Array<{ field: string; question: string }>;
-}
-
-/**
- * Sub-tasks a business round hands to separate works of the same person and scope (the Host's delegation, where the
- * runtime has no sub-agents of its own). Each delegated work is a real work with its own session: its changes still
- * wait for the person's confirmation, and it cannot delegate further.
- */
-export interface AgentDelegatedWork {
-  work_id: string;
-  title: string;
-  /** The work's state: running, waiting-input/-review (on the person), completed, failed, stopped… */
-  state: string;
-  /** Its latest reply, shortened. */
-  reply?: string;
-  /** Objects it produced or changed, as their owners name them. */
-  results?: Array<{ kind: string; id: string; revision: string | null }>;
-  /** Follow-ups sent to it so far; the Host refuses more than the limit. */
-  follow_ups: number;
-  /** The person took this part back into the delegating work: it is finished there, not followed up here. */
-  taken_back?: boolean;
-  /** What the delegating round should make of this state, in words (set when the person took it back). */
-  note?: string;
-}
-export interface AgentDelegation {
-  /** `character`: one of the professional roles offered this round (its id); the sub-task then runs as exactly that role. */
-  start(input: { title: string; brief: string; acceptance: string; materials?: Array<{ title: string; text: string }>; character?: string }): Promise<AgentDelegatedWork>;
-  /** The delegated works (all, or the given ones), waiting up to `wait_ms` for them to finish or need the person. */
-  status(input: { work_ids?: string[]; wait_ms?: number }, signal?: AbortSignal): Promise<AgentDelegatedWork[]>;
-  /** Tell a delegated work what to fix or add (its next round); bounded per work. */
-  follow_up(workId: string, text: string): Promise<AgentDelegatedWork>;
-  stop(workId: string): Promise<AgentDelegatedWork>;
-}
-
-/**
- * A round's own memory tools (absent when forming memories is off everywhere the work could keep something). `remember` and `forget` rest on the person's own words and wishes, so a delegated work, whose only words are the delegating work's brief, gets neither.
- */
-export interface AgentMemoryTools {
-  /**
-   * Kept through the platform's write gate (specs/archive/memory-system §6.2); it throws with the reason when nothing was kept
-   * (switched off, secret-shaped, held for the person). It is recorded as the person's own words (“you said”) only when `text` is the whole of one message they typed in this work, as the Host saved it, apart from case, width, spacing, quotation-mark style and one sentence mark at the very end (nothing else: a superscript, a ligature or an invisible character is not a space or the plain form). A paraphrase, a part of a message, words of two messages joined, a project's name put in: not theirs. It is left as the Assistant's suggestion for them to accept, and this throws. The judgement is against the saved message, never against `said`, which is only a pointer, and what is kept is the saved message as they wrote it, not the text given here. `note` says it was already kept.
-   */
-  remember?(input: { text: string; scope: "personal" | "project" | "character"; said: string; kind?: "preference" | "convention" | "fact" | "experience"; replaces?: string }): Promise<{ memory_id: string; scope: "personal" | "project" | "character"; applies: string; note?: string }>;
-  list(): Promise<Array<{ memory_id: string; scope: "personal" | "project" | "character"; text: string; origin: string }>>;
-  /** Switches one off (not a delete: the person can switch it on again or delete it in settings), as the Assistant's change. */
-  forget?(memoryId: string): Promise<{ forgotten: boolean; note?: string }>;
-  /** Suggest keeping something the person did not ask for: a candidate only, until they accept it. Absent: this round may not suggest. */
-  propose?(input: { text: string; scope: "personal" | "project"; why: string; applies: string }): Promise<{ candidate_id: string; note: string }>;
-}
-
-export interface AgentActionClient {
-  discover(): Promise<readonly ActionView[]>;
-  /** Delegate sub-tasks to separate works (see AgentDelegation). Absent: this round cannot delegate. */
-  delegate?: AgentDelegation;
-  /** Remember, list and forget for the person (see AgentMemoryTools). Absent: this round forms no memories. */
-  memory?: AgentMemoryTools;
-  /** Record a proposal for the person; validated against the current capability. Absent: this caller takes none. */
-  offer?(offer: AgentActionOffer): Promise<{ offer_id: string }>;
-  /** Validate an input exactly as dispatch will, running nothing; throws the contract's own error. */
-  check?(reference: ExactActionReference, input: unknown): Promise<void>;
-  /**
-   * Whether this change may run without the person's confirmation: it declares how it is undone, its undo is offered
-   * now, and the person has not set it to confirm each time. Absent: every change is confirmed.
-   */
-  direct?(view: ActionView): boolean;
-  invoke(reference: ExactActionReference, input: unknown, signal?: AbortSignal): Promise<unknown>;
-}
-
-export interface AgentFrozenRole {
-  /** Trusted Host composition only: the memories this run is given (from the platform memory's recall for its consumer). */
-  memory?: AgentRecalledMemory;
-  workspace?: "required" | "none" | "business";
-  /** Trusted Host composition only. `operate` lets the gateway request changes; reads are always allowed. */
-  action_gateway?: { client: AgentActionClient; operate: boolean };
-  /** Trusted Host composition only. Never serialized into run history. */
-  actions?: { tools: ActionView[]; client: AgentActionClient };
-  character_skill_ids?: string[];
-  subagent_workspaces?: AgentSubagentWorkspace[];
-  subagents?: AgentFrozenSubagentRole[];
-  character?: AgentFrozenCharacter;
-  role_id: string;
-  version: number;
-  execution: AgentRoleExecution;
-  /** Separate selection prompt: never composed into the executing role. */
-  compaction?: { prompt: AgentPromptText; above_tokens: number };
-  /** Prompt bodies in composition order. */
-  prompts: AgentPromptText[];
-  /** Exact method bodies resolved by the Host, never accepted from the request. */
-  skills?: AgentSkillDefinition[];
-  /** Host tool names this role may call. */
-  host_tools: string[];
-}
-
-interface AgentStartRequestFields {
-  action_tools?: ExactActionReference[];
-  /**
-   * Business roles only: instead of one tool per action, the Host's gateway — find the actions in scope, run a read,
-   * or request a change (held for review). The directory is read at every call, so installing, upgrading or switching
-   * off an action takes effect at once. Exclusive with `action_tools`.
-   */
-  action_gateway?: boolean;
-  /** Explicit subset of the selected Character's imported Skills. Empty uses rules only. */
-  character_skill_ids?: string[];
-  execution_plan?: AgentExecutionPlan;
-  /**
-   * Continue the unfinished step graph of this earlier round in the same session. The plan must be exactly the
-   * one that round was frozen with; a person's inserted and skipped steps carry over because the graph does.
-   */
-  continue_step_board_of?: string;
-  /** The project work item this round waited as (see queueProjectRound); the round takes it over when it starts. */
-  queued_work_id?: string;
-  /** The supplements waiting in this session that the round takes (agent-inputs); none when absent, unless the session says `auto`. */ queued?: import("./agent-inputs.js").AgentQueuedInputs;
-  /** The session's name as the person sees it, for the project's list of work under way. */
-  session_title?: string;
-  /**
-   * `false`: this round gets no side panel browser even where its project has one (specs/archive/side-panel) — e.g. a delegated
-   * work running beside its parent. Absent: a business round in a project with a browser may use it.
-   */
-  browser?: false;
-  /**
-   * How earlier rounds of the session reach this one. Absent or `session` carries every earlier round verbatim, tool
-   * output included. `digest` starts without that raw history: the task itself carries the caller's digest of earlier
-   * rounds, which is how a long session keeps working once its history no longer fits the model's window.
-   */
-  history?: "session" | "digest";
-  /** Selected child roots; the Host must independently verify every directory grant. */
-  subagent_workspaces?: AgentSubagentWorkspace[];
-  /** Only a reference is accepted from the caller; the Host resolves its immutable content. */
-  character?: ArtifactReference | null;
-  session: AgentSessionRef;
-  project_id: string;
-  plugin_id: string;
-  install_id: string;
-  actor_id: string;
-  /** The user's instruction for this Run. */
-  task: string;
-  role_id: string;
-  /** A configured provider/model selected for this run, resolved by the Host. */
-  model_selection?: { provider_id: string; model_id: string };
-  /** Refused unless the selected model is marked as taking a reasoning effort. */
-  reasoning_effort?: AgentReasoningEffort;
-  /**
-   * Filled in by the Host before the adapter is called. Absent only on a direct
-   * adapter call, which an adapter must refuse rather than guess around.
-   */
-  role?: AgentFrozenRole;
-  text_materials?: AgentTextMaterial[];
-  /** Images for the model to see in this Run; refused when the selected model is marked as not seeing images. */
-  image_materials?: AgentImageMaterial[];
-  skills?: AgentSkillRef[];
-  mcp_tools?: AgentMcpToolRef[];
-  mcp_sources?: AgentMcpSourceRef[];
-  budget?: AgentRunBudget;
-}
-export type AgentStartRequest = AgentStartRequestFields & AgentWorkspace;
-
-export interface AgentRunHandle {
-  ref: AgentRunRef;
-  frozen: AgentFrozenStart;
-}
-
-export type AgentRunControl =
-  | { kind: "pause" }
-  | { kind: "resume" }
-  | { kind: "stop" }
-  | { kind: "cancel" }
-  /**
-   * Send this Run's later model calls to another configured model, from its next model call. History, tools,
-   * permissions and budget stay as they are; refused when the model cannot carry what the Run was started with.
-   */
-  | { kind: "switch-model"; provider_id: string; model_id: string }
-  /**
-   * Answer one question the Run is stopped on.
-   *
-   * Deliberately not `steer`: an answer is addressed to a specific pending
-   * question and closes it. Sending it as a free instruction would leave the
-   * question open while the Run reads the text as unrelated guidance.
-   */
-  | AgentAnswerControl;
-
-export type AgentTurnKind = "user" | "assistant" | "system" | "notice";
-
-export interface AgentTurnView {
-  turn_id: string;
-  kind: AgentTurnKind;
-  text: string;
-  /** Observation time; null when the original replay has no recorded time. */
-  at: string | null;
-  /** Relative presentation order within this Run, reconstructed from its events. */
-  sequence?: number;
-  /** Run-owned supplemental input, from the run's ledger: applied is context inclusion; read is a kept reply made with it, not compliance; unread is the round ending before that. */
-  steer?: { id: string; state: "received" | "applied" | "read" | "unread" | "withdrawn" };
-}
-
-export type AgentToolActivityState = "started" | "completed" | "failed" | "unknown";
-
-export interface AgentToolActivity {
-  call_id: string;
-  name: string;
-  /** Safe target summary (path, command, query). Never raw credentials. */
-  target: string;
-  state: AgentToolActivityState;
-  summary: string;
-  /** Bounded execution evidence, shown only when the user expands the activity. */
-  output?: string;
-  output_truncated?: boolean;
-  /** On a display copy only: lines of output left out because the surface never shows them. */
-  output_hidden_lines?: number;
-  /** Last observation time; null when absent from the original replay. */
-  at: string | null;
-  /** Position of the original call; a result updates it without moving it. */
-  sequence?: number;
-}
-
-export interface AgentTokenCount {
-  input: number;
-  output: number;
-  cached_input?: number;
-  cache_creation?: number;
-  reasoning?: number;
-}
-
-/** Partial values are known subtotals; estimated values are not provider bills. */
-export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
-
-export interface AgentRunUsage {
-  /** These totals include attributed calls; incomplete operations may lack final receipts. */
-  compaction?: { recorded_calls: number; incomplete: boolean };
-  tokens: AgentTokenCount;
-  cost_usd?: number;
-  /** Per-field provenance; absent when the runtime reports none. Unknown numeric placeholders must not be displayed. */
-  coverage?: Record<"input" | "output" | "cached_input" | "cache_creation" | "cost_usd", AgentUsageCoverage>;
-  /** Missing, interrupted or estimated scope; known subtotals remain readable with this warning. */
-  unavailable_reason?: string;
-  /**
-   * How much of the model's window the latest main call used: its whole prompt as the provider counted it (cached
-   * parts included). Absent until a call is recorded; compaction calls never count.
-   */
-  context?: { tokens: number; coverage: AgentUsageCoverage };
-}
-
-export interface AgentCommandOutputRef {
-  call_id: string;
-  /** The run that produced it: a call id is only unique within its run. */
-  run_id: string;
-}
-
-export interface AgentCommandOutput {
-  ref: AgentCommandOutputRef;
-  command: string;
-  exit_code: number | null;
-  stdout: string;
-  stderr: string;
-  truncated: boolean;
-  timed_out?: boolean;
-  cancelled?: boolean;
-  stop_reason?: "cancelled" | "timed-out";
-}
-
-/** One step of a Run's own list, as the runtime keeps it. */
-export interface AgentTodoItem {
-  id: string;
-  text: string;
-  state: "pending" | "in-progress" | "done" | "abandoned";
-}
-
-export interface AgentRunView {
-  step_board?: AgentStepBoard;
-  step_board_error?: string;
-  ref: AgentRunRef;
-  phase: AgentRunPhase;
-  frozen: AgentFrozenStart;
-  turns: AgentTurnView[];
-  activity: AgentToolActivity[];
-  /** References to durable command facts, not inferred from assistant text. */
-  command_outputs?: AgentCommandOutputRef[];
-  usage: AgentRunUsage;
-  /**
-   * Questions this Run is stopped on. Empty while it is running.
-   *
-   * The phase alone was not enough: a surface could see `awaiting-input` but
-   * had no way to show what was being asked, so the Run stalled with the user
-   * unable to act.
-   */
-  awaiting_input: readonly AgentPendingQuestion[];
-  /** Content-free reason when the Run stopped, failed or needs reconciliation. */
-  stop_reason?: string;
-  /** What the Run took from memory at its start (references only), when it was given memory. */
-  memory_recalled?: AgentMemoryRecallFact;
-  /** The steps this Run keeps for itself (the runtime's todo list), the latest list as a whole; absent when it keeps none. */
-  todo?: readonly AgentTodoItem[];
-  /**
-   * Files this Run really wrote, turn by turn, as the runtime computed them from its write receipts (never from what
-   * the model said). A turn that only read has no entry. Absent until a turn writes.
-   */
-  turn_changes?: readonly AgentTurnChanges[];
-  /**
-   * Present while the Run sleeps on its own until this time and then goes on by itself. It stays `running`: stop and
-   * cancel act at once, an added instruction waits for it to wake. The wait counts against its time budget.
-   */
-  sleeping_until?: string;
-  /**
-   * The person switched this Run's model: `now` is where its calls go since (`frozen.model_id` stays the start), and
-   * `requested` one asked for that takes effect at the next model call. Context tidying keeps the start model.
-   */
-  model_switch?: { now?: string; requested?: string };
-  started_at: string;
-  ended_at: string | null;
-}
-
-/** What one turn of a Run wrote: each file's size, the SHA-256 of its bytes on disk, and the checkpoint before it. */
-export interface AgentTurnChanges {
-  /** The runtime's turn number within the Run, from 0. */
-  turn: number;
-  /** Position among this Run's visible entries. */
-  sequence: number;
-  at: string | null;
-  files: ReadonlyArray<{ path: string; byte_length: number; digest: string; checkpoint_id: string }>;
-}
-
-export interface AgentSessionView {
-  /** Immutable session mode; missing historical values mean required. */
-  workspace?: "required" | "none" | "business";
-  /** A manual rewind is in progress or has an unresolved execution outcome. */
-  checkpoint_busy?: boolean;
-  /** Persisted work exists but is not safe to continue automatically. */
-  recovery?: { required: true; reason: string };
-  owner: Pick<AgentCreateSessionInput, "project_id" | "plugin_id" | "install_id" | "actor_id">;
-  session: AgentSessionRef;
-  title: string;
-  runs: AgentRunRef[];
-  latest_run: AgentRunView | null;
-}
-
-/** Where a session stands, without its rounds: enough for a directory of many sessions. */
-export interface AgentSessionStatus {
-  session_id: string;
-  /** The latest round's phase; null before the first round. */
-  latest_phase: AgentRunPhase | null;
-  /** Persisted work exists but is not safe to continue automatically. */
-  recovery: boolean;
-  checkpoint_busy: boolean;
-  /** Unfinished steps on the session's latest unfinished plan graph, by who holds them; absent when there are none. */
-  steps?: { mine: number; subtasks: number; unowned: number };
-}
-
-export type AgentReviewKind = "text-edit" | "command" | "tool-operation" | "mcp" | "rewind" | "git-index" | "git-integration";
-
-export interface AgentTextReviewDocument {
-  kind: "text-edit";
-  /** Actual child root, when this proposal comes from an isolated subtask. */
-  workspace_path?: string;
-  target_path: string;
-  exists: boolean;
-  before_text: string | null;
-  after_text: string;
-  /** Other sessions whose work under way in the same directory covers this file, as the proposal was made. */
-  concurrent?: string[];
-}
-
-export interface AgentCommandReviewDocument {
-  kind: "command";
-  /** Authorized root; cwd may be relative to it. */
-  workspace_path?: string;
-  command: string;
-  args: string[];
-  cwd: string;
-  timeout_ms: number;
-  env_allowlist?: string[];
-  escalate?: boolean;
-  /**
-   * Access this one command names beyond the Host boundary: extra paths (absolute) and the network. The person approves
-   * exactly this, for this command only; it is never remembered for the session. The command still runs as itself:
-   * a Host without operating-system isolation enforces none of it, so it is shown as asked, not as confined.
-   */
-  grants?: AgentCommandGrants;
-  /** Started in the background: the round does not wait for it. */
-  background?: boolean;
-  /** A background command that keeps running after the round ends, until it ends or is stopped. */
-  outlives_run?: boolean;
-}
-
-export interface AgentCommandGrants {
-  paths: ReadonlyArray<{ path: string; access: "read" | "write" }>;
-  network: boolean;
-}
-
-export interface AgentToolOperationReviewDocument {
-  kind: "tool-operation";
-  tool: string;
-  summary: string;
-  fields: Array<{ label: string; value: string }>;
-  /** Reversible desktop action not yet allowed this round; the card may offer allowing that app (specs/computer-use D06). */
-  round_allow?: { app: string; label: string };
-}
-
-export interface AgentMcpReviewDocument {
-  kind: "mcp";
-  server: string;
-  tool: string;
-  arguments_json: string;
-}
-
-export interface AgentRewindReviewDocument {
-  kind: "rewind";
-  checkpoint_id: string;
-  files: Array<{ path: string; change: "restore" | "delete" | "create"; before_text: string | null; after_text: string | null }>;
-}
-export interface AgentGitIndexReviewDocument {
-  kind: "git-index";
-  action: "stage" | "unstage";
-  workspace_name: string;
-  files: Array<{ path: string; before_text: string | null; after_text: string | null; before_mode: "100644" | "100755" | null; after_mode: "100644" | "100755" | null }>;
-}
-
-export interface AgentGitIntegrationReviewDocument {
-  kind: "git-integration";
-  source: { session_id: string; run_id: string; subagent_id: string; branch: string; base_commit: string; directory: string };
-  target_directory: string;
-  files: AgentGitIndexReviewDocument["files"];
-}
-
-export type AgentReviewDocument =
-  | AgentTextReviewDocument
-  | AgentCommandReviewDocument
-  | AgentToolOperationReviewDocument
-  | AgentMcpReviewDocument
-  | AgentGitIndexReviewDocument
-  | AgentGitIntegrationReviewDocument
-  | AgentRewindReviewDocument;
-
-export type AgentReviewStatus = "pending" | "approved" | "rejected" | "cancelled" | "expired";
-
-export interface AgentReviewRequest {
-  review_id: string;
-  /** Null for a manual operation; never fabricate an Agent Run. */
-  run: AgentRunRef | null;
-  operation?: { operation_id: string; session_id: string; kind: "checkpoint-rewind"; workspace_id?: never }
-    | { operation_id: string; workspace_id: string; kind: "git-index" | "git-worktree" | "git-integration" | "git-operation"; session_id?: never };
-  project_id: string;
-  plugin_id: string;
-  kind: AgentReviewKind;
-  document: AgentReviewDocument;
-  requested_at: string;
-  expires_at: string | null;
-}
-
-export interface AgentReviewDecisionInput {
-  review_id: string;
-  decision: "approve" | "reject";
-  actor_id: string;
-  note?: string;
-  /** "session" repeats one in-boundary command; "app-this-round" allows that desktop app until the run ends (specs/computer-use D06). */
-  remember?: "session" | "app-this-round";
-}
-
-export interface AgentReviewReceipt {
-  review_id: string;
-  status: AgentReviewStatus;
-  decided_by: string | null;
-  decided_at: string | null;
-  note: string | null;
-  /** True once the approved effect really happened and the Runtime returned a receipt. */
-  effect_settled: boolean;
-  effect_error: string | null;
-  /** The effect owner cannot yet determine what happened; never safe to retry automatically. */
-  effect_uncertain?: string;
-  /** Host recorded a decision, but the execution owner did not confirm receiving it. */
-  delivery_error?: string;
-  /** Human evidence, projected only after the execution owner has settled the original effect. */
-  reconciliation?: { actor_id: string; at: string; reason: string };
-  /** Approved by a person's earlier "allow this command for this session", not by a new click. */
-  standing_rule?: { set_by: string; set_at: string };
-}
-
-export interface AgentGitIndexObservation {
-  revision: string;
-  observed_at: string;
-  files: Array<{ path: string; text: string | null; mode: "100644" | "100755" | null }>;
-  matches_before: boolean;
-  matches_after: boolean;
-}
-
-export interface AgentReviewRecoveryView {
-  review_id: string;
-  receipt: AgentReviewReceipt;
-  observation: AgentGitIndexObservation | null;
-  can_confirm_not_happened: boolean;
-  message: string;
-}
-
-export interface AgentReviewRecoveryInput {
-  review_id: string;
-  action: "refresh" | "not-happened";
-  actor_id: string;
-  revision?: string;
-  reason?: string;
-}
-
-/**
- * Host-owned approval queue. A Plugin can observe and present it, but only the
- * Host records a decision, and only a recorded approval releases an effect.
- */
-export interface AgentReviewQueueApi {
-  list(projectId: string, status?: AgentReviewStatus): AgentReviewRequest[];
-  get(reviewId: string): AgentReviewRequest | null;
-  decide(input: AgentReviewDecisionInput): AgentReviewReceipt;
-  receipt(reviewId: string): AgentReviewReceipt | null;
-  observe(listener: (request: AgentReviewRequest) => void): () => void;
-}
-
-export interface AgentCheckpoint {
-  checkpoint_id: string;
-  origin_run_id?: string;
-  paths?: string[];
-  directory?: AgentWorkingDirectory;
-  session_id: string;
-  label: string;
-  created_at: string;
-  /** When a reviewed rewind to this checkpoint last took effect, if one has; the files may have changed since. */
-  rewound_at?: string;
-}
-
-export interface AgentCheckpointsCapability {
-  busy?(session: AgentSessionRef): boolean;
-  list(session: AgentSessionRef): Promise<AgentCheckpoint[]>;
-  prepareRewind(session: AgentSessionRef, checkpointId: string): Promise<AgentReviewRequest>;
-}
-
-export interface AgentSkillCatalogEntry extends AgentSkillDeclaration {
-  source: "builtin" | "installed";
-  enabled: boolean;
-}
-
-export interface AgentSkillOwner { project_id: string; plugin_id: string }
-export interface AgentSkillCandidate {
-  candidate_id: string;
-  name: string;
-  summary: string;
-  source_label: string;
-  files: string[];
-  body: string;
-}
-export interface AgentSkillLibrary {
-  list(owner: AgentSkillOwner): Promise<AgentSkillCatalogEntry[]>;
-  read(owner: AgentSkillOwner, ref: AgentSkillRef): Promise<AgentSkillDefinition>;
-  discover(owner: AgentSkillOwner, directory: AgentWorkingDirectory, path: string): Promise<AgentSkillCandidate[]>;
-  install(owner: AgentSkillOwner, candidateId: string): Promise<AgentSkillCatalogEntry>;
-}
-
-export interface AgentSkillsCapability {
-  catalog(session: AgentSessionRef): Promise<AgentSkillCatalogEntry[]>;
-}
-
-export interface AgentMcpServerHealth {
-  server: string;
-  status: "ready" | "failed" | "unknown";
-}
-
-export interface AgentMcpServerInput {
-  id?: string;
-  expected_version: number;
-  label: string;
-  enabled: boolean;
-  timeout_ms: number;
-  transport: "stdio" | "http";
-  directory?: AgentWorkingDirectory;
-  executable?: string;
-  argv?: string[];
-  endpoint?: string;
-  auth?: { kind: "none" | "keep-existing" | "replace-secret" | "connection"; secret?: string; connection_id?: string };
-}
-export interface AgentMcpServerView {
-  id: string; version: number; label: string; enabled: boolean;
-  transport: "stdio" | "http"; timeout_ms: number;
-  directory?: AgentWorkingDirectory; executable?: string; argv?: string[]; endpoint?: string;
-  credential: "none" | "present";
-  auth_connection_id?: string;
-  health: "connected" | "disconnected" | "unavailable" | "not-reattached";
-  busy?: string; error?: string;
-  tools: Array<AgentMcpToolRef & { description: string }>;
-  resources: string[];
-}
-export interface AgentMcpLibrary {
-  list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
-  save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-  control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
-  validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
-  validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
-  /** Connected tools with the input shape the server declared, for the shared action directory. */
-  tools?(owner: AgentSkillOwner): Promise<AgentMcpToolDescriptor[]>;
-  /** Whether this exact tool version is callable right now (connected, same configuration and shape). Synchronous. */
-  live?(ref: AgentMcpToolRef): boolean;
-  /** One call outside an Agent run. Recheck Host authority after asynchronous preparation and at the runtime's dispatch gate. */
-  call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: { signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }): Promise<AgentMcpCallResult>;
-}
-export interface AgentMcpToolDescriptor extends Required<Pick<AgentMcpToolRef, "server" | "tool" | "version" | "configuration_version" | "server_label">> {
-  description: string;
-  input_schema: Record<string, unknown>;
-}
-/** What the external tool returned; untrusted data, never instructions. */
-export interface AgentMcpCallResult { text: string; truncated: boolean }
-
-export interface AgentMcpCapability {
-  catalog(session: AgentSessionRef): Promise<{
-    servers: AgentMcpServerHealth[];
-    tools: AgentMcpToolRef[];
-  }>;
-}
-
-export type AgentSubagentState = "running" | "completed" | "failed" | "cancelled" | "reconcile-required";
-
-export interface AgentSubagentView {
-  child_run?: AgentRunRef;
-  activity?: AgentToolActivity[];
-  usage?: AgentRunUsage;
-  host_tools?: string[];
-  error?: string;
-  subagent_id: string;
-  parent_run: AgentRunRef;
-  role_id: string;
-  /** Name frozen at dispatch, unaffected by later role edits. */
-  role_name?: string;
-  task: string;
-  state: AgentSubagentState;
-  result: string | null;
-  workspace_path: string | null;
-}
-
-export interface AgentSubagentsCapability {
-  /** Distinct child roots and their review/recovery bridge are actually wired. */
-  workspaces?: true;
-  list(run: AgentRunRef): Promise<AgentSubagentView[]>;
-  cancel(run: AgentRunRef, subagentId: string, actorId: string): Promise<void>;
-}
-
-/**
- * One Agent Runtime. An adapter reports facts and executes approved work; it
- * never owns approval, business meaning or durable product state.
- */
-export interface AgentRecoveryReport {
-  session_id: string; blockers: string[];
-  inputs?: import("./agent-inputs.js").AgentQueuedInput[];
-  runs: Array<{
-    run_id: string;
-    version: number;
-    live: boolean;
-    waiting: number;
-    can_close: boolean;
-    blockers: string[];
-    operations: Array<{ effect_id: string; kind: string; summary: string; outcome: "completed" | "failed" | "not-dispatched" | "unknown" }>;
-    /** The interrupted round belongs to this subtask of the session; closing it settles the subtask. */
-    subagent?: { subagent_id: string };
-  }>;
-}
-
-/** Inspect authoritative receipts; closing records an interruption and never replays work. */
-/** Timed work the runtime keeps across restarts: the Host names what to do; its runner does it when due. */
-export interface AgentScheduledTask {
-  task_id: string;
-  /** Idempotency: the same key scheduled twice is one task. */
-  key: string;
-  session_id: string;
-  kind: string;
-  payload: Record<string, unknown>;
-  due_at: string;
-  state: "queued" | "running" | "done" | "failed" | "reconcile-required" | "cancelled";
-  attempts: number;
-  runs: number;
-  last_failure?: string;
-}
-
-/** The runtime's durable local queue (Prologue `LocalQueue`), not a timer of the Host's own. */
-export interface AgentScheduleCapability {
-  /** Whether queued work still runs with the window closed, and why — from the Host's own handshake. */
-  claim(): { survives_window_close: boolean; why: string };
-  enqueue(input: { key: string; session_id: string; kind: string; payload: Record<string, unknown>; due_at: string; max_attempts?: number }): Promise<AgentScheduledTask>;
-  /** Cancels a task not yet started; null when there is none under that key. A running one cannot be cancelled. */
-  cancel(key: string): Promise<AgentScheduledTask | null>;
-  find(key: string): AgentScheduledTask | null;
-  list(kind?: string): AgentScheduledTask[];
-  /** The one runner for a kind. Tasks that fall due before it attaches wait for it (briefly), then count a failed attempt. */
-  handle(kind: string, run: (task: AgentScheduledTask) => Promise<void>): () => void;
-}
-
-export interface AgentRecoveryCapability {
-  inspect(session: AgentSessionRef): Promise<AgentRecoveryReport>;
-  close(session: AgentSessionRef, runId: string, expectedVersion: number): Promise<AgentRecoveryReport>;
-}
-
-
-/**
- * What a Runtime says about itself, for developers: how it was assembled, what the machine gives it, and what it could
- * not write down. Read from the Runtime's own receipts, never inferred; nothing here is a person's content.
- */
-export interface AgentRuntimeDiagnostics {
-  app: { app_id: string; app_version: string };
-  state: "starting" | "ready" | "failed" | "stopped";
-  /** The assembly every run froze: the same inputs resolve to the same fingerprint. */
-  fingerprint: string;
-  slots: Array<{ slot: string; state: "ready" | "disabled" | "unavailable"; implementation: string | null; version: string | null;
-    /** Why a slot is not ready, in the Runtime's words. */
-    why: string | null; fallback: boolean }>;
-  /** What the app asked of the machine, what it really has, and every capability that is not simply present. */
-  host: { requested: string[]; effective: string[]; not_present: Array<{ capability: string; state: string }> };
-  /** Terminal records the Runtime could not keep: runs listed here would not replay after a restart. Empty is good news. */
-  ledger_failures: Array<{ kind: string; seq: number; code: string | null; detail: string | null }>;
-}
-
-export interface AgentRuntimeAdapter {
-  /** Trusted Host commit scope through the runtime's asynchronous preparation; never an Agent payload. */
-  withEffect?<T>(control: AgentMemoryExecutionControl, operation: () => Promise<T>): Promise<T>;
-  /** The Runtime's own account of its assembly, for the developer diagnostics page; absent when it keeps none. */
-  diagnostics?(): AgentRuntimeDiagnostics;
-  readonly recovery?: AgentRecoveryCapability;
-  readonly schedule?: AgentScheduleCapability;
-  readonly memory?: AgentMemoryCapability;
-  readonly documents?: AgentDocumentCapability;
-  readonly descriptor: AgentRuntimeDescriptor;
-  health(): Promise<AgentRuntimeHealth>;
-  createSession(input: AgentCreateSessionInput, execution?: AgentStartExecution): Promise<AgentSessionRef>;
-  readSession(session: AgentSessionRef): Promise<AgentSessionView>;
-  /** The session's standing without copying its rounds; a Runtime without it is read through readSession. */
-  readSessionStatus?(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }>;
-  /** The project's work under way, when this Runtime keeps it. */
-  readonly projectWork?: AgentProjectWorkCapability;
-  /** Messages between the project's sessions, when this Runtime carries them. */
-  readonly messages?: AgentSessionMessagesCapability;
-  /** What the project's sessions wait for and how they go on, when this Runtime keeps a task graph. */
-  readonly collaboration?: AgentCollaborationPort;
-  /** Supplements to a round, with what became of each (agent-inputs). */ readonly inputs?: import("./agent-inputs.js").AgentInputsPort;
-  /** Background commands of the project's sessions. */
-  readonly background?: AgentBackgroundCapability;
-  start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle>;
-  read(run: AgentRunRef): Promise<AgentRunView>;
-  observe(run: AgentRunRef, listener: (view: AgentRunView) => void): () => void;
-  control(run: AgentRunRef, control: AgentRunControl): Promise<void>;
-  readCommandOutput(
-    session: AgentSessionRef,
-    ref: AgentCommandOutputRef,
-  ): Promise<AgentCommandOutput>;
-  readonly checkpoints?: AgentCheckpointsCapability;
-  readonly skills?: AgentSkillsCapability;
-  readonly skillLibrary?: AgentSkillLibrary;
-  readonly mcpLibrary?: AgentMcpLibrary;
-  readonly mcp?: AgentMcpCapability;
-  readonly subagents?: AgentSubagentsCapability;
-  /** Adjust a running plan's step graph on behalf of a person. Absent when the Runtime has no step graphs. */
-  amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
-}
 
 /**
  * Every failure the Agent Host and its adapters can report.
@@ -1299,6 +211,7 @@ export interface AgentDraftTextRequest {
   material: string;
   model_selection?: { provider_id: string; model_id: string };
 }
+
 export interface AgentDraftTextResult {
   text: string;
   /** Tokens the call used, when the provider reported them. */
@@ -1336,10 +249,6 @@ export const agentHostCapabilities = {
   cancelSubagent: {
     capability_id: "agent.subagents.cancel.v1", version: 1, operation: "command",
   } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>,
-  /** A person adjusts the running plan's step graph; the version guards against a concurrent change. */
-  amendStepBoard: {
-    capability_id: "agent.run.step-board.amend.v1", version: 1, operation: "command",
-  } as HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>,
   readSession: {
     capability_id: "agent.session.read.v1",
     version: 1,
@@ -1510,66 +419,3 @@ export const agentHostCapabilities = {
 
 export type AgentHostCapabilityId =
   (typeof agentHostCapabilities)[keyof typeof agentHostCapabilities]["capability_id"];
-
-/** Dedicated generated-plugin authoring port; implementations remain in Agent Host. */
-export interface BuilderAgentActivity {
-  type: 'file' | 'check' | 'tool';
-  name: string;
-  detail: string;
-  path?: string;
-}
-/** A Skill a builder run mounts through Prologue: an exact version, inlined once for the run. */
-export interface BuilderSkill { id: string; version: number; name: string; body: string }
-export interface BuilderAgentRequest {
-  role: 'designer' | 'coder';
-  instruction: string;
-  promptVersion: string;
-  /** The standard this stage works to (the plugin development Skill), mounted through Prologue's Skill registry. */
-  skills?: readonly BuilderSkill[];
-  task: string;
-  contractRevision: string;
-  /** Host-owned PNG previews, sent through the same Runtime as text. Never logged as base64. */
-  images?: readonly { label: string; bytes: Uint8Array }[];
-  operationIds?: readonly string[];
-  /** When set, the only files (relative to the build directory) this code run may write: its own operation's, while others are written alongside it. */
-  writable?: readonly string[];
-  signal?: AbortSignal;
-  checks?(operationIds: readonly string[], signal: AbortSignal): Promise<unknown>;
-  onActivity?(activity: BuilderAgentActivity): void;
-}
-export interface BuilderAgentRecord {
-  id: string;
-  /** Older tool-free model-call records remain readable; new calls use the shared inference port. */
-  role: BuilderAgentRequest['role'] | 'model';
-  promptVersion: string;
-  contractRevision: string;
-  instruction: string;
-  input: string;
-  output: string;
-  configuredModel: string;
-  /** Empty means the provider did not report its actual model; never substitute the requested model. */
-  reportedModels: string[];
-  sessionId?: string;
-  runId?: string;
-  phase: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted';
-  startedAt: string;
-  finishedAt?: string;
-  error?: string;
-  activity: BuilderAgentActivity[];
-  usage: unknown[];
-}
-
-/** Serializable execution facts from the shared inference service; absent counts remain unknown. */
-export interface BoundedInferenceReceipt {
-  readonly run_ref: { readonly kind: "run"; readonly id: string; readonly revision: number };
-  readonly state: "completed" | "failed" | "cancelled" | "tripped" | "circuit-tripped";
-  readonly configuredModel: string;
-  readonly reportedModels: readonly string[];
-  readonly usage: readonly {
-    readonly input: InferenceTokenCount; readonly output: InferenceTokenCount;
-    readonly cacheRead: InferenceTokenCount; readonly cacheWrite: InferenceTokenCount;
-    readonly cost: { readonly source: InferenceUsageSource; readonly amount?: number; readonly currency?: string };
-  }[];
-}
-export type InferenceUsageSource = "reported" | "estimated" | "unknown";
-export interface InferenceTokenCount { readonly source: InferenceUsageSource; readonly tokens?: number }

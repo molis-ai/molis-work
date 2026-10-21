@@ -81,10 +81,11 @@ test("Send keeps uncoded and owner failures correctly, overrides a forged work, 
   const agent = home.host.ensureAgentService(home.home, () => { throw new Error("the served Host already owns its Agent service"); });
   await agent.ready;
   const db = new DatabaseSync(":memory:");
+  let service: AssistantService | undefined;
   try {
     const store = new AssistantStore(db);
     let fault: unknown = new Error("decoder lost its resource");
-    const service = new AssistantService(store, { host: async () => { if (fault) throw fault; return agent.agentHost; },
+    service = new AssistantService(store, { pages: async () => ["home"], host: async () => { if (fault) throw fault; return agent.agentHost; },
       authority: async work => assistantAuthority(home.host, work, () => new Set()) }, LOCAL_PERSON_ACTOR_ID);
     const input = { text: "保留我发送的原话", request_id: "g3-send-recovery-001" };
     await assert.rejects(service.send(input, {}), error => {
@@ -113,7 +114,7 @@ test("Send keeps uncoded and owner failures correctly, overrides a forged work, 
     const done = await service.read(work.work_id); assert.equal(done.work.state, "completed");
     assert.equal(done.work.draft, ""); assert.deepEqual(done.rounds.map(round => round.text), [input.text]);
     assert.equal(store.list(LOCAL_PERSON_ACTOR_ID).length, 1, "failed Send and retry did not create another work");
-  } finally { db.close(); }
+  } finally { service?.continuations.close(); db.close(); }
 });
 
 // W3-02-G3-02: the real public memoryTools seam, with a Prologue-backed store and the owner's switches/limit.
@@ -123,10 +124,11 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
   await agent.ready;
   const ledger = openMemoryLedger({ homeDirectory: join(home.home, "tool-ledger") });
   const db = new DatabaseSync(":memory:");
+  let service: AssistantService | undefined;
   try {
     const memory = new MemoryService({ backend: prologueMemoryBackend(async () => agent.agentHost.adapter("prologue").memory!), ledger });
     const store = new AssistantStore(db);
-    const service = new AssistantService(store, { host: async () => agent.agentHost,
+    service = new AssistantService(store, { pages: async () => ["home"], host: async () => agent.agentHost,
       authority: async work => assistantAuthority(home.host, work, () => new Set()), memory: () => memory }, LOCAL_PERSON_ACTOR_ID);
     const project = await home.createProject("记忆错误分类");
     const work = store.create({ actor_id: LOCAL_PERSON_ACTOR_ID, title: "写周报", scope: { kind: "project", project_id: project.project_id }, origin: null, project_ref: project.reference });
@@ -144,5 +146,5 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
     assert.deepEqual(await memory.candidates(person), before);
     assert.deepEqual((await memory.list(person)).items, [], "candidates remain proposals, never remembered facts");
     assert.deepEqual(await tools.forget!("not-kept"), { forgotten: false }, "a missing memory is still harmless to forget");
-  } finally { try { db.close(); } finally { ledger.close(); } }
+  } finally { service?.continuations.close(); try { db.close(); } finally { ledger.close(); } }
 });

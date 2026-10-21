@@ -4,13 +4,13 @@ import {
 
 /**
  * What Goals offers for part of anything the person is reading or writing (specs/archive/contextual-interaction §3.3 S2, S5):
- * - a plan becomes proposed steps: a structure proposal that creates nothing until the person approves it in Goals;
- * - a task just ticked, in something that belongs to a Goal, becomes that Goal's progress.
+ * - a task just ticked, in something that belongs to a Goal, becomes that Goal's progress;
+ * - a plan becomes proposed steps, a structure proposal that creates nothing until the person approves it in Goals. That one is
+ *   a creation entry (`goals.tree.submit` declares `intake`, and `prepare` is this query), not a choice here: a destination is
+ *   named by the judgment or asked for, and the rules alone never push a proposal (context-program §21.10).
  * Both write, so the surface shows them as prepared cards the person confirms; preparing only reads the Goal's cursor.
  */
 export const GOALS_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
-  { offer_id: "breakdown", title: "拆成目标步骤", intent: "organize", apply: "record", hint: "把一段计划拆成可以跟踪的目标步骤，提交后在 Goals 里确认才生效",
-    action: { capability_id: "goals.tree.submit", version: 1 }, granularities: ["range", "block", "blocks"] },
   { offer_id: "progress", title: "记录进展", intent: "advance", apply: "record", hint: "把刚完成的这一步记为所属 Goal 的进展",
     action: { capability_id: "goals.progress.record", version: 1 }, granularities: ["range", "block"], roles: ["task", "list"], requires: ["goal"] },
 ];
@@ -42,16 +42,18 @@ export function prepareGoalsFragmentOffers(input: FragmentOffersInput, ports: Go
   const steps = planSteps(input);
   if (fragment.granularity !== "word" && fragment.granularity !== "objects" && steps.length) {
     const goal = fragment.goal;
+    // Goal ids and proposal item ids are unique across the project: each request names its own (a second plan is not refused for reusing them).
     const ids = steps.map((_, index) => `goal-${request_id.slice(0, 36)}-${index + 1}`);
+    const item = (kind: "step" | "part", index: number) => `${kind}-${request_id.slice(0, 36)}-${index + 1}`;
     const explanation = (index: number) => ({ problem: `${from}里的计划还只是文字，无法跟踪`, expected_effect: `“${steps[index]}”成为可以推进和验收的目标步骤`,
       non_goals: ["不修改原文"], depends_on_item_ids: [] as string[] });
     const items = steps.flatMap((title, index) => [
-      { item_id: `step-${index + 1}`, kind: "goal", operation: "create", payload: { goal_id: ids[index], title, why: `来自${from}中选中的计划` },
+      { item_id: item("step", index), kind: "goal", operation: "create", payload: { goal_id: ids[index], title, why: `来自${from}中选中的计划` },
         source_refs: [source], reason: "按选中的计划文字拆出的一步", confidence: 0.6, explanation: explanation(index) },
-      ...(goal ? [{ item_id: `part-${index + 1}`, kind: "relation", operation: "create",
+      ...(goal ? [{ item_id: item("part", index), kind: "relation", operation: "create",
         payload: { from_goal_id: ids[index], to_goal_id: goal.id, type: "part_of", reason: `“${title}”是「${goal.title}」的一步` },
         source_refs: [source], reason: "新步骤属于文档所属的目标", confidence: 0.6,
-        explanation: { ...explanation(index), depends_on_item_ids: [`step-${index + 1}`] } }] : []),
+        explanation: { ...explanation(index), depends_on_item_ids: [item("step", index)] } }] : []),
     ]);
     const placement = goal ? `，放在「${goal.title}」下` : "";
     offers.push({ offer_id: "breakdown", title: "拆成目标步骤", action: { capability_id: "goals.tree.submit", version: 1 }, input: {

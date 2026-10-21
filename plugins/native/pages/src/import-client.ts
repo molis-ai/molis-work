@@ -1,5 +1,9 @@
 /** Runs inside the Pages client factory and shares its editor/list helpers (and blankLeaving / dropBlank from blank-client.ts). */
 export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
+  window.addEventListener?.("molis:placement-flush", (event) => {
+    const detail = event.detail || {};
+    if (detail.mode === "move" && detail.object?.kind === "pages_document") detail.settle?.push(saveOpen(detail.object.id));
+  });
   const importDialog = bench.querySelector("[data-pages-import-dialog]");
   const importFilesInput = importDialog.querySelector("[data-pages-import-files]");
   const importSource = importDialog.querySelector("[data-pages-import-source]");
@@ -49,7 +53,7 @@ export const PAGES_IMPORT_CLIENT_SCRIPT = String.raw`
   };
   const importRequest = async (path, body) => {
     if (projectId() !== importProject || routePrefix() !== importPrefix) throw new Error(L("项目已切换，请在目标项目重新打开导入。"));
-    const response = await fetch(importPrefix + "/api/plugins/pages/import" + path + "?project_id=" + encodeURIComponent(importProject), {
+    const response = await fetch(importPrefix + api + "/import" + path + "?project_id=" + encodeURIComponent(importProject), {
       method: "POST", headers: headers(), body: JSON.stringify({ ...body, project_id: importProject }),
     });
     const payload = await response.json().catch(() => ({}));

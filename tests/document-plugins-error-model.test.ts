@@ -9,28 +9,18 @@ import test from "node:test";
 import ts from "typescript";
 import { parseImports } from "../scripts/test-imports/parse.mjs";
 
-import {
-  handleDatasetNativePluginHttp,
-  handleLingguangNativePluginHttp,
-  handlePagesNativePluginHttp,
-  handlePptNativePluginHttp,
-  handleWorkflowsNativePluginHttp,
-  MolisWorkLocalHost,
-  molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
-import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
+import { datasetActions, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
 import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
-import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { WORKFLOWS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-workflows";
+import { serveLingguang } from "./fixtures/lingguang-runtime.js";
+import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { PPT_ACTION_PERMISSIONS, openPptStore, pptActions } from "@molis-ai/molis-work-plugin-ppt";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
-import { serveNativeHttp, type NativeHttpAnswer } from "./fixtures/native-http.js";
+import type { NativeHttpAnswer } from "./fixtures/native-http.js";
 import { pagesTestPorts } from "./fixtures/pages-actions.js";
 import { pptTestPorts } from "./fixtures/ppt-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -77,39 +67,6 @@ const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
     status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 400, not_ready: 400, missing: 400, uncertain: 400, ambiguous: 400, invalid_result: 400 } },
 };
 
-/**
- * A loopback server whose route handler fails with whatever the test sets; the Host's real edge for `owner` answers. Forms runs on the
- * Plugin Runtime (W4-04): each of its routes is the SDK's `bindPluginActionRoute`, which answers a failure with `actionErrorResponse`, so
- * that is what `fail` asks for Form; its round trip through the Host's Runtime edge (statuses, body limits) is in the real-route tests below.
- */
-async function failingEdge(owner: Owner) {
-  const failure: { current: unknown } = { current: undefined };
-  const raise = async (): Promise<never> => { throw failure.current; };
-  const failingActions: BoundActionClient = { discover: async () => [], invoke: raise };
-  const server = await serveNativeHttp((request, response, url) => {
-    switch (owner) {
-      case "pages": return handlePagesNativePluginHttp(request, response, url, raise);
-      case "ppt": return handlePptNativePluginHttp(request, response, url, raise);
-      case "dataset": return handleDatasetNativePluginHttp(request, response, url, raise);
-      case "form": return false;
-      case "lingguang": return handleLingguangNativePluginHttp(request, response, url, raise);
-      case "workflows": return handleWorkflowsNativePluginHttp(request, response, url, { actions: failingActions });
-    }
-  });
-  return {
-    /** What the next request's route fails with. */
-    failWith(error: unknown): void { failure.current = error; },
-    /** Create (POST /api/<owner>) with a small valid body: the edge reads it, the route runs, and the route fails with `error`. */
-    async fail(error: unknown): Promise<NativeHttpAnswer> {
-      if (owner === "form") { const answer = actionErrorResponse(error); return { status: answer.status, body: { ...answer.body } }; }
-      failure.current = error; return await server.post(`/api/${owner}`, "{}");
-    },
-    post: server.post,
-    postText: server.postText,
-    close: server.close,
-  };
-}
-
 test("each document plugin declares its codes, and every code answers the status its deleted mapper gave it", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
@@ -117,15 +74,12 @@ test("each document plugin declares its codes, and every code answers the status
     const declared = module[spec.declarations] as Record<string, (message: string, details?: Record<string, unknown>) => ActionError> | undefined;
     assert.ok(declared, `${spec.pkg} exports ${spec.declarations}`);
     assert.deepEqual(Object.keys(declared).sort(), Object.keys(spec.status).sort(), `${spec.declarations} declares exactly the codes ${owner} raises`);
-    const edge = await failingEdge(owner);
-    try {
-      for (const [reason, status] of Object.entries(spec.status)) {
-        const error = declared[reason]!(`${owner} ${reason}`);
-        assert.ok(error instanceof ActionError && error.code === `${owner}.${reason}`, `${spec.declarations}.${reason} raises ${owner}.${reason}`);
-        const answer = await edge.fail(error);
-        assert.deepEqual([answer.status, answer.body], [status, { error: `${owner} ${reason}`, code: `${owner}.${reason}` }], `${owner}.${reason}`);
-      }
-    } finally { await edge.close(); }
+    for (const [reason, status] of Object.entries(spec.status)) {
+      const error = declared[reason]!(`${owner} ${reason}`);
+      assert.ok(error instanceof ActionError && error.code === `${owner}.${reason}`, `${spec.declarations}.${reason} raises ${owner}.${reason}`);
+      const answer = actionErrorResponse(error);
+      assert.deepEqual([answer.status, answer.body], [status, { error: `${owner} ${reason}`, code: `${owner}.${reason}` }], `${owner}.${reason}`);
+    }
   }
 });
 
@@ -136,98 +90,78 @@ const PLATFORM_STATUS: Readonly<Record<string, number>> = {
   "actions.connection_required": 503, "actions.unredeemed": 503,
 };
 
-test("a platform code answers one status at all six document plugins, with the one body { error, code }", async () => {
+test("a platform code answers one status at all six document plugins, with the one body { error, code }", () => {
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
-    try {
-      for (const [code, status] of Object.entries(PLATFORM_STATUS)) {
-        const answer = await edge.fail(new ActionError(code, "测试消息"));
-        assert.deepEqual([owner, code, answer.status, answer.body], [owner, code, status, { error: "测试消息", code }]);
-      }
-    } finally { await edge.close(); }
+    for (const [code, status] of Object.entries(PLATFORM_STATUS)) {
+      const answer = actionErrorResponse(new ActionError(code, "测试消息"));
+      assert.deepEqual([owner, code, answer.status, answer.body], [owner, code, status, { error: "测试消息", code }]);
+    }
   }
 });
 
-test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", async () => {
+test("a failure with no code of ours is a bug or an outage: 500 actions.execution_failed, with its message and nothing of its own code", () => {
   for (const owner of OWNERS) {
-    const edge = await failingEdge(owner);
-    try {
-      assert.deepEqual(await edge.fail(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
-      assert.deepEqual(await edge.fail(Object.assign(new Error("磁盘上没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "磁盘上没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
-      assert.deepEqual(await edge.fail("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
-    } finally { await edge.close(); }
+    assert.deepEqual(actionErrorResponse(new Error("boom")), { status: 500, body: { error: "boom", code: "actions.execution_failed" } }, `${owner}: a plain Error`);
+    assert.deepEqual(actionErrorResponse(Object.assign(new Error("磁盘上没有这个文件"), { code: "ENOENT" })), { status: 500, body: { error: "磁盘上没有这个文件", code: "actions.execution_failed" } }, `${owner}: a system error code`);
+    assert.deepEqual(actionErrorResponse("a thrown string"), { status: 500, body: { error: "能力执行失败", code: "actions.execution_failed" } }, `${owner}: not an Error`);
   }
 });
 
-// The body limit of each edge (native-plugin-http.ts reads 1,000,000 bytes unless the edge says more): Lingguang reads files, up to 36 MB.
+// The declared body limit of each Runtime edge; Lingguang accepts files up to 36 MB.
 const BODY_LIMIT: Readonly<Record<Owner, number>> = { pages: 1_000_000, ppt: 1_000_000, dataset: 1_000_000, form: 1_000_000, lingguang: 36_000_000, workflows: 400_000 };
 
-test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async () => {
-  // Form's Runtime edge: "real routes: Form's Runtime edge reads ..." below.
-  for (const owner of OWNERS.filter(owner => owner !== "form")) {
-    const edge = await failingEdge(owner);
-    try {
-      const large = await edge.post(`/api/${owner}`, JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
-      assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
-      const broken = await edge.post(`/api/${owner}`, "{not json");
-      assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
-    } finally { await edge.close(); }
+test("a request body that is too large answers 413 and one that is not JSON answers 400, each with its platform code", async t => {
+  const factories = { pages: pagesRoutes, ppt: pptRoutes, dataset: datasetRoutes, form: formRoutes, workflows: workflowsRoutes };
+  for (const owner of OWNERS) {
+    const raw = owner === "lingguang" ? await (async () => {
+      const edge = await serveLingguang(t);
+      return async (body: string): Promise<NativeHttpAnswer> => {
+        const response = await edge.rawRequest(edge.path, { method: "POST", raw: body });
+        return { status: response.status, body: await response.json() as Record<string, unknown> };
+      };
+    })() : await (async () => { const edge = await factories[owner](t); return (body: string) => edge.raw("", body); })();
+    const large = await raw(JSON.stringify({ padding: " ".repeat(BODY_LIMIT[owner] + 100_000) }));
+    assert.deepEqual([owner, large.status, large.body], [owner, 413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+    const broken = await raw("{not json");
+    assert.deepEqual([owner, broken.status, broken.body], [owner, 400, { error: "请求不是有效 JSON", code: "actions.input_invalid" }]);
   }
 });
 
-test("owner details travel in details and nowhere else", async () => {
-  const edge = await failingEdge("pages");
-  try {
-    const answer = await edge.fail(new ActionError("actions.forbidden", "不可以", { details: { reason: "stale", version: 3 } }));
-    assert.deepEqual(answer, { status: 403, body: { error: "不可以", code: "actions.forbidden", details: { reason: "stale", version: 3 } } });
-  } finally { await edge.close(); }
+test("owner details travel in details and nowhere else", () => {
+  const answer = actionErrorResponse(new ActionError("actions.forbidden", "不可以", { details: { reason: "stale", version: 3 } }));
+  assert.deepEqual(answer, { status: 403, body: { error: "不可以", code: "actions.forbidden", details: { reason: "stale", version: 3 } } });
 });
 
-test("Lingguang's streamed reading answers a failure with the same function: its code and details stay, its status is its kind's", async () => {
-  const edge = await failingEdge("lingguang");
-  try {
-    for (const path of ["/api/lingguang/material?stream=1", "/api/lingguang/source?stream=1"]) {
-      // A file reader's failure the client branches on: a transcription needs the speech model, and says how large it is.
-      const needsModel = Object.assign(new Error("转写需要下载语音模型"), { code: "jelly.material.model_required", details: { approximate_bytes: 626_000_000, variant: "base" } });
-      const refused = await streamed(edge, path, needsModel);
-      assert.deepEqual(refused.at(-1), { type: "error", status: 400, error: "转写需要下载语音模型", code: "jelly.material.model_required", details: { approximate_bytes: 626_000_000, variant: "base" } }, path);
-      const plain = await streamed(edge, path, new ActionError("actions.connection_required", "请先配置文字模型"));
-      assert.deepEqual(plain.at(-1), { type: "error", status: 503, error: "请先配置文字模型", code: "actions.connection_required" }, path);
-      const oversize = await edge.postText(path, JSON.stringify({ padding: " ".repeat(36_100_000) }));
-      assert.equal(oversize.status, 200, "a stream starts with 200; the error is its last event");
-      assert.deepEqual(lines(oversize.text).at(-1), { type: "error", status: 413, error: "请求内容过大", code: "actions.input_too_large" }, path);
-    }
-  } finally { await edge.close(); }
+test("RAC-31 RAC-33 Lingguang Runtime stream keeps failure code/details; rejected bodies never open a stream", async t => {
+  let failure: unknown;
+  const f = await serveLingguang(t, { completeText: async () => { throw failure; } });
+  const { spark } = await f.http<{ spark: { id: string } }>("", { title: "Error test" });
+  const { conversation } = await f.http<{ conversation: { id: string } }>("/conversations", { spark_ids: [spark.id] });
+  const reply = `/conversations/${conversation.id}/messages`;
+  for (const error of [new ActionError("material.model_required", "转写需要下载语音模型", { kind: "invalid", details: { approximate_bytes: 626_000_000, variant: "base" } }),
+    new ActionError("actions.connection_required", "请先配置文字模型")]) {
+    failure = error;
+    const response = await f.request(reply, { body: "继续" });
+    const last = lines(await response.text()).at(-1)!;
+    const expected = actionErrorResponse(error);
+    assert.deepEqual([last.type, last.status, last.error, last.code, last.details], ["error", expected.status, expected.body.error, expected.body.code, expected.body.details]);
+    assert.equal(typeof last.call_id, "string", "a dispatched failure carries its diagnostic id");
+  }
+  for (const suffix of ["", "/material", "/source", reply]) {
+    const oversized = await f.request(suffix, { padding: " ".repeat(36_100_000) });
+    assert.equal(oversized.status, 413, suffix);
+    assert.doesNotMatch(oversized.headers.get("content-type") ?? "", /ndjson/);
+    assert.equal((await oversized.json() as { code: string }).code, "actions.input_too_large");
+    const raw = await f.rawRequest(f.path + suffix, { method: "POST", raw: "{not json" });
+    assert.deepEqual([raw.status, (await raw.json() as { code: string }).code], [400, "actions.input_invalid"]);
+  }
 });
-
-async function streamed(edge: Awaited<ReturnType<typeof failingEdge>>, path: string, error: unknown) {
-  edge.failWith(error);
-  const answer = await edge.postText(path, JSON.stringify({ file_name: "a.txt", data_base64: "AA==", url: "https://example.com/a" }));
-  return lines(answer.text);
-}
 
 function lines(text: string): Array<Record<string, unknown>> {
   return text.trim().split("\n").map(line => JSON.parse(line) as Record<string, unknown>);
 }
 
-// Real routes, real stores, the Host's real edges: the status and the code of "not there" and "changed under you" are the same as before the slice.
-async function documentRoutes(t: test.TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "document-error-model-"));
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
-  const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  const client = host.actionClient(reference);
-  const bound = (permissions: readonly string[]) => bindActionClient(client, () => ({ actor_id: "owner", project_id: "a", audience: "user", permissions }));
-  const ports = (permissions: readonly string[]) => ({ projectId: "a", actions: bound(permissions) });
-  const server = await serveNativeHttp(async (request, response, url) =>
-    await handlePagesNativePluginHttp(request, response, url, ports(PAGES_ACTION_PERMISSIONS))
-    || await handlePptNativePluginHttp(request, response, url, () => ports(PPT_ACTION_PERMISSIONS))
-    || await handleDatasetNativePluginHttp(request, response, url, () => ports(DATASET_ACTION_PERMISSIONS))
-    || await handleLingguangNativePluginHttp(request, response, url, () => ports(LINGGUANG_ACTION_PERMISSIONS))
-    || await handleWorkflowsNativePluginHttp(request, response, url, { actions: bound(WORKFLOWS_ACTION_PERMISSIONS) }));
-  t.after(() => server.close());
-  return server;
-}
+// Real routes, real stores: every document plugin now uses the Host Runtime edge.
 
 const MISSING = "00000000-0000-4000-8000-000000000000";
 
@@ -245,37 +179,105 @@ async function formRoutes(t: test.TestContext) {
   return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
 }
 
+/** Dataset on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.dataset/datasets`. */
+async function datasetRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Dataset error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.dataset/datasets`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
+/** Workflows on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.native.workflows/workflows`. */
+async function workflowsRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Workflows error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.native.workflows/workflows`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
+/** PPT on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.ppt/ppt`. */
+async function pptRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("PPT error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.ppt/ppt`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
+/** Pages on the Plugin Runtime (W5-01): a project in a test Home, under `/api/plugins/io.molis.work.pages/pages`. */
+async function pagesRoutes(t: test.TestContext) {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Pages error model");
+  const base = `/projects/${project.project_id}/api/plugins/io.molis.work.pages/pages`;
+  const raw = async (path: string, body: string): Promise<NativeHttpAnswer> => {
+    const response = await fetch(home.origin + base + path, { method: "POST", body, headers: { "content-type": "application/json", origin: home.origin,
+      "x-molis-work-control-token": home.controlToken, "x-molis-work-idempotency-key": randomUUID() } });
+    return { status: response.status, body: await response.json() as Record<string, unknown> };
+  };
+  return { raw, post: (path: string, body: unknown) => raw(path, JSON.stringify(body)) };
+}
+
 test("real routes: a record that is not there is 404 <owner>.not_found at Pages, PPT, Dataset, Form and Workflows", async t => {
-  const server = await documentRoutes(t);
-  for (const owner of ["pages", "ppt", "dataset", "workflows"] as const) {
-    const answer = await server.post(`/api/${owner}/${MISSING}/delete`, "{}");
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 404, `${owner}.not_found`], JSON.stringify(answer.body));
-  }
+  const workflows = await (await workflowsRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([workflows.status, workflows.body.code], [404, "workflows.not_found"], JSON.stringify(workflows.body));
+  const page = await (await pagesRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([page.status, page.body.code], [404, "pages.not_found"], JSON.stringify(page.body));
+  const ppt = await (await pptRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([ppt.status, ppt.body.code], [404, "ppt.not_found"], JSON.stringify(ppt.body));
+  const table = await (await datasetRoutes(t)).post(`/${MISSING}/delete`, {});
+  assert.deepEqual([table.status, table.body.code], [404, "dataset.not_found"], JSON.stringify(table.body));
   const form = await (await formRoutes(t)).post(`/${MISSING}/delete`, {});
   assert.deepEqual([form.status, form.body.code], [404, "form.not_found"], JSON.stringify(form.body));
-  const spark = await server.post(`/api/lingguang/${MISSING}`, JSON.stringify({ title: "x" }));
-  assert.deepEqual([spark.status, spark.body.code], [404, "lingguang.not_found"], JSON.stringify(spark.body));
+  const sparks = await serveLingguang(t);
+  const missingSpark = await sparks.request(`/${MISSING}`, { title: "x" });
+  assert.deepEqual([missingSpark.status, (await missingSpark.json() as { code: string }).code], [404, "lingguang.not_found"]);
 });
 
 test("real routes: a change made on a stale version is 409 <owner>.conflict at Pages, PPT, Dataset, Form and Workflows", async t => {
-  const server = await documentRoutes(t);
-  const stale: Record<string, Record<string, unknown>> = {
-    pages: { title: "改过" }, ppt: { title: "改过" }, dataset: { title: "改过" }, form: { title: "改过" },
-  };
+  const datasets = await datasetRoutes(t);
   const forms = await formRoutes(t);
-  for (const owner of ["pages", "ppt", "dataset", "form"] as const) {
-    const post = (path: string, body: unknown) => owner === "form" ? forms.post(path, body) : server.post(`/api/${owner}${path}`, JSON.stringify(body));
-    const created = await post("", { title: "原稿" });
-    assert.equal(created.status, 200, JSON.stringify(created.body));
-    const record = Object.values(created.body).find((value): value is { id: string; version: number } => typeof value === "object" && value !== null && "id" in value && "version" in value);
-    assert.ok(record, `${owner} answers the record it created`);
-    const answer = await post(`/${record.id}`, { ...stale[owner], expected_version: record.version + 40 });
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 409, `${owner}.conflict`], JSON.stringify(answer.body));
-  }
-  const workflow = await server.post("/api/workflows", JSON.stringify({ title: "流程" }));
+  const created = await forms.post("", { title: "原稿" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+  const record = Object.values(created.body).find((value): value is { id: string; version: number } => typeof value === "object" && value !== null && "id" in value && "version" in value);
+  assert.ok(record, "form answers the record it created");
+  const staleForm = await forms.post(`/${record.id}`, { title: "改过", expected_version: record.version + 40 });
+  assert.deepEqual([staleForm.status, staleForm.body.code], [409, "form.conflict"], JSON.stringify(staleForm.body));
+  const documents = await pagesRoutes(t);
+  const createdPage = await documents.post("", { title: "原稿" });
+  assert.equal(createdPage.status, 200, JSON.stringify(createdPage.body));
+  const page = (createdPage.body as { document: { id: string; version: number } }).document;
+  const stalePage = await documents.post(`/${page.id}`, { title: "改过", expected_version: page.version + 40 });
+  assert.deepEqual([stalePage.status, stalePage.body.code], [409, "pages.conflict"], JSON.stringify(stalePage.body));
+  const createdTable = await datasets.post("", { title: "原稿" });
+  assert.equal(createdTable.status, 200, JSON.stringify(createdTable.body));
+  const table = (createdTable.body as { dataset: { id: string; version: number } }).dataset;
+  const staleTable = await datasets.post(`/${table.id}`, { title: "改过", expected_version: table.version + 40 });
+  assert.deepEqual([staleTable.status, staleTable.body.code], [409, "dataset.conflict"], JSON.stringify(staleTable.body));
+  const decks = await pptRoutes(t);
+  const createdDeck = await decks.post("", { title: "原稿" });
+  assert.equal(createdDeck.status, 200, JSON.stringify(createdDeck.body));
+  const deck = (createdDeck.body as { presentation: { id: string; version: number } }).presentation;
+  const staleDeck = await decks.post(`/${deck.id}`, { title: "改过", expected_version: deck.version + 40 });
+  assert.deepEqual([staleDeck.status, staleDeck.body.code], [409, "ppt.conflict"], JSON.stringify(staleDeck.body));
+  const flows = await workflowsRoutes(t);
+  const workflow = await flows.post("", { title: "流程" });
   assert.equal(workflow.status, 200, JSON.stringify(workflow.body));
   const saved = workflow.body.workflow as { workflow_id: string; revision: number };
-  const answer = await server.post(`/api/workflows/${saved.workflow_id}`, JSON.stringify({ title: "改过", revision: saved.revision + 40 }));
+  const answer = await flows.post(`/${saved.workflow_id}`, { title: "改过", revision: saved.revision + 40 });
   assert.deepEqual([answer.status, answer.body.code], [409, "workflows.conflict"], JSON.stringify(answer.body));
 });
 
@@ -284,28 +286,59 @@ test("real routes: a publish in an environment with no publisher is refused by t
   const home = await mkdtemp(join(tmpdir(), "document-error-model-publish-"));
   const pages = openPagesStore(home), ppt = openPptStore(home), dataset = openDatasetStore(home), form = openFormStore(home);
   // Forms' routes are its Runtime ones now, and that Runtime always gives it the 成果 service: with no publisher its action is refused by the
-  // same availability object, and its route answers that with the SDK's `actionErrorResponse` (failingEdge above).
+  // same availability object, and its route answers that with the SDK's `actionErrorResponse`.
   const formPorts = formTestPorts(form, "a");
   t.after(async () => { pages.close(); ppt.close(); dataset.close(); form.close(); await rm(home, { recursive: true, force: true }); });
-  const server = await serveNativeHttp(async (request, response, url) =>
-    await handlePagesNativePluginHttp(request, response, url, pagesTestPorts(pages, "a"))
-    || await handlePptNativePluginHttp(request, response, url, () => pptTestPorts(ppt, "a"))
-    || await handleDatasetNativePluginHttp(request, response, url, () => datasetTestPorts(dataset, "a")));
-  t.after(() => server.close());
-  for (const owner of ["pages", "ppt", "dataset"] as const) {
-    const created = await server.post(`/api/${owner}`, JSON.stringify({ title: "原稿" }));
-    assert.equal(created.status, 200, JSON.stringify(created.body));
-    const record = Object.values(created.body).find((value): value is { id: string } => typeof value === "object" && value !== null && "id" in value);
-    assert.ok(record, `${owner} answers the record it created`);
-    const store = { pages, ppt, dataset }[owner], before = store.get(record.id);
-    const answer = await server.post(`/api/${owner}/${record.id}/promote`, JSON.stringify({ goal_id: "CORE" }));
-    assert.deepEqual([owner, answer.status, answer.body.code], [owner, 409, `${owner}.unavailable`], JSON.stringify(answer.body));
-    assert.deepEqual(store.get(record.id), before, `${owner}: the refusal keeps the persisted draft unchanged`);
-  }
+  const pagesPorts = pagesTestPorts(pages, "a");
+  const { document: draftPage } = await pagesPorts.actions.invoke(pagesActions.create, { title: "原稿" });
+  const pageAnswer = await pagesPorts.actions.invoke(pagesActions.promote, { id: draftPage.id, goal_id: "CORE" }).then(() => null, (error: unknown) => actionErrorResponse(error));
+  assert.deepEqual([pageAnswer?.status, pageAnswer?.body.code], [409, "pages.unavailable"], JSON.stringify(pageAnswer?.body));
+  assert.deepEqual(pages.get(draftPage.id), draftPage, "pages: the refusal keeps the persisted draft unchanged");
+  const datasetPorts = datasetTestPorts(dataset, "a");
+  const { dataset: draftTable } = await datasetPorts.actions.invoke(datasetActions.create, { title: "原稿" });
+  const tableAnswer = await datasetPorts.actions.invoke(datasetActions.promote, { id: draftTable.id }).then(() => null, (error: unknown) => actionErrorResponse(error));
+  assert.deepEqual([tableAnswer?.status, tableAnswer?.body.code], [409, "dataset.unavailable"], JSON.stringify(tableAnswer?.body));
+  assert.deepEqual(dataset.get(draftTable.id), draftTable, "dataset: the refusal keeps the persisted draft unchanged");
+  const pptPorts = pptTestPorts(ppt, "a");
+  const { presentation: draftDeck } = await pptPorts.actions.invoke(pptActions.create, { title: "原稿" });
+  const deckAnswer = await pptPorts.actions.invoke(pptActions.promote, { id: draftDeck.id }).then(() => null, (error: unknown) => actionErrorResponse(error));
+  assert.deepEqual([deckAnswer?.status, deckAnswer?.body.code], [409, "ppt.unavailable"], JSON.stringify(deckAnswer?.body));
+  assert.deepEqual(ppt.get(draftDeck.id), draftDeck, "ppt: the refusal keeps the persisted draft unchanged");
   const { form: draft } = await formPorts.actions.invoke(formActions.create, { title: "原稿" });
   const answer = await formPorts.actions.invoke(formActions.promote, { id: draft.id }).then(() => null, (error: unknown) => actionErrorResponse(error));
   assert.deepEqual([answer?.status, answer?.body.code], [409, "form.unavailable"], JSON.stringify(answer?.body));
   assert.deepEqual(form.get(draft.id), draft, "form: the refusal keeps the persisted draft unchanged");
+});
+
+test("W5-01-PPT-02: real routes: PPT's Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const decks = await pptRoutes(t);
+  const large = await decks.raw("", JSON.stringify({ title: "大", padding: " ".repeat(1_000_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await decks.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  const created = await decks.post("", { title: "边界" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+});
+
+test("W5-01-WORKFLOWS-02: real routes: Workflows' Runtime edge reads up to the 400,000 bytes its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const flows = await workflowsRoutes(t);
+  const large = await flows.raw("", JSON.stringify({ title: "大", padding: " ".repeat(400_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await flows.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  // Between the Runtime's 256,000 default and the route's 400,000 a request still comes in, and the route passes on only the fields it names.
+  const created = await flows.post("", { title: "边界", padding: " ".repeat(300_000) });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
+});
+
+test("W5-01-PAGES-02: real routes: Pages' Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const documents = await pagesRoutes(t);
+  const large = await documents.raw("", JSON.stringify({ title: "大", padding: " ".repeat(1_000_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await documents.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  const created = await documents.post("", { title: "边界" });
+  assert.equal(created.status, 200, JSON.stringify(created.body));
 });
 
 test("real routes: Form's Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
@@ -323,6 +356,19 @@ test("real routes: Form's Runtime edge reads up to the 1 MB its routes declare, 
   assert.equal((imported.body as { rejected: unknown[] }).rejected.length, 1, "read and judged by Form, not refused at the edge");
 });
 
+test("real routes: Dataset's Runtime edge reads up to the 1 MB its routes declare, answers more with 413 and a broken body with 400", async t => {
+  const datasets = await datasetRoutes(t);
+  const large = await datasets.raw("", JSON.stringify({ title: "大", padding: " ".repeat(1_000_000) }));
+  assert.deepEqual([large.status, large.body], [413, { error: "请求内容过大", code: "actions.input_too_large" }]);
+  const broken = await datasets.raw("", "{not json");
+  assert.deepEqual([broken.status, broken.body.code], [400, "actions.input_invalid"], JSON.stringify(broken.body));
+  // Between the Runtime's 256,000 default and the route's 1,000,000, a CSV still comes in (the action takes 2,000,000 characters).
+  const created = await datasets.post("", { title: "导入" });
+  const table = (created.body as { dataset: { id: string; version: number } }).dataset;
+  const imported = await datasets.raw(`/${table.id}/import-csv`, JSON.stringify({ csv: "名称\n" + "a".repeat(300_000), expected_version: table.version }));
+  assert.equal(imported.status, 200, JSON.stringify(imported.body));
+});
+
 test("MCP action port: a Pages failure comes out as its own code and message, not as the generic 能力执行失败", async t => {
   // merge-base: PagesError was not an ActionError, so the port (apps/mcp action-tools.ts, which tells an ActionError's code and message and nothing else) answered
   // { code: "actions.execution_failed", message: "能力执行失败" } for every Pages failure; Form's `refusal()` wrapper existed to get one failure across it.
@@ -331,8 +377,9 @@ test("MCP action port: a Pages failure comes out as its own code and message, no
   t.after(async () => { store.close(); await rm(home, { recursive: true, force: true }); });
   const service = new ActionService();
   service.registerProvider({ provider: { provider_id: pagesManifest.plugin_id, title: "Pages", kind: "plugin", project_id: "a" }, definitions: pagesManifest.actions!,
-    handlers: [...createPagesActionHandlers({ withStore: run => run(store), modelAvailability: () => ({ available: false, code: "actions.connection_required", reason: "请先配置文字模型" }) }),
-      ...createPagesContentHandlers(service)] });
+    handlers: [...createPagesActionHandlers({ ...ownPagesStores(run => run(store)), prepareImport: async () => { throw new Error("Import is not used by this fixture"); },
+      modelAvailability: () => ({ available: false, code: "actions.connection_required", reason: "请先配置文字模型" }) }),
+      ...createPagesContentHandlers(bindActionClient(service, () => ({ actor_id: "mcp-client", project_id: "a", audience: "mcp", permissions: PAGES_ACTION_PERMISSIONS })))] });
   const caller = (): ActionCallContext => ({ actor_id: "mcp-client", project_id: "a", audience: "mcp", permissions: PAGES_ACTION_PERMISSIONS });
   const ports = createActionMcpPorts({ service, context: caller, serverInfo: { name: "pages-edge", version: "1" } });
   const call = async (action: ActionDefinition<never, unknown>, args: Record<string, unknown>) => {
@@ -472,15 +519,12 @@ test("no document plugin keeps an error class, a route-error mapper, or a raise 
       assert.deepEqual(bare, [], `${where}: a bare new Error( is a caller-visible 500; raise ${spec.declarations}.<reason>(...) (or a platform code) instead`);
     }
   }
-  const creative = readFileSync(join(REPOSITORY, "apps", "local-host", "src", "creative-artifacts.ts"), "utf8");
-  assert.doesNotMatch(creative, /\bnew\s+(?:Form|Dataset|Ppt)Error\(|"(?:form|dataset|ppt)\.[a-z_]+"/u, "creative-artifacts.ts raises Form, Dataset and PPT codes through their declarations");
-  assert.doesNotMatch(creative, /\bnew\s+Error\(/u, "creative-artifacts.ts raises no bare Error: its refusals are the plugins' declared codes");
 });
 
 test("a declared code is used: every reason in a declaration has a raise site", async () => {
   for (const owner of OWNERS) {
     const spec = SPECS[owner];
-    const sources = filesOf(owner).concat(sourceFiles(join(REPOSITORY, "apps", "local-host", "src")).filter(file => /creative-artifacts/u.test(file))).map(file => readFileSync(file, "utf8")).join("\n");
+    const sources = filesOf(owner).map(file => readFileSync(file, "utf8")).join("\n");
     for (const reason of Object.keys(spec.status)) {
       assert.ok(new RegExp(String.raw`\b${spec.declarations}\.${reason}\(`, "u").test(sources), `${spec.declarations}.${reason} is raised somewhere; a code nobody raises is not declared`);
     }

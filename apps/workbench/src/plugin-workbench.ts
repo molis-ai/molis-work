@@ -1,13 +1,57 @@
-import { BUILTIN_PLUGIN_CATALOG, type BuiltinPluginEntry, type BuiltinPluginWorkbench } from "./builtin-plugins.js";
-export type { PluginSearchRow } from "./builtin-plugins.js";
+import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { AGENT_REVIEW_CLIENT_FACTORY_SCRIPT } from "./scripts/client/agent-review.js";
+export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
-export interface BuiltinPluginWorkbenchPack extends Omit<BuiltinPluginWorkbench, "order"> { readonly project_plugin_id: string }
+export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses"> { readonly project_plugin_id: string }
+
+/**
+ * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
+ * are notes and layout for the people who read its source; the page does not run them. A registration that sets `clientServed`
+ * is sent without them (the page asset budget only shrinks, and these are the bytes that are provably dead). A block comment
+ * is taken only when nothing else shares its lines; indentation inside a multi-line string or template would be content, so a
+ * script that has one cannot use this. tests/plugin-client-served.test.ts holds the result to the same program as the source.
+ */
+const served = (script: string): string => script
+  .replace(/^[ \t]*(?:\/\/[^\n]*|\/\*(?:(?!\*\/)[\s\S])*\*\/[ \t]*)\n/gm, "")
+  .replace(/^[ \t]+/gm, "");
+
+type Registered = PluginWorkbenchRegistration & { readonly project_plugin_id: string };
+
+const clientOf = (workbench: Registered): string | undefined => workbench.clientServed && workbench.clientFactory !== undefined
+  ? served(workbench.clientFactory)
+  : workbench.clientFactory;
+
+/**
+ * A client with the clients its registration names in `clientUses`, as `host.clients[<short id>]`, and the Host's review
+ * actions as `host.reviews`. Each used plugin has a client and names this one in `clientFrom`, so it travels in this bundle.
+ */
+function withUsedClients(user: Registered, factory: string, all: readonly Registered[]): string {
+  const used = (user.clientUses ?? []).map(id => {
+    const lent = all.find(candidate => candidate.project_plugin_id === id), client = lent ? clientOf(lent) : undefined;
+    if (!lent || client === undefined || lent.clientFrom !== user.project_plugin_id) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which does not name it in clientFrom`);
+    return `${JSON.stringify(id)}: (${client})`;
+  });
+  return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} }, reviews: (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT}) })`;
+}
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
-export function pluginWorkbenchPacks(catalog: readonly BuiltinPluginEntry[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
-    .map(({ order: _order, ...pack }) => pack);
+    .map((registered, _at, all) => {
+      const { order: _order, clientServed: _served, clientUses, ...pack } = registered, factory = clientOf(registered);
+      if (factory === undefined) return pack;
+      if (pack.clientFrom !== undefined) {
+        // A client lent to the plugin whose bundle this one borrows: it travels there, and this plugin ships no bundle.
+        if (!all.find(user => user.project_plugin_id === pack.clientFrom)?.clientUses?.includes(pack.project_plugin_id)) {
+          throw new Error(`${pack.project_plugin_id} has a client and borrows the bundle of ${pack.clientFrom}, which does not name it in clientUses`);
+        }
+        const { clientFactory: _lent, ...borrowing } = pack;
+        return borrowing;
+      }
+      return { ...pack, clientFactory: clientUses ? withUsedClients(registered, factory, all) : factory };
+    });
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 
@@ -28,6 +72,13 @@ export function pluginSearchRows(packs: readonly BuiltinPluginWorkbenchPack[] = 
     : []);
 }
 
+/** The rows a record opens from on a plugin's page where they differ from its search row; the page falls back to that. */
+export function pluginRecordRows(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): Array<[string, string, string]> {
+  return packs.flatMap((pack) => pack.recordRow
+    ? [[pack.project_plugin_id, pack.recordRow.selector, pack.recordRow.idDataset] as [string, string, string]]
+    : []);
+}
+
 export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH, deferClients = false): string {
   return packs.flatMap((pack) => {
     const lines: string[] = [];
@@ -39,7 +90,20 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
   }).join("\n    ");
 }
 
-/** Fixed-build client assets derived from the same registration as styles and UI. */
+/** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
+export interface PluginSurfaceClient { readonly id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string }
+
+/** Every surface with a client, each pointing at the one bundle that serves it. */
+export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
+  return packs.flatMap((pack) => {
+    const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
+    return source?.clientFactory
+      ? [{ id: pack.project_plugin_id, bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory }]
+      : [];
+  });
+}
+
+/** Fixed-build client assets derived from the same registration as styles and UI: one per bundle, none for a borrowed client. */
 export function pluginWorkbenchClientAsset(id: string): string | null {
   const pack = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.project_plugin_id === id);
   return pack?.clientFactory ? `globalThis.molisWorkbenchPluginFactories ||= {}; globalThis.molisWorkbenchPluginFactories[${JSON.stringify(id)}] = ${pack.clientFactory};` : null;

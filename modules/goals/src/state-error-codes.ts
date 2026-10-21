@@ -10,7 +10,7 @@ const goals_event_agreement = defineErrorCodes("goals.event_agreement", {
   no_changes: "invalid",
   outcome_required: "invalid",
   revision_empty: "invalid",
-  stale_config_version: "invalid",
+  stale_config_version: "conflict",
   stale_version: "conflict",
   unauthorized_change: "invalid",
 });
@@ -56,7 +56,7 @@ const goals_event_decision = defineErrorCodes("goals.event_decision", {
   request_not_found: "invalid",
   scope_expanded: "invalid",
   scope_required: "invalid",
-  stale_commitment: "invalid",
+  stale_commitment: "conflict",
   superseded: "invalid",
   unexpected_proposed_change: "invalid",
 });
@@ -70,7 +70,7 @@ const goals_event_progress = defineErrorCodes("goals.event_progress", {
   future_cursor: "invalid",
   invalid_cursor: "invalid",
   invalid_source: "invalid",
-  stale_goal: "invalid",
+  stale_goal: "conflict",
   summary_required: "invalid",
 });
 

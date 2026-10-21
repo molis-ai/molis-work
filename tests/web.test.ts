@@ -32,7 +32,6 @@ import {
   renderMolisWorkWorkbenchClientScript,
   renderMolisWorkWorkbenchStylesheet,
   renderMolisWorkProjectSettings,
-  WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
   renderMolisWorkWeb,
   renderPersistedFeedItemDetail,
   sortGoalTreeItems,
@@ -67,11 +66,6 @@ type GoalTreeBrowserLayout = {
   parentRestoredLineCount: number;
   parentRestoredRowHeight: number;
   parentRestoredProgressDisplay: string;
-};
-
-type DesktopWorkTabBrowserLayout = {
-  initial: { railLeft: number; railRight: number; tabLeft: number; tabRight: number; scrollLeft: number; scrollWidth: number; tabCount: number };
-  resized: { railLeft: number; railRight: number; tabLeft: number; tabRight: number; scrollLeft: number; scrollWidth: number; tabCount: number };
 };
 
 let cachedGoalTreeBrowserLayout: Promise<GoalTreeBrowserLayout | null> | undefined;
@@ -208,108 +202,6 @@ function readGoalTreeBrowserLayout(): Promise<GoalTreeBrowserLayout | null> {
     });
   });
   return cachedGoalTreeBrowserLayout;
-}
-
-function readDesktopWorkTabBrowserLayout(
-  openTabs: string[],
-): Promise<DesktopWorkTabBrowserLayout | null> {
-  const browser = locateTestChrome();
-  if (!browser) return Promise.resolve(null);
-
-  const directory = mkdtempSync(join(tmpdir(), "molis-work-work-tabs-layout-"));
-  const profilePath = join(directory, "chrome-profile");
-  const htmlPath = join(directory, "work-tabs.html");
-  mkdirSync(profilePath);
-  const tabMarkup = openTabs.map((goalId, index) => `<div class="desktop-work-tab${index === openTabs.length - 1 ? " is-selected" : ""}" data-work-tab-shell="${goalId}"><button type="button" role="tab" data-work-tab="${goalId}" aria-selected="${index === openTabs.length - 1}"><i aria-hidden="true"></i><span>这是第 ${index + 1} 个用于验证完整可见的较长 Goal 标题</span></button><button type="button">×</button></div>`).join("");
-  const browserHtml = `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><style>${WORKBENCH_STYLES}
-    .desktop-work-tabs.fixture-work-tabs { width: 420px; max-width: 420px; }
-  </style></head><body data-board-view="current" data-desktop-shell="true" data-native-desktop="true">
-    <div class="desktop-work-tabs fixture-work-tabs" data-work-tabs role="tablist" aria-label="已打开的 Goal">${tabMarkup}</div>
-    <script>
-      window.requestAnimationFrame = (callback) => setTimeout(() => callback(performance.now()), 0);
-      window.cancelAnimationFrame = (handle) => clearTimeout(handle);
-      const workTabs = document.querySelector("[data-work-tabs]");
-      ${WORK_TAB_VISIBILITY_CLIENT_SCRIPT}
-      ensureActiveWorkTabVisible();
-      (async () => {
-        const waitForLayout = () => new Promise((resolve) => setTimeout(resolve, 100));
-        const snapshot = () => {
-          const rail = document.querySelector("[data-work-tabs]");
-          const tab = rail.querySelector(".desktop-work-tab.is-selected");
-          const railRect = rail.getBoundingClientRect();
-          const tabRect = tab.getBoundingClientRect();
-          return {
-            railLeft: railRect.left,
-            railRight: railRect.right,
-            tabLeft: tabRect.left,
-            tabRight: tabRect.right,
-            scrollLeft: rail.scrollLeft,
-            scrollWidth: rail.scrollWidth,
-            tabCount: rail.querySelectorAll(".desktop-work-tab").length,
-          };
-        };
-        try {
-          await waitForLayout();
-          const initial = snapshot();
-          const rail = document.querySelector("[data-work-tabs]");
-          rail.style.width = "300px";
-          rail.style.maxWidth = "300px";
-          ensureActiveWorkTabVisible();
-          await waitForLayout();
-          await waitForLayout();
-          const resized = snapshot();
-          const result = { initial, resized };
-          document.title = "RESULT:" + btoa(unescape(encodeURIComponent(JSON.stringify(result))));
-        } catch (error) {
-          document.title = "ERROR:" + String(error?.stack || error);
-        }
-      })();
-    </script></body></html>`;
-  writeFileSync(htmlPath, browserHtml);
-
-  return new Promise((resolve, reject) => {
-    const child = spawn(browser, [
-      "--headless=new",
-      "--lang=zh-CN",
-      "--accept-lang=zh-CN",
-      "--disable-gpu",
-      "--no-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-background-mode",
-      "--disable-background-networking",
-      "--disable-component-update",
-      "--disable-default-apps",
-      "--disable-extensions",
-      "--no-default-browser-check",
-      "--no-first-run",
-      `--user-data-dir=${profilePath}`,
-      "--window-size=800,500",
-      "--virtual-time-budget=3000",
-      "--dump-dom",
-      `file://${htmlPath}`,
-    ], { stdio: ["ignore", "pipe", "pipe"] });
-    let stdout = "";
-    let stderr = "";
-    const timer = setTimeout(() => child.kill("SIGTERM"), 15_000);
-    child.stdout.setEncoding("utf8");
-    child.stderr.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      stdout += chunk;
-      if (/<title>RESULT:[^<]+<\/title>/.test(stdout)) child.kill("SIGTERM");
-    });
-    child.stderr.on("data", (chunk: string) => { stderr += chunk; });
-    child.on("error", reject);
-    child.on("close", () => {
-      clearTimeout(timer);
-      rmSync(directory, { recursive: true, force: true });
-      const encoded = stdout.match(/<title>RESULT:([^<]+)<\/title>/)?.[1];
-      if (!encoded) {
-        reject(new Error(`${stderr}\nBrowser work-tab result missing from DOM:\n${stdout.slice(0, 500)}`));
-        return;
-      }
-      resolve(JSON.parse(Buffer.from(encoded, "base64").toString("utf8")) as DesktopWorkTabBrowserLayout);
-    });
-  });
 }
 
 function createMolisWorkWebServer(
@@ -601,41 +493,6 @@ test("Desktop workbench keeps stable Goal ids visible in the Goal Tree", () => {
     WORKBENCH_STYLES,
     /body\[data-desktop-shell="true"\] \.tree-copy small \{[^}]*display:\s*none/,
   );
-});
-
-test("desktop work tabs keep a readable width and scroll instead of overlapping", () => {
-  assert.match(
-    WORKBENCH_STYLES,
-    /\.desktop-work-tabs \{[^}]*overflow-x: auto;/,
-  );
-  assert.match(
-    WORKBENCH_STYLES,
-    /\.desktop-work-tab \{[^}]*flex: 0 0 clamp\(132px, 16vw, 190px\);/,
-  );
-  assert.match(
-    WORKBENCH_STYLES,
-    /\.desktop-work-tab > \[role="tab"\] span \{[^}]*overflow: hidden;[^}]*text-overflow: ellipsis;[^}]*white-space: nowrap;/,
-  );
-  assert.match(
-    WORK_TAB_VISIBILITY_CLIENT_SCRIPT,
-    /const ensureActiveWorkTabVisible = \(\) => \{[\s\S]*activeTabShell[\s\S]*workTabs\.scrollLeft/,
-  );
-  assert.match(WORK_TAB_VISIBILITY_CLIENT_SCRIPT, /new ResizeObserver\(ensureActiveWorkTabVisible\)/);
-  assert.doesNotMatch(WORKBENCH_CLIENT_SCRIPT, /persistWorkTabs\(\)|ensureWorkTab\(/);
-});
-
-test("desktop work tabs keep the active tab fully visible after restore and resize", async (context) => {
-  const openTabs = ["goal-one", "goal-two", "goal-three", "goal-four"];
-  const layout = await readDesktopWorkTabBrowserLayout(openTabs);
-  if (!layout) return context.skip("Headless Chrome is unavailable");
-  for (const [state, snapshot] of Object.entries(layout)) {
-    assert.ok(snapshot.tabLeft >= snapshot.railLeft - 1, `${state}: active tab starts outside the rail: ${JSON.stringify(layout)}`);
-    assert.ok(snapshot.tabRight <= snapshot.railRight + 1, `${state}: active tab ends outside the rail: ${JSON.stringify(layout)}`);
-  }
-  assert.equal(layout.initial.tabCount, 4);
-  assert.ok(layout.initial.scrollWidth > layout.initial.railRight - layout.initial.railLeft);
-  assert.ok(layout.initial.scrollLeft > 0, `restored trailing tab should scroll into view: ${JSON.stringify(layout)}`);
-  assert.ok(layout.resized.scrollLeft >= layout.initial.scrollLeft, "narrower rail should preserve or advance the tab scroll");
 });
 
 test("Goal Tree uses compact Runtime references instead of long internal ids", () => {
@@ -989,7 +846,6 @@ test("Web explains incomplete product decomposition and shows who owns each prod
   try {
     coordinator.initializeBoard({
       project_id: "web-decomposition-board",
-      title: "Product Decomposition",
       actor_id: "web-user",
       idempotency_key: "web-decomposition-init",
     });

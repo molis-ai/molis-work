@@ -18,6 +18,7 @@ import {
 } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
+import { backgroundProbe } from "./fixtures/plugin-background.js";
 
 // W3-06 E: a plugin the Host runs itself can call the Host's text model through `services.model`, and only from inside one of its
 // own actions that declares model:invoke and is scheduled "concurrent". The Host decides which action is running (the plugin
@@ -25,6 +26,7 @@ import { startModelStandIn } from "./fixtures/model-stand-in.js";
 // reaches the model through the one path every other caller has: `hostTextGeneration`, which goes to agent-host.
 
 const MODEL_INVOKE = "model:invoke";
+const MODEL_READ = "model:read";
 const idOf = (name: string) => `io.molis.work.example.${name}`;
 /** The error codes a refused call raises, with the sort of failure each is (docs/system/CONTRACT-CHANGES.md; the action error model). */
 const CODES = {
@@ -46,6 +48,10 @@ interface ProbeOptions {
   declares?: boolean;
   /** true: model:invoke is a required permission, so a plain start grants it. */
   required?: boolean;
+  /** The model permissions the Manifest declares, in place of model:invoke alone; a required one is granted by a plain start. */
+  permissions?: ReadonlyArray<{ permission: string; required: boolean }>;
+  /** What `ask` and `ask-serial` declare, in place of model:invoke; the Manifest must declare each. */
+  asks?: string[];
   execution?: "sandbox";
   /** What the plugin registers as its own instructions; the default is two. */
   instructions?: (pluginId: string) => readonly InstructionPrompt[];
@@ -64,14 +70,16 @@ function probe(options: ProbeOptions = {}) {
     input_schema: { type: "object", additionalProperties: false } as const, output_schema: { type: "string" } as const };
   const define = (id: string, concurrent: boolean, permissions: string[]): ActionDefinition<Record<string, never>, string> => ({ capability_id: `${pluginId}.${id}`, version: 1,
     operation: "command", action: { ...shape, title: id, description: `探针动作 ${id}`, permissions: declares ? permissions : [], ...(concurrent ? { scheduling: "concurrent" as const } : {}) } });
-  const ask = define("ask", true, [MODEL_INVOKE]), serial = define("ask-serial", false, [MODEL_INVOKE]), plain = define("ask-plain", true, []);
+  const asks = options.asks ?? [MODEL_INVOKE];
+  const ask = define("ask", true, asks), serial = define("ask-serial", false, asks), plain = define("ask-plain", true, []);
   const defaults: Behavior = ({ model }) => model.complete(instructed(summarize, "材料正文"));
   const on: Record<"ask" | "serial" | "plain", Behavior> = { ask: defaults, serial: defaults, plain: defaults };
   const started: Array<PluginHostServices | undefined> = [], preflight: Array<PluginUpgradeContext["services"]> = [];
   const attempts: { atStart?: unknown } = {};
   const manifest: PluginManifest = { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version, name: pluginId, kind: "app",
     publisher: { publisher_id: "molis", signature: options.signature ?? `probe-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
-    permissions: declares ? [{ permission: MODEL_INVOKE, required, reason: "让模型把材料压成一句话" }] : [], capabilities: { provides: [], consumes: [] },
+    permissions: declares ? (options.permissions ?? [{ permission: MODEL_INVOKE, required }]).map(item => ({ ...item, reason: "让模型把材料压成一句话" })) : [],
+    capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [ask, serial, plain],
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } };
   const definition: PluginDefinition = { manifest, ...(execution ? { execution } : {}), ...(instructions.length ? { instructions } : {}),
@@ -155,7 +163,7 @@ test("services.model is for a plugin the Host runs itself that declares model:in
     try {
       assert.deepEqual((await item.platform.start([{ definition: declared.definition, ...GRANTED }, { definition: undeclared.definition }])).running.sort(), [declared.id, undeclared.id].sort());
       const model = declared.model();
-      assert.deepEqual(Object.keys(model).sort(), ["availability", "complete"]);
+      assert.deepEqual(Object.keys(model).sort(), ["availability", "choices", "complete"]);
       assert.equal(Object.isFrozen(model), true, "what the plugin holds cannot be extended into a way round the Host");
       assert.equal(undeclared.started.at(-1)?.model, undefined, "the Manifest is the account of what a plugin reaches");
 
@@ -381,7 +389,7 @@ test("availability is the model's: with no model set up it says so and complete 
         await item.platform.start([{ definition: plugin.definition, ...GRANTED }]);
         const client = plugin.model();
         // null says the Host was given no model.
-        assert.deepEqual(client.availability(), { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" });
+        assert.deepEqual(client.availability(), { available: false, code: "actions.connection_required", reason: "请先在「模型设置」里连接文字模型" });
         await assert.rejects(item.invoke(plugin.ask), { code: "actions.connection_required" });
         // Nothing injected, nothing configured in this Home, no environment key: the Host's own check finds no model either.
         injection.current = undefined;
@@ -390,7 +398,7 @@ test("availability is the model's: with no model set up it says so and complete 
         await assert.rejects(item.invoke(plugin.ask), { code: "actions.connection_required" });
         // A model, read when the call needs it, not when the plugin started.
         injection.current = model.complete;
-        assert.deepEqual(client.availability(), { available: true });
+        assert.deepEqual(client.availability(), { available: true, vision: true }, "a model the Host was given for a test takes images as they are");
         assert.deepEqual(await item.invoke(plugin.ask), { text: "摘要结果" });
         assert.equal(model.calls.length, 1, "only the call made once a model was there reached one");
         // The grant is part of availability, as it is for the action itself.
@@ -399,6 +407,57 @@ test("availability is the model's: with no model set up it says so and complete 
         assert.equal((client.availability() as { code: string }).code, "actions.provider_stopped");
       } finally { item.store.close(); }
     });
+  }));
+
+test("PG047-01 S-15 model:read reads and never sends: a plugin that holds only model:read is given services.model, lists the models and asks availability, and complete() is refused before anything is sent, whether its Manifest declares model:invoke too or not",
+  { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), registered: ActionProviderRegistration[] = [];
+    const item = platformIn(directory, { current: model.complete }, registered);
+    // One reads and nothing more: model:read is all it declares, so none of its actions can declare model:invoke.
+    const reader = probe({ name: "reader", permissions: [{ permission: MODEL_READ, required: true }], asks: [] });
+    // One declares both and holds only model:read: its action declares model:invoke, the installation was not given it.
+    const both = probe({ name: "both", permissions: [{ permission: MODEL_READ, required: true }, { permission: MODEL_INVOKE, required: false }] });
+    try {
+      await item.platform.start([{ definition: reader.definition }, { definition: both.definition }]);
+      for (const plugin of [reader, both]) {
+        const client = plugin.model();
+        assert.deepEqual(Object.keys(client).sort(), ["availability", "choices", "complete"]);
+        assert.ok(Array.isArray(client.choices()), "model:read lists the models");
+        assert.deepEqual(client.availability(), { available: true, vision: true }, "and asks whether one can be reached");
+      }
+      // The reader's own concurrent action declares no model:invoke: the service refuses the call itself.
+      await assert.rejects(item.invoke(reader.ask), refusal("permission_undeclared"));
+      // The other one's action declares model:invoke, which the installation does not hold: the action service does not run it,
+      // and its handler reached with a caller that holds model:invoke is refused by the grant before the model is asked.
+      await assert.rejects(item.invoke(both.ask), { code: "actions.plugin_permission" });
+      const handler = registered.flatMap(registration => registration.handlers).find(binding => binding.capability_id === both.ask.capability_id)
+        ?? assert.fail("the Runtime registered the plugin's action");
+      const context: ActionExecutionContext = { actor_id: "tester", project_id: DEMO_PROJECT_ID, audience: "user", permissions: [MODEL_INVOKE], beforeEffect: async () => {} };
+      await assert.rejects(Promise.resolve(handler.handle(context, {})), { code: "plugin.grant_denied" });
+      assert.equal(model.calls.length, 0, "model:read never reached the model");
+    } finally { item.store.close(); }
+  }));
+
+test("PG047-02 S-15 neither held: a plugin that declares the model permissions and holds neither is refused the list, and availability says the grant is missing; one that declares both and holds only model:invoke still lists",
+  { timeout: 60_000 },
+  withDirectory(async directory => {
+    const model = standIn(), item = platformIn(directory, { current: model.complete });
+    const both = probe({ name: "neither", permissions: [{ permission: MODEL_READ, required: false }, { permission: MODEL_INVOKE, required: false }] });
+    const invoker = probe({ name: "invoker" });
+    // model:read is declared and not given, model:invoke is held: the refused one does not end the search, the held one counts.
+    const fallback = probe({ name: "fallback", permissions: [{ permission: MODEL_READ, required: false }, { permission: MODEL_INVOKE, required: true }] });
+    try {
+      await item.platform.start([{ definition: both.definition }, { definition: invoker.definition }, { definition: fallback.definition }]);
+      for (const plugin of [both, invoker]) {
+        const client = plugin.model();
+        assert.throws(() => client.choices(), { code: "plugin.grant_denied" });
+        assert.deepEqual(client.availability(), { available: false, code: "actions.plugin_permission", reason: "插件缺少模型授权" });
+      }
+      assert.ok(Array.isArray(fallback.model().choices()), "model:invoke alone lists the models");
+      assert.deepEqual(fallback.model().availability(), { available: true, vision: true });
+      assert.equal(model.calls.length, 0);
+    } finally { item.store.close(); }
   }));
 
 test("output json: the answer is decoded when it is JSON, a code fence around it is allowed, text stays the model's own words, and an answer that is not JSON is refused as the model's output", { timeout: 60_000 },
@@ -552,3 +611,32 @@ test("production path: a fixture the Host is given reaches the model the Host wa
       await assert.rejects(noModel.actionClient(reference).invoke(asUser, plugin.ask, {}), { code: "actions.connection_required" });
     } finally { await noModel.close(); }
   }));
+
+test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from sandbox/preflight, and needs no model Home", withDirectory(async directory => {
+  for (const kind of ["declared", "sandbox", "undeclared"] as const) {
+    const item = platformIn(directory, null), probe = backgroundProbe(`background-${kind}`, "project");
+    // This platform uses an inert private-storage port; lifecycle/storage refusal is tested over the real Home and project stores.
+    delete probe.definition.stop;
+    if (kind === "sandbox") probe.definition.execution = "sandbox";
+    if (kind === "undeclared") for (const action of probe.definition.manifest.actions ?? []) delete action.action.background_job;
+    try {
+      assert.deepEqual((await item.platform.start([{ definition: probe.definition, grants: probe.permissions }])).running, [probe.id]);
+      const services = probe.contexts.at(-1)!.services!;
+      assert.equal(services.model, undefined);
+      if (kind !== "declared") assert.equal(services.background, undefined);
+      else {
+        assert.ok(services.background); assert.equal(Object.isFrozen(services.background), true);
+        await assert.rejects(services.background.start(async () => "startup"), { code: "plugin.background_action_required" });
+        await item.actions.client.invoke(item.caller({ permissions: probe.permissions }), probe.start, { id: "no-model" });
+        assert.equal(await probe.handles[0]!.result, "saved result");
+        const next = backgroundProbe(`background-${kind}`, "project", "1.1.0"); delete next.definition.stop;
+        await item.platform.runtime.upgrade({ install_id: item.installId(probe.id), definition: next.definition, grants: probe.permissions });
+        assert.equal(next.preflight.length, 1); assert.equal(next.preflight[0]!.services?.background, undefined);
+      }
+    } finally {
+      await item.platform.closeCoordination();
+      for (const install of item.platform.runtime.list()) if (install.state === "running") await item.platform.runtime.stop(install.install_id);
+      item.store.close();
+    }
+  }
+}));

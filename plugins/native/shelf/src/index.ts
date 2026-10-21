@@ -11,8 +11,8 @@ export const packageDescriptor = {
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
-export { SHELF_UI_CONTRIBUTION_ID, shelfUiContribution, shelfUiDescriptor, renderShelfDirectory, renderShelfWorkbench } from "./ui.js";
-export type { ShelfUiModel, ShelfUiPrimitives, ShelfUiSurface } from "./ui.js";
+export { SHELF_UI_CONTRIBUTION_ID, shelfUiContribution, shelfUiDescriptor, renderShelfWorkbench } from "./ui.js";
+export type { ShelfListModel, ShelfUiModel, ShelfUiPrimitives, ShelfUiSurface } from "./ui.js";
 export {
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
   shelfSettingsUiContribution,
@@ -37,6 +37,6 @@ export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manif
 
 export type { ShelfResultPorts } from "./plugin.js";
 export { SHELF_RUNTIME_ACTIONS, shelfRuntimeActions } from "./runtime-actions.js";
-export { createShelfPlugin } from "./plugin.js";
+export { SHELF_OWNER_FILES, createShelfPlugin } from "./plugin.js";
 
 export { SHELF_INSTRUCTIONS, shelfInstruction } from "./prompts.js";

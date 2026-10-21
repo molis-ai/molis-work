@@ -4,7 +4,10 @@ import type { PluginExecutionControl, PluginRouteResponse } from "@molis-ai/moli
 import type { PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { offerRoutedOriginalFile } from "./plugin-actions-client.js";
+import { offeredOriginalFile } from "./material-original-entry.js";
 import { withPluginInteraction } from "./plugin-interaction-answer.js";
+import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -21,11 +24,16 @@ export interface RuntimePluginRouteHooks {
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
 
-/** Transport authority comes from the caller, never from body/query values. */
+/**
+ * Transport authority comes from the caller, never from body/query values. A route's own declared permission is not among them: it is
+ * checked against the installation behind the route (`dispatchRuntimePluginRoute`).
+ */
 export interface RuntimePluginRouteControls {
-  granted?: readonly string[];
   execution?: PluginExecutionControl;
-  readBody?(request: IncomingMessage): Promise<unknown>;
+  /** `maxBytes` is the route's declared `max_body_bytes`, when it declares one. */
+  readBody?(request: IncomingMessage, maxBytes: number | undefined): Promise<unknown>;
+  /** Ends this call (its `execution.signal`): a streamed route uses it when the plugin stops or its progress overflows. */
+  stop?(): void;
 }
 
 /**
@@ -73,10 +81,13 @@ export async function dispatchRuntimePluginRoute(
   }
   const match = router.match(request.method ?? "GET", url.pathname);
   if (!match) return false;
+  // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
+  // Host-made control carries it, and only to this installation's actions.
+  if (active.install_id && controls.execution) offerRoutedOriginalFile(controls.execution, offeredOriginalFile(request, active.install_id));
   await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
-    try { body = await (controls.readBody ?? (request => readLocalWebBody(request, match.max_body_bytes ?? undefined)))(request); }
+    try { body = await (controls.readBody ?? ((request, maxBytes) => readLocalWebBody(request, maxBytes)))(request, match.max_body_bytes ?? undefined); }
     catch (error) {
       if (!(error instanceof ActionError)) throw error;
       const refusal = actionErrorResponse(error);
@@ -84,12 +95,27 @@ export async function dispatchRuntimePluginRoute(
       return true;
     }
   }
-  const result = await router.dispatch({
-    method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
-    query: Object.fromEntries(url.searchParams), body, granted: controls.granted, execution: controls.execution,
-  });
+  // A route's own permission is the installation's, read now, whoever calls and whatever else they hold: built in or not, a grant
+  // revoked from this installation closes its routes. What the caller may do through the route is the action layer's to check.
+  const granted = active.install_id ? platform.runtime.get(active.install_id).grants : [];
+  const input = { method: request.method ?? "GET", pathname: url.pathname, actor_id: actorId,
+    query: Object.fromEntries(url.searchParams), body, granted, execution: controls.execution };
+  const stop = () => controls.stop?.();
+  if (match.stream) return answerPluginRouteStream(response, async emit => {
+    const result = await router.dispatch({ ...input, emit, stopped: stop });
+    if (result) await hooks.afterDispatch?.(result);
+    return result;
+  }, stop);
+  const result = await router.dispatch(input);
   if (!result) return false;
   await hooks.afterDispatch?.(result);
-  sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
+  if (result.bytes !== undefined) {
+    const raster = ["image/png", "image/jpeg", "image/webp"].includes(result.mime ?? "");
+    const disposition = raster && result.disposition === "inline" ? "inline" : "attachment";
+    response.writeHead(result.status, { "content-type": raster ? result.mime! : "application/octet-stream",
+      "content-disposition": disposition + "; filename*=UTF-8''" + encodeURIComponent(result.filename ?? "material"),
+      "x-content-type-options": "nosniff", "content-security-policy": "sandbox", "cache-control": "no-store" });
+    response.end(result.bytes);
+  } else sendLocalWebJson(response, result.status, withPluginInteraction(result.body));
   return true;
 }

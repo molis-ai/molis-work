@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
-import { generatePagesFromMaterials, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { generatePagesFromMaterials, openPagesStore, ownPagesStores, type PagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -16,6 +16,11 @@ import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+
+/** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
+const generate = (store: PagesStore, record: PagesGenerationRecord, completeText?: (input: Parameters<NonNullable<Parameters<typeof generatePagesFromMaterials>[3]>>[0]) => Promise<string>) =>
+  generatePagesFromMaterials(ownPagesStores(run => run(store)), { beforeEffect: async () => {} }, record,
+    completeText ? async input => ({ text: await completeText(input), validateResult: () => {} }) : undefined);
 
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
 function publishedPackage() {
@@ -68,22 +73,22 @@ test("Pages retries saved input, rejects concurrent generation and preserves lat
   const store = openPagesStore(home);
   try {
     const record = request();
-    await assert.rejects(generatePagesFromMaterials(run => run(store), record), /尚未配置/);
+    await assert.rejects(generate(store, record), /尚未配置/);
     assert.equal(store.generation("project-a", record.request_id)?.status, "failed");
     let calls = 0;
     let finish!: (value: string) => void;
-    const first = generatePagesFromMaterials(run => run(store), record, async input => { const prompt = modelPromptText(input); calls++; assert.match(prompt, /SUMMARY_EXPORT/); return new Promise(resolve => { finish = resolve; }); });
-    await assert.rejects(generatePagesFromMaterials(run => run(store), record, async () => "duplicated"), /仍在生成/);
+    const first = generate(store, record, async input => { const prompt = modelPromptText(input); calls++; assert.match(prompt, /SUMMARY_EXPORT/); return new Promise(resolve => { finish = resolve; }); });
+    await assert.rejects(generate(store, record, async () => "duplicated"), /仍在生成/);
     finish("# 观察\n\n有边界的内容。");
     const saved = await first;
     assert.match(JSON.stringify(saved.document.body), /原帖未核验/);
     store.update(saved.document.id, { title: "用户改过的标题" }, "project-a");
-    const replay = await generatePagesFromMaterials(run => run(store), record, async () => { calls++; return "should not run"; });
+    const replay = await generate(store, record, async () => { calls++; return "should not run"; });
     assert.equal(calls, 1);
     assert.equal(replay.document.title, "用户改过的标题");
     assert.equal(store.generations("project-b").length, 0);
     assert.throws(() => store.get(saved.document.id, "project-b"), /找不到/);
-    await assert.rejects(generatePagesFromMaterials(run => run(store), { ...record, request_hash: "changed" }, async () => "text"), /已改变/);
+    await assert.rejects(generate(store, { ...record, request_hash: "changed" }, async () => "text"), /已改变/);
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
 });
 
@@ -122,7 +127,7 @@ test("Multi-material document retains every source and a project-scoped return l
   try {
     const record = request();
     const multi = { ...record, inputs: [...record.inputs, { ...record.inputs[0]!, entry_id: "entry-2", item_id: "item-2", body: "第二个来源只支持有限推断", url: "https://example.com/second" }] };
-    const result = await generatePagesFromMaterials(run => run(store), multi, async input => { const prompt = modelPromptText(input);
+    const result = await generate(store, multi, async input => { const prompt = modelPromptText(input);
       assert.match(prompt, /第二个来源只支持有限推断/); return "两条材料支持范围不同。[材料 1][材料 2]";
     });
     const body = JSON.stringify(result.document.body);
@@ -176,9 +181,10 @@ test("a workflow receive into Feed judges what its own ingest queued, never anot
 
     const receive = createFeedContentHandlers(feed, DEMO_PROJECT_ID, item => item).find(handler => handler.capability_id === feedContentActions.receive.capability_id)!;
     const caller: ActionCallContext = { actor_id: "workflow-user", project_id: DEMO_PROJECT_ID, audience: "workflow", permissions: ["feed:write"] };
-    const received = await receive.handle(caller, { payload: { title: "工作流交来的内容", body: "正文" }, context: { instance_id: "queue-test", step: 1 } }) as { item_id: string };
+    const received = await receive.handle(caller, { title: "工作流交来的内容", body: "正文", request_id: "workflow:queue-test:1" }) as { item_id: string };
     const ownEntry = feed.listInboxEntries(DEMO_PROJECT_ID).find(entry => entry.subject_id === received.item_id)!;
     assert.ok(ownEntry, "the delivery was admitted to the Inbox by the rule");
+    assert.equal(feed.getFeedItem(DEMO_PROJECT_ID, received.item_id).source_label, "工作流程", "W4-6-05 a workflow audience files under 「工作流程」");
 
     assert.deepEqual(judged.slice().sort(), [`capture:${received.item_id}:workflow-user`, `home-feed_item:${received.item_id}:workflow-user`,
       `home-inbox_entry:${ownEntry.entry_id}:workflow-user`, `inbox:${ownEntry.entry_id}:workflow-user`].sort(),

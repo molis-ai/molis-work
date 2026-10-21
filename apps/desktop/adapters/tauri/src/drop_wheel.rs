@@ -280,6 +280,42 @@ pub fn panel_takes_drop(over_panel: bool, wheel_owns_drop: bool) -> bool {
     over_panel && !wheel_owns_drop
 }
 
+/// Shelf's side tab as the page reports it (`shelf_surface_changed`): CSS pixels from the top-left of the
+/// window's content. The page is not trusted for this: a box that is not finite, starts above or left of the
+/// content, has no area or does not fit the content is dropped, and then there is no Shelf panel to drop on.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Deserialize)]
+pub struct PanelBox {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+/// The reported box, if it is one (finite, at or after the content's origin, with area).
+pub fn reported_panel(panel: Option<PanelBox>) -> Option<PanelBox> {
+    let panel = panel?;
+    let finite = [panel.x, panel.y, panel.width, panel.height]
+        .iter()
+        .all(|value| value.is_finite());
+    (finite && panel.x >= 0.0 && panel.y >= 0.0 && panel.width > 0.0 && panel.height > 0.0)
+        .then_some(panel)
+}
+
+/// Whether `mouse` (screen, AppKit: origin bottom-left) is over the reported box, given the window content's
+/// screen rect. A box that does not fit the content (one pixel of rounding allowed) is never hit.
+pub fn over_reported_panel(mouse: Point, panel: PanelBox, content: (Point, f64, f64)) -> bool {
+    let (origin, width, height) = content;
+    if panel.x + panel.width > width + 1.0 || panel.y + panel.height > height + 1.0 {
+        return false;
+    }
+    let left = origin.x + panel.x;
+    let bottom = origin.y + height - panel.y - panel.height;
+    mouse.x >= left
+        && mouse.x < left + panel.width
+        && mouse.y >= bottom
+        && mouse.y < bottom + panel.height
+}
+
 #[derive(Debug)]
 pub struct DropWheelSession {
     pub show_wheel: bool,
@@ -426,6 +462,95 @@ impl DropWheelSession {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SHELF_TAB: PanelBox = PanelBox {
+        x: 900.0,
+        y: 32.0,
+        width: 360.0,
+        height: 700.0,
+    };
+
+    #[test]
+    fn s14_a_reported_shelf_box_that_is_not_a_box_is_refused() {
+        assert_eq!(reported_panel(Some(SHELF_TAB)), Some(SHELF_TAB));
+        assert_eq!(reported_panel(None), None);
+        for bad in [
+            PanelBox {
+                x: f64::NAN,
+                ..SHELF_TAB
+            },
+            PanelBox {
+                width: f64::INFINITY,
+                ..SHELF_TAB
+            },
+            PanelBox {
+                x: -1.0,
+                ..SHELF_TAB
+            },
+            PanelBox {
+                y: -0.5,
+                ..SHELF_TAB
+            },
+            PanelBox {
+                width: 0.0,
+                ..SHELF_TAB
+            },
+            PanelBox {
+                height: -10.0,
+                ..SHELF_TAB
+            },
+        ] {
+            assert_eq!(reported_panel(Some(bad)), None, "{bad:?}");
+        }
+    }
+
+    #[test]
+    fn s14_the_wheel_takes_the_shelf_tab_only_where_it_is_on_screen() {
+        // A 1280×800 content area whose bottom-left is at (100, 50) on screen.
+        let content = (Point::new(100.0, 50.0), 1280.0, 800.0);
+        // The tab's top-left is (1000, 818) on screen and its bottom-left (1000, 118).
+        assert!(over_reported_panel(
+            Point::new(1000.0, 118.0),
+            SHELF_TAB,
+            content
+        ));
+        assert!(over_reported_panel(
+            Point::new(1359.0, 817.0),
+            SHELF_TAB,
+            content
+        ));
+        assert!(
+            !over_reported_panel(Point::new(999.0, 400.0), SHELF_TAB, content),
+            "the work area beside it"
+        );
+        assert!(
+            !over_reported_panel(Point::new(1100.0, 117.0), SHELF_TAB, content),
+            "below it"
+        );
+        assert!(
+            !over_reported_panel(Point::new(1100.0, 819.0), SHELF_TAB, content),
+            "the title bar above it"
+        );
+        // A box wider or taller than the content is never hit, wherever the mouse is.
+        let wide = PanelBox {
+            width: 1000.0,
+            ..SHELF_TAB
+        };
+        assert!(!over_reported_panel(
+            Point::new(1100.0, 400.0),
+            wide,
+            content
+        ));
+        let tall = PanelBox {
+            height: 900.0,
+            ..SHELF_TAB
+        };
+        assert!(!over_reported_panel(
+            Point::new(1100.0, 400.0),
+            tall,
+            content
+        ));
+    }
 
     #[test]
     fn the_wheel_reads_left_to_right_the_way_dropagent_lays_it_out() {

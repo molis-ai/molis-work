@@ -9,14 +9,15 @@ import {
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
+import { FOUNDATION_SPECIMEN_STYLES, renderFoundationSection } from "./foundation-specimens.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
 
-const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "shelf", "lingguang", "plugin-builder"] as const;
+const CATALOG_PLUGINS = ["goals", "inbox", "feed", "sessions", "schedule", "workflows", "pages", "lingguang", "plugin-builder"] as const;
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
- * the plugin switcher with the Assistant line, Shelf and 灵光, discussion and the project. Pins are filled
+ * the plugin switcher with the Assistant line, the side panel's button and the project. Pins are filled
  * the way the workbench client fills them; the switcher opens with the same popover.
  */
 function renderBarSpecimen(): string {
@@ -88,12 +89,12 @@ const BAR_SPECIMEN_SCRIPT = `
       tile.classList.toggle("is-available", !adding);
       toggle.dataset.state = adding ? "added" : "available";
       toggle.classList.toggle("mw-btn--primary", !adding); toggle.classList.toggle("mw-btn--secondary", adding);
-      const pin = tile.querySelector("[data-dock-choice]"); if (pin && !pin.hasAttribute("data-resident")) pin.disabled = !adding;
+      const pin = tile.querySelector("[data-dock-choice]"); if (pin) pin.disabled = !adding;
       return;
     }
-    const pin = event.target.closest("[data-dock-pin], [data-bar-resident]");
+    const pin = event.target.closest("[data-dock-pin]");
     if (!pin) return;
-    stage.querySelectorAll("[data-dock-pin], [data-bar-resident]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
+    stage.querySelectorAll("[data-dock-pin]").forEach((node) => node.toggleAttribute("aria-current", node === pin));
   });
   document.addEventListener("click", (event) => {
     if (!stage.contains(event.target)) { setPicker(false); stage.querySelectorAll("details[open]").forEach((node) => node.removeAttribute("open")); }
@@ -105,8 +106,18 @@ const BAR_SPECIMEN_SCRIPT = `
   });
 })();`;
 
-/** The arrival specimens move: the wordmark types again on demand and the caption cycles its words. */
-const ARRIVAL_SPECIMEN_SCRIPT = `
+/** The board's specimens move: the copy buttons copy (one is refused), the live number counts through its range, the arrival
+ * wordmark types again on demand and the caption cycles its words. */
+const SPECIMEN_SCRIPT = `
+(() => {
+  document.addEventListener("click", (event) => {
+    const copy = event.target.closest("[data-catalog-copy]");
+    if (copy) window.molisCopy?.(copy, () => copy.dataset.catalogCopy === "ok" ? "Molis Work" : Promise.reject(new Error("refused")));
+  });
+  const elapsed = document.querySelector("[data-catalog-elapsed]");
+  let seconds = 0;
+  if (elapsed) setInterval(() => { seconds = (seconds + 7) % 3600; elapsed.textContent = seconds < 60 ? seconds + " 秒" : Math.floor(seconds / 60) + " 分 " + (seconds % 60) + " 秒"; }, 400);
+})();
 (() => {
   const arrival = window.molisArrival;
   if (!arrival) return;
@@ -128,8 +139,8 @@ export function renderMolisWorkPrimitiveCatalog(): string {
     ],
   });
   const catalog = renderPrimitiveCatalog()
-    .replace("</nav>", '<a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>')
-    .replace("\n  </div>\n  <script>", `\n    ${renderBarSection()}\n  </div>\n  <script>`);
+    .replace("</nav>", '<a href="#foundation" title="视觉机制">视觉机制</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>')
+    .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -138,6 +149,7 @@ export function renderMolisWorkPrimitiveCatalog(): string {
   <title>组件板 · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
   <link rel="stylesheet" href="/assets/molis-work-settings.css">
+  <style>${FOUNDATION_SPECIMEN_STYLES}</style>
 </head>
 <body class="mw-catalog-page settings-page">
   ${renderIconSprite()}
@@ -150,7 +162,7 @@ export function renderMolisWorkPrimitiveCatalog(): string {
   </header>
   ${catalog}
   <script>${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>
-  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${ARRIVAL_SPECIMEN_SCRIPT}</script>
+  <script>${ARRIVAL_MOTION_CLIENT_SCRIPT}${SPECIMEN_SCRIPT}</script>
 </body>
 </html>`;
 }

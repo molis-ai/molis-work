@@ -7,6 +7,7 @@ import test from "node:test";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import type { AgentRunRef, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { endingReviewAnswer } from "./fixtures/ending-review.js";
 
 // specs/prologue-adoption §4.6.10 (P3a): a yield is the SDK's — dispatch, the step waits on the child's step, the run
 // ends — and the step goes on only when the Host starts the session's next round, through the same start checks.
@@ -47,9 +48,12 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
     let raw = "";
     for await (const chunk of request) raw += String(chunk);
     const body = JSON.parse(raw) as { system: unknown; tools?: Array<{ name: string }> };
+    // A round that changed nothing has its ending reviewed (D1②): answered "nothing found", not counted as a run.
+    const review = endingReviewAnswer(body, () => []);
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    if (review) { response.end(reply(undefined, review)); return; }
     const who = body.tools?.some(tool => tool.name === "dispatch-subagent") ? "parent" : "child";
     requests.push({ who, body: raw });
-    response.writeHead(200, { "content-type": "text/event-stream" });
     if (who === "child") { response.end(reply(undefined, "读过了：README 一共三节。")); return; }
     if (requests.filter(one => one.who === "parent").length === 1) {
       const character = JSON.stringify(body.system).match(/molis-child-[a-z0-9-]+@4/)?.[0];
@@ -74,7 +78,7 @@ async function fixture(yieldIt: boolean, onFirst?: () => void) {
   return { root, requests, errors, queue, make, close };
 }
 
-test("PA-23: after a yield the Runtime starts no parent run; a revoked next round is refused before it starts and leaves the continuation where it is; the Host's next round takes it up once, and reopening asks no model", { timeout: 40_000 }, async () => {
+for (const graph of ["project", "work"] as const) test(`PA-23: after a yield on a ${graph} graph, the Host takes up a continuation once; revoked starts leave it eligible and reopening asks no model`, { timeout: 40_000 }, async () => {
   const world = await fixture(true);
   let adapter = await world.make();
   try {
@@ -83,6 +87,7 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     const directory = { canonical_path: world.root, realpath_verified: true };
     const authority = { manifest: codingAgentManifest, prompts: codingPrompts, authorizedDirectories: [world.root] };
     const session = await adapter.createSession({ ...owner, directory, title: "P3a yield" });
+    if (graph === "work") await adapter.collaboration!.works!.open({ key: "continuation-work", session_id: session.session_id, title: "Work waiting for its child" });
     const first = await host.start("prologue", { ...owner, directory, session, role_id: "coordinator", task: "Ask one child to read README, then wait for it." }, authority);
     const ended = await terminal(adapter, first.ref, world.queue);
     assert.deepEqual(world.errors, []);
@@ -90,9 +95,9 @@ test("PA-23: after a yield the Runtime starts no parent run; a revoked next roun
     // The child ran (its own model call); the step waits on the child's step, and once it ended the continuation may go on.
     await until("the continuation may go on", async () => (await adapter.collaboration!.read("project", session.session_id))[0]?.continuation?.state === "eligible");
     const ready = (await adapter.collaboration!.read("project", session.session_id))[0]!;
-    // The coordinator holds no board tools, so neither does its child (SDK T12): the child cannot report its step, the step
-    // comes back to the parent unfinished and the wait settles as failed. A yield waits until "settled" and goes on
-    // either way, so the continuation may go on all the same.
+    // This child only answers and never reports its step (one that does: coding-coordinator-board), so the step comes back
+    // to the parent unfinished and the wait settles as failed. A yield waits until "settled" and goes on either way, so the
+    // continuation may go on all the same.
     assert.deepEqual([ready.wait?.state, ready.wait?.until, ready.wait?.on_failure, ready.wait?.conditions[0]?.last.note, ready.continuation?.auto],
       ["failed", "settled", "continue", "back with you unfinished", true]);
     assert.deepEqual(world.requests.map(one => one.who), ["parent", "child"], "the Runtime starts no parent run of its own");

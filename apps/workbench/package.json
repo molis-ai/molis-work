@@ -4,7 +4,7 @@
   "private": true,
   "description": "Local product UI composition root for the Workbench.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -21,8 +21,8 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && ../../node_modules/.bin/esbuild src/browser/knowledge/entry.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/knowledge-client.js && ../../node_modules/.bin/esbuild src/browser/write-checkers-factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=const molisWorkWriteCheckers = (host) => {' --footer:js=} --outfile=dist/write-checkers-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",

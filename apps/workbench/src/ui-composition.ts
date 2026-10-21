@@ -1,6 +1,3 @@
-import { COGNIA_UI_CONTRIBUTION_ID, type CogniaUiModel } from "@molis-ai/molis-work-plugin-cognia";
-import { IMAGES_UI_CONTRIBUTION_ID, type ImagesUiModel } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_UI_CONTRIBUTION_ID, type JellyUiModel, type JellyUiSurface } from "@molis-ai/molis-work-plugin-jelly";
 import type {
   UiRenderRequest,
   UiSlotDescriptor,
@@ -23,10 +20,7 @@ import {
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
 import {
-  SHELF_UI_CONTRIBUTION_ID,
   SHELF_SETTINGS_UI_CONTRIBUTION_ID,
-  type ShelfUiModel,
-  type ShelfUiSurface,
   type ShelfSettingsUiModel,
 } from "@molis-ai/molis-work-plugin-shelf";
 import {
@@ -54,11 +48,6 @@ import {
   type LingguangUiModel,
   type LingguangUiSurface,
 } from "@molis-ai/molis-work-plugin-lingguang";
-import {
-  TODO_UI_CONTRIBUTION_ID,
-  type TodoUiModel,
-  type TodoUiSurface,
-} from "@molis-ai/molis-work-plugin-todo";
 import {
   ALCHEMIST_UI_CONTRIBUTION_ID,
   type AlchemistUiModel,
@@ -100,11 +89,6 @@ const SCHEDULE_SURFACE_SLOTS: Readonly<Record<ScheduleUiSurface, UiSlotDescripto
   workbench: WORKBENCH_UI_SLOTS.main,
 };
 
-const SHELF_SURFACE_SLOTS: Readonly<Record<ShelfUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
 
 const PAGES_SURFACE_SLOTS: Readonly<Record<PagesUiSurface, UiSlotDescriptor>> = {
   comments: WORKBENCH_UI_SLOTS.side,
@@ -123,11 +107,6 @@ const DATASET_SURFACE_SLOTS: Readonly<Record<DatasetUiSurface, UiSlotDescriptor>
 };
 
 const PPT_SURFACE_SLOTS: Readonly<Record<PptUiSurface, UiSlotDescriptor>> = {
-  directory: WORKBENCH_UI_SLOTS.directory,
-  workbench: WORKBENCH_UI_SLOTS.main,
-};
-
-const TODO_SURFACE_SLOTS: Readonly<Record<TodoUiSurface, UiSlotDescriptor>> = {
   directory: WORKBENCH_UI_SLOTS.directory,
   workbench: WORKBENCH_UI_SLOTS.main,
 };
@@ -257,20 +236,6 @@ export function renderScheduleContribution(
   }).html;
 }
 
-export function renderShelfContribution(
-  surface: ShelfUiSurface,
-  model: ShelfUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: SHELF_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: SHELF_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
 
 export function renderPagesContribution(
   surface: PagesUiSurface,
@@ -370,20 +335,6 @@ export function renderLingguangContribution(
   }).html;
 }
 
-export function renderTodoContribution(
-  surface: TodoUiSurface,
-  model: TodoUiModel,
-): string {
-  return workbenchUiHost.mount({
-    slot: TODO_SURFACE_SLOTS[surface],
-    contribution: {
-      contribution_id: TODO_UI_CONTRIBUTION_ID,
-      surface,
-      model,
-    },
-  }).html;
-}
-
 export function renderPluginSettingsContribution(
   contributionId: string,
   model: unknown,
@@ -405,17 +356,4 @@ export function renderShelfSettingsContribution(model: ShelfSettingsUiModel): st
 
 export function listWorkbenchUiContributions() {
   return workbenchUiHost.list();
-}
-
-
-export function renderImagesContribution(model: ImagesUiModel): string {
-  return workbenchUiHost.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: IMAGES_UI_CONTRIBUTION_ID, surface: "workbench", model } }).html;
-}
-
-export function renderJellyContribution(surface: JellyUiSurface, model: JellyUiModel): string {
-  return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: JELLY_UI_CONTRIBUTION_ID, surface, model } }).html;
-}
-
-export function renderCogniaContribution(surface: "directory" | "workbench", model: CogniaUiModel): string {
-  return workbenchUiHost.mount({ slot: surface === "directory" ? WORKBENCH_UI_SLOTS.directory : WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: COGNIA_UI_CONTRIBUTION_ID, surface, model } }).html;
 }

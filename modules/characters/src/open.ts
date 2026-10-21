@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { applySqliteBaseline, type HomeStoreDeclaration, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { CharactersService } from "./service.js";
-import { characterErrors } from "./errors.js";
+import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CharactersRepository } from "./repository.js";
 
 /** The one current schema of `characters/characters.sqlite`; any other version, or tables without one, is refused (repository-anti-corruption §4.1). */

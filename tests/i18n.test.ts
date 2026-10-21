@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { EN, L, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
+import { runInNewContext } from "node:vm";
+import { EN, L, clientI18nScript, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
+import { IMAGES_MESSAGES, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
 import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 import { isProductSource, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
 const { explainWorkState } = createGoalStateExplainer(L);
@@ -100,7 +102,9 @@ test("Host request locales stay isolated across interleaved async rendering and 
   const english = runWithLocale("en", async () => {
     try {
       assert.equal(L("设置"), "Settings");
+      assert.equal(L("images.compose.generate"), "Generate image");
       await chineseReady;
+      assert.equal(L("images.compose.generate"), "Generate image");
       assert.equal(L("设置"), "Settings");
       assert.equal(htmlLang(), "en");
       await assert.rejects(runWithLocale("zh", async () => {
@@ -116,9 +120,33 @@ test("Host request locales stay isolated across interleaved async rendering and 
   const chinese = runWithLocale("zh", async () => {
     enteredChinese();
     await englishChecked;
+    assert.equal(L("images.compose.generate"), "生成图片");
     assert.equal(L("设置"), "设置");
     assert.equal(htmlLang(), "zh-CN");
   });
   await Promise.all([english, chinese]);
   assert.equal(L("设置"), "设置");
+});
+
+
+test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
+  for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
+    const browser: { L?: typeof L } = {};
+    runInNewContext(clientI18nScript(), browser);
+    assert.ok(browser.L);
+    for (const [key, message] of Object.entries(IMAGES_MESSAGES)) {
+      assert.equal(L(key), message[locale], `Host: ${key}`);
+      assert.equal(browser.L(key), message[locale], `browser: ${key}`);
+    }
+    assert.equal(L("images.compose.generate"), locale === "en" ? "Generate image" : "生成图片");
+    // This is the English actually displayed before migration, after the shared Chinese-key catalog was merged.
+    assert.equal(L("images.result.title"), locale === "en" ? "Results" : "生成结果");
+    assert.equal(browser.L("共 {count} 个{suffix}目标", { count: 3, suffix: "" }), locale === "en" ? "3 Goals" : "共 3 个目标");
+    assert.equal(browser.L("设置"), locale === "en" ? "Settings" : "设置");
+    assert.equal(browser.L("unregistered word"), "unregistered word");
+    const page = renderImagesWorkbench({ primitives: { text: L, escape: String } });
+    assert.doesNotMatch(page, /images\.(?:compose|service|history|account|result)\./);
+    assert.ok(page.includes(locale === "en" ? "Describe your image" : "描述你想要的图片"));
+    assert.ok(page.includes(locale === "en" ? "Manage image API keys in Connectors" : "在 Connectors 管理图像 API Key"));
+  });
 });

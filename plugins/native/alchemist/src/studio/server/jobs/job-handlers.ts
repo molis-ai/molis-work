@@ -77,6 +77,15 @@ interface JobHandlerDependencies {
   };
 }
 
+export function validateBrainstormJob(job: PersistedJob) {
+  const input = discoveryInputSchema.parse(job.input);
+  if (job.checkpoint !== undefined) {
+    if ((job.checkpoint as { stage?: string }).stage === "generating") z.object({ stage: z.literal("generating") }).strict().parse(job.checkpoint);
+    else checkpointSchema.parse(job.checkpoint);
+  }
+  return input;
+}
+
 export function createJobHandlers(dependencies: JobHandlerDependencies): JobHandlers {
   const handlers: Record<string, JobHandler> = {
     [DISCOVERY_BRAINSTORM_JOB]: async (job, control) => handleBrainstormJob(job, control, dependencies),
@@ -108,14 +117,13 @@ async function handleBrainstormJob(
   let parsedInput: DiscoveryBrainstormJobInput | undefined;
   try {
     parsedInput = discoveryInputSchema.parse(job.input);
-    if ((job.checkpoint as { stage?: string } | undefined)?.stage === "generating") throw new Error("alchemist.ai_call_interrupted");
     if (control.isCancelled()) return;
-    control.commit(() => dependencies.explorations.markRunning(parsedInput!.explorationRunId, dependencies.clock.now()));
-    const checkpoint = job.checkpoint
+    await control.commit(() => dependencies.explorations.markRunning(parsedInput!.explorationRunId, dependencies.clock.now()));
+    const checkpoint = job.checkpoint && (job.checkpoint as { stage?: string }).stage !== "generating"
       ? checkpointSchema.parse(job.checkpoint)
       : await generateCheckpoint(job, parsedInput, control, dependencies);
     if (control.isCancelled()) return;
-    control.commit(() => dependencies.explorations.saveResult(
+    await control.commit(() => dependencies.explorations.saveResult(
       parsedInput!.explorationRunId,
       checkpoint.understanding as DirectionUnderstanding,
       checkpoint.cards as IdeaCard[],
@@ -126,7 +134,7 @@ async function handleBrainstormJob(
     if (control.isCancelled()) return;
     const code = error instanceof ZodError ? "alchemist.ai_output_invalid" : classifyError(error);
     if (parsedInput) {
-      control.commit(() => dependencies.explorations.saveFailure(parsedInput!.explorationRunId, code, dependencies.clock.now()));
+      await control.commit(() => dependencies.explorations.saveFailure(parsedInput!.explorationRunId, code, dependencies.clock.now()));
     }
     throw new JobExecutionError(code);
   }
@@ -138,15 +146,20 @@ async function generateCheckpoint(
   control: JobHandlerControl,
   dependencies: JobHandlerDependencies,
 ): Promise<ExplorationCheckpoint> {
-  control.signal.throwIfAborted();
+  await control.beforeEffect();
+  const accepted = control.acceptance.exploration;
+  if (!accepted) throw new Error("alchemist.resume_context_required");
+  if (accepted.errorCode) throw new Error(accepted.errorCode);
   // Persist before dispatch: an ambiguous interrupted call is never silently replayed.
-  control.saveCheckpoint({ stage: "generating" });
+  await control.saveCheckpoint({ stage: "generating" });
   const generation = await dependencies.runtime.generateStructured({
     operationId: job.id,
+    modelId: accepted.modelId,
+    beforeModelDispatch: control.beforeEffect,
     purpose: "把 Direction 炼化为少量有价值的 Idea 候选",
     systemPrompt: instructed(ALCHEMIST_EXPLORATION, ""),
     userPrompt: JSON.stringify({ title: input.directionTitle, description: input.directionDescription,
-      founderTaste: (dependencies.taste?.() ?? []).map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),
+      founderTaste: accepted.taste.map(rule => ({ title: rule.title, statement: rule.statement, appliesTo: rule.appliesTo, exceptions: rule.exceptions })) }),
     jsonSchema: z.toJSONSchema(explorationGenerationSchema) as Record<string, unknown>,
     parse: (value) => explorationGenerationSchema.parse(value),
     signal: control.signal,
@@ -168,7 +181,7 @@ async function generateCheckpoint(
     })),
   };
   // The checkpoint is durable before business persistence, so a restart reuses the same card ids.
-  control.saveCheckpoint(checkpoint);
+  await control.saveCheckpoint(checkpoint);
   return checkpoint;
 }
 

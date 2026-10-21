@@ -1,10 +1,75 @@
 # 情境动作总纲：一个动作池、一条浮条、右栏与创建入口
 
-> 接续请先读文末第 21 节（2026-10-14 起的助理整合与 W3，当前接续入口）与第 16.5 节的现状核对，再读第 20 节的远端交接与第 16 节的证据。第 17 节的旧交接已被取代。
+> 接续入口是下面的「交接（2026-10-20）」一节。第 17 节的旧交接、第 20 节的远端交接都只作历史记录；第 21 节各小节仍是设计、决策与证据的出处。
 
-> 统筹更正（2026-10-13 晚）：本行之后的状态句写于知道 #471/#472 之前。#411 具备条件可以先于 #408 合；右栏电脑格改接 #471 的实现。先读 §20 开头的「统筹补充」。
+状态：执行中，本线 2026-10-20 交接后停（见下一节）。W0～W3（含助理整合 W3-A1～A3c、落点 W3-B1～B3、右栏 W3-C、W3-C2）、W2' 右栏改版、W4-1 两个创建入口与下一步行的结果位，以及交接时在途的 W4-2（#801）、W4-6a（#804）与 QA-013～018 的修补（#830、#831）都已合入 main；W4 其余各片、W5～W7 与收尾没开工，记在 `specs/BACKLOG.md`；真实 Jev 评估、桌面原生拖出未做，没有一骏本人验收。
 
-状态：执行中（2026-10-15）。W0 原型与 W1、W2（浮条取代底栏、Pages 迁到浮条）已合入 main（#411、#494）；第 13 节对照表的现状核对见第 16.5 节；用户 2026-10-14 追加的助理动作推荐、动作指引与对话整合已出方案与可点切片（第 21 节），W3-A1（下一步在输入框上方一行）已实现、在隔离 Home 走过，PR 待合（21.6）；真实 Jev 评估、桌面原生拖出未做，没有一骏本人验收。
+## 交接（2026-10-20）
+
+情境线（会话 ⑧）按用户 2026-10-19 的重新安排收尾：除防腐线外，各线把手头的片做完、开 PR 交 ⑤（评审、修意见、合并），写交接，然后停。本线不再开新片。
+
+**现在的状态**：见上面的状态句。交接时在途的四条 PR 都已合入；⑤ 在 2026-10-20 核对了实际合入提交，并把本轮补过的验证与剩余欠账分开记录如下。
+
+**已合入 main**
+
+| PR | 内容 | 合入提交 |
+| --- | --- | --- |
+| #411 | W1 合同与声明；W2 浮条取代底栏、Pages 迁到浮条 | `70c928ae0` |
+| #494 | W2 的浏览器用例（W2-02、W2-05、W2-08）与手册的浮条章节 | `5ba2fa929` |
+| #536 | W3-A1 下一步与输入框同一行（FLOW-01～05） | `ac47ed788` |
+| #553 | W3-B1 把手上的东西放进左边 Pages 的落点 | `2897ae047` |
+| #573 | W3-A2 助理输入框上方的情境条 | `cca71e02f` |
+| #594 | 切换器的标题只在变了时重建（顺带修） | `ac6c4cd85` |
+| #618 | W3-B2 情境条显示落点 | `0a931c978` |
+| #651 | W3-B3 分屏窗格里的 Pages 也是落点；窗格消息一处检查（S-30） | `106d6163a` |
+| #660 | BL-150 助理回复里选中的一段是手上的东西 | `57cc56635` |
+| #664 | W3-A3a 页面上选的写动作留在当前工作 | `bcb304cd1` |
+| #673 | W3-A3b 拿起结果卡；悬停「放进去」时闪落点 | `9fda1a405` |
+| #691 | W3-A3c 分屏窗格与「更多」菜单里也闪 | `df00646d8` |
+| #701 | W2'-1、W2'-2 右栏改版：Shelf 是第一格，常开插件 | `a56a2763d` |
+| #704 | W2'-3 桌面：Shelf 的热键与菜单按插件名开右栏格 | `c31291c34` |
+| #712 | W3-C 右栏插件格报告手上的东西 | `38beba3dd` |
+| #720 | W3-C2 右栏格的浮条悬停时闪左边的落点；PICK-05（Esc 后在路上的判断回来不再画出浮条） | `b2336d5c4` |
+| #730 | W4-1「记成待办」「记下灵光」并进创建入口 | `f4207e064` |
+| #772 | 补回 #730 删掉的「改选区」用例；手上的东西在哪只看元素 | `bcf080dba` |
+| #780 | 下一步行的结果位（21.9，SLOT-01、SLOT-02） | `8eedf2222` |
+| #789 | 结果按钮由下一步行接上（SLOT-03，回执 3e-2a） | `c5213bc2c` |
+| #791 | 21.9 结果位的顺序规则 | `08572e900` |
+| #817 | 21.9 交付说明里的「问题」只指为补充问的问题 | `c40e7088f` |
+
+**交接时在途、现已合入 main（2026-10-20 核对）**
+
+| PR | 内容 | 合入提交 | 验证与剩余事项 |
+| --- | --- | --- | --- |
+| #801 | W4-2 Pages「存为文档」、Goals「拆成目标步骤」两个创建入口（21.10，D-1～D-6） | `335628529` | 已补真实提案确认、采用、失败重试、草稿保留与挂载回归，含 390 深色 / 1440 浅色实操截图；原 spec 的全部宽度与明暗人工矩阵仍在 BL-338 |
+| #804 | W4-6a 内容站 `receive` 升到 v2，请求号取代「实例 + 步骤」（quick-create §11） | `e7bb2d44e` | D25 归 ① 等用户定时间；quick-create §11.10 的独立浏览器实走仍待补 |
+| #830 | 修 QA-013、QA-014、QA-015：侧栏首开是 Shelf；390 宽情境条不再互相盖住；Pages 落点在写入前撤权或取消时什么都不写 | `a6ada23f8` | 定向非浏览器与浏览器回归、窄屏焦点与标题检查已补；66 张图中 63 张一致、3 张差异已核，22 组样式一致；全部中英明暗人工矩阵仍在 BL-338 |
+| #831 | 修 QA-016、QA-017、QA-018（只改测试） | `42d8c6f6a` | 已包含在本轮完整回归；不据此宣称原 spec 的人工截图矩阵或一骏验收通过 |
+
+本轮完整回归 [Full suite #39444644367](https://github.com/molis-ai/molis-work/actions/runs/39444644367) 通过 1176 个测试文件（其中 2 个按现有重试规则第二次通过）。最终 main `2571a328` 的完整文件树与被测树一致。逐 PR 的补修与验证记录见 [#801](https://github.com/molis-ai/molis-work/pull/801) 和 [#830](https://github.com/molis-ai/molis-work/pull/830) 评论；这些证据不代替下列剩余实走和本人验收。
+
+**D25**：移交 ①；#804 已合入（`e7bb2d44e`），等用户定时间。D25 是真实 Home 上的一次性维护：把 MCP 客户端授权、内置 Agent 授权和 Characters 角色里八个 `<站>.content.receive` 从 v1 改成 v2；先在一次性 Home 上演练、先备份，时间由用户定（用户 2026-10-19）。计划、演练报告和脚本已交到 ① 的笔记目录，① 正式跑之前重新演练一次。已保存的工作流不在范围内，由用户自己在编辑器里修。
+
+**分支与工作树**（本机 `.claude/worktrees/`）
+
+- 已删（2026-10-20，⑧）：W1 的七个工作树与本地分支（`feat/context-w1-contracts`、`-declarations`、`-derivation`、`-drafting`、`-floating`、`-manual`、`feat/context-w1-split-context-actions`，内容都在 main），`context-w2-plan` 工作树。
+- 工作树已删、本地分支留着：`feat/context-w1-toolbar`、`feat/context-w2-toolbar`、`feat/context-w2-bus-view` 的提交按标题都能在 main 里找到（合成 #411 时改过基），只是提交号不同；`context/w4-6-plan` 的提交在 #804 的分支里；`context/w4-2-create-entries` 已推送（#801）。强删本地分支要用户点头，由 ① 在 #801、#804 合入后一起处理。
+- 留着的工作树：`agent-a197fe3b87d42bdae`（`context/w4-6a-receive-v2`，#804 的子代理工作树，带锁，提交都已推送），#804 合入后由 ① 删；`agent-aac8d653cd0e97318`（`context/qa-016-018`），#831 已合入（`42d8c6f6a`），由 ① 删；`contextual-line-38bd8a`（本会话，`context/qa-013-014` 与交接分支 `context/handover-1020`），#830 与交接 PR 合入后，归档本会话时删。
+- 远端分支：仓库启用了合入后自动删除。2026-10-20 核对，#801、#804、#830、#831 的源分支已不存在；上述其他 Agent 的本地分支与工作树仍由原负责人处理。
+- 一次性 Home：本线没有留下的（D25 演练用的已删）。① 在查的八个 `molis-test-home-*` 不是本线建的。
+
+**没做完、没开工的**（`specs/BACKLOG.md`，负责人都是「未分配」）：BL-174、BL-330～BL-339。
+
+**接续入口**：这一节取代 `coordination/2026-10-18/lines/` 下本线的线文件（不在 main 上）、第 17 节的旧交接、第 20 节的远端交接和原来开头的「统筹更正（2026-10-13 晚）」；第 20、21 节标题里的「当前接续入口」已去掉。接手时先读这一节，再读第 9 节分期、第 21.4 节片表（W4-2～W4-7 几行随 #801 进 main）与 quick-create §11（W4-6b 与 BL-174 的计划，随 #804 进 main）。第 16.5 节的对照表停在 2026-10-14，之后的进度看第 21.6 节和上面的已合入表；重核对照表记在 BL-339。
+
+**风险与不能碰的**
+
+- 真实 Home（日常用的那个、本机 4207 端口的服务）和真实数据不碰；用例与走查只用一次性 Home，用完删掉。D25 是唯一要动真实 Home 的事，归 ①。
+- 钥匙串里的 Home 主密钥条目不删：每个 Home 共用它。MiniMax 的 key 只在命令里内联读取，不进聊天、文件和日志。
+- #804 合入后，八个 MCP 工具名从 `…content.receive__v1` 变成 `__v2`，不留别名（用户 2026-10-19 定）：外部 MCP 配置写死旧名的要跟着改；真实 Home 里固定了 v1 的授权与角色，在 D25 之前报不可用。
+- 页面资源每个文件只许减：新加的样式和脚本先在同一个资源里省回来，省不回才一次性放行（W4-1 用过一次）。
+- `assistant-island.ts` 只减不增；`context-toolbar.ts` 的页面脚本要小于 13,900 字符（`tests/context-toolbar.test.ts`），#830 之后是 13,873。
+- 用户 2026-10-20 已授权本轮合并所需的验证；已补的范围见上表。暂停期间留下的其余实走与截图欠账仍见 BL-338，不能把本轮定向验证当作全部产品验收。
 
 本文把三批需求合成一套设计，三份子需求书各管一块，交叉的地方以本文为准：
 
@@ -163,7 +228,7 @@ interface ItemAttach {
 | 内容站幂等键 | 泛化为请求号（只认现行形状，不新增读取兼容） | quick-create |
 | 插件 SDK 页面端 | 一个 `contextual` 模块：报告手上的东西或落点、发布工具、开面板槽、接收放进与工具调用 | 合并 side-shelf 4.4 与 context-toolbar §11 |
 | 平台自带的格 | 讨论、浏览器、文件按 side 视图的形状登记；`browser_page`、`discussion_message` 的读取动作 | side-shelf |
-| Shelf「平台自带」 | 内置目录里的一个通用标记：始终启用、不进插件列表、市场、Dock、项目插件管理；只有 side 视图 | side-shelf §7、§11 |
+| Shelf 是常开插件 | Manifest 的通用声明 `always_on: true`（「常开插件」）：始终启用、不进插件列表、市场、Dock、项目插件管理，不能从项目里移除；只有内置插件能声明（S-34；2026-10-18 改：改成按声明与授权，实现前仍如此）；Shelf 只有 side 视图 | side-shelf §7、§11 |
 | 页面自己陈列动作 | 对象声明里的一个通用字段，表示「本提供方的动作由我自己陈列」；浮条在这个表面上不重复列出这个提供方的动作（Shelf 格用它） | 本文 §7 |
 
 目录检查合并为一组（side-shelf 4.3 与 context-toolbar §11.5 的覆盖率门禁放在一起）：
@@ -379,7 +444,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 
 | # | 要求 | 写在 |
 | --- | --- | --- |
-| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 平台自带」 |
+| R1 | Shelf 放到右边侧栏，不当插件，也不是右栏里的一个插件标签 | side-shelf 3.2、§7；本文 §4「Shelf 是常开插件」 |
 | R2 | 右边的内容包括灵光、文件、浏览器内容、群聊 | side-shelf 3.1、§6 |
 | R3 | 右边可以和左边互动，右边的内容可以发送到左边 | 本文 3.2、3.4、3.6；side-shelf 3.3 |
 | R4 | 侧边不止是群聊里 | side-shelf 3.1、§7（去掉 `dock-window-im` 等群聊命名） |
@@ -476,7 +541,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - Shelf 的 `navigator` 视图删掉后，左边主区不再有 Shelf 页。原来指向它的入口都要改道到右栏的 Shelf 格：
   - `shelf.items.admit` 结果视图里的链接 `?openPlugin=shelf&openItem=…`；
   - 搜索结果的 `open: { surface: "shelf" }`；
-  - 桌面的 `molisWorkOpenShelf`（现在的做法是点插件列表里 Shelf 那一行）。
+  - 桌面的 `molisWorkOpenShelf`（W2'-3 起调 `molisWorkOpenPlugin("shelf")`，与上两条走同一条规则）。
 - 整页门禁会沿工作台里的链接逐个打开地址，改道之后仍须落在工作台里。
 - 浏览器格、文件格、助理面板都在顶层文档里，浮条直接画在那里，不涉及整页。
 
@@ -516,7 +581,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 - **对象声明**：Inbox、Artifacts、Sessions 原表写「✗ 没有浮条」，其实工作台已按搜索来源给它们命名对象（打开为条目标签时）；Characters 声明了表面，但不在 `SEARCH_ITEM_TAB_SURFACES` 里，实际仍没有；Git、Diff 仍没有（context-toolbar §10.1）。
 - **动作池**：现在是选区动作 25 条（Pages 20、Goals 2、Todo 1、灵光 1、搜索 1）加对象动作 8 条（Feed 5、Inbox 3），共 33 条，不是「约 40 条」（side-shelf §2）。
 - **能力名**：`coding.create-session` → `coding.sessions.create`（不是只许本机本人）；`feed.out-rules.create` → `feed.rules.create`；`feed.capture` 是场景不是动作；炼金术士、Jelly、Schedule、Cognia、Images 的动作都带插件前缀；`reminders.add` 只对插件开放；`shelf.material.save` 是把已有的 Shelf 材料交给项目，不是「从文字建」（quick-create §7）。
-- **内容站**：`receive` 的输入是 `{ payload: { title, body, url?, source?, feed_item_id? }, context: { instance_id, step, title? } }`；幂等键 `workflow:<实例>:<步骤>`（6 个插件用 `workflowDeliveryKey`，Feed、Inbox 各自做）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
+- **内容站**：`receive@2` 的输入是平铺的 `{ title, body, url?, source?, feed_item_id?, request_id }`，幂等键就是必填的 `request_id`（工作流传 `workflow:<实例>:<步骤>`，放置传 `placement:<请求号>`；W4-6a，quick-create §11）；成果库是第 9 个站，只能列、读，不能收（quick-create §2）。
 - **工作流**：`instances.start` 的输入是 `{ id, item_id?, title? }`，至少两站，空白起步要第一站支持 `can_start_blank`（quick-create §6.2）。
 
 ### 15.6 与其他在做的任务的交界
@@ -566,7 +631,7 @@ Coding 有两类东西和这套设计相关：一类是**现在就有的能力**
 | 改了什么 | 实物里看到的问题 | 收益与取舍 |
 | --- | --- | --- |
 | 落点在编辑器读完 DOM 选区之后再读，来源在事件发生时判定 | 点在第 3 段，落点却停在隐藏的标题里；确认就会写进标题（严重） | 落点就是光标所在；快速点完文稿马上点右栏也不丢 |
-| 落点用读者的话命名：「最近的标题 · 第 N 段 光标处 / 选中处」，另附原文片段；引用写「…之后」 | 「第 2 段」把隐藏标题也数进去，和眼前对不上 | 认得出放在哪；长标题截到 10 字 |
+| 落点用读者的话命名：「最近的标题 · 第 N 段 光标处 / 选中处」，另附原文片段；引用写「…之后」（2026-10-16 L-3 去掉「第 N 段」，改为标题 + 位置词 + 原文片段，见 21.5） | 「第 2 段」把隐藏标题也数进去，和眼前对不上 | 认得出放在哪；长标题截到 10 字 |
 | 打开文稿就有落点「文末」（`ItemAttach` 的 `end`），点一下文稿改成光标处 | 不先点文稿，右栏选中后没有任何「放进」 | 选中就能放；AC-S06「左边没有落点」改由「原型说明」里的演示开关触发，产品里它对应左边没有能当落点的对象 |
 | 落点标记：光标处是铜色插入线、选中处是浅色底，不盖住字；手上东西在右栏时常驻、跟随滚动、滚出文稿区不画；悬停「放进」时闪一次 | 原标记是实心底色块，把要替换的字盖住了 | 一眼看到去处；常驻标记只在有东西可放时出现 |
 | 推荐位按两族交替：最好的放进 → 最好的去处 → 次好的放进…；他人原话（访谈、网页、讨论消息）默认「作为引用插入」 | 右栏宽度只放得下 2 个；放进类排满就看不到任何创建 | 窄条也同时给出两类下一步；规则排序的替身，真实排序仍由 Jev 定 |
@@ -668,7 +733,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | --- | --- | --- |
 | 2026-10-13 | `e7a51ff0`（#470）、`490251d1` | **通过，有三处记录。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base 通过（`client.ts` 1148 行 < main 的 1151、`craft-finish.ts` −65、`editor-browser.ts` `mount` 变短；测试引用包内部没有变大）；M4 API 快照已重新生成（`dom-events` 删两项并给 `context-panel-open` 加 `cancelable`/`keep`，合同删两个常量，SDK 加 `ActionIntake`/`ActionAttach`）；M6 页面资源预算已降到实测（`workbench.js` −607 字节，三份样式表各 −8.1～8.5 KB，`pages-editor.js` −5.1 KB，`pages.js` 不增）；M8、M9 随健康门禁通过；M5 `action-contract-snapshot` 通过；M15 无密钥。人工项：第 1 条无兼容代码（读取、别名、迁移都没加）；第 9 条无新巨大单元；第 11 条合同只删不加；第 12 条两个事件和常量的消费者（Pages、总线、用例、文档）同一提交改完；第 13 条快照与预算都由工具重新生成；第 18 条所有 `CustomEvent` 已登记；第 20 条新文案的英文在 `plugin-components.ts`；第 21 条没有新的浏览器请求；第 26、27 条没有开新 PR、没有放宽门禁（门禁脚本、`limits.json`、`biome.jsonc` 未动） |
 | | | **记录一：验收编号缺口。** 本 spec §19.4 的 W2-01、W2-02、W2-04、W2-05、W2-08 还没有证明它们的测试：W2-02（窗格里的浮条、悬停保位、Esc 记「忽略」）需要一条分屏用例；W2-04 改成了「等着的结果不丢」（§19.8），对应用例已在 `contextual-interaction.e2e`；W2-05（⌘K 打开链接面板）与 W2-08（开场建议报错改为提示条）待补。检查器目前只报告，不挡合并 |
-| | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
+| | | **记录二：两个近似的压缩函数。** 工作台的 `served()`（`apps/workbench/src/plugin-workbench.ts`，插件客户端脚本）和设计系统新增的 `compactScript`（情境脚本）做的是同一类事：去缩进与整行注释，后者还去空行。应并成一个（`served` 改用 `compactScript`，各插件资源再降一点），这会动所有插件的资源，留给页面资源门禁的主人 |
 | | | **记录三：整个 `workbench.js` 还没过压缩。** 工作台脚本里的缩进与注释行占相当大一部分，对拼装 `workbench.js` 的那一处用 `compactScript`，整个资源可以少几十 KB；已用「空白压缩后的 esbuild 输出相同」验证过情境脚本和 Pages 脚本不改语义，别的脚本需逐个验证 |
 | 2026-10-13 晚 | `fc18d5f6`（#471 Computer Use、#472 旧采用树）、`ee84a837`（#463、#473 文档）、`c33448f2`（#474、#475、#482、#483 测试改走公开入口与构建副本） | **通过，修了五处。** 机器项：M1 `boundary:check` 无错；M2 健康门禁对照 merge-base `c33448f2` 通过，比 merge-base 小的是巨大单元、`as unknown as`、Error 子类，本地快查已降；M4、M5 快照与源码一致（只有本线有意的合同变化：`ActionIntake`/`ActionAttach`、`SurfaceFocus.place/side_tab/screen`、落点、`ContextTools`、去掉两个只为写作菜单存在的事件）；M6 页面资源每个文件都不比 main 大，按实测降了预算（见下）。**修的五处**：① W1-4 回归：`plugin-sdk` 的 `context-declarations.ts` 遇到形状不对的声明（`null`、数字、错的 `subject_kinds`）会抛 TypeError，改成先按形状过滤，问题交给形状规则报告（`f86f85dd`，加回归用例 `0534f47d`）；② 新用例里一处 `as unknown as`（门禁按文件计数）改成先声明为 `unknown` 再断言一次（`fa762b97`）；③ 页面资源：合 main 后 `workbench.js` 比 main 多 6,230 字节——main 的宿主现在用 esbuild 压空白，原来的底栏代码缩进与注释多、压得多，本线的浮条已经是 `compactScript` 压过的，压不出新空间。查到 esbuild 默认把每个中文字符写成 6 字节的 `\uXXXX`，而资源按 UTF-8 发（3 字节），main 的 `workbench.js` 里有 17,851 个；宿主的 `tightenServedJs` 加 `charset: "utf8"`，程序与名字不变（新用例 `served-script-text` 经包入口证明），`workbench.js` 比 main 少 47,531 字节，每个插件包都变小（几个共享的大包各少约 22.9 KB）（`1f278d01`、`161ba540`）；④ 全量抓到 W2 弄坏的 W0 原型：W2 去掉了 Pages 编辑器句柄上的 `toolbar`，原型还在删它、读它，载入文档时抛错，右栏 Shelf 一条材料都不出；改成读 `tools()`、调 `runTool()`（`c24fb961`）；⑤ 电脑格不再写「只留位置」，改成说明 main 上 #471 的真实格（`541ff17f`）。人工 27 条对照本线 diff 通过；第 16.4 前两行的记录二、三已被 main 的 esbuild 压缩取代。 |
 
@@ -683,7 +748,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R1 | 未做 | Shelf 仍是 `navigator` 视图的插件（`plugins/native/shelf/src/manifest.ts`），底栏 `BAR_RESIDENT_IDS = ["shelf", "lingguang"]`（`apps/workbench/src/immersive-shell.ts`）。W2' |
 | R2 | 部分 | 右栏有讨论、浏览器、文件、电脑与插件侧栏视图（灵光、Issue 声明了 `slot: "side"`）；Shelf 不在其中 |
 | R3 | 部分（只有底层） | 落点类型 `SurfaceLanding`、`FrozenFocus.landing`（`services/contextual.ts`）、宿主读请求（`contextual-request.ts`）、内核 `attach` 候选（`kernel/src/contextual/destinations.ts`，`tests/contextual-landing.test.ts`）都在；没有页面报告落点，没有插件声明 `attach`，界面上不出现。W3 |
-| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2' |
+| R4 | 部分 | 右栏已有多格，但 id 与提示仍是群聊命名（`dock-window-im`、`data-dock-toggle="im"`、「侧栏：讨论、浏览器与文件」）。W2'-1（#694）改成通用名，§21.6 |
 | R5 | 部分 | 左边：同一个池、Jev 排序、浮条陈列已在（`tests/contextual-interaction.test.ts`、`contextual-interaction.e2e`、`context-toolbar.e2e`）；右栏与助理面板还不报告手上的东西 |
 | R6 | 未做 | 同 R1 |
 | R7 | 未做 | 右→左（W3）、左→右（W6）都没有 |
@@ -700,23 +765,23 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 | R18 | 部分 | `skills/molis-plugin-dev/contextual.md` 一到六节（选区动作、`intake`、`attach`、浮条工具）；页面端辅助函数与落点（第七节「还没有的」）没有 |
 | R19 | 部分 | 浮条三事件与三条窗格消息已登记（`dom-events.ts`）；`molis:surface-landing`、`molis:landing-at` 随 W3 |
 | R20 | 未做 | 助理不从情境中枢取「手上 + 落点」，没有只读系统动作给助理同一份候选。W3 |
-| R21 | 未做 | 助理输入框上方没有情境条；岛只在发送时读页面的 `data-assistant-context` 与选中文字（`assistant-island.ts`）。W3 |
+| R21 | 部分 | 情境条（W3-A2）带上手上的东西与正在看的对象；落点在对象已加入时出现、可 ×，发送时带给宿主、宿主经主人重读后告诉模型（W3-B2）；分屏窗格里的落点也一样（W3-B3） |
 | R22 | 未做 | W3 |
-| R23 | 未做 | W3 |
-| R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；还没有插件声明 |
+| R23 | 部分 | 助理回复里选中的一段是手上的东西（`assistant_reply`，`place: "assistant"`），能放进左边的落点（BL-150）；点结果小片还不算 |
+| R24 | 部分（按设计成立） | `intake`/`attach` 写在普通写入动作上，工作流与 MCP 天然可用；Todo、灵光已声明 `intake`（W4-1） |
 | R25 | 未做 | W2' |
 | R26 | 部分 | `attach` 带 `positions` 已在 SDK；材料篮 = Shelf 没有；「四份文档一个 PR」已由用户 10-13 的规则取代（每线一个交接分支，现在按波次开 PR） |
 | C1 | 已实现 | 浮条取代底栏、与 Pages 格式条合并（#411）：`context-toolbar.e2e`、`contextual-interaction.e2e`、`context-toolbar-panes.e2e`、`pages-actions.e2e` |
 | C2 | 部分 | 手册已有（`contextual.md`）；存量插件补齐与「待补」名单没有 |
-| C3 | 部分（只有底层） | 起草服务 `POST /api/contextual/draft`（`tests/contextual-draft.test.ts`）与 SDK 的 `intake` 声明在；没有插件声明，界面上没有「✦」。W4 |
-| C4 | 部分（只有底层） | 内核把去处排进推荐位（`destinations.ts`，`contextual-destinations.test.ts`）；没有插件声明，用户看不到。W4 |
+| C3 | 部分 | 起草服务与 SDK 的 `intake` 声明在；Todo、灵光已声明（W4-1，`tests/contextual-create.test.ts`）；Pages、Inbox、Goals 与「✦」没有。W4 |
+| C4 | 部分 | 内核把去处排进推荐位（`destinations.ts`）；只有规则时一段文字放一个（W4-1，`contextual-destinations.test.ts`）；按内容挑去处要判断 |
 | C5 | 未做 | W7 |
 | C6 | 未做 | W7 |
 | C7 | 已实现 | 单行、打字不浮出、底部动作条删除（#411）：`context-toolbar.e2e` |
 | C8 | 已实现 | `ContextTools` 合同、Pages 的 14 个工具（`plugins/native/pages/src/client.ts`）、`contextual.md` 第六节 |
 | C9 | 部分 | 「去处只进推荐位」的内核规则已在并有测试；「✦」没有 |
-| C10 | 未做 | 执行端按 `undo` 直接 / 出卡片没有接（W4） |
-| C11 | 未做 | 「记成待办」（`plugins/native/todo/src/actions.ts`）、「记下」（灵光）仍是选区动作，没有并进创建入口 |
+| C10 | 部分 | 浮条选创建入口时按 `undo` 直接建或出卡片（W4-1，`contextual-create.test.ts`、`contextual-todo.e2e`）；「✦」与追加没有 |
+| C11 | 已实现 | 「记成待办」「记下灵光」并进创建入口，旧的片段动作选项删掉（W4-1）：`contextual-create.test.ts`、`contextual-fragment-offers.test.ts` |
 | C12 | 部分 | 已做的部分随代码写了手册；W3 起随各波 |
 | C13 | 未做 | 覆盖率门禁骨架挪到插件开始声明 `intake` 之后（第 18.7 节 W1-8） |
 | C14 | 部分 | F1 的底层（起草、声明）在；F2–F13 没有 |
@@ -731,7 +796,7 @@ pnpm exec tsx scripts/preview-contextual-interaction.mts --judge rules --home <�
 
 ## 17. 接续入口（2026-10-12）
 
-已被第 20 节「远端交接（2026-10-13）」取代。2026-10-12 之前的交接（W0 完成、W1 尚未开工的状态）只留在 git 历史里。
+已被开头的「交接（2026-10-20）」取代（之前是第 20 节）。2026-10-12 之前的交接（W0 完成、W1 尚未开工的状态）只留在 git 历史里。
 
 ## 18. W1 实施计划（2026-10-12 规划，基于 origin/main `a091fb67`）
 
@@ -776,7 +841,7 @@ W1 做第 9 节「W1 共享件」：浮条组件与定位上移、新合同、�
 ### 18.4 从 W1 挪出去的两件（理由与取舍）
 
 - **情境中枢接右栏、助理与落点的 DOM 线**（第 9 节原写在 W1）：挪到 W3 第一片，和 Pages 报告落点、右栏格转发焦点同一个 PR。原因：DOM 事件门禁要求登记时收发两端都在，W1 里只有接收方。W1 只做数据形状（W1-3）与派生（W1-5）。代价：W3 第一片变大一些，由它自己再拆。
-- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
+- **内容站幂等键泛化为请求号**（quick-create Q1）：挪到 W4 开头，已由 W4-6a 做完（`receive@2`，保存的工作流按版本固定，旧版本报不可用；quick-create §11）。只有 W4 的「由内容站派生创建入口」用它；它要改 8 个插件的 `receive`、收件 schema、`workflowDeliveryKey` 和 Workflows 的调用方，形状变了要升这 8 个动作的版本。动手前先查存量工作流定义是否固定了 `receive` 的版本：若固定，开发用 Home 重建即可，真实 Home 要维护就先经统筹问用户。
 
 ### 18.5 与其他线会撞的地方
 
@@ -873,6 +938,7 @@ W2 就是 context-toolbar 的 S2+S3：底部动作条换成贴着手上东西的
      - 顶层→窗格 `workbench-context-view`：`op` 取 `render` / `pending` / `idle` / `error`，带方案与回执，取代只在绘制时发的 `workbench-context-plan`。
      - 窗格→顶层 `workbench-context-hold`：`pinned` 键与是否正在交互，供「悬停不动」和判断时保位。
      - 窗格→顶层 `workbench-context-dismiss`：Esc 收起的键，顶层据此记「忽略」。
+     - 顶层→窗格 `workbench-surface-landing-flash`（W3-A3c）：请窗格在自己报告的落点上闪一次；顶层只发给落点所在、还连着的那个 iframe，目标 origin 是 `location.origin`，窗格先过 `panes.fromParent` 再处理（S-30）。
    - `workbench-surface-focus`、`-action-choose`、`-action-chosen`、`-action-unhandled` 不变。转发焦点前去掉 `screen`，它从不离开报告它的文档。
 3. **总线与视图分开**：
    - 总线只通过一个视图接口说话（`render`、`pending`、`idle`、`error`、`pinned`、`interacting`、`plan`、`published`），按情境来源选本地视图或窗格视图，不再碰任何 DOM。
@@ -990,7 +1056,9 @@ W2 自己的验收（在 T01–T09 之外）：
 
 踩到的门禁规则（记给后面的片）：测试文件引用包内部（相对路径进 `src/`、`dist/`）新文件从 0 起，所以新测试走包入口，宿主内部逻辑只能经 `apps/local-host/src/index.ts` 的具名导出（W1-3、W1-7 各加几行）；Error 子类按文件计数，宿主新错误用 `defineErrorCodes` 声明的码（`contextual.*`）；`as unknown as` 与显式 `any` 在新测试里从 0 起，桩用 `stub<T>(value: object): T`；注释在页面脚本里按字节发给每个页面，长解释放进 TS 文件头。
 
-## 20. 远端交接（2026-10-13，当前接续入口）
+## 20. 远端交接（2026-10-13）
+
+> 本节写于 2026-10-13，已被开头的「交接（2026-10-20）」取代，只作历史记录；下文的「先读」「下一步」都不再适用。
 
 > **统筹补充（2026-10-13 晚，先读）：暂停期间 main 上有两次大合并，本节下文写于知道它们之前。**
 >
@@ -1130,7 +1198,7 @@ W2 自己的验收（在 T01–T09 之外）：
 
 - **页面资源字节两个方向都不容差**：变大会被拒，比预算小也要在同一个 PR 里用 `--update --base origin/main` 降到实测值（所以合 main 后预算几乎一定要重新生成）。`workbench.js` 现在比 main 小 607 字节，`pages-editor.js` 小 5.1 KB；任何新增都要同时删等量。
 - **`pages-editor.js` 压线**：编辑器是巨大单元（`editor-browser.ts` 约 3870 行、`mount` 要继续变短），往里加行会被门禁拒。
-- **两个近似的压缩函数**：工作台的 `served()`（`builtin-plugins.ts`，插件客户端脚本）和设计系统的 `compactScript`（情境脚本，还去空行）。应并成一个，会动所有插件的资源，留给页面资源门禁的主人。对整个 `workbench.js` 拼装处用 `compactScript` 预计能少几十 KB，已证明情境脚本和 Pages 脚本压缩前后语义相同，别的脚本需逐个验证。
+- **两个近似的压缩函数**：工作台的 `served()`（`apps/workbench/src/plugin-workbench.ts`，插件客户端脚本）和设计系统的 `compactScript`（情境脚本，还去空行）。应并成一个，会动所有插件的资源，留给页面资源门禁的主人。对整个 `workbench.js` 拼装处用 `compactScript` 预计能少几十 KB，已证明情境脚本和 Pages 脚本压缩前后语义相同，别的脚本需逐个验证。
 - **批量全量里 W1 的浏览器失败还没归因**；`runtime-integration.test.ts` 在 CI 上败过一次，本机一次败一次过，疑似不稳。
 - 本机 `touch-targets.e2e` 有 4 个在干净 main 上也败的用例（不是本线）。
 - 本线没有往 `tests/ci-product-subset.txt` 加用例；W2-02 的分屏用例若又快又稳可以加。
@@ -1163,7 +1231,9 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - `skills/molis-plugin-dev/contextual.md`：「六、浮条上的工具」写发布工具、接收点击、请求面板、报告 `screen`，原「还没有的」改为第七节（页面端辅助函数与落点）。
 - 结果（合 main `46cb083e` 后构建）：`context-toolbar-panes.e2e` 3/3（W2-02 约 9.6 秒，另两条各约 4.8 秒），连同 `context-toolbar.e2e`、`contextual-interaction.e2e` 再跑一遍 10/10；健康门禁对照 merge-base 通过（文档引用含在内）。产品子集的浏览器冒烟只留 3–5 个，这几条不加进去。只加用例与文档，没有动产品代码，所以不跑全量。
 
-## 21. 助理的动作推荐、动作指引与对话整合（2026-10-14 起，当前接续入口）
+## 21. 助理的动作推荐、动作指引与对话整合（2026-10-14 起）
+
+> 接续入口在开头的「交接（2026-10-20）」；本节各小节仍是设计、决策与证据的出处。
 
 用户 2026-10-14 给本线加的需求（原话）：「个人助理动作推荐，动作指引与个人助理对话界面的整合和交互优化，这个新的优化需求，请与情景动作这个线一起做掉，现在的这几部分自成一派，动线和使用体验很不好。」它和第 9 节的 W3（助理与落点、助理面板作为位置）合在一起做。
 
@@ -1180,7 +1250,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | A7 | 输入框上方的「建议条」（`data-assistant-offer`） | 页面发来的建议（`purpose: suggest`）：「放进输入框 / 忽略」 | `molis:assistant-message`；各插件页面发，岛收 |
 | A8 | 对话里的操作卡 | 模型 `suggest-action` 或 A3 放的卡：可改字段、执行、结果、撤销 | `assistant-offers.ts` + `assistant-card-view.ts`（宿主画，交互线 H2） |
 | A9 | 对话里的问卷卡 | `ask-user` 的待答问题，共享问卷卡，带草稿 | `agent-question-card.ts`（宿主画，交互线 A1/A2） |
-| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-view-html.ts` 的 `assistantNextSteps`（交互线 D14） |
+| A10 | 最新一轮下面的「接下来」 | 再试一次 / 打开结果（最多两个） | `assistant-outcome.ts` 的 `assistantOutcomeSteps`（交互线 D14） |
 | A11 | 对话顶部条带（侧栏收起时）与左侧概况 | 状态、「去确认 / 去回答 / 去处理 / 去核对 / 看等你的子任务」按钮、暂停继续停止；两处各一份 | 岛的 `nextStep`、`paintStrip`、`paintSummary` |
 | A12 | 左侧概况的「还等你处理」 | 本工作等你的子任务与对象 | 岛的 `renderAttention` |
 | A13 | 输入框的铃铛「等你 N」 | 全部工作的通知（等你的、新消息） | `/notices`；岛 |
@@ -1254,8 +1324,17 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | W3-A1 | 下一步与输入框同一行：宿主派生全部下一步（卡、题、结果、重试、页面建议），岛只画；删 A10「接下来」、A11 两个「去…」、A7 建议条；窄时移到输入框上方；FLOW-01…05 | #489 先合（交互线已同意，D24） |
 | W3-A2 | 情境条：取代「材料」按钮与弹层；删聚焦弹出的开场建议（A5）；✦助理等交接只带手上的东西、不替人写话 | W3-A1 |
 | W3-A3 | 写动作留在当前工作（`work_id`）；助理回复与结果可以拿起（`place: assistant`），浮条画在岛里 | W3-A2 |
+| W3-A3c | ① 分屏窗格里的落点也闪：顶层把「闪一下」转给报告落点的那个窗格；② 浮条「更多」菜单里的放进去也闪（实现记录见 21.6） | W3-A3b |
 | W3-B | Pages 报告落点、三个确定性的 `attach`、落点处预览；落点事件登记；情境条显示落点。执行前宿主用 H3 的 `confirmReferences` 按调用者的权限重读落点对象，不在或没权限用合同里的 `reference-unavailable`，不另写一套；`attach` 的 `find` 取候选（`search.references@1`）改到 W4 的 F2（统筹 2026-10-15 定，见 21.8）。拆成 W3-B1（落点、动作、预览、执行）与 W3-B2（情境条显示落点） | W3-B1：H3 合入；W3-B2：W3-A2 |
-| W3-C | 右栏各格报告手上的东西（中枢接右栏） | W2'（右栏改版） |
+| W3-C | 右栏各格报告手上的东西（中枢接右栏；实现记录见 21.6） | W2'（右栏改版） |
+| W4-1 | 「记成待办」「记下灵光」并进创建入口（F1 第一批的前两个）：两个插件在写入动作上声明 `intake`，旧的片段动作选项删掉；浮条选中创建入口时，有主人声明的撤销就直接建、完成卡片给「打开」「撤销」，否则出卡片（C10）；只有规则时，一段文字的推荐位里放一个去处（quick-create §6.1） | W3 |
+| W4-2 | Pages「存为文档」、Goals「拆成目标步骤」两个创建入口：`pages.create`、`goals.tree.submit` 各声明 `intake`，Pages 加一个只做 `prepare` 的 offers 查询；只有规则时不推提案类（`effect: "proposes"`）与批量（`multiple`）的去处（设计与验收见 21.10） | W4-1 |
+| W4-3 | C9：插件页标题栏与右栏插件格的「✦ 一句话新建」（一行输入 → 起草服务 → 同一张卡或直接建），C10 在这条路上照同一规则 | W4-2（有 4 个入口可演示） |
+| W4-4 | F2：`attach` 的 `find` 用 `search.references@1` 取候选，目标不在落点时一律放末尾或建关联；Pages「追加到文档」先做（改 `ItemAttach.find` 的形状） | W4-2 |
+| W4-5 | F3：`multiple`，一张批量卡片逐条取消、逐条请求号；Todo「提取待办」先做 | W4-3（卡片组件） |
+| W4-6 | 内容站请求号泛化（quick-create §4）+ Inbox「放进收件箱」（改 `workflow-content.ts` 的 `receive` 输入，8 个插件的 `receive` 升版本；开片前另写计划） | W4-2 |
+| W4-7 | C13 覆盖率门禁（新门禁，只许减少的冻结名单，先问统筹）+ `skills/molis-plugin-dev/contextual.md` 第一部分 | W4-2～W4-6 都有 `intake` 之后 |
+| W3-C2 | 在分屏窗格或右栏格自己画的浮条上悬停「放进去」时，左边的落点也闪（统筹 10-18 定；实现记录见 21.6） | W3-C |
 
 每片：`assistant-island.ts` 只减不增，新东西写新文件；页面资源每个文件只减（删掉的旧渲染抵新增）；`pnpm build`、`affected-tests.mjs` 选出的用例、`check-health-gates --base origin/main`、`page-assets --base origin/main`、1440/1024/800/390 与深色截图。
 
@@ -1272,6 +1351,27 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 | 2026-10-15 | 页面发来的建议（A7）是下一步里的一项：点了放进输入框，不发送；面板收起时只显示它；没有「忽略」，新建议替换旧的，点了即消失 | 否：保留单独的建议条（与下一步挤在输入框上方同一块地方，就是 21.1 第 5 条） |
 | 2026-10-15 | 对话底部的「↓ 等你确认 / 等你回答 / 有操作等你点」小片删掉，只留「↓ 新消息」 | 等你的东西都在下一步里，第五处说「等你」（21.1 第 3 条） |
 | 2026-10-14 | 写动作的卡留在当前工作（条件见 21.2 第 5 条），否则新开 | 否：一律新开（把人从正在做的事里带走）；否：一律放进当前工作（与当前工作无关的对象会混进来，沿用岛「看的不等于做的」规则） |
+| 2026-10-15 | 加入（情境条上点「＋」）就是两件事：模型看得到这个对象，工作也记在它下面；没加入（虚框小片写「没加入」）两件都不做。新工作不再自动带上正在看的对象，只有已经属于当前工作的对象自动带上（统筹 10-15 定） | 否：新工作自动带上正在看的对象（看的不等于做的，工作会悄悄记到人只是路过的对象下面）；否：只给模型看、不记关联，或反过来（两件分开，人说不清这次带了什么） |
+| 2026-10-15 | 从一个对象发起的交接把那个对象放在手上：✦助理、带到助理把选段连同它所在的对象放进情境条；页面的 `delegate` 消息照旧把对象放在材料上。发送后工作记在那个对象下面（材料关系）。核对过的入口：浮条 ✦ 与「带到助理」、浮条选不中页面时的退路、成果库「交给助理 / Coding」、待办「交给助理」与「继续推进」、灵光「问助理」、侧栏浏览器的建议、成果库「被谁引用」打开工作（只切换，不带东西）。Goal 没有自己的「带到助理」按钮，Goal 正文里的选段走浮条，同上 | 否：交接只带文字，不带对象（工作就记不到 Goal 或文档下面，#271 的「工作事件挂到 Goal」会断） |
+| 2026-10-15 | `molis:assistant-open` 去掉 `text`、加上 `object`；待办的 `delegate` 不再写「帮我推进「…」」。灵光「问助理」的话是人自己在灵光里打的，照旧放进输入框并发送 | 否：保留 `text` 只是不用（合同里留一个没人发的字段，以后又有人拿它替人写话） |
+| 2026-10-15 | 「说出要做什么」删掉：交接不替人写话以后，它和「带到助理」做的事完全一样 | 否：两项都留（同一件事两个名字） |
+| 2026-10-15 | 「发给：助理 · 新工作 · 项目 更改」不放进目标按钮，回到侧栏「这项工作」里选（原来的弹层只是指过去） | 否：新工作也显示目标按钮（craft-finish 已定新工作不占输入框一行的小片，触控时这一行本来就要让位）；否：放进「＋」菜单（「＋」只管添加东西，不管工作怎么做，`immersive-directory` 的用例钉着） |
+| 2026-10-15 | 侧栏「材料」块不再列「下次发送带上」的小片，只留拖放区与「用过的」：带上什么只在情境条一处说 | 否：两处都列（两处说同一件事） |
+| 2026-10-16 | 情境条放不下时横向滚动：有更多的那一侧淡出，键盘到达的小片滚进视野，竖向滚轮横着滚这一行（STRIP-03） | 否：超出的收成「+N」点开（多一次点击才看得到、要另做一个弹层，与「材料」弹层被换掉的理由相同）；也否：不提示直接截断（看不出还有、也看不出能滚） |
+| 2026-10-16 | 落点小片只在页面对象已加入（实线的「正在看」，或点了「＋」）时出现；× 只去掉落点，对象照旧带上，直到落点换到另一个对象前不再出现（L-1，统筹 10-16 定） | 否：按 R21 字面一律默认带上（落点带着前后原文，没点「＋」就把文档内容给了模型，与上一行「没加入两件都不做」和 STRIP-01 冲突） |
+| 2026-10-16 | 发送时带上落点：合同 `AssistantContextSnapshot` 加可选的 `landing`（`AssistantLanding`，`SurfaceLanding` 的有界子集）；宿主在这一轮开始前用 H3 的主人读取（`readReferences`，与 `confirmReferences` 同一份）按本人在这个项目里的权限重读落点对象，读不到就整项丢掉，对象名用主人读到的 label；给模型的只是事实（对象、位置、选中的文字、前后原文），不写「请放到这里」一类的话；逻辑在单独的 `assistant-landing.ts`，`assistant-service.ts` 只加调用、行数不增（L-2a，统筹 10-16 定） | 否：只显示不带给模型（R21 的「带上」落空，「帮我续写这一段」写不出贴合位置的内容）；否：宿主另写一套读取（与 W3-B1 执行前那一道重复） |
+| 2026-10-16 | 落点的名字是「最近的标题 + 位置词 + 原文片段」：小片写「发布计划 · 「步骤」光标处」，读屏与悬停读完整的一句「放进去的位置：发布计划，「步骤」，光标处（「…第二步，」之后）」；标题由 Pages（落点的主人）填进 `surroundings.heading_path`。取代 §14「最近的标题 · 第 N 段」（L-3，统筹 10-16 定） | 否：第 N 段（合同里没有段落序号，加要改合同；标题加原文片段比数段落更认得出） |
+| 2026-10-18 | W4-1 创建入口直接建时，撤销留在 Host：宿主按主人声明的 `undo` 从这次的输出取输入，存在一个令牌后面（S-40：只在内存里，重启失效；只能用一次；绑定项目、操作者和撤销提供方的安装；30 分钟；最多 50 条），「撤销」把令牌交回 `POST /api/contextual/undo`（在 S-03 之内），以本人的权限经动作网关调主人自己的撤销；页面只交令牌，请求体里写了别的就拒（统筹条件③）。与助理工作的撤销共用 `declaredUndo`（`apps/local-host/src/action-undo.ts`） | 否：把撤销动作与输入交给页面（页面就能调任意写入动作的「撤销」，等于在动作网关旁边多开一个门）；否：宿主自己删（绕过主人，S-35 的「只经主人」） |
+| 2026-10-18 | 灵光加 `lingguang.revert {id, expected_updated_at}`，`create.undo` 指向它：与 `lingguang.discard` 共用同一个存储函数（`store.discard`）和同一道版本检查，要的权限也一样；别处改过以后撤销被主人按版本拒绝，不删也不改（统筹条件②，LG-REVERT-01）。助理的撤销原来指向不带版本的 `discard`，别处改过也照丢，也因此修好。Todo 已有按版本拒绝的 `todo.changes.revert` | 否：用现成的 `lingguang.discard`（不带版本，别处改过也照删） |
+| 2026-10-18 | 只有规则、没有判断时，一段文字（`range`、`block`、`blocks`）的推荐位里放排名最高的一个去处，占最后一个主位；一个词或整个对象照旧（quick-create §6.1）。规则分不出去处，按共同目录的顺序取第一个，代码不点名任何插件；有判断时这一条不起作用（`contextual-destinations.test.ts`「W4-1 §6.1」）。按内容挑去处要 `intake` 声明收哪类内容，是改合同，记在 BL-174（统筹 10-18） | 否：去处一律进「更多」（只有规则时创建入口永远看不到）；否：一个词也推（「在项目里查找」被挤出主位） |
+| 2026-10-18 | SDK：片段动作的 offers 查询可以没有自己的选项，条件是它是本插件某个创建入口或追加的 `prepare`（`inspectContextDeclarations`） | 否：给 Todo、灵光留一个假选项（浮条上同一件事出现两次） |
+| 2026-10-19 | D-1（W4-2，本线按推荐定）：只有规则、没有判断时，挑那一个去处要跳过提案类（`effect: "proposes"`）与批量（`multiple`）的入口。内核不点名插件：创建入口按声明在候选上带 `always_card`，`planContextualLayout` 在没有判断时不把带这个标记的候选算进去；有判断时照旧由判断排。含义是规则分不出一段文字是不是计划，不能把每段文字都推成一份目标提案；这类去处由判断点名，或由人自己要（`contextual-destinations.test.ts` W4-2-01、W4-2-02） | 否：照目录顺序取第一个（Goals 若排在前面，每段文字都推成一份目标提案，要多点一次确认，而规则根本分不出这段是不是计划） |
+| 2026-10-19 | D-2（W4-2，本线按推荐定）：在 Pages 里选中一段也出「存为文档」（把一段提取成新文档），`places` 不收窄 | 否：在 Pages 里不出：提取段落成新文档本来就常用，没有理由挡 |
+| 2026-10-19 | D-3（W4-2，本线按推荐定）：提案的完成卡写「已提交目标提案：要在 Goals 里确认才生效」，带「去 Goals 确认」，不写「撤销」。链接由 `goals.tree.submit` 自己的 `result_view` 给，页面不加代码 | 否：给一个「撤回提案」：Goals 里撤回就是审批时拒绝（`goals.tree.decide`），那是人在 Goals 里看过整份提案才做的决定；把它当成 `undo` 放到完成卡上一键做掉，等于绕开审批那一步 |
+| 2026-10-19 | D-4（W4-2，本线按推荐定）：没占到主位的去处，若带 `always_card`（提案、批量），按它的意图放进「更多」（只对一段文字，D-6 收窄），有判断没判断都一样；只有规则时仍不推进主位（D-1 不变）。其他去处没有位就不显示（quick-create §6.1 不变）。`planContextualLayout` 把带 `always_card` 的去处留在排名里：`rest` 取没进 `primary` 的这类去处，`listed` 带上它们（页面按 `plan.candidates` 找键），一行注释写明这个例外。这类去处从不直接建，放进「更多」不会误写（`contextual-destinations.test.ts` W4-2-09） | 否：把 `breakdown` 作为片段选项加回来（同一件事两处登记：创建入口与片段选项，quick-create §8 第 2 条）；否：规则也把提案推上主位（每段文字都推一张要确认的卡，规则分不出这段是不是计划，即 D-1 的理由） |
+| 2026-10-19 | D-5（W4-2，本线按推荐定）：只有规则时，一段文字（`range`、`block`、`blocks`）推的那一个去处优先别的插件的入口；这段文字所在的插件（`focus.plugin_id`）自己的入口，只在没有别的插件的入口可选时才推。所以在 Pages 里选一段，推的仍是「记成待办」，不是「存为文档」；「存为文档」仍可用（D-2），判断可以点名它。内核不点名插件：候选带可选的 `own?: true`（`destinationCandidates` 用 `ownerOf(view) === focus.plugin_id` 算，只在创建入口上，追加的去处不带），`planContextualLayout` 在没有判断、是一段文字、且有别的插件的入口（可用、不带 `always_card`）时，先筛掉本插件的创建入口，再按排名（D-1）取。按内容挑去处（BL-174）与它叠加：先筛「别处优先」，再按内容挑（`contextual-destinations.test.ts` W4-2-10） | 否：不改，让目录顺序决定（`pages.create` 排在 `todo.items.create` 之前，在 Pages 里每段文字都推「存为文档」，W4-1 的「记成待办」从 Pages 的浮条上消失）；否：只在「推去处」那一步优先别处（本插件的入口靠排名自己进前三时仍占位，W4-2-10 的用例逼出了这一点）；否：在内核里写死插件名 |
+| 2026-10-19 | D-6（W4-2，本线按推荐定）：D-4 的「更多」只对一段文字（`range`、`block`、`blocks`，复用内核的 `PASSAGE_GRANULARITIES`）。一个词或整个对象、没有判断时，规则不列带 `always_card` 的去处，它既不在主位也不在「更多」、不在 `plan.candidates` 里；有判断时，点名的照常占主位（任何粒度），没点名的同样不进「更多」、不单独列出（主位有空时，判断版面照旧按排名补满，那是它占了位，不是列出）。这与「规则只对一段文字推去处」是同一条界线，也是「拆成目标步骤」在 W4-2 之前出现的地方（只对一段文字有片段选项）。`planContextualLayout` 里 `rest` 与 `listed` 的这个例外各加一个 `passage` 条件（`contextual-destinations.test.ts` W4-2-09） | 否：任何粒度都放进「更多」（一个词算不出步骤，选了只得到一张没有步骤的卡，白占一行；整个对象的起手项还会带上它） |
+| 2026-10-16 | 选区旁的浮条显示前，在锚点中心做一次命中测试：落在助理面板或右栏里、而选区又不在这块面板里，浮条先不出；盖住它的面板一收起，浮条回来。不按宽度分支，只改 `context-bar.ts`，不碰 design-system 的浮条组件；选中的内容照旧在情境条上（统筹 10-16 定） | 否：390px 以下一律不出浮条（宽屏的浮动面板同样会盖住选区，按宽度分支漏掉它）；否：把浮条压到面板下面（浮条指着一段看不见的文字） |
 
 ### 21.6 进度与证据
 
@@ -1294,6 +1394,99 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
   - 人看的条目：逐条结论写在 PR #536「防腐复查」节。
   - 删掉的旧「接下来」：`drawAssistantReply` 里只放在最新一轮下面的 `next_html`（标题「接下来」），以及岛内画它的 `[data-entry="next"]` 一段。
 - 用户验收：待用户验收。
+- 2026-10-15 W3-A2 实现（分支 `context/w3a2-strip`）：
+  - 情境条：新文件 `apps/workbench/src/scripts/client/assistant-context-strip.ts`，并进岛的脚本；样式进 `craft-finish.ts`。小片依次是：正在看的对象（已加入是实线，可 ×；没加入是虚框，写「没加入」，点「＋」加入）、它未保存的修改、同一对象已有的工作（「→ 标题」，一点切换过去）、页面选区、你加的文件与引用、交接放进来的东西。面板开着、输入框或情境条有焦点、或者有人放进了东西时才显示；只是页面上有对象或选区，不在页面上方冒出来。位置在下一步那一行之上，面板再让出一行（`--context-row`）；窄屏铺底栏的实底；主区展开时随页脚走。
+  - 删掉：输入框里的「材料」按钮与弹层（A14）、聚焦输入框弹出的开场建议（A5）、侧栏材料块里重复的小片、浮条菜单的「说出要做什么」、没人再用的样式（`.assistant-material*`、`.assistant-chip*`、`.assistant-materials-*`、`.assistant-starter--*`）。「/」「@」仍用原来的弹层。
+  - 删掉的入口去了哪里：材料在情境条；开场建议与「继续最近的工作」在新工作的空白对话里（原本就有）；「发给…更改」在侧栏「这项工作」；同一对象已有的工作在情境条上。
+  - 规则：岛的 `pageObject()` 只在对象已属于当前工作、或人点了「＋」时算加入（原来新工作一律算）；宿主不改（`assistant-service.ts`、`assistant-inputs.ts` 未动），没加入就不带 `context.object`，`linkSent` 也就不记关系。
+  - 验收编号：STRIP-01（「＋」的两面：没加入时模型的请求里没有「正在看的对象」、对象下面没有工作；加入后两者都有，关系是 `origin`）、STRIP-02（✦助理：选段进情境条、输入框为空且有焦点、不再提供同一文档的虚框小片；发送后模型读到选段、文档下面记着这项工作，关系是 `material`），在 `tests/assistant-context-strip.e2e.test.ts`。
+  - 交接（页面的 `delegate`、`molis:assistant-open`）：带材料的，材料带上它来自的对象；只带对象、不带材料的，对象本身作为一份材料放到手上，工作因此挂在它下面（不再靠「正在看」）。同一份东西再交一次（比如上一次发送没成功、材料还在手上）只放一份。
+  - 情境条的钩子是 `data-assistant-context-strip`，与面板里已有的状态条 `data-assistant-strip` 分开。
+  - 页面资源：`molis-work-workbench.js` −4432 B，三份样式表各 −2578 B，`plugins/todo.js` −140 B。
+  - 遗留（本线负责，W3-B2 或单独小片处理，不是本 PR 引入的）：390px 下助理面板开着、页面又有选区时，选区旁的浮条（`context-toolbar`）盖在面板上，几个标签挤在一起。（W3-B2 已修，见下一条）
+- 2026-10-16 W3-B2 实现（分支 `context/w3b2-landing-strip`；方案与前后截图在统筹的共享笔记 `contextual-line/w3b2-ui-proposal.md`，三项决定见 21.5 L-1～L-3）：
+  - 页面：情境条听 `molis:surface-landing`（只多一个监听者，不新增事件），对象已加入时在最后多一片铜色浅底的落点小片；发送时岛把有界的落点放进 `context.landing`。Pages 的落点报告填上 `heading_path`（`landing-editor.ts`）。
+  - 合同：`AssistantContextSnapshot.landing?`（`AssistantLanding`），可选字段，旧调用方不受影响；`pnpm api:update` 已刷新快照。
+  - 宿主：新文件 `apps/local-host/src/assistant/assistant-landing.ts`（有界检查与这一轮的材料）；H3 的 `horizontal/search/src/references.ts` 多导出 `readReferences`（`confirmReferences` 改由它派生，同一份主人读取），`search-actions.ts` 的 `SearchHost` 加同名方法；`assistant-service.ts` 只在两处已有的行上加调用，净减一行。
+  - 浮条：`context-bar.ts` 的命中测试与面板收起后回来（`MutationObserver` 看两种面板的 `hidden`）。
+  - 页面资源（只减不增，同一个 PR 里删代码抵消）：`molis-work-workbench.js` −30 B，`molis-work-pages-editor.js` −27 B，三份样式表各 −9 B。删掉的是已经没有元素的旧代码（仓库里没有任何地方再产出这些属性，几处测试本就断言它们不在页面上）：Goals 目录里的搜索框（`[data-tree-search]`、`[data-personal-search]`）的监听与状态、刷新时替换「归档」「回收站」链接（`[data-archive-link]`、`[data-trash-link]`）、`[data-close-work-planning]`、`[data-open-goal-tui]`、`[data-immersive-theme]`、`[data-feed-directory-title]` 的处理，以及选择器里的 `[data-risk-*]`、`[data-artifact-select]`；情境条的 `[hidden]` 规则（元素没有别的 `display`，浏览器自带的规则已经藏起它）；Pages 的落点改用 `focus.ts` 已有的 `headingPath`，不另写一份。
+  - 验收编号：STRIP-04（没加入时没有落点；加入后出现，名字是标题加位置词；× 只去掉落点，对象照旧、模型不再看到落点）、STRIP-05（模型看到落点的事实；对象被主人删掉后，这一行没有）、CTX-COVER-01（390 与 1440 下，面板盖住选区时浮条不出、收起后回来），都在 `tests/assistant-context-strip.e2e.test.ts`。
+  - 顺带看到、不在本片：助理回复里的选区还不算手上的东西（DOM 选区读取排除了 `[data-assistant-island]`），所以「从回复里选一段放进左边光标处」没有接上，记在 BACKLOG BL-150（排在 W3-B3 之后，统筹 10-16 定）。
+- 2026-10-17 W3-B3 实现（分支 `context/w3b3-pane-landing`，叠在 W3-B2 上，按 B-6）：分屏窗格里的 Pages 也是落点。
+  - 窗格往上：窗格文档把自己的 `molis:surface-landing` 去掉 `screen` 后发给顶层（`workbench-surface-landing`）；顶层照现有窗格消息的写法核对（同源、来源窗口是某个 `iframe[data-pane-owner]`），在那个 frame 上重新发 `molis:surface-landing`，`pane_id` 取窗格名，所以情境行与情境条照读，不另写一套。窗格关页时报 `null`。不是窗格发来的落点一律丢掉。
+  - 往下与执行：选了 `attach.` 候选后，顶层照旧先 `prepare`，再把准备好的选择交给落点所在的窗格（`workbench-context-attach-chosen`，带一次性记号）；窗格在自己的文档里发 `molis:assistant-context-action-chosen`，Pages 在窗格里的落点处预览。确认时窗格请顶层执行（`workbench-context-attach-run`），只有收到记号的那个窗格能用它、只用一次，顶层用排序时的落点调 `/api/contextual/attach`，把结果回给窗格。宿主照旧两道检查（`confirmReferences`、Pages 比版本）。没有页面接手就照旧提示「左边的内容已经换了」。
+  - 情境条：只由报告它的那一页收回落点（分屏时窗格和旁边的页面各报各的，一页报 `null` 不再清掉另一页的）。
+  - 窗格消息的检查只写一份（S-30，统筹 10-17 定加行）：新文件 `pane-messages.ts`（`PANE_MESSAGES_SCRIPT`）给出「是哪个窗格发来的」「是不是外面那一页发来的」与「记号只给那个框、只用一次」，`context-bus.ts`、`context-landing.ts`、`context-actions.ts` 的窗格一侧与 `tab-workspace.ts` 的窗格消息监听都先过它。顺带收紧：「打开设置」（`workbench-open-settings`）以前收任何同源窗口发来的，现在只收窗格发来的（只有窗格发它）。`tab-workspace.ts` 窗格一侧原来有两个 `message` 监听（Goal 视图；Feed 任务与新增），并成一个，各自的来源检查只写一次，这个巨大单元的行数与 main 持平。拒绝用例是不开浏览器的 `tests/security-invariants-pane-messages.test.ts`，进 `pnpm test:security`。
+  - 写在 `context-landing.ts`（顶层与窗格各一段）；`context-bus.ts` 只变短（窗格检查换成一行），`assistant-island.ts`、`client.ts` 不动。
+  - 验收编号：PANE-LAND-01（窗格里留下光标 → 顶层收到带窗格名、不带 `screen` 的落点 → 右栏选一句「插入到光标处」→ 预览在窗格里、顶层没有 → 放进去、存下）、PANE-LAND-02（不是窗格的窗口发来的落点被丢掉），在 `tests/context-landing-panes.e2e.test.ts`。
+- 2026-10-17 BL-150（分支 `context/bl150-reply-in-hand`；对象种类与 id 统筹 10-17 定）：助理回复里选中的一段成了手上的东西，能「插入到光标处」放进左边。
+  - 对象：助理是唯一的主人。回复的气泡带 `data-assistant-context`：`plugin_id: "assistant"`，`object: { kind: "assistant_reply", id: "<work_id>:<run_id>:<turn_id>", title }`。`run_id` 与 `turn_id` 是宿主给这一轮、这一句的 id（`turn_id` 每一轮各自编号，所以带上 `run_id`），刷新后不变，不是页面上的序号或时间；`title` 是工作现在的标题，由助理给，不从页面文字取。
+  - 种类不登记：现在登记对象种类的只有插件搜索来源的 `search_source.kinds`，助理没有搜索来源。这个 id 也不在别处解析：放进左边时宿主只重读落点对象（`confirmReferences`），写进 Pages 的只有文字（「作为引用插入」另写出处标题）。
+  - 读选区（`context-actions.ts` 的 `own()`）：助理面板里只有回复的字算手上的东西，输入框、情境条、按钮和人自己的话都不算；位置照 W3-B1 已有的写法从元素得出 `place: "assistant"`。助理自己找「正在看的页面」时跳过面板里的回复（`pageCtx`）。
+  - `assistant-island.ts` 不变大：斜杠菜单里「方法」与「能力」两段一样的按钮代码合成一个 `pick`，净减 5 行。种类名 `ASSISTANT_REPLY_KIND` 只在合同 `services/contextual` 定义一次，岛与测试都取它（统筹 10-17）。
+  - 验收：`tests/context-landing-reply.e2e.test.ts`（BL-150、AC-S15）：回复的 id 由工作、轮次、句子组成，刷新后相同；人自己的话选中不出东西；回复里选一段，「插入到光标处」先在 Pages 光标处预览，「放进去」写入。
+- 2026-10-17 W3-A3a 实现（分支 `context/w3a3a-card-in-work`；方案与两条条件统筹 10-17 定）：§21.2 第 5 条，浮条或开场建议选的写动作，卡片放进你正在做的工作。
+  - 判断：页面准备好卡后发登记过的请求 `molis:assistant-card-target`（`context-card-target.ts`，同步派发，只认第一次回答，只收字符串或 null）。助理在 `assistant-work-objects.ts` 里回答：面板开着、当前工作是助理自己的（不是 Coding）、且这项工作「拿着」这个对象时，回当前工作的 id。「拿着」只有一条规则，就是情境条用的那条：工作自己的对象（助理的 relation 行，随工作视图读来），或人在情境条里按 + 加入的。没人回答（没有助理、面板关着、对象不属于它），照旧新开一项。
+  - `work_id` 只是指针：宿主 `offerFromPage` 本来就只认本人的工作（按服务自己的 actor 查，不从输入取身份），已归档、Coding 的、别的项目的都拒；这次补上这四种拒绝的测试（`tests/assistant-business-gateway.test.ts`「W3-A3a」）。
+  - 放进当前工作后，`molis:assistant-open` 让正在显示的工作重读，卡片马上出现，不用等轮询。
+  - 不变大：岛把对象与工作的几样（`objectKey`、`belongsToWork`、相关工作的缓存）搬到新文件，净减 8 行；`context-bus.ts` 把行与开场建议两处一样的选择处理合成 `settle`，净减 1 行。`molis-work-workbench.js` 比 main 小 3,210 B：删掉没有任何渲染方的客户端代码（`.mobile-switch` 与 `[data-mobile-target]`、`[data-mobile-directory-root]`、`[data-timeline-filter]`，渲染方自 `bc79f8a49` 起就没了；证据表在 PR 里），留下的 `.mobile-switch` 样式交给样式表切片。
+  - 验收：`tests/assistant-card-target.test.ts`（没人回答、只认一次、助理何时回答）；`tests/context-card-in-work.e2e.test.ts`（面板关着新开；面板开着且工作拿着文档时放进同一项并马上显示；再关上又新开）。
+- 2026-10-17 W3-A3b 实现（分支 `context/w3a3b-pick-flash`，叠在 W3-A3a 上；方案与六条条件统筹 10-17 定）：§21.2 第 6 条的后一半，结果卡片可以拿起，悬停放进去时落点闪一下。
+  - 拿起：结果块里还读得到的结果（`current`、`changed`）卡片可以聚焦（`role="group"`，`aria-label`「拿起：标题」）。点卡片、或聚焦后按 Enter / 空格，整个对象成了手上的东西：`molis:surface-focus`，`plugin_id: "assistant"`，`granularity: "object"`，对象与唯一的 `object` 目标取结果自己的 `subject` 与标题，`screen` 是卡片的矩形；位置照已有的写法得出 `place: "assistant"`，浮条贴着卡片。拿着的卡片 `aria-current="true"`。只有标题打开对象（标题按钮原来盖住整张卡的 `::after` 对这种卡片去掉），卡上的按钮照旧；在卡片里选字后松手是在读，不拿起。Esc（同一张卡）或在卡片与浮条以外按下就放下，同一张卡发 `null`；一次只拿一个。已经拿着的卡再点、再按 Enter 或空格，换一个新的 `context_id` 再给出一次（浮条按 Esc 收起、或因重建放手后，靠它回来），卡片仍在手上，和选中文字时 Esc 只收浮条的做法一致（统筹 10-17 审）。不在了、读不到、搬走的结果不能拿。代码在 `assistant-work-objects.ts`，岛只在结果块调用一次，行数不变。
+  - 闪一下：浮条上悬停或聚焦一个放进去的候选（候选来源是 `attach`）时，顶层把登记过的请求 `molis:surface-landing-flash` 发在报告落点的那个元素上；每次移入或聚焦算一次，同一个候选一直停着不再发；浮条在指针每移过它的一部分时都报一次手上的键（`context-toolbar.ts` 的 `pointerover` 不再只认 `[data-key]`），所以移到按钮之间再回来也算一次新的移入。落点不是本页的（窗格的）、元素已不在或不在本文档，就什么都不发。Pages 拥有这次闪（`landing-editor.ts`，页面状态主人 `pages-landing`）：光标或末尾处一条铜色竖线，选区用 CSS 自定义高亮衬一层浅底，不盖字；正在闪时不再闪；要求少动画时不闪。
+  - 资源不变大：`molis-work-workbench.js` 比 W3-A3a 小 19 B，`molis-work-pages-editor.js` 小 11 B；三张卡片节点视图的三段模板并成一段、编辑卡片的两个确认合成一个；删掉没有渲染方的代码（`[data-plugin-expand]` 的开合与它存的 `directoryCollapsedSections`、`.plugin-stack` 选择器与开场动画、`.topbar` 的 `data-mobile-surface`、Goal 正文里的 `.desktop-pane-header`、`.mobile-switch` 的样式），证据表在 PR 里。
+  - 分屏窗格的落点闪、「更多」菜单里的放进去闪，在 W3-A3c 做了（见下一条）。
+  - 验收：PICK-01（点卡片或 Enter / 空格拿起整个对象）、PICK-02（标题打开、按钮照旧、选字不拿）、PICK-03（Esc 或按在别处放下，按在浮条上不放，一次一个）、PICK-04（不在、读不到、搬走的不能拿）、PICK-05（已拿着的再拿一次换新的 context 再给出，浮条收起后回来），在 `tests/assistant-pick.test.ts`；FLASH-01（悬停或聚焦放进去时落点闪一次，正在闪不再闪，移到按钮之间再回来再闪）、FLASH-02（落点已不在：不发、不报错）、FLASH-03（拿起的结果放到光标处：先预览、确认才写入），与 PICK-01 的键盘与鼠标两条路、PICK-05（浮条 Esc 收起，再按 Enter 回来），在 `tests/context-pick-result.e2e.test.ts`。
+- 2026-10-17 W3-A3c 实现（分支 `context/w3a3c-flash-panes-menu`，叠在 W3-A3b 上；方案与两条条件统筹 10-17 定）：分屏窗格的落点也闪，「更多」菜单里的放进去也闪。
+  - 菜单：菜单项带 `data-key`，指针移入、移出或焦点进入菜单都报一次手上的键，和浮条本身一样。浮条另给一个 `pointed()`（浮条上的键加菜单里的键）只用来闪；`pinned()` 的意思不变（浮条上那三个按钮里悬停或聚焦的，随下一次判断发给宿主，`planContextualLayout` 只用它给 `primary` 保位），菜单项不算进去（统筹条件 1）。
+  - 窗格：落点是窗格报告的（`pane_id` 不是本页）时，顶层不在本页发 `molis:surface-landing-flash`，而是给那个窗格的框发窗格消息 `workbench-surface-landing-flash`：只发给 `landing.element` 这个还连着、在本文档里的 iframe，目标 origin 是 `location.origin`；窗格一侧先过 `panes.fromParent`，再在报告落点的那个元素上（还在就）发这个请求，由 Pages 照旧画（统筹条件 2；消息登记在 §19.3 第 2 条，S-30 加了一行拒绝用例）。
+  - 大小：浮条程序 13,883 字（上限 13,900）：去掉被 `pointerover` 包含的 `pointerenter`，焦点进出时「在浮条或菜单里」的判断合成一处 `inside`。顶层的转发不另看 `pane_id`（落点元素是 iframe 就转给它，否则在本页发），也不再查元素是否在本文档（它总是本文档上听到的事件的目标）。删掉没有发送方的窗格消息处理 `workbench-feed-add`、没有产出方的 `.project-settings-hub`（选择器与样式；两者的另一半都在 `fe9f98064` 里没了）。`molis-work-workbench.js` 仍比 W3-A3b 多 318 B，两份样式表各少 149 B；抵不下的数字已报统筹，预算不由本片调。
+  - 还没做：手上的东西在窗格里时浮条画在窗格自己的文档里，那里悬停放进去还不闪（窗格的 `workbench-context-hold` 只带 `pinned`，顶层不据它问落点）。
+  - 验收：PANE-FLASH-01（落点在分屏窗格：悬停浮条上的「插入到光标处」，窗格画出闪线，顶层不发）、PANE-FLASH-02（窗格自己发、窗格里别的框发的「闪一下」都不闪）、MENU-FLASH-01（「更多」菜单里同一项悬停也闪；菜单项在 `pointed()` 里、不在 `pinned()` 和发给宿主的 `pinned` 里），在 `tests/context-landing-flash-panes.e2e.test.ts`；S-30 的拒绝在 `tests/security-invariants-pane-messages.test.ts`「S-30 a pane shows its landing only when the page around it asks, from this origin」。
+- 2026-10-17 W2'-1 右栏本身（分支 `context/w2p-shelf-side`；分片：W2'-1 右栏本身，W2'-2 Shelf 成为第一格、「常开插件」声明（`always_on: true`）、窄宽度版式、旧入口改道，W2'-3 桌面入口与文档）：
+  - 底栏右侧只剩侧栏按钮（`data-side-toggle`，提示「侧栏：Shelf、灵光、文件、浏览器、电脑与讨论」）；Shelf、灵光两个常驻按钮与 `BAR_RESIDENT_IDS` 删掉，点按钮只发 `molis:side-open` / `molis:side-close`，不再另开一套窗口状态。
+  - 群聊命名直接换掉、不留别名（side-shelf §7）：面板 `id="side-panel"`，讨论框 `data-side-body="discussion"`；`data-dock-window`、`data-dock-frame`、`data-dock-toggle`、`dock-window-im` 全仓只剩历史原型与 spec 的对照记录。GLOSSARY 的 R-A10（`im` 指整个右栏）一并删掉。
+  - 格的顺序由声明决定：平台格带 `order`（文件 20、浏览器 30、电脑 40、讨论 50），插件侧栏视图的 `order` 原样带进来（灵光 10，没写的 100），一起排序，不写名单。默认格是排在第一的那格；W2'-2 Shelf 声明 0 后自然成为第一格、首次打开就在它。
+  - Dock 里 Shelf 与灵光的钉子原来因常驻固定按下，现在是普通钉子（DOCK-04 测试随之改；Shelf 的钉子在 W2'-2 随 Shelf 离开插件列表一起消失）。
+  - 页面资源只变小（数字见 PR）；`assistant-island.ts`、`client.ts`、`context-bus.ts` 不动。
+- 2026-10-17 W2'-2 Shelf 成为右栏第一格（分支 `context/w2p2-shelf-always-on`，叠在 #694 上）：
+  - Manifest 新增 `always_on`（v2，布尔）：SDK 解析，Plugin Runtime 在安装和确认升级时拒绝非内置的声明（S-34，`tests/security-invariants-always-on.test.ts`）；项目移除时拒绝（`catalog.plugin_always_on`），市场与插件切换跳过，旧的隐藏存值不再生效。
+  - Shelf 只剩一个界面面 `side`（`order: 0`，第一格）；工作区的 Shelf 舞台、目录与工作台里为它写的路径删掉。样式改成填满格子：窄时目录全宽、打开一项盖住目录并带返回，容器 ≥ 640px 时目录 213px 留在左边（容器查询，不看视口）。
+  - 存值：保存的标签状态里点名 shelf 的，工作区回到项目首页一次（现有的通用处理）；Dock 里存过的 shelf 钉子渲染时跳过，存值不改。
+  - 统筹 10-18 定的四项（同一个 PR，各一个提交）：
+    - `openPlugin` / `open.surface` 指插件，位置由声明决定：只有侧栏视图、没有工作区面（`workbench.main`、`workbench.directory`）的插件，打开时落到它的侧栏格（`sideOpenedPlugins`，`apps/workbench/src/plugin-catalog.ts`；页面上只有 `openPluginInSide` 一处，不写 `shelf`）。三处存值（动作链接、搜索索引的 `open_json`、助理通知的 `open`）不改写，各有一条点开落到那一条的用例（`tests/shelf-side-links.e2e.test.ts` SHELF-LINK-01～03）；用不是 Shelf、只声明侧栏视图的假插件证明规则通用（OPEN-PLACE-01）。
+    - 侧栏文档把登记的落点事件（`molis:placement-convert`、`-request`、`-result`，名单只在 `SIDE_FORWARD_SCRIPT` 一处）转给页面；页面只收同源、来源窗口是侧栏插件格框架的消息，名单外的名字丢掉（S-30 扩展，`tests/security-invariants-pane-messages.test.ts`、SIDE-FWD-01）。
+    - 图片「放进 Shelf」经宿主路由调 `shelf.items.admit`（定义只在合同里一份，`SHELF_ADMIT_ACTION`：Shelf 按它注册，图片按它调用，不转型），`molis:shelf-admit` 从登记表删掉；放好后出一张落点卡片，从卡片的「打开」进 Shelf 格（不自动打开）。
+    - 侧栏格按条目打开：`molis:side-open` 带 `target {item,title}`，侧栏对已载入的格框架以本页源发 `molis:side-target`，格文档按同一检查收下后在自己的工作面上发 `molis-work:select-item`；工作台不读条目 id。
+- 2026-10-18 W2'-3 桌面入口（分支 `context/w2p3-desktop-entries`，叠在 #701 上；统筹 10-18 认可计划并定两处做法）：
+  - 热键、菜单栏打开 Shelf 只说插件名：`molisWorkOpenShelf` 调页面的 `molisWorkOpenPlugin("shelf")`，它就是工作台的 `openPlugin`，判断仍只在 `openPluginInSide` 一处；不写死格名，不加 focus（原来点插件列表时也不移焦点）。热键脚本里点插件列表的兜底删掉。
+  - 壳从顶层文档（不是框架）报「右栏开着且选中的是 Shelf 格」时那一格的矩形：现成的 `shelf_surface_changed` 把 `active` 换成 `panel`（CSS 像素，内容区左上为原点）；矩形先经 `reported_panel` 检查，轮盘命中只用 `over_reported_panel`（S-14 表与 `tests/security-invariants-desktop-ipc.test.ts` 同步，Rust 用例 `s14_…`）。热键的显示/隐藏开关以「Shelf 格正在显示」为准。
+  - 页面顶部的插件说明（`STAGE_SUMMARIES`）按工作区面取，只开在右栏的插件没有工作区面，按同一条规则（`sideOpenedPlugins`）不再带进页面，`workbench.js` 由此不超过 #701 的大小。
+  - 用例：`tests/desktop-shelf-side.e2e.test.ts`（DESK-SHELF-01、DESK-SHELF-02，用真的壳脚本和一个记录调用的替身桥）、`tests/desktop-tui.test.ts`。
+- 2026-10-18 W3-C 右栏各格报告手上的东西（分支 `context/w3c-side-in-hand`；做法统筹 10-18 定：像分屏窗格一样，复用现成的来源检查，不加新消息类型）：
+  - 右栏插件格的文档跑 `context-actions.ts` 里窗格那一半（`CONTEXT_PANE_FACTORY_SCRIPT`：DOM 选区读取、给打开的条目起名、自己画浮条），与分屏窗格是同一段代码；格里选中的东西经 `workbench-surface-focus` 交给顶层，浮条的方案与选择、悬停保位、交不出去的选择都走分屏窗格已有的消息。
+  - 顶层的上下文总线收这些消息时，来源除了分屏窗格框，再认右栏插件框；认框只用一段 `SIDE_FRAME_FROM_SCRIPT`（`molis:side-forward` 的 `from` 也是它，S-30）。顶层按框所在的格标上 `place: "side"` 与 `side_tab`（`landing.place`，和顶层文档里的右栏格同一条规则），`pane_id` 是 `side`；格里报来的 `place` 不算数。
+  - 由此左边的落点对右栏格里的选区也成立：浮条给出「插入到光标处」；在左边选中时浮条回到左边；右栏收起后框看不见，总线照旧放下手上的东西，格里的浮条随之收起。
+  - 没做：在格里的浮条上悬停「放进去」时，左边的落点不闪（分屏窗格的浮条今天也不闪：窗格报的保位只带浮条上的键，不带菜单的），记作后续 W3-C2（§21.4）。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 AC-S04 …」（真的工厂脚本跑在一个小页面上：不是右栏插件框也不是分屏窗格发来的焦点被丢掉、不问 Host、哪里都不画浮条；Shelf 框发来的标上右栏与格、只让那个框画）、`tests/side-shelf-in-hand.e2e.test.ts`（W3-C AC-S04，Shelf 格里选中一段材料，左边是 Pages 的光标）。
+- 2026-10-18 W3-C2 窗格与右栏格的浮条悬停时闪落点（分支 `context/w3c2-pane-hover-flash`，叠在 #712 上；计划与三条条件统筹 10-18 定）：
+  - 窗格（分屏窗格与右栏格同一段代码）报保位 `workbench-context-hold` 时多带 `pointed`：浮条上与「更多」菜单里悬停的键，取自浮条现成的 `pointed()`；`pinned` 不变。没有新消息类型；这条消息是 `postMessage`，不在 `dom-events.ts` 或别的合同里登记，不改合同。
+  - 顶层收到后（来源检查 S-30 与当前焦点检查在前）调与自己浮条同一个 `landing.hint(pointed, bar.plan)`：键只在顶层自己的方案里查，查不到或不是 `attach.` 键就什么也不闪，不报错、不记日志；最多看前 16 个。
+  - 实际能闪的是右栏格：分屏窗格里的焦点不带 `place`，不给落点，也就没有 `attach.`，那一半代码相同、今天没有可闪的。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 W3-C2 …」（非 attach 键、非字符串、不是数组、别的来源带合法键、过期的 context 都不闪；Shelf 格悬停闪一次，离开再回来再闪），`tests/side-shelf-in-hand.e2e.test.ts`「W3-C2」（真指针悬停 Shelf 格浮条上与菜单里的「插入到光标处」，左边 Pages 闪、不写）。
+  - 全量（run 39115596523）在 `context-pick-result.e2e` 的 PICK-05 红：Esc 收起浮条，可是已经排上或在路上的判断回来后又把浮条画了出来（慢机上判断回来得晚）。不是 W3-C2 的改动造成的，是 Esc 原本的缺口：现在 Esc 和「换了手上的东西」用同一个 `bus.hush()`，把排着的计时、在路上的判断和规则的回复都作废。PICK-05 加了一步：把判断扣住，按 Esc 之后再放行，浮条不再出来（不修时这一步失败）。workbench.js 因此再加 38 字节，并进 W3-C2 的一次性放行。
+- 2026-10-18 W4-1 创建入口：记成待办、记下灵光（分支 `context/w4-1-intake-todo-lingguang`；统筹 10-18 认可，带四个条件）：
+  - Todo 的 `todo.items.create` 与灵光的 `lingguang.create` 声明 `intake`（`prepare` 是各自的 `*.fragment.offers`，不经模型）；两个旧的片段动作选项连同只有它们用的代码删掉（页面上没有只给它们的文案、事件与翻译键）。灵光加 `lingguang.revert`，`create.undo` 指向它。`scripts/contextual-slice/*` 只有自己的静态样例，不调已删的选项，留着；design-system 的示例标签留着。
+  - 宿主 `POST /api/contextual/create`（`apps/local-host/src/contextual/contextual-create.ts`）：起草后按声明决定；能直接建的条件：主人声明的撤销此刻可用（与助理共用 `directEligible`），不是 `proposes`、不是 `multiple`、没有缺的字段。浮条新建是本人亲手点的，不读助理的逐项确认 `confirm_always`：在助理里设成「每次都确认」的动作，在浮条上照样直接建（统筹裁定第 2 条，`specs/repository-anti-corruption` §10.28；`contextual-todo.e2e` 第一条把 Todo 的新建设成每次确认后再建两次，都直接建）。直接建时以本人的权限调用、返回建好的对象与撤销令牌；否则返回草稿，页面出卡片。`POST /api/contextual/undo` 花掉令牌（S-40，`tests/security-invariants-contextual-undo.test.ts`：重复用、换项目、换操作者、过期、提供方换了安装或停用、页面自己写撤销，都拒）。
+  - 页面（`context-bus.ts` 的 `create`）：同一个选区与入口复用同一个请求号（连点两次只建一个，主人按请求号去重），在途时第二次点击不发；完成卡片用落点的卡片，「打开」走 `describe` + `openObject`，「撤销」失败时卡片说「没能撤销」。
+  - 顺带修好：Goals「拆成目标步骤」的提案条目号原来固定是 `step-1` 一类，同一个项目的第二份提案被拒；改成按请求号区分（`plugins/native/goals/src/fragment-offers.ts`）。
+  - 动作合同快照：Todo、灵光几个动作的 `traits` 哈希变了，输入输出 schema 不变，不升版本；新增 `lingguang.revert@1`（MCP 工具多一个）。
+  - 页面资源：`workbench.js` +1,158 字节，一次性放行（`APPROVED_CEILINGS`，理由与试过的写在 `scripts/gates/page-assets.mjs`）。
+  - 用例：`tests/contextual-create.test.ts`（真 Host：两个入口直接建、一次请求只建一个、别处改过后撤销被拒且不删不改、令牌只能用一次、别的项目的令牌被拒；假目录：没有撤销、提案、多个、缺字段都出卡片，只调 `prepare`）、`tests/plugin-context-declarations.test.ts`、`tests/contextual-destinations.test.ts`（只有规则时一段文字一个去处、一个词没有）、`tests/contextual-fragment-offers.test.ts`（同项目第二份拆分提案）、`tests/contextual-todo.e2e.test.ts`（连点、重选、改后撤销被拒、撤销、打开；原来「卡片执行被拒、什么都不写、可以再执行」那一半改用 Goals「拆成目标步骤」的卡片留在同一个文件里）、`tests/lingguang-actions.test.ts` LG-REVERT-01；原来用「记成待办」「记下灵光」的三个浏览器用例改用「拆成目标步骤」，只改去哪里找。
+  - 2026-10-19 补测（防腐 §10.28 对 #730 的复查）：原来写「断言不变」，不实，「卡片准备途中改选区，卡片仍按原选区」那条在 W4-1 里删掉了，没有替换。现在补回两条，都在 `contextual-todo.e2e`：Goals「拆成目标步骤」那条把这次点击发的 `/api/contextual/prepare` 扣在路上、选区换到第二段再放行，问的焦点、卡片摘要、work 和执行后的提案都只有第一段；直接新建那条把第一次 `/api/contextual/create` 扣在路上、换选区再放行，问的焦点、完成卡片和建出的待办都只有第一段。
+- 2026-10-19 手上的东西在哪里只看元素（防腐 §10.28 对 #712、#720 的 P3）：原来 `landing.place` 只在元素落在右栏格或助理里时盖掉焦点里的 `place`、`side_tab`，左边的文档（`molis:surface-focus`）和分屏窗格（`workbench-surface-focus`）自己报的 `place: "side"` 与随便一个格名会原样送到 Host，Host 就按右栏给落点、给「插入到光标处」，提示里也写成右栏的格。现在 `place` 一律由元素算出（右栏格 `side` 带格名、助理 `assistant`、其余 `main`），`side_tab` 只在右栏格里有，自己报的两样都不算数。
+  - 用例：`tests/security-invariants-pane-messages.test.ts`「S-30 §10.28 …」（分屏窗格与左边文档自称右栏、带伪造格名，Host 收到的是 `main`、没有格；Shelf 框自称助理、带伪造格名，收到的是右栏和 Shelf 自己的格）。
+  - 页面资源：`workbench.js` 少 4 字节（`tooling/gates/page-assets.json` 同步降）。
 
 ### 21.7 暂停点（2026-10-14，用户：需求线暂停，整机让给防腐线）
 
@@ -1340,7 +1533,7 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
    - 版本不符就拒绝。
 5. **落点处预览**（§3.6「放进落点，一律预览确认」）：选了 `attach.` 候选后，由落点的主人页面（Pages）在落点处开面板槽（`molis:context-panel-open`，W1-6 已登记），画出将写入的内容。确认后经动作服务调第 4 步的动作；不在页面里直接改文档，保证与助理、MCP 同一个入口。
 6. **H3 那一对函数**：执行前宿主用 `confirmReferences`（`horizontal/search/src/references.ts`）按调用者的权限重读落点对象。不在或没权限时，用合同里的 `reference-unavailable` 拒绝，不另写读取。版本由 Pages 的动作自己比对。
-7. **情境条显示落点**：「→ Pages · 第 3 段光标处」。依赖 W3-A2 的情境条，排在 W3-A2 之后。
+7. **情境条显示落点**：「→ 发布计划 · 「步骤」光标处」（2026-10-16 L-3 改为标题加位置词，见 21.5）。依赖 W3-A2 的情境条，排在 W3-A2 之后。
 
 **决策（统筹 2026-10-15 按推荐定）**：
 
@@ -1376,3 +1569,116 @@ W0 原型的预览（独立脚本，不是产品）：`pnpm exec tsx scripts/pre
 - **执行前重读落点对象（第 6 步）**：`/api/contextual/attach` 调动作之前，宿主用 H3 的 `confirmReferences`（经 `localHost.search`，本人在这个项目里的权限）读一次落点对象，种类限定为 `attach.item_kind`；不在、不能用，或宿主没有这道检查，都拒绝（`contextual.reference_unavailable`），什么也不写。之后版本仍由 Pages 的动作自己比对。证据：`tests/pages-landing-actions.test.ts`「W3-B1 step 6」。
 - **待用户定**：页面资源的抵消方式（统筹在问；`served-page-text.ts` 保留绑定名是有测试钉住的决定，没定之前不动）。
 - **证据**：`tests/pages-landing-actions.test.ts`（三个动作、版本冲突、撤销、撤权不写），`tests/context-landing.e2e.test.ts`（右栏选一句 → 「插入到光标处」→ 落点处预览 → 放进去）。
+
+### 21.9 下一步行的结果位（槽位接口，2026-10-19；DISPATCH-1019-0710 ⑧）
+
+版面归本线（`assistant-island.ts` 的布局属 ⑧）。回执线的交付说明（3e）与交互线的结果卡（AC-06 H4）都放进下一步行的同一个位置，不各开结构。
+
+**位置与顺序**：
+
+- 先放等你的（确认、问卷、操作卡、核对、等你的子任务），然后是结果位。
+- 结果位最多给 2 步（`OUTCOME_STEPS`）。整行仍只显示 3 步，其余收进「还有 N 项」，所以结果不会把等你的挤出前三。
+- 结果位一次只说一件事，取第一个有内容的：
+  1. 工作的交付说明（回执 3e，⑥ 加）。只在两件事同时成立时出现：最近一轮已经终止，且显示的轮里有人的补充（及为它问的问题）。出现时排第一，因为它的产出链接已经含了这几轮的结果；
+  2. 最近跑完的那张卡的结果（交互 AC-06，⑨ 加）。交付说明不出现的时候，它排第一；
+  3. 最近一轮做出的结果（「打开「…」」），这一轮失败时是「用同样的话再试一次」。
+
+  最近一轮失败时，前两支都不给步，结果位只给「再试一次」；交付说明和卡片结果在对话里照画。第一支的出现条件与这个顺序是 2026-10-19 统筹答回执线 Q1 定的，以这里写的为准。
+
+**接口**：
+
+- 宿主：`apps/local-host/src/assistant/assistant-outcome.ts` 的 `assistantOutcomeSteps(view, say)`。每个主人在这里加自己的一支，并在对话里画自己的记录；别处不画结果。`assistantStepRow` 把它接在等你的之后，经 `interactionNextSteps` 去重。
+- 记录：对话里的一条交付说明或结果，用自己的 `data-ix-record="<kind>:<id>"` 作键（`NEXT_STEP.record`）；卡片的结果用卡片自己的 `data-card` 作键。
+- 控件：记录里允许下一步按的控件带 `data-ix-press="<name>"`（结果的「打开」、交付说明里的链接、卡片结果的「打开」）。步的 id 是 `<键>:<name>`（`NEXT_STEP.press`）。
+- 页面：`assistant-step-row.ts` 只按记录自己的控件，和人按的一样，所以没有第二条执行路径（FLOW-01）。控件被禁用、记录有没发出的修改、记录里没有这个名字的控件，都只把记录带到眼前，原因由记录自己的控件说（FLOW-03）。只写键不写名字的步，也只带到眼前。键要整段相同，`delivery:w1` 不会接住 `delivery:w10:…`。对话里找不到记录的步交给岛自己的处理（`open:`、`check`、`work:`、`retry`）。
+- 结果按钮（2026-10-19 统筹 D10）：记录里打开某个结果的按钮写成 `data-assistant-object="<view.objects 的下标>"`，和回复里的对象按钮同一写法（`assistant-text-parts.ts`）；要让下一步按它，再加 `data-ix-press`。下一步行每次绘制时，把对话里每条 `data-ix-record` 记录交给岛的 `bindText` 接一次：加图标、点开（侧栏预览优先）。记录的主人只给有 `open` 的对象写 `data-assistant-object`，和 `assistant-text-parts.ts` 一样；没写按钮的显示为文字。记录由主人整块重画，行看第一个子节点换没换，换了才再接，所以轮询和缩放不会重复接。卡片里不写 `data-assistant-object`，卡片的结果用卡片自己的控件：岛画卡片时不调 `bindText`，行也不接卡片。卡片结果的「打开」是卡片自己的控件（`data-ix-press`），不经 `bindText`；以后卡片要放 `data-assistant-object` 写法的结果按钮（要行来加图标、点开），行的循环才要加上 `[data-card]`（约 12 字节）并补用例。不给回执工厂另加 `open` 端口（统筹 10-19 D11 先答加端口，10:08 更正为不加）：一处接住所有结果记录，⑥、⑨ 只写按钮不再碰岛；两处都接会给同一个按钮接两次；回执工厂在岛里先于 `bindText` 的声明调用，直接传 `bindText` 会在声明前取值而抛错。
+- 不改合同、不改设计系统、不改 `assistant-island.ts`（#631 在途，大面积改它）。
+
+**状态**：
+
+- 空：没有结果就不占位；整行没有步时行隐藏。
+- 进行中：一轮还没完不给结果步。
+- 失败：只给「再试一次」。
+- 不在了或打不开的结果不给步。
+- 没权限或已禁用：步只带到记录，由记录说明。
+- 能撤销：撤销是记录自己的控件，步按的就是它。
+
+**验收**：
+
+- **SLOT-01**：宿主端结果位排在等你的之后，至多 2 步，不把等你的挤出前三；不在了或打不开的结果不是步。证据：`tests/assistant-interaction-html.test.ts`。
+- **SLOT-02**：页面端只按记录自己的控件；禁用、未发出的修改、没有的名字只带到眼前；键不前缀误配；卡片的 `run` 与问卷的选项照旧。证据：`tests/assistant-step-row.test.ts`（真实下发的脚本在 `node:vm` 里跑）。
+- **SLOT-03**：页面端把每条结果记录交给岛的 `bindText` 接一次；没重画时再绘制不重复接；主人整块重画后再接；卡片不由行接。证据：`tests/assistant-step-row.test.ts`。
+
+**下发体积**：宿主发脚本前已用 esbuild 压空白（`tightenServedJs`），所以新增的分支只能靠把下一步行的脚本写短来抵：按属性找控件合成一个小函数 `at`，几支判断并在一起，去掉多余的初值。以宿主的压法量，这段脚本比改前少 6 字节，`workbench.js` 不变大。接上结果按钮（SLOT-03）是新功能，省不回来：以宿主的压法量，行脚本多 103 字节、岛的调用处多 4 字节，已用短名字、ARIA 属性直接赋值、调用处的可选链各省一点（共省约 50 字节）。比另加 `open` 端口少一条路径，体积相近。涨的部分由 ⑤ 按页面资源门禁一次放行。
+
+**待补浏览器验证**（用户 10-19 暂停）：
+
+- 一轮做出结果后，下一步行在等你的之后显示「打开「…」」，按下与按结果自己的「打开」相同。
+- 窄面板（小于 560px）时结果步随整行移到输入框上方。
+- 结果记录里的按钮带对象图标，点开先走侧栏预览；打不开的显示为「…」文字；轮询几次后按钮仍只有一个图标、点一次只开一次。
+
+### 21.10 W4-2 创建入口：Pages「存为文档」与 Goals「拆成目标步骤」（2026-10-19）
+
+状态：实现与节点、浏览器验证已补齐，含本线按推荐定的 D-4、D-5、D-6；10-20 真机复查发现完成链接没有到达提案，按 W4-2-13 补齐审批闭环，工程检查、浏览器实操和独立评审通过。分支 `context/w4-2-create-entries` 在批次前序基础上验证；未覆盖的人工体验列在本节末尾。W4-1 铺好的路（宿主 `POST /api/contextual/create`：主人声明了 `undo` 就直接建，否则出卡片；撤销令牌 S-40）上再加两个入口，创建入口由插件声明，宿主不新增插件专用路由。
+
+**动线**
+
+1. 人在任何地方选中一段文字（Pages 文档、灵光、Coding 的回复、右栏 Shelf、讨论、文件格、助理面板），浮条贴着选区出现，至多 3 个推荐位。
+2. 有判断（Jev）时，「存为文档」「拆成目标步骤」和「记成待办」「记下灵光」一起进候选池，由判断按各自的 `describe`、`examples` 排。
+3. 只有规则时，一段文字的最后一个主位放一个去处：别的插件的入口优先，没有才放这段文字所在插件自己的入口；同一类里按排名、再按共同目录的顺序取第一个，跳过提案类与批量入口（D-1、D-5，21.5）；所以只有规则时推的仍是一键可撤的去处，在 Pages 里选一段，推的是「记成待办」，不是「存为文档」。
+   提案类与批量入口（「拆成目标步骤」）没有占到主位时，对一段文字按它的意图放在「更多」里，有判断没判断都一样；判断点名它就占主位，并从「更多」里去掉（D-4）。一个词或整个对象时，只有判断点名了它才出现，规则与没点名的判断都不把它放进「更多」或列出（D-6）。
+4. 点「存为文档」：按钮进入忙碌态，同一处再点是同一个请求号（页面的 `made`）；宿主用 Pages 的 `prepare` 不调模型算出标题与正文，以本人的权限调 `pages.create`，完成卡「已存为文档」带「打开」「撤销」。「撤销」把令牌交回 `/api/contextual/undo`，宿主经 Pages 自己的 `pages.discard` 删，只在文档新建后没改过时；改过了主人拒绝，卡片写「没能撤销」与原因，文档不动。只有这一次真的建了文档，才有「撤销」：同一个请求号再点（连点，或文档改过之后在原处再选同一段）时 Pages 交回的是文档现在的样子，输出里没有 `created_version`，宿主就不签令牌，完成卡只剩「打开」，没有一张卡能删掉人后来写进去的内容。
+5. 在「更多」里点「拆成目标步骤」：永远出卡片，不直接建。Goals 的 `prepare`（`goals.fragment.offers`）算出一份结构提案（每个分句一步，至少 4 个字，至多 6 步；文档属于某个 Goal 时挂在它下面），助理面板里是预填的卡，人点提交才调 `goals.tree.submit`；完成卡「已提交目标提案：要在 Goals 里确认才生效」，带「去 Goals 确认」（`/projects/{project_id}/?openPlugin=goals#{proposal_id}`），定位到本次提案。Goals 列表展示所有待确认提案，独立文档的无根目标提案同样可采用或退回；原有 Goal 详情审批入口保留。提案没有撤销：撤回就是在 Goals 里审批时拒绝（D-3）。
+6. 做完回到原处：浮条收起，选区还在，左边不跳走（除非人点了「打开」「去 Goals 确认」）。
+
+**五种状态**
+
+| 状态 | 「存为文档」 | 「拆成目标步骤」 |
+| --- | --- | --- |
+| 空 | 选中的只有空白：宿主先拒绝（`contextual.empty`「没有可以放进去的内容」），浮条下一行错误。一个词、整个对象、几个对象：`pages.intake.offers` 不给输入；只有规则时这几种也不推这个去处（只对一段文字推），判断点名了它，宿主退回通用起草：原文放进 `markdown`，不会建空文档 | 拆不出至少一步（每步至少 4 个字）：`prepare` 不给输入，宿主退回通用起草，卡片里没有步骤、缺项（`items`）写在卡上，人补完才能提交 |
+| 加载 | 点下后按钮忙碌，同一处再点不重复建（同一请求号；Pages 的 `pages.create` 带 `request_id`，同一个请求号只建一篇，其他内容用同一请求号被拒） | 点下后按钮忙碌，卡片出来才恢复；卡片里提交中按卡片的现有规则 |
+| 出错 | 算不出输入或建失败（Pages 停用、写入被拒）：浮条下一行错误，原文不动，可再点 | 卡片出不来：同左；卡片里提交失败：卡片保留并写原因，可再提交（卡片的现有规则） |
+| 没有权限 | 本人在这个项目里没有 `pages:write`，或 Pages 没启用：目录里这一项不可用，不出这个去处；准备（`pages.intake.offers`）要 `pages:read` | 没有 `goals:write`：不出 |
+| 可撤销 | 完成卡有「撤销」，30 分钟、只一次、只本人本项目（S-40，不改）；改过了主人拒绝；同一请求号重放的那次没有新建，没有「撤销」 | 没有撤销，卡上不写；在 Goals 里拒绝提案 |
+
+**合同与代码**
+
+- 动作声明：`pages.create` 加 `intake`（`intake_id: "document"`，`verb: "存为文档"`，`material_field: "markdown"`，`prepare: pages.intake.offers`）和输入里可选的 `request_id`；`goals.tree.submit` 加 `intake`（`intake_id: "breakdown"`，`effect: "proposes"`，`verb: "拆成目标步骤"`，`prepare: goals.fragment.offers`）和 `result_view`（摘要加「去 Goals 确认」链接）。新动作一个：`pages.intake.offers@1`（`defineFragmentOffersAction(…, [FRAGMENT_ANY_OBJECT], …, [])`，没有自己的选项，只做 `prepare`，不调模型）。
+- `GOALS_FRAGMENT_CHOICES` 去掉 `breakdown`（同一件事只有创建入口一条路，quick-create §8 第 2 条），`progress` 留着；`prepareGoalsFragmentOffers` 照旧算 `breakdown` 这一份输入。
+- 合同 `ContextualCandidate`（`@molis-ai/molis-work-contracts/services/contextual`）加两个可选字段，都是只增不改：`always_card?: true`（这个去处从不直接建，永远出卡片：声明了 `effect: "proposes"` 或 `multiple`）与 `own?: true`（创建入口，它的提供方就是手里这件东西所在的插件，即 `focus.plugin_id`）。内核 `candidateOf`（`packages/kernel/src/contextual/destinations.ts`）按声明与 `ownerOf(view) === focus.plugin_id` 设它们；追加的去处永远不带 `own`。`planContextualLayout` 在没有判断时：不把带 `always_card` 的候选算进主位（D-1），对一段文字把它们留在「更多」（`rest`）与列表（`listed`）里（D-4），一个词或整个对象时不留（D-6，`PASSAGE_GRANULARITIES`）；对一段文字、且有别的插件的入口（可用、不带 `always_card`）时，先把本插件的创建入口筛掉再排（D-5）。不点名任何插件。公开 API 快照随之刷新（`pnpm api:update`）。
+- `pages.create` 升到 **2**：输入多了可选的 `request_id`，输出多了可选的 `created_version`；原输出只允许 `document`（`additionalProperties: false`），新增字段改变严格形状，按现行合同规则升版。Pages 用现有的 `page_imports`（`PagesStore.importDocuments`）做同请求只建一篇，没有给 `PagesStore` 加方法，写入逻辑放在新文件 `plugins/native/pages/src/create-document.ts`（`createPagesActionHandlers` 已近阈值，不往里加行）；`page_imports` 的请求号与导入对话框共用一个命名空间（导入用 UUID）；`importDocuments` 多收一个可选的 `replay`（重放时的两句提示与一个「是重放」的回调），导入对话框不传、保留原来的两句，`pages.create` 传自己的说法（「同一个请求的内容已改变，请重新发起」「这个请求已完成，但其中的文档已被删除；不会重新创建」），类的行数与方法数不增。
+- `pages.create@2` 的 `created_version` 只在这一次真的建了文档时出现，值是建出来的版本号，重放时不带；撤销声明改成 `expected_version: "created_version"`（原来取 `document.version`）。原因：重放返回的是文档现在的版本，原来的声明会让重放出来的撤销令牌带着改过之后的版本号通过 `pages.discard` 的校验，把改过的文档永久删掉（评审 #801 Y1）；`declaredUndo` 在路径取不到值时不给撤销，所以重放没有令牌。不在 `discard` 里硬卡第 1 版：Pages 收回空白文档（W2-18 决定 6）用的版本会大于 1。撤销声明的输入路径变了，快照的 `traits` 哈希随之刷新。
+- 动作快照 `tooling/gates/actions/` 刷新（`pnpm actions:update`）：`pages.create@2` 取代 1，`pages.intake.offers@1` 的目标同步为 2；其他 Pages 动作、只变声明的 Goals 和灵光动作版本不变。不留旧动作别名或读取兜底。已固定 `pages.create@1` 的工作流程、绑定及外部插件需重新发现并绑定 2；MCP 工具名改为 `pages.create__v2`，原工具失效。HTTP 路径仍是 `/pages`；动态从目录选动作的 Skill 和平台调用沿用发现结果。
+- Inbox：没有自己的创建动作（只有 `inbox.entry.status`、`inbox.pages.generate`、判断类动作和内容站 `receive`），按 W4-2 的条件不动；「放进收件箱」归 W4-6。
+- 页面与翻译：完成卡标题按入口的 `verb` 拼，提案走现有的 `suggestCard`，链接由 `result_view` 给。W4-2-13 把待确认提案加入 Goals 的现有列表插槽，并由 Goals 浏览器脚本消费本次提案锚点；未新增宿主路由，采用/退回复用原决定入口。工作台脚本同段精简先抵消新增定位的开销（净减少 5 字节）；补齐未提交理由保存和准确滚动后，最终相对前序为 1,129,470 → 1,129,880 字节（+410）。独立评审与主会话于 10-20 按现行单资源不超过 10 KB 的规则认可一次性精确放行；移除已用完的 #826 条目，超上限一字节、其他资源及新基准继续增长仍拒绝。CSS 及其他资源不变。界面复用现有译文，无新的英文条目。
+
+**已知后果**
+
+- D-5 的代价：没有判断（没配 Jev）时，Pages 的浮条与「更多」里没有「存为文档」；人只能靠判断点名它，或经助理自己要。它仍然「可用」（D-2），只是规则不推。如果将来想让人在 Pages 里一定够得着它，要么 BL-174 按内容挑，要么另议把本插件的入口放进「更多」（会让「更多」里出现普通去处，动 quick-create §6.1）。
+- 离线评估的夹具（`scripts/contextual-slice/fixture.mts`）仍是 W4-2 之前的形状：Goals 的「拆成目标步骤」在里面还是片段选项（线上它现在是带 `always_card` 的创建入口，没有判断时不进主位），和 W4-1 之后的「记下灵光」同样是它自己的静态样例。这套脚本（`evaluate.mts`、`evaluate-memory.mts`、`replay.mts`）只排片段选项，不排创建入口，所以拿它评估浮条排位得到的数字，和人在线上看到的不是同一个池子；`evaluate-memory.mts` 的两条用例和 `replay-recorded.json` 以 `breakdown` 为键，直接删掉它会让那两条名次变成 0。要让评估和线上一致，得让夹具也出创建入口的候选，那是另一片的事（评审 #801 J2）。
+- 只有规则时在别的插件里选一段，推的那一个按排名、再按共同目录的顺序取（21.5 的 10-18 行与 D-5）：目录里 `lingguang.create` 排在 `todo.items.create` 之前，项目里灵光可用时，浮条上的会是「记下灵光」而不是「记成待办」；这是 W4-1 已有的行为（其第一个用例随 #730 合入），本片没有改变也没有动那个用例。按内容挑去处是 BL-174（`intake` 声明收哪类内容），本片没有加排序规则；它与 D-5 叠加：先筛「别处优先」，再按内容挑。
+
+**验收**
+
+- **W4-2-01**：只有规则时，挑那一个去处跳过提案类与批量入口；判断点名的提案类入口照样占位。证据：`tests/contextual-destinations.test.ts`。
+- **W4-2-02**：目录里只剩提案类与批量入口时，规则不推去处，它们也不占任何主位，按意图放在「更多」里（D-4；这一条的断言原来是「也不列出」，因 D-4 改成「列出，但不在主位」）。证据：同上。
+- **W4-2-03**：「存为文档」由 Pages 声明、宿主按主人声明的撤销直接建：标题取最近的标题，没有则取第一行，正文是选中的原文，末行「摘自『对象标题』」；同一请求号只建一篇；在 Pages 里选也出（D-2）。证据：`tests/contextual-create.test.ts`（真实 Host）。
+- **W4-2-04**：撤销只在没人改过时：没改过，令牌交回、文档删掉、令牌作废；改过，Pages 拒绝并说明，文档还在。同一请求号在文档改过之后再建：交回现在的文档、没有撤销令牌，文档还在、标题是改过的；同一请求号的重放输出里没有 `created_version`，真建的那次有。证据：同上，加 `tests/pages-actions.test.ts`（W4-2-06）。
+- **W4-2-05**：「拆成目标步骤」永远回草稿出卡，不调 `goals.tree.submit`，不在片段选项里，没有撤销，完成卡写要在 Goals 确认并带链接；选择它不写任何提案。证据：`tests/contextual-create.test.ts`。
+- **W4-2-06**：`pages.create` 的声明、`pages.intake.offers` 的标题与正文（有标题、没标题、选了标题、太长、被截断，截断不切开 emoji）、空白与一个词与整个对象不出、带请求号只建一篇、同请求号换内容被拒、准备要 `pages:read`。证据：`tests/pages-actions.test.ts`。
+- **W4-2-12**：动作目录与 MCP 只发布 `pages.create@2`，1 不再可调；创建、片段准备、助理跨服务保存、侧栏和撤销都走 2。MCP 的权限与伪造项目拒绝用存在的 2 测试，拒绝后没有写入；其他 Pages 动作仍为 1。证据：`tests/pages-actions.test.ts`、`tests/pages-mcp.test.ts`、`tests/contextual-create.test.ts`、`tests/assistant-connector-business.test.ts`、`tests/side-panel-platform.test.ts` 与动作快照。
+- **W4-2-07**：`goals.tree.submit` 声明为提案（无 `undo`，有 `result_view` 链接），Goals 的片段选项只剩 `progress`，同一个 `prepare` 仍算得出 `breakdown`。证据：`tests/contextual-fragment-offers.test.ts`。
+- **W4-2-08**：浏览器：在 Pages 里真选一段 → 浮条上是别的插件的入口「记成待办」，没有「存为文档」（D-5），「更多」里有「拆成目标步骤」、没有「存为文档」（D-4）→ 键盘走一遍（⌘. 进浮条、←→ 成环、Esc 回编辑器；再用 ⌘.、→ 走到「更多」、Enter 展开）→ 没有判断的 Home 里「存为文档」不在浮条上，所以按宿主同一条 `create` 路由（键由 Pages 的声明得出）要它：按所在标题命名、末行「摘自」、源文档不动 → 同一请求号再要只建一篇 → 改过后撤销被拒、没改过撤销成功 → 「打开」走完成卡的「打开」同一个 `describe` 加 `openObject`。「拆成目标步骤」：浮条的主位上没有，「更多」里点它，出草稿、不写提案，被拒的运行什么都不写、卡片原样可再运行，再运行写一份提案，卡片写「要在 Goals 里确认才生效」并带准确提案链接；实际点击、采用与持久化按 W4-2-13 验证。证据：`tests/contextual-pages-goals.e2e.test.ts`（完成卡本身是页面唯一的 `create` 路径，由 `tests/contextual-todo.e2e.test.ts` 第一个用例对「记成待办」走过）。
+- **W4-2-09**（D-4、D-6）：只有规则时，对一段文字，提案类与批量入口没有主位、在「更多」里（按意图归入「记录」那一组），键在 `plan.candidates` 里；普通去处没有位就不列。有判断时：判断没点名的提案类入口在「更多」里，点名的占位并从「更多」里去掉；不可用的提案类入口带原因列出，不进「更多」。一个词或整个对象时：规则不列它，没点名它的判断也不放进「更多」、不单独列出（主位被判断点名的去处占满时，它不在 `plan.candidates`），点名它的判断给它主位并可运行。证据：`tests/contextual-destinations.test.ts`。
+- **W4-2-10**（D-5）：只有规则时，一段文字推的那一个去处优先别的插件的入口：目录里本插件的入口排在前面、排名自己进前三、片段选项很多或很少，推的都是别的插件的；只有本插件的入口时照推；一个词与整个对象不筛；判断点名本插件的入口照样占位；追加的去处不带 `own`。证据：同上。
+- **W4-2-11**（2026-10-20 评审 J3）：灵光同一请求号建成后又编辑，再重放并撤销时必须拒绝，编辑后的标题、正文、状态和时间保持原样；初次创建及未编辑的重放仍可撤销。撤销参数 `expected_updated_at` 从已有的 `spark.created_at` 取首次版本：新建时两个时间相同，编辑/丢弃严格推进 `updated_at`，重放保留 `created_at`，移动保留两者。不增加输出字段或数据结构、不改动作版本；修正既有“只在记下之后没改过时可撤销”的参数映射，动作快照只更新这条撤销声明的 traits。证据：`tests/contextual-create.test.ts` 的真实 Host 录入、修改、重放与拒绝。Pages 的合并保留 Plugin Runtime 的 `ports.read` / `ports.write(caller, …)` 和数据库事务边界，`createPagesDocument` 在同一写事务里处理请求号；不恢复原宿主私路。
+
+- **W4-2-13**（2026-10-20 真机复查）：完成卡必须实际打开本次提案并可采用。复用 Goals 的列表插槽、原确认表单和受保护 decision HTTP；插件自己的浏览器代码只消费有效提案锚点一次，刷新后不重新切换视图或抢焦点。不存在的锚点不选择其他提案，不写业务事实。验收覆盖独立 Pages 文档与所属 Goal 文档：点击完成链接后准确显示新提案，确认前无新 Goal，采用后所列步骤及适用父子关系持久化，其他提案仍待确认；拒绝请求保留输入并可重试。采用另一份提案导致强制刷新时，列表与详情各自仍待决定的提案保留人工输入理由及展开状态，不复制过期条目、冲突检查或按钮状态。证据：`tests/contextual-pages-goals.e2e.test.ts`、`tests/goals-proposal.e2e.test.ts`。范围仅补原链路，不新增审批语义或宿主插件专用路由，资源预算算法不变。
+
+**W4-2-13 验证**：Goals 包要求的服务端回归及相关上下文用例共 19 个文件、89 条通过；包含刷新、多提案理由隔离与上述真实采用链路的 3 个浏览器文件、9 条通过。1440 浅色与 390 深色均检查长标题、提案正文、理由输入及采用/退回按钮；窄屏截图已由主会话和独立评审查看，未见遮挡或横向溢出。资源预算 101 条与动作快照 25 条通过，动作快照未变化。以上证明所覆盖路径，不代替一骏本人验收；本节末尾其余人工体验仍保留。
+
+工作台的列表与详情两种提案 surface 共用同一个 `UiHost` 挂载调用，类型明确的 renderer 入口分别传入自己的模型。`tests/workbench-registration-boundaries.test.mjs` 的原绕过突变仍能拒绝这条唯一挂载路径；该检查随 `pnpm workspace:verify` 运行，守卫与拒绝断言均不改。
+
+**2026-10-20 补验**：`tests/contextual-pages-goals.e2e.test.ts`、`tests/contextual-todo.e2e.test.ts`、`tests/contextual-interaction.e2e.test.ts`、`tests/context-card-in-work.e2e.test.ts` 和 `tests/interaction-no-crosstalk.e2e.test.ts` 共 14 条浏览器用例通过，包含键盘走到「更多」、提案草稿、拒绝后再运行和只建一次。后两份首次导航曾超时，代码和断言不变的定向重跑全部通过。服务端与合同定向共 261 条通过；整体构建、边界、健康和资源检查通过。以下原定人工体验仍未验证：
+- 隔离 Home 实走：1440、1024、800、390 加深色截图（写进 `.impeccable/qa/review/`，不入库）。
+- 同一选区点两下「存为文档」只建一篇。

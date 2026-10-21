@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type {
   PluginDatabaseDeclaration,
@@ -16,7 +17,6 @@ import {
   PluginRuntime,
   PluginSupervisor,
   SqlitePluginEventsRepository,
-  SqlitePluginRuntimeRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
   type PluginCapabilityPort,
@@ -32,7 +32,10 @@ import type { PluginPlatformHome } from "./home-side.js";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
+import { assertFilesEntries } from "./plugin-files-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import type { ProjectLibrary } from "./plugin-project-library.js";
+import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -47,14 +50,17 @@ import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase & {
   exec(sql: string): unknown;
   readonly inTransaction?: boolean;
+  /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
+  readonly name?: string;
 };
 
 /**
  * One entry of the Host's own start list. `database` is the library in the Home the Host gives that plugin as
  * `services.database`; the entry names it, never the plugin (`assertDatabaseEntries` says what a list may declare).
  */
-export interface PluginPlatformEntry extends PluginSupervisorEntry {
+export interface PluginPlatformEntry extends PluginSupervisorEntry, Pick<PluginOwnerFilesEntry, "owner_files" | "initialize_owner_files"> {
   readonly database?: PluginDatabaseDeclaration;
+  readonly files?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration;
 }
 
 export interface PluginPlatformOptions {
@@ -124,8 +130,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // carries the same plugin_id is given none.
   const executor = new PluginHostExecutor({
     providerFor,
-    qualifyCaller: identity.qualifyCaller,
     databaseFor: identity.databaseFor,
+    projectLibrary: projectLibraryOf(options.db),
+    filesFor: identity.filesFor,
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -137,7 +144,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(options.db), executor,
+  const runtime = new PluginRuntime(pluginInstallRecords(options.db), executor,
     { actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
@@ -213,7 +220,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
         if (listed.has(definition.manifest.plugin_id)) throw new Error(`插件 ${definition.manifest.plugin_id} 在同一份启动名单里出现了两次`);
         listed.add(definition.manifest.plugin_id);
       }
-      assertDatabaseEntries(entries, options.home);
+      assertDatabaseEntries(entries, options.home, "project");
+      assertOwnerFilesEntries(options.home ? homeOwnerFilesEntries(options.home.directory) : [], entries, options.home);
+      assertFilesEntries(entries, options.home);
       identity.remember(entries);
       const report = await supervisor.start(entries);
       // Deliver whatever was already bound and published before this process.
@@ -222,4 +231,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       return report;
     },
   };
+}
+
+/**
+ * The project's library, when the platform runs on the Host's own connection to its file (better-sqlite3, which says its file
+ * and whether it is in a transaction); otherwise none, and a plugin that declares tables there does not start.
+ */
+function projectLibraryOf(db: PluginPlatformDatabase): ProjectLibrary | null {
+  return typeof db.name === "string" && typeof db.inTransaction === "boolean" ? { db, path: db.name } : null;
 }

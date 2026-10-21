@@ -9,7 +9,7 @@
 //                             a changed hunk is inside), unless more than the symbol limit read it
 //   the UI                    plus the browser tests (the README's "界面改动加跑"), run in a serial slot
 //   shared core, the assembly of the host or the shell, storage or migration, three or more packages, deleting a block of old code
-//                             the full suite is recommended (`node scripts/run-tests.mjs`, about 77 minutes)
+//                             the full suite is recommended (`node scripts/run-tests.mjs`, about an hour)
 // "Reads or calls it" is read from the tests, tier by tier, narrowest first; each selected test carries the reasons.
 import { devRequirementsSection } from "../package-dev-requirements.mjs";
 import {
@@ -277,7 +277,8 @@ export function selectAffected({ root, changes, packages, index, options = {} })
     const item = packageOf(packages, change.path);
     return item && (FULL_REGRESSION.corePackages.includes(item.dir) || FULL_REGRESSION.corePackagePrefixes.some((prefix) => item.dir.startsWith(prefix)));
   }).map((change) => change.path));
-  group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)).map((change) => change.path));
+  group("assembly", "assembly of the host or the workbench shell", codeChanges.filter((change) => FULL_REGRESSION.assemblyFiles.includes(change.path)
+    || FULL_REGRESSION.assemblyPatterns.some((pattern) => pattern.test(change.path))).map((change) => change.path));
   const storage = codeChanges.filter((change) => touchesStorage(root, change, packageOf(packages, change.path))).map((change) => change.path);
   group("storage", "storage or migration", storage);
   if (changedPackages.size >= FULL_REGRESSION.packageSpan) full.push({ rule: "spans-packages", detail: `${changedPackages.size} packages changed (${FULL_REGRESSION.packageSpan} or more): ${sample([...changedPackages.keys()].map((item) => item.dir))}` });

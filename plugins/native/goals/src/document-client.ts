@@ -10,10 +10,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       template.innerHTML = String(html || "").trim();
       const nextView = template.content.querySelector("[data-goal-view]");
       if (!nextView) throw new Error("Goal 正文响应不完整");
-      const goalSurface = documentPane.querySelector('[data-work-surface="goal"]');
-      const paneHeader = goalSurface ? null : documentPane.querySelector(":scope > .desktop-pane-header");
-      if (goalSurface) goalSurface.replaceChildren(nextView);
-      else documentPane.replaceChildren(...(paneHeader ? [paneHeader, nextView] : [nextView]));
+      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).replaceChildren(nextView);
       afterReplace();
     };
 
@@ -27,10 +24,7 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       indicator.dataset.goalDocumentLoading = "true";
       indicator.setAttribute("role", "status");
       indicator.textContent = L("正在载入 Goal…");
-      const goalSurface = documentPane.querySelector('[data-work-surface="goal"]');
-      const paneHeader = goalSurface ? null : documentPane.querySelector(":scope > .desktop-pane-header");
-      if (paneHeader) paneHeader.after(indicator);
-      else (goalSurface || documentPane).prepend(indicator);
+      (documentPane.querySelector('[data-work-surface="goal"]') || documentPane).prepend(indicator);
     };
 
     const loadGoalDocument = async (goalId) => {
@@ -39,18 +33,17 @@ export const GOALS_DOCUMENT_CLIENT_FACTORY_SCRIPT = `(host) => {
       goalDocumentRequest = controller;
       setGoalDocumentBusy(true);
       try {
-        const response = await fetch(
+        const html = await molisWorkRequest(
           route("/api/goals/" + encodeURIComponent(goalId) + "/document?view=" + documentCollection),
-          { cache: "no-store", signal: controller.signal },
+          { signal: controller.signal, as: "text", fallback: "无法读取这条 Goal 正文" },
         );
-        if (!response.ok) throw new Error("无法读取这条 Goal 正文");
-        const html = await response.text();
         if (goalDocumentRequest !== controller) return null;
         replaceGoalDocument(html);
         return true;
       } catch (error) {
         if (isAbortError(error) || goalDocumentRequest !== controller) return null;
-        showError(error.message || "无法读取这条 Goal 正文");
+        // A refusal keeps the one copy this read has always shown; an unreachable Host says so.
+        showError((error.status ? "" : error.message) || "无法读取这条 Goal 正文");
         return false;
       } finally {
         if (goalDocumentRequest === controller) {

@@ -11,7 +11,6 @@ import type {
   ProjectSelection,
   RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
-import { BUILTIN_PROJECT_PLUGIN_REGISTRY } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
 
@@ -28,7 +27,7 @@ export class ProjectService {
     private readonly now: () => string,
     private readonly id: (prefix: string) => string,
     /** Which Plugins exist is a Host fact. Projects only validates against it. */
-    private readonly plugins: ProjectPluginRegistry = BUILTIN_PROJECT_PLUGIN_REGISTRY,
+    private readonly plugins: ProjectPluginRegistry,
   ) {}
 
   list(): ProjectRecord[] {
@@ -115,6 +114,7 @@ export class ProjectService {
   removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
+    if (this.plugins.isAlwaysOn?.(input.plugin_id) === true) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");

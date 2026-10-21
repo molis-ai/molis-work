@@ -1,10 +1,16 @@
 /** Statements of the client factory's body, written without any indentation: the served script is measured in bytes (tooling/gates/page-assets.json), and indentation is the one thing in it that cannot matter. */
 export const ALCHEMIST_FLOWS = String.raw`
 const field=(label,name,options={})=>'<label class="alc-field">'+tx(label)+(options.area?'<textarea class="mw-textarea" name="'+name+'" rows="'+(options.rows||3)+'" '+(options.required?'required':'')+' maxlength="'+(options.max||4000)+'">'+esc(options.value||'')+'</textarea>':'<input class="mw-input" name="'+name+'" type="'+(options.type||'text')+'" '+(options.required?'required':'')+' '+(options.type==='number'?'min="1" max="40" step="1"':'maxlength="1000"')+' value="'+esc(options.value??'')+'">')+'</label>';
+const reopen=async()=>{await load();await open(focus,false);};
+const formEnd=label=>'<button class="mw-btn mw-btn--primary" type="submit">'+tx(label)+'</button></form>';
 const lines=value=>String(value||'').split(/\r?\n/).map(x=>x.trim()).filter(Boolean);
 const modelChoices=()=>'<fieldset class="alc-radios"><legend>'+tx('研究模型')+'</legend><label><input class="mw-radio" type="radio" name="model" value="auto" '+(runtime.modelPolicy==='auto'?'checked':'')+'>'+tx('使用可用模型')+'</label>'+runtime.models.map(m=>'<label><input class="mw-radio" type="radio" name="model" required value="'+esc(m.id)+'" '+(runtime.modelPolicy==='fixed'&&runtime.modelId===m.id?'checked':'')+'>'+esc(m.label)+'</label>').join('')+'</fieldset>';
 function show(title,html,label,submit){returnFocus=document.activeElement;sheet.querySelector('h2').textContent=L(title);bodySlot.innerHTML=html;formError('');submitBtn.textContent=L(label);submitBtn.hidden=false;onSubmit=submit;if(!sheet.open)sheet.showModal();bodySlot.querySelector('textarea,input')?.focus();}
 function closeDialog(){if(busy)return;sheet.close();onSubmit=null;returnFocus?.isConnected&&returnFocus.focus();}
+async function resumeJob(id){
+const r=await api('/runs/'+enc(id)+'/continuation'),b=r.budget,reasons={'alchemist.research_budget_exhausted':'原预算已用尽，不能继续派出调用。','alchemist.job_lease_active':'原执行租约尚未到期，请稍后重新查看。','alchemist.job_not_resumable':'这次任务不能继续，请回到原内容查看。'};
+show('继续上次任务',paraHtml(r.reason?L(reasons[r.reason]||'暂时无法继续，请检查模型或任务记录。'):L('沿用原任务与已完成阶段。'))+(b?paraHtml([['原预算',b.limit],['已预约',b.reserved],['剩余',b.remaining]].map(([label,count])=>L(label)+'：'+count+' '+L('次')).join(' · ')):'')+(r.unknownCall?paraHtml(L('上次调用的结果未知，可能已收费；继续可能重复收费。'))+(b?paraHtml(L('该次已预约计入原预算，不会增加预算。')):''):'')+(r.modelId?section('研究模型',runtime.models.find(m=>m.id===r.modelId)?.label||r.modelId):'')+(r.tasteTitles?section('个人判断偏好',r.tasteTitles):''),'确认继续',async()=>{await api('/runs/'+enc(id)+'/continue',{confirmation:r.confirmation});closeAfterSubmit();await refresh();});submitBtn.hidden=!r.canContinue;
+}
 async function plan(){
 const chosen={...focus},lens=chosen.panel==='market'?'market_space':'build_cost';
 show('确认研究范围',paraHtml(L('正在读取可沿用的成果与方法…')),'生成研究计划',null);submitBtn.hidden=true;
@@ -28,12 +34,12 @@ sideMode=mode;const captured=JSON.stringify(ctx),oldTarget=target?{...target}:nu
 if(mode==='chat'){
 const r=await api('/conversation/messages');if(captured!==JSON.stringify(ctx)||sideMode!==mode)return;
 const key=c=>JSON.stringify([c.kind,c.ideaId||c.directionId||c.pulseReportId||c.surface,c.version||'',c.panel||'']);const messages=r.messages.filter(m=>key(m.context)===key(ctx));
-body.innerHTML=muted(esc(ctx.label))+messages.map(m=>'<div class="alc-message"><small>'+tx(m.author==='user'?'你':'AI')+(m.responseState==='complete'?'':' · '+tx('未完成'))+'</small>'+esc(m.body)+'</div>').join('')+'<form data-alc-chat-form>'+field('继续讨论','message',{area:true,required:true,max:8000})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('发送')+'</button></form>';
+body.innerHTML=muted(esc(ctx.label))+messages.map(m=>'<div class="alc-message"><small>'+tx(m.author==='user'?'你':'AI')+(m.responseState==='complete'?'':' · '+tx('未完成'))+'</small>'+esc(m.body)+'</div>').join('')+'<form data-alc-chat-form>'+field('继续讨论','message',{area:true,required:true,max:8000})+formEnd('发送');
 }else{
 if(!oldTarget){body.innerHTML=empty('保留想法或生成报告后，可以选中原文添加注释。');return;}
 const r=await api('/annotations?'+new URLSearchParams({kind:oldTarget.kind,objectId:oldTarget.objectId,revision:String(oldTarget.revision)}));if(captured!==JSON.stringify(ctx)||JSON.stringify(oldTarget)!==JSON.stringify(target)||sideMode!==mode)return;
 const quoted=quote&&quote.target.objectId===target.objectId?quote:null;
-body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+'<button class="mw-btn mw-btn--primary" type="submit">'+tx('保存注释')+'</button></form>':muted(tx('先在正文中选中一段文字，再打开注释。')))+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,'data-id="'+esc(a.id)+'"')+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,'data-id="'+esc(a.id)+'"'):''):'')+'</div></article>').join('');
+body.innerHTML=(quoted?'<form data-alc-annotation-form><blockquote>'+esc(quoted.text)+'</blockquote>'+field('你的意见','comment',{area:true,required:true})+formEnd('保存注释'):muted(tx('先在正文中选中一段文字，再打开注释。')))+r.annotations.map(a=>'<article class="alc-comment"><blockquote>'+esc(a.quotedSnapshot)+'</blockquote>'+paraHtml(a.comment)+'<small>'+tx(a.status==='open'?'待处理':'已解决')+'</small><div class="alc-actions">'+(a.status==='open'?button('标为已解决','resolve',false,dataId(a.id))+(target.kind==='lens_report'?button('校准研究方法','calibrate',false,dataId(a.id)):''):'')+'</div></article>').join('');
 }
 }
 function closeAfterSubmit(){busy=false;closeDialog();}
@@ -45,16 +51,17 @@ if(name==='close'){closeDialog();return;}
 if(name==='side-close'){side.hidden=true;sideMode='';if(focus?.kind==='idea'&&['market','cost'].includes(focus.panel)&&study&&JSON.stringify(study)!==detailId){const scroll=mainEl.scrollTop;paintStudy(study);mainEl.scrollTop=scroll;detailId=JSON.stringify(study);$('action=annotations').hidden=!target;}return;}
 if(name==='reload'){await load();if(focus)await open(focus,false);notice('');return;}
 if(name==='archived-toggle'){archived=!archived;renderList();return;}
+if(name==='continue-job'){await resumeJob(el.dataset.job);return;}
 if(name==='new'){let created=null;show('新建方向',field('你想探索的问题','description',{area:true,rows:5,required:true,max:4000})+muted(tx('从一个具体的人和场景开始，AI 会给出不同的候选机制。')),'保存并炼化',async f=>{const r=created||(created=await api('/directions',{description:f.get('description')}));await api('/directions/'+enc(r.direction.id)+'/explorations',{});closeAfterSubmit();view='directions';await load();await open({kind:'direction',id:r.direction.id});});return;}
 if(name==='settings'){await open({kind:'settings'});return;}
 if(name==='runtime'){await runtimeForm();return;}
 if(name==='sources'){await sources();return;}
 if(name==='pulse-start'){await api('/pulse/runs',{});view='pulse';await load();notice(L('正在采集，完成后会出现在报告列表中。'));return;}
-if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await load();await open(focus,false);return;}
+if(name==='explore'){await api('/directions/'+enc(focus.id)+'/explorations',{});await reopen();return;}
 if(name==='edit-direction'){
 const d=data.directions.find(item=>item.id===focus?.id);if(!d)return;
 show('编辑方向',field('标题','title',{required:true,value:d.title})+field('探索描述','description',{area:true,rows:5,required:true,max:4000,value:d.description}),'保存',async f=>{
-await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await load();await open(focus,false);
+await api('/directions/'+enc(d.id),{title:f.get('title'),description:f.get('description')},'PATCH');closeAfterSubmit();await reopen();
 });return;
 }
 if(name==='archive-direction'||name==='restore-direction'){
@@ -65,7 +72,7 @@ await load();closeDetail();return;
 }
 if(name==='card'){await open({kind:'card',id:el.dataset.id});return;}
 if(name==='keep'){const r=await api('/idea-cards/'+enc(focus.id)+'/keep',{});await load();view='ideas';await open({kind:'idea',id:r.idea.id,version:r.version.revision.version,panel:'brief'});return;}
-if(name==='discard'||name==='restore'){await api('/idea-cards/'+enc(focus.id)+'/'+name,{});await load();await open(focus,false);return;}
+if(name==='discard'||name==='restore'){await api('/idea-cards/'+enc(focus.id)+'/'+name,{});await reopen();return;}
 if(['brief','market','cost','decision'].includes(name)){await open({...focus,panel:name});return;}
 if(name==='reuse-pending'){await pendingMethods();return;}
 if(name==='reuse-apply-proposal'||name==='reuse-reject-proposal'){await api('/action-proposals/'+enc(el.dataset.id)+(name==='reuse-apply-proposal'?'/apply':'/reject'),{});await pendingMethods();return;}
@@ -76,12 +83,12 @@ if(name==='reuse-reconcile'){await api('/reuse/receipts/'+enc(el.dataset.plan)+'
 if(name==='revise-playbook'){await revisePlaybook(el.dataset.id);return;}
 if(name==='resume-plan'){await startPrepared(study.lenses[focus.panel==='market'?'market_space':'build_cost'].plan,{...focus});return;}
 if(name==='plan'){await plan();return;}
-if(name==='cancel'){await api('/runs/'+enc(el.dataset.job)+'/cancel',{});await load();await open(focus,false);return;}
+if(name==='cancel'){await api('/runs/'+enc(el.dataset.job)+'/cancel',{});await reopen();return;}
 if(name==='decide'){const chosen={...focus},outcome=el.dataset.outcome;show('记下决定',paraHtml(L(states[outcome]))+field('决策理由','reason',{area:true,required:true,max:1000})+field('下一步或回看条件','revisit',{area:true,max:1000}),'确认决定',async f=>{await api('/ideas/'+enc(chosen.id)+'/versions/'+chosen.version+'/decision',{outcome,reason:f.get('reason'),revisitCondition:f.get('revisit')});closeAfterSubmit();await load();if(same(chosen))await open(chosen,false);});return;}
 if(name==='decisions'){view='decisions';closeDetail();renderList();return;}
 if(name==='convert'){const r=await api('/opportunities/'+enc(el.dataset.id)+'/convert',{});view='directions';await load();await open({kind:'direction',id:r.direction.id});return;}
 if(name==='converted'){view='directions';await open({kind:'direction',id:el.dataset.id});return;}
-if(name==='save-opportunity'){await api('/opportunities/'+enc(el.dataset.id)+'/save',{});await load();await open(focus,false);return;}
+if(name==='save-opportunity'){await api('/opportunities/'+enc(el.dataset.id)+'/save',{});await reopen();return;}
 if(name==='chat'||name==='annotations'){await showSide(name);return;}
 if(name==='calibrate'){calibration(el.dataset.id);return;}
 if(name==='resolve'){await api('/annotations/'+enc(el.dataset.id)+'/resolve',{});await showSide('annotations');return;}

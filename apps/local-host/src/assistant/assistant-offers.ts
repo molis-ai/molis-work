@@ -8,7 +8,8 @@ import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { cardInputValues, dismissActionCard, draftActionCard, runActionCard, sweepActionCard, type ActionCardPorts, type ActionCardRefusal } from "@molis-ai/molis-work-plugin-sdk";
 import { assistantCardHtml, cardView } from "./assistant-card-view.js";
 import { identity } from "./assistant-relations.js";
-import type { AssistantStore, StoredCard, StoredJob, StoredWork } from "./assistant-store.js";
+import type { AssistantJobs } from "./assistant-jobs.js";
+import type { AssistantStore, StoredCard, StoredWork } from "./assistant-store.js";
 
 const RUNTIME = "prologue";
 /** The Assistant's codes for the shared card rules' refusals. */
@@ -31,7 +32,8 @@ export interface OfferPorts {
   readonly timeZone?: string;
   readSubject(work: StoredWork, subject: { kind: string; id: string }): Promise<ActionSubjectContext | "missing" | null>;
   authority(work: StoredWork): Promise<AgentStartAuthority>;
-  watchJob(work: StoredWork, view: ActionView, output: unknown, cardId?: string): Promise<StoredJob | null>;
+  /** The background jobs works follow: a card that starts one shows it running until it ends. */
+  readonly jobs: Pick<AssistantJobs, "follow" | "claimForCard" | "linkCard">;
   createWork(title: string, scope: AssistantScope | undefined, context: AssistantContextSnapshot, caller: OfferCaller): Promise<StoredWork>;
   fail(code: string, message: string): Error;
 }
@@ -135,14 +137,17 @@ export class AssistantOffers {
     const card = this.ports.store.card(work.work_id, cardId);
     // What the card's controls hold (a pick, a day, a moment in the person's zone), as the strings the input takes.
     const values = cardInputValues(input.values, this.ports.timeZone);
-    return cardView(await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
+    let job: Awaited<ReturnType<AssistantJobs["follow"]>> = null;
+    const ran = await runActionCard(card, { revision: input.revision, values }, { ...this.rules(work),
       authority: async () => {
         const authority = await this.ports.authority(work);
         if (!authority.actions) throw this.ports.fail("assistant.unsupported", "当前没有可用的业务能力");
         const client = await authority.actions(RUNTIME);
         return { discover: () => client.discover(), check: (view, prepared) => assertActionInput(view.action.input_schema, prepared), invoke: (reference, prepared) => client.invoke(reference, prepared) };
       },
-      started: async (view, output, claimed) => Boolean(await this.ports.watchJob(work, view, output, claimed.card_id)) }));
+      started: async (view, output, claimed) => { job = await this.ports.jobs.follow(work, view, output); return job !== null && this.ports.jobs.claimForCard(claimed, job); } });
+    // Shown running for its job: linked now, so the job's end (even one that came first) settles it.
+    return cardView(job && ran.status === "running" ? await this.ports.jobs.linkCard(ran, job) : ran);
   }
 
   /** One card of a work, as the person sees it. */
@@ -171,6 +176,7 @@ export class AssistantOffers {
   /** What the shared card rules read for a work's cards: its objects, the person's clock and zone, and the Assistant's own refusals. */
   private rules(work: StoredWork): Omit<ActionCardPorts<StoredCard>, "authority"> {
     return { store: this.store, readSubject: subject => this.ports.readSubject(work, subject), now: () => this.ports.now(),
+      ...(work.project_ref ? { projectId: work.project_ref.project_id } : {}),
       ...(this.ports.timeZone ? { timeZone: this.ports.timeZone } : {}), refuse: (reason, message) => this.ports.fail(REFUSALS[reason], message) };
   }
 }

@@ -40,7 +40,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   let lastBarKind = "empty";
   let stickyHint = "";
   const projectPrefix = document.body.dataset.routePrefix || "";
-  let materialPreview = null, materialTicket = 0, materialSaved = null, materialExpectedOutput = null;
+  let materialPreview = null, materialTicket = 0;
   let editWrites = Promise.resolve();
   const fileUrl = (id) => "/api/shelf/items/" + encodeURIComponent(id) + "/file";
   const TEXT_EDIT = { txt:1, md:1, markdown:1, json:1, swift:1, py:1, js:1, ts:1, mjs:1, css:1, yaml:1, yml:1, xml:1, toml:1, ini:1, rs:1, go:1, rb:1, sh:1, zsh:1, c:1, h:1, cc:1, cpp:1, m:1, mm:1, csv:1, log:1 };
@@ -76,6 +76,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const tone = (kind, group) => group === "clipboard" ? (kind === "url" ? "blue" : "slate") : kind === "pdf" ? "clay" : kind === "image" ? "plum" : kind === "url" || kind === "website" ? "blue" : kind === "markdown" || kind === "text" ? "slate" : "ochre";
   const items = () => [...(snapshot.materials || []), ...(snapshot.results || [])];
+  const itemById = id => items().find(item => item.item_id === id);
   const stageBusy = () => stage.classList.contains("is-confirm") || stage.classList.contains("is-run") || stage.classList.contains("is-fail");
   const runtime = () => snapshot.runtime || { runtime_key: "", title: L("Agent"), can_run_job: false, isolation: "none", isolation_fact: "" };
   const ai = () => snapshot.ai || { available: false, choices: [], selected: null };
@@ -275,7 +276,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const comparisonSources = () => {
     const ids = selected?.source_item_ids?.length ? selected.source_item_ids : [selected?.source_item_id].filter(Boolean);
-    return ids.map(id => items().find(item => item.item_id === id)).filter(Boolean);
+    return ids.map(itemById).filter(Boolean);
   };
   const readFullText = async (item) => {
     const version=textVersion;
@@ -288,13 +289,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   };
   const fillReading = () => {
     for (const node of preview.querySelectorAll("[data-shelf-read]")) {
-      const item = items().find(item => item.item_id === node.dataset.shelfRead);
+      const item = itemById(node.dataset.shelfRead);
       if (!item || textCache.has(item.item_id)) continue;
-      readFullText(item).then(text => {
-        if (node.isConnected) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
+      readFullText(item).then(text => { // Same text as the preview shown: re-rendering would only wipe a selection made meanwhile.
+        if (node.isConnected && text !== item.preview_text) node.querySelector(".shelf-reading").innerHTML = reading.render(item, text);
       }).catch(error => {
-        if(error.name==='AbortError')return;
-        if (node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }
+        if (error.name !== "AbortError" && node.isConnected) { const line=document.createElement("p");line.className="shelf-read-error";line.textContent=error.message;node.append(line); }
       });
     }
   };
@@ -431,7 +431,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       loadVersion++;textVersion++;textCache.clear();
       textCache.set(id, text);
       if (selected?.item_id === id) {
-        selected = items().find((item) => item.item_id === id) || payload.item || selected;
+        selected = itemById(id) || payload.item || selected;
         const status = preview.querySelector("[data-shelf-edit-status]");
         if (status) status.hidden = true;
       }
@@ -692,7 +692,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     snapshot = next;
     if (selectId) {
       editing = false;
-      selected = items().find((item) => item.item_id === selectId) || null;
+      selected = itemById(selectId) || null;
       selClip=selected?null:(snapshot.clipboard||[]).find(clip=>clip.clip_id===selectId)||null;
       clipSelection=new Set(selClip?[selClip.clip_id]:[]);
       if(selClip)clipExpanded=true;
@@ -705,7 +705,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       compare = false;
       compareSourceId = null;
     } else {
-      if (selected) selected = items().find((item) => item.item_id === selected.item_id) || null;
+      if (selected) selected = itemById(selected.item_id) || null;
       selection = new Set([...selection].filter((id) => items().some((item) => item.item_id === id)));
       if (selected && !selection.has(selected.item_id)) selection.add(selected.item_id);
       if (selClip) selClip = (snapshot.clipboard || []).find((clip) => clip.clip_id === selClip.clip_id) || null;
@@ -773,22 +773,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       }
     } finally { if (lastId) applySnapshot(snapshot, lastId); }
   };
-  lifetime.listen(window,"molis:shelf-admit", async (event) => {
-    const detail = event.detail || {};
-    if (!detail.bytes_base64 || !detail.filename) return;
-    try {
-      const payload = await post("/api/shelf/items", { filename: detail.filename, mime: detail.mime || "", bytes_base64: detail.bytes_base64 });
-      if(!lifetime.alive)return;
-      snapshot = payload.snapshot;
-      if (payload.item) applySnapshot(snapshot, payload.item.item_id);
-      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "received", title: payload.item ? payload.item.name : detail.filename,
-        object: payload.item ? { kind: "shelf_item", id: payload.item.item_id, project_id: null } : undefined,
-        note: detail.source ? L("来自 {source}", { source: detail.source }) + " · " + L("可以在 Shelf 里用于项目") : L("可以在 Shelf 里用于项目") } }));
-    } catch (error) {
-      if(!lifetime.alive)return;
-      window.dispatchEvent(new CustomEvent("molis:placement-result", { detail: { verb: "failed", title: detail.filename, note: error.message || L("放进 Shelf 失败") } }));
-    }
-  });
   const showAdmissionError = (error) => {
     expandShelfStage(true);
     if (!selected) preview.innerHTML=docHtml("Shelf",L("无法添加材料"),error.message);
@@ -799,7 +783,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     await flushEdit();
     editing = false;
     selClip = null;
-    const folder = items().find((entry) => entry.item_id === itemId);
+    const folder = itemById(itemId);
     if (!folder) return;
     selected = folder;
     selection = new Set([itemId]);
@@ -817,7 +801,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     editing = false;
     selClip = null;
     clipSelection = new Set();
-    const item = items().find((entry) => entry.item_id === id);
+    const item = itemById(id);
     if (!item) return;
     selectedChild = null;
     if ((command || multiMode) && selected && selected.group === item.group) {
@@ -893,7 +877,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     renderBar(lastBarKind);
   };
   const copyShelfItem = async (id) => {
-    const item = items().find(entry => entry.item_id === id);
+    const item = itemById(id);
     if (item) await copyFiles([item]);
   };
 
@@ -979,7 +963,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       return;
     }
     if (row?.dataset.shelfItem) {
-      const item = items().find((entry) => entry.item_id === row.dataset.shelfItem);
+      const item = itemById(row.dataset.shelfItem);
       if (item?.kind === "folder" && event.target.closest(".shelf-glyph")) {
         if (openFolders.has(item.item_id)) openFolders.delete(item.item_id);
         else openFolders.add(item.item_id);
@@ -997,7 +981,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     const itemRow = event.target.closest("[data-shelf-item]");
     if (itemRow?.dataset.shelfItem && !event.target.closest("[data-shelf-row-action]")) {
       event.preventDefault();
-      const item = items().find((entry) => entry.item_id === itemRow.dataset.shelfItem);
+      const item = itemById(itemRow.dataset.shelfItem);
       if (!hasFile(item)) return;
       const opened = invokeNative("shelf_open_path", { path: filePathOf(item) });
       if (opened) { opened.catch(() => {}); return; }
@@ -1326,14 +1310,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   const materialDialog = bench.querySelector("[data-shelf-material-dialog]");
   const materialStatus = bench.querySelector("[data-shelf-material-status]");
   const materialSave = bench.querySelector("[data-shelf-material-save]");
-  const materialOutput = bench.querySelector("[data-shelf-material-output]");
-  const materialOutputUrl = projectPrefix + "/api/plugins/io.molis.work.shelf/material-output";
   lifetime.listen(materialDialog,"close", () => { materialTicket++; materialPreview = null; });
   lifetime.listen(bench.querySelector("[data-shelf-material-close]"),"click", () => materialDialog.close());
   const openProjectMaterial = async () => {
     if (!selected || !projectPrefix) return;
     const id = selected.item_id, ticket = ++materialTicket;
-    materialPreview = null; materialSaved = null; materialSave.disabled = true; materialOutput.hidden = true;
+    materialPreview = null; materialSave.disabled = true;
     materialStatus.textContent = L("正在读取完整正文…");
     bench.querySelector("[data-shelf-material-body]").textContent = "";
     bench.querySelector("[data-shelf-material-destination]").textContent = "";
@@ -1344,11 +1326,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
       const data = await response.json();lifetime.assertCurrent();
       if (ticket !== materialTicket) return;
       if (!response.ok) throw new Error(data.error || L("材料读取失败"));
-      const outputResponse = await lifetime.fetch(materialOutputUrl, { cache: "no-store" });
-      const output = await outputResponse.json();lifetime.assertCurrent();
-      if (ticket !== materialTicket) return;
-      if (!outputResponse.ok) throw new Error(output.error || L("材料输出读取失败"));
-      materialExpectedOutput = output.reference;
       materialPreview = { id, fingerprint: data.fingerprint };
       bench.querySelector("[data-shelf-material-destination]").textContent = data.project_title + " / " + data.payload.title;
       bench.querySelector("[data-shelf-material-body]").textContent = data.payload.text;
@@ -1369,21 +1346,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     try {
       const result = await post(projectPrefix + "/api/shelf/items/" + encodeURIComponent(current.id) + "/project-material", { expected_fingerprint: current.fingerprint });
       if (ticket !== materialTicket) return;
-      materialSaved = result.reference;
-      materialOutput.hidden = false; materialOutput.disabled = false;
-      materialStatus.textContent = L("已存一份固定版本到项目材料") + " · v" + result.reference.version + L("。设为材料输出后，可在 Coding 的「＋ 材料」中选择；已有任务不会自动换版。");
+      materialStatus.textContent = L("已存到项目资料") + " · v" + result.reference.version + L("。项目里的 Agent 都能找到它，也可以在输入框的「项目资料」里选它。");
     } catch (error) {if(!lifetime.alive)return; if (ticket === materialTicket) { materialStatus.textContent = error.message; materialSave.disabled = false; } }
-  });
-  lifetime.listen(materialOutput,"click", async () => {
-    if (!materialSaved || materialOutput.disabled) return;
-    const ticket = materialTicket, reference = materialSaved;
-    materialOutput.disabled = true;
-    try {
-      const result = await post(materialOutputUrl, { reference, expected_reference: materialExpectedOutput });
-      if (ticket !== materialTicket) return;
-      materialExpectedOutput = result.reference;
-      materialStatus.textContent = L("已设为材料输出") + " · v" + result.reference.version + L("。在 Coding 的「＋ 材料」中选择，不会自动发送或替换已有选择。");
-    } catch (error) {if(!lifetime.alive)return; if (ticket === materialTicket) { materialStatus.textContent = error.message; materialOutput.disabled = false; } }
   });
   lifetime.listen(fileInput,"change", async () => {
     const files = [...(fileInput.files || [])];
@@ -1501,25 +1465,25 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.dataTransfer.effectAllowed = "copy";
   });
   lifetime.listen(document,"dragenter", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     markDrop(true);
   });
   lifetime.listen(document,"dragover", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   });
   lifetime.listen(document,"dragleave", (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (insideShelfDrop(event.relatedTarget)) return;
     if (!insideShelfDrop(event.target)) return;
     markDrop(false);
   });
   lifetime.listen(document,"drop", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
     markDrop(false);
@@ -1542,7 +1506,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
   });
 
   lifetime.listen(document,"paste", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (event.target.closest("input, textarea, [contenteditable=true]")) return;
     const data = event.clipboardData;
     if (!data) return;
@@ -1583,7 +1547,7 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     applySnapshot(admitted.snapshot, admitted.item.item_id);
   };
   lifetime.listen(document,"keydown", async (event) => {
-    if (document.body.dataset.desktopSurface !== "shelf") return;
+    if (bench.hidden) return;
     if (matchesPanelKey(event, "hide") && editing) {
       event.preventDefault();
       await stopEdit();

@@ -24,7 +24,8 @@ function harness() {
   return { queue, executed, ask, command };
 }
 
-test("a person can allow an in-boundary command for this session; exact repeats go through the same decision path", async () => {
+// specs/ai-interaction-experience AC-09 (Coding's command review): a command runs after a person's decision, and a rule only repeats it.
+test("AC-09: a person can allow an in-boundary command for this session; exact repeats go through the same decision path", async () => {
   const { queue, executed, ask, command } = harness();
   ask("r1", "s1", command(["test"]));
   const first = await queue.respond({ review_id: "r1", decision: "approve", actor_id: "alice", remember: "session" });

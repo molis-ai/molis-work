@@ -4,7 +4,7 @@
   "private": true,
   "description": "Goal Contract, graph, policy, risk, lifecycle, guidance, and planning facts.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },

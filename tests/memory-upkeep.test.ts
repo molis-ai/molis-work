@@ -58,6 +58,8 @@ test("export has a version and no secrets or absolute paths; importing twice add
   const memory = await env.open();
   await memory.write(person(), { scope: "personal", text: "周报用要点列表", kind: "preference", applies: { task: "写周报时" } });
   await memory.write(person(), { scope: "personal", text: "代码都在 /Users/someone/code/goalboard 下面" });
+  // The task a memory applies to is free text too.
+  await memory.write(person(), { scope: "personal", text: "提交前先跑检查", kind: "convention", applies: { task: "改 /Users/someone/code/goalboard 里的代码时" } });
   const pack = await memory.exportScope(person(), "personal");
   assert.equal(pack.format, "molis.memory");
   assert.equal(pack.version, 1);
@@ -65,16 +67,29 @@ test("export has a version and no secrets or absolute paths; importing twice add
   assert.doesNotMatch(text, /\/Users\/someone/, "no absolute path");
   assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 1), "says what was taken out");
   assert.equal(pack.entries.find(item => item.text === "周报用要点列表")?.applies.task, "写周报时");
+  assert.equal(pack.entries.find(item => item.text === "提交前先跑检查")?.applies.task, "改 [path] 里的代码时");
+  assert.ok(pack.redactions.some(item => item.kind === "absolute-path" && item.count >= 2), "the path in the task is counted too");
+
+  // When the runtime cannot screen the text, or screening fails, nothing is exported: never the text as it was.
+  const unscreened = (backend: ReturnType<typeof env.raw>) => new MemoryService({ backend, ledger: env.ledger(), timeZone: "Asia/Shanghai", now: () => clock.now });
+  const { screen: _screen, ...noScreen } = env.raw();
+  for (const backend of [noScreen, { ...env.raw(), screen: async () => { throw new Error("screen is down"); } }]) {
+    await assert.rejects(unscreened(backend).exportScope(person(), "personal"), (error: { code?: string; message?: string }) => {
+      assert.equal(error.code, "memory.unavailable");
+      assert.doesNotMatch(String(error.message), /\/Users\/someone/);
+      return true;
+    });
+  }
 
   // Into another scope: the first time writes, the second skips everything.
-  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 2, skipped: 0, refused: 0 });
-  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 0, skipped: 2, refused: 0 });
+  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 3, skipped: 0, refused: 0 });
+  assert.deepEqual(await memory.importScope(person(), "project", pack), { written: 0, skipped: 3, refused: 0 });
   const imported = (await memory.list(person(), { scope: "project" })).items;
   assert.ok(imported.every(item => item.source === "imported" && /导入/.test(item.origin)));
   // A damaged or unknown package: refused whole, nothing written.
   const before = (await memory.list(person(), { scope: "project" })).items.length;
   await assert.rejects(memory.importScope(person(), "project", { ...pack, version: 2 }), /版本 2 不认识/);
-  await assert.rejects(memory.importScope(person(), "project", { ...pack, entries: [...pack.entries.map(item => ({ ...item, text: `${item.text}（新）` })), { text: "", kind: "preference" }] }), /第 3 条/);
+  await assert.rejects(memory.importScope(person(), "project", { ...pack, entries: [...pack.entries.map(item => ({ ...item, text: `${item.text}（新）` })), { text: "", kind: "preference" }] }), /第 4 条/);
   assert.equal((await memory.list(person(), { scope: "project" })).items.length, before);
   // A package carrying a secret: that entry is refused, the rest still go in.
   const withSecret = { ...pack, entries: [{ text: "API key 是 sk-proj-abcdefghijklmnopqrstu12345", kind: "fact" as const, source: "manual" as const, basis: "explicit" as const, applies: {}, origin: "x", expires_at: null }] };
@@ -94,7 +109,11 @@ test("upkeep switches off expired and long-unused automatic memories, merges aut
   const said2 = (await memory.write(person(), { scope: "personal", text: "回答要用要点列表" })).memory!;
   const oldAuto = (await memory.offer(assistant("work-4"), { scope: "personal", text: "邮件落款写全名", kind: "preference", basis: "repeated", why: "两次", from: "extraction" })).memory!;
 
-  clock.now = new Date("2027-01-15T08:00:00.000Z");
+  // 91 days after the last of them was written (memory-system §6.4: automatic ones unused for 90 days are switched off). The runtime dates its entries by the real clock (in the product the service's `now` is that clock too),
+  // so the fake clock moves on from those dates. A fixed day (it was 2027-01-15T08:00Z) stopped being 90 days later once the real date reached 2026-10-17T08:00Z.
+  const written = (await memory.list(person(), { scope: "all" })).items;
+  assert.ok(written.some(item => item.memory_id === oldAuto.memory_id) && written.some(item => item.memory_id === auto1.memory_id));
+  clock.now = new Date(Math.max(...written.map(item => Date.parse(item.created_at))) + 91 * 86_400_000);
   // The model finds the near-duplicates (their wording differs too much for the character-pair rule).
   const report = await memory.upkeep(person(null), { projects: ["project-a"], tidy: async entries => ({ duplicates: ([[auto1.memory_id, auto3.memory_id], [said1.memory_id, said2.memory_id]] as Array<[string, string]>)
     .filter(([a, b]) => entries.some(item => item.memory_id === a) && entries.some(item => item.memory_id === b)), conflicts: [] }) });

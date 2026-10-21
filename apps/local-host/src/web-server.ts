@@ -1,4 +1,5 @@
 import { createLocalImServer } from "./im-server.js";
+import { projectOrNull } from "./catalog-lookup.js";
 import { projectActionAvailability } from "./project-action-availability.js";
 import { handleManagementActionHttp } from "./management-action-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
@@ -26,6 +27,9 @@ import { createLocalWebComposition, type LocalWebPlatform } from "./web-composit
 import type { WebServerOptions } from "./web-types.js";
 import { handleMolisWorkWebRequest } from "./web-request.js";
 import { assistantServiceFor } from "./assistant/assistant-http.js";
+import { installedPagesPort } from "./assistant/assistant-pages.js";
+import { attachWebAssistant } from "./web-assistant.js";
+import { trackHostListener } from "./host-endpoints.js";
 import { lazyBrowserHost } from "./browser/browser-host.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
@@ -39,13 +43,17 @@ import { serviceProcessId } from "./web-runtime-settings.js";
 import type { HostSurfaceDriver } from "@molis-ai/molis-work-contracts/services/ui-surfaces";
 import { awaitWebServerShutdown } from "./web-server-close.js";
 import { startWebProjectSchedulers } from "./web-project-schedulers.js";
-import { hostLog } from "./host-log.js";
+import { hostLog, repeatingFailure } from "./host-log.js";
 
 function loopbackWebOrigin(server: http.Server): string {
   const address = server.address();
   if (address && typeof address === "object") return `http://127.0.0.1:${address.port}`;
   return "http://127.0.0.1:4173";
 }
+
+// The terminal keeps running when its record cannot be written; that is written once per process, not once per chunk.
+const recording = repeatingFailure("terminal", "recording_failed");
+const recordingFailure = (error: unknown) => recording.failed("recorder", error);
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
@@ -54,7 +62,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       ? options.localHost.ensureWebCatalog(storageHome, platform.openCatalog)
       : createWebCatalogAccess(storageHome, platform.openCatalog) : undefined;
     const withCatalog = catalogAccess?.withCatalog ?? platform.withCatalog;
-    const composition = createLocalWebComposition({ ...platform, withCatalog });
+    const composition = createLocalWebComposition({ ...platform, withCatalog }, storageHome);
     const { serveWorkbenchAsset } = composition;
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
     const fixture = fixtureWebBoardOptions(serverOptions);
@@ -100,7 +108,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const webViewCache: MolisWorkWebViewCache = new Map();
     localHost.configureSessionRuntime(storageHome, serverOptions.runtimeSessionTransport);
     const sessionResources = localHost.sessionResources();
-    void sessionResources.catch(() => undefined);
+    void sessionResources.catch(() => undefined); // Its users (the terminal recorder, session routes) answer its failure.
     if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
     const { periodicTasks: periodic } = composition;
     const projectSchedulers = startWebProjectSchedulers({ localHost, homeDirectory: storageHome, withCatalog, fixture, agents, periodic,
@@ -110,8 +118,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const im = createLocalImServer(storageHome, async id => {
       if (fixture && id === fixture.projectId) return { id, title: fixture.project?.display_name ?? 'Molis Work' };
       return withCatalog({homeDirectory:storageHome}, catalog => {
-        try { const project=catalog.getProject(id); return {id:project.project_id,title:project.display_name}; }
-        catch { return null; }
+        const project = projectOrNull(catalog, id);
+        return project ? { id: project.project_id, title: project.display_name } : null;
       });
     });
     // The side panel's browser (specs/archive/side-panel): started on first use, one page per project. Its pages may never load
@@ -136,8 +144,8 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       },
     });
     const projectExists = async (projectId: string) => (fixture && projectId === fixture.projectId)
-      || await withCatalog({ homeDirectory: storageHome }, catalog => { try { catalog.getProject(projectId); return true; } catch { return false; } });
-    const server = http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
+      || await withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId) !== null);
+    const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
       try {
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
@@ -203,7 +211,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       } catch (error) {
         sendJson(response, 500, { error: error instanceof Error ? error.message : String(error) });
       }
-    })));
+    }))));
     // SSE is an active HTTP response, so stop its streams before close waits. The side panel's browser is asked to quit
     // at once, not when the last connection ends: a shutdown that is cut short still leaves its sign-ins written.
     awaitWebServerShutdown(server, () => { void projectSchedulers.stop().catch(() => undefined); im.stop(); void browserHost.current()?.close(); }, async () => {
@@ -216,35 +224,19 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
       onData(panelId, sessionId, data) {
         void sessionResources
           .then((resources) => resources.recorder.recordOutput(panelId, sessionId, data))
-          .catch(() => undefined);
+          .catch(recordingFailure);
       },
       onExit(panelId, sessionId, exit) {
         void sessionResources
           .then((resources) => resources.recorder.recordExit(panelId, sessionId, exit))
-          .catch(() => undefined);
+          .catch(recordingFailure);
       },
     });
     // The Assistant's timed follow-ups run while this server runs: a due one starts a round; one missed while it was not
     // running is reported, never replayed late.
     const assistant = () => assistantServiceFor({ localHost, homeDirectory: storageHome, agentHost: agents.agentHost, agentReady: () => agents.ready, projectReference: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { const project = catalog.getProject(projectId);return molisWorkHostProjectReference({ databasePath: project.database_path, projectId }); }),
-      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => { try { return catalog.getProject(projectId).display_name; } catch { return null; } }) }).service;
-    // Timed rounds live in Prologue's durable queue: the Assistant becomes their runner as soon as the runtime is up.
-    // With timed work waiting the runtime is started for it; otherwise the runner joins whenever something starts the
-    // runtime (a server start then costs no runtime until it is needed). It may be busy for a moment at start (another
-    // process releasing it): keep trying for a while.
-    void runWithMolisWorkHome(storageHome, async () => {
-      if (!assistant().hasTimedWork()) await agents.started;
-      for (let attempt = 0; attempt < 40; attempt++) {
-        try { await agents.ready; if (await assistant().attachSchedule()) return; } catch (error) { if (attempt === 0) hostLog.warn("assistant", "schedule_not_attached", error); }
-        await new Promise(resolve => setTimeout(resolve, 15_000).unref());
-      }
-    });
-    // New material that shares a Goal with a live work: looked for every five minutes.
-    periodic.every({ id: "assistant.material", title: "为进行中的工作找新资料", owner: "assistant", intervalMs: 300_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().scanNewMaterial())), onError: error => hostLog.warn("assistant", "new_material_scan_failed", error) });
-    // Reminders the person set in Plugins: asked about once a minute, each told once when it comes due.
-    periodic.every({ id: "assistant.reminders", title: "到期提醒", owner: "assistant", intervalMs: 60_000,
-      run: () => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), () => assistant().followUps.sweepReminders())), onError: error => hostLog.warn("assistant", "reminder_sweep_failed", error) });
+      projectTitle: async projectId => withCatalog({ homeDirectory: storageHome }, catalog => projectOrNull(catalog, projectId)?.display_name ?? null), pages: installedPagesPort(withCatalog, storageHome) }).service;
+    attachWebAssistant(server, storageHome, assistant, agents, periodic);
     server.once("close", () => {
       void periodic.stop();
       im.close();

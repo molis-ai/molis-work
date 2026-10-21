@@ -1,5 +1,7 @@
 import { actionEffect, actionFieldInput, actionFieldValue, type ActionSubjectContext, type ActionView, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { presentActionResult, type ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionOffer } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { actionErrorKind } from "./errors.js";
 
 /**
  * Action cards (specs/ai-interaction-experience H2, D26): a suggestion the person runs with one click, exactly as shown,
@@ -23,6 +25,8 @@ export interface ActionCard {
   missing: Array<{ field: string; question: string }>;
   status: ActionCardStatus;
   outcome?: string;
+  /** The successful call's declared, bounded presentation; never the raw result. */
+  presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
@@ -56,6 +60,8 @@ export interface ActionCardPorts<Card extends ActionCard = ActionCard> {
   now(): Date;
   /** IANA zone the person works in, so a card's "today" is theirs. */
   readonly timeZone?: string;
+  /** The keeper's trusted project scope, never a value from the card input or output. */
+  readonly projectId?: string;
   refuse(reason: ActionCardRefusal, message: string): Error;
   /** Told after the action returned; true when it started work still going on (the card then shows it running). */
   started?(view: ActionView, output: unknown, card: Card): Promise<boolean>;
@@ -174,15 +180,19 @@ function preparedInput(card: ActionCard, values: Record<string, string>, refuse:
 }
 
 /** How a failed run reads: an unknown outcome is never offered again as a plain retry; data that moved on is stale, not failed. */
+/**
+ * Platform codes after which the call may have landed: delivery was not confirmed, or the Host was replaced mid-call (it
+ * does not resend), or the owner failed after its effect, or its output was invalid after it (W2-18-CARD-UNKNOWN-01).
+ */
+const OUTCOME_UNKNOWN: ReadonlySet<string> = new Set(["actions.outcome_unknown", "actions.output_invalid_after_effect", "actions.delivery_unknown", "actions.host_replaced"]);
+
+/** How a run that threw reads, by the failure's code and kind alone, never by its wording (specs/ai-interaction-experience D26). */
 function settled(error: unknown): Partial<ActionCard> {
-  const code = (error as { code?: string }).code ?? "";
   const message = error instanceof Error ? error.message : String(error);
-  // That includes a failure the owner raised after its effect, or an invalid output after it (W2-18-CARD-UNKNOWN-01).
-  const unknown = ["actions.outcome_unknown", "actions.output_invalid_after_effect"].includes(code) || /delivery_unknown|host_replaced/.test(code);
+  if (OUTCOME_UNKNOWN.has(String((error as { code?: unknown } | null)?.code ?? ""))) return { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` };
   // The data moved on since the suggestion: say so, and let the person ask for a fresh one; never re-aim it quietly.
-  const moved = !unknown && (/conflict|stale|revision|version/i.test(code) || /已在其他窗口修改|版本|已变化|已更新|revision|version/i.test(message));
-  return unknown ? { status: "unknown", outcome: `结果未确认：${message}。请到原处核对，不会自动重试` }
-    : moved ? { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` } : { status: "failed", outcome: message };
+  if (actionErrorKind(error) === "conflict") return { status: "stale", outcome: `数据在建议之后变化了，这张卡没有执行（${message}）` };
+  return { status: "failed", outcome: message };
 }
 
 /**
@@ -205,13 +215,14 @@ export async function runActionCard<Card extends ActionCard>(card: Card, input: 
   if (!view || !view.availability.available) return ports.store.update(card, card.revision, { status: "stale", outcome: view && !view.availability.available ? view.availability.reason : "这项能力已不可用或已对助理关闭" });
   try { await authority.check(view, prepared); }
   catch (error) { throw ports.refuse("invalid", `填写的内容不符合要求：${error instanceof Error ? error.message : String(error)}`); }
-  let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined });
+  let claimed = ports.store.update(card, card.revision, { status: "running", request_id: globalThis.crypto.randomUUID(), input: prepared, missing: [], outcome: undefined, presentation: undefined });
   try {
     const result = await authority.invoke(claimed.reference, prepared);
-    const outcome = summarizeResult(result);
+    const presentation = presentActionResult(view.action.result_view, result, ports.projectId);
+    const outcome = presentation?.summary ?? summarizeResult(result);
     // Background work it started: the card shows it running, then how it ended.
     if (await ports.started?.(view, result, claimed).catch(() => false)) return ports.store.update(claimed, claimed.revision, { status: "running", outcome: "已开始，后台进行中" });
-    claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}) });
+    claimed = ports.store.update(claimed, claimed.revision, { status: "done", ...(outcome ? { outcome } : {}), ...(presentation ? { presentation } : {}) });
     return claimed;
   } catch (error) {
     return ports.store.update(claimed, claimed.revision, settled(error));

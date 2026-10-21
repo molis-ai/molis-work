@@ -1,4 +1,4 @@
-import { pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript } from "@molis-ai/molis-work-app-workbench";
+import { pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -66,6 +66,8 @@ export function createLocalWebAssets(ports: {
         ? { body: renderMolisWorkWorkbenchClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-capabilities.js"
         ? { body: renderMolisWorkCapabilitiesClientScript(), contentType: "text/javascript; charset=utf-8" }
+        : pathname === "/assets/molis-work-knowledge.js"
+        ? { body: renderMolisWorkKnowledgeClientScript(), contentType: "text/javascript; charset=utf-8" }
         : pathname === "/assets/molis-work-arrival.css"
           ? { body: renderMolisWorkArrivalStylesheet(), contentType: "text/css; charset=utf-8" }
         : pathname === "/assets/molis-work-settings.css"
@@ -108,6 +110,7 @@ function pagesEditorAsset(): { body: Buffer; contentType: string } | null {
     if (!fs.existsSync(filePath)) return null;
     return { body: fs.readFileSync(filePath), contentType: "text/javascript; charset=utf-8" };
   } catch {
+    // A build without the Pages editor serves no editor (a 404), as when the file is missing.
     return null;
   }
 }

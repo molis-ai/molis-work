@@ -400,10 +400,10 @@ export interface PrivateWorkContextApplicationApi {
 export const sessionErrors = defineErrorCodes("work.session", {
   message_content_unavailable: "invalid",
   message_conflict: "invalid",
-  message_target_changed: "invalid",
+  message_target_changed: "conflict",
   message_unavailable: "invalid",
   message_not_found: "invalid",
-  message_attempt_changed: "invalid",
+  message_attempt_changed: "conflict",
   not_found: "invalid",
   confirmation_required: "invalid",
   identity_conflict: "invalid",

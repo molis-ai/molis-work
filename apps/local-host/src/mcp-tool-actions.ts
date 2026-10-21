@@ -27,9 +27,27 @@ export function mcpIdPart(value: string): string {
 
 /** An unsupported contract remains visible but cannot accept input; the raw schema stays in the server snapshot. */
 export function mcpInputContract(declared: Record<string, unknown> | undefined): { schema: ActionSchema; availability: ActionAvailability } {
-  const schema = declared ?? { type: "object" };
-  try { compileActionSchema(schema); return { schema, availability: { available: true } }; }
+  try { const schema = mcpActionInputSchema(declared ?? { type: "object" }); compileActionSchema(schema); return { schema, availability: { available: true } }; }
   catch { return { schema: { not: {} }, availability: { available: false, code: "actions.schema_unsupported", reason: "这个 MCP 工具的参数合同暂不受支持，请更新服务的合同后重新发现工具" } }; }
+}
+
+/** HTTP parameter annotations belong to the MCP transport; the action copy keeps every value constraint. */
+function mcpActionInputSchema(schema: ActionSchema): ActionSchema {
+  const properties = schema.properties;
+  if (!properties || typeof properties !== "object" || Array.isArray(properties)) return schema;
+  const headers = new Set<string>();
+  const parameters = Object.entries(properties).map(([name, value]) => {
+    if (!value || typeof value !== "object" || Array.isArray(value) || !("x-mcp-header" in value)) return [name, value];
+    const header = value["x-mcp-header"];
+    if (typeof header !== "string" || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/u.test(header)
+      || !("type" in value) || typeof value.type !== "string" || !["string", "integer", "boolean"].includes(value.type) || headers.has(header.toLowerCase())) {
+      throw new Error("MCP parameter header annotation is invalid");
+    }
+    headers.add(header.toLowerCase());
+    const { "x-mcp-header": _header, ...parameter } = value;
+    return [name, parameter];
+  });
+  return headers.size ? { ...schema, properties: Object.fromEntries(parameters) } : schema;
 }
 
 export const mcpInputFingerprint = (schema: Record<string, unknown>) => createHash("sha256").update(JSON.stringify(schema)).digest("hex");

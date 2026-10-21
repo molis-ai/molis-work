@@ -26,9 +26,12 @@ test("every Send the bottom bar writes itself is marked as the page's; only the 
     }
     return script.slice(start, index - 1).trim();
   });
-  assert.equal(calls.length, 2, "the bottom bar sends from two places: the browser hand-back and the frozen composer");
+  assert.equal(calls.length, 4, "the bottom bar sends from four places: the browser hand-back, asking a closed question again (D5), the frozen composer and a receipt's correction");
   assert.equal(calls.filter(call => call === "intent.body, intent.route").length, 1, "the composer sends the frozen body and trusted route it captured");
-  for (const call of calls.filter(call => call !== "intent.body, intent.route")) assert.match(call, /written_by: "page"/, call.slice(0, 100));
+  // RCPT-326: a correction is what the person typed in the receipt's form, so it is theirs, with the input it corrects.
+  const correction = "{ work_id: work(), text, about, request_id: key }";
+  assert.equal(calls.filter(call => call === correction).length, 1, "a receipt's correction sends the person's words, the input it corrects and the receipt's key");
+  for (const call of calls.filter(call => call !== "intent.body, intent.route" && call !== correction)) assert.match(call, /written_by: "page"/, call.slice(0, 100));
   assert.match(script, /const body = \{[^\n]*\.\.\.\(byPage \? \{ written_by: "page" \} : \{\}\)/, "the composer marks a hand-over the person neither wrote nor changed");
   assert.match(script, /pageText = message\.text && input\.value\.trim\(\);/, "a hand-over with words is remembered as the page's until it is sent");
 });
@@ -40,9 +43,10 @@ test("what the bottom bar is looking at is one translated sentence, with the obj
   assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /L\("正在看：\{title\}", \{ title: name \}\)/);
   assert.equal(L("正在看：{title}", { title: "需求说明" }), "正在看：需求说明");
   assert.equal(runWithLocale("en", () => L("正在看：{title}", { title: "Notes" })), "Viewing: Notes", "English keeps its own colon");
-  // The short label on the materials button is the object's name, not the sentence with its prefix cut off by a pattern.
+  // The strip names it with that sentence, never with its prefix cut off by a pattern. (The 「材料」 button's short name is gone with
+  // the button: the strip took its place, context-program §21.2 point 1.)
   assert.doesNotMatch(ASSISTANT_ISLAND_FACTORY_SCRIPT, /replace\(\/\^正在看/);
-  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /clip\(lead\.name \|\| lead\.label, 16\)/);
+  assert.match(ASSISTANT_ISLAND_FACTORY_SCRIPT, /el\("span", "assistant-strip-label", item\.label\)/);
 });
 
 // Where an object lives is named by the plugin catalog (the host passes the tab workspace's names, which hold the catalog and

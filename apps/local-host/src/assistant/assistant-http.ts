@@ -14,6 +14,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "../local-owner-permissions.js";
 import type { MolisWorkLocalHost } from "../project-host.js";
 import { actionEffect, type ActionCallContext, type ActionView, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionKey, assistantAuthority, assistantProjectPrompts } from "./assistant-authority.js";
+import { registerWorkAuthority } from "../agent-work-authority.js";
 import { AssistantService } from "./assistant-service.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { withPersonDispatchGuard, type PersonActions } from "./assistant-coding.js";
@@ -30,6 +31,10 @@ import { questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { questionErrors } from "../agent-question-card.js";
 import { AssistantQuestionDrafts } from "./assistant-questions.js";
 import { drawAssistantReply } from "./assistant-view-html.js";
+import { cancelConnectorAuthorizationsForSession, holdConnectorAuthorizationsForSession } from "../connector-authorization-status.js";
+import { retainConnectorSetupsForSession } from "../connector-setup-retain.js";
+import { assistantSetupMaterial } from "./assistant-setup-material.js";
+import { pageChoices } from "./assistant-pages.js";
 
 /** The local Web's single person. The same identity every other local write uses. */
 const WEB_ACTOR = LOCAL_PERSON_ACTOR_ID;
@@ -43,6 +48,8 @@ export interface AssistantHttpPorts {
   agentReady: () => Promise<void>;
   projectTitle(projectId: string): Promise<string | null>;
   projectReference?(projectId: string): Promise<LocalHostProjectReference>;
+  /** The page ids installed in this Home's projects, which an attention rule may name (PG-036). */
+  pages(): Promise<readonly string[]>;
 }
 
 /** Half-written answers to a work's questions, kept with the work. */
@@ -50,6 +57,12 @@ const questionDrafts = (store: AssistantStore) => new AssistantQuestionDrafts({ 
 
 /** One Assistant per Home. Its store is opened once and lives as long as the Host that serves it. */
 const services = new WeakMap<MolisWorkLocalHost, { home: string; service: AssistantService; store: AssistantStore; threads: AssistantThreads }>();
+
+/** The Host owns the shared Assistant; closing a borrowed HTTP transport does not release it. */
+export function closeAssistantService(host: MolisWorkLocalHost): void {
+  services.get(host)?.service.continuations.close();
+  services.delete(host);
+}
 
 export function assistantServiceFor(ports: AssistantHttpPorts): { service: AssistantService; store: AssistantStore; threads: AssistantThreads } {
   const existing = services.get(ports.localHost);
@@ -89,7 +102,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   };
   let threads: AssistantThreads;
   const service: AssistantService = new AssistantService(store, {
+    cancelSetups: sessionId => cancelConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR),
+    retainSetups: sessionId => retainConnectorSetupsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, (...args) => ports.localHost.connectorMcp!.remember(...args)),
+    holdSetups: (sessionId, revision) => holdConnectorAuthorizationsForSession(ports.homeDirectory, sessionId, WEB_ACTOR, revision),
+    setupMaterial: (work, offered, withdrawn) => assistantSetupMaterial(ports.homeDirectory, work, offered, withdrawn),
     host: async () => { await ports.agentReady(); return ports.agentHost; },
+    pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
     memory: () => memoryHostFor(ports.localHost)?.service,
     learnFromRound: ({ work, said, run_id }) => {
@@ -97,8 +115,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
         work: { work_id: work.work_id, title: work.title } }, said, key: `${work.work_id}:${run_id}`, session_id: work.session_id ?? null })
         .catch(error => console.warn("[memory] 没有排上提炼", error));
     },
-    authority: async work => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
-      (view, input, output) => service.recordResult(work, view, input, output), service.delegation(work),
+    authority: async (work, origin) => work.reply_target ? { manifest: ASSISTANT_AGENT, prompts: ASSISTANT_PROMPTS, authorizedDirectories: [], beforeDispatch: () => threads.authorize(work) } : ({ ...assistantAuthority(ports.localHost, work, () => store.disabledActions(WEB_ACTOR), (offer, views) => service.offers.recordOffer(work, offer, views),
+      (view, input, output) => service.recordResult(work, view, input, output, origin?.source !== "card"), service.delegation(work),
       (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), service.memoryTools(work), () => store.confirmAlways(WEB_ACTOR),
       view => service.noteDispatched(work, view), () => {
         const snapshot = store.rounds(work.work_id).at(-1)?.context;
@@ -124,6 +142,11 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     homeActions: async () => personClient(undefined),
     // Reading related objects back from their owners, as the person: the work's project, or the Home for personal work.
     scopeActions: async work => personClient(work.project_ref),
+    // A landing's object, read again from its owner as the person before a round hears of it (H3's reader).
+    readReferences: async (projectId, picked) => ports.localHost.search ? ports.localHost.search.readReferences(projectId, picked) : picked.map(() => null),
+    // How many documents the round could list in the project, for 「本轮情况」 (specs/project-knowledge PMAT-33).
+    knowledgeTally: (projectId, views) => ports.localHost.search?.knowledgeTally(projectId, views) ?? null,
+    knowledgeCatalog: (projectId, views, words) => ports.localHost.search?.knowledgeCatalog(projectId, views, words) ?? null,
   }, WEB_ACTOR);
   threads = new AssistantThreads(store, service, {
     actorId: WEB_ACTOR, host: async () => { await ports.agentReady();return ports.agentHost; },
@@ -133,6 +156,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   });
   const entry = { home: ports.homeDirectory, service, store, threads };
   services.set(ports.localHost, entry);
+  // The runtime looks at the background jobs these works follow with the work's own authority, from its first look on.
+  registerWorkAuthority(ports.localHost, at => service.jobs.authority(at));
   // Deleting a project also stops the round its works still run and cancels their timed follow-ups, which only this service can do.
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
@@ -190,6 +215,13 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 1 && parts[0] === "send") {
         // A page marks the words it wrote itself ("page"); the marks of the Host's and the Assistant's own rounds are set in code and cannot be claimed from outside.
         if (body.written_by !== undefined && body.written_by !== "page") throw assistantErrors.invalid("written_by 只能是 page");
+        if (body.target !== undefined && body.target !== "answer" && body.target !== "steer") throw assistantErrors.invalid("target 只能是 answer 或 steer");
+        // A re-ask names a closed question of an existing work, and is not an answer: refused before any work is made or touched.
+        if (body.reask !== undefined && (!body.work_id || body.target === "answer" || body.about !== undefined)) throw assistantErrors.invalid("重新问只能用在已有的工作上，不能同时作为回答或指向一条输入");
+        // A correction names the input it corrects, in a work that has one; it is a supplement, never an answer. Only the id's
+        // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
+        // session's inputs names nothing, and the receipt shows 「更早的一条」.
+        if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
         return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
       }
       // What the Assistant may use here, and what the person switched off for it.
@@ -252,8 +284,8 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "accept")
         return { status: 200, body: { candidate: await service.acceptMemoryCandidate(parts[1]!, { ...(typeof body.text === "string" ? { text: body.text } : {}) }) } };
       if (method === "POST" && parts.length === 3 && parts[0] === "memory-candidates" && parts[2] === "discard") return { status: 200, body: { candidate: await service.discardMemoryCandidate(parts[1]!) } };
-      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules() } };
-      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.saveRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
+      if (method === "GET" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: service.followUps.rules(), pages: pageChoices(await ports.pages()) } };
+      if (method === "POST" && parts.length === 1 && parts[0] === "rules") return { status: 200, body: { rules: await service.followUps.addRule(body.rule as never, typeof body.rule_id === "string" ? body.rule_id : undefined) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "rules" && parts[1] === "remove") return { status: 200, body: { rules: service.followUps.removeRule(String(body.rule_id ?? "")) } };
       if (method === "POST" && parts.length === 2 && parts[0] === "followups" && parts[1] === "remove") return { status: 200, body: { removed: await service.followUps.remove(String(body.followup_id ?? "")) } };
       if (parts[0] !== "works" || !parts[1]) return null;
@@ -337,10 +369,12 @@ async function interactionRoute(workId: string, parts: string[], body: Record<st
     if (!answer) throw assistantErrors.invalid("请先回答再提交");
     const view = await service.answer(workId, { run_id: String(body.run_id ?? ""), pending_id: String(body.pending_id ?? ""),
       ...(body.pending_revision !== undefined ? { pending_revision: Number(body.pending_revision) } : {}), ...(typeof body.text === "string" ? { text: body.text } : {}),
-      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }).catch((error: { code?: string; message?: string; problems?: unknown }) => {
+      ...(Array.isArray(body.answers) ? { answers: body.answers as never } : {}), ...answer }, projectRef ? { project_ref: projectRef } : {}).catch(async (error: { code?: string; message?: string; problems?: unknown }) => {
       // A questionnaire answer the Runtime refused: each question's reason goes beside its own field.
       if (error?.code !== "agent.answer_invalid") throw error;
-      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L) } : undefined);
+      // Read back with the questions it answered, so each line can name the limit it crossed.
+      const asked = (await service.read(workId).catch(() => undefined))?.rounds.flatMap(round => round.awaiting_input).find(item => item.pending_id === body.pending_id)?.questions;
+      throw assistantErrors.invalid(String(error.message), Array.isArray(error.problems) ? { errors: questionErrors(error.problems, L, asked) } : undefined);
     });
     drafts.drop(workId, String(body.pending_id ?? ""));
     return { status: 200, body: view };

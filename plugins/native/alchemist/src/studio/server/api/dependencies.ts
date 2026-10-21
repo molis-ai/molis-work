@@ -15,6 +15,7 @@ import type { RuntimeSelector } from "../runtime/runtime-selector.js";
 import type { LocalSecurityOptions } from "../security/local-session.js";
 import type { createCalibrationMemoryService } from "../services/calibration-memory.js";
 import type { CancelLensRun } from "../services/cancel-lens-run.js";
+import type { CancelPulseRun } from "../services/cancel-pulse-run.js";
 import type { CreateExploration } from "../services/create-exploration.js";
 import type { CreateResearchPlan } from "../services/create-research-plan.js";
 import type { DecisionWorkspaceService } from "../services/decision-workspace.js";
@@ -27,7 +28,11 @@ import type { WorkspaceExportService } from "../services/workspace-export.js";
 
 import type { WorkReuseService } from "../../../work-reuse/service.js";
 
+import type { JobResumption } from "../services/job-resumption.js";
+
 export interface ApiDependencies {
+  jobResumption: JobResumption;
+  initializeCommand(): void;
   workReuse: WorkReuseService;
   workspaceId: string;
   actorId: string;
@@ -55,6 +60,7 @@ export interface ApiDependencies {
   getResearchWorkspace: GetResearchWorkspace;
   decisionWorkspace: DecisionWorkspaceService;
   startPulseRun: StartPulseRun;
+  cancelPulseRun: CancelPulseRun;
   opportunityActions: OpportunityActions;
   calibrationMemory: ReturnType<typeof createCalibrationMemoryService>;
   runtimeSettings: RuntimeSelector;

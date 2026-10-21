@@ -13,7 +13,7 @@ const origin=process.argv[2], project=process.argv[3];
    const root=page.locator('[data-workflows]').filter({visible:true});
    await root.locator('[data-wf-action="new"]').click();
    await root.locator('[data-wf-title]').fill('目录接线验收 '+name);
-   const saved=()=>page.waitForResponse(r=>r.url().includes('/api/workflows/')&&r.request().method()==='POST');
+   const saved=()=>page.waitForResponse(r=>r.url().includes('/api/plugins/io.molis.work.native.workflows/workflows/')&&r.request().method()==='POST');
    let save=saved(); await root.locator('[data-wf-plugin="feed"]').click(); assert.equal((await save).status(),200);
    save=saved(); await root.locator('[data-wf-plugin="pages"]').click(); assert.equal((await save).status(),200);
    await root.locator('[data-wf-action="link"]').first().click();

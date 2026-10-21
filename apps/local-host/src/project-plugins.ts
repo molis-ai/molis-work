@@ -1,27 +1,31 @@
+import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
 import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
-import { codingShelfMaterial } from "./coding-shelf-material.js";
-import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SHELF_TEXT_MATERIAL_TYPE } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { CODING_PLUGIN_ID, CODING_REPORT_TYPE, CODING_PLAN_TYPE, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_PLUGIN_ID, CodingSessionStore, createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
+import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
+import { LINGGUANG_DATABASE, createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_DATABASE, createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
+import { PPT_DATABASE, createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
+import { WORKFLOWS_DATABASE, createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { SqlitePluginPrivateStorage, outsidePluginAction, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
+import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 
 export interface ProjectPluginPorts {
   observeGitOperations?(listener: (event: GitOperationUpdate) => void): () => void;
@@ -133,15 +137,12 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         return ports.characterSpawn(request);
       });
     const shelfPorts: ShelfResultPorts | undefined = ports.homeDirectory ? {
-        // Coding's reports are 成果; its change sets are process items. Shelf can take a copy of either.
-        references: () => [...artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE }),
-          ...processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1" })]
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID).map(({ artifact_id, version }) => ({ artifact_id, version })),
-        preview: record => codingShelfMaterial(record, ports.projectId, ports.routePrefix ?? ""),
-        receive: preview => {
-          const shelf = openShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
-          const item = shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
-          return { item, snapshot: shelf.snapshot() };
+        // What Shelf may take a copy of, and the text of it, it asks the platform for; the Host only holds the project's route prefix and the personal store.
+        projectPath: () => ports.routePrefix ?? "",
+        receive: async preview => {
+          const shelf = openHostShelfStore(ports.homeDirectory!, shelfRuntimeProbe());
+          const item = await shelf.admit({ filename: preview.title + ".md", mime: "text/markdown", bytes: Buffer.from(preview.text, "utf8"), artifact_source: preview.source });
+          return { item, snapshot: await shelf.snapshot() };
         },
       } : undefined;
     const codingPorts: CodingPluginPorts = { execution: {
@@ -152,19 +153,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         models: () => ports.execution?.models() ?? Promise.resolve([]),
         sessions: new CodingSessionStore(ports.store.db), goalTitle: ports.goalTitle,
         characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-        materialReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: SHELF_TEXT_MATERIAL_TYPE, schema_version: 1 })
-          .filter(item => item.owner_actor_id === ports.actorId && item.producer_plugin_id === "io.molis.work.shelf" && item.lifecycle_state === "active" && item.availability === "available")
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        reportReferences: () => artifacts.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_REPORT_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        changeSetReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: "coding.changeset.v1", schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
-        // Confirmed plans, so another session can cite one as a fixed material.
-        planReferences: () => processItems.query.listArtifacts(ports.projectId, { artifact_type_id: CODING_PLAN_TYPE, schema_version: 1 })
-          .filter(item => item.producer_plugin_id === CODING_PLUGIN_ID)
-          .map(({ artifact_id, version }) => ({ artifact_id, version })),
       } };
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
       onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
@@ -173,7 +161,8 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.updateObservers = () => {
       if (closed || observer === ports.observeGitOperations) return;
       unsubscribe?.(); observer = ports.observeGitOperations;
-      unsubscribe = observer?.(event => { if (!closed) for (const listener of operationListeners) listener(event); });
+      // The Host delivers a settled operation on its own behalf, outside whichever action settled it: Git publishes for its own installation (S-18).
+      unsubscribe = observer?.(event => { if (!closed) outsidePluginAction(() => { for (const listener of operationListeners) listener(event); }); });
     };
     record.stopObservers = () => { closed = true; unsubscribe?.(); operationListeners.clear(); };
     record.updateObservers();
@@ -183,8 +172,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
-    // Forms keeps its library in the Home (`form/form.db`), so a platform without a Home has no Forms.
-    const formPlugin = createFormPlugin();
     const entries: PluginPlatformEntry[] = [
       {
         definition: createCharactersPlugin(charactersPorts),
@@ -198,13 +185,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
         releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
           "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory(shelfPorts)),
       },
-      ...ports.homeDirectory ? [{
-        definition: formPlugin,
-        bundled: true,
-        database: FORM_DATABASE,
-        releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
-          "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
-      }] : [],
+      ...ports.homeDirectory ? homeLibraryPlugins() : [],
       {
         definition: createCodingPlugin(codingPorts),
         bundled: true,
@@ -236,10 +217,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
       },
     ];
-    const report = await platform.start(projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory));
+    const report = await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory));
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
     record.running = report.running.includes(CODING_PLUGIN_ID);
-    record.error = [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
+    record.error = projectPluginDatabaseRefusal(ports.store.db, CODING_PLUGIN_ID)?.message ?? [...report.failed, ...report.blocked].find(entry => entry.plugin_id === CODING_PLUGIN_ID)?.message ?? undefined;
   } catch (error) {
     record.stopObservers?.();
     if (record.platform) {
@@ -251,6 +232,35 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.running = false;
   }
   return record;
+}
+
+/** Project instances whose own libraries live in this Home. */
+function homeLibraryPlugins(): PluginPlatformEntry[] {
+  return [{
+    definition: createDatasetPlugin(), bundled: true, database: DATASET_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>(
+      "@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()),
+  }, {
+    definition: createFormPlugin(), bundled: true, database: FORM_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
+      "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
+  }, {
+    definition: createLingguangPlugin(), bundled: true, database: LINGGUANG_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
+      "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
+  }, {
+    definition: createPagesPlugin(), bundled: true, database: PAGES_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
+      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
+  }, {
+    definition: createPptPlugin(), bundled: true, database: PPT_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
+      "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
+  }, {
+    definition: createWorkflowsPlugin(), bundled: true, database: WORKFLOWS_DATABASE,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
+      "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
+  }];
 }
 
 /**

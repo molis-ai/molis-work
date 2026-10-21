@@ -1187,6 +1187,13 @@ test("in this repository: shared core recommends the full suite, a document alon
 
 test("in this repository, each file on the assembly list recommends the full suite, and the barrels and ordinary files of the two packages do not", () => {
   for (const file of ASSEMBLY) assert.deepEqual(realAt(file).full.map((entry: { rule: string }) => entry.rule), ["assembly"], file);
+  // W5-02: a plugin's own catalog entry is the catalog's; the rest of its package is not the assembly.
+  for (const file of ["plugins/native/feed/src/registration.ts", "plugins/native/plugin-builder/src/registration.ts"]) {
+    assert.deepEqual(realAt(file).full.map((entry: { rule: string }) => entry.rule), ["assembly"], file);
+  }
+  for (const file of ["plugins/native/feed/src/index.ts", "plugins/native/feed/package.json"]) {
+    assert.equal(realAt(file).full.some((entry: { rule: string }) => entry.rule === "assembly"), false, file);
+  }
   for (const file of ["apps/local-host/src/index.ts", "apps/workbench/src/index.ts", "apps/local-host/src/action-gateway.ts", "apps/workbench/src/side-panel.ts", "apps/workbench/src/settings-models.ts"]) {
     assert.deepEqual(realAt(file).full, [], file);
   }
@@ -1284,7 +1291,10 @@ test("every README line that points to a caller to read the assembly from names 
 test("in this repository, every file that declares a SqliteBaseline is read whole (version and schema), and a file named for baselines that stores nothing holds none", () => {
   const files = listFiles(realRoot).filter((file) => /^(?:apps|horizontal|modules|packages|plugins|server|tooling)\/.*\.(?:ts|mts)$/.test(file) && !/\/tests?\//.test(file));
   const declared = files.filter((file) => /\bSqliteBaseline\s*=\s*\{/.test(readFileSync(path.join(realRoot, file), "utf8")));
-  assert.ok(declared.length >= 18, `${declared.length} files declare a SqliteBaseline`);
+  // Runtime-owned stores no longer need a SqliteBaseline wrapper; pin real declarations, not their historical count.
+  for (const file of ["server/src/database.ts", "apps/local-host/src/project-database-schema.ts"]) {
+    assert.ok(declared.includes(file), `${file}: the repository scan must find the declared baseline`);
+  }
   for (const file of declared) {
     const baselines = schemaOf(readFileSync(path.join(realRoot, file), "utf8")).baselines;
     assert.ok(baselines.length > 0 && baselines.every((body: string) => /\bversion: \d+/.test(body) && /\bschema\b/.test(body)), `${file}: ${baselines.join(" | ").slice(0, 120)}`);

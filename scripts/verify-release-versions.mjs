@@ -108,6 +108,17 @@ function checkWorkspacePackages(directories) {
   }
 }
 
+// Native plugins ship with the product; integrations and external plugin packages keep their own versions.
+function checkBuiltinVersions(directories, version) {
+  for (const directory of directories.filter(item => item.startsWith("plugins/native/"))) {
+    const file = `${directory}/src/manifest.ts`;
+    const source = readNeeded(file);
+    if (source === null) continue;
+    const found = source.match(/\bversion\s*:\s*["']([^"']+)["']/)?.[1];
+    if (found !== version) problem(`${file}: bundled Manifest version ${found ?? "not found"}, but package.json is ${version}`);
+  }
+}
+
 function checkReleaseFiles(version) {
   if (readOptional(`docs/releases/v${version}.md`) === null) problem(`docs/releases/v${version}.md: release notes for ${version} are missing`);
   const changelog = readNeeded(CHANGELOG);
@@ -271,10 +282,11 @@ function checkBaselineCalls(directories, declaredNames) {
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
-        // This one typed Host bridge forwards the trusted declaration. Its declarations are counted above;
+        // This one typed Host bridge forwards the trusted declaration, and the project of a library partitioned by project
+        // (specs/plugin-project-partition), which is not a baseline. Its declarations are counted above;
         // no other file, inline argument, or different call in this file is exempt from named-baseline checks.
         if (file === "apps/local-host/src/plugin-database.ts" && match[1] === "openBaselineHomeSqlite"
-          && args.join(",") === "home,declaration.store_name,declaration"
+          && args.join(",") === "home,declaration.store_name,declaration,partition?.project_id"
           && /function openPluginDatabase\(home: string, declaration: PluginDatabaseDeclaration,/.test(text)) continue;
         const unnamed = `declare the baseline as a named constant so the 各库版本表 can list it`;
         if (baseline === undefined) problem(`${file}: ${match[1]} is called without a baseline`);
@@ -313,7 +325,7 @@ function checkDatabaseTable(directories) {
 const version = checkProductVersion();
 const directories = workspaceDirectories();
 checkWorkspacePackages(directories);
-if (version !== null) checkReleaseFiles(version);
+if (version !== null) { checkBuiltinVersions(directories, version); checkReleaseFiles(version); }
 const stores = checkDatabaseTable(directories);
 
 if (problems.length > 0) {

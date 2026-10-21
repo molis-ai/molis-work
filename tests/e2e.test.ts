@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFile, spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { chmod, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
+import { chmod, copyFile, mkdtemp, mkdir, readFile, readdir, realpath, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -185,6 +185,11 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.ok(tarballName, "npm pack 必须生成 tarball");
     await execFileAsync("tar", ["-xzf", join(artifacts, tarballName), "-C", dirname(packageDirectory)]);
     await rename(join(dirname(packageDirectory), "package"), packageDirectory);
+    // The dependencies below are linked from this workspace's pnpm tree, which pnpm-workspace.yaml's overrides shaped (it never
+    // installs officeparser's tesseract.js). `npm pack` does not carry that file, so the source carries it beside the packed files to
+    // say which pairs the linked tree lacks on purpose, as the repository source does (PMAT-47). A real npm install has no such gap:
+    // npm installs the full tree and ignores pnpm overrides.
+    await copyFile(join(repository, "pnpm-workspace.yaml"), join(packageDirectory, "pnpm-workspace.yaml"));
     const packageMetadata = JSON.parse(await readFile(join(repository, "package.json"), "utf8")) as {
       version: string;
       dependencies?: Record<string, string>;
@@ -249,7 +254,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
     assert.match(packedReadme, /docs\/runtime\.en\.md/);
     assert.match(packedReadme, /docs\/mcp\.en\.md/);
     assert.match(packedReadme, /skills\/goal-advance\/SKILL\.md/);
-    assert.match(packedReadme, /MIT, see \[LICENSE\]/);
+    assert.match(packedReadme, /Molis AI Cooperation Source License\*\*, see \[LICENSE\]/); // CSL-03
     assert.doesNotMatch(packedReadme, /postinstall-project|兼容模式|MOLIS_WORK_DATABASE=/);
 
     await rm(runtimeRoot, { recursive: true, force: true });
@@ -391,7 +396,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
           }>;
         }).tools;
         const installedNames = installedTools.map((tool) => tool.name);
-        for (const name of ["molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v1", "molis_work_v1_action_goals.events.read__v1", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
+        for (const name of ["molis_work_v1_action_goals.create__v1", "molis_work_v1_action_goals.note__v1", "molis_work_v1_action_goals.list__v1", "molis_work_v1_action_goals.state.read__v1", "molis_work_v1_action_goals.events.list__v2", "molis_work_v1_action_goals.events.read__v2", "molis_work_v1_action_goals.events.configure__v1", "molis_work_v1_action_goals.events.report__v1", "molis_work_v1_action_goals.progress.record__v1", "molis_work_v1_action_goals.concerns.apply__v1", "molis_work_v1_action_goals.decisions.request__v1", "molis_work_v1_action_goals.decisions.cite__v1", "molis_work_v1_action_goals.agreement.set__v1", "molis_work_v1_action_goals.closure.submit__v1", "molis_work_v1_action_goals.work.resume__v1"]) {
           assert.equal(installedNames.includes(name), false, "project binding and explicit action grants are required");
         }
         for (const name of [
@@ -430,7 +435,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         for (const capability_id of ["goals.create", "goals.note", "goals.list", "goals.state.read", "goals.events.list", "goals.events.read", "goals.events.configure", "goals.events.report", "goals.progress.record", "goals.concerns.apply", "goals.decisions.request", "goals.decisions.cite", "goals.agreement.set", "goals.closure.submit", "goals.work.resume"]) {
           const granted = await securePost(origin, token, "/api/settings/mcp/actions", {
             client_id: "runtime:codex", project_id: created.project.project_id, capability_id,
-            provider_id: "io.molis.work.goals", version: 1, enabled: true,
+            provider_id: "io.molis.work.goals", version: ["goals.events.list", "goals.events.read"].includes(capability_id) ? 2 : 1, enabled: true,
           });
           assert.equal(granted.status, 200, await granted.clone().text());
         }
@@ -489,7 +494,7 @@ test("packed release completes fresh install, Web setup, Runtime dialogue, resta
         }) as { replayed: boolean; event_id: string };
         assert.equal(replayedNote.replayed, true);
         assert.equal(replayedNote.event_id, createdGoal.noteId);
-        const listed = await restartedMcp.call("molis_work_v1_action_goals.events.list__v1", {
+        const listed = await restartedMcp.call("molis_work_v1_action_goals.events.list__v2", {
           goal_id: createdGoal.goalId,
           limit: 20,
         }) as { events: Array<{ event_id: string; kind: string; payload?: { operation?: string; body?: string } }> };

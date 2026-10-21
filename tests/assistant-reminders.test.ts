@@ -42,7 +42,7 @@ test("a reminder the person set is told once when it comes due, where to open it
     } }] });
   const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read"] };
   const store = new AssistantStore(new DatabaseSync(":memory:"), () => clock);
-  const service = new AssistantService(store, { host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => { throw new Error("no rounds here"); }, authority: async () => { throw new Error("no rounds here"); },
     homeActions: async () => ({ discover: () => local.homeActionClient().discover(person), invoke: (action, input) => local.homeActionClient().invoke(person, action, input) }),
     timeZone: "Asia/Shanghai" }, "web-user", () => clock);
   try {
@@ -98,7 +98,7 @@ test("W2-18-S8-TODO-01: a real Todo reminder automatically produces one Assistan
   };
   try {
     t.mock.timers.tick(60_000); await new Promise(resolve => setTimeout(resolve, 25));
-    const created = await request("/api/todo", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
+    const created = await request("/api/plugins/io.molis.work.todo/items", { title: "Read the actual overdue draft", placement: "personal", remind_at: new Date(Date.now() + 10).toISOString() }) as { item: { id: string } };
     await new Promise(resolve => setTimeout(resolve, 25)); t.mock.timers.tick(60_000);
     const deadline = Date.now() + 10_000;
     let notices: Array<{ notice_id: string; kind: string; text: string; link?: string }> = [];

@@ -51,6 +51,7 @@ export const FOUNDATION_STYLES = `  :root {
     background: var(--page);
     color: var(--ink);
     font: 13px/1.5 var(--font);
+    text-rendering: optimizeLegibility;
   }
 
   body[data-navigation-pending="true"] { cursor: progress; }
@@ -515,5 +516,13 @@ export const FOUNDATION_STYLES = `  :root {
   .tree-pane[data-navigator-view="graph"] .tree-scroll { padding: 0; overflow: hidden; }
   .tree-pane[data-navigator-view="graph"] .goal-list-view { display: none; }
 
+  /* Form fields and floating surfaces: one border, corner and ground. */
+  .tree-search input,
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not(.mw-slider):not(.mw-input):not(.mw-textarea):not(.mw-select):not(.global-search-query):not(.assistant-composer-input):not([data-feed-search]),
+  textarea:not(.mw-textarea),
+  select:not(.mw-select) { border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); box-shadow: none; }
+  .theme-menu,
+  .dialog-shell,
+  .runtime-plan-dialog { border: 1px solid var(--line-strong); border-radius: 10px; background: var(--paper); box-shadow: var(--shadow); }
 `;
 

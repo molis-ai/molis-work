@@ -16,7 +16,7 @@ async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof 
     const originalPagesFetch = window.fetch.bind(window);
     window.pagesListFailure = '目录暂时离线';
     window.restorePagesFetch = () => { window.fetch = originalPagesFetch; };
-    window.fetch = (...args) => new URL(String(args[0]), location.href).pathname.endsWith('/api/plugins/pages')
+    window.fetch = (...args) => new URL(String(args[0]), location.href).pathname.endsWith('/api/plugins/io.molis.work.pages/pages')
       ? Promise.reject(new Error(window.pagesListFailure)) : originalPagesFetch(...args);
   ` }, sessionId);
   try {
@@ -33,9 +33,42 @@ async function checkListRecovery(browser: NonNullable<Awaited<ReturnType<typeof 
   }
 }
 
+// PAS-01 / VUX-35: opening a saved block discussion waits for the frame-batched context read.
+async function checkDiscussionOpening(browser: NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>) {
+  const { evaluate, waitFor } = browser;
+  await evaluate("new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))");
+  await evaluate(`(() => {
+    window.holdContextFrames=true;
+    const doc=${side},script=doc.createElement('script');
+    script.textContent="window.openingMessages=[];addEventListener('message',event=>{if(event.source!==parent)return;if(['molis:side-context','molis:side-shown'].includes(event.data?.type))window.openingMessages.push(event.data);if(event.data?.type==='opening-barrier')window.openingBarrier=true;});";
+    doc.body.append(script);
+    document.addEventListener('molis:side-shown',()=>doc.defaultView.postMessage({type:'opening-barrier'},location.origin),{once:true});
+  })()`);
+  try {
+    await evaluate(`[...${side}.querySelectorAll('[data-comment-notes] button')].find(button=>button.textContent==='讨论这段').click()`);
+    await waitFor(`${side}.defaultView.openingBarrier`);
+    assert.deepEqual(await evaluate(`${side}.defaultView.openingMessages.filter(message=>message.type==='molis:side-shown')`), [], 'PAS-01: do not publish an opening under the previous document context while its fresh read is queued');
+  } finally { await evaluate("window.releaseContextFrames()"); }
+  await waitFor(`${side}?.querySelector('[data-comment-quote]')?.textContent === '先完成核心体验，再安排发布。'`);
+  assert.equal(await evaluate(`(() => {
+    const messages=${side}.defaultView.openingMessages,shown=messages.findIndex(message=>message.type==='molis:side-shown');
+    const context=messages.slice(0,shown).findLast(message=>message.type==='molis:side-context')?.context;
+    const current=JSON.parse(document.querySelector('[data-work-surface="pages"][data-assistant-context], [data-work-surface="pages"] [data-assistant-context]').dataset.assistantContext);
+    return context?.unsaved===false&&context.object_ref.version===current.object.version&&shown>0;
+  })()`), true, 'PAS-01: the quoted discussion arrives after the saved version and can be sent immediately');
+}
+
 test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active document, preserves drafts and notes; one Assistant composer moves to a main tab and back", { timeout: 120000 }, async t => {
   const browser = await openGoalBrowser(t, true);if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, homeDirectory } = browser;
+  // Install before navigation so holding a frame also holds callbacks already queued by the host.
+  await command("Page.addScriptToEvaluateOnNewDocument", { source: `
+    if(window===top){
+      const request=window.requestAnimationFrame.bind(window),held=[];
+      window.requestAnimationFrame=callback=>request(time=>{if(window.holdContextFrames)held.push(callback);else callback(time);});
+      window.releaseContextFrames=()=>{window.holdContextFrames=false;held.splice(0).forEach(callback=>request(callback));};
+    }
+  ` }, sessionId);
   const store = openPagesStore(homeDirectory);
   const a = store.create({ project_id: projectId!, title: "讨论中的发布计划", body: { type: "doc", content: [{ type: "paragraph", attrs: { note: "需要保留的块备注" }, content: [{ type: "text", text: "先完成核心体验，再安排发布。" }] }] } });
   const b = store.create({ project_id: projectId!, title: "另一个文档", body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "此处不应出现前一篇的评论。" }] }] } });
@@ -56,7 +89,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
     window.sideForwarded=[];
     document.addEventListener('molis:side-context-command',event=>window.sideForwarded.push(event.detail.command.request_id));
     const child=${side}.defaultView;
-    const script=child.document.createElement('script');script.textContent="addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:side-context')window.boundEpoch=event.data.context_epoch;});parent.postMessage({type:'molis:side-ready'},location.origin)";child.document.body.append(script);
+    const script=child.document.createElement('script');script.textContent="addEventListener('message',event=>{if(event.source===parent&&event.data?.type==='molis:side-context')window.boundEpoch=event.data.context_epoch;if(event.source===parent&&event.data?.type==='molis:side-context-result'&&event.data.stale)(window.staleAnswers||=[]).push(event.data.request_id);});parent.postMessage({type:'molis:side-ready'},location.origin)";child.document.body.append(script);
   })()`);
   await waitFor(`${side}.defaultView.boundEpoch > 0`);
   await evaluate(`(() => {
@@ -66,6 +99,10 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   })()`);
   await waitFor("window.sideForwarded.includes('current-frame')");
   assert.deepEqual(await evaluate("window.sideForwarded"), ['current-frame']);
+  // A command asked under an older epoch runs nothing, and its own view hears so (to ask again under the context it is about
+  // to receive) instead of waiting out its timeout; the forged one hears nothing.
+  await waitFor(`${side}.defaultView.staleAnswers?.length > 0`);
+  assert.deepEqual(await evaluate(`${side}.defaultView.staleAnswers`), ['stale-epoch']);
   const edit = (text: string) => evaluate(`(() => { const doc=${side},field=doc.querySelector('[data-comment-draft]');field.value=${JSON.stringify(text)};field.dispatchEvent(new Event('input',{bubbles:true})); })()`);
   await edit("这条普通评论不会启动助理。");
   // PAS-05: composition Enter must neither prevent default nor submit the comment.
@@ -97,8 +134,7 @@ test("PAS-01 PAS-02 PAS-06 PAS-07: real Pages sidebar follows the active documen
   await evaluate(`(() => {const child=${side}.defaultView;child.postMessage(child.heldNotes,location.origin);child.postMessage({type:'notes-replay-barrier'},location.origin);})()`);
   await waitFor(`${side}.defaultView.notesReplayDone`);
   assert.equal(await evaluate(`${side}.querySelector('[data-comment-notes] textarea').value`), '在侧栏保存的备注');
-  await evaluate(`[...${side}.querySelectorAll('[data-comment-notes] button')].find(button=>button.textContent==='讨论这段').click()`);
-  await waitFor(`${side}?.querySelector('[data-comment-quote]')?.textContent === '先完成核心体验，再安排发布。'`);
+  await checkDiscussionOpening(browser);
   await edit("从块备注明确发起的新讨论");
   await evaluate(`${side}.querySelector('[data-comment-send]').click()`);
   await waitFor(`${side}?.querySelector('[data-comment-messages]')?.textContent.includes('从块备注明确发起的新讨论')`);

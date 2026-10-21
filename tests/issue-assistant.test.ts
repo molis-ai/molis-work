@@ -10,13 +10,14 @@ import { MolisWorkLocalHost, resolveWebControlToken, withConnectorConnections } 
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import type { AssistantSendResult, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ISSUES_PLUGIN_ID, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+import { asideReply } from "./fixtures/ending-review.js";
 
-function reply(tool?: { name: string; input: unknown }): string {
+function reply(tool?: { name: string; input: unknown }, text = "已按操作回执完成这一轮。"): string {
   const events: string[] = [];
   const emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
   emit("message_start", { message: { id: randomUUID(), type: "message", role: "assistant", model: "fixture", content: [], stop_reason: null, usage: { input_tokens: 20, output_tokens: 0 } } });
   emit("content_block_start", { index: 0, content_block: tool ? { type: "tool_use", id: randomUUID(), name: tool.name, input: {} } : { type: "text", text: "" } });
-  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text: "已按操作回执完成这一轮。" } });
+  emit("content_block_delta", { index: 0, delta: tool ? { type: "input_json_delta", partial_json: JSON.stringify(tool.input) } : { type: "text_delta", text } });
   emit("content_block_stop", { index: 0 });
   emit("message_delta", { delta: { stop_reason: tool ? "tool_use" : "end_turn", stop_sequence: null }, usage: { output_tokens: 10 } });
   emit("message_stop", {});
@@ -31,7 +32,11 @@ async function assistantHome(t: TestContext) {
   const replies: string[] = [], requests: unknown[] = [];
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+    const raw = Buffer.concat(chunks).toString("utf8");
+    // Ending reviews and background memory extraction share this model, but must not consume the next business turn.
+    const ancillary = asideReply(raw) ?? (raw.includes("你在帮用户的工作平台决定这次工作里有没有值得长期记住的东西") ? '{"candidates":[]}' : undefined);
+    if (ancillary) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, ancillary)); return; }
+    requests.push(JSON.parse(raw));
     response.writeHead(200, { "content-type": "text/event-stream" }); response.end(replies.shift() ?? reply());
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
@@ -132,54 +137,33 @@ test("ISSUE-07 assistant discovers Home Issue and confirms exact writes; refusal
   }
 });
 
-test("ISSUE-36 ISSUE-38 asked to record, the Assistant saves a page draft or a spoken issue directly, and its undo takes the new record back", { timeout: 120_000 }, async t => {
+test("ISSUE-25 ISSUE-38 ISSUE-53 asked to record, the Assistant saves the spoken issue directly, a malformed save is told its contract, and the work's undo takes the record back", { timeout: 120_000 }, async t => {
   const { replies, requests, request, list, state, send } = await assistantHome(t);
-  const draft_id = randomUUID(), page = { url: "/projects/p-1/", title: "Goals · Molis" };
-  await request(`/api/plugins/${ISSUES_PLUGIN_ID}/prepare`, { draft_id, description: "  点保存没反应\n", page });
-  const direct = (capability_id: string, version: number, input: unknown) => reply({ name: "change-reversible", input: { capability_id, version, provider_id: ISSUES_PLUGIN_ID, input } });
-  replies.push(direct("issues.capture", 1, { draft_id, title: "Goals 里点保存没有反应", type: "bug" }), reply());
-  const sent = await send(`记录 Issue：点保存没反应\n录入草稿 ${draft_id}。请按 Issue 方法处理。`, {
+  const identity = { capability_id: "issues.create", version: 2, provider_id: ISSUES_PLUGIN_ID };
+  const input = { title: "切换项目后草稿丢失", type: "bug", description: "记个 issue：切换项目后草稿丢失" };
+  // The malformed call seen from MiniMax: the business values beside `input` instead of inside it. It is refused with the
+  // contract, nothing runs, and the corrected call in the same round saves once.
+  replies.push(reply({ name: "change-reversible", input: { ...identity, title: input.title, type: input.type, input: "" } }),
+    reply({ name: "change-reversible", input: { ...identity, input } }), reply());
+  const sent = await send("记个 issue：切换项目后草稿丢失", {
     materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }] });
   const done = await state(sent.work.work_id, view => view.work.state === "completed");
   assert.equal(done.reviews.length, 0, "no confirmation: the save says how it is undone"); assert.equal(done.cards.length, 0);
-  const saved = (await list()).items[0]!;
-  assert.deepEqual([saved.id, saved.title, saved.entered_via, saved.description], [draft_id, "Goals 里点保存没有反应", "assistant", "  点保存没反应\n"]);
-  assert.deepEqual(saved.context.page, { ...page, provenance: "client_reported" }, "the page the person reported, not the Assistant's");
-  // The method the model reads: one direct save, no discovery round, and the title rules.
+  const { items } = await list();
+  assert.equal(items.length, 1);
+  assert.deepEqual([items[0]!.title, items[0]!.entered_via, items[0]!.context.page?.title], ["切换项目后草稿丢失", "assistant", "Issue 页面"]);
+  type Turn = { messages: Array<{ content: Array<{ type: string; content?: unknown }> | string }> };
+  const refused = (requests[1] as Turn).messages.flatMap(message => Array.isArray(message.content) ? message.content : []).filter(block => block.type === "tool_result").at(-1);
+  assert.ok(refused, "the next model round sees why the save was refused");
+  const text = typeof refused.content === "string" ? refused.content : JSON.stringify(refused.content);
+  assert.match(text, /输入不符合能力合同/); assert.match(text, /Nothing was executed/); assert.match(text, /"enum":\["bug","experience","feature"\]/);
+  assert.equal(requests.length, 3, "the refused call, the corrected one, and the closing sentence");
+  // The method the model reads carries Issue's rules and no tool usage.
   const method = JSON.stringify(requests[0]);
-  for (const rule of ["直接用 change-reversible", "不要 find-capabilities", "记录时所在页面", "依据不足"]) assert.ok(method.includes(rule), rule);
+  for (const rule of ["issues.create", "依据不足", "记录时所在页面"]) assert.ok(method.includes(rule), rule);
+  assert.ok(!method.includes("录入草稿"), "the page's drafts are not the Assistant's business");
   const undoable = (done as AssistantWorkView & { undoable?: Array<{ undo_id: string; state: string; capability_id?: string }> }).undoable ?? [];
   assert.equal(undoable.length, 1); assert.equal(undoable[0]!.capability_id, "issues.discard");
   await request(`/api/assistant/works/${sent.work.work_id}/undo/${undoable[0]!.undo_id}`, {});
   assert.equal((await list()).items.length, 0, "the work's undo takes the new record back");
-  // Spoken in the resident composer, an issue is recorded the same way, with the person's words kept.
-  replies.push(direct("issues.create", 2, { title: "切换项目后草稿丢失", type: "bug", description: "记个 issue：切换项目后草稿丢失" }), reply());
-  const spoken = await send("记个 issue：切换项目后草稿丢失");
-  await state(spoken.work.work_id, view => view.work.state === "completed");
-  const recorded = (await list()).items[0]!;
-  assert.deepEqual([recorded.title, recorded.entered_via, recorded.context.page?.title], ["切换项目后草稿丢失", "assistant", "Issue 页面"]);
-});
-
-test("ISSUE-48 saved Issue reorganization proposes only a versioned title and type, without writing before Save", { timeout: 60_000 }, async t => {
-  const { replies, requests, request, list, state, send } = await assistantHome(t);
-  const original = await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/create`, { title: "旧标题", type: "feature", description: "原来的说明" });
-  const input = { id: original.id, expected_version: original.version, title: "保存按钮点击后没有反应", type: "bug" };
-  replies.push(reply({ name: "suggest-action", input: { capability_id: "issues.update", version: 2, provider_id: ISSUES_PLUGIN_ID,
-    input, title: "重新整理 Issue", summary: input.title, editable: ["title", "type"] } }), reply());
-  const sent = await send(`重新整理 Issue：补充后保存没反应\n待整理记录 ${original.id} 版本 ${original.version}。请按 Issue 方法处理。\n本次问题描述：补充后保存没反应`, {
-    materials: [{ material_id: "issue-method", kind: "method", title: "Issue", explicit: true, method: { method_id: `${ISSUES_PLUGIN_ID}/issues-capture` } }],
-  });
-  const view = await state(sent.work.work_id, view => view.cards.some(card => card.status === "ready") || ["failed", "completed"].includes(view.work.state));
-  assert.equal(view.cards.length, 1, JSON.stringify(view));
-  const card = view.cards[0]!;
-  const value = (key: string) => { const field = card.fields.find(field => field.key === key); return field?.raw ?? field?.value; };
-  assert.equal(card.capability_id, "issues.update");
-  assert.equal(value("id"), original.id); assert.equal(Number(value("expected_version")), 1);
-  assert.equal(value("title"), input.title); assert.equal(value("type"), "bug");
-  assert.deepEqual(await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/read?id=${original.id}`), original);
-  assert.match(JSON.stringify(requests), /页面重新整理/);
-  await state(sent.work.work_id, view => view.work.state === "completed");
-  await request(`/api/assistant/works/${sent.work.work_id}/archive`, { archived: true });
-  const saved = await request<Issue>(`/api/plugins/${ISSUES_PLUGIN_ID}/update`, { ...input, description: "补充后保存没反应" });
-  assert.equal(saved.id, original.id); assert.equal(saved.version, 2); assert.equal((await list()).items.length, 1);
 });

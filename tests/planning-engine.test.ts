@@ -1,5 +1,5 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { GovernanceRecordStore } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
 import assert from "node:assert/strict";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import Database from "better-sqlite3";
@@ -333,7 +333,7 @@ test("project and personal methods persist without a second Goal truth model", a
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-planning-"));
   const store = new LocalProjectDatabase(path.join(root, "board.db"));
   const coordinator = new GoalProjectApplication(store, () => new Date("2026-08-22T03:00:00.000Z"));
-  coordinator.initializeBoard({ project_id: "board-1", title: "规划测试", actor_id: "user", idempotency_key: "init" });
+  coordinator.initializeBoard({ project_id: "board-1", actor_id: "user", idempotency_key: "init" });
   assert.throws(
     () => coordinator.goals.planning.saveProjectMethod({
       project_id: "board-1",
@@ -426,12 +426,13 @@ test("Goals public Planning API owns method versions, graph checks, and change i
     const clock = () => new Date("2026-08-22T05:00:00.000Z");
     new GoalProjectApplication(store, clock).initializeBoard({
       project_id: "board-module-planning",
-      title: "Planning Module",
       actor_id: "user",
       idempotency_key: "init-module-planning",
     });
+    // W5-08-MOD-02: planning crosses the same business interface as the Host.
+    const governance = new GovernanceCollaborationModule({ db: store.db });
     const goals = new GoalsModule(store.db, {
-      supersedePendingContractProposals: (...args) => new GovernanceRecordStore(store.db).supersedePendingContractProposals(...args),
+      supersedePendingContractProposals: (...args) => governance.records.supersedePendingContractProposals(...args),
       currentActionToken: () => "token:planning",
       authorizeRiskUpdate: () => undefined,
       authorizeRiskState: () => undefined,

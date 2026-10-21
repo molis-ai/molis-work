@@ -1,6 +1,7 @@
 import type { ActionCallContext, ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentRunControl, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentInputSend, AgentSteerReceipt } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { L } from "../web-locale.js";
 
 /** The person's own action client in a project: what the Coding page itself can do, nothing more. */
 export interface PersonActions {
@@ -26,7 +27,7 @@ export interface CodingSessionRead {
 }
 
 /** Each Coding action this executor calls, at the version Coding publishes now: a new shape there is a new version here, in the same change. */
-const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 3 } as const;
+const VERSIONS = { state: 1, "sessions.create": 1, "sessions.read": 1, "sessions.update": 1, "runs.start": 1, "runs.control": 7 } as const;
 type CodingActionName = keyof typeof VERSIONS;
 
 export class CodingUnavailable extends Error {
@@ -47,7 +48,7 @@ export class CodingExecutor {
   private async reference(name: CodingActionName): Promise<ExactActionReference> {
     this.offered ??= this.actions.discover();
     const view = (await this.offered).find(row => row.capability_id === `coding.${name}` && row.version === VERSIONS[name]);
-    if (!view) throw new CodingUnavailable("这个项目还没有可用的 Coding 插件", "在插件市场添加 Coding");
+    if (!view) throw new CodingUnavailable(L("这个项目还没有可用的 Coding 插件"), "在插件市场添加 Coding");
     if (!view.availability.available) throw new CodingUnavailable(view.availability.reason);
     return { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
   }
@@ -76,8 +77,8 @@ export class CodingExecutor {
       const model = state.models?.[0];
       provider_id ??= model?.provider_id; model_id ??= model?.model_id; workspace_id ??= state.workspace?.workspace_id ?? undefined;
     }
-    if (!provider_id || !model_id) throw new CodingUnavailable("Coding 还没有可用的模型", "打开模型设置");
-    if (!workspace_id) throw new CodingUnavailable("Coding 需要先为这个项目选择工作目录", "在项目设置里选择工作目录，或打开 Coding 选择");
+    if (!provider_id || !model_id) throw new CodingUnavailable(L("Coding 还没有可用的模型"), "打开模型设置");
+    if (!workspace_id) throw new CodingUnavailable(L("Coding 需要先为这个项目选择工作目录"), "在项目设置里选择工作目录，或打开 Coding 选择");
     // Settings chosen here are saved to the session itself, so the Coding page continues in the same mode, model and
     // directory; otherwise the two entries would start the next round differently.
     if (!read.configuration) await this.call("sessions.update", { session_id: sessionId, configuration: { intent: intent ?? "execute", provider_id, model_id, workspace_id } });
@@ -92,7 +93,7 @@ export class CodingExecutor {
       const state = await this.call<{ models?: Array<{ provider_id: string; model_id: string }>; workspace?: { workspace_id?: string } | null }>("state", {});
       provider_id ??= state.models?.[0]?.provider_id; model_id ??= state.models?.[0]?.model_id; workspace_id ??= state.workspace?.workspace_id ?? undefined;
     }
-    if (!provider_id || !model_id || !workspace_id) throw new CodingUnavailable("Coding 还没有可用的模型或工作目录", "打开 Coding 选择");
+    if (!provider_id || !model_id || !workspace_id) throw new CodingUnavailable(L("Coding 还没有可用的模型或工作目录"), "打开 Coding 选择");
     await this.call("sessions.update", { session_id: sessionId, configuration: { ...(read.configuration ?? {}), intent: mode, provider_id, model_id, workspace_id } });
   }
 
@@ -103,5 +104,10 @@ export class CodingExecutor {
   /** A supplement through Coding's own control; its receipt says whether the round took it or it waits for the next one. */
   async send(sessionId: string, runId: string, input: AgentInputSend): Promise<AgentSteerReceipt | undefined> {
     return (await this.call<{ receipt?: AgentSteerReceipt } | undefined>("runs.control", { session_id: sessionId, run_id: runId, kind: "steer", ...input }))?.receipt;
+  }
+
+  /** Takes back a supplement through Coding's own control, before its model saw it. */
+  async withdraw(sessionId: string, runId: string, inputId: string): Promise<void> {
+    await this.call("runs.control", { session_id: sessionId, run_id: runId, kind: "withdraw", input_id: inputId });
   }
 }

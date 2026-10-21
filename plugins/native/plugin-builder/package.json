@@ -4,7 +4,7 @@
   "private": true,
   "description": "Prologue-powered plugin design, live assembly and independent data applications.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -40,6 +44,7 @@
     "capabilities": [
       "plugin-builder.ui.v1",
       "plugin-builder.workflow.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

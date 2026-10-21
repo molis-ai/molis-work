@@ -79,7 +79,7 @@
   - 每步显示状态标记（完成 / 进行中 / 受阻 / 失败 / 你跳过了）、最近一次模型回报和你的验收，点步骤可以打开原有的回报与验收弹窗。
   - 状态只来自模型对任务图的回报，不从回答正文推断。
 - **执行中调整计划**：进度卡上可以提前 / 推后（只限未开始的步骤）、跳过（需写原因）、在某步后插入（需写完成条件）、对受阻的步骤给出决定、越过失败的步骤。
-  - **宿主**：新增 Host 能力 `agent.run.step-board.amend.v1`，全部使用 SDK TaskBoard 的 report / addNode / rewire，带版本号防并发。
+  - **宿主**：新增 Host 能力 `agent.run.step-board.amend.v1`（2026-10-17 P4-C2 换成动作 `agent.collaboration.revise.v1`，形状不变，见 `specs/prologue-adoption` §6.0j），全部使用 SDK TaskBoard 的 report / addNode / rewire，带版本号防并发。
   - **只动涉及的步骤**：每次调整只重接受影响的步骤，不会因为别处的改动自动越过失败。
   - **记录**：调整以报告形式记在图上。
   - **告知这一轮**：Coding 经原有的补充要求通道把调整告诉执行中的这一轮，要求它先 board-read。
@@ -2698,6 +2698,26 @@ Goal 材料成果闭环、独立 Character（C12）、Plan→SubAgent→TaskBoar
 - E2 浏览器页与终端页在对应 Capability 注册之前，显示为真实不可用。
 - E3 批准不等于已发生：`effect_settled` 要等真实回执。
 
+### F. 固定成果交给别的插件（2026-10-21，PG-090 的 Coding 半边，C3）
+宿主不再替 Coding 和 Shelf 拼这条边界：Coding 的固定成果怎样变成文字归 Coding，Shelf 经平台的成果服务和它声明消费的动作来取。测试在 `tests/coding-results-document.test.ts`、`tests/shelf-coding-results.test.ts`、`tests/shelf-coding-results-platform.test.ts`。
+
+能不能读到正文，看的是插件消费了这个动作，不看它消费了哪种成果。Coding 的处理器看不到调用方的 Manifest：Runtime 交给插件的调用上下文不带调用方的签发对象（PG110-17）。所以一个项目插件只要声明 `capabilities.consumes: ["coding.results.document"]` 并持有 `artifact:read`，就能读到本项目任何一份 Coding 固定报告和固定变更的正文，不必在 `artifacts.consumes`、`process_items.consumes` 里声明这两种类型。消费动作本身也是 Manifest 声明，创作台做的插件还要人逐项批准（PG110-14）。要不要让平台把调用方的类型声明交给提供方去核，是信任边界的设计，待用户定（⑤ 评审 #905）。
+
+1. **W5-01-CODING-01** Coding 声明只给 plugin 受众的查询 `coding.results.document@1`（权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）；人、Agent、工作流、MCP 都选不到它。`coding.artifacts.preview@1` 的动作 id 与版本不变。
+2. **W5-01-CODING-02** 一份固定报告答它自己的 Markdown，逐字节一致。
+3. **W5-01-CODING-03** 一份固定变更按文件答审查文本的修改前后和写入结果；没有可读的文本审查时，答固定的一句话。
+4. **W5-01-CODING-04** 已归档、其他项目、不可用、其他种类、签名不符、成果里的身份与引用不一致、项目里没有的版本，一律用 Coding 自己的 `coding.shelf_material_invalid` 拒绝，并用中文告诉使用者。
+5. **W5-01-CODING-05** 别的生产者钉死的版本，平台在 Coding 读到之前就以 `artifacts.plugin_denied` 拒绝。
+6. **W5-01-CODING-06** Coding 自己的报告、变更、计划列表经平台 `listConsumable()` 按类型和生产者取，没有宿主端口；已归档和别的生产者的版本不算当前成果。一次请求只列一次、每个版本只读一次：页面开着会话时会反复刷新这些列表。
+7. **W5-01-CODING-07** Shelf 对一份固定报告的预览（标题、正文、来源、内容哈希、指纹）与宿主原来拼出的一字不差。
+8. **W5-01-CODING-08** 同上，固定变更，连同代码围栏的长度。
+9. **W5-01-CODING-09** 这个动作的定义只在合同包 `@molis-ai/molis-work-contracts/modules/coding` 一处（含输入输出类型），Coding 与 Shelf 都从那里取，任何一边都没有第二份；Coding 的 Manifest 声明的就是这个对象，Shelf 的 Manifest `capabilities.consumes` 写它的 `capability_id` 并持有 `artifact:read`；Shelf 自己动作的受众不变。
+10. **W5-01-CODING-10** Shelf 的列表来自平台，按 Shelf 自己 Manifest 里的类型和端口筛选；Coding 不肯转成文字的版本不列出。
+11. **W5-01-CODING-11** 平台或 Coding 的拒绝带着自己的错误码到达使用者；找不到的版本是 Shelf 自己的 `shelf.unavailable`。
+12. **W5-01-CODING-12** 宿主不再拼这条边界：没有 `coding-shelf-material.ts`，`project-plugins.ts` 里没有 Coding 的三个列表端口，`ShelfResultPorts` 只剩 `projectPath` 和 `receive`。
+13. **W5-01-CODING-13** 在真实宿主上，声明了 Shelf 所声明的、持有授权的插件拿到 Coding 的 Markdown；项目里没有的版本得到 Coding 自己的拒绝。
+14. **W5-01-CODING-14** 在真实宿主上：没声明消费得 `actions.forbidden`，没有授权得 `plugin.grant_denied`，项目没装 Coding 得 `actions.plugin_disabled`；人、Agent、工作流、MCP 的调用得 `actions.forbidden`，MCP 的动作目录里看不到这一项。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |
@@ -3163,7 +3183,7 @@ Character 是「我习惯怎么干活」，跟着人走而不是跟着某一个�
 
 - **对象与入口**：沿用 MCP 设置和会话选择框，增加“只读资料”选择；可继续使用讨论/评审，不必获得外部写入工具。选择按会话保存，开跑冻结服务 ID、配置版本和显示名称，历史右栏显示当轮来源。选中外部工具的服务同样可读其资料，选择框已明确说明。配置、密钥、连接仍归 Host/SDK；Coding 只持有引用与产品选择。
 - **SDK 的实际修复**：Agent 的资料列出/读取此前没应用 `mcpConnections`，现复用现有冻结名单，包括显式空数组；其他项目/未选服务不能读取，已断开的服务不拖垮其他目录。正式接入只有 resources 能力的 HTTP 服务又暴露无条件 tools/list 的握手错误，现 HTTP/stdio 均按声明跳过不支持的工具目录。Molis 使用重新打包的 SDK，FlyLeaf 保持只读。
-- **工具面**：角色开放 SDK `list-mcp-resources`、`read-mcp-resource`、`context-remaining` 和 `find-tools`；工具目录超过 20 项时使用 SDK 原有 schema 延迟加载，不增加自己的搜索目录。剩余上下文是当前打包侧估算，不能当成已压缩/已持久化证明。按需 schema 的真实 MiniMax 大目录任务仍待验证。
+- **工具面**：角色开放 SDK `list-mcp-resources`、`read-mcp-resource`、`context-remaining` 和 `find-tools`；工具目录超过 32 项时（10-19 前是 20 项）使用 SDK 原有 schema 延迟加载，不增加自己的搜索目录。剩余上下文是当前打包侧估算，不能当成已压缩/已持久化证明。按需 schema 的真实 MiniMax 大目录任务仍待验证。
 - **正式实操**：MiniMax-M3，会话 `1baf470c-f50e-4b07-8bd4-3014cd186195`，Run `3-8oyyx`，讨论方式、reader v6、mcp_tools=[]、指定 mcp_sources。正式设置成功连接资源专用 HTTP 服务；模型列目录、读取真实文本并报告“松果桥-672”、2640 分及 119215/120000 tokens 的估算回执。HTTP 服务实际收到一次 resources/read；无外部写入、无工作区读写。刷新保留未发草稿与已选资料。证据 `c9-mcp-resources-minimax.json`。
 - **反例保留**：首次 read-mcp-resource 参数未命中本轮连接范围，SDK 拒绝后模型重试成功，但它编造“回执截断/后缀应移除”的解释，不能据此声称任务质量已达标。取消全部选择后 Run `5-4m60x` 的目录为空且未重复读取；旧工具文案却将范围为空说成整个 Runtime 未连接，模型据此误报。已按真实问题修正范围文案与精确连接参数说明。最终构建 Run `2-9jrrm` 正确返回本轮工具范围为空，MiniMax 不再误报全局断连。Run `4-84lst` 又出现只有“先列出”文本、零工具就 end-turn；人工指出一次后 Run `6-n9aa` 两次工具调用完成真实读取，无失败重试。这个未执行的中间轮保留，不能说持续任务已可靠完成。
 - **该切片剩余及后续状态**：当时长资料只返回引用，后文“C9 长 MCP 资料补齐”现已补上固定快照分页并完成指定 MiniMax 实操；原短资料证据本身不能外推全部资料支持。最终构建中断开后发送明确拒绝、草稿保留、执行数未增加；应用进程重启后原会话、草稿和配置 1 的资料选择保留，未连接来源显示不可用；经设置重新连接后恢复候选，历史与草稿未丢。自动方法、检查点、压缩、未知副作用恢复、C12/C13、伴随插件和 Goal/Artifact 闭环继续按原目标推进。

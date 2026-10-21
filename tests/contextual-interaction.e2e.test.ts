@@ -42,32 +42,39 @@ for (const width of [1440, 390]) {
     const selectParagraph = (index: number) => evaluate(`(() => { const editor = document.querySelector('[data-pages-editor] .ProseMirror'); editor.focus();
       const text = editor.querySelectorAll('p')[${index}].firstChild; const range = document.createRange(); range.setStart(text, 0); range.setEnd(text, text.length);
       const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
-    const slots = width === 390 ? 2 : 3;
+    // As many of the plan's first actions as the bar has room for: three in a wide window; in a narrow one at most two, and what
+    // does not fit goes to 更多's 推荐 rather than being squeezed under its text (context-toolbar §6, QA-014).
+    const shown = `(${width === 390 ? "n => n >= 1 && n <= 2" : "n => n === 3"})(document.querySelectorAll(${JSON.stringify(ACTION)}).length)`;
     await selectParagraph(1);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots} && window.__contextPlan`);
-    const row = await evaluate<{ titles: string[]; planned: string[]; tools: number; inView: boolean }>(`(() => { const plan = window.__contextPlan, title = key => plan.candidates.find(item => item.key === key).title;
+    await waitFor(`${shown} && window.__contextPlan`);
+    const slots = await evaluate<number>(`document.querySelectorAll(${JSON.stringify(ACTION)}).length`);
+    const row = await evaluate<{ titles: string[]; planned: string[]; tools: number; inView: boolean; fits: boolean; tight: boolean }>(`(() => { const plan = window.__contextPlan, title = key => plan.candidates.find(item => item.key === key).title;
       const bar = document.querySelector('.mw-ctx'), box = bar.getBoundingClientRect();
       return { titles: [...bar.querySelectorAll('.mw-btn[data-key] > span:first-child')].map(node => node.textContent.trim()), planned: plan.primary.map(title),
-        tools: bar.querySelectorAll('.mw-ctx__tools button').length, inView: box.left >= 0 && box.right <= innerWidth && box.top >= 0 }; })()`);
+        tools: bar.querySelectorAll('.mw-ctx__tools button').length, inView: box.left >= 0 && box.right <= innerWidth && box.top >= 0,
+        fits: bar.scrollWidth <= bar.clientWidth, tight: bar.hasAttribute('data-tight') }; })()`);
     assert.ok(row.planned.includes("改得更简洁"), `rules offer a rewrite for a passage: ${row.planned.join(" / ")}`);
     assert.deepEqual(row.titles, row.planned.slice(0, slots), "the bar shows the plan's first actions in order");
     assert.ok(row.tools > 0, "the editor's tools sit at the left of the bar");
     assert.equal(row.inView, true);
+    assert.equal(row.fits, true, "everything on the bar fits inside it");
+    assert.equal(row.tight, false, "the rules' own titles are shown whole");
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
 
     // 更多 holds exactly the plan (spec §6.4.1, W2-03): the actions that did not fit, the same groups, every action, the whole document's last.
+    // One way to hand over (context-program §21.2 point 4): 「说出要做什么」 did the same as 「带到助理」 once neither writes words, so it is gone.
     await waitFor(`(() => { const menu = document.querySelector('.mw-ctx-menu'); if (menu && menu.querySelector('.mw-ctx-menu__basis')?.textContent === '按规则') return true; document.querySelector(${JSON.stringify(MORE)})?.click(); return false; })()`);
     // RING-07: the current toolbar keeps the unconfigured judgment state beside its rules explanation.
     await waitFor("document.querySelector('.mw-ctx-menu__basis .mw-state-ring')?.dataset.mwState === 'unavailable'");
     const menu = await evaluate<string[]>(`[...document.querySelectorAll('.mw-ctx-menu > p:not(.mw-ctx-menu__basis), .mw-ctx-menu > button')].map(node => node.matches('p') ? '#' + node.textContent.trim() : node.querySelector('span').textContent.trim())`);
     const planned = await evaluate<string[]>(`(() => { const plan = window.__contextPlan; const title = key => plan.candidates.find(item => item.key === key).title; const extra = plan.primary.slice(${slots}).map(title);
-      return [...(extra.length ? ['#推荐', ...extra] : []), ...plan.more.flatMap(group => ['#' + group.title, ...group.keys.map(title)]), '#全部操作（不依赖推荐）', ...plan.candidates.map(item => item.title), '#助理', '带到助理', '说出要做什么']; })()`);
+      return [...(extra.length ? ['#推荐', ...extra] : []), ...plan.more.flatMap(group => ['#' + group.title, ...group.keys.map(title)]), '#全部操作（不依赖推荐）', ...plan.candidates.map(item => item.title), '#助理', '带到助理']; })()`);
     assert.deepEqual(menu, planned);
     assert.deepEqual(menu.slice(menu.indexOf("#整篇") + 1, menu.indexOf("#全部操作（不依赖推荐）")), ["全文校对", "整篇翻译成新文档"], `the whole document's actions come last: ${menu.join(" / ")}`);
     await evaluate("document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))");
     await waitFor("!document.querySelector('.mw-ctx-menu')");
     await selectParagraph(1);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(shown);
 
     // Choose through the bar: the editor keeps the selection (the bar never takes focus), the range freezes at once.
     const key = await evaluate<string>(`window.__contextPlan.candidates.find(item => item.title === '改得更简洁').key`);
@@ -88,7 +95,7 @@ for (const width of [1440, 390]) {
     // but the result waits where it was and still belongs to the paragraph they asked about.
     const firstContext = await evaluate<string>("window.__contextPlan.context_id");
     await selectParagraph(0);
-    await waitFor(`window.__contextPlan.context_id !== ${JSON.stringify(firstContext)} && document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(`window.__contextPlan.context_id !== ${JSON.stringify(firstContext)} && ${shown}`);
     assert.equal(await evaluate("Boolean(document.querySelector('.mw-ctx-panel .pages-pop:not([hidden])'))"), true, "the waited-for result stays when something else is selected");
     release();
     await waitFor("document.querySelector('.pages-pop:not([hidden]) textarea')?.value.includes('主因是上手困难：')");
@@ -106,7 +113,7 @@ for (const width of [1440, 390]) {
     } finally { saved.close(); }
     const output = reviewEvidenceUrl("contextual-interaction/"); await mkdir(output, { recursive: true });
     await selectParagraph(2);
-    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length === ${slots}`);
+    await waitFor(shown);
     await writeFile(new URL(`contextual-bar-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   });
 }
@@ -171,13 +178,14 @@ test("P2: a word is looked up in the search palette; a write goes to the Assista
   await select(1, 0);
   await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 8000);
   await click(MORE);
-  await waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.textContent.startsWith('记下灵光'))");
+  // On the bar or under 更多, wherever the rules put it.
+  await waitFor(`[...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].some(button => button.textContent.startsWith('拆成目标步骤'))`);
   const placed = await evaluate<{ status: number; work_id?: string }>(`new Promise(resolve => { const original = window.fetch;
     window.fetch = async (url, options) => { const response = await original(url, options); if (String(url).includes('/api/assistant/cards')) { const copy = response.clone(); resolve({ status: response.status, ...(await copy.json().catch(() => ({}))) }); } return response; };
-    [...document.querySelectorAll('.mw-ctx-menu button')].find(button => button.textContent.startsWith('记下灵光')).click(); })`);
+    [...document.querySelectorAll(${JSON.stringify(ACTION + ", .mw-ctx-menu button")})].find(button => button.textContent.startsWith('拆成目标步骤')).click(); })`);
   assert.equal(placed.status, 200);
   assert.ok(placed.work_id);
-  await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '记下灵光'", 8000);
+  await waitFor("document.querySelector('[data-assistant-panel]') && !document.querySelector('[data-assistant-panel]').hidden && document.querySelector('[data-assistant-work-title]')?.textContent === '拆成目标步骤'", 8000);
 
   // A Goal's own text: the frame names the Goal, so what is selected in it can become steps under it.
   const goalId = await evaluate<string>(`fetch(document.body.dataset.routePrefix + '/api/board', { headers: molisWorkControlHeaders() }).then(r => r.json()).then(board => board.goals[0].goal.goal_id)`);

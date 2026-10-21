@@ -12,9 +12,8 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       const nextDocument = parsed.querySelector("[data-document-pane]");
       const nextFooter = parsed.querySelector("[data-tree-footer]");
       const nextFilter = parsed.querySelector("[data-tree-filter]");
-      const nextCount = parsed.querySelector("[data-tree-count]");
       const nextDialog = parsed.querySelector("[data-create-dialog]");
-      // The tree footer and count are optional: the current layout has neither, and requiring them made every
+      // The tree footer is optional: the current layout has none, and requiring it made every
       // full-page fallback fail silently.
       if (!nextTree || !nextDocument) throw new Error("页面数据不完整");
 
@@ -43,6 +42,14 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
       // Called only after the Host rechecks selection and interaction guards.
       const apply = (refreshShellLinks) => {
         const createDraft = dialog.open ? readCreateDraft() : null;
+        // Keep only handwritten reasons for proposals still present, separately in the list and Goal detail.
+        // Server checks, item ids and button states always come from the new projection.
+        for (const [current, next] of [[treeScroll, nextTree], [documentPane, nextDocument]]) {
+          for (const form of current?.querySelectorAll("[data-goal-tree-decision-form][data-live-dirty=true]") || []) {
+            const fresh = next.querySelector('[data-live-form="' + form.dataset.liveForm + '"]');
+            if (fresh) { fresh.elements.reason.textContent = form.elements.reason.value; fresh.dataset.liveDirty = "true"; }
+          }
+        }
         documentPane.classList.add("is-syncing");
         if (treeScroll) treeScroll.innerHTML = nextTree.innerHTML;
         const currentSurface = documentPane.querySelector('[data-work-surface="goal"]');
@@ -55,7 +62,6 @@ export const GOALS_REFRESH_CLIENT_FACTORY_SCRIPT = `(host) => {
         if (nextFilter && treeFilter) treeFilter.innerHTML = nextFilter.innerHTML;
         const footer = document.querySelector("[data-tree-footer]");
         if (footer && nextFooter) footer.innerHTML = nextFooter.innerHTML;
-        if (nextCount) document.querySelector("[data-tree-count]").textContent = nextCount.textContent;
         refreshShellLinks();
         if (nextDialog) refreshCreateChoices(nextDialog, createDraft);
       };

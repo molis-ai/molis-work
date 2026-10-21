@@ -59,7 +59,7 @@ export interface FeedModuleOptions {
 /** The Feed tables, as one current schema; the host composes them into the project database baseline. */
 export const FEED_SCHEMA_SQL = `
     CREATE TABLE IF NOT EXISTS feed_items (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       item_id TEXT NOT NULL,
       source_id TEXT,
       signal_id TEXT,
@@ -91,7 +91,7 @@ export const FEED_SCHEMA_SQL = `
       ON feed_items(project_id, source_id, external_id)
       WHERE source_id IS NOT NULL AND external_id IS NOT NULL;
     CREATE TABLE IF NOT EXISTS feed_materials (
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       material_id TEXT NOT NULL,
       item_id TEXT NOT NULL,
       canonical_url TEXT,

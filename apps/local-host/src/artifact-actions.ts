@@ -1,4 +1,5 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { logPreviewFailure } from "./host-log.js";
 import { artifactsManifest, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-plugin-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactTypeDeclarations } from "@molis-ai/molis-work-app-workbench";
@@ -27,7 +28,7 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
         try {
           const content = await client.invoke(caller, preview, { artifact }) as FileContent;
           return content.encoding === "utf8" ? content.data : null;
-        } catch { return null; }
+        } catch (error) { logPreviewFailure(error, artifact.artifact_type_id); return null; }
       },
       // Plugin input ports that take a version's type (artifact-positioning, 2026-10-04); only a project whose plugins run has them.
       pluginInputs: async artifact => artifactPluginInputs(await runningProjectPlatform(runtime.store, runtime.project_id), artifact),
@@ -41,6 +42,9 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
       importDocument: (input, caller) => runWithMolisWorkHome(home, () => importLocalArtifactDocument({ ...input }, {
         projectId: runtime.project_id, actorId: caller.actor_id, ownerActorId: LOCAL_PERSON_ACTOR_ID, routePrefix: `/projects/${encodeURIComponent(runtime.project_id)}`,
         artifacts: runtime.coordinator.artifacts, signal: caller.signal,
+        // Downloading the speech model is the person's own yes: an Agent, MCP client, workflow or plugin passing true downloads nothing (S-39, PMAT-48).
+        allowModelDownload: caller.audience === "user" && input.source === "file" && input.allow_model_download === true,
+        ...caller.on_progress ? { onProgress: caller.on_progress } : {},
         beforeDispatch: () => caller.beforeEffect(),
         beforeSave: () => caller.beforeEffect(),
       })),

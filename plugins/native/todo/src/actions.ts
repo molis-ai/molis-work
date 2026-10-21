@@ -1,8 +1,8 @@
-import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
-import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStore } from "./store.js";
+import type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoStores } from "./store.js";
 import { selectView, todoFlags, viewCounts, type TodoFlag } from "./views.js";
 import { createTodoSearchHandlers, todoSearchActions } from "./search.js";
 import { createTodoHomeEventsHandler, todoHomeEventsAction } from "./home-events.js";
@@ -94,11 +94,13 @@ const resultSubject = { id: "item.id", revision: "item.revision" };
 /** How a change is taken back: the revert command, fed from this change's own output (D08: runs when asked, then 撤销). */
 const undoChange = { capability_id: "todo.changes.revert", version: 1, input: { change_id: "change_id" } };
 
-/** A thing to do, noted from anything the person selected: a write, so it is offered as a card they confirm. */
-export const TODO_FRAGMENT_CHOICES: readonly FragmentOfferChoice[] = [
-  { offer_id: "todo", title: "记成待办", intent: "advance", apply: "record", hint: "把选中的一件要做的事记成待办，并记下它出自哪里",
-    action: { capability_id: "todo.items.create", version: 1 }, granularities: ["range", "block"] },
-];
+/**
+ * 「记成待办」 for what the person has in hand (context-program §3.3, quick-create §7): a creation entry on `todo.items.create`.
+ * The offers query below computes its whole input from the selection without a model; it shows nothing on the bar by itself.
+ */
+const TODO_INTAKE = { intake_id: "todo", item_kind: TODO_SUBJECT_KIND, title: "待办", verb: "记成待办", material_field: "notes",
+  describe: "一件要推进的事：有人去做，可能有日期或在等谁；不是一个想法，也不是要留存的资料",
+  examples: ["下周三前把方案发给 Lee", "跟进报销进度", "约设计评审"], prepare: { capability_id: "todo.fragment.offers", version: 1 } } as const;
 
 export const todoActions = {
   list: define<ListInput, TodoListResult>("items.list", "列出待办", "按视图读取待办：today 今天要做、waiting 在等别人、unscheduled 没安排、upcoming 7 天内截止、all 全部进行中、closed 已完成或已取消。在项目里调用时范围是个人、暂未归类和这个项目的待办", "query",
@@ -108,7 +110,7 @@ export const todoActions = {
     object({ id }), object({ item, flags: array(flag), history: array(change), backlinks: array(object({ item_id: id, title: text, relation: nullable(relation) })) })),
   create: define<TodoCreateInput & { status?: TodoStatus }, { item: TodoItem; change_id: string; replayed: boolean }>("items.create", "新建待办", "记下一件要推进的事。日期只写原文或用户明确给出的，不猜；request_id 用于同一次请求的恢复，重试不会重复创建", "command",
     object({ ...fieldInput, status: { ...status, title: "状态" }, sources: { ...array(sourceInput), maxItems: 20, title: "来源与形成原因" }, request_id: { ...id, title: "请求号" } }, ["title"]),
-    object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" }, undo: undoChange }),
+    object({ item, change_id: id, replayed: { type: "boolean" } }), { result_subject: resultSubject, result_view: { summary: "已加入待办", title_pointer: "/item/title" }, undo: undoChange, intake: TODO_INTAKE }),
   update: define<TodoFields & Identity, { item: TodoItem; change_id: string | null }>("items.update", "修改待办", "只改给出的字段；带上读取时的 expected_revision，别处改过时拒绝而不覆盖", "command",
     object({ id, ...expected, ...fieldInput }, ["id"]), changed, { result_subject: resultSubject, result_view: { summary: "已修改待办", title_pointer: "/item/title" }, undo: undoChange }),
   status: define<Identity & { status: TodoStatus }, { item: TodoItem; change_id: string | null }>("items.status", "改待办状态", "改为待处理、进行中、等待他人、已完成或已取消。只在用户明确要求改状态时调用：“推进”“跟进”“帮我做”不等于改状态，需要时先提议、由用户决定；只在用户确认这件事做完时才标为已完成", "command",
@@ -138,7 +140,7 @@ export const todoActions = {
   searchEntries: todoSearchActions.entries,
   searchProjectEntries: todoSearchActions.projectEntries,
   subject: todoSearchActions.subject,
-  fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], TODO_FRAGMENT_CHOICES, "home"),
+  fragmentOffers: defineFragmentOffersAction("todo.fragment.offers", [FRAGMENT_ANY_OBJECT], "选中的内容可以记成待办", [...TODO_READ], [], "home"),
 };
 export const TODO_ACTIONS: readonly ActionDefinition[] = [...Object.values(todoActions), ...Object.values(todoOrganizeActions)];
 
@@ -160,8 +162,7 @@ export function prepareTodoFragmentOffers(input: FragmentOffersInput): FragmentA
 }
 export const TODO_ACTION_PERMISSIONS = [...new Set(TODO_ACTIONS.flatMap(definition => definition.action.permissions))];
 
-export interface TodoActionPorts {
-  withStore<T>(run: (store: TodoStore) => T): T;
+export interface TodoActionPorts extends TodoStores {
   /** Today in the person's time zone; tests pin it. */
   today?(): string;
   /** The current instant, for reminders; tests pin it. */
@@ -179,11 +180,12 @@ export function todoAccess(caller: ActionCallContext, everything = false): TodoA
 
 export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerBinding[] {
   const today = (value?: string) => value && isTodoDate(value) ? value : ports.today?.() ?? localDate();
-  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionCallContext) => O): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, execution: "sync", handle: (caller, input) => handle(input as I, caller),
+  const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
+    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller),
   });
+  const { read, write } = ports;
   return [
-    bind(todoActions.list, (input, caller) => ports.withStore(store => {
+    bind(todoActions.list, (input, caller) => read(store => {
       const access = todoAccess(caller, input.all_projects === true);
       const day = today(input.today);
       const query = input.query?.trim().toLocaleLowerCase() ?? "";
@@ -197,34 +199,34 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       return { today: day, project_id: todoCallerProject(caller), everything: access.everything, counts,
         items: selected.map(entry => ({ ...entry, flags: todoFlags(entry, day) })) };
     })),
-    bind(todoActions.get, (input, caller) => ports.withStore(store => {
+    bind(todoActions.get, (input, caller) => read(store => {
       const access = todoAccess(caller, caller.audience === "user");
       const entry = store.get(input.id, access);
       return { item: entry, flags: todoFlags(entry, today()), history: store.history(input.id, access),
         backlinks: store.backlinks(input.id, access).map(({ item: other, link: back }) => ({ item_id: other.id, title: other.title, relation: back.relation })) };
     })),
     bind(todoActions.fragmentOffers, input => ({ offers: prepareTodoFragmentOffers(input) })),
-    bind(todoActions.create, (input, caller) => ports.withStore(store => store.create(input, todoAccess(caller)))),
-    bind(todoActions.update, (input, caller) => ports.withStore(store => {
+    bind(todoActions.create, (input, caller) => write(caller, store => store.create(input, todoAccess(caller)))),
+    bind(todoActions.update, (input, caller) => write(caller, store => {
       const { id: target, expected_revision, ...patch } = input;
       return store.update(target, patch, expected_revision, todoAccess(caller, caller.audience === "user"));
     })),
-    bind(todoActions.status, (input, caller) => ports.withStore(store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.archive, (input, caller) => ports.withStore(store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.remove, (input, caller) => ports.withStore(store => {
+    bind(todoActions.status, (input, caller) => write(caller, store => store.setStatus(input.id, input.status, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.archive, (input, caller) => write(caller, store => store.setArchived(input.id, input.archived, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.remove, (input, caller) => write(caller, store => {
       store.delete(input.id, input.expected_revision, todoAccess(caller, caller.audience === "user"));
       return { deleted: true as const, id: input.id };
     })),
-    bind(todoActions.batch, (input, caller) => ports.withStore(store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.revert, (input, caller) => ports.withStore(store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.link, (input, caller) => ports.withStore(store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
-    bind(todoActions.dueReminders, (_input, caller) => ports.withStore(store => ({
+    bind(todoActions.batch, (input, caller) => write(caller, store => store.batch(input.ids, input.change, input.expected_revisions, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.revert, (input, caller) => write(caller, store => store.revert(input, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.link, (input, caller) => write(caller, store => store.link(input.id, { add: input.add, remove_link_id: input.remove_link_id }, input.expected_revision, todoAccess(caller, caller.audience === "user")))),
+    bind(todoActions.dueReminders, (_input, caller) => read(store => ({
       reminders: store.dueReminders(todoAccess(caller, caller.audience === "user"), ports.now?.()) }))),
-    bind(todoActions.acknowledgeReminder, (input, caller) => ports.withStore(store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
+    bind(todoActions.acknowledgeReminder, (input, caller) => write(caller, store => ({ item: store.acknowledgeReminder(input.id, todoAccess(caller, caller.audience === "user")) }))),
     bind(todoActions.dueWindow, (input, caller) => {
       assertDueReminderWindow(input);
       // The person's own reminders from every project and the personal space: reminders are for them, wherever the todo sits.
-      return ports.withStore(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
+      return read(store => ({ source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办" },
         reminders: store.list(todoAccess(caller, true))
           .filter(item => item.remind_at && item.reminder_acknowledged_at === null && item.archived_at === null
             && ["open", "doing", "waiting"].includes(item.status) && withinDueReminderWindow(item.remind_at, input))
@@ -233,7 +235,7 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
             subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.placement === "project" ? item.project_id : null,
             open: { surface: TODO_PROJECT_PLUGIN_ID, id: item.id } })) }));
     }),
-    bindHomeObjectMoveHandler(todoActions.move, (input, caller) => ports.withStore(store => {
+    bindHomeObjectMoveHandler(todoActions.move, (input, caller) => write(caller, store => {
       if (input.subject.kind !== TODO_SUBJECT_KIND) throw new ActionError("actions.input_invalid", "这里只能移动待办");
       // The person, across projects: the placement service calls at Home with their own authority.
       const access = todoAccess(caller, true);
@@ -244,9 +246,9 @@ export function createTodoActionHandlers(ports: TodoActionPorts): ActionHandlerB
       const { item } = store.move(current.id, to, access);
       return { subject: { kind: TODO_SUBJECT_KIND, id: item.id }, project_id: item.project_id ?? PERSONAL_SPACE_PROJECT_ID, revision: String(item.revision) };
     })),
-    createTodoHomeEventsHandler(ports.withStore, ports.now),
-    ...createTodoOrganizeHandlers({ withStore: ports.withStore, today: ports.today, completeText: ports.completeText, access: todoAccess,
+    createTodoHomeEventsHandler(read, ports.now),
+    ...createTodoOrganizeHandlers({ read, write, today: ports.today, completeText: ports.completeText, access: todoAccess,
       modelAvailability: () => ports.modelAvailability?.() ?? (ports.completeText ? { available: true } : { available: false, code: "actions.connection_required", reason: "请先配置可用的文字模型" }) }),
-    ...createTodoSearchHandlers(ports.withStore),
+    ...createTodoSearchHandlers(read),
   ];
 }

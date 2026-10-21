@@ -4,7 +4,7 @@
   "private": true,
   "description": "Personal knowledge import, reading, synthesis and source-grounded answers.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -27,6 +31,7 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*"
   },
   "molis-work": {
@@ -41,6 +46,7 @@
     "capabilities": [
       "cognia.ui-contribution.v1",
       "cognia.knowledge.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

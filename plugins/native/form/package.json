@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Forms workbench: questionnaire authoring, preview, submit, and results.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -42,6 +46,7 @@
     "capabilities": [
       "form.ui-contribution.v1",
       "form.http-routes.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

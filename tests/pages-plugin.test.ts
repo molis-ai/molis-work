@@ -19,9 +19,7 @@ import {
   PAGES_PROJECT_PLUGIN_ID,
   PAGES_STYLES,
   PAGES_TEMPLATES,
-  PagesPluginRouteTable,
   convertedBlocks,
-  createPagesRouteHandlers,
   deleteBlock,
   deleteRow,
   deleteSpan,
@@ -76,6 +74,7 @@ import {
   moveSpan,
   nudgeSpan,
   openPagesStore,
+  pagesActions,
   addTableColumn,
   moveTableColumn,
   moveTableEdge,
@@ -201,14 +200,6 @@ import {
 const PROJECT = "project-pages";
 const OTHER = "project-other";
 
-function projectQuery(): URLSearchParams {
-  return new URLSearchParams({ project_id: PROJECT });
-}
-
-function projectBody(body: Record<string, unknown> = {}): Record<string, unknown> {
-  return { project_id: PROJECT, ...body };
-}
-
 function saveFunctionSource(script: string): string {
   const start = script.indexOf("const save = async");
   const end = script.indexOf("const queueSave", start);
@@ -270,6 +261,7 @@ async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   }
 }
 
+// W5-10-PGC-01/02, W5-10-PGV-01/02: public imports and the built editor exercise the split commands and node views.
 test("标题里按回车落到正文开头", () => {
   const blank = pagesSchema.node("doc", null, [pagesSchema.node("paragraph")]);
   assert.equal(docStart(blank), 1);
@@ -327,10 +319,11 @@ test("按住 Alt 拖开会复制一块，原来的还在", () => {
   assert.deepEqual(pair!.content.content.map((node) => node.textContent), ["甲", "乙", "丙", "甲", "乙"]);
   assert.equal(placeCopySpan(doc, 0, 0, 99, 0), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /commitDrag\(editorView, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
-  assert.match(editor, /drag\.alt = event\.altKey/);
-  assert.match(editor, /previewCopySpan\(motion\.layoutSource/);
+  const drag = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag.ts", import.meta.url), "utf8");
+  const render = readFileSync(new URL("../plugins/native/pages/src/editor-block-drag-render.ts", import.meta.url), "utf8");
+  assert.match(drag, /commitDrag\(view, anchor, head, gap, level,\s*tr => tr\.setMeta\(hoverKey, \{ span: null, pos: -1, dragging: false \}\), alt\)/);
+  assert.match(drag, /drag\.alt = event\.altKey/);
+  assert.match(render, /previewCopySpan\(motion\.layoutSource/);
   assert.match(PAGES_STYLES, /pages-block-ghost\.is-copy::after/);
 });
 
@@ -457,11 +450,13 @@ test("方向键碰到图片或横线会先选中那一块", () => {
   const pair = pagesSchema.node("doc", null, [text("甲"), text("乙")]);
   const between = EditorState.create({ schema: pagesSchema, doc: pair, selection: TextSelection.create(pair, 2) });
   assert.equal(selectNeighborAtom(between, 1), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const down = editor.indexOf("leaveCodeDown(state, dispatch)");
-  const up = editor.indexOf("leaveCodeUp(state, dispatch)");
-  assert.ok(editor.indexOf("selectNeighborAtom(state, 1)", down) > down);
-  assert.ok(editor.indexOf("selectNeighborAtom(state, -1)", up) > up);
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
+  assert.match(editor, /ArrowDown: verticalArrow\(1\)/);
+  assert.match(editor, /ArrowUp: verticalArrow\(-1\)/);
+  const vertical = editor.slice(editor.indexOf("function verticalArrow("), editor.indexOf("function tabKey("));
+  assert.match(vertical, /direction > 0 \? leaveCodeDown : leaveCodeUp/);
+  const leave = vertical.indexOf("leaveCode(state, dispatch)");
+  assert.ok(leave > 0 && vertical.indexOf("selectNeighborAtom(state, direction)") > leave);
 });
 
 test("点待办的勾选框会翻转这一条", () => {
@@ -490,9 +485,11 @@ test("点待办的勾选框会翻转这一条", () => {
     doc: pagesSchema.node("doc", null, [pagesSchema.node("paragraph", null, [pagesSchema.text("甲")])]),
   });
   assert.ok(flipTaskAt(prose, 0) === null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-node-layout.ts", import.meta.url), "utf8");
   const start = editor.indexOf("function taskNodeView");
-  const body = editor.slice(start, editor.indexOf("\nfunction ", start + 1));
+  const end = editor.indexOf("\nexport function ", start + 1);
+  assert.ok(start >= 0 && end > start);
+  const body = editor.slice(start, end);
   assert.match(body, /flipTaskAt\(view\.state, pos\)/);
   assert.equal(body.includes("addEventListener(\"change\""), false);
 });
@@ -552,7 +549,7 @@ test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
   assert.match(html, /data-pages-confirm/);
   // The editor kernel loads with Pages' own client when its surface opens, not with every page (#150).
   assert.doesNotMatch(html, /molis-work-pages-editor\.js/);
-  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages",\["\/assets\/molis-work-pages-editor\.js"\]\]/);
+  assert.match(renderMolisWorkWorkbenchClientScript(), /\["pages","pages",\["\/assets\/molis-work-pages-editor\.js"\]\]/);
   assert.ok(pluginWorkbenchClientAsset("pages"), "Pages' client is served on its own");
   const pages = html.slice(html.indexOf('data-pages="workbench"'), html.indexOf("data-pages-confirm"));
   assert.match(pages, /还没有文档/);
@@ -732,9 +729,8 @@ test("工作台客户端保存不重挂内核", () => {
 test("Pages：新建、改标题和正文、重开还在", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    const created = await routes.handle({ method: "POST", pathname: "/api/pages", query: projectQuery(), body: projectBody({ title: "周记" }) });
-    const document = (created?.body as { document: { id: string; project_id: string; title: string; body: { type: string } } }).document;
+    const { actions } = pagesTestPorts(store, PROJECT);
+    const { document } = await actions.invoke(pagesActions.create, { title: "周记" });
     assert.equal(document.project_id, PROJECT);
     assert.equal(document.title, "周记");
     assert.equal(document.body.type, "doc");
@@ -745,12 +741,7 @@ test("Pages：新建、改标题和正文、重开还在", async () => {
         content: [{ type: "text", marks: [{ type: "strong" }], text: "加粗一段" }],
       }],
     };
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ title: "周记 · 改过", body }),
-    });
+    await actions.invoke(pagesActions.update, { id: document.id, title: "周记 · 改过", body });
     store.close();
 
     const reopened = openPagesStore(home);
@@ -770,12 +761,10 @@ test("文档按项目隔离，缺项目拒绝，跨项目找不到", async () =>
     assert.deepEqual(store.list(PROJECT).map((item) => item.title), ["项目甲"]);
     assert.deepEqual(store.list(OTHER).map((item) => item.title), ["项目乙"]);
     assert.throws(() => store.get(pageA.id, OTHER));
-    await assert.rejects(() => new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT))).handle({
-      method: "GET",
-      pathname: "/api/pages",
-      query: new URLSearchParams({ project_id: OTHER }),
-      body: {},
-    }), { code: "actions.scope_mismatch" });
+    // The project a caller works in is the bound one: it reads its own page and gets the other project's page as missing.
+    const { actions } = pagesTestPorts(store, PROJECT);
+    assert.deepEqual((await actions.invoke(pagesActions.list, {})).documents.map((item) => item.title), ["项目甲"]);
+    await assert.rejects(() => actions.invoke(pagesActions.get, { id: store.list(OTHER)[0]!.id }), { code: "pages.not_found" });
     store.close();
   });
 });
@@ -1691,7 +1680,7 @@ test("折叠块标题按回车，后半段进到里面，关着的会打开", ()
   });
   assert.equal(run(caret(body, inside), enterInToggle).ok, false);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const enter = editor.indexOf("Enter: chainCommands");
   const leave = editor.indexOf("exitWrappedBlock", enter);
   assert.ok(editor.indexOf("enterInToggle", enter) > enter);
@@ -1744,9 +1733,10 @@ test("点走斜杠或引用菜单会清掉没选中的记号", () => {
   assert.equal(cleared.doc.child(0).textContent, "");
   assert.equal(cleared.doc.child(1).textContent, "乙");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-insert-menu.ts", import.meta.url), "utf8");
   const slash = editor.indexOf("function slashPlugin");
   const mention = editor.indexOf("function mentionPlugin");
+  assert.ok(slash >= 0 && mention > slash);
   assert.ok(editor.indexOf("dismissedMenuRange(", slash) > slash);
   assert.ok(editor.indexOf("dismissedMenuRange(", slash) < mention);
   assert.ok(editor.indexOf("dismissedMenuRange(", mention) > mention);
@@ -1766,8 +1756,8 @@ test("块菜单开着时上下键移动高亮，回车才执行", () => {
   assert.equal(blockMenuKey(1, 6, "ArrowLeft"), "stay");
   assert.equal(blockMenuKey(1, 6, "ArrowLeft", true), "back");
   assert.match(PAGES_STYLES, /data-pages-menu-open/);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /addEventListener\("keydown", onKey, true\)/);
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  assert.match(handle, /on\(document, "keydown", onKey, \{ capture: true \}\)/);
   assert.match(PAGES_STYLES, /pages-block-menu \.mw-menu__item\.is-on/);
 });
 
@@ -1777,14 +1767,16 @@ test("鼠标移到菜单项上，高亮跟着走", () => {
   assert.equal(hoverMenuIndex(0, -1, 5), null);
   assert.equal(hoverMenuIndex(0, 5, 5), null);
   assert.equal(hoverMenuIndex(0, 0, 0), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const slash = editor.indexOf("function slashPlugin");
-  const mention = editor.indexOf("function mentionPlugin");
-  const block = editor.indexOf("pages-block-menu");
-  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) > slash);
-  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) < mention);
-  assert.ok(editor.indexOf("hoverMenuIndex(current.index, index, items.length)", mention) > mention);
-  assert.ok(editor.indexOf("hoverMenuIndex(current, items.indexOf(button), items.length)", block) > block);
+  const menus = readFileSync(new URL("../plugins/native/pages/src/editor-insert-menu.ts", import.meta.url), "utf8");
+  const blocks = readFileSync(new URL("../plugins/native/pages/src/editor-block-menu.ts", import.meta.url), "utf8");
+  const slash = menus.indexOf("function slashPlugin");
+  const mention = menus.indexOf("function mentionPlugin");
+  const block = blocks.indexOf("pages-block-menu");
+  assert.ok(slash >= 0 && mention > slash && block >= 0);
+  assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) > slash);
+  assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", slash) < mention);
+  assert.ok(menus.indexOf("hoverMenuIndex(current.index, index, items.length)", mention) > mention);
+  assert.ok(blocks.indexOf("hoverMenuIndex(current, items.indexOf(button), items.length)", block) > block);
 });
 
 test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
@@ -1803,19 +1795,27 @@ test("Cmd+/ 打开光标所在块的菜单，Tab 留在编辑器里", () => {
     pagesSchema.node("callout", { tone: "cyan" }, [text("甲")]),
   ]);
   assert.equal(blockMenuTarget(callout, 2), 1);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const keys = editor.indexOf("blockMenuShortcut(event.key");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
+  const plugin = readFileSync(new URL("../plugins/native/pages/src/editor-block-plugin.ts", import.meta.url), "utf8");
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  const keys = plugin.indexOf("blockMenuShortcut(event.key");
   assert.ok(keys > 0);
-  assert.ok(editor.indexOf("openMenu: true", keys) > keys);
-  const tick = editor.indexOf("hover.menuTick !== menuTick");
-  assert.ok(editor.indexOf("openMenu()", tick) > tick);
-  const tab = editor.indexOf("Tab: (state, dispatch, current)");
-  const shift = editor.indexOf("\"Shift-Tab\":", tab);
-  assert.match(editor.slice(tab, shift), /indentListItem\(state, dispatch\)/);
-  assert.match(editor.slice(tab, shift), /indentUnderPrevious\(state,/);
-  assert.match(editor.slice(tab, shift), /return true/);
-  assert.match(editor.slice(shift, shift + 700), /outdentListItem\(state, dispatch\)/);
-  assert.match(editor.slice(shift, shift + 700), /outdentFromContainer\(state,/);
+  assert.ok(plugin.indexOf("openMenu: true", keys) > keys);
+  const tick = handle.indexOf("hover.menuTick !== menuTick");
+  assert.ok(handle.indexOf("openMenu()", tick) > tick);
+  // W5-10-PGK-01: both directions use the same ordered Tab handler.
+  assert.match(editor, /Tab: tabKey\(1\)/);
+  assert.match(editor, /"Shift-Tab": tabKey\(-1\)/);
+  const tab = editor.slice(editor.indexOf("function tabKey("));
+  assert.match(tab, /direction > 0 \? insertCodeIndent : removeCodeIndent/);
+  assert.match(tab, /direction > 0 \? indentListItem : outdentListItem/);
+  assert.match(tab, /direction > 0 \? indentUnderPrevious : outdentFromContainer/);
+  const cell = tab.indexOf("cellNav(current, direction)");
+  const code = tab.indexOf("code(state, dispatch)");
+  const list = tab.indexOf("list(state, dispatch)");
+  const nest = tab.indexOf("nest(state,");
+  assert.ok(cell > 0 && code > cell && list > code && nest > list);
+  assert.match(tab.slice(nest), /if \(changed && dispatch\) dispatch\(changed\.setMeta\(hoverKey, \{ span: null \}\)\.scrollIntoView\(\)\);\s*return true;/);
 });
 
 test("握把跟着光标，鼠标停在别的块上时才让开", () => {
@@ -1887,8 +1887,8 @@ test("划过整块时按块选中，半句仍是文字", () => {
     if (node.type.name === "paragraph" && node.textContent === "乙") paraB = pos;
   });
   assert.deepEqual(blockSpanFromRange(callout, inside, insideEnd), { anchor: paraA, head: paraB });
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.match(editor, /blockSpanFromRange\(tr\.doc, tr\.selection\.from, tr\.selection\.to\)/);
+  const plugin = readFileSync(new URL("../plugins/native/pages/src/editor-block-plugin.ts", import.meta.url), "utf8");
+  assert.match(plugin, /blockSpanFromRange\(tr\.doc, tr\.selection\.from, tr\.selection\.to\)/);
 });
 
 test("选中几块再删除或复制，动的是整组", () => {
@@ -1897,7 +1897,7 @@ test("选中几块再删除或复制，动的是整组", () => {
   assert.equal(spanIsGroup(doc, 0, para("甲").nodeSize), true);
   assert.equal(spanIsGroup(doc, 0, 0), false);
   assert.equal(spanIsGroup(doc, -1, para("甲").nodeSize), false);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const backspace = editor.indexOf("dropHoveredGroup(editor)");
   const single = editor.indexOf("dropSelectedBlock, moveTableEdge(\"left\")");
   const duplicate = editor.indexOf("duplicateHoveredGroup(view)");
@@ -2472,7 +2472,7 @@ test("按住 Shift 粘贴只留下文字，标题记号和网址都不会变块"
   assert.equal(coded.doc.child(0).type.name, "code_block");
   assert.equal(coded.doc.child(0).textContent, "ax\nyb");
   assert.equal(pastePlain(empty, ""), null);
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-paste.ts", import.meta.url), "utf8");
   const gate = editor.indexOf("const plainPaste");
   const plain = editor.indexOf("pastePlain(current.state, text)");
   const url = editor.indexOf("pasteUrl(current.state, text)");
@@ -2771,8 +2771,13 @@ test("浮层放不下就翻到另一边，菜单里的当前项滚进视野", ()
   assert.equal(scrollChildIntoView({ scrollTop: 30, clientHeight: 100 }, { offsetTop: 40, offsetHeight: 20 }), 30);
   assert.equal(scrollShouldFollow(null, null), true);
   const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  assert.equal(editor.match(/followScroll\(menu/g)?.length, 3);
-  assert.match(editor, /followScroll\(linkPreview/);
+  const menus = readFileSync(new URL("../plugins/native/pages/src/editor-insert-menu.ts", import.meta.url), "utf8");
+  const handle = readFileSync(new URL("../plugins/native/pages/src/editor-block-handle.ts", import.meta.url), "utf8");
+  assert.equal(handle.match(/followScroll\(menu/g)?.length, 1);
+  assert.doesNotMatch(editor, /followScroll\(menu/);
+  assert.equal(menus.match(/followScroll\(menu/g)?.length, 2);
+  const previews = readFileSync(new URL("../plugins/native/pages/src/editor-previews.ts", import.meta.url), "utf8");
+  assert.match(previews, /followScroll\(linkPreview/);
 });
 
 test("代码块空行回车走出去，快捷键只翻转当前待办", () => {
@@ -4171,7 +4176,7 @@ test("选中几块再按回车，空段落开在最后一块下面", () => {
   assert.equal(nested.doc.child(0).child(2).textContent, "");
   assert.equal(nested.doc.child(1).textContent, "丙");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   const enter = editor.indexOf("Enter: chainCommands(");
   const selected = editor.indexOf("insertAfterSelectedBlock(state)", enter);
   assert.ok(editor.indexOf("insertAfterSpan(state, group.anchor, group.head)", enter) > enter);
@@ -4200,7 +4205,7 @@ test("选中几块再按 Shift 回车，在最后一块末尾换行", () => {
   assert.equal(withLine.doc.child(1).textContent, "甲\n");
   assert.equal(withLine.doc.child(1).attrs.language, "typescript");
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-keyboard.ts", import.meta.url), "utf8");
   assert.match(editor, /hardBreakAtSpanEnd\(state, group\.anchor, group\.head\)/);
   assert.ok(editor.indexOf("return insertHardBreak(state, dispatch)") > editor.indexOf("hardBreakAtSpanEnd(state, group.anchor, group.head)"));
 });
@@ -4240,8 +4245,10 @@ test("选中几块再粘贴，换成贴进来的块", () => {
   assert.equal(literal?.[0].textContent, "# 标题");
   assert.equal(nodesForSpanPaste("", false), null);
 
-  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-browser.ts", import.meta.url), "utf8");
-  const paste = editor.indexOf("handlePaste(current, event)");
+  // W5-10-PGP-01: paste order belongs to the shared clipboard implementation.
+  const editor = readFileSync(new URL("../plugins/native/pages/src/editor-paste.ts", import.meta.url), "utf8");
+  const paste = editor.indexOf("handlePaste(current: EditorView, event: ClipboardEvent)");
+  assert.ok(paste >= 0);
   const markdown = editor.indexOf("pasteMarkdown(current.state, text)", paste);
   assert.ok(editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste) > paste);
   assert.ok(markdown > editor.indexOf("replaceSpanWithNodes(current.state, group.anchor, group.head, nodes)", paste));
@@ -5190,56 +5197,22 @@ test("WI3 块进 schema，十份模板都能被内核吃进去", () => {
   }
 });
 
-test("HTTP 能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
+test("动作能从模板新建、改收藏，搜和文件夹入口挂在工作台", async () => {
   await withHome(async (home) => {
     const store = openPagesStore(home);
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    const templates = await routes.handle({ method: "GET", pathname: "/api/pages/templates", query: projectQuery(), body: {} });
-    assert.equal((templates?.body as { templates: Array<{ id: string }> }).templates.length, 10);
-    const created = await routes.handle({
-      method: "POST",
-      pathname: "/api/pages",
-      query: projectQuery(),
-      body: projectBody({ template_id: "weekly-report" }),
-    });
-    const document = (created?.body as { document: { id: string; title: string; starred: boolean } }).document;
+    const { actions } = pagesTestPorts(store, PROJECT);
+    assert.equal((await actions.invoke(pagesActions.templates, {})).templates.length, 10);
+    const { document } = await actions.invoke(pagesActions.create, { template_id: "weekly-report" });
     assert.equal(document.title, "周报");
-    const starred = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ starred: true }),
-    });
-    assert.equal((starred?.body as { document: { starred: boolean } }).document.starred, true);
-    const folder = await routes.handle({
-      method: "POST",
-      pathname: "/api/pages/folders",
-      query: projectQuery(),
-      body: projectBody({ title: "产品" }),
-    });
-    const folderId = (folder?.body as { folder: { id: string; title: string } }).folder.id;
-    assert.equal((folder?.body as { folder: { title: string } }).folder.title, "产品");
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/folders/${folderId}`,
-      query: projectQuery(),
-      body: projectBody({ title: "产品组" }),
-    });
-    const moved = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${document.id}`,
-      query: projectQuery(),
-      body: projectBody({ folder_id: folderId }),
-    });
-    assert.equal((moved?.body as { document: { folder_id: string } }).document.folder_id, folderId);
-    await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/folders/${folderId}/delete`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    const listed = await routes.handle({ method: "GET", pathname: "/api/pages", query: projectQuery(), body: {} });
-    const payload = listed?.body as { documents: Array<{ starred: boolean; folder_id: string }>; folders: unknown[] };
+    const { document: starred } = await actions.invoke(pagesActions.update, { id: document.id, starred: true });
+    assert.equal(starred.starred, true);
+    const { folder } = await actions.invoke(pagesActions.createFolder, { title: "产品" });
+    assert.equal(folder.title, "产品");
+    await actions.invoke(pagesActions.updateFolder, { id: folder.id, title: "产品组" });
+    const { document: moved } = await actions.invoke(pagesActions.update, { id: document.id, folder_id: folder.id });
+    assert.equal(moved.folder_id, folder.id);
+    await actions.invoke(pagesActions.deleteFolder, { id: folder.id });
+    const payload = await actions.invoke(pagesActions.list, {});
     assert.equal(payload.documents[0]?.starred, true);
     assert.equal(payload.documents[0]?.folder_id, "");
     assert.deepEqual(payload.folders, []);
@@ -5318,74 +5291,37 @@ test("AI 缺模型拒绝，配置模型返回候选，Promote 经统一动作发
       },
     });
     const published: Array<{ page_id: string; version: number; goal_id: string }> = [];
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT, {
+    const { actions } = pagesTestPorts(store, PROJECT, {
       completeText: async () => "先写目标，再写范围。",
       publishArtifact: (input) => {
         published.push({ page_id: input.page_id, version: input.version, goal_id: input.goal_id });
         return { artifact_id: "pages-" + input.page_id, version: input.version };
       },
-    })));
-    const linked = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-SHIP" }),
     });
-    assert.equal((linked?.body as { document: { goal_id: string } }).document.goal_id, "GOAL-SHIP");
-    const promoted = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/promote`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-SHIP" }),
-    });
-    const document = (promoted?.body as { document: { artifact_id: string; artifact_version: number } }).document;
+    const { document: linked } = await actions.invoke(pagesActions.update, { id: created.id, goal_id: "GOAL-SHIP" });
+    assert.equal(linked.goal_id, "GOAL-SHIP");
+    const { document } = await actions.invoke(pagesActions.promote, { id: created.id, goal_id: "GOAL-SHIP" });
     assert.equal(document.artifact_id, "pages-" + created.id);
     assert.equal(document.artifact_version, 1);
     assert.deepEqual(published[0], { page_id: created.id, version: 1, goal_id: "GOAL-SHIP" });
-    const again = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/promote`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    assert.equal((again?.body as { document: { artifact_version: number } }).document.artifact_version, 2);
-    const extracted = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/extract`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    const extractBody = extracted?.body as { cards: number; created: Array<{ title: string }> };
+    const { document: again } = await actions.invoke(pagesActions.promote, { id: created.id });
+    assert.equal(again.artifact_version, 2);
+    const extractBody = await actions.invoke(pagesActions.extract, { id: created.id });
     assert.equal(extractBody.cards, 1);
     assert.equal(extractBody.created.length, 1);
-    const extractedAgain = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/extract`,
-      query: projectQuery(),
-      body: projectBody(),
-    });
-    assert.equal((extractedAgain?.body as { created: unknown[] }).created.length, 0);
+    const extractedAgain = await actions.invoke(pagesActions.extract, { id: created.id });
+    assert.equal(extractedAgain.created.length, 0);
     assert.equal(store.list(PROJECT).filter((item) => item.title.includes("完成")).length, 1);
-    const ai = await routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${created.id}/ai`,
-      query: projectQuery(),
-      body: projectBody({ command: "outline", text: "先写目标再写范围" }),
-    });
-    assert.equal("stub" in (ai?.body as object), false);
-    assert.equal((ai?.body as { text: string }).text, "先写目标，再写范围。");
+    const ai = await actions.invoke(pagesActions.ai, { id: created.id, command: "outline", text: "先写目标再写范围" });
+    assert.equal("stub" in ai, false);
+    assert.equal(ai.text, "先写目标，再写范围。");
     store.close();
   });
   await withHome(async (home) => {
     const store = openPagesStore(home);
     const page = store.create({ project_id: PROJECT, title: "只挂" });
-    const routes = new PagesPluginRouteTable(createPagesRouteHandlers(pagesTestPorts(store, PROJECT)));
-    await assert.rejects(routes.handle({
-      method: "POST",
-      pathname: `/api/pages/${page.id}/promote`,
-      query: projectQuery(),
-      body: projectBody({ goal_id: "GOAL-ONLY" }),
-    }), { code: "pages.unavailable" });
+    const { actions } = pagesTestPorts(store, PROJECT);
+    await assert.rejects(actions.invoke(pagesActions.promote, { id: page.id, goal_id: "GOAL-ONLY" }), { code: "pages.unavailable" });
 
     assert.notEqual(store.get(page.id, PROJECT).goal_id, "GOAL-ONLY");
     store.close();

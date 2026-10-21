@@ -3,6 +3,7 @@ import type {
   AddGoalRelationInput,
   AddProjectGuidanceInput,
   CreateGoalInput,
+  GoalEventAcknowledgementsApi,
   GoalEventFactsApi,
   PlanningMethodPack,
   GoalsCommandApi,
@@ -27,7 +28,10 @@ import { ConfirmedRelationCommands } from "./confirmed-relations.js";
 import { GoalLifecycleCommands } from "./lifecycle-commands.js";
 import { GoalsPlanningEngine } from "./planning/engine.js";
 import { GoalsQueryService } from "./query.js";
+import { GoalEventAcknowledgements } from "./event-acknowledgement.js";
 import { GoalEventFacts } from "./event-facts.js";
+import { GoalEventFactsRepository } from "./event-facts-repository.js";
+import { GoalEventStateRepository } from "./event-state-repository.js";
 import { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
 
 export const packageDescriptor = {
@@ -65,26 +69,27 @@ export interface GoalsModuleOptions extends GoalsCommandContextOptions {
 }
 
 export class GoalsModule {
-  readonly repository: GoalsRepository;
   readonly commands: GoalsCommandApi;
   readonly lifecycle: GoalsLifecycleApi;
   readonly planning: GoalsPlanningEngine;
   readonly query: GoalsQueryApi;
   readonly events: GoalEventFactsApi;
+  readonly acknowledgements: GoalEventAcknowledgementsApi;
 
   constructor(
     db: GoalsSqliteDatabase,
     hooks: GoalsModuleHooks,
     options: GoalsModuleOptions = {},
   ) {
-    this.repository = new GoalsRepository(db);
-    const context = new GoalsCommandContext(this.repository, options);
-    const query = new GoalsQueryService(this.repository, options);
+    const repository = new GoalsRepository(db);
+    const context = new GoalsCommandContext(repository, options);
+    const query = new GoalsQueryService(repository, options);
     this.planning = new GoalsPlanningEngine(
       context,
       options.personalPlanningMethodPacks,
     );
     this.events = new GoalEventFacts(context);
+    this.acknowledgements = new GoalEventAcknowledgements(context, new GoalEventFactsRepository(db), new GoalEventStateRepository(db));
     const lifecycle = new GoalLifecycleCommands(context, { validateRelationGraph: hooks.validateRelationGraph });
     const goals = new GoalCommands(context, {
       validateRelationGraph: hooks.validateRelationGraph,
@@ -137,11 +142,8 @@ export class GoalsModule {
   }
 }
 
-export { GOAL_BOARDS_SCHEMA_SQL, GOALS_SCHEMA_SQL } from "./schema.js";
 export { GoalLifecycleCommands } from "./lifecycle-commands.js";
 export { GoalEventFacts } from "./event-facts.js";
-export { GOAL_EVENT_FACTS_SCHEMA_SQL } from "./event-facts-schema.js";
-export { GOAL_EVENT_STATE_SCHEMA_SQL } from "./event-state-schema.js";
 export { goalHasEventStateOwner } from "./event-state-repository.js";
 export {
   GoalsPlanningEngine,
@@ -200,8 +202,8 @@ export type {
   GoalsQueryApi,
   SaveProjectPlanningMethodInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-export { GoalsRepository, type GoalsSqliteDatabase } from "./repository.js";
-export { GOAL_INPUT_BINDINGS_SCHEMA_SQL, GoalInputBindings } from "./input-bindings.js";
+export type { GoalsSqliteDatabase } from "./repository.js";
+export { GoalInputBindings } from "./input-bindings.js";
 export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
@@ -218,3 +220,5 @@ export function createGoalReadServices(db: GoalsSqliteDatabase): {
 }
 
 export { DEFAULT_GOAL_POLICY } from "./query.js";
+/** The module's refusals as declared, each with its kind (specs/repository-anti-corruption W3-02). */
+export { goalErrors } from "./errors.js";

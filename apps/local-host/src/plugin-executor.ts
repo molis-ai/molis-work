@@ -25,13 +25,17 @@ export interface PluginHostExecutorOptions {
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
   /**
+   * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
+   * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
+   */
+  projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
+  filesFor?(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginFilesDeclaration | undefined;
+  /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its
    * plugin_id). Without it, or for a definition it does not name, the installation id. Whatever registers the Plugin's actions
    * (the Runtime's `actions.providerId`) has to give the same answer: this is how the Plugin's own client finds them.
    */
   providerFor?(definition: PluginDefinition, installId: string): string;
-  /** Host start-list qualification of this actual definition; the returned release withdraws this session before stop. */
-  qualifyCaller?(definition: PluginDefinition, caller: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller): (() => void) | undefined;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;

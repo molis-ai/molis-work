@@ -22,7 +22,6 @@ import type {
   GoalEventTimelinePage,
   GoalEventTypeDefinitionInput,
   GoalEventTrustedDecisionRecord,
-  GoalRecord,
   GoalReportWorkEventRecord,
   GoalWorkEventRecord,
   RecordGoalProgressSummaryInput,
@@ -48,6 +47,8 @@ import { mapReportEvent, mapStoredWorkEvent, mapTimelineItem } from "./event-fac
 import type { GoalEventCompletionContext } from "./event-state-completion.js";
 import { GoalEventIntent } from "./event-intent.js";
 import { resolveGoalPolicy } from "./query.js";
+import { eventActorKind } from "./event-state-write.js";
+import { requireWritableGoal } from "./goal-writable.js";
 
 const DEFAULT_PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
@@ -68,7 +69,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       this.records,
       new GoalEventStateRepository(context.repository.db),
       {
-        requireWritableGoal: (projectId, goalId) => this.requireWritableGoal(projectId, goalId),
+        requireWritableGoal: (projectId, goalId) => requireWritableGoal(this.context, projectId, goalId),
         actorKind: (kind) => this.actorKind(kind),
         configVersion: (projectId, goalId) => this.records.getConfig(projectId, goalId)?.current_version ?? 0,
         readCurrentRequirements: (projectId, goalId) => this.readCurrentRequirements(projectId, goalId),
@@ -201,7 +202,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       );
       if (replay) return { ...replay, replayed: true };
 
-      const goal = this.requireWritableGoal(input.project_id, input.goal_id);
+      const goal = requireWritableGoal(this.context, input.project_id, input.goal_id);
       const current = this.records.getConfig(input.project_id, input.goal_id);
       const currentVersion = current?.current_version ?? 0;
       if (input.expected_version !== currentVersion) {
@@ -310,7 +311,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       );
       if (replay) return { ...replay, replayed: true };
 
-      const goal = this.requireWritableGoal(input.project_id, input.goal_id);
+      const goal = requireWritableGoal(this.context, input.project_id, input.goal_id);
       if (!this.state.isEventStateOwner(goal.project_id, goal.goal_id)) {
         throw goalErrors["goals.event_state.not_owner"]("这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用");
       }
@@ -566,18 +567,6 @@ export class GoalEventFacts implements GoalEventFactsApi {
     return this.state.recordNote(input);
   }
 
-  private requireWritableGoal(projectId: string, goalId: string): GoalRecord {
-    this.context.requireBoard(projectId);
-    const goal = this.context.requireGoal(projectId, goalId);
-    if (goal.trashed_at) {
-      throw goalErrors["goals.goal.trashed"]("回收站中的 Goal 不能登记事件配置或上报工作事实");
-    }
-    if (goal.archived_at) {
-      throw goalErrors["goals.goal.archived"]("已归档的 Goal 不能登记事件配置或上报工作事实");
-    }
-    return goal;
-  }
-
   private configView(projectId: string, goalId: string): GoalEventConfigView {
     const current = this.records.getConfig(projectId, goalId);
     return {
@@ -607,9 +596,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
   }
 
   private actorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null {
-    if (kind == null) return null;
-    if (kind !== "user" && kind !== "runtime") throw goalErrors["goals.event_report.invalid_actor_kind"]("actor_kind 只能是 user 或 runtime");
-    return kind;
+    return eventActorKind(kind);
   }
 
 }

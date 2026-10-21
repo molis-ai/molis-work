@@ -6,12 +6,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import * as goalsPackage from "@molis-ai/molis-work-module-goals";
 import {
   GoalsModule,
 } from "@molis-ai/molis-work-module-goals";
 
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
   return {
@@ -37,11 +39,13 @@ test("Goals public Command API owns Goal, relation, and Guidance writes", () => 
   try {
     new GoalProjectApplication(store).initializeBoard({
       project_id: "board-module",
-      title: "Goals Module",
       actor_id: "user-1",
       idempotency_key: "initialize",
     });
     const goals = new GoalsModule(store.db, {});
+    // W5-08-MOD-03/04: only public business services are available and own the writes below.
+    assert.equal("GoalsRepository" in goalsPackage, false);
+    assert.equal("repository" in goals, false);
 
     const parent = goals.commands.createGoal("board-module", acceptedGoal("goal-parent", "父 Goal", "父结果"), {
       actor_id: "user-1",
@@ -128,7 +132,8 @@ test("Goals public Lifecycle API owns archive and trash", () => {
   const store = new LocalProjectDatabase(join(directory, "molis-work.sqlite"));
   try {
     const goals = new GoalsModule(store.db, {});
-    const initialize = { project_id: "board-lifecycle", title: "Goals Lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
+    const initialize = { project_id: "board-lifecycle", actor_id: "user-1", idempotency_key: "initialize" };
+    writeProjectRoot(store.db, "board-lifecycle", "2026-10-20T00:00:00.000Z");
     store.db.exec(`CREATE TRIGGER reject_board_event BEFORE INSERT ON events
       WHEN NEW.type = 'board.created' BEGIN SELECT RAISE(ABORT, 'board event unavailable'); END`);
     assert.throws(() => goals.commands.initializeBoard(initialize), /board event unavailable/u);
@@ -137,9 +142,7 @@ test("Goals public Lifecycle API owns archive and trash", () => {
     const initialized = goals.commands.initializeBoard(initialize);
     assert.equal(initialized.replayed, false);
     assert.deepEqual(goals.commands.initializeBoard(initialize), { ...initialized, replayed: true });
-    assert.throws(() => goals.commands.initializeBoard({ ...initialize, title: "Changed" }),
-      (error: unknown) => error instanceof ActionError && error.code === "goals.request.idempotency_key_reused");
-    assert.equal(goals.query.getBoard("board-lifecycle")?.title, "Goals Lifecycle");
+    assert.equal(goals.query.getBoard("board-lifecycle")?.project_id, "board-lifecycle");
     assert.equal(store.db.prepare("SELECT COUNT(*) AS count FROM events WHERE project_id = ? AND type = 'board.created'")
       .get("board-lifecycle")?.count, 1, "retry does not duplicate the Board event");
     goals.commands.createGoal("board-lifecycle", acceptedGoal("goal-lifecycle", "Lifecycle Goal", "生命周期迁移无损"), {

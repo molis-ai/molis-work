@@ -23,7 +23,7 @@ async function beside(b: IssueBrowser, width: number, name: string) {
 }
 
 test("ISSUE-35 in a project the chord and the button summon Issue from the page and from inside other frames, and put it away from inside", { timeout: 120_000 }, async t => {
-  const b = await openGoalBrowser(t, "user", undefined, null); if (!b) return;
+  const b = await openGoalBrowser(t, "user"); if (!b) return;
   await issueModel(t, b.homeDirectory);
   const v = issueView(b, "issue-global-navigation");
   await v.viewport(1440); await v.go(`/projects/${b.projectId}/?desktop=1`);
@@ -55,8 +55,8 @@ test("ISSUE-35 in a project the chord and the button summon Issue from the page 
   assert.equal(await v.ask("$('[data-issue-composer] [name=description]').value"), "项目页里写了一半", "the draft was kept while closed");
   // The discussion is its own app in a frame; typing there, the chord still reaches the shell.
   await b.evaluate("document.dispatchEvent(new CustomEvent('molis:side-open', { detail: { tab: 'discussion' }, cancelable: true }))");
-  await b.waitFor("document.querySelector('[data-dock-frame=\"im\"]')?.contentDocument?.readyState === 'complete' && !!document.querySelector('[data-dock-frame=\"im\"]').contentDocument.querySelector('[data-im-app]')", 15_000);
-  await b.evaluate("document.querySelector('[data-dock-frame=\"im\"]').focus()");
+  await b.waitFor("document.querySelector('[data-side-body=\"discussion\"] iframe')?.contentDocument?.readyState === 'complete' && !!document.querySelector('[data-side-body=\"discussion\"] iframe').contentDocument.querySelector('[data-im-app]')", 15_000);
+  await b.evaluate("document.querySelector('[data-side-body=\"discussion\"] iframe').focus()");
   await v.chord();
   await b.waitFor("document.querySelector('[data-side-tab=\"plugin:issues/capture\"]').getAttribute('aria-selected') === 'true'");
   await v.composerFocused();

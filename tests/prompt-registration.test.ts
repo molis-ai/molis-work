@@ -39,7 +39,8 @@ const TRANSITIONAL: Readonly<Record<string, string>> = {
 
 /** Modules that only build a Host text model and hand it to a caller that resolves its instructions. */
 const FACTORIES = new Set([
-  "apps/local-host/src/jelly-model.ts",
+  // The former Jelly factory now serves trusted consumer declarations; it only probes environment availability.
+  "apps/local-host/src/model-configuration.ts",
   // Builds the TypeSafe provider a caller hands its own questions to; the questions are the caller's (see TYPESAFE_CALLERS).
   "apps/local-host/src/typesafe-prologue.ts",
 ]);
@@ -99,7 +100,7 @@ test("a Plugin's instructions reach the register through its own catalog entry, 
   }
   const outsideCatalog = BUILTIN_INSTRUCTIONS.filter(prompt => !declared.has(key(prompt)));
   assert.deepEqual(outsideCatalog.filter(prompt => !prompt.owner_id.startsWith("system:")).map(key), [],
-    "a plugin's instructions are declared as `instructions` on its entry in apps/workbench/src/builtin-plugins.ts, not named in the Host list");
+    "a plugin's instructions are declared as `instructions` on its own registration (plugins/native/<plugin>/src/registration.ts), not named in the Host list");
   assert.ok(declared.size >= 12, `only ${declared.size} catalog instructions found, check the scan`);
   for (const id of ["choose.capability", "choose.component"]) assert.ok(declared.has(`io.molis.work.plugin-builder/${id}`), `${id} comes from the studio's catalog entry`);
 });
@@ -126,7 +127,7 @@ test("Plugin Builder's designer and code Agents are registered as the prompts th
   const known = registered();
   for (const name of ["designer", "experience", "ui", "review", "implement", "revise", "repair", "acceptance"]) assert.ok(known.has(`io.molis.work.plugin-builder/builder-${name}`), name);
   const designer = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.prompts.find(prompt => prompt.prompt_id === "builder-designer")!;
-  assert.equal(designer.version, 30700, "登记版本随 designer/3.7.0 变化，默认更新时才会提示用户");
+  assert.equal(designer.version, 30800, "登记版本随 designer/3.8.0 变化，默认更新时才会提示用户");
   const roles = builtinRegistrations().find(owner => owner.owner_id === "io.molis.work.plugin-builder")!.roles;
   assert.deepEqual(roles.map(role => [role.role_id, role.prompt_ids.length]), [["designer", 4], ["coder", 4]], "两个 Agent 作为 Character 列出");
   assert.deepEqual(roles.find(role => role.role_id === "designer")!.prompt_ids, ["builder-designer", "builder-experience", "builder-ui", "builder-review"]);

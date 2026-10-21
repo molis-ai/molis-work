@@ -7,11 +7,14 @@ import { CONTINUATION_MARKER } from "./continuation.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
+import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { reaskMaterial } from "./reask.js";
+import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
-import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState, sessionTitle } from "./route-activation.js";
+import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
 import { methodSelection, mcpSelection, mcpSources, savedActions } from "./route-selections.js";
 import type { CodingExecutionPorts } from "./routes.js";
@@ -19,6 +22,7 @@ import { startDelegation } from "./routes-delegations.js";
 import { chosenEffort, text } from "./run-inputs.js";
 import { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 import type { CodingSessionRecord } from "./store.js";
+import { continuedBody } from "./waits.js";
 import { codingWriterAssignments } from "./writers.js";
 
 // A round started here is followed until it settles, so the session's recorded state — which the directory and the
@@ -30,7 +34,8 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
   const token = Symbol(sessionId);
   following.set(sessionId, token);
   const current = () => !stopped.signal.aborted && following.get(sessionId) === token;
-  void (async () => {
+  // The activation's follower, not the request's: it outlives the action that started the round.
+  a.detach(() => void (async () => {
     let since: string | null = null;
     while (current()) {
       const waited: { version: string; view: AgentRunView } = await api.invoke(agent.waitRun, [session, run, since, 25_000], { signal: stopped.signal });
@@ -55,7 +60,7 @@ const follow = (a: CodingActivation, api: Capabilities, execution: CodingExecuti
         break;
       }
     }
-  })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); });
+  })().catch(() => undefined).finally(() => { if (following.get(sessionId) === token) following.delete(sessionId); }));
 };
 
 /**
@@ -71,7 +76,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const draft = body.plan_revision === undefined || continueOf !== undefined ? null : execution.sessions.plan(projectId, record.session_id);
   if (continueOf === undefined && body.plan_revision !== undefined && (!draft?.confirmed || draft.revision !== body.plan_revision || !["execute", "parallel"].includes(String(body.intent)))) throw new Error("请查看并确认当前计划版本，再按此计划执行");
   const plan = continueOf !== undefined ? confirmedPlan(context, record.session_id, body.plan_revision as number) : draft ? confirmedPlan(context, record.session_id, draft.revision) : null;
-  let task = plan && continueOf === undefined ? plan.source.task : text(body.task, "任务", 100_000);
+  // 「请 AI 重新问」: the Host writes the round's words; the page names only the question.
+  let task = plan && continueOf === undefined ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000);
   // An explicit continuation is not a replay of the plan; the guard against starting the same plan twice stays for fresh starts.
   if (plan && record.runtime_session_id && continueOf === undefined) {
     const session = { runtime_id: record.runtime_id, session_id: record.runtime_session_id };
@@ -116,16 +122,23 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   if (!availability?.available) throw new Error(availability?.reason ?? "这个执行方式尚未接通");
   const character = body.character === undefined ? savedCharacter(context, record.session_id) : characterSelection(body.character);
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
+  let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
     if (!execution.characters) throw new Error("Character 消费尚未装配，请明确移除角色后执行");
     if (record.runtime_id !== "prologue") throw new Error("当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色");
-    execution.characters.resolve(character);
+    characterTools = execution.characters.resolve(character).action_tools;
   }
+  const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),
+    await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]), characterTools);
   const goal = await resolveGoalContext(context, record.session_id, record.goal_id ?? null, codingActionControl(beforeWrite));
-  const text_materials = resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), sessionTitle(a, execution));
+  const text_materials = await resolveMaterials(context, materialSelection(body.materials ?? savedMaterials(context, record.session_id)), codingActionControl(beforeWrite));
   if (goal) text_materials.unshift(goal.material);
   if (plan) text_materials.unshift(planMaterial(plan));
+  // 「请 AI 重新问」: the closed question and the person's draft, read here, never from the request.
+  if (body.reask !== undefined) text_materials.push(await reaskMaterial(context, record, body.reask, api!));
   if (text_materials.length > 30) throw new Error("计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试");
+  const catalog = await knowledgeCatalogMaterial(context.services?.actions, action_tools, `${record.title}\n${task}`, record.session_id, codingActionControl(beforeWrite));
+  if (catalog) text_materials.push(catalog);
   await beforeWrite(); beforeWrite.assert_current();
   const session = record.runtime_session_id ? { runtime_id: record.runtime_id, session_id: record.runtime_session_id }
     : await api!.invoke(agent.createSession, [record.runtime_id, { ...identity, directory, title: record.title }]);
@@ -159,7 +172,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     // What waits in the session comes in with the round: asked for the next round, or unread when its round ended (specs/ai-input-receipts §4.8).
     queued: "carry",
     budget: { max_turns: Math.max(60, plan ? 8 + plan.content.steps.length * 3 : 0) },
-    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools: body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools), mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
+    model_selection: { provider_id: model.provider_id, model_id: model.model_id }, ...(effort ? { reasoning_effort: effort } : {}), skills: methodSelection(body.methods ?? []), action_tools, mcp_tools: mcpSelection(body.mcp_tools ?? []), mcp_sources: mcpSources(body.mcp_sources ?? []) }]);
   let run;
   try { run = await start(history); }
   catch (error) {
@@ -172,7 +185,8 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     if (history === "digest") context.services!.storage!.delete(`compact-next:${record.session_id}`);
     // A session created for a delegation starts its work when its person sends a round: that is its acceptance.
     // The round has started either way; the delegation shows its own last recorded state.
-    if (session.runtime_id === "prologue") await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
+    // A Runtime without letters between sessions has none to accept: the read comes back empty.
+    await startDelegation(record, context.services!.capabilities!, session.session_id).catch(() => undefined);
     await beforeWrite(); beforeWrite.assert_current();
     if (!plan) context.services!.storage!.delete(`draft:${record.session_id}`);
     // A session named by default takes its name from the first task, the way a person would label it.
@@ -186,11 +200,30 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
     context.services!.storage!.set(`last-start:${record.session_id}`, JSON.stringify({ intent: body.intent === "parallel" ? "execute" : body.intent, provider_id: body.provider_id, model_id: body.model_id,
       ...(effort ? { reasoning_effort: effort } : {}),
       workspace_id: body.workspace_id, actor_id: actorId,
-      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : text(body.task, "任务", 100_000) }));
+      origin_task: typeof body.origin_task === "string" ? body.origin_task : continued ? lastStart!.origin_task : plan ? plan.source.task : body.reask !== undefined ? QUESTION_REASK.task : text(body.task, "任务", 100_000) }));
     return { run, history, ...(historyReason ? { history_reason: historyReason } : {}),
       ...(digest ? { digest: { source: digest.source, ...(digest.usage ? { usage: digest.usage } : {}), ...(digest.problem ? { problem: digest.problem } : {}) } } : {}) };
   } finally {
     // R-CODING-RECEIPT-01/02: accepted work keeps its activation follower even when the caller cannot finish its receipt.
     follow(a, context.services!.capabilities!, ports ?? execution, record.session_id, session, run.ref, workspace.workspace_id);
   }
+};
+
+/**
+ * The next round after the person answered a round parked at a restart (BL-156): started the way the parked round was
+ * (`last-start:<session>`) by the one who answered (`actorId`, from the call), it takes the answer from the session's queue. Refused, the answer stays queued and the reason is
+ * returned; 「从断点继续」 starts it later. A session still being recovered is read once and the round tried once more.
+ */
+export const roundAfterParkedAnswer = async (a: CodingActivation, record: CodingSessionRecord, session: { runtime_id: string; session_id: string }, actorId: string,
+  api: Capabilities, execution: CodingExecutionPorts, beforeWrite: CodingBeforeWrite): Promise<{ started: true; run_id: string } | { started: false; reason: string }> => {
+  const saved = (() => { try { return JSON.parse(a.context.services?.storage?.get(`last-start:${record.session_id}`) ?? "null") as Record<string, unknown> | null; } catch { return null; } })();
+  if (!saved) return { started: false, reason: "读不到这一轮是怎样开始的" };
+  const body = continuedBody(saved, "服务重启前你问我的问题，我已经回答，回答附在后面。");
+  const start = () => startRound(a, record, body, actorId, api, execution, beforeWrite);
+  const reason = (error: unknown) => error instanceof Error ? error.message : String(error);
+  try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) {
+    if ((error as { code?: unknown }).code !== "agent.session_busy") return { started: false, reason: reason(error) };
+  }
+  await api.invoke(agent.inspectRecovery, [session]).catch(() => undefined);
+  try { return { started: true, run_id: (await start()).run.ref.run_id }; } catch (error) { return { started: false, reason: reason(error) }; }
 };

@@ -47,13 +47,18 @@ test("Inbox derives model readiness from Pages while its generation history rema
   await assert.rejects(f.bound.invoke(inboxActions.generatePages, { request_id: "no-model-request", entry_ids: ["unused"], title: "Draft", instructions: "Unused" }), { code: "actions.connection_required" });
 });
 
-test("Inbox generates via Pages with canonical project identity, shared snapshots and replay preserving edits", async t => {
+// W5-01-PAGES-08 (RUNTIME-MIGRATION 5.3 item 3, 6 item 8): Inbox pins Pages by its plugin id (`provider_id` in its consumes list and in
+// its authority check); with Pages on the Runtime the provider keeps that id, so inbox.pages.generate still works end to end.
+test("W5-01-PAGES-08 Inbox generates via Pages (a Runtime provider under the same plugin id) with canonical project identity, shared snapshots and replay preserving edits", async t => {
   let calls = 0;
   const f = await fixture(t, async prompt => { calls++; assert.match(prompt, /Original material boundary/); return "Generated from real material [材料 1]"; }, true);
   const { item, entry } = await material(f);
   const input = { request_id: "inbox-request-1", entry_ids: [entry.entry_id], title: "Research", instructions: "Keep boundaries" };
   await assert.rejects(f.client.invoke({ ...f.caller, allowed_capability_ids: [inboxActions.generatePages.capability_id] }, inboxActions.generatePages, input), { code: "actions.forbidden" });
   assert.equal(calls, 0);
+  const provider = (await f.bound.discover()).find(view => view.capability_id === pagesActions.generate.capability_id)!.provider;
+  assert.equal(provider.provider_id, "io.molis.work.pages");
+  assert.ok(provider.plugin_install_id, "Pages is served by a Plugin Runtime installation, not a Host-registered provider");
   const result = await f.bound.invoke(inboxActions.generatePages, input);
   assert.equal(result.document.project_id, f.project.project_id);
   assert.match(JSON.stringify(result.document.body), new RegExp(`/projects/${f.project.project_id}/`));

@@ -7,7 +7,7 @@ export const ASSISTANT_STAGE_FACTORY = String.raw`({island,panel,input,current,s
   const expand=island.querySelector('[data-assistant-expand]');
   const retract=island.querySelector('[data-assistant-retract]');
   const footer=el('div','assistant-stage-footer');
-  const footerHomes=[...island.querySelectorAll(':scope > .assistant-popover,:scope > .assistant-context-actions,:scope > .assistant-next-row,:scope > .assistant-composer')].map(node=>{const marker=document.createComment('assistant-footer-home');node.before(marker);return {node,marker};});
+  const footerHomes=[...island.querySelectorAll(':scope > .assistant-popover,:scope > .assistant-context-strip,:scope > .assistant-next-row,:scope > .assistant-composer')].map(node=>{const marker=document.createComment('assistant-footer-home');node.before(marker);return {node,marker};});
   const offsets=new Map();
   let staged=false,open=[],active=null,mounting=false,shownId=null,returning=false,dockedTab=null;
   const request=(type,id,title)=>{const options={detail:{owner:'assistant',id,title},cancelable:true};return document.dispatchEvent(type==='molis-work:system-view-open'?new CustomEvent('molis-work:system-view-open',options):new CustomEvent('molis-work:system-view-close',options));};
@@ -72,4 +72,18 @@ export const ASSISTANT_ELEMENT_SCRIPT = String.raw`(tag, className, text) => {
   if (className) node.className = className;
   if (text !== undefined && text !== null) node.textContent = text;
   return node;
+}`;
+
+/**
+ * Puts children in order without moving any that already stand in place: moving a node drops the focus inside it (an answer
+ * being typed, a button reached by keyboard), and a running work repaints every few seconds.
+ */
+export const ASSISTANT_PLACER_SCRIPT = String.raw`(parent) => {
+  let last = null;
+  return (child) => {
+    const want = last ? last.nextElementSibling : parent.firstElementChild;
+    if (want !== child) parent.insertBefore(child, want);
+    last = child;
+    return child;
+  };
 }`;

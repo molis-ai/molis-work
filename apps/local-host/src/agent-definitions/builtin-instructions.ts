@@ -1,6 +1,6 @@
 import type { InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { AgentPromptRegistration, AgentRoleRegistration } from "@molis-ai/molis-work-contracts/services/agent-definitions";
-import { COGNIA_EVIDENCE_PROMPT, CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
+import { CONTEXTUAL_DRAFT, CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, INFORMATION_PLANNER, KNOWLEDGE_LOCATE, KNOWLEDGE_ORGANIZE, MEMORY_EXTRACT, MEMORY_TIDY, ONBOARDING_NOTES, ONBOARDING_PROPOSAL } from "./system-prompts.js";
 import { BUILDER_PLUGIN_ID, BUILDER_PROMPTS, BUILDER_PROMPT_TITLES, builderPromptVersion, type BuilderPromptName } from "@molis-ai/molis-work-plugin-builder";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 
@@ -11,16 +11,14 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
  */
 export const BUILTIN_INSTRUCTIONS: readonly InstructionPrompt[] = [
   ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.instructions ?? []), ONBOARDING_NOTES, ONBOARDING_PROPOSAL, INFORMATION_PLANNER, MEMORY_EXTRACT, MEMORY_TIDY,
-  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT,
+  CONTEXTUAL_NEXT, CONTEXTUAL_SURFACE, CONTEXTUAL_DRAFT, KNOWLEDGE_ORGANIZE, KNOWLEDGE_LOCATE,
 ];
 
 /**
- * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Cognia's knowledge answers), with the
+ * Role prompts of Agents the Host starts itself, outside any Plugin manifest (Plugin Builder's designer and code Agents), with the
  * owner their runs resolve under. Registered so the person can see and edit them like every other prompt.
  */
 export const BUILTIN_INLINE_AGENT_PROMPTS: ReadonlyArray<{ owner_id: string; prompt: AgentPromptRegistration }> = [
-  { owner_id: "io.molis.work.cognia", prompt: { prompt_id: COGNIA_EVIDENCE_PROMPT.prompt_id, version: COGNIA_EVIDENCE_PROMPT.version, kind: "agent", layer: "base",
-    title: "知识助手角色", purpose: "Cognia 整理与问答运行时的角色说明", used_by: ["Cognia 整理", "Cognia 问答"], body: COGNIA_EVIDENCE_PROMPT.body } },
   // Plugin Builder's designer and code Agents run these, outside the Agent Host; its workflow asks for them by name.
   ...(Object.keys(BUILDER_PROMPTS) as BuilderPromptName[]).map(name => ({ owner_id: BUILDER_PLUGIN_ID, prompt: { prompt_id: `builder-${name}`, version: builderPromptVersion(name),
     kind: "agent" as const, layer: "role" as const, ...BUILDER_PROMPT_TITLES[name], used_by: [...BUILDER_PROMPT_TITLES[name].used_by], body: BUILDER_PROMPTS[name].text } })),

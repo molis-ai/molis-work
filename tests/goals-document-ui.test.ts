@@ -24,12 +24,7 @@ const item = (): GoalsDocumentItem => ({
 });
 const render = (value: GoalsDocumentItem, overrides: Partial<GoalsDocumentContext> = {}) => renderer.renderGoalDocument(value, { ...context, ...overrides }, true);
 
-test("initial Goal tabs escape user titles and collection placeholders preserve full versus refresh behavior", () => {
-  const html = renderer.renderInitialGoalTab({ goal_id: 'id"<a>', title: 'Title " autofocus onfocus="alert(1)' });
-  assert.match(html, /data-work-tab="id&quot;&lt;a&gt;"/);
-  assert.match(html, /aria-label="关闭 Title &quot; autofocus onfocus=&quot;alert\(1\)"/);
-  assert.doesNotMatch(html, /aria-label="关闭 Title "| onfocus="/);
-  assert.match(html, /aria-controls="goal-document-pane"/);
+test("collection placeholders preserve full versus refresh behavior", () => {
   const compact = renderer.renderEmptyGoalCollection(true, false);
   assert.match(compact, /回收站是空的/);
   assert.doesNotMatch(compact, /<p>|<a /);

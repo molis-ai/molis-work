@@ -3,9 +3,10 @@ import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineHomeEventsAction } from "@molis-ai/molis-work-plugin-sdk";
-import type { ActionCallContext, HomeEvent, HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type HomeEvent, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHomeEventHandlers, homeEventActions, type HomeEventsResult } from "../apps/local-host/dist/home-event-actions.js";
 import { createActionMcpPorts, actionMcpToolName, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
+import { captureHostLog, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 const caller: ActionCallContext = { actor_id: "owner", project_id: "event-project", audience: "user", permissions: ["home:read", "notes:read"] };
 const window = { from: "2026-09-16T00:00:00Z", to: "2026-09-23T00:00:00Z", now: "2026-09-19T12:00:00Z" };
 const original: HomeEvent = { event_id: "feed:collision", subject: { kind: "unknown-note", id: "n1" }, occurred_at: window.now, placement: "occurred", category: "personal",
@@ -143,4 +144,26 @@ test("Home says nothing about plugins turned off in the project, but still repor
   const result = await service.invoke(caller, homeEventActions.events, window) as HomeEventsResult;
   assert.equal(result.events.length, 0);
   assert.deepEqual(result.issues, ["服务中断事项：笔记服务未启动"]);
+});
+
+test("a recommendation read that fails never hides the events and leaves its code, not its content, in the Host log (D4-a)", async () => {
+  const service = new ActionService();
+  const recommendations = { capability_id: "test.home.recommendations", version: 1, operation: "query", action: { title: "首页建议", description: "读取首页建议",
+    kind: "query", scope: "project", scheduling: "concurrent", audiences: ["user"], permissions: ["home:read"], subject_kinds: [],
+    input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "object" } } } as ActionDefinition<Record<string, never>, unknown>;
+  service.registerProvider({ provider: { provider_id: "system.home", title: "Home", kind: "system", project_id: caller.project_id! }, definitions: Object.values(homeEventActions),
+    handlers: createHomeEventHandlers(service, recommendations) });
+  service.registerProvider({ provider: { provider_id: "test.recommender", title: "Recommender", kind: "system", project_id: caller.project_id! }, definitions: [recommendations],
+    handlers: [{ ...recommendations, handle: () => { throw new ActionError("test.judgment_down", "判断服务没有回应：用户的笔记正文"); } }] });
+  const query = defineHomeEventsAction("test.notes.events", ["unknown-note"], "笔记事项", ["notes:read"]);
+  service.registerProvider({ provider: { provider_id: "test.notes", title: "Notes", kind: "plugin", plugin_id: "test.notes", project_id: caller.project_id! },
+    definitions: [query], handlers: [{ ...query, handle: () => ({ source: { surface: "notes", title: "我的笔记", icon: "note" }, events: [original] }) }] });
+  const log: HostLogEntry[] = [], restore = captureHostLog(log);
+  let result: HomeEventsResult;
+  try { result = await service.invoke(caller, homeEventActions.events, window) as HomeEventsResult; } finally { restore(); }
+  assert.deepEqual(result.events.map(event => [event.event_id, event.suggested_behavior_ids]), [[original.event_id, []]], "the event is shown, with no suggestions");
+  assert.deepEqual(result.issues, [], "an optional judgment is not a source problem for the person");
+  assert.deepEqual(log.map(entry => [entry.level, entry.area, entry.event, entry.error, entry.fields]),
+    [["warn", "home", "recommendations_failed", { name: "ActionError", code: "test.judgment_down" }, { capability: "test.home.recommendations@1" }]]);
+  assert.ok(!JSON.stringify(log).includes("笔记正文"), "the failure's message stays out of the log");
 });

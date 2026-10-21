@@ -1,7 +1,7 @@
-import { bindWorkflowContentHandlers, defineWorkflowContentActions, workflowDeliveryKey, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import { pptErrors } from "./error.js";
-import type { PptStore } from "./store.js";
+import type { PptStores } from "./store.js";
 
 /** A deck is a workflow content station: it hands its outline on as Markdown and turns Markdown it receives into slides. */
 export const pptContentActions = defineWorkflowContentActions({ id: "ppt", title: "演示稿", icon: "image", create: true, subject_kind: PPT_SUBJECT_KIND,
@@ -53,16 +53,16 @@ export function slidesFromMarkdown(markdown: string, fallbackTitle: string): { t
     slides: chosen.map(slide => ({ title: slide.title.slice(0, 80), bullets: slide.bullets.slice(0, 12), notes: slide.notes.join("\n").slice(0, 2000) })) };
 }
 
-export function createPptContentHandlers(withStore: <T>(run: (store: PptStore) => T) => T): ActionHandlerBinding[] {
+export function createPptContentHandlers(stores: PptStores): ActionHandlerBinding[] {
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw pptErrors.invalid("缺少项目"); return caller.project_id; };
   return bindWorkflowContentHandlers(pptContentActions, {
-    list: caller => withStore(store => store.list(project(caller)).map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
-    read: ({ item_id }, caller) => withStore(store => { const deck = store.get(item_id, project(caller)); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),
-    receive: ({ payload, context }, caller) => withStore(store => {
-      const outline = slidesFromMarkdown(payload.body, payload.title);
-      const deck = store.receive(project(caller), workflowDeliveryKey(context), outline.title, outline.slides);
+    list: caller => stores.read(store => store.list(project(caller)).map(deck => ({ item_id: deck.id, title: deck.title, caption: deck.slides.length + " 页", at: deck.updated_at }))),
+    read: ({ item_id }, caller) => stores.read(store => { const deck = store.get(item_id, project(caller)); return { title: deck.title, body: pptMarkdown(deck), source: "演示稿" }; }),
+    receive: ({ title, body, request_id }, caller) => stores.write(caller, store => {
+      const outline = slidesFromMarkdown(body, title);
+      const deck = store.receive(project(caller), request_id, outline.title, outline.slides);
       return { plugin: "ppt", item_id: deck.id, title: deck.title };
     }),
-    create: ({ title }, caller) => withStore(store => { const deck = store.create({ title, project_id: project(caller) }); return { plugin: "ppt", item_id: deck.id, title: deck.title }; }),
+    create: ({ title }, caller) => stores.write(caller, store => { const deck = store.create({ title, project_id: project(caller) }); return { plugin: "ppt", item_id: deck.id, title: deck.title }; }),
   });
 }

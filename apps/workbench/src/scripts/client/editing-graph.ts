@@ -95,43 +95,19 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         pane.toggleAttribute("inert", pane !== visiblePane);
       });
       if (!shouldMoveFocus || !visiblePane) return;
-      const switchRoot = document.querySelector(".mobile-switch");
-      const selectedTab = switchRoot?.querySelector("[aria-selected='true']");
-      if (selectedTab?.nodeType === 1) selectedTab.focus();
-      else if (visiblePane.nodeType === 1) visiblePane.focus({ preventScroll: true });
+      if (visiblePane.nodeType === 1) visiblePane.focus({ preventScroll: true });
     };
 
     const setMobileView = (view) => {
       workspace.dataset.mobileView = view;
-      document.querySelector(".topbar")?.setAttribute("data-mobile-surface", view);
-      syncMobileNavigationChrome();
       applyMobilePanePresence();
-    };
-
-    const handleMobileSwitchKeyboard = (event) => {
-      const switchRoot = event.target?.closest?.(".mobile-switch");
-      if (!switchRoot || !["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(event.key)) return false;
-      const tabs = [...switchRoot.querySelectorAll("[role='tab']")];
-      const current = event.target?.closest?.("[role='tab']");
-      const index = tabs.indexOf(current);
-      if (index < 0) return false;
-      const nextIndex = event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? tabs.length - 1
-          : (index + ((event.key === "ArrowRight" || event.key === "ArrowDown") ? 1 : -1) + tabs.length) % tabs.length;
-      event.preventDefault();
-      const next = tabs[nextIndex];
-      next?.focus();
-      next?.click();
-      return true;
     };
 
     const { graphElement, loadGoalGraph, syncGoalWorkspace, updateGraphVisibility, readMomentumState,
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
-        workspace, treeSearch, documentCollection, route, translate: L,
+        workspace, documentCollection, route, translate: L,
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),
@@ -180,12 +156,6 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
         button.classList.toggle("is-active", active);
         button.setAttribute("aria-selected", String(active));
       });
-      document.querySelectorAll("button[data-workbench-view]").forEach((button) => {
-        const active = button.dataset.workbenchView === nextMode;
-        button.classList.toggle("is-active", active);
-        button.setAttribute("aria-selected", String(active));
-        button.setAttribute("tabindex", active ? "0" : "-1");
-      });
       if (graph && !workspace.querySelector("[data-goal-canvas-shell]")) graph.hidden = nextMode !== "graph";
       if (nextMode === "graph" && !workspace.querySelector("[data-goal-canvas-shell]")) {
         if (graph?.dataset.loaded === "true") updateGraphVisibility();
@@ -226,7 +196,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     try {
       tabWorkspace = (${TAB_WORKSPACE_FACTORY_SCRIPT})({
         prepareSurface: surface => deferredClients?.prepare(surface),
-        setFeedTask, setFeedAddOpen, showToast,
+        setFeedTask, setFeedAddOpen, showToast, paneMessages,
         showGoalFrame: (id) => frameContainer?.showGoalFrame(id),
         translate: L,
         getSurface: () => activeDesktopSurface,
@@ -248,6 +218,8 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     } catch (error) {
       console.warn("Molis Work tab workspace failed to start", error);
     }
+    /** The desktop shell's entries (Shelf's hotkey, the menu bar) name a plugin; the tab workspace decides where it opens. */
+    globalThis.molisWorkOpenPlugin = tabWorkspace?.openPlugin;
     document.addEventListener("click", (event) => {
       if (frameContainer?.isFrameTabActive()) return;
       const target = event.target?.nodeType === 1 ? event.target : event.target?.parentElement;

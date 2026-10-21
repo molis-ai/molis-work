@@ -113,6 +113,14 @@ export interface CharactersQuery {
     get(characterId: string): CharacterDraft | null;
 }
 
+export declare const characterErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly not_found: "invalid";
+    readonly conflict: "conflict";
+    readonly deleted: "invalid";
+    readonly disabled: "invalid";
+    readonly invalid: "invalid";
+}>;
+
 export declare const modulesCharactersContract: {
     readonly contractId: "io.molis.work.module.characters.v1";
     readonly kind: "module";

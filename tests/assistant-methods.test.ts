@@ -16,6 +16,7 @@ import { builtinRegistrations } from "../apps/local-host/dist/agent-definitions/
 import { localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../apps/local-host/dist/local-owner-permissions.js";
 import { declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 600; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 25)); }
@@ -47,9 +48,14 @@ test("a method a Plugin offers for business work is declared with business tools
     const listed = registry.methods().find(method => method.key === PAGES_METHOD);
     assert.ok(listed, "Pages' method is registered with the Host");
     assert.equal(listed.source.kind, "plugin");
-    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 1]);
-    assert.match(registry.method("io.molis.work.pages", "meeting-notes", 1).body, /待定问题/);
-    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 2), /没有登记这个方法版本/);
+    assert.deepEqual([listed.name, listed.version], ["会议纪要整理", 2]);
+    // ADH-14: whether writing the page asks first is the Host's, by the action's effect; the method no longer stops for it.
+    assert.equal(listed.summary, "把一段会议记录或一篇会议文档整理成结论、待办（谁、做什么、何时）和待定问题，每条注明依据；用户要时写成 Pages 文档。");
+    const method = registry.method("io.molis.work.pages", "meeting-notes", 2);
+    assert.match(method.body, /待定问题/);
+    assert.match(method.body, /\n5\. 用户要写成 Pages 文档时，新建文档写入；不覆盖已有文档，除非用户明确要求。$/);
+    assert.doesNotMatch(method.body, /确认/);
+    assert.throws(() => registry.method("io.molis.work.pages", "meeting-notes", 1), /没有登记这个方法版本/);
     assert.equal(registry.diagnostics().owners.find(owner => owner.owner_id === "io.molis.work.pages")?.methods, 1);
   } finally { await rm(home, { recursive: true, force: true }); }
 });
@@ -60,11 +66,11 @@ test("a round lists the methods its scope can use; one the person chose goes wit
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (url: unknown, init: RequestInit) => {
     if (!String(url).startsWith("https://1.1.1.1/")) throw new Error("unexpected network request in fixture: " + String(url));
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     return reply();
-  });
+  }));
   const queue = new AgentReviewQueue(), agentHost = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-methods-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }),
@@ -72,7 +78,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
   agentHost.register(adapter);
   const registry = agentDefinitionsFor(home, builtinRegistrations);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service: AssistantService = new AssistantService(store, { host: async () => agentHost,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => agentHost,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user")),
     scopeActions: async work => {
       const ref = work.project_ref;
@@ -108,7 +114,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
     await assert.rejects(service.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
-    await adapter.close();
+    service.continuations.close(); await adapter.close();
     await local.close();
     await rm(home, { recursive: true, force: true });
   }

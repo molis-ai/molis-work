@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 
-import { PAGES_CLIENT_FACTORY_SCRIPT, PAGES_NATIVE_PLUGIN_ROUTES } from "@molis-ai/molis-work-plugin-pages";
+import { PAGES_CLIENT_FACTORY_SCRIPT, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
 
 // W2-18 decision 6: a 「新建文档」 left with nothing written is taken back with the existing pages.discard when the
@@ -32,9 +32,15 @@ function element(): FakeNode {
   };
   return node;
 }
-const click = (targetSelector: string, dataset: Record<string, string> = {}) => ({
-  target: { nodeType: 1, closest: (selector: string) => selector === targetSelector ? { dataset } : null }, preventDefault() {}, stopPropagation() {},
-});
+const click = (targetSelector: string, dataset: Record<string, string> = {}) => {
+  const target = {
+    nodeType: 1, dataset, getAttribute: () => null, setAttribute() {},
+    getBoundingClientRect: () => ({ left: 0, right: 120, top: 0, bottom: 30, width: 120, height: 30 }),
+    classList: { toggle() {}, add() {}, remove() {} },
+    closest(selector: string) { return selector === targetSelector ? target : null; },
+  };
+  return { target, preventDefault() {}, stopPropagation() {} };
+};
 const flush = async () => { for (let i = 0; i < 10; i += 1) await new Promise(resolve => setImmediate(resolve)); };
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
@@ -75,7 +81,9 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     document: { querySelector: (selector: string) => selector === "[data-pages=workbench]" ? workbench : null, createElement: () => element(),
       addEventListener() {}, activeElement: null, hidden: false, body: { dataset: { routePrefix: "" } } },
     window: {
-      dispatchEvent() {}, addEventListener() {},
+      listeners: new Map<string, Array<(event: { type?: string; detail?: unknown }) => void>>(),
+      dispatchEvent(event: { type: string; detail?: unknown }) { for (const fn of this.listeners.get(event.type) ?? []) fn(event); },
+      addEventListener(type: string, fn: (event: { type?: string; detail?: unknown }) => void) { const list = this.listeners.get(type) ?? []; list.push(fn); this.listeners.set(type, list); },
       MolisWorkPagesEditor: {
         emptyDoc: () => EMPTY,
         bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), // This fixture tests discard; real comments are covered by the editor/browser regressions.
@@ -89,7 +97,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
     calls.push({ method, path: parsed.pathname, body, keepalive: init?.keepalive });
     if (parsed.pathname === "/api/board") return json({ goals: [] });
-    if (parsed.pathname === "/api/plugins/pages") {
+    if (parsed.pathname === "/api/plugins/io.molis.work.pages/pages") {
       if (method === "GET") return json({ documents: [...store.values()], folders: [] });
       created += 1;
       const doc: Doc = { id: `N${created}`, title: String(body.title ?? (body.template_id ? "周报模板" : "未命名文档")), body: body.body ?? (body.template_id ? text("模板正文") : EMPTY), version: 1, goal_id: "", artifact_version: 0,
@@ -97,13 +105,14 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
       store.set(doc.id, doc);
       return json({ document: doc });
     }
-    if (parsed.pathname === "/api/plugins/pages/import") {
+    if (parsed.pathname === "/api/plugins/io.molis.work.pages/pages/import") {
       created += 1;
       const doc: Doc = { id: `I${created}`, title: "导入的笔记", body: text("导入的正文"), version: 1, goal_id: "", artifact_version: 0 };
       store.set(doc.id, doc);
       return json({ documents: [doc] });
     }
-    const [, id, action] = /^\/api\/plugins\/pages\/([^/]+)(?:\/(.+))?$/.exec(parsed.pathname) ?? [];
+    if (parsed.pathname.includes("/folders/") && parsed.pathname.endsWith("/delete")) return json({ ok: true });
+    const [, id, action] = /^\/api\/plugins\/io\.molis\.work\.pages\/pages\/([^/]+)(?:\/(.+))?$/.exec(parsed.pathname) ?? [];
     const current = store.get(decodeURIComponent(id ?? ""));
     if (!current) return json({ error: "missing" }, 404);
     if (action === "discard") {
@@ -116,6 +125,7 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
     }
     if (method === "POST") {
       const refusedUpdate = options.update?.(); if (refusedUpdate) return refusedUpdate;
+      if (body.expected_version !== undefined && body.expected_version !== current.version) return json({ error: "改过了", code: "pages.conflict" }, 409);
       const sent = String(body.title ?? current.title);
       const next = { ...current, title: options.normalizeTitle ? sent.trim() || "未命名文档" : sent, body: body.body ?? current.body, version: current.version + 1 };
       store.set(current.id, next);
@@ -164,8 +174,59 @@ async function mounted(t: TestContext, initial: Doc[], options: { discard?: (doc
 }
 const existing = (id: string, title: string, body: unknown = EMPTY): Doc => ({ id, title, body, version: 4, goal_id: "", artifact_version: 0 });
 
+test("LOGIC-02 and LOGIC-03 unsaved edits are stored before a star, a folder change, or the placement bar moving the open document", async t => {
+  const page = await mounted(t, [{ ...existing("OLD", "原稿"), folder_id: "f1" } as Doc & { folder_id: string }]);
+  try {
+    await page.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await page.write({ title: "改过的标题" }, false);
+    await page.fire(click("[data-pages-star-editor]"));
+    assert.equal(page.store.get("OLD")?.title, "改过的标题");
+    assert.equal(page.calls.some(call => call.body.code === "pages.conflict"), false);
+    const starAt = page.calls.findIndex(call => call.body.starred === true);
+    const saveAt = page.calls.findIndex(call => call.body.title === "改过的标题");
+    assert.ok(saveAt >= 0 && saveAt < starAt, "the title is saved before the star");
+  } finally { page.restore(); }
+
+  const moved = await mounted(t, [existing("OLD", "原稿")]);
+  try {
+    await moved.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await moved.write({ title: "先保存再移动" }, false);
+    await moved.fire(click("[data-pages-move]", { pagesMove: "OLD" }));
+    await moved.fire(click("[data-pages-move-to]", { pagesMoveTo: "folder-2" }));
+    assert.equal(moved.store.get("OLD")?.title, "先保存再移动");
+    const folderAt = moved.calls.findIndex(call => call.body.folder_id === "folder-2");
+    const saveAt = moved.calls.findIndex(call => call.body.title === "先保存再移动");
+    assert.ok(saveAt >= 0 && saveAt < folderAt);
+  } finally { moved.restore(); }
+
+  const folder = await mounted(t, [{ ...existing("OLD", "原稿"), folder_id: "f1" } as Doc & { folder_id: string }]);
+  try {
+    await folder.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await folder.write({ title: "删文件夹前先保存" }, false);
+    const confirm = folder.parts.get("[data-pages-confirm]") as FakeNode & { returnValue?: string };
+    confirm.showModal = () => { confirm.returnValue = "ok"; void confirm.listeners.close?.({}); };
+    await folder.fire(click("[data-pages-folder-delete]", { pagesFolderDelete: "f1" }));
+    assert.equal(folder.store.get("OLD")?.title, "删文件夹前先保存");
+    const deleteAt = folder.calls.findIndex(call => call.path.includes("/folders/"));
+    const saveAt = folder.calls.findIndex(call => call.body.title === "删文件夹前先保存");
+    assert.ok(saveAt >= 0 && deleteAt > saveAt);
+  } finally { folder.restore(); }
+
+  const placed = await mounted(t, [existing("OLD", "原稿")]);
+  try {
+    await placed.fire(click("button[data-page-id]", { pageId: "OLD" }));
+    await placed.write({ title: "移走之前写完" }, false);
+    const settle: Array<Promise<unknown>> = [];
+    (globalThis as { window: { dispatchEvent(event: unknown): void } }).window.dispatchEvent({ type: "molis:placement-flush", detail: { mode: "move", object: { kind: "pages_document", id: "OLD" }, settle } });
+    await Promise.all(settle);
+    await flush();
+    assert.equal(placed.store.get("OLD")?.title, "移走之前写完");
+    assert.equal(settle.length, 1);
+  } finally { placed.restore(); }
+});
+
 test("the discard route exists next to delete and maps to pages.discard", () => {
-  assert.ok(PAGES_NATIVE_PLUGIN_ROUTES.some(route => route.route_id === "pages.discard" && route.method === "POST" && route.pattern.test("/api/pages/abc/discard")));
+  assert.ok(pagesManifest.routes?.some(route => route.route_id === "pages.discard" && route.method === "POST" && route.path === "/pages/:id/discard"));
 });
 
 test("a new document left blank is discarded when the person goes back to the list", async t => {
@@ -175,7 +236,7 @@ test("a new document left blank is discarded when the person goes back to the li
     assert.deepEqual([...page.store.keys()].sort(), ["A", "N1"], "created at once, as before");
     await page.fire(click("[data-pages-back]"));
     assert.equal(page.discards().length, 1);
-    assert.equal(page.discards()[0]!.path, "/api/plugins/pages/N1/discard");
+    assert.equal(page.discards()[0]!.path, "/api/plugins/io.molis.work.pages/pages/N1/discard");
     assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version, "asked at the version the Host holds, so a change made elsewhere would refuse it");
     assert.deepEqual([...page.store.keys()], ["A"], "nothing is left behind");
     assert.equal(page.note.textContent, "", "no message: nothing was lost");
@@ -250,11 +311,11 @@ test("opening another document or making another new one also leaves the blank o
   try {
     await page.fire(click("[data-pages-new]"));
     await page.fire(click("button[data-page-id]", { pageId: "A" }));
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N1/discard"]);
     assert.deepEqual(page.editor(), text("本周"), "the other document is the one open now");
     await page.fire(click("[data-pages-new]"));
     await page.fire(click("[data-pages-new]"));
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard", "/api/plugins/pages/N2/discard"]);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N1/discard", "/api/plugins/io.molis.work.pages/pages/N2/discard"]);
     assert.deepEqual([...page.store.keys()].sort(), ["A", "N3"], "only the one now open remains");
   } finally { page.restore(); }
 });
@@ -310,7 +371,7 @@ test("a document made from a template or an AI result is not tracked as new, wha
     await page.fire(click("[data-pages-new]"));
     await page.aiResult({ title: "", text: "" });
     await page.fire(click("[data-pages-back]"));
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N2/discard"], "only the plain new document N2 was taken back when the AI result replaced it");
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N2/discard"], "only the plain new document N2 was taken back when the AI result replaced it");
     assert.deepEqual([...page.store.keys()].sort(), ["N1", "N3"], "the template result and the AI result stay");
   } finally { page.restore(); }
 });
@@ -331,7 +392,7 @@ test("when the workbench hides the page for another plugin, the blank document i
     await page.fire(click("[data-pages-new]"));
     assert.equal(page.editorOpen(), true);
     page.lifetime.hideSurface(); await page.elapse(0);
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N1/discard"]);
     assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version);
     assert.equal(page.discards()[0]!.keepalive, undefined, "an ordinary call: the page is still here to see how it went");
     assert.equal(page.editorOpen(), false, "what comes back is the list, not an editor on a document that is gone");
@@ -496,7 +557,7 @@ test("the workbench's own ways back to the list (its Back button, the plugin's n
     await page.fire(click("[data-pages-new]"));
     assert.equal(page.context()?.object?.id, "N1");
     await page.workbenchSelectsNothing(true);
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N1/discard"]);
     assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version, "at the version the Host holds");
     assert.deepEqual([...page.store.keys()], ["A"], "nothing is left behind, and not in the list either");
     assert.equal(page.editorOpen(), false);
@@ -566,7 +627,7 @@ test("opening an imported document from the import dialog leaves the blank new d
     await page.fire(click("[data-pages-new]"));
     assert.deepEqual([...page.store.keys()].sort(), ["A", "N1"]);
     await page.importAndOpen();
-    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/pages/N1/discard"]);
+    assert.deepEqual(page.discards().map(call => call.path), ["/api/plugins/io.molis.work.pages/pages/N1/discard"]);
     assert.equal(page.discards()[0]!.body.expected_version, page.discards()[0]!.stored_version);
     assert.deepEqual([...page.store.keys()].sort(), ["A", "I2"], "the imported document and the existing one remain");
     assert.deepEqual(page.editor(), text("导入的正文"), "the imported document is the one open");

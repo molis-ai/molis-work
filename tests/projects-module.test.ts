@@ -3,6 +3,7 @@ import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
+import * as projectsExports from "@molis-ai/molis-work-module-projects";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 
@@ -16,6 +17,7 @@ function createModule(db: Database.Database): ProjectsModule {
   let sequence = 0;
   return new ProjectsModule({
     db,
+    plugins: { has: () => false, companions: () => [] },
     now: () => `2026-09-02T00:00:${String(sequence).padStart(2, "0")}.000Z`,
     id: (prefix) => `${prefix}-${++sequence}`,
   });
@@ -28,6 +30,9 @@ test("Projects Module owns canonical project identity and workspace membership",
     db.pragma("foreign_keys = ON");
     createProjectsSchema(db);
     const projects = createModule(db);
+    // W5-08-MOD-01/02: records stay behind business services; the complete identity/membership path below remains public.
+    assert.equal("ProjectsRepository" in projectsExports, false);
+    assert.equal("repository" in projects, false);
 
     const first = projects.lifecycle.prepareRecord({
       display_name: "同名项目",

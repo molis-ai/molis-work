@@ -111,6 +111,15 @@ test("W1-04: a Manifest's declarations that refer to each other are checked toge
   assert.equal(manifestProblems(manifest([writing({ intake: intake({ item_kind: "anything_new" }) }), itemReader])), "", "a created kind need not have a reader here; only appends are bound to the provider's own kinds");
 });
 
+test("W4-1: an offers query with no choices of its own is allowed only as some entry's prepare, so nothing it prepares goes unseen", () => {
+  const bare = { ...prepare, action: { ...(prepare.action as Part), fragment_offer_choices: [] } };
+  assert.equal(manifestProblems(manifest([writing({ intake: intake({ prepare: { capability_id: "example.prepare", version: 1 } }) }), bare, itemReader])), "");
+  assert.equal(manifestProblems(manifest([writing({ intake: intake() }), bare, itemReader])), "能力 example.prepare@1 没有片段动作选项，也不是本插件某个创建入口或追加的 prepare");
+  assert.deepEqual(inspectActionDeclarations([bare], []).filter(message => message.includes("片段动作选项")), [], "by itself, an empty list is a query that only prepares");
+  const broken = { ...prepare, action: { ...(prepare.action as Part), fragment_offer_choices: undefined, input_type: "molis.fragment-offers.input.v1" } };
+  assert.ok(inspectActionDeclarations([broken], []).some(message => message.includes("片段动作选项")), "no list at all is still refused");
+});
+
 test("W1-04: a right-panel cell lists the kinds it shows, each with a reader in the same Manifest; no other slot may", () => {
   const actions = [reader, itemReader];
   assert.equal(manifestProblems(manifest(actions, [view({ objects: ["example_doc", "example_item"] })])), "");

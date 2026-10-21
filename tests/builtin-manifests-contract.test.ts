@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -22,4 +23,11 @@ test("the older Characters install that the recovery journey starts from still p
   const runtime = new PluginRuntime();
   const receipt = runtime.install({ definition: { manifest: older, async start() { return {}; } }, deployment: "local", grants: older.permissions.filter(p => p.required).map(p => p.permission) });
   assert.equal(receipt.install.version, "1.0.0");
+});
+
+// REL-03: also check the runtime catalog, independently of the source-level release check.
+test("every Manifest in the built-in catalog has the product version", () => {
+  const product = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as { version: string };
+  assert.ok(BUILTIN_PLUGIN_CATALOG.length > 0);
+  for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal(entry.manifest.version, product.version, entry.manifest.plugin_id);
 });

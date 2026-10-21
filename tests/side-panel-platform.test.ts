@@ -85,7 +85,7 @@ test("PAS-08: the side slot places a plugin's tab only while the plugin is enabl
   assert.match(html, /data-side-tab="plugin:example\/notes"/u);
   assert.match(html, /data-side-context-owner="io\.molis\.work\.example\.side" data-side-context-surface="example" hidden/u);
   assert.match(html, /data-side-src="\/projects\/p1\/side\/example\/notes"/u);
-  assert.match(html, /data-side-tab="discussion"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="files"/u);
+  assert.match(html, /data-side-tab="files"[\s\S]*data-side-tab="browser"[\s\S]*data-side-tab="computer"[\s\S]*data-side-tab="discussion"/u, "the panel's own tabs in side-shelf §3.2's order");
   assert.doesNotMatch(html, /assistant-/u, "the panel stays out of the Assistant's classes");
 });
 
@@ -111,7 +111,7 @@ test("real Host: the file tab lists and previews plugin files through the action
   let runtime: PluginRuntime | undefined;
   try {
     const owner = await localWebActionContext(host, ref, LOCAL_OWNER_PERMISSIONS);
-    await host.actionClient(ref).invoke(owner, { capability_id: pagesActions.create.capability_id, version: 1 }, { title: "周报草稿", markdown: "# 本周\n\n- 完成侧栏" });
+    await host.actionClient(ref).invoke(owner, pagesActions.create, { title: "周报草稿", markdown: "# 本周\n\n- 完成侧栏" });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;

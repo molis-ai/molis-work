@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Feed navigation, UI, disposition, and Module composition.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -46,7 +50,8 @@
       "feed.native-plugin.contract.v1",
       "feed.ui-contribution.v1",
       "feed.http-routes.v1"
-    ]
+    ],
+    "registration": "./registration"
   },
   "devDependencies": {
     "@types/sanitize-html": "^2.16.1"

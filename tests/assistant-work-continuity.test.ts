@@ -10,6 +10,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
+import { roundParts } from "./fixtures/round-parts.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -79,11 +80,13 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
   const person: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["notes:read", "notes:write"] };
-  const service: AssistantService = new AssistantService(store, { host: async () => host,
+  const service: AssistantService = new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views), (view, input, output) => service.recordResult(work, view, input, output)),
     scopeActions: async () => ({ discover: () => local.actionClient(project).discover(person), invoke: (action, input) => local.actionClient(project).invoke(person, action, input) }),
-    projectTitle: async () => "Fixture project" }, "web-user");
-  return { service, store, notes, requests, project, local, async close() { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
+    projectTitle: async () => "Fixture project",
+    // H3's owner read, as the notes plugin would answer it: the note's label while it exists.
+    readReferences: async (_projectId, picked) => picked.map(item => item.kind === "note" && notes.has(item.id) ? { label: notes.get(item.id)!.text } : null) }, "web-user");
+  return { service, store, notes, requests, project, local, async close() { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); } };
 }
 
 const ref = (capability_id: string) => ({ capability_id, version: 1, provider_id: "fixture.notes" });
@@ -206,7 +209,11 @@ test("an object the person moved to another project is named where it went, not 
     body => {
       const text = JSON.stringify(body);
       assert.match(text, /已被用户移到项目「Other project」/);
-      assert.match(text, /被移走的对象不要在这里重新创建/);
+      // ADH-12: where it went and what the person can do there are facts; not recreating it here is the role's to say.
+      const { data, role } = roundParts(body);
+      assert.match(data, /被移走的对象还在它现在的地方：用户可以到那里继续，或把它放回这个项目。/);
+      assert.doesNotMatch(data, /不要在这里重新创建/);
+      assert.match(role, /这项工作的对象已不存在或被移走时，先告诉用户它的现状；除非用户明确要求，不在这里重新创建，也不按旧内容改写。/);
       assert.match(text, /「background」已被移到项目「Other project」。这项工作的范围读不到它现在的正文/);
       assert.doesNotMatch(text, /secret plan of the other project/, "a Home object of another project is not read from here");
       return reply(undefined, "它已移到 Other project。");
@@ -270,4 +277,27 @@ test("a subject reader may live in the Home, and one declared with the schema be
   assert.deepEqual(inspectActionDeclarations([older], undefined), []);
   const wrong = { ...subject, action: { ...subject.action, output_schema: { type: "object" } } };
   assert.equal(inspectActionDeclarations([wrong], undefined).length, 1);
+});
+
+test("STRIP-05: the Host keeps a landing only in the object the Send carries and at a position it knows; then the round is told it as facts", { timeout: 60_000 }, async t => {
+  const f = await fixture(t, []);
+  try {
+    f.notes.set("bg", { text: "background", version: 4 });
+    // Another note its owner can read: only the object match keeps a landing in it out of the round.
+    f.notes.set("other", { text: "other note", version: 1 });
+    const landing = (id: string, position: string) => ({ plugin_id: "fixture.notes", object: { kind: "note", id }, position, heading_path: ["步骤"], before: "第二步，" });
+    const asked = async (text: string, context: Record<string, unknown>) => {
+      await f.service.send({ text, request_id: `req-${text}`, context: { source: { surface: "notes", title: "Notes" }, captured_at: new Date().toISOString(), ...context } } as never, { project_ref: f.project });
+      return JSON.stringify(await until(() => f.requests.find(body => JSON.stringify(body).includes(text)), text));
+    };
+    const object = { object: { kind: "note", id: "bg", version: 4, title: "background" } };
+    const told = await asked("landing-kept", { ...object, landing: landing("bg", "cursor") });
+    for (const fact of ["左边可以放进去的位置", "对象：background", "「步骤」下，光标处", "第二步，"]) assert.ok(told.includes(fact), `the round is told ${fact}`);
+    assert.equal((await asked("landing-other-object", { ...object, landing: landing("other", "cursor") })).includes("左边可以放进去的位置"), false,
+      "a landing in another object than the one the Send carries is dropped");
+    assert.equal((await asked("landing-no-object", { landing: landing("bg", "cursor") })).includes("左边可以放进去的位置"), false,
+      "a landing without the object going with the Send is dropped (§21.5 L-1)");
+    const inherited = await asked("landing-prototype-key", { ...object, landing: landing("bg", "constructor") });
+    assert.equal(inherited.includes("左边可以放进去的位置") || inherited.includes("function Object"), false, "a position that is not one of the landing's own is dropped");
+  } finally { await f.close(); }
 });

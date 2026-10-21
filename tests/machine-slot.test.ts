@@ -3,12 +3,12 @@
 // test, or under a parent that holds it already.
 import assert from "node:assert/strict";
 import { spawn, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after } from "node:test";
 import { fileURLToPath } from "node:url";
-import { slotWanted } from "../scripts/machine-slot.mjs";
+import { slotState, slotWanted } from "../scripts/machine-slot.mjs";
 
 const tool = fileURLToPath(new URL("../scripts/machine-slot.mjs", import.meta.url));
 const scratch: string[] = [];
@@ -47,6 +47,32 @@ test("run: a holder whose process is gone is taken over at once", () => {
   assert.doesNotMatch(run.stdout, /waiting/);
   const status = spawnSync(process.execPath, [tool, "status"], { env: environment(slots), encoding: "utf8" });
   assert.match(status.stdout, /^build: free$/m, "released after the command");
+});
+
+test("queue: a live waiter's ticket that another reader cannot parse yet is kept; a dead one's is removed", () => {
+  const slots = directory(), queue = path.join(slots, "build.queue");
+  const gone = Number(spawnSync(process.execPath, ["-e", "console.log(process.pid)"], { encoding: "utf8" }).stdout.trim());
+  mkdirSync(queue, { recursive: true });
+  const live = path.join(queue, `000000000000001-${process.pid}.json`), dead = path.join(queue, `000000000000002-${gone}.json`);
+  writeFileSync(live, ""); // the moment between creating the file and writing it
+  writeFileSync(dead, JSON.stringify({ kind: "build", label: "crashed", pid: gone, cwd: "/", since: 2 }));
+  mkdirSync(`${queue}.writing`);
+  writeFileSync(path.join(`${queue}.writing`, path.basename(dead)), "");
+  slotState("build", slots);
+  assert.ok(existsSync(live), "a reader must not take a half-written ticket for a dead one and remove it");
+  assert.deepEqual(readdirSync(queue), [path.basename(live)]);
+  assert.deepEqual(readdirSync(`${queue}.writing`), [], "a dead writer's unfinished copy is removed");
+});
+
+test("run: a waiter whose ticket is removed from outside takes its place again and still gets the slot", async () => {
+  const slots = directory(), log = path.join(slots, "log"), queue = path.join(slots, "build.queue");
+  const first = holdBuild(slots, log, "first", 2500);
+  await new Promise((resolve) => setTimeout(resolve, 400));
+  const second = holdBuild(slots, log, "second", 100);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+  for (const name of readdirSync(queue)) rmSync(path.join(queue, name), { force: true });
+  await Promise.all([first, second]);
+  assert.deepEqual(readFileSync(log, "utf8").trim().split("\n"), ["first start", "first end", "second start", "second end"]);
 });
 
 test("slotWanted: not in CI, not inside a test, not when a parent holds it; MOLIS_WORK_SLOT=off and =on decide first", () => {

@@ -26,7 +26,7 @@ const unclaimedWork = (index: SessionIndex, terminal: readonly { id: string }[],
 
 /** A supplement still waiting in the session, in the Host's words; the runtime's record stays its only owner. */
 const queuedInput = (input: QueuedInput): AgentQueuedInput => ({ input_id: input.inputId, text: input.text,
-  source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}),
+  source: input.source === "app" ? "host" : input.source, ...(input.key ? { key: input.key } : {}), ...(input.about ? { about: input.about } : {}),
   ...(input.from ? { left_by: { run_id: input.from.run, applied: input.from.applied } } : {}) });
 
 export function createPrologueRecovery(deps: RecoveryDeps) {
@@ -34,6 +34,9 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
   /** Subtasks of this session left without a known outcome, as the runtime projects them after a restart. */
   const childrenToReconcile = (sessionId: string) => runtime.subagents.list()
     .filter(child => child.parentSession.id === sessionId && child.state === "reconcile-required");
+
+  /** What waits for the next round; a session that cannot be opened leaves it unknown (undefined), never empty. */
+  const queued = async (ref: SessionIndex["ref"]) => (await (await runtime.sessions.open(ref))?.inputQueue())?.queued.map(queuedInput);
 
   const inspect = async (sessionId: string): Promise<AgentRecoveryReport> => {
     const index = await sessionIndex.read(sessionId);
@@ -58,7 +61,10 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (run.blockers.length && !reasons.length) reasons.push("执行或操作记录尚未核实，请稍后重新核对。");
       return { run_id: run.ref.id, version: run.version, live: run.live, waiting: run.waiting,
         operations: run.operations.map(operation => ({ ...operation })), blockers: reasons,
-        can_close: run.canClose && blockers.length === 0, ...(subagent ? { subagent } : {}) };
+        can_close: run.canClose && blockers.length === 0, ...(run.canAnswer && blockers.length === 0 ? { can_answer: true as const } : {}),
+        ...(run.questions.length ? { questions: run.questions.map(question => ({ pending_id: question.ref.id, pending_revision: question.ref.revision, kind: question.kind,
+          prompt: question.prompt, ...(question.answered ? { answered: true as const } : {}) })) } : {}),
+        ...(subagent ? { subagent } : {}) };
     };
     // A subtask cut off by a restart blocks every new round of its parent until its own interrupted run is closed.
     const children = [];
@@ -68,17 +74,20 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       if (!own.runs.length) blockers.push("有子任务的结果需要核对，但找不到它可以结束的中断轮次。");
       children.push(...own.runs.map(run => view(run, { subagent_id: child.ref.id })));
     }
-    // What waits for the next round; a session that cannot be opened leaves it unknown, never empty.
-    const queue = await (await runtime.sessions.open(index.ref))?.inputQueue();
-    return { session_id: sessionId, blockers, ...(queue ? { inputs: queue.queued.map(queuedInput) } : {}),
+    const queue = await queued(index.ref);
+    return { session_id: sessionId, blockers, ...(queue ? { inputs: queue } : {}),
       runs: [...report.runs.map(run => view(run)), ...children] };
   };
 
   /** Why a restored session needs checking before a new round, if it does. */
-  const restoreReasons = (id: string, index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork): string[] => {
+  const restoreReasons = async (id: string, index: SessionIndex, terminal: readonly { id: string }[], open: OpenWork): Promise<string[]> => {
     const reasons: string[] = [];
     if (open.unavailable.length) reasons.push("未能查清运行时的未结束工作，暂不能安全继续");
-    if (open.items.some(item => item.origin.session === id)) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
+    const mine = open.items.filter(item => item.origin.session === id);
+    // A round parked at a normal shutdown on a question that can still be answered waits for the person, not for checking.
+    const parked = mine.length ? (await runtime.sessions.inspectRecovery(index.ref).catch(() => undefined))?.runs.filter(run => run.canAnswer && run.parked) ?? [] : [];
+    if (mine.length && mine.every(item => parked.some(run => item.id === run.ref.id || item.id === run.parked!.pending.id))) reasons.push("上一轮停在一道等你回答的问题上：回答后接着做，也可以结束那一轮");
+    else if (mine.length) reasons.push("此会话仍有中断的执行、等待或结果未知的操作，需要核对");
     if (childrenToReconcile(id).length) reasons.push("有子任务在中断后结果待核对：核对并结束它的中断轮次后，才能开始新一轮");
     if (terminal.some(ref => !index.attempts.some(attempt => attempt.run_id === ref.id))) reasons.push("SDK 有执行记录缺少宿主启动索引，需要核对对应关系");
     return reasons;
@@ -93,7 +102,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
     if (index.workspace !== "none" && index.workspace !== "business") await deps.checkpoints?.restore(id);
     const terminal = await session.terminalRuns();
     const open = await runtime.listOpenWork();
-    const reasons = restoreReasons(id, index, terminal, open);
+    const reasons = await restoreReasons(id, index, terminal, open);
     const runs: PrologueRestoredSession["runs"] = [];
     const reverse = [...index.attempts].reverse();
     const last = reverse.find(attempt => attempt.run_id);
@@ -110,7 +119,9 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       runs.push({ ref: { run_id: attempt.run_id, session_id: id }, frozen: attempt.frozen,
         started_at: attempt.started_at, task: attempt.task,
         ...(attempt.stop_intent ? { stop_intent: attempt.stop_intent } : {}),
+        ...(attempt.stop_reason ? { stop_reason: attempt.stop_reason } : {}),
         ...(attempt.timing ? { timing: attempt.timing } : {}),
+        ...(attempt.desktop_target ? { desktop_target: attempt.desktop_target } : {}),
         ...(ref ? { terminal: true } : {}),
         ...(!ref ? { original_questions: pendingQuestions.filter(pending => pending.origin?.run === attempt.run_id).map(pending => ({ pending_id: pending.ref.id, pending_revision: pending.ref.revision, kind: pending.kind, why: pending.why })) } : {}),
         events: ref ? await session.replay(ref) : await session.readRunProgress({ kind: "run", id: attempt.run_id, revision: 1 }) });
@@ -135,5 +146,7 @@ export function createPrologueRecovery(deps: RecoveryDeps) {
       return inspect(session.session_id);
     },
   };
-  return { inspect, restore, port };
+  /** The session's waiting supplements, read on their own: no recovery check (specs/ai-input-receipts D31). */
+  const queuedOf = async (sessionId: string) => { const index = await sessionIndex.read(sessionId); return index ? queued(index.ref) : undefined; };
+  return { inspect, restore, port, queued: queuedOf };
 }

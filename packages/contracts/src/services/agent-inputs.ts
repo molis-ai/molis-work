@@ -21,6 +21,7 @@ export const servicesAgentInputsContract = {
  * (a review note, a board update): the model receives it as data, and the run shows it as a note, never as their words.
  */
 export type AgentInputSource = "person" | "host";
+export const AGENT_INPUT_SOURCES: readonly AgentInputSource[] = ["person", "host"];
 
 /**
  * When a supplement reaches the model (specs/ai-input-receipts §4.1). `next-boundary`: after the reply or batch of tools
@@ -45,6 +46,11 @@ export interface AgentInputSend {
   key?: string;
   /** `next-boundary` when absent. */
   mode?: AgentSteerMode;
+  /**
+   * The earlier input of this session this one is about, by its id: a correction, or a new target for it (§4.6). The
+   * runtime keeps it on its ledger without reading anything into it; what changes is in the text, the person's own words.
+   */
+  about?: string;
 }
 
 /**
@@ -71,32 +77,103 @@ export interface AgentQueuedInput {
   /** `peer`: another session's Agent said it. */
   source: AgentInputSource | "peer";
   key?: string;
+  /** The earlier input it is about (`AgentInputSend.about`). */
+  about?: string;
   /** The round that ended without reading it; `applied`: it was in the context, but no reply came. Absent when it was sent straight to the session. */
   left_by?: { run_id: string; applied: boolean };
 }
 
 /**
  * The runtime's side. `beforeQueue` runs right before a supplement is kept in the session, once the round turned out to
- * have ended: the caller checks there that it may still write.
+ * have ended, and `beforeWithdraw` right before the round or the session is asked to give one back: the caller checks
+ * there that it may still write.
  */
 export interface AgentInputsPort {
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
+  /** Takes a supplement back before the model saw it; absent where the runtime cannot. */
+  withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
+}
+
+/**
+ * A supplement taken back before the model saw it (§4.3, §4.6): it never reaches the model, and the runtime's ledger keeps
+ * the withdrawal. `run`: the round under way had not put it in the context yet. `queued`: it was waiting in the session.
+ * One already in the context cannot be taken back, since the model has seen it; a correction (`about`) changes course.
+ */
+export interface AgentInputWithdrawal { input_id: string; from: "run" | "queued" }
+
+/** One input as the runtime's ledger knows it: whose session it belongs to and its id there. */
+export interface AgentInputRef { session_id: string; input_id: string }
+
+/** How the model says it will treat an input it read (closed set, the runtime's S3 vocabulary). */
+export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "needs-clarification" | "not-adopted" | "answered" | "noted" | "merged";
+/** What kind of input the model takes it to be. */
+export type AgentInputKind = "supplement" | "correction" | "constraint" | "request" | "question";
+/** What the model says the input changes; declared, not observed. */
+export type AgentInputImpact = "objective" | "scope" | "priority" | "approach" | "acceptance" | "outputs" | "constraint";
+/** What a statement points at: another input, an app reference, a node of a board, an item of the round's list, a question. */
+export type AgentInputTarget = { kind: "input" | "app-ref" | "todo" | "pending"; id: string } | { kind: "board-node"; board: string; id: string };
+
+/**
+ * The model's own latest statement about an input it read (specs/ai-input-receipts §3.4, SDK S3). It is a claim: the
+ * runtime checked only that it names inputs the round read and valid targets; nothing was done because of it, it does not
+ * move the receipt's state, and it is not what the Host observed. Pages show it as what the AI says.
+ */
+export interface AgentInputModelClaim {
+  treatment: AgentInputTreatment;
+  kind?: AgentInputKind;
+  targets: AgentInputTarget[];
+  impacts: AgentInputImpact[];
+  note?: string;
+  /** The model call whose reply made the statement, and the tool call that carried it. */
+  call_id?: string;
+  tool_call_id?: string;
+  /** How many statements the model made about it; the latest stands. */
+  revisions: number;
+}
+
+/** A question the round asked about an input. `unresolved`: the round ended with no settlement on its ledger. */
+export interface AgentInputQuestion { pending_id: string; state: "open" | "settled" | "expired" | "cancelled" | "unresolved" }
+
+/**
+ * A supplement's receipt on its turn, projected by the runtime's own `projectInputReceipts` from the round's ledger.
+ * `state` is what happened to it; `model_claim` is only what the model says about it.
+ */
+export interface AgentTurnSteer {
+  id: string;
+  /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
+  state: "received" | "applied" | "read" | "unread" | "withdrawn";
+  /** The key it was sent under (`AGENT_INPUT_KEY_PATTERN`), so the page that sent it knows it here even when its answer was lost. */
+  key?: string;
+  /** The earlier input it is about (`AgentInputSend.about`), as the ledger keeps it. */
+  about?: string;
+  model_claim?: AgentInputModelClaim;
+  /** Questions asked about it, in the order asked. */
+  questions?: AgentInputQuestion[];
 }
 
 export type AgentInputSendRequest = AgentInputSend & { runtime_id: string; session_id: string; run_id: string };
+/** `run_id`: the round the caller saw it in, or the session's latest; a supplement no round took is the session's. */
+export type AgentInputWithdrawRequest = { runtime_id: string; session_id: string; run_id: string; input_id: string };
 
 const id = { type: "string", minLength: 1 } as const;
 
 /** The one way a plugin speaks to a round of its sessions; the Assistant, inside the Host, uses the runtime's port. */
 export const agentInputActions = {
   send: {
-    capability_id: "agent.inputs.send.v1", version: 1, operation: "command",
-    action: { title: "向一轮补充要求", description: "把一段话交给这个项目里一个会话的一轮：下一个边界读进上下文、打断当前回复，或留到下一轮。回执说这一轮收下了，还是留在会话里等下一轮；同键同文只算一次。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
+    capability_id: "agent.inputs.send.v2", version: 2, operation: "command",
+    action: { title: "向一轮补充要求", description: "把一段话交给这个项目里一个会话的一轮：下一个边界读进上下文、打断当前回复，或留到下一轮；纠正或改关联时用 about 指向原来那条。回执说这一轮收下了，还是留在会话里等下一轮；同键同文只算一次。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {
         runtime_id: id, session_id: id, run_id: id, text: { type: "string", minLength: 1, maxLength: 100_000, pattern: "\\S" },
-        source: { enum: ["person", "host"] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] } } },
+        source: { enum: [...AGENT_INPUT_SOURCES] }, key: { type: "string", pattern: AGENT_INPUT_KEY_PATTERN }, mode: { enum: [...AGENT_STEER_MODES] }, about: id } },
       output_schema: { type: "object", required: ["input_id", "replayed", "delivered"], additionalProperties: false, properties: {
         input_id: { type: "string" }, replayed: { type: "boolean" }, delivered: { enum: ["run", "queued"] } } } },
   } as ActionDefinition<AgentInputSendRequest, AgentSteerReceipt>,
+  withdraw: {
+    capability_id: "agent.inputs.withdraw.v1", version: 1, operation: "command",
+    action: { title: "撤回一条补充", description: "撤回这个项目里一个会话还没交给模型的一条补充：这一轮还没放进上下文的，或排在会话里等下一轮的。已经放进上下文的撤不回，要改口就发一条纠正。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
+      audiences: ["plugin"], permissions: [], subject_kinds: [],
+      input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "input_id"], additionalProperties: false, properties: { runtime_id: id, session_id: id, run_id: id, input_id: id } },
+      output_schema: { type: "object", required: ["input_id", "from"], additionalProperties: false, properties: { input_id: { type: "string" }, from: { enum: ["run", "queued"] } } } },
+  } as ActionDefinition<AgentInputWithdrawRequest, AgentInputWithdrawal>,
 } as const;

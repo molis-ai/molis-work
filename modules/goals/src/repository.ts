@@ -58,9 +58,9 @@ export class GoalsRepository {
     return Boolean(this.db.prepare("SELECT project_id FROM boards WHERE project_id = ?").get(projectId));
   }
 
-  createBoard(projectId: string, title: string, at: string): void {
-    this.db.prepare("INSERT INTO boards (project_id, title, active_goal_id, created_at, updated_at) VALUES (?, ?, NULL, ?, ?)")
-      .run(projectId, title, at, at);
+  createBoard(projectId: string, at: string): void {
+    this.db.prepare("INSERT INTO boards (project_id, active_goal_id, created_at, updated_at) VALUES (?, NULL, ?, ?)")
+      .run(projectId, at, at);
   }
 
   setActiveGoal(projectId: string, goalId: string | null, at: string): void {
@@ -77,7 +77,6 @@ export class GoalsRepository {
     const row = this.db.prepare("SELECT * FROM boards WHERE project_id = ?").get(projectId) as Row | undefined;
     return row ? {
       project_id: text(row.project_id),
-      title: text(row.title),
       active_goal_id: nullableText(row.active_goal_id),
       created_at: text(row.created_at),
       updated_at: text(row.updated_at),

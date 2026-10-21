@@ -1,6 +1,6 @@
 import type { Runtime, SubagentStartedObserver, ExactRef } from "@prologue/sdk";
 import type { AgentFrozenSubagentRole, AgentRunRef, AgentSubagentsCapability, AgentSubagentView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { applyPrologueEvent, emptyPrologueStreamState } from "./prologue-stream.js";
+import { applyRunEvent, emptyPrologueStreamState } from "./prologue-stream.js";
 
 export interface PrologueSubagentRoot {
   id: string;
@@ -22,7 +22,7 @@ export function createPrologueSubagents(runtime: Runtime, provenanceOf: (run: Ag
         const terminal = (await session.terminalRuns()).find(ref => ref.id === child.run.id);
         const events = terminal ? await session.replay(terminal) : await session.readRunProgress(child.run);
         const stream = emptyPrologueStreamState();
-        for (const event of events) applyPrologueEvent(stream, event, null);
+        for (const event of events) applyRunEvent(stream, event, null);
         const role = child.character ? roles.get(exactCharacterKey(child.character)) : undefined;
         if (!role) throw new Error("原子角色来源不可读取，不能猜测其权限与身份");
         const root = child.workspace && provenance.roots?.find(root => root.id === child.workspace!.id && sameRoot(root.rootRef, child.workspace!.rootRef));

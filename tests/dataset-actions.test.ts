@@ -13,13 +13,13 @@ async function fixture(t: test.TestContext, completeText: HostCompleteText | nul
   const home = await mkdtemp(join(tmpdir(), "dataset-actions-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, title: "Dataset", actor_id: "owner", idempotency_key: "init" }));
+  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: DATASET_ACTION_PERMISSIONS };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   return { home, host, ref, caller, client, bound };
 }
 
-test("Dataset registers all business actions; snapshots, CSV and Artifact share original storage", async t => {
+test("W5-01-DATASET-01: Dataset registers all business actions; snapshots, CSV and Artifact share original storage", async t => {
   const f = await fixture(t);
   const invoke = (key: keyof typeof actions, args: object = {}): Promise<any> => f.bound.invoke(actions[key] as never, args as never);
   const catalog = await f.bound.discover();
@@ -116,7 +116,7 @@ for (const mode of ["missing", "failure", "empty", "cancel", "edit", "delete", "
   const abort = new AbortController();
   const pending = f.client.invoke({ ...f.caller, signal: abort.signal }, actions.generateAi, { id: dataset.id, prompt: "计划截止日期" });
   if (mode === "success") { assert.equal((await pending).dataset.columns.at(-1)!.name, "截止日期"); return; }
-  const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" } : mode === "failure" ? /Fixture failure/ : mode === "empty" ? /没有返回有效列名/
+  const rejection = assert.rejects(pending, mode === "missing" ? { code: "actions.connection_required" } : mode === "failure" ? { code: "plugin.model_failed", message: "模型请求失败，请重试" } : mode === "empty" ? /没有返回有效列名/
     : mode === "cancel" ? { name: "AbortError" } : mode === "edit" ? { code: "dataset.conflict" } : { code: "dataset.not_found" });
   if (["cancel", "edit", "delete"].includes(mode)) {
     await entered.promise;

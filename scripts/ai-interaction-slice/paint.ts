@@ -54,14 +54,14 @@ function paintFields(root: HTMLElement, state: DemoState, recommendation: Recomm
   const { values } = state;
   client.write({
     notes: values.notes, minutes: values.minutes, date: values.date, when: { ...state.whenParts },
-    format: values.format.map(String), topics: values.topics.map(String), references: values.references.map(ref => ref.id),
+    format: values.format.map(String), topics: values.topics.map(String), references: values.references.map(ref => ({ value: ref.id, label: ref.label })),
   });
   const composer = find<HTMLInputElement | HTMLTextAreaElement>(root, "[data-composer]");
   if (!recommendation.composing && document.activeElement !== composer && composer.value !== state.draft) composer.value = state.draft;
   // Only submitting fixes the fields; an invalidated question keeps its draft editable but cannot be answered.
   find<HTMLFieldSetElement>(root, "[data-ix-fields]").disabled = !draftable(state) && !recommendation.composing;
   const chosen = state.values.references;
-  text(root, '[data-ix-field="references"] .mw-ix-hint', `从可用材料里选 1–${timeLimits.maxReferences} 份 · 已选 ${chosen.length}`);
+  text(root, '[data-ix-field="references"] .mw-ix-hint', `输入名称搜索，选 1–${timeLimits.maxReferences} 份 · 已选 ${chosen.length}`);
   client.showErrors(state.errors as Record<string, string>);
   for (const name of fieldOrder) show(find(root, `[data-ix-field="${name}"]`), "[data-ix-refreshed]", state.refreshed.includes(name));
   show(root, "[data-ix-notice]", state.conflict !== null);

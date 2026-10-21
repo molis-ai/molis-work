@@ -1,12 +1,15 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
-import { BUILTIN_PLUGIN_WORKBENCH } from "./plugin-workbench.js";
+import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
 import { createWorkbenchUiHost } from "./ui-composition.js";
 import { SIDE_LINKS_SCRIPT } from "./side-panel.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
+import { PANE_MESSAGES_SCRIPT, SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
+import { CONTEXT_PANE_FACTORY_SCRIPT } from "./scripts/client/context-actions.js";
+import { knowledgeClientTag } from "./settings-knowledge.js";
 
 /**
  * One plugin tab of the side panel (specs/archive/side-panel D13): the Host serves the declared `side` view in its own
@@ -46,10 +49,10 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
   const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
   const model: SideViewModel = { project_id: input.projectId, route_prefix: input.routePrefix, view_id: view.view_id, primitives: { escape, text: input.translate } };
   const html = uiHost.mount({ slot: WORKBENCH_UI_SLOTS.side, contribution: { contribution_id: view.contribution_id, surface: surface.surface_id, model } }).html;
-  const pack = BUILTIN_PLUGIN_WORKBENCH.find(entry => entry.project_plugin_id === input.projectPluginId);
   const route = JSON.stringify(input.routePrefix);
-  const client = pack?.clientFactory
-    ? `(${pack.clientFactory})({ mountPluginClient, translate: L, projectId: () => ${JSON.stringify(input.projectId)}, projectTitle: () => "", route: path => ${route} + path, side: true });`
+  const surfaceClient = pluginSurfaceClients().find(entry => entry.id === input.projectPluginId);
+  const client = surfaceClient
+    ? `(${surfaceClient.factory})({ mountPluginClient, translate: L, projectId: () => ${JSON.stringify(input.projectId)}, projectTitle: () => "", route: path => ${route} + path, side: true });`
     : "";
   return renderWorkbenchDocument({
     lang: input.lang,
@@ -58,7 +61,10 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     head_html: `<script>${input.themeBootstrapScript}</script>${input.headHtml}<link rel="stylesheet" href="/assets/molis-work-workbench.css"><style>${SIDE_VIEW_STYLES}</style>`,
     body_attributes: { "data-project-id": input.projectId, "data-route-prefix": input.routePrefix, "data-side-view": `${input.projectPluginId}/${view.view_id}` },
     body_html: `${renderIconSprite()}<main class="side-view" data-side-view-root>${html}</main>
-    ${(pack?.clientAssets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
+    ${(surfaceClient?.assets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
+    <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
+${COPY_FEEDBACK_CLIENT_SCRIPT}
+</script>
     <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;
       // This document is the view's host: the work surface a plugin reuses here waits, hidden, for its host to show it
@@ -66,7 +72,25 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
       for (const surface of document.querySelectorAll('[data-side-view-root] > [data-work-surface][hidden]')) surface.hidden = false;
       const mountPluginClient = (${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
       ${client}
-    </script>`,
+      // This document and the side panel around it (S-30, the same checks as a split pane): the page events the view may
+      // hand up (SIDE_FORWARD_SCRIPT) go to the page; an item the panel was asked to open here comes down as
+      // molis:side-target and is handed, as it is, to the view's surface: the view finds it, nobody else reads the id.
+      // What the person selects here is in hand as in a split pane (specs/context-program §21.4 W3-C): this document draws
+      // the toolbar the top document sends it and sends the choices back, through the same checks.
+      {
+        const messages = ${PANE_MESSAGES_SCRIPT}, forwarded = ${SIDE_FORWARD_SCRIPT};
+        (${CONTEXT_PANE_FACTORY_SCRIPT})({ translate: L, paneMessages: messages, route: path => ${route} + path });
+        if (window.parent !== window) for (const name of forwarded.names) addEventListener(name, (event) => {
+          try { window.parent.postMessage({ type: "molis:side-forward", name, detail: event.detail }, location.origin); }
+          catch { /* a detail that cannot be copied stays in this document */ }
+        });
+        addEventListener("message", (event) => {
+          if (!messages.fromParent(event) || event.data.type !== "molis:side-target") return;
+          const item = event.data.target && event.data.target.item;
+          if (typeof item === "string" && item) document.querySelector("[data-side-view-root] > [data-work-surface]")?.dispatchEvent(new CustomEvent("molis-work:select-item", { detail: { itemId: item } }));
+        });
+      }
+    </script>${knowledgeClientTag()}`,
   });
 }
 

@@ -41,6 +41,13 @@ export {
   type MolisWorkTheme,
 } from "./visual-foundation.js";
 
+export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./overflow-sides.js";
+export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
+export { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT } from "./page-clients.js";
+export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "./copy-decay.js";
+export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
+export { NUMBER_STYLES } from "./styles/numbers.js";
+export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";
 export { SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "./select-menu-client.js";
 export { renderFilePreviewHtml, FILE_PREVIEW_STYLES, FILE_PREVIEW_CLIENT_SCRIPT, type FilePreviewContent } from "./file-preview.js";
 export { ARRIVAL_MOTION_CLIENT_SCRIPT } from "./arrival-motion-client.js";
@@ -78,7 +85,9 @@ export * from './plugin-presentation.js';
 export { renderPluginPresentationExample } from './plugin-presentation-example.js';
 export * from './interaction.js';
 export * from './interaction-client.js';
-export { INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES } from './styles/interaction.js';
+export { INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES } from './styles/interaction.js';
 export { compactScript } from './compact-script.js';
+export * from './input-receipts-client.js';
+export { INPUT_RECEIPTS_STYLES } from './styles/input-receipts.js';
 export { CONTEXT_TOOLBAR_CLIENT_SCRIPT, CONTEXT_TOOLBAR_STYLES } from './context-toolbar.js';
 export { sanitizeContextTools } from './context-tools.js';

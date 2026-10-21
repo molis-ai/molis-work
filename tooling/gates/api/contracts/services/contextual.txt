@@ -4,6 +4,8 @@
 
 export declare const ASSISTANT_FORMS: readonly AssistantForm[];
 
+export declare const ASSISTANT_REPLY_KIND = "assistant_reply";
+
 export type AssistantForm = "none" | "suggest" | "options" | "preview" | "compare";
 
 export declare const CONTEXTUAL_DRAFT_LIMITS: {
@@ -92,6 +94,8 @@ export interface ContextualCandidate {
     readonly scope?: "object";
     readonly origin?: "subject" | "intake" | "attach";
     readonly position?: SurfaceLandingPosition;
+    readonly always_card?: true;
+    readonly own?: true;
 }
 
 export interface ContextualDraft {

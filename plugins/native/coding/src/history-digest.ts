@@ -13,6 +13,9 @@ import { HISTORY_DIGEST_MARKER, HISTORY_DIGEST_TASK_HEAD, originalTask } from ".
  * already carried rather than rereading every round, and the Host's own facts — which files changed, how the latest
  * round ended — travel beside it, so a slip in the summary cannot hide them. When the model cannot write it, the
  * Host's record-based digest stands in and the page says so. Nothing is stored beside the rounds themselves.
+ *
+ * What the person added while rounds ran and is still in force travels in all three, in their own words and with the
+ * round and input it came from, so neither the summary nor the record-based digest can drop one (spec ai-input-receipts §20).
  */
 
 export { HISTORY_DIGEST_MARKER, digestTask } from "./continuation.js";
@@ -22,6 +25,8 @@ const LIMIT = 24_000;
 /** What the summary is written from; the model call takes at most 60 000 characters. */
 const MATERIAL_LIMIT = 58_000;
 const SUMMARY_LIMIT = 12_000;
+/** The person's standing supplements; past this the oldest give way, named by input, never silently. */
+const STANDING_LIMIT = 16_000;
 const PHASE: Record<string, string> = { completed: "已完成", failed: "出错结束", stopped: "已停止", cancelled: "已取消", "reconcile-required": "中断待核对" };
 
 const clip = (text: string, size: number) => {
@@ -41,17 +46,42 @@ function round(run: AgentRunView, number: number, detailed: boolean): string {
   return lines.join("\n");
 }
 
+/**
+ * The supplements still in force, from the runs' own input records: those the model took in (applied) or replied with
+ * (read). Withdrawn ones are out; unread ones are not lost but ride into the next round from the session's queue, so
+ * listing them here would claim the model saw them. The Host's notes and turns without an input record are not the
+ * person's supplements. A supplement carried into a later round counts by its latest state, in the order first sent.
+ */
+function standingSupplements(runs: readonly AgentRunView[]): Array<{ round: number; input_id: string; text: string }> {
+  const latest = new Map<string, { round: number; input_id: string; text: string; state: string }>();
+  runs.forEach((run, index) => {
+    for (const turn of run.turns) if (turn.kind === "user" && turn.steer && turn.text.trim()) latest.set(turn.steer.id, { round: index + 1, input_id: turn.steer.id, text: turn.text.trim(), state: turn.steer.state });
+  });
+  return [...latest.values()].filter(entry => entry.state === "applied" || entry.state === "read").map(({ state: _state, ...entry }) => entry);
+}
+
+/** The standing supplements as the person's words, quoted with their source; the oldest give way first, named. */
+function standingSection(runs: readonly AgentRunView[]): string {
+  const entries = standingSupplements(runs);
+  if (!entries.length) return "";
+  let lines = entries.map(entry => `- 用户在第 ${entry.round} 轮补充（输入 ${entry.input_id}）：“${clip(entry.text, STANDING_LIMIT / 2)}”`);
+  const left: string[] = [];
+  while (lines.length > 1 && lines.reduce((sum, line) => sum + line.length + 1, 0) > STANDING_LIMIT) { left.push(entries[left.length]!.input_id); lines = lines.slice(1); }
+  return [`用户在执行中补充过、仍然有效的话（原话，按发送顺序；后面说的与前面冲突时以后说的为准）：`,
+    ...(left.length ? [`- 更早的 ${left.length} 条因篇幅没有带入：输入 ${left.join("、")}`] : []), ...lines].join("\n");
+}
+
 /** The digest of every earlier round, newest in most detail, fitted to a fixed size by shortening the oldest first. */
 export function codingHistoryDigest(runs: readonly AgentRunView[], task: string): string {
   const head = `${HISTORY_DIGEST_MARKER}本会话前 ${runs.length} 轮的记录由宿主根据执行记录整理。工具输出的原文没有带入这一轮：需要文件内容时请重新读取，不要凭记忆。已改动的文件以工作区当前内容为准。`;
-  const detailed = new Set(runs.slice(-3));
+  const detailed = new Set(runs.slice(-3)), standing = standingSection(runs);
   let parts = runs.map((run, index) => round(run, index + 1, detailed.has(run)));
   let omitted = 0;
-  const size = () => head.length + parts.reduce((sum, part) => sum + part.length + 2, 0);
+  const size = () => head.length + standing.length + parts.reduce((sum, part) => sum + part.length + 2, 0);
   // Oldest rounds give way first: shortened to their request, then left out with a count, never silently.
   for (let index = 0; size() > LIMIT && index < parts.length - 3; index++) parts[index] = `第 ${index + 1} 轮（${PHASE[runs[index]!.phase] ?? runs[index]!.phase}）要求：${clip(originalTask(runs[index]!), 80)}`;
   while (size() > LIMIT && parts.length > 3) { parts = parts.slice(1); omitted++; }
-  const body = [head, ...(omitted ? [`更早的 ${omitted} 轮从略。`] : []), ...parts].join("\n\n");
+  const body = [head, ...(standing ? [standing] : []), ...(omitted ? [`更早的 ${omitted} 轮从略。`] : []), ...parts].join("\n\n");
   return body + HISTORY_DIGEST_TASK_HEAD + task;
 }
 
@@ -65,8 +95,9 @@ function carriedDigest(run: AgentRunView): string | null {
 
 /**
  * What the summary is written from: the summary the latest digest round carried (it covers every round before that
- * one), then each round from there on — the request, what the person added while it ran, the conclusion, the files it
- * changed and how it ended. Oldest rounds are shortened, then left out with a count, when it runs long.
+ * one), what the person added that is still in force (from every round), then each round from there on — the request,
+ * the conclusion, the files it changed and how it ended. Oldest rounds are shortened, then left out with a count, when
+ * it runs long; the supplements come before the rounds so no cut reaches them.
  */
 export function historySummaryMaterial(runs: readonly AgentRunView[]): string {
   let from = 0, previous: string | null = null;
@@ -74,20 +105,14 @@ export function historySummaryMaterial(runs: readonly AgentRunView[]): string {
     const carried = carriedDigest(runs[index]!);
     if (carried) { from = index; previous = carried; break; }
   }
-  const detail = (run: AgentRunView, number: number, detailed: boolean) => {
-    const added = run.turns.filter(turn => turn.kind === "user").slice(1).map(turn => turn.text.trim()).filter(Boolean);
-    const lines = [round(run, number, detailed)];
-    if (added.length) lines.push(`- 执行中用户补充：${added.slice(-5).map(text => clip(text, detailed ? 600 : 200)).join(" / ")}`);
-    return lines.join("\n");
-  };
   const later = runs.slice(from);
-  let parts = later.map((run, index) => detail(run, from + index + 1, true));
+  let parts = later.map((run, index) => round(run, from + index + 1, true));
   let omitted = 0;
-  const head = previous ? `此前的摘要（概括第 1–${from} 轮）：\n${clip(previous, 24_000)}` : "";
-  const size = () => head.length + parts.reduce((sum, part) => sum + part.length + 2, 0);
-  for (let index = 0; size() > MATERIAL_LIMIT && index < parts.length - 3; index++) parts[index] = detail(later[index]!, from + index + 1, false);
+  const head = previous ? `此前的摘要（概括第 1–${from} 轮）：\n${clip(previous, 24_000)}` : "", standing = standingSection(runs);
+  const size = () => head.length + standing.length + parts.reduce((sum, part) => sum + part.length + 2, 0);
+  for (let index = 0; size() > MATERIAL_LIMIT && index < parts.length - 3; index++) parts[index] = round(later[index]!, from + index + 1, false);
   while (size() > MATERIAL_LIMIT && parts.length > 3) { parts = parts.slice(1); omitted++; }
-  return [head, ...(omitted ? [`之后又有 ${omitted} 轮从略。`] : []), ...parts].filter(Boolean).join("\n\n").slice(0, MATERIAL_LIMIT);
+  return [head, standing, ...(omitted ? [`之后又有 ${omitted} 轮从略。`] : []), ...parts].filter(Boolean).join("\n\n").slice(0, MATERIAL_LIMIT);
 }
 
 /** The model's summary as the digest a round carries, with the Host's own facts beside it. */
@@ -100,7 +125,8 @@ export function summaryDigest(runs: readonly AgentRunView[], summary: string, ta
     files.length ? `- 前 ${runs.length} 轮改动过的文件：${files.slice(0, 60).join("、")}${files.length > 60 ? ` 等 ${files.length} 个` : ""}` : `- 前 ${runs.length} 轮没有改动文件`,
     `- 最近一轮：\n${round(runs.at(-1)!, runs.length, true)}`,
   ].join("\n");
-  return [head, text, facts].join("\n\n") + HISTORY_DIGEST_TASK_HEAD + task;
+  const standing = standingSection(runs);
+  return [head, text, facts, ...(standing ? [standing] : [])].join("\n\n") + HISTORY_DIGEST_TASK_HEAD + task;
 }
 
 export interface HistoryDigest { text: string; source: "model" | "records"; usage?: { input: number; output: number }; problem?: string }

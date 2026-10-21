@@ -4,6 +4,8 @@ import type { TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { ISSUE_ASK } from "@molis-ai/molis-work-plugin-issues";
+import { asideReply } from "./ending-review.js";
 
 function reply(tool?: { name: string; input: unknown }, text = "已记录「切换页面后输入内容丢失」（Bug）。"): string {
   const events: string[] = [], emit = (type: string, value: object) => events.push(`event: ${type}\ndata: ${JSON.stringify({ type, ...value })}\n\n`);
@@ -17,53 +19,53 @@ function reply(tool?: { name: string; input: unknown }, text = "已记录「切�
 
 export const FIXTURE_TITLE = "切换页面后输入内容丢失";
 export interface IssueModelBehavior {
-  /** Reply with words only (no tool): the round ends without a record. */
+  /** Reply with words only (no tool): an Assistant round ends without a record, and Issue's naming call gets no JSON. */
   replyText?: string;
-  /** The first save sends the record's name outside `input` (the real MiniMax failure); the corrected one follows. */
-  malformedCaptureOnce?: boolean;
-  malformedCaptureAlways?: boolean;
-  /** Held until resolved: the capture stays "organizing" meanwhile. */
+  /** Issue's naming call: answered with a title Issue refuses, so nothing is saved. */
+  unusable?: boolean;
+  /** Issue's naming call is held until resolved: the capture stays "organizing" meanwhile. */
   firstReply?: Promise<void>;
-  question?: "free-text" | "correct-once" | "never-correct";
+  /** Issue's naming call: too little to go on, so the one question comes back. In the Assistant: one free-text question. */
+  question?: "free-text";
   unavailable?: boolean;
-  /** Fall back to a card the way the method says when the direct save is refused (the person confirms every time). */
-  suggest?: boolean;
   title?: string;
   type?: "bug" | "experience" | "feature";
+  /** Ask the Assistant's memory to keep this, quoting the person (`said`); then end in words. */
+  remember?: { text: string; said: string };
+  /** After the free-text question, state how it handles the supplement the round was given (by the id the runtime showed). */
+  acknowledge?: { treatment: string; kind?: string; impacts: string[] };
 }
 
-/** Model replies are scripted the way the Issue method asks; the Assistant, vision intake, action directory and undo stay real. */
+/**
+ * One local model for a Home. Issue's naming call (its own registered instruction, the words fenced after it) is answered
+ * with the JSON Issue asks for; Assistant rounds are scripted one tool call per turn. Issue, the Assistant, vision intake,
+ * the action directory and undo stay real. `requests` are the Assistant's rounds, `namings` the text of each naming call.
+ */
 export async function issueModel(t: TestContext, home: string, behavior: IssueModelBehavior = {}) {
   const previous = process.env.MOLIS_WORK_SECRET_BACKEND; process.env.MOLIS_WORK_SECRET_BACKEND = "file";
-  const requests: unknown[] = [], rounds = new Map<string, number>();
+  const requests: unknown[] = [], namings: string[] = [];
+  let turn = 0;
   const model = createServer(async (request, response) => {
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
-    const body = JSON.parse(Buffer.concat(chunks).toString("utf8")); requests.push(body);
+    const raw = Buffer.concat(chunks).toString("utf8"), review = asideReply(raw);
+    // The ending review (D1②) and knowledge's background cards are answered aside, so neither spends a scripted turn or counts as a request.
+    if (review) { response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, review)); return; }
+    const body = JSON.parse(raw);
     if (behavior.unavailable) { response.writeHead(503); response.end('{"error":{"message":"fixture model unavailable"}}'); return; }
-    const revision = JSON.stringify(body).match(/待整理记录 ([0-9a-f-]{36}) 版本 (\d+)/);
-    const draft_id = JSON.stringify(body).match(/录入草稿 ([0-9a-f-]{36})/)?.[1] ?? (revision ? revision[1] + revision[2] + behavior.title : "missing-draft");
-    const turn = rounds.get(draft_id) ?? 0; rounds.set(draft_id, turn + 1);
-    if (turn === 0) await behavior.firstReply;
-    const identity = { capability_id: "issues.capture", version: 1, provider_id: "io.molis.work.issues" };
-    const input = { draft_id, title: behavior.title ?? FIXTURE_TITLE, type: behavior.type ?? "bug" };
-    // Replay the real MiniMax failure: business values beside `input` instead of inside it.
-    const bad = { name: "change-reversible", input: { ...identity, title: input.title, type: input.type, input: "" } };
-    const good = { name: "change-reversible", input: { ...identity, input } };
-    const card = { name: "suggest-action", input: { title: "记录这条 Issue", summary: `${input.title}（Bug）`, ...identity, input, editable: ["title", "type"] } };
-    const ask = (valid: boolean) => ({ name: "ask-user", input: !valid ? {
-      why: "需要具体问题", questions: [{ prompt: "如何处理这条录入？", options: [{ description: "补充具体问题后再生成" }] }],
-    } : behavior.question === "correct-once" ? {
-      why: "需要定位页面", questions: [{ prompt: "在哪个页面点击保存没有反应？", options: ["首页", "项目页"], allowOther: true }],
-    } : { why: "你在哪个页面做了什么，出现了什么问题？也可以补充截图。" } });
-    // One planned tool call per model turn of a draft; after the plan, the round ends in words.
-    const plan = behavior.replyText ? [] : behavior.question === "free-text" ? [ask(true)] : behavior.question === "correct-once" ? [ask(false), ask(true)]
-      : behavior.question === "never-correct" ? [ask(false), ask(false), ask(false), ask(false)] : behavior.malformedCaptureAlways ? [bad, bad, bad, bad]
-      : behavior.malformedCaptureOnce ? [bad, good] : behavior.suggest ? [good, card] : [good];
-    const tool = revision && !behavior.replyText && !behavior.question ? (turn === 0 ? { name: "suggest-action", input: {
-      capability_id: "issues.update", version: 2, provider_id: "io.molis.work.issues", title: "重新整理 Issue", summary: input.title,
-      input: { id: revision[1], expected_version: Number(revision[2]), title: input.title, type: input.type }, editable: ["title", "type"],
-    } } : undefined) : plan[turn];
-    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(tool, behavior.replyText));
+    if (raw.includes("BEGIN_ISSUE_")) {
+      namings.push(JSON.stringify(body)); await behavior.firstReply;
+      const answer = behavior.replyText ?? JSON.stringify(behavior.question ? { status: "needs_input", question: ISSUE_ASK }
+        : behavior.unusable ? { status: "named", title: "", type: "question" } : { status: "named", title: behavior.title ?? FIXTURE_TITLE, type: behavior.type ?? "bug" });
+      response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(undefined, answer)); return;
+    }
+    requests.push(body);
+    const ask = { name: "ask-user", input: { why: ISSUE_ASK } };
+    // One planned tool call per model turn; after the plan, the round ends in words.
+    const steer = raw.match(/steer-[0-9a-z]+-[0-9a-z]+/)?.[0];
+    const handled = behavior.acknowledge && steer ? { name: "acknowledge-inputs", input: { items: [{ input: steer, ...behavior.acknowledge }] } } : undefined;
+    const plan = behavior.replyText ? [] : behavior.acknowledge ? [ask, handled] : behavior.remember ? [{ name: "remember", input: { ...behavior.remember, scope: "personal" } }]
+      : behavior.question === "free-text" ? [ask] : [];
+    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(reply(plan[turn++], behavior.replyText));
   });
   await new Promise<void>(resolve => model.listen(0, "127.0.0.1", resolve));
   t.after(async () => { model.closeAllConnections(); await new Promise<void>(resolve => model.close(() => resolve()));
@@ -76,5 +78,5 @@ export async function issueModel(t: TestContext, home: string, behavior: IssueMo
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "issue-fixture", display_name: "Issue 本机测试", base_url: base,
       api_format: "anthropic-messages", models: [{ model_id: "fixture", enabled: true, vision: true }] });
   }));
-  return { requests };
+  return { requests, namings };
 }

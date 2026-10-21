@@ -2,7 +2,9 @@ import { ringSegmentPath, stateRingGeometry } from "./state-ring-geometry.js";
 import { STATE_RING_FAMILIES, STATE_RING_ICON_STATES } from "./state-ring-states.js";
 import { STATE_RING_CORES } from "./state-ring.js";
 
-/** One renderer per document. Detached/hidden icons never keep an animation loop alive. */
+/** One renderer per document. Detached/hidden icons never keep an animation loop alive. A ring mounts already drawn in its
+ * state; only a change of state settles into the new arrangement. Visibility only decides which rings draw frames, so a still
+ * ring is never measured (`checkVisibility` reads style). */
 export const STATE_RING_CLIENT_SCRIPT = `(() => {
   const families = ${JSON.stringify(Object.fromEntries(STATE_RING_FAMILIES.flatMap(f => f.states.map(s => [s, f.key]))))};
   const icons = ${JSON.stringify(STATE_RING_ICON_STATES)}, cores = ${JSON.stringify(STATE_RING_CORES)};
@@ -19,7 +21,7 @@ export const STATE_RING_CLIENT_SCRIPT = `(() => {
     entry.progress = value !== null && Number.isFinite(Number(value)) ? Math.max(0, Math.min(1, Number(value))) : undefined;
     entry.time = state === 'doing' ? .75 : 3;
     entry.live = animated.has(entry.family) && state !== 'doing';
-    entry.settling = .6;
+    entry.settling = entry.current && !reduced.matches ? .6 : 0;
     svg.dataset.ringFamily = entry.family;
     entry.core.setAttribute('d', cores[entry.family] || '');
     entry.core.setAttribute('data-ring-tone', entry.family === 'done' ? 'success' : entry.family === 'verify' ? 'attention' : 'neutral');
@@ -35,7 +37,7 @@ export const STATE_RING_CLIENT_SCRIPT = `(() => {
     }
   }
   function refresh(entry) {
-    const shown = entry.svg.isConnected && entry.intersecting && entry.svg.checkVisibility({ visibilityProperty: true });
+    const shown = (entry.live || entry.settling > 0) && entry.svg.isConnected && entry.intersecting && entry.svg.checkVisibility({ visibilityProperty: true });
     if (shown) visible.add(entry); else visible.delete(entry);
   }
   function wake() {

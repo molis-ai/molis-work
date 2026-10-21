@@ -17,7 +17,7 @@ function fixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goal-decision-attention-"));
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
-  app.initializeBoard({ project_id: BOARD, title: "注意力", actor_id: "user-1", idempotency_key: "init" });
+  app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
   const root = app.goalEvents.createIntent({
     project_id: BOARD,
     goal_id: "root",

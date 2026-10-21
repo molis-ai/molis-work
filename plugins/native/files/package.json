@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Files tree and reader: captures bounded text snapshots and selections.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     }
   },
   "files": [
@@ -41,6 +45,7 @@
     "capabilities": [
       "files.artifact-types.v1",
       "files.ui-contribution.v1"
-    ]
+    ],
+    "registration": "./registration"
   }
 }

@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import Database from "better-sqlite3";
+import * as artifactsPackage from "@molis-ai/molis-work-module-artifacts";
 import {
   artifactContentDigest,
   ArtifactsModule,
@@ -24,17 +25,14 @@ function createHarness() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
   db.exec(`
-    CREATE TABLE boards (
+    CREATE TABLE project_root (
       project_id TEXT PRIMARY KEY,
-      title TEXT NOT NULL,
-      active_goal_id TEXT,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
+      created_at TEXT NOT NULL
     );
     CREATE TABLE events (
       seq INTEGER PRIMARY KEY AUTOINCREMENT,
       event_id TEXT NOT NULL UNIQUE,
-      project_id TEXT NOT NULL REFERENCES boards(project_id) ON DELETE CASCADE,
+      project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       actor_id TEXT NOT NULL,
       type TEXT NOT NULL,
       object_type TEXT NOT NULL,
@@ -45,8 +43,8 @@ function createHarness() {
     );
   `);
   db.prepare(`
-    INSERT INTO boards (project_id, title, active_goal_id, created_at, updated_at)
-    VALUES ('board-artifacts', 'Artifacts', NULL, '2026-09-02T00:00:00.000Z', '2026-09-02T00:00:00.000Z')
+    INSERT INTO project_root (project_id, created_at)
+    VALUES ('board-artifacts', '2026-09-02T00:00:00.000Z')
   `).run();
   createArtifactsSchema(db as unknown as ArtifactsSqliteDatabase);
   const cursorOfJournal = eventCursorOf(db);
@@ -116,6 +114,11 @@ function expectCode(operation: () => unknown, code: string): void {
 test("Artifacts Module owns exact id + version, opaque content, scope and producer binding", () => {
   const { db, module } = createHarness();
   try {
+    // W5-08-MOD-03/04: public version services retain replay and refusal behavior below.
+    assert.equal("ArtifactsRepository" in artifactsPackage, false);
+    for (const entry of [module, module.service, module.query, module.commands]) {
+      assert.equal("repository" in entry, false);
+    }
     const payload = (registration().content as { kind: "inline"; payload: ArtifactJsonValue }).payload;
     const expectedDigest = artifactContentDigest(canonicalArtifactJson(payload));
     const firstInput = registration({ expected_digest: expectedDigest });
@@ -337,12 +340,9 @@ test("Artifact reference digest mismatch is rollback-safe, and the owner schema 
   const schemaDb = new Database(":memory:");
   try {
     schemaDb.exec(`
-      CREATE TABLE boards (
+      CREATE TABLE project_root (
         project_id TEXT PRIMARY KEY,
-        title TEXT NOT NULL,
-        active_goal_id TEXT,
-        created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        created_at TEXT NOT NULL
       );
     `);
     schemaDb.exec(ARTIFACTS_SCHEMA_SQL);

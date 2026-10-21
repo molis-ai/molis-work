@@ -1,5 +1,8 @@
+import { JobResumption } from "../services/job-resumption.js";
+import { validateResumption } from "../jobs/resumption-validation.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { studioLifecycle } from "./studio-lifecycle.js";
 import { actionsInFlight, bindAlchemistActor } from "./actor-actions.js";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -31,6 +34,7 @@ import type { AlchemistAiPort } from "../runtime/host-port.js";
 import type { LocalSecurityOptions } from "../security/local-session.js";
 import { createCalibrationMemoryService } from "../services/calibration-memory.js";
 import { createCancelLensRunService } from "../services/cancel-lens-run.js";
+import { createCancelPulseRunService } from "../services/cancel-pulse-run.js";
 import { createExplorationService } from "../services/create-exploration.js";
 import { createResearchPlanService } from "../services/create-research-plan.js";
 import { createDecisionWorkspaceService } from "../services/decision-workspace.js";
@@ -86,7 +90,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   applyStudioBaseline(database, options.databasePath);
   const clock = { now: () => new Date().toISOString() };
   const idFactory = { next: (prefix: string) => `${prefix}_${randomUUID()}` };
-  seedLocalIdentity(database, clock.now());
   const actors = new AsyncLocalStorage<string>();
   const actorId = () => actors.getStore() ?? "actor-local";
   const ai: AlchemistAiPort = { listModels: () => options.ai.listModels(), search: input => options.ai.search(input),
@@ -102,9 +105,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
   const research = new SqliteResearchRepository(database);
   const workReuse = new WorkReuseService({ database, memory, research, ai, host: options.workReuse, actorId, now: clock.now, workspaceId: "workspace-local" });
   const settings = new SqliteSettingsRepository(database);
-  settings.ensureDefaults("workspace-local", clock.now());
   const pulse = new SqlitePulseRepository(database);
-  pulse.ensureDefaultSourceSettings(clock.now());
   const decisions = new SqliteDecisionRepository(database);
   const jobs = new SqliteJobRunner(database, {
     workerId: `local_${process.pid}_${randomUUID()}`,
@@ -113,7 +114,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     leaseMs: options.jobLeaseMs,
     actorId,
   });
-  jobs.recoverExpired();
   const runtimeSettings = new RuntimeSelector({
     workspaceId: "workspace-local",
     settings,
@@ -142,7 +142,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
       runtime: runtimeSettings,
       idFactory,
       clock,
-      taste: () => memory.listTasteRules("workspace-local").filter(rule => rule.status === "active"),
       research: {
         repository: research,
         ideas,
@@ -157,8 +156,7 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     });
   const worker = new LocalWorker(jobs, Object.fromEntries(Object.entries(handlers).map(([kind, handler]) => [kind,
     ((job, control) => {
-      const owner = (job.input as { actorId?: unknown } | undefined)?.actorId;
-      return actors.run(typeof owner === "string" && owner.length ? owner : "actor-local", () => handler(job, control));
+      return actors.run(control.acceptance.actorId, () => handler(job, control));
     }) satisfies JobHandler,
   ])));
   const createExploration = createExplorationService({
@@ -202,7 +200,6 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     decisions,
   });
   const startLensRun = createStartLensRunService({ database, clock, idFactory, jobs, research });
-  const cancelLensRun = createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) });
   const startPulseRun = createStartPulseRunService({
     database,
     pulse,
@@ -239,7 +236,13 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     idFactory,
     now: clock.now,
   });
+  const initializeCommand = () => initializeWorkspace(database, settings, pulse, clock.now(), actorId());
+  const jobResumption = new JobResumption({ jobs, worker, runtime: runtimeSettings, actorId, now: clock.now, initialize: initializeCommand,
+    taste: () => memory.listTasteRules("workspace-local").filter(rule => rule.status === "active"),
+    validate: job => validateResumption(job, { jobs, explorations, research, pulse }),
+  });
   const dependencies: ApiDependencies = {
+    jobResumption, initializeCommand,
     workspaceId: "workspace-local",
     get actorId() { return actorId(); },
     workspaceName: "炼金术士",
@@ -262,10 +265,11 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     listRuntimeModels: () => runtimeSettings.listModels(),
     createResearchPlan,
     startLensRun,
-    cancelLensRun,
+    cancelLensRun: createCancelLensRunService({ database, jobs, research, now: clock.now, onCancel: id => worker.cancel(id) }),
     getResearchWorkspace,
     decisionWorkspace,
     startPulseRun,
+    cancelPulseRun: createCancelPulseRunService({ database, jobs, pulse, now: clock.now, onCancel: id => worker.cancel(id) }),
     opportunityActions,
     calibrationMemory,
     runtimeSettings,
@@ -274,47 +278,17 @@ export function createLocalRuntime(options: LocalRuntimeOptions): LocalRuntime {
     ...(options.localSecurity ? { localSecurity: options.localSecurity } : {}),
   };
   const actions = createAlchemistOperationExecutor(dependencies);
-  const app = createApp(dependencies, options.actions ?? actions);
-
-  let interval: NodeJS.Timeout | undefined, draining: Promise<void> | undefined, closing: Promise<void> | undefined, closed = false;
   const inFlight = actionsInFlight();
-  const runPending = (): Promise<void> => {
-    if (draining) return draining;
-    if (closed) return Promise.resolve();
-    draining = (async () => {
-      // A restart can precede the former lease deadline; recover on each idle tick.
-      jobs.recoverExpired();
-      while (!closed && await worker.runNext()) { /* drain sequentially */ }
-    })().finally(() => { draining = undefined; });
-    return draining;
-  };
+  const app = createApp(dependencies, inFlight.track(options.actions ?? actions));
 
+  const { closed, ...lifecycle } = studioLifecycle({ database, worker, jobs, actions: inFlight, intervalMs: options.workerIntervalMs });
   return {
-    app,
-    actions,
-    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed: () => closed })); },
-    database,
-    worker,
-    runPending,
-    idle: () => !closed && !draining && inFlight.none() && !jobs.hasActive(),
-    start() {
-      if (interval || closed) return;
-      void runPending();
-      interval = setInterval(() => void runPending(), options.workerIntervalMs ?? 250);
-      interval.unref();
-    },
-    close() {
-      if (closing) return closing;
-      closed = true;
-      if (interval) clearInterval(interval);
-      worker.stop();
-      closing = (async () => { try { await draining; await worker.whenIdle(); } finally { database.close(); } })();
-      return closing;
-    },
+    app, actions: inFlight.track(actions), database, worker, ...lifecycle,
+    actionsFor(owner) { return inFlight.track(bindAlchemistActor(owner, { database, actors, clock, actions, closed })); },
   };
 }
 
-function seedLocalIdentity(database: SqliteDatabase, now: string): void {
+function initializeWorkspace(database: SqliteDatabase, settings: SqliteSettingsRepository, pulse: SqlitePulseRepository, now: string, actorId: string): void {
   database.transaction(() => {
     database
       .prepare("INSERT OR IGNORE INTO workspaces (id, name, created_at) VALUES (?, ?, ?)")
@@ -324,6 +298,8 @@ function seedLocalIdentity(database: SqliteDatabase, now: string): void {
         `INSERT OR IGNORE INTO workspace_actors
          (id, workspace_id, kind, name, created_at) VALUES (?, ?, ?, ?, ?)`,
       )
-      .run("actor-local", "workspace-local", "local_user", "本地创始人", now);
-  })();
+      .run(actorId, "workspace-local", "local_user", actorId, now);
+    settings.ensureDefaults("workspace-local", now);
+    pulse.ensureDefaultSourceSettings(now);
+  }).immediate();
 }

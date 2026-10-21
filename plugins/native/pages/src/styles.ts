@@ -534,7 +534,7 @@ export const PAGES_STYLES = `
     background: transparent; color: var(--ink); font: inherit; font-size: 12px; cursor: pointer;
   }
   .pages-find button:hover { background: var(--nav-hover); }
-  .pages-find-count { min-width: 2.5em; font-size: 12px; color: var(--faint); text-align: right; }
+  .pages-find-count { font-size: 12px; color: var(--faint); }
   .pages-find-hit { background: var(--hue-yellow-soft, var(--content-hover)); border-radius: 2px; }
   .pages-find-hit.is-current { background: color-mix(in srgb, var(--plugin-pages, var(--ink)) 28%, transparent); }
   .pages-slash, .pages-pop {
@@ -568,6 +568,9 @@ export const PAGES_STYLES = `
   .pages-pop-actions { display: flex; justify-content: flex-end; gap: 8px; }
   .pages-pop .pages-pop-error { color: var(--red); }
   .pages-landing-preview p { margin: 0 12px; }
+  .pages-landing-flash { position: fixed; z-index: 40; width: 2px; border-radius: 1px; background: var(--accent); opacity: 0; pointer-events: none; animation: pages-landing-flash 640ms var(--ease-quint); }
+  @keyframes pages-landing-flash { 25%, 60% { opacity: 1; } }
+  ::highlight(pages-landing) { background: var(--accent-soft); }
   .pages-pop.is-docked { position: static; min-width: 0; max-width: none; max-height: none; padding: 0; overflow: visible; background: none; box-shadow: none; animation: none; }
   .pages-comment {
     background: color-mix(in srgb, var(--hue-cyan, var(--ink)) 14%, transparent);

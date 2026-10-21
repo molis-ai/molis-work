@@ -54,7 +54,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
   try {
     service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-1" }, { project_ref: project });
@@ -79,7 +79,7 @@ test("a round that finishes while the person is elsewhere raises one notice; the
     assert.deepEqual(service.notices("coding"), [], "seen is settled");
     assert.throws(() => service.followUps.saveRule({ kind: "pause", surfaces: [], except: [], label: "没有结束时间" }), /结束时间/);
     assert.throws(() => service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "" }), /说法/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a new work whose round fails at once, before anything looked, still raises its failure; a quiet rule with the failure exception lets it through", { timeout: 60_000 }, async t => {
@@ -93,7 +93,7 @@ test("a new work whose round fails at once, before anything looked, still raises
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目" }, "web-user");
   try {
     service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: ["failed"], label: "写文档时不提醒，失败除外" });
     const sent = await service.send({ text: "整理一下", request_id: "req-attention-fail" }, { project_ref: project });
@@ -103,14 +103,14 @@ test("a new work whose round fails at once, before anything looked, still raises
     await service.list();
     const onPages = service.notices("pages");
     assert.deepEqual(onPages.map(notice => [notice.kind, notice.held ?? null]), [["failed", null]], "the failure comes through, the rule's exception applies");
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("the person's rules are the Assistant's own actions: found by agents, adding one is a change, the Host keeps it as written", async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-rules-"));
   try {
     const actions = new ActionService();
-    const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
+    const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home", "pages"], host: async () => { throw new Error("not used"); }, authority: async () => { throw new Error("not used"); } }, "web-user");
     registerAssistantRuleActions(actions, () => service, home);
     const caller = { actor_id: "web-user", actor_kind: "runtime" as const, project_id: null, audience: "agent" as const, permissions: [] };
     const found = actions.discover(caller).filter(view => view.provider.provider_id === "io.molis.work.assistant.rules" && view.capability_id.startsWith("assistant.rules."));
@@ -121,4 +121,10 @@ test("the person's rules are the Assistant's own actions: found by agents, addin
     const removed = await actions.invoke(caller, ASSISTANT_RULE_ACTIONS.remove, { rule_id: added.rules[0]!.rule_id }) as { rules: AssistantRule[] };
     assert.deepEqual(removed.rules, []);
   } finally { await rm(home, { recursive: true, force: true }); }
+});
+
+test("PG-036: the add action's page field names no plugin and fixes no list: the pages come from the installed plugins when a rule is written", () => {
+  const field = (ASSISTANT_RULE_ACTIONS.add.action.input_schema.properties as Record<string, Record<string, unknown>>).surfaces!;
+  assert.equal((field.items as Record<string, unknown>).enum, undefined, "the pages are not a fixed list in the contract");
+  assert.doesNotMatch(JSON.stringify(field), /jelly|cognia|coding|dataset|lingguang|workflows/i, "no plugin is named in the field or its description");
 });

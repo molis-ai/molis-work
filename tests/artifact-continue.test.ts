@@ -34,13 +34,13 @@ test("a pinned document, form, deck and table each continue as a new object of t
   const continueFrom = async (artifact: { artifact_id: string; version: number }, plugin_id: string) => (await post("/api/artifacts/continue", { reference: artifact, plugin_id }, 201)).open as { surface: string; id: string; title: string };
 
   // Pages: a new document with the version's title and text.
-  const page = (await post("/api/pages", { title: "方案", markdown: "第一稿" })).document as { id: string; version: number };
-  const pinnedPage = (await post(`/api/pages/${page.id}/promote`, { expected_version: page.version })).artifact as { artifact_id: string; version: number };
+  const page = (await post("/api/plugins/io.molis.work.pages/pages", { title: "方案", markdown: "第一稿" })).document as { id: string; version: number };
+  const pinnedPage = (await post(`/api/plugins/io.molis.work.pages/pages/${page.id}/promote`, { expected_version: page.version })).artifact as { artifact_id: string; version: number };
   assert.match(await detail(pinnedPage), /data-artifact-continue="io\.molis\.work\.pages"[^>]*>在 Pages 继续</);
   const pageOpen = await continueFrom(pinnedPage, "io.molis.work.pages");
   assert.notEqual(pageOpen.id, page.id);
   assert.equal(pageOpen.surface, "pages");
-  const copiedPage = (await get(`/api/pages/${pageOpen.id}`)).document as { title: string; body: unknown };
+  const copiedPage = (await get(`/api/plugins/io.molis.work.pages/pages/${pageOpen.id}`)).document as { title: string; body: unknown };
   assert.equal(copiedPage.title, "方案");
   assert.match(JSON.stringify(copiedPage.body), /第一稿/);
 
@@ -52,21 +52,21 @@ test("a pinned document, form, deck and table each continue as a new object of t
   const copiedForm = (await get(`/api/plugins/io.molis.work.form/forms/${formOpen.id}`)).form as { title: string; description: string; questions: Array<{ title: string }> };
   assert.deepEqual([copiedForm.title, copiedForm.description, copiedForm.questions.map(question => question.title)], ["满意度", "季度回访", ["哪里可以更好？"]]);
 
-  // PPT: slides and colours.
-  let deck = (await post("/api/ppt", { title: "周会" })).presentation as { id: string; version: number };
-  deck = (await post(`/api/ppt/${deck.id}`, { slides: [{ title: "进展", bullets: ["上线", "复盘"], notes: "" }], expected_version: deck.version })).presentation;
-  const pinnedDeck = (await post(`/api/ppt/${deck.id}/promote`, { expected_version: deck.version })).artifact as { artifact_id: string; version: number };
+  // W5-01-PPT-02: slides and colours, using the current Runtime collection route.
+  let deck = (await post("/api/plugins/io.molis.work.ppt/ppt", { title: "周会" })).presentation as { id: string; version: number };
+  deck = (await post(`/api/plugins/io.molis.work.ppt/ppt/${deck.id}`, { slides: [{ title: "进展", bullets: ["上线", "复盘"], notes: "" }], expected_version: deck.version })).presentation;
+  const pinnedDeck = (await post(`/api/plugins/io.molis.work.ppt/ppt/${deck.id}/promote`, { expected_version: deck.version })).artifact as { artifact_id: string; version: number };
   const deckOpen = await continueFrom(pinnedDeck, "io.molis.work.ppt");
-  const copiedDeck = (await get(`/api/ppt/${deckOpen.id}`)).presentation as { title: string; slides: Array<{ title: string; bullets: string[] }> };
+  const copiedDeck = (await get(`/api/plugins/io.molis.work.ppt/ppt/${deckOpen.id}`)).presentation as { title: string; slides: Array<{ title: string; bullets: string[] }> };
   assert.deepEqual([copiedDeck.title, copiedDeck.slides.map(slide => [slide.title, slide.bullets])], ["周会", [["进展", ["上线", "复盘"]]]]);
 
   // Dataset: columns and rows.
-  let table = (await post("/api/dataset", { title: "预算" })).dataset as { id: string; version: number; columns: Array<{ id: string }> };
-  table = (await post(`/api/dataset/${table.id}`, { columns: [{ id: "c1", name: "项目", type: "text" }, { id: "c2", name: "金额", type: "number" }],
+  let table = (await post("/api/plugins/io.molis.work.dataset/datasets", { title: "预算" })).dataset as { id: string; version: number; columns: Array<{ id: string }> };
+  table = (await post(`/api/plugins/io.molis.work.dataset/datasets/${table.id}`, { columns: [{ id: "c1", name: "项目", type: "text" }, { id: "c2", name: "金额", type: "number" }],
     rows: [{ id: "r1", cells: { c1: "差旅", c2: "1200" } }], expected_version: table.version })).dataset;
-  const pinnedTable = (await post(`/api/dataset/${table.id}/promote`, { expected_version: table.version })).artifact as { artifact_id: string; version: number };
+  const pinnedTable = (await post(`/api/plugins/io.molis.work.dataset/datasets/${table.id}/promote`, { expected_version: table.version })).artifact as { artifact_id: string; version: number };
   const tableOpen = await continueFrom(pinnedTable, "io.molis.work.dataset");
-  const copiedTable = (await get(`/api/dataset/${tableOpen.id}`)).dataset as { title: string; columns: Array<{ name: string }>; rows: Array<{ cells: Record<string, string> }> };
+  const copiedTable = (await get(`/api/plugins/io.molis.work.dataset/datasets/${tableOpen.id}`)).dataset as { title: string; columns: Array<{ name: string }>; rows: Array<{ cells: Record<string, string> }> };
   assert.deepEqual([copiedTable.title, copiedTable.columns.map(column => column.name), copiedTable.rows.map(row => Object.values(row.cells))], ["预算", ["项目", "金额"], [["差旅", "1200"]]]);
 
   // Only a plugin that declares it can continue from a type is accepted.

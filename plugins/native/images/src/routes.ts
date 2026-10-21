@@ -1,28 +1,58 @@
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { ACTION_ERROR_CODE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesActions } from "./actions.js";
-export interface ImagesRouteResult { status:number; body?:unknown; image?:{bytes:Uint8Array;mime:string;filename:string} }
-/** Transport-only adapter; project authority belongs to the bound action client. */
-export async function handleImagesRoute(actions:BoundActionClient,input:{method:string;pathname:string;body:Record<string,unknown>;projectId:string}):Promise<ImagesRouteResult>{
-  const path=input.pathname.slice('/api/images'.length).split('/').filter(Boolean).map(decodeURIComponent);
-  const {project_id,...body}=input.body;
-  if(project_id!==undefined&&project_id!==input.projectId)throw new ActionError('actions.scope_mismatch','图片项目与当前项目不一致');
-  const {method}=input;
-  if(path.length===1&&path[0]==='connections'){
-    if(method==='GET')return {status:200,body:await actions.invoke(imagesActions.connections,{})};
-    if(method==='POST')return {status:200,body:await actions.invoke(imagesActions.saveConnection,body as never)};
-  }
-  if(path.length===2&&path[0]==='connections'&&method==='DELETE')return {status:200,body:await actions.invoke(imagesActions.deleteConnection,{id:path[1]!})};
-  if(path[0]==='jobs'){
-    if(path.length===1&&method==='GET')return {status:200,body:input.projectId?await actions.invoke(imagesActions.list,{}):{jobs:[]}};
-    if(path.length===1&&method==='POST')return {status:202,body:await actions.invoke(imagesActions.start,body as never)};
-    if(path.length===2&&method==='GET')return {status:200,body:await actions.invoke(imagesActions.get,{id:path[1]!})};
-    if(path.length===2&&method==='DELETE')return {status:200,body:await actions.invoke(imagesActions.delete,{id:path[1]!})};
-    if(path.length===3&&path[2]==='cancel'&&method==='POST')return {status:200,body:await actions.invoke(imagesActions.cancel,{id:path[1]!})};
-    if(path.length===4&&path[2]==='images'&&method==='GET'){
-      const image=await actions.invoke(imagesActions.image,{id:path[1]!,image_id:path[3]!});
-      return {status:200,image:{bytes:Buffer.from(image.base64,'base64'),mime:image.mime_type,filename:image.filename}};
+import { imagesErrors } from "./error.js";
+
+export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] {
+  context = routeContext(context);
+  const body = (request: PluginRouteRequest): Record<string, unknown> => {
+    if (!request.body || typeof request.body !== "object" || Array.isArray(request.body)) throw imagesErrors.invalid("请求必须是 JSON 对象");
+    return request.body as Record<string, unknown>;
+  };
+  const route = (action: ActionDefinition, input: (request: PluginRouteRequest) => unknown, routeId = action.capability_id) =>
+    bindPluginActionRoute(context, action, input as never, routeId);
+  const id = (request: PluginRouteRequest) => ({ id: request.params.id });
+  const imageInput = (request: PluginRouteRequest) => ({ id: request.params.id!, image_id: request.params.image_id! });
+  const image = bindPluginActionRoute(context, imagesActions.image, imageInput);
+  const start = route(imagesActions.start, body);
+  return [route(imagesActions.connections, () => ({})), route(imagesActions.saveConnection, body), route(imagesActions.deleteConnection, id),
+    route(imagesActions.list, () => ({})), route(imagesActions.get, id), route(imagesActions.cancel, id), route(imagesActions.delete, id),
+    { ...start, async handle(request) { const result = await start.handle(request); return result.status === 200 ? { ...result, status: 202 } : result; } },
+    { ...image, async handle(request) {
+      const result = await image.handle(request);
+      if (result.status !== 200) return result;
+      const file = result.body as { base64: string; mime_type: string; filename: string };
+      return { status: 200, bytes: Buffer.from(file.base64, "base64"), mime: file.mime_type, filename: downloadName(request, file.filename),
+        disposition: request.query.download === "1" ? "attachment" as const : "inline" as const };
+    } },
+    { route_id: "images.images.shelf", async handle(request) {
+      const result = await image.handle(request);
+      if (result.status !== 200) return result;
+      const file = result.body as { base64: string; mime_type: string; filename: string }, input = body(request);
+      const filename = typeof input.filename === "string" && input.filename.trim() ? input.filename.trim() : file.filename;
+      return bindPluginActionRoute(context, SHELF_ADMIT_ACTION, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
+    } },
+  ];
+}
+
+function downloadName(request: PluginRouteRequest, stored: string): string {
+  if (request.query.download !== "1") return stored;
+  const name = (request.query.name ?? "").replace(/[\u0000-\u001f\u007f"\\/:*?<>|]+/gu, " ").trim().slice(0, 80);
+  const extension = /\.[a-z0-9]{2,5}$/iu.exec(stored)?.[0] ?? "";
+  return name ? name.toLowerCase().endsWith(extension.toLowerCase()) ? name : name + extension : stored;
+}
+
+/** Keep the Images HTTP edge's existing generic message for unexpected driver/runtime failures. */
+function routeContext(context: PluginStartContext): PluginStartContext {
+  const actions = context.services?.actions;
+  if (!actions) return context;
+  return { ...context, services: { ...context.services, actions: { ...actions, async invoke(definition, input, control, transport) {
+    try { return await actions.invoke(definition, input, control, transport); }
+    catch (error) {
+      if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && ACTION_ERROR_CODE.test(error.code)) throw error;
+      throw imagesErrors.internal("图片操作失败，请稍后重试");
     }
-  }
-  return {status:['GET','POST','DELETE'].includes(method)?404:405,body:{error:'找不到图片操作或请求方法不支持'}};
+  } } } };
 }

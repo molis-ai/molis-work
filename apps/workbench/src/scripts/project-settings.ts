@@ -1,4 +1,8 @@
-/** Project operations initialize independently of the Runtime settings dialog. */
+/**
+ * Project operations initialize independently of the Runtime settings dialog. The after-write checkers below the workspaces
+ * (specs/prologue-adoption §6.0p.13) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
+ * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets.
+ */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
     const L = globalThis.L || ((text) => text);
@@ -9,7 +13,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         const list=root.querySelector('[data-project-workspaces-list]'), status=root.querySelector('[data-project-workspaces-status]');
         const form=root.querySelector('[data-project-workspaces-add]'), message=root.querySelector('[data-project-workspaces-add-status]');
         const refresh=root.querySelector('[data-project-workspaces-refresh]'), pick=root.querySelector('[data-project-workspaces-pick]');
-        const prefix=root.dataset.workspacePrefix;
+        const prefix=root.dataset.workspacePrefix, checkers={section:root.querySelector('[data-write-checkers]'),prefix,load:null};if(typeof molisWorkWriteCheckers==='function')molisWorkWriteCheckers(checkers);
         let busy=false;
         const api=(path,body)=>molisWorkRequest(prefix+path,{body,fallback:L('工作目录操作失败')});
         const load=async()=>{
@@ -28,6 +32,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
               row.append(copy,button);list.append(row);
             }
             status.textContent=state.workspaces.length?(state.selected?'':L('请选择一个目录供 Files 和 Git 浏览。')):L('还没有关联目录，请在下方添加。');
+            void checkers.load?.(state.workspaces);
           }catch(error){list.replaceChildren();molisWorkRequest.show(status,error);}finally{refresh.disabled=false;}
         };
         refresh.addEventListener('click',()=>void load());
@@ -68,7 +73,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
       (scope || document).querySelectorAll("[data-project-delete-dialog]").forEach((dialog) => {
         if (dialog.dataset.bound === "1") return;
         dialog.dataset.bound = "1";
-        const root = dialog.closest("[data-project-pane], .project-settings-hub, .project-settings-page") || scope || document;
+        const root = dialog.closest("[data-project-pane], .project-settings-page") || scope || document;
         const form = dialog.querySelector("form");
         const confirmation = form.elements.delete_confirmed;
         const submit = form.querySelector("button[type=submit]");

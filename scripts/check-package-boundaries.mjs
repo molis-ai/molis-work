@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import ts from "typescript";
+import { catalogText } from "./gates/catalog-entries.mjs";
 import { checkGoalsManagementWiring } from "./gates/goals-management-wiring.mjs";
 
 import {
@@ -14,6 +15,14 @@ import {
 import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
+/** The Web request dispatcher: the entry and its ordered route tables (W5-07). The checks on web-request.ts read all of them. */
+export const WEB_DISPATCH_FILES = [
+  "apps/local-host/src/web-request.ts",
+  "apps/local-host/src/web-route-table.ts",
+  "apps/local-host/src/web-catalog-index-routes.ts",
+  "apps/local-host/src/web-project-context.ts",
+  "apps/local-host/src/web-project-platform-routes.ts",
+];
 
 function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, "utf8"));
@@ -192,7 +201,7 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     "plugins/native/feed/src/source-sync.ts",
     "plugins/native/feed/src/connector-sync.ts",
     "plugins/native/feed/src/source-scheduler.ts",
-    "apps/local-host/src/web-request.ts",
+    ...WEB_DISPATCH_FILES,
   ];
   const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
   for (const relativePath of legacyCallers) {
@@ -283,7 +292,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const renderer = read("apps/workbench/src/renderer.ts");
-  const server = read("apps/local-host/src/web-request.ts");
+  const server = WEB_DISPATCH_FILES.map(read).join("\n");
   const uiAdapter = read("apps/workbench/src/feed-projection-ui.ts");
   const httpAdapter = read("apps/local-host/src/feed-native-plugin-http.ts");
   if (fs.existsSync(path.join(repositoryRoot, "src/web/feed-native-plugin-http.ts"))) {
@@ -332,7 +341,7 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
-  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", read("apps/workbench/src/builtin-plugins.ts"))) {
+  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
   if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
@@ -488,8 +497,14 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     errors.push(`${coordinatorPath}: retired lifecycle reconciliation construction must stay deleted`);
   }
 
-  if (!read("apps/local-host/src/project-database-schema.ts").includes("GOALS_SCHEMA_SQL") || !read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")) {
-    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must compose the public Goals schema");
+  // S8 (PG-020): Goals' tables are Goals' own. The baseline no longer composes them; the platform makes them from the Manifest.
+  const baselineSchema = read("apps/local-host/src/project-database-schema.ts");
+  if (!read("apps/local-host/src/project-database.ts").includes("PROJECT_DATABASE_BASELINE")
+      || /GOALS_PROJECT_DATABASE|GOAL_BOARDS_SCHEMA_SQL|GOALS_SCHEMA_SQL|GOAL_INPUT_BINDINGS_SCHEMA_SQL|GOAL_EVENT_FACTS_SCHEMA_SQL|GOAL_EVENT_STATE_SCHEMA_SQL|GOVERNANCE_SCHEMA_SQL|molis-work-module-goals|molis-work-plugin-goals|molis-work-module-governance-collaboration/u.test(baselineSchema)) {
+    errors.push("apps/local-host/src/project-database-schema.ts: the project database baseline must not compose Goals' or Governance's schema; Goals declares its tables in its Manifest (databases.project)");
+  }
+  if (!/databases:\s*\{\s*project:\s*GOALS_PROJECT_DATABASE\s*\}/u.test(read("plugins/native/goals/src/manifest.ts"))) {
+    errors.push("plugins/native/goals/src/manifest.ts: Goals' Manifest must declare its project library tables (databases.project: GOALS_PROJECT_DATABASE)");
   }
 
   for (const relativePath of [
@@ -557,7 +572,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
     .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));
-  for (const relativePath of ["apps/local-host/src/web-request.ts", "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
+  for (const relativePath of [...WEB_DISPATCH_FILES, "apps/mcp/src/tool-dispatch.ts", "apps/cli/src/command-dispatch.ts"]) {
     const source = read(relativePath);
     errors.push(...checkGoalReadOwnerSql(source).map(error => `${relativePath}: ${error}`));
     if (
@@ -567,7 +582,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
     if (relativePath === "apps/local-host/src/web-request.ts") {
       if (!source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal read caller is missing goalQueries public usage`);
-    } else {
+    } else if (!WEB_DISPATCH_FILES.includes(relativePath)) {
       if (source.includes(".goalQueries.")) errors.push(`${relativePath}: migrated Goal reads must not bypass the Host Client`);
     }
   }
@@ -618,7 +633,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   }
   const removedFacadeCall = /\bcoordinator(?:ForResume)?\.(?:addProjectGuidance|updateProjectGuidance|createGoal|updateDraftGoal|addRelation|deactivateRelation|setPolicy|addRisk|updateRisk|setRiskState|setGoalArchived|setGoalTrashed|revalidateGoal|evaluateLeafCompletion|effectivePlanningMethods|projectPlanningComposition|saveProjectPlanningMethod|analyzePlanningChange|validatePlanningGraph)\b/u;
   for (const relativePath of [
-    "apps/local-host/src/web-request.ts",
+    ...WEB_DISPATCH_FILES,
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
@@ -652,7 +667,6 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
   const requiredOwnerFiles = [
     "packages/contracts/src/modules/governance-collaboration.ts",
     "modules/governance-collaboration/src/index.ts",
-    "modules/governance-collaboration/src/schema.ts",
     "modules/governance-collaboration/src/repository.ts",
     "modules/governance-collaboration/src/record-store.ts",
     "modules/governance-collaboration/src/goal-tree-records.ts",
@@ -953,7 +967,7 @@ function checkArtifactsOwnership(repositoryRoot) {
   if (fs.existsSync(path.join(repositoryRoot, "src/web/onboarding.ts"))) {
     errors.push("src/web/onboarding.ts: local onboarding state must remain owned by Local Host");
   }
-  if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(read("apps/local-host/src/web-request.ts"))) {
+  if (/export function (?:buildMolisWorkWebView|cachedMolisWorkWebView)/u.test(WEB_DISPATCH_FILES.map(read).join("\n"))) {
     errors.push("apps/local-host/src/web-request.ts: Goal read projection and cache must remain outside HTTP routing");
   }
   const artifactHttp = read("apps/local-host/src/artifact-native-plugin-http.ts");
@@ -1023,12 +1037,13 @@ function checkArtifactsOwnership(repositoryRoot) {
   return { errors };
 }
 
-function checkPrivateWorkContextOwnership(repositoryRoot) {
+export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const errors = [];
   const read = (relativePath) => fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
   const requiredOwnerFiles = [
     "modules/private-work-context/src/content-store.ts",
     "modules/private-work-context/src/context-bindings.ts",
+    "modules/private-work-context/src/runtime-context-module.ts",
     "modules/private-work-context/src/session-events.ts",
     "modules/private-work-context/src/session-handoffs.ts",
     "modules/private-work-context/src/session-surfaces.ts",
@@ -1060,13 +1075,17 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
   const entry = read("modules/private-work-context/src/index.ts");
   for (const required of [
     "MolisWorkSessionRegistry",
-    "RuntimeContextBindingRepository",
+    "createRuntimeContextModule",
     'maturity: "partial"',
     '"runtime-context-bindings"',
   ]) {
     if (!entry.includes(required)) {
       errors.push(`modules/private-work-context/src/index.ts: missing ${required}`);
     }
+  }
+
+  if (entry.includes("RuntimeContextBindingRepository")) {
+    errors.push("modules/private-work-context/src/index.ts: Runtime binding Repository must remain private");
   }
 
   for (const retired of ["src/sessions/registry.ts","src/sessions/content-store.ts"]) {
@@ -1079,8 +1098,11 @@ function checkPrivateWorkContextOwnership(repositoryRoot) {
   }
 
   const catalog = read("apps/local-host/src/project-catalog.ts");
-  if (!catalog.includes("RuntimeContextBindingRepository")) {
+  if (!catalog.includes("createRuntimeContextModule")) {
     errors.push("apps/local-host/src/project-catalog.ts: Runtime binding composition must use the Private Work Context public entrypoint");
+  }
+  if (catalog.includes("RuntimeContextBindingRepository")) {
+    errors.push("apps/local-host/src/project-catalog.ts: Runtime binding Repository must remain private");
   }
   const directContextSql = /\b(?:CREATE TABLE(?: IF NOT EXISTS)?|FROM|INTO|UPDATE|DELETE FROM)\s+(runtime_context_bindings|runtime_context_binding_events|runtime_context_setup_requests|runtime_context_suggestion_rejections)\b/giu;
   for (const match of catalog.matchAll(directContextSql)) {
@@ -1375,8 +1397,17 @@ export function checkGoalTreeApplicationOwnership(coordinator, host, application
   return errors;
 }
 
+// The built-in catalog's entries as one array text, whether the catalog writes them in place or lists each plugin's own
+// src/registration.ts (W5-02, scripts/gates/catalog-entries.mjs).
+export function builtinCatalogText(repositoryRoot) {
+  const native = path.join(repositoryRoot, "plugins/native");
+  const files = fs.existsSync(native) ? fs.readdirSync(native).map(directory => `plugins/native/${directory}/package.json`) : [];
+  return catalogText({ files, read: (file) => { try { return fs.readFileSync(path.join(repositoryRoot, file), "utf8"); } catch { return null; } } });
+}
+
 // Check both registration styles. An import alone is not a registered contribution:
 // the pack must list it and the composition root must register that pack's entries.
+// `descriptors` is the catalog's entries as one array text (builtinCatalogText).
 export function hasWorkbenchUiContribution(workbench, registry, name, descriptors = "") {
   if (workbench.includes(`host.register(${name})`)) return true;
   const importsRegistry = /import\s*\{\s*BUILTIN_PLUGIN_WORKBENCH(?:\s*,[^}]+)?\s*\}\s*from\s*["']\.\/plugin-workbench\.js["']/u.test(workbench);
@@ -1445,7 +1476,7 @@ export function checkPackageBoundaries(repositoryRoot) {
         + (file === "apps/workbench/src/index.ts" ? fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/ui-composition.ts"), "utf8") : ""));
       return checkProposalUiOwnership(renderer, workbench, proposalMount, "", clientDispatch,
         fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/plugin-workbench.ts"), "utf8"),
-        fs.readFileSync(path.join(repositoryRoot, "apps/workbench/src/builtin-plugins.ts"), "utf8"));
+        builtinCatalogText(repositoryRoot));
     })()).map(message => `[proposal-ui-owner] ${message}`),
     ...proposalCheckOwnership.map(message => `[proposal-check-owner] ${message}`),
     ...checkGoalTreeApplicationOwnership(...[

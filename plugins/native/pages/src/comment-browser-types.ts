@@ -3,6 +3,8 @@ export interface CommentSideHost {
   translate(value: string): string;
   projectId: string | (() => string);
   route(path: string): string;
+  /** Where this plugin's documents live: `/api/plugins/<plugin id>/pages`. */
+  api: string;
   controlHeaders(): Record<string, string>;
 }
 export interface CommentDraft {
@@ -16,6 +18,8 @@ export interface CommentCommandResult {
 }
 export interface PendingCommentCommand {
   resolve(value: CommentCommandResult): void; reject(reason: Error): void; timeout: number; page: string;
+  /** What was asked and under which context epoch: a command the page refused as asked under an older context goes again. */
+  value: object; epoch: number; stale?: boolean;
 }
 export interface CommentElements {
   draft: HTMLTextAreaElement; "include-draft": HTMLInputElement; form: HTMLFormElement;

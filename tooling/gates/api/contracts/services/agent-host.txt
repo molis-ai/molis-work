@@ -8,6 +8,7 @@ export declare const AGENT_RUNTIME_CAPABILITIES: readonly ["session.create", "se
 
 export interface AgentActionClient {
     discover(): Promise<readonly ActionView[]>;
+    reader?: "work";
     delegate?: AgentDelegation;
     memory?: AgentMemoryTools;
     offer?(offer: AgentActionOffer): Promise<{
@@ -102,6 +103,7 @@ export interface AgentCommandReviewDocument {
     grants?: AgentCommandGrants;
     background?: boolean;
     outlives_run?: boolean;
+    after_write_check?: Pick<AgentWriteCheckNote, "checker_id" | "display_name" | "version">;
 }
 
 export type AgentCreateSessionInput = AgentCreateSessionFields & ({
@@ -249,6 +251,9 @@ export interface AgentFrozenRole {
         prompt: AgentPromptText;
         above_tokens: number;
     };
+    ending_review?: {
+        prompt: AgentPromptText;
+    };
     prompts: AgentPromptText[];
     skills?: AgentSkillDefinition[];
     host_tools: string[];
@@ -342,9 +347,17 @@ export interface AgentMcpCapability {
 }
 
 export interface AgentMcpLibrary {
+    catalog?(): Promise<Array<{
+        owner: AgentSkillOwner;
+        server: AgentMcpServerView;
+    }>>;
     list(owner: AgentSkillOwner): Promise<AgentMcpServerView[]>;
     save(owner: AgentSkillOwner, input: AgentMcpServerInput): Promise<AgentMcpServerView>;
-    control(owner: AgentSkillOwner, id: string, action: "connect" | "disconnect" | "cancel" | "remove"): Promise<void>;
+    control(owner: AgentSkillOwner, id: string, action: "connect" | "refresh" | "disconnect" | "cancel" | "remove", options?: {
+        expected_version?: number;
+        signal?: AbortSignal;
+        beforeDispatch?(): void | Promise<void>;
+    }): Promise<void>;
     validateSources(owner: AgentSkillOwner, selected: readonly AgentMcpSourceRef[]): Promise<AgentMcpSourceRef[]>;
     validate(owner: AgentSkillOwner, selected: readonly AgentMcpToolRef[]): Promise<AgentMcpToolRef[]>;
     tools?(owner: AgentSkillOwner): Promise<AgentMcpToolDescriptor[]>;
@@ -352,6 +365,8 @@ export interface AgentMcpLibrary {
     call?(owner: AgentSkillOwner, ref: AgentMcpToolRef, args: Readonly<Record<string, unknown>>, options?: {
         signal?: AbortSignal;
         beforeDispatch?(): void | Promise<void>;
+        onBusinessDispatch?(): void;
+        onBusinessResult?(outcome: "succeeded" | "failed" | "unknown"): void;
     }): Promise<AgentMcpCallResult>;
 }
 
@@ -666,6 +681,15 @@ export interface AgentMessageAttachment {
     title?: string;
 }
 
+export interface AgentOfferRunRequest {
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+    offer_id: string;
+    reference: ExactActionReference;
+    input: unknown;
+}
+
 export type AgentPeopleMessageAction = "deliver" | "accept" | "reject" | "complete" | "cancel" | "record";
 
 export interface AgentPeopleMessageInput {
@@ -746,6 +770,14 @@ export interface AgentRecoveryReport {
         live: boolean;
         waiting: number;
         can_close: boolean;
+        can_answer?: true;
+        questions?: Array<{
+            pending_id: string;
+            pending_revision: number;
+            kind: string;
+            prompt: string;
+            answered?: true;
+        }>;
         blockers: string[];
         operations: Array<{
             effect_id: string;
@@ -877,6 +909,12 @@ export interface AgentRunHandle {
     frozen: AgentFrozenStart;
 }
 
+export interface AgentRunOffer extends AgentActionOffer {
+    offer_id: string;
+    offered_at: string;
+    action_digest: string;
+}
+
 export type AgentRunPhase = "starting" | "running" | "awaiting-review" | "awaiting-input" | "paused" | "compacting" | "completed" | "failed" | "cancelled" | "stopped" | "reconcile-required";
 
 export interface AgentRunRef {
@@ -919,6 +957,7 @@ export interface AgentRunView {
         now?: string;
         requested?: string;
     };
+    offers?: readonly AgentRunOffer[];
     started_at: string;
     ended_at: string | null;
 }
@@ -954,7 +993,6 @@ export interface AgentRuntimeAdapter {
     readonly mcpLibrary?: AgentMcpLibrary;
     readonly mcp?: AgentMcpCapability;
     readonly subagents?: AgentSubagentsCapability;
-    amendStepBoard?(run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number, actorId: string): Promise<AgentStepBoard>;
 }
 
 export type AgentRuntimeCapability = (typeof AGENT_RUNTIME_CAPABILITIES)[number];
@@ -1113,6 +1151,7 @@ export interface AgentSessionView {
     title: string;
     runs: AgentRunRef[];
     latest_run: AgentRunView | null;
+    queued_inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentQueuedInput[];
 }
 
 export interface AgentSkillCandidate {
@@ -1168,6 +1207,7 @@ export type AgentStepAmendment = {
     title: string;
     acceptance: string;
     mine?: true;
+    origin?: string;
 } | {
     kind: "unblock";
     node: string;
@@ -1199,11 +1239,13 @@ export interface AgentStepBoard {
             at_ms: number;
             by?: string;
             handover?: true;
+            inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
         }>;
         owner?: AgentStepOwner;
         title?: string;
         depends_on?: string[];
         inserted?: boolean;
+        origins?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
     }>;
 }
 
@@ -1325,10 +1367,7 @@ export interface AgentTurnView {
     text: string;
     at: string | null;
     sequence?: number;
-    steer?: {
-        id: string;
-        state: "received" | "applied" | "read" | "unread" | "withdrawn";
-    };
+    steer?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentTurnSteer;
 }
 
 export type AgentUsageCoverage = "unknown" | "reported" | "estimated" | "partial" | "partial-estimated";
@@ -1348,6 +1387,40 @@ export type AgentWorkspace = {
     workspace: "business";
     directory?: never;
 };
+
+export interface AgentWriteCheckNote {
+    checker_id: string;
+    display_name: string;
+    version: number;
+    write_call_id?: string;
+}
+
+export interface AgentWriteChecker {
+    checker_id: string;
+    display_name: string;
+    executable: string;
+    args: string[];
+    applies_to: string[];
+    cwd?: string;
+    timeout_ms?: number;
+}
+
+export interface AgentWriteCheckerList {
+    workspace_id: string;
+    version: number;
+    checkers: Array<Required<AgentWriteChecker>>;
+}
+
+export interface AgentWriteCheckerSave {
+    workspace_id: string;
+    expected_version: number;
+    checkers: AgentWriteChecker[];
+}
+
+export interface AgentWriteCheckerStore {
+    read(projectId: string, workspaceId: string): Promise<AgentWriteCheckerList>;
+    save(projectId: string, workspaceId: string, expectedVersion: number, checkers: Array<Required<AgentWriteChecker>>): Promise<AgentWriteCheckerList>;
+}
 
 export interface BoundedInferenceReceipt {
     readonly run_ref: {
@@ -1441,7 +1514,6 @@ export declare const agentHostCapabilities: {
     readonly createSession: HostCapabilityDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>;
     readonly listSubagents: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>;
     readonly cancelSubagent: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string, actorId: string], void>;
-    readonly amendStepBoard: HostCapabilityDefinition<[session: AgentSessionRef, run: AgentRunRef, amendment: AgentStepAmendment, expectedVersion: number], AgentStepBoard>;
     readonly readSession: HostCapabilityDefinition<[session: AgentSessionRef], AgentSessionView>;
     readonly readSessionStatuses: HostCapabilityDefinition<[runtimeId: string, sessionIds: string[]], Array<AgentSessionStatus | {
         session_id: string;
@@ -1505,7 +1577,20 @@ export declare const agentHostCapabilities: {
     readonly listReviews: HostCapabilityDefinition<[projectId: string, status?: AgentReviewStatus], AgentReviewRequest[]>;
 };
 
+export declare const agentOfferActions: {
+    readonly run: ActionDefinition<AgentOfferRunRequest, {
+        output: unknown;
+    }>;
+};
+
 export declare function agentTextMaterialContent(material: AgentTextMaterial): string;
+
+export declare const agentWriteCheckerActions: {
+    readonly list: ActionDefinition<Record<string, never>, {
+        lists: AgentWriteCheckerList[];
+    }>;
+    readonly save: ActionDefinition<AgentWriteCheckerSave, AgentWriteCheckerList>;
+};
 
 export declare function isTerminalAgentPhase(phase: AgentRunPhase): boolean;
 
@@ -1545,6 +1630,11 @@ interface AgentFrozenStartFields {
         prompt_id: string;
         version: number;
         above_tokens: number;
+    };
+    ending_review?: {
+        prompt_id: string;
+        version: number;
+        user_revision?: number;
     };
     model_context?: {
         window_tokens: number;

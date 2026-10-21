@@ -16,6 +16,7 @@
 - **位置不重复**：工作台标签条已经写了插件名，舞台里不再放一行插件名大标题；独立打开（预览、试用页）时才显示。
 - **浅色和深色都成立**：颜色一律用 token，不写死；在两种主题下各看一眼。
 - **反馈可见**：按下有回弹，保存后新记录可见（上浮进入），成功提示短暂出现后淡出，失败提示留下直到下次成功。
+- **共有机制直接用，不自己写**（组件板「视觉机制」有样例，工作台与侧栏页面都带着）：放不下的横向条（标签、chip、视图切换）标 `data-overflow-fade`，只在真有更多的一侧淡出；复制按钮调 `window.molisCopy(button, 文本, { done: "已复制", failed: "复制失败" })`，剪贴板真的收下才显示「已复制」、宽度不跳，返回是否成功，失败时再告诉人怎么手动复制；可折叠的明细写成 `<details class="mw-collapsible"><summary>…</summary><div class="mw-collapsible__body">…</div></details>`，按自然高度展开、途中反向接着走；会变的数字（计时、计数、序号）写成 `<span class="mw-num" data-num-ghost="取值范围里最宽的值">值</span>`，数字等宽，位数变化和字体切换都不推旁边的控件。
 - **窄屏可用**：可点目标约 44px，列表行在窄屏把操作换到下一行；工具条放不下时名称收成图标（名称仍是可访问名称）。
 
 ## 槽：人从哪进来
@@ -83,7 +84,7 @@ renderPluginStageShell({
 
 ## 浏览器客户端
 
-Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在 `builtin-plugins.ts` 的同一插件条目声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
+Pages 族：交互在插件包的 `CLIENT_FACTORY_SCRIPT`（常是 `src/client.ts` 导出的工厂字符串），在包 `registration` 里声明 `workbench.clientFactory` / `settingsClient`，由 `plugin-workbench.ts` 自动派生并注入。
 
 Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps/workbench/src/scripts/client/navigation-feed.ts`、`navigation-inbox.ts`、`events-primary.ts`。抄 Pages 的 client 到 Feed 不会接到现有画面。
 

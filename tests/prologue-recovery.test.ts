@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { startModelStandIn } from "./fixtures/model-stand-in.ts";
 
 const owner = { project_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
@@ -114,6 +115,43 @@ test("RC-08: the recovery report lists the supplements waiting in the session fo
   } finally { await adapter.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test("RC-09: the next round takes what waits in the session, shows it with its receipt, and takes it once", { timeout: 60_000 }, async () => {
+  const provider = await startModelStandIn("stand-in-key", "好的");
+  const root = await mkdtemp(join(tmpdir(), "molis-sdk-carry-"));
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.recovery-test", appVersion: "0.1.0" }, storageRoot: join(root, "runtime"),
+    modelConfiguration: async () => ({ protocol: "openai-compatible", endpoint: provider.baseUrl + "/chat/completions", model: "stand-in", credential_ref: "fixture" }),
+    resolveCredential: () => "stand-in-key" });
+  const ended = (ref: Parameters<typeof adapter.observe>[0]) => new Promise<Awaited<ReturnType<typeof adapter.read>>>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error("the round did not end")), 20_000);
+    let off = () => {};
+    off = adapter.observe(ref, view => { if (["failed", "completed", "cancelled"].includes(view.phase)) { clearTimeout(timer); queueMicrotask(() => off()); resolve(view); } });
+  });
+  try {
+    const directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, actor_id: "local-user", title: "带上排着的补充", directory });
+    const round = (task: string) => adapter.start({ ...owner, actor_id: "local-user", session, directory, task, role_id: "reader", queued: "carry",
+      role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } });
+    const first = await round("看看测试");
+    assert.equal((await ended(first.ref)).phase, "completed");
+    const kept = await adapter.inputs!.send(first.ref, { text: "下一轮顺便看注册接口", key: "send.c1", mode: "after-run" });
+    assert.equal(kept.delivered, "queued");
+    assert.deepEqual((await adapter.readSession(session)).queued_inputs?.map(input => [input.input_id, input.text]), [[kept.input_id, "下一轮顺便看注册接口"]],
+      "RC-18: between rounds, the session's read carries what waits for the next one");
+
+    const second = await round("继续");
+    const view = await ended(second.ref);
+    assert.equal(view.phase, "completed");
+    assert.deepEqual(view.turns.filter(turn => turn.steer).map(turn => ({ kind: turn.kind, text: turn.text, steer: turn.steer })),
+      [{ kind: "user", text: "下一轮顺便看注册接口", steer: { id: kept.input_id, key: "send.c1", state: "read" } }], "the round shows the supplement it took, once, under its own id");
+    assert.equal(view.turns.find(turn => turn.steer)!.steer!.key, "send.c1", "RC-17: a carried supplement keeps the key it was sent under, so a lost answer can still be matched to it");
+    assert.deepEqual((await adapter.recovery!.inspect(session)).inputs, [], "taken by the round, it no longer waits");
+    assert.deepEqual((await adapter.readSession(session)).queued_inputs, [], "RC-18: the round ended, so the queue was read, and nothing waits (3b-2c: read and empty is [], not absent)");
+
+    const third = await round("再继续");
+    assert.deepEqual((await ended(third.ref)).turns.filter(turn => turn.steer), [], "a supplement is taken once, not into every round after it");
+  } finally { await adapter.close(); await provider.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test("incomplete SDK recovery remains readable but refuses a blind restart or stale control", async () => {
   let starts = 0;
   const ref = { run_id: "interrupted-run", session_id: "interrupted-session" };
@@ -121,7 +159,8 @@ test("incomplete SDK recovery remains readable but refuses a blind restart or st
     sessions: { create: async () => { throw new Error("not used"); }, restore: async () => ({ title: "中断", owner,
       recovery: { required: true, reason: "结果未知，需要核对" }, runs: [{ ref, task: "原始要求", started_at: "2026-09-20T00:00:00Z",
         frozen: { role_id: "builder", role_version: 1, execution: "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null,
-          directory: { canonical_path: "/tmp/original", realpath_verified: true } } }] }) },
+          directory: { canonical_path: "/tmp/original", realpath_verified: true } } }] }),
+      queued: async () => [{ input_id: "input-1", text: "顺便看注册接口", source: "user" }] },
     startAgentRun: async () => { starts++; throw new Error("must not start"); }, shutdown: async () => {},
   };
   const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
@@ -129,6 +168,7 @@ test("incomplete SDK recovery remains readable but refuses a blind restart or st
   const [first, second] = await Promise.all([adapter.readSession(session), adapter.readSession(session)]);
   assert.deepEqual(first, second);
   assert.equal(first.latest_run?.phase, "reconcile-required");
+  assert.deepEqual(first.queued_inputs?.map(input => input.text), ["顺便看注册接口"], "RC-18: a round stopped for checking is not live; what waits shows beside 核对并继续");
   assert.equal(first.latest_run?.ended_at, null);
   assert.equal(first.latest_run?.turns[0]?.text, "原始要求");
   await assert.rejects(adapter.start({ session } as AgentStartRequest), /结果未知/);

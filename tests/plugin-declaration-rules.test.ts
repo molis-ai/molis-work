@@ -9,7 +9,7 @@ import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import {
   DUE_REMINDERS_INPUT_TYPE, FILE_ENTRIES_INPUT_TYPE, FRAGMENT_OFFERS_INPUT_TYPE, HOME_EVENTS_INPUT_TYPE, PLACEMENT_MOVE_INPUT_TYPE,
-  SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE,
+  SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, SUBJECT_REFERENCE_TYPE, WORKFLOW_CONTENT_SCHEMAS,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineArtifactPreviewAction, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -62,6 +62,13 @@ test("the fixture Manifest is clean, so a problem in a case below is the case's 
 
 const incomplete = [`能力 ${KEY} 的输入输出、权限或展示定义不完整`];
 const workflowShape = { id: "example-list", title: "Example", icon: "list", protocol: 1, role: "list" };
+/** A `receive` as the protocol declares it now (W4-6-01): version 2 of the input, version 1 of the output. */
+const receiveNow = { workflow_content: { ...workflowShape, role: "receive" }, kind: "operation", scope: "project", audiences: ["user", "agent", "workflow", "mcp"],
+  input_type: "molis.workflow.content.receive.input.v2", output_type: "molis.workflow.content.receive.output.v1",
+  input_schema: WORKFLOW_CONTENT_SCHEMAS.receive.input, output_schema: WORKFLOW_CONTENT_SCHEMAS.receive.output };
+const oldReceiveInput = { type: "object", additionalProperties: false, required: ["payload", "context"],
+  properties: { payload: WORKFLOW_CONTENT_SCHEMAS.read.output, context: { type: "object" } } };
+const { request_id: _requestId, ...flatWithoutRequestId } = (WORKFLOW_CONTENT_SCHEMAS.receive.input as { properties: Record<string, unknown> }).properties;
 
 const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unknown; expected: string[] }> = [
   { rule: "nothing declared", actions: undefined, expected: [] },
@@ -108,7 +115,7 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "an undo that names nothing", actions: [defined({ undo: {} })], expected: [`能力 ${KEY} 的撤销声明必须是可撤回的命令，并写明同一提供方的撤销命令与其输入在本次输出里的位置`] },
   { rule: "a search source declared on a plain action", actions: [defined({ search_source: { kinds: [] } })], expected: [`能力 ${KEY} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`] },
   { rule: "the search entries type with the wrong schemas", actions: [defined({ input_type: SEARCH_ENTRIES_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现搜索来源协议 v1：需要规范输入输出、查询类型、对本机用户开放与对应对象种类的打开位置`] },
-  { rule: "fragment offer choices on a plain action", actions: [defined({ fragment_offer_choices: [] })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
+  { rule: "fragment offer choices on a plain action", actions: [defined({ fragment_offer_choices: [{}] })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
   { rule: "the fragment offers type with the wrong schemas", actions: [defined({ input_type: FRAGMENT_OFFERS_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现片段动作协议 v1 的输入输出合同`, `能力 ${KEY} 的片段动作选项必须有唯一标识、名称、意图、说明及本提供方的目标动作版本`] },
   { rule: "a file source declared on a plain action", actions: [defined({ file_source: {} })], expected: [`能力 ${KEY} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`] },
   { rule: "the file entries type with the wrong schemas", actions: [defined({ input_type: FILE_ENTRIES_INPUT_TYPE })], expected: [`能力 ${KEY} 没有兑现文件来源协议 v1：需要规范输入输出、查询类型、对本机用户开放、与角色一致的声明和对应文件种类的打开位置`] },
@@ -116,7 +123,17 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
   { rule: "a workflow content declaration that is not one", actions: [defined({ workflow_content: {} })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "a workflow content protocol other than 1", actions: [defined({ workflow_content: { ...workflowShape, protocol: 2 } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
   { rule: "workflow content that receives while it is the receiver", actions: [defined({ workflow_content: { ...workflowShape, role: "receive", receives: false } })], expected: [`能力 ${KEY} 的工作流内容合同无效`] },
-  { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 v1 的输入输出合同`] },
+  { rule: "workflow content without the station contract", actions: [defined({ workflow_content: workflowShape })], expected: [`能力 ${KEY} 没有兑现工作流内容协议 list v1 的输入输出合同`] },
+  { rule: "W4-6-01 a receive at the current version", actions: [defined(receiveNow, { operation: "command", version: 2 })], expected: [] },
+  { rule: "W4-6-01 a receive whose version moved up on its own", actions: [defined(receiveNow, { operation: "command", version: 3 })], expected: [] },
+  { rule: "W4-6-01 a receive in the current shape still declared as version 1", actions: [defined(receiveNow, { operation: "command" })],
+    expected: [`能力 ${KEY} 的版本低于工作流内容协议 receive 的现行版本 2`] },
+  { rule: "W4-6-01 a receive that still takes the v1 input", actions: [defined({ ...receiveNow, input_type: "molis.workflow.content.receive.input.v1", input_schema: oldReceiveInput }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive whose flat input has no request id", actions: [defined({ ...receiveNow, input_schema: { ...WORKFLOW_CONTENT_SCHEMAS.receive.input, properties: flatWithoutRequestId, required: ["title", "body"] } }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
+  { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
+    expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
   { rule: "a command whose kind is query", actions: [defined({}, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
@@ -155,7 +172,8 @@ const MANY_IN_ONE = defined({
   background_job: {},
   undo: {},
   search_source: { kinds: [] },
-  fragment_offer_choices: [],
+  // An empty list is only checked against the Manifest (an entry's `prepare`, W4-1); a malformed choice is checked here.
+  fragment_offer_choices: [{}],
   file_source: {},
   workflow_content: {},
 }, { operation: "command" });
@@ -306,8 +324,9 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method with a name over 80 characters", manifest: declarationManifest({ methods: [method({ name: "n".repeat(81) })] }), expected: "方法 summarize 需要名称（80 字以内）" },
   { rule: "a method without a summary", manifest: declarationManifest({ methods: [method({ summary: "" })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
   { rule: "a method with a summary over 300 characters", manifest: declarationManifest({ methods: [method({ summary: "s".repeat(301) })] }), expected: "方法 summarize 需要适用说明（300 字以内）" },
-  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
-  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining" },
+  { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
+  { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
   // views and commands
   { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
   { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {}, commands: undefined }) }), expected: "ui.views 必须为数组" },
@@ -331,10 +350,10 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a route path that climbs out", manifest: declarationManifest({ routes: [route({ path: "/../items" })] }), expected: "路由 example.list 的路径不合法" },
   { rule: "a route path twice under another id", manifest: declarationManifest({ routes: [route(), route({ route_id: "example.again" })] }), expected: "路由路径重复：GET /items" },
   { rule: "a route permission the Manifest never declared", manifest: declarationManifest({ routes: [route({ permission: "storage:private" })] }), expected: "路由 example.list 要求未声明的权限 storage:private" },
-  // W4-04: a route may ask the Host to read a larger body, up to the Home edge's 12 MiB.
-  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 })] }), expected: "" },
-  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 12 * 1024 * 1024 + 1 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
-  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 12582912 字节）" },
+  // RAC-21 / RAC-37: explicit limits may reach 45,000,000 bytes, preserving Cognia batch uploads (user decision 2026-10-17).
+  { rule: "a route body limit within the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_000 })] }), expected: "" },
+  { rule: "a route body limit past the bound", manifest: declarationManifest({ routes: [route({ max_body_bytes: 45_000_001 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
+  { rule: "a route body limit that is not a whole positive number", manifest: declarationManifest({ routes: [route({ max_body_bytes: 0.5 })] }), expected: "路由 example.list 的请求体上限不合法（1 到 45000000 字节）" },
   // required capabilities
   { rule: "a conforming requirement", manifest: declarationManifest({ capabilities: { provides: [], consumes: ["projects.read.v1"] }, requires: [requirement()] }), expected: "" },
   { rule: "a requirement without a capability id", manifest: declarationManifest({ requires: [requirement({ capability_id: undefined })] }), expected: "依赖缺少 Capability ID" },
@@ -365,7 +384,7 @@ for (const { rule, manifest, expected } of MANIFEST_RULES) {
 
 const reader = { role_id: "reader", version: 1, name: "Reader" };
 const readerPrompt = { prompt_id: "reader", version: 1 };
-const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining";
+const BUSINESS_TOOLS = "ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs";
 const TASK_DELEGATE = { role_id: "child", version: 1, name: "Child" };
 
 /** An Agent block that satisfies every rule, with `over` laid over it. */
@@ -396,6 +415,7 @@ const AGENT_RULES: ReadonlyArray<{ rule: string; agent: Part; ports?: Part; expe
   { rule: "a business role with a tool outside the business set", agent: roleOf({ workspace: "business", host_tools: ["write"] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a business role that dispatches sub-tasks", agent: withChild({}, { roles: [{ ...reader, workspace: "business" }] }), expected: `业务角色 reader 只能只读或经审查操作，工具限于 ${BUSINESS_TOOLS}，不能分派子任务` },
   { rule: "a conforming operating business role", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["ask-user"] }), expected: "" },
+  { rule: "ASC-19: a business role can declare persistent waiting", agent: roleOf({ workspace: "business", execution: "operate", host_tools: ["board-wait"] }), expected: "" },
   { rule: "operate outside a business role", agent: roleOf({ execution: "operate" }), expected: "Agent 角色 reader 的 operate 执行方式只用于业务角色" },
   { rule: "a no-workspace role that writes", agent: roleOf({ workspace: "none", execution: "text-edit" }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },
   { rule: "a no-workspace role with tools", agent: roleOf({ workspace: "none", host_tools: ["read-file"] }), expected: "无工作区角色 reader 必须为不使用工具或子任务的只读推理" },

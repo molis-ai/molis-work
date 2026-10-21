@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 import { ActionError, assertHomeEventWindow, ACTION_REFERENCE_SCHEMA, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, HOME_EVENT_WINDOW_SCHEMA, HOME_EVENT_SCHEMA, HOME_EVENT_SOURCE_SCHEMA, HOME_OPEN_TARGET_SCHEMA,
   type ActionCallContext, type ActionClient, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type HomeEventView, type HomeEventCollection, type HomeEventWindow, type HomeOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { hostLog } from "./host-log.js";
 
 export type { HomeEventView } from "@molis-ai/molis-work-contracts/platform/actions";
 export interface HomeEventsResult { events: HomeEventView[]; issues: string[] }
@@ -49,7 +50,10 @@ export function createHomeEventHandlers(client: ActionClient, recommendations: A
         const result = await client.invoke(caller, recommendations, {}) as { judgments: Array<{ subject: { kind: string; id: string }; suggested_behavior_ids: string[] }> };
         const bySubject = new Map(result.judgments.map(record => [JSON.stringify([record.subject.kind, record.subject.id]), record.suggested_behavior_ids]));
         for (const event of events) event.suggested_behavior_ids = bySubject.get(JSON.stringify([event.subject.kind, event.subject.id])) ?? [];
-      } catch { /* Recommendations are optional; a failed judgment never hides the original event. */ }
+      } catch (error) {
+        // Recommendations are optional: a failed judgment never hides the original event. It leaves its code, not its content.
+        hostLog.warn("home", "recommendations_failed", error, { capability: `${recommendations.capability_id}@${recommendations.version}` });
+      }
     }
     const current = await client.discover(caller);
     // Only sources that were read can have been withdrawn during the read; ones unavailable from the start were handled above.

@@ -12,6 +12,7 @@ import { AssistantService } from "@molis-ai/molis-work-app-local-host";
 import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { pdfDocumentParser } from "../apps/local-host/dist/pdf-document-parser.js";
 import { deflateSync, crc32 } from "node:zlib";
+import { answeringEndingReviews } from "./fixtures/ending-review.js";
 
 async function until<T>(read: () => T | Promise<T>, what = "state"): Promise<NonNullable<T>> {
   for (let i = 0; i < 400; i++) { const value = await read(); if (value) return value as NonNullable<T>; await new Promise(resolve => setTimeout(resolve, 20)); }
@@ -69,7 +70,7 @@ test("a PDF the person brings is read by the Agent runtime's own parser into bou
     documentParsers: [pdfDocumentParser],
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   host.register(adapter);
-  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()) }, "web-user");
+  const service = new AssistantService(new AssistantStore(new DatabaseSync(":memory:")), { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()) }, "web-user");
   try {
     const material = await service.readAttachment({ name: "brief.pdf", data: pdf(["Q4 plan brief", "Weekly sync moves to Wednesday"]).toString("base64") });
     assert.equal(material.kind, "file");
@@ -79,17 +80,17 @@ test("a PDF the person brings is read by the Agent runtime's own parser into bou
     await assert.rejects(service.readAttachment({ name: "broken.pdf", data: Buffer.from("%PDF-1.4\nnot really a pdf").toString("base64") }), /PDF 打不开|没有可读取的文本层/);
     await assert.rejects(service.readAttachment({ name: "archive.zip", data: Buffer.from([0x50, 0x4b, 0x03, 0x04, 1, 2, 3, 4]).toString("base64") }), /暂时只能读取文本文件、PDF 和图片|不能读取/);
     await assert.rejects(service.readAttachment({ name: "empty.pdf", data: "" }), /没有收到文件/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 test("a picture the person brings is taken in by the runtime and shown to the model in that round only; a model marked as not seeing images gets nothing", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "molis-assistant-images-"));
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (_url: unknown, init: RequestInit) => {
+  t.mock.method(globalThis, "fetch", answeringEndingReviews(text => reply(text), async (_url: unknown, init: RequestInit) => {
     requests.push(typeof init.body === "string" ? init.body : new TextDecoder().decode(init.body as Uint8Array));
     return reply();
-  });
+  }));
   let vision: boolean | undefined;
   const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
   const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.assistant-images-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
@@ -97,7 +98,7 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     resolveCredential: () => "fixture-only" });
   host.register(adapter);
   const store = new AssistantStore(new DatabaseSync(":memory:"));
-  const service = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+  const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
   try {
     const image = png(), bytes = image.toString("base64");
     const material = await service.readAttachment({ name: "chart.png", data: bytes });
@@ -116,7 +117,7 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     // The picture can be looked at again from the work (the side panel shows it), exactly as it was brought.
     assert.deepEqual(await service.materialImage(sent.work.work_id, material.material_id), { media_type: "image/png", data: bytes });
     // After a restart the runtime holds no copy: the work says so, and asking for it gives the way out instead of a picture.
-    const restarted = new AssistantService(store, { host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
+    const restarted = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), timeZone: "Asia/Shanghai" }, "web-user");
     assert.equal((await restarted.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, true);
     assert.equal((await service.read(sent.work.work_id)).rounds[0]!.materials[0]!.expired, undefined);
     await assert.rejects(restarted.materialImage(sent.work.work_id, material.material_id), (error: unknown) => error instanceof ActionError && error.code === "assistant.expired" && error.kind === "not_found" && /重新添加/.test(error.message));
@@ -137,5 +138,5 @@ test("a picture the person brings is taken in by the runtime and shown to the mo
     // A reference this runtime never issued is refused before anything starts; so is what is not a picture.
     await assert.rejects(service.send({ text: "看这个", request_id: "image-send-4", scope: { kind: "personal" }, materials: [{ ...material, image: { ...material.image!, resource_id: "res-forged" } }] }, {}), /已失效/);
     await assert.rejects(service.readAttachment({ name: "photo.heic", data: Buffer.from("not an image at all").toString("base64") }), /只能带 PNG、JPEG、GIF 或 WebP 图片/);
-  } finally { await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { service.continuations.close(); await adapter.close(); await local.close(); await rm(home, { recursive: true, force: true }); }
 });

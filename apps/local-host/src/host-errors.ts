@@ -20,6 +20,13 @@ export const hostErrors = defineErrorCodes("host", {
   project_reference_not_found: "not_found",
   /** The file a `project://` reference names is over the size the Host opens. */
   project_reference_too_large: "too_large",
+  /**
+   * The action gateway refused a plugin's call (S-15): it carries no caller the Host issued, or one that was withdrawn (the
+   * installation stopped, was disabled, uninstalled or revoked, its project closed, the Host restarted).
+   */
+  plugin_caller_invalid: "forbidden",
+  /** The caller the Host issued belongs to another person, project or installation than the call. */
+  plugin_caller_mismatch: "forbidden",
   catalog_unavailable: "invalid",
   workspace_unavailable: "invalid",
   workspace_not_found: "invalid",

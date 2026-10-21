@@ -29,6 +29,7 @@ export interface AgentPendingQuestion {
     allows_free_text: boolean;
     questions?: ReadonlyArray<AgentQuestion>;
     answerable?: boolean;
+    parked?: true;
     unavailable_reason?: string;
 }
 
@@ -48,6 +49,7 @@ export interface AgentQuestion {
     min?: number | string;
     max?: number | string;
     integer?: boolean;
+    unit?: string;
     ref_kinds?: string[];
     max_count?: number;
 }
@@ -73,6 +75,11 @@ export interface AgentQuestionProblem {
 }
 
 export type AgentQuestionProblemReason = (typeof AGENT_QUESTION_PROBLEM_REASONS)[number] | (typeof AGENT_QUESTION_HOST_REASONS)[number];
+
+export interface AgentQuestionReask {
+    run_id: string;
+    pending_id: string;
+}
 
 export interface AgentQuestionReference {
     kind: string;

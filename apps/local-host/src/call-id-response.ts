@@ -10,12 +10,14 @@ const isErrorBody = (body: unknown): body is Record<string, unknown> =>
  * What a JSON answer says of the operation it answers: its number, but only when the call log holds a row for the operation, so the number a
  * person copies from an error can always be looked up. The header goes on every such answer; the number joins the body only of an error
  * (status 400 or more, an object with `error` or `code`), where `call_id` is the name reserved for it. An answer to an operation that left
- * no row (refused at the door, a read that worked and then a 404 the route judged) carries nothing.
+ * no row (refused at the door, a read that worked and then a 404 the route judged) carries nothing: a `call_id` the error body already
+ * had (a plugin route's own) is dropped, not passed on.
  */
 export function withRecordedCallId(status: number, body: unknown): { headers: Record<string, string>; body: unknown } {
   const id = recordedCallId();
-  if (!id) return { headers: {}, body };
-  return { headers: { [CALL_ID_HEADER]: id }, body: status >= 400 && isErrorBody(body) ? { ...body, call_id: id } : body };
+  if (!(status >= 400 && isErrorBody(body))) return { headers: id ? { [CALL_ID_HEADER]: id } : {}, body };
+  const { call_id: _named, ...error } = body;
+  return id ? { headers: { [CALL_ID_HEADER]: id }, body: { ...error, call_id: id } } : { headers: {}, body: error };
 }
 
 /**

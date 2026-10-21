@@ -275,12 +275,22 @@ test("definition: a second creator is reported unless the table is listed under 
   assert.match(tableOwnerProblems(snapshot({ ...worldFiles(files), ...allow({ a_items: { ...listed.a_items, packages: ["modules/a", "apps/h"] } }) }), { isSource }).join("\n"),
     /a_items: apps\/h does not create this table[^]*a_items: modules\/b also creates this table and is not in "packages"/);
 });
-test("the real repository's allowance names exactly the two journal tables that storage creates, and the two names that are two databases", () => {
+test("the real repository's allowance names exactly the two journal tables that storage creates, Goals' declared tables until S9, and the two names that are two databases", () => {
   const root = fileURLToPath(new URL("..", import.meta.url));
   const file = JSON.parse(readFileSync(path.join(root, "tooling/gates/table-owners.json"), "utf8")) as {
     shared: Record<string, { owner: string; users: string[]; reason: string }>; same_name: Record<string, { packages: string[]; reason: string }> };
-  assert.deepEqual(Object.keys(file.shared).sort(), ["events", "idempotency_records"]);
-  for (const entry of Object.values(file.shared)) assert.equal(entry.owner, "packages/storage");
+  const ownedBy = (owner: string) => Object.entries(file.shared).filter(([, entry]) => entry.owner === owner);
+  assert.deepEqual(ownedBy("packages/storage").map(([table]) => table).sort(), ["events", "idempotency_records"]);
+  // Goals declares its tables in its Manifest (S8) and the plugin creates them; its two Modules keep the SQL that reads and writes them
+  // until S9 moves the storage into the plugin, and then these entries are deleted. Nothing else may be shared on that footing.
+  const goalsTables = ownedBy("plugins/native/goals");
+  assert.equal(goalsTables.length, 31);
+  assert.equal(goalsTables.length + 2, Object.keys(file.shared).length);
+  for (const [table, entry] of goalsTables) {
+    assert.ok(entry.users.length > 0 && entry.users.every(user => user === "modules/goals" || user === "modules/governance-collaboration"), table);
+    assert.match(entry.reason, /Manifest/, table);
+    assert.match(entry.reason, /S9/, table);
+  }
   assert.deepEqual(Object.fromEntries(Object.entries(file.same_name).map(([table, entry]) => [table, [...entry.packages].sort()])),
     { jobs: ["plugins/native/alchemist", "plugins/native/images"], workspaces: ["modules/projects", "plugins/native/alchemist"] });
 });

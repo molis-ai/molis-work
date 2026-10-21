@@ -17,15 +17,14 @@ import {
   prepareScheduledOperation,
   reconcileScheduledOperations,
   handleScheduleTaskWakeup,
-  SCHEDULE_TASKS_SCHEMA_SQL,
-  SCHEDULE_REMINDERS_SCHEMA_SQL,
-  SCHEDULED_OPERATIONS_SCHEMA_SQL,
   rescheduleEnabledConversationTasks,
   type ScheduledTaskRunner,
 } from "@molis-ai/molis-work-plugin-schedule";
 import { deliverHostReminder } from "./schedule-reminders.js";
 import { runHostScheduledOperation } from "./schedule-operations.js";
 import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
+import { hostLog } from "./host-log.js";
+import { assertProjectPluginDatabase, projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 
 const wakeupIndex = new PluginWakeupIndex();
 const tickContext = new AsyncLocalStorage<{
@@ -49,11 +48,13 @@ function ensureHostWakeups(): void {
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_TASK_WAKEUP_CAPABILITY, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("闹钟叫醒没有项目现场");
+    assertProjectPluginDatabase(ctx.db, SCHEDULE_PLUGIN_ID);
     return handleScheduleTaskWakeup(ctx.db, input.object_ref, ctx.runner, undefined, control);
   });
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_REMINDER_WAKEUP, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("提醒没有项目现场");
+    assertProjectPluginDatabase(ctx.db, SCHEDULE_PLUGIN_ID);
     const feed = deliveryFeed(ctx.db);
     const reply = deliverHostReminder(ctx.db, input, control, feed);
     await judgeDelivered(feed, control);
@@ -62,6 +63,7 @@ function ensureHostWakeups(): void {
   wakeupIndex.register(SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, async (input, control) => {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("定时操作没有项目现场");
+    assertProjectPluginDatabase(ctx.db, SCHEDULE_PLUGIN_ID);
     const feed = deliveryFeed(ctx.db);
     const reply = await runHostScheduledOperation(ctx.db, input, control, feed);
     await judgeDelivered(feed, control);
@@ -69,6 +71,7 @@ function ensureHostWakeups(): void {
   }, { prepare(input) {
     const ctx = tickContext.getStore();
     if (!ctx) throw new Error("定时操作没有项目现场");
+    assertProjectPluginDatabase(ctx.db, SCHEDULE_PLUGIN_ID);
     prepareScheduledOperation(ctx.db, input);
   } });
 }
@@ -89,7 +92,9 @@ function deliveryFeed(db: ScheduleSqliteDatabase) {
  */
 async function judgeDelivered(feed: ReturnType<typeof deliveryFeed>, control: ScheduleWakeupControl): Promise<void> {
   if (control.signal.aborted) return;
-  try { await feed.flushPendingJudgments(); } catch { /* The judgment is recorded or can be asked for again from the Inbox entry. */ }
+  // A judgment's own model failure is recorded by its scene. Anything else that stops one is logged by code here; Feed still
+  // judges the rest of what was queued, and the Inbox entry can be judged again from Inbox.
+  try { await feed.flushPendingJudgments(); } catch (error) { hostLog.warn("schedule", "delivery_judgment_failed", error); }
 }
 
 /**
@@ -113,18 +118,18 @@ export function scheduleServiceFor(db: ScheduleSqliteDatabase, now?: () => Date)
   const existing = services.get(db);
   if (existing) return existing;
   ensureHostWakeups();
-  db.exec(SCHEDULE_TASKS_SCHEMA_SQL);
   const inner = createScheduleService(db, {
     wakeupIndex,
     ...(now ? { now } : {}),
   });
-  db.exec(SCHEDULE_REMINDERS_SCHEMA_SQL);
-  db.exec(SCHEDULED_OPERATIONS_SCHEMA_SQL);
   const service: ScheduleService = {
     ...inner,
     get active() { return inner.active; },
     async tick(at) {
-      if (!inner.active) return { invoked: 0, failed: 0, skipped: 0 };
+      // The wakeups this index serves are Schedule's (tasks, reminders, operations), and claiming one moves its job on before the
+      // handler runs. So a refused Schedule claims none: its due jobs wait as they are until its library is put right, instead of
+      // being taken, spent and recorded as failed, or a claim's preparation stopping the whole round (S-46).
+      if (!inner.active || projectPluginDatabaseRefusal(db, SCHEDULE_PLUGIN_ID)) return { invoked: 0, failed: 0, skipped: 0 };
       const runner = runners.get(db) ?? missingRunner;
       const when = at ?? now?.() ?? new Date();
       return tickContext.run({ db, runner }, async () => {

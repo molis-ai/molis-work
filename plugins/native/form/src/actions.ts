@@ -84,8 +84,11 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
   const project = (caller: ActionCallContext) => { if (!caller.project_id) throw new ActionError("actions.project_required", "请选择项目"); return caller.project_id; };
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>, availability?: ActionHandlerBinding["availability"]): ActionHandlerBinding => ({ capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as I, caller), ...(availability ? { availability } : {}) });
   const { read, write } = ports;
-  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteForm(ports, caller, id, project(caller), value => ports.publishArtifact!(value, caller),
-    { actorId: caller.actor_id, expectedVersion, readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead });
+  // Each step of a pin (the intent, the 成果, the record of it) waits for the call's authority; the library and the 成果 service ask
+  // the original caller again in the same turn as each write, so a call cancelled or revoked between them leaves only the steps already done.
+  const promote = (id: string, caller: ActionExecutionContext, expectedVersion?: number) => promoteForm(ports, caller, id, project(caller),
+    value => ports.publishArtifact!(value, caller), { actorId: caller.actor_id, expectedVersion,
+      readArtifact: ports.readArtifact ? value => ports.readArtifact!(value, caller) : undefined, lineHead: ports.lineHead, beforePublish: () => caller.beforeEffect() });
   const publishable = () => ports.publishArtifact ? { available: true as const } : { available: false as const, code: "form.unavailable", kind: "conflict" as const, reason: "当前环境不能发出成果" };
   const drafting = ports.completeText ? createFormDrafting({ completeText: ports.completeText }) : null;
   return [
@@ -107,7 +110,9 @@ export function createFormActionHandlers(ports: FormActionPorts): ActionHandlerB
       if (!drafting) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const result = await drafting.draft(input, current, caller);
       if (result.status !== "drafted") return result;
-      return { status: "done" as const, form: await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller))) };
+      const form = await write(caller, store => store.update(input.id, { questions: [...current.questions, ...result.questions], expected_version: current.version }, project(caller)));
+      drafting.forget(input.interaction?.interaction_id);
+      return { status: "done" as const, form };
     }, () => ports.modelAvailability()),
     bind(formActions.submit, (input, caller) => write(caller, store => ({ submission: store.submit(input.id, input.answers, project(caller), { expectedVersion: input.expected_version, requestId: input.request_id, source: submissionSource(caller, input.source) }) }))),
     bind(formActions.close, (input, caller) => write(caller, store => ({ form: store.closeCollection(input.id, project(caller), input.expected_version) }))),

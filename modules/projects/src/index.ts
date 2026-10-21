@@ -43,8 +43,8 @@ export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
   now?: () => string;
   id?: (prefix: string) => string;
-  /** Installed Plugins. Defaults to the ids this build bundles. */
-  plugins?: ProjectPluginRegistry;
+  /** The Plugins a project may enable and their companions; the Host derives it from what it ships. */
+  plugins: ProjectPluginRegistry;
 }
 
 /**
@@ -53,7 +53,6 @@ export interface ProjectsModuleOptions {
  * the host's catalog adapter.
  */
 export class ProjectsModule implements ProjectsApplicationApi {
-  readonly repository: ProjectsRepository;
   readonly records: ProjectService;
   readonly workspaces: ProjectWorkspaceService;
   readonly deletionSteps: ProjectDeletionSteps;
@@ -98,9 +97,9 @@ export class ProjectsModule implements ProjectsApplicationApi {
   constructor(options: ProjectsModuleOptions) {
     const now = options.now ?? (() => new Date().toISOString());
     const id = options.id ?? ((prefix: string) => `${prefix}-${randomUUID()}`);
-    this.repository = new ProjectsRepository(options.db);
-    this.records = new ProjectService(this.repository, now, id, options.plugins);
-    this.workspaces = new ProjectWorkspaceService(this.repository, now, id);
+    const repository = new ProjectsRepository(options.db);
+    this.records = new ProjectService(repository, now, id, options.plugins);
+    this.workspaces = new ProjectWorkspaceService(repository, now, id);
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
@@ -112,7 +111,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       listWorkspaceMemberships: () => this.workspaces.listMemberships(),
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
       preferredWorkspacePath: (projectId) => this.workspaces.preferredPath(projectId),
-      workspaceProjectSelections: (workspaceId) => this.repository.workspaceProjectSelections(workspaceId),
+      workspaceProjectSelections: (workspaceId) => repository.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };
     this.commands = {
@@ -125,7 +124,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       removeWorkspaceMembership: (input) => this.workspaces.remove(input),
     };
     this.lifecycle = {
-      transaction: <T>(operation: () => T) => this.repository.transaction(operation),
+      transaction: <T>(operation: () => T) => repository.transaction(operation),
       prepareRecord: (input) => this.records.prepareRecord(input),
       register: (record, eventType, actorId) => this.records.register(record, eventType, actorId),
       rollbackRegistration: (projectId) => this.records.rollbackRegistration(projectId),
@@ -135,7 +134,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
       removeWorkspaceMembershipsForProject: (projectId) =>
-        this.repository.removeWorkspaceMembershipsForProject(projectId),
+        repository.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),
       insertDeletion: (record) => this.records.insertDeletion(record),
       insertDeletionSteps: (deletionId, ownerIds) => this.deletionSteps.begin(deletionId, ownerIds),
@@ -161,7 +160,6 @@ export {
   createProjectsSchema,
   normalizeProjectWorkspace,
   ProjectService,
-  ProjectsRepository,
   ProjectWorkspaceService,
 };
 export type {
@@ -171,3 +169,4 @@ export type {
 };
 export { listCatalogProjectsForUninstall } from "./installation-inspection.js";
 export { listProjectDatabasePaths } from "./database-paths.js";
+export { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot, listProjectRoots, type ProjectRootDatabase, type ProjectRootRow } from "./project-root.js";

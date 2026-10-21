@@ -7,7 +7,7 @@
 | 路径 | 是什么 | 谁改 |
 | --- | --- | --- |
 | `baseline.json` | 各项数字的本地快查基线；CI 不读它，只对照 merge-base 比 | `node scripts/check-health-gates.mjs --update --base origin/main`（数字变小时） |
-| `limits.json` | 巨大单元与 vendored SDK 的阈值，只许收紧 | 人，过评审 |
+| `limits.json` | 巨大单元与 vendored SDK 的阈值，以及 `docs/` 下一个 `.json` 最多多少字节（`docsJsonBytes`，依据见 `scripts/gates/README.md`「文档里的原始数据」），只许收紧 | 人，过评审 |
 | `api/<包>/<subpath>.txt` | contracts 每个 subpath、插件 SDK 的公开 API 快照 | `pnpm api:update`（见下） |
 | `actions/*.tsv` | 内置 Manifest 声明的动作与消费场景、宿主另外登记的动作与消费场景的合同快照（提供方、宿主登记用的提供方 id、谁能调、输入输出 schema 的哈希） | `pnpm actions:update`（见「动作合同快照」） |
 | `secret-allowlist.txt` | 密钥扫描的已知测试值 | 人，过评审 |
@@ -29,7 +29,7 @@
 | `emptyCatches` | TypeScript 代码里的空 `catch`：块里既没有语句也没有注释，如 `catch {}`、`catch (error) { }`。块里写了注释的不算（那是写明了的取舍），有任何语句的也不算。不算 promise 的 `.catch(() => {})`（那是回调，不是 catch 子句）和 `finally`。**由静态检查数**（Biome 插件 `tooling/gates/lint/no-empty-catch.grit`，见下面「静态检查」），键和逐文件数字与 W1-04 的语法树计数一致 |
 | `emptyCatchesInScripts` | 同一个形状（`catch`、可选的 `( … )`、`{`、只有空白、`}`），在**源码**文件的**字符串和模板字符串**文本里找（测试里的字符串是夹具，不数）。宿主把浏览器程序（工作台、插件的 client 脚本）写成模板字符串，TypeScript 和 lint 都不看里面，普查找到的 141 处空 catch 里有 137 处在这里。**这类算在内**，单独一个计数：把脚本从模板字符串搬进真正的 TypeScript 时，数字从这一项挪到上一项 |
 | `unknownCasts` | 经 `unknown` 的双重断言：`value as unknown as T`、`(value as unknown) as T`、`<T><unknown>value`。单独的 `as unknown` 和 `as any as T` 不算。**含测试**（规格 §9.3 的 R-12 口径是含测试的）。**由静态检查数**（`tooling/gates/lint/no-double-cast.grit`），口径是 W1-04 的超集（见「静态检查」表里的混合写法），原有文件的逐文件数字相同；扫描范围比 W1-04 的语法树计数多了 `scripts/`（见「静态检查」的扫描范围），所以总数从 199 变成 202（`scripts/contextual-slice/client.ts` 2 处、`scripts/preview-contextual-interaction.mts` 1 处），其余文件的数字没变 |
-| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOAL_BOARDS_SCHEMA_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
+| `oldNames` | 只数源码，不数测试。旧产品名：单个词 `goalboard`，不分大小写（`GoalBoard`、`goalboard-v1-demo`、`GOALBOARD_HOME`）。旧 id 名：`board_id`、`boardId`、`BoardId`、`BOARD_ID`，含复数，可以是整个名字或长名字的结尾（`conflicting_board_id`、`existingBoardId`），不数别的词里的（`dashboard_id`、`dashboardId`、`DASHBOARD_ID`）。只数这两种写法：`goal-board`（连字符，目标看板视图的样式类和 CSS 容器名）不是旧名，不数；`GOALS_BOARDS_SQL`（每个项目 `boards` 表的建表语句）也不数，但不是因为它是看板视图，而是它属于另一类「Board 当项目」的旧名（`getBoard`、`initializeBoard` 等，见 `docs/system/GLOSSARY.md` R-A1，改名在路线图 W5-14），这条规则看不到也不守它们。测试不数，因为测试要写出旧名来断言它被拒绝。**看不到的（已知限制，换回来不会被抓）**：连字符写法 `board-id`（#287 之前的 CLI 参数 `--board-id`），以及不在上述源码范围里的文件（JSON 示例、shell、Rust）；要覆盖得按文件类型各写一条规则，不是改正则能做到的。基线里现在保留的例外：派生密钥的盐 `goalboard-feed-secretstore-v1`（`packages/storage/src/adapters/file-secret-store.ts`，那里的注释写明改了字符串会让已有密文失效）、`plugins/native/goals/src` 里两处没用到的 `_boardId`（`document-collection.ts` 的解构改名、`goal-tree-materialization-order.ts` 的参数）。它们和别的计数一样，只能减少 |
 | `scriptConstants` | 只数源码。名字以 `_SCRIPT` 结尾、值是字符串或模板字符串（含括号、`as const`、用 `+` 连起来的几段）的变量：写成文本、没有类型检查读它的浏览器程序（规格 §3 R-07，路线图 W4-04；普查时 130 个，散在 100 个文件）。把程序改成 TypeScript 再由打包生成（样例是 Forms：`plugins/native/form/src/browser/`，`package.json` 的 build 里 esbuild 带 banner/footer 直接生成 `(host) => {…}` 工厂，常量只是 `readFileSync(new URL("./form-client.js", import.meta.url), "utf8")`），这一项就少一个。**看不到的**：不叫 `*_SCRIPT` 的程序文本（`CLIENT`、`*_CLIENT`、`*_SCRIPT_FACTORY` 一类名字 `rawFetchInScripts` 会展开、这里不数），以及用函数调用拼出来的文本；它们只能在改到时顺手迁 |
 | `floatingPromises`、`explicitAny`、`consoleCalls`、`debuggerStatements`、`lintParseErrors`、`lintSuppressions`、`lintPolicy` | 静态检查新增的几项，见下面「静态检查」 |
 | `errorSubclasses`、`errorCodeShape`、`errorStatusDecisions`、`errorCodeOwner` | 错误模型的四项，见下面「错误模型」；`errorOwnerTable` 是错误码主人表本身（不进 `baseline.json`） |
@@ -54,6 +54,19 @@
 | 绝对零 | 任一进程混用都失败，旧基线、相等merge-base或数字下降均不授权。`--update`同样拒绝；本地快查不再写`testImportSplits`及Total。报告仍显示进程数与两边链路，沿用同一图口径 |
 
 验证：`node scripts/run-tests.mjs tests/health-gates-test-imports-tool.test.ts`——在临时仓库里：每种拆成两份的写法（源码加包名、帮手、别的包的构建、动态 import、`dist` 换成 `src`、新测试、没人导入的夹具一开始就拆开或多拆一个包）在 `--base main` 下必须失败，`--update` 藏不住；类型导入、`dist` 孪生、只用源码、没人导入而只有一份的夹具必须不变红；删掉拆分（含夹具里的）会降低、改名保留记录。同一个文件也验证重写工具（公开名字走入口、别名、非公开走 `dist`、动态导入的解构、`apps/*` 的名字规则、没有构建孪生时不动、自检失败时不写）。
+
+## 库的版本与维护清单（`scripts/gates/store-versions.mjs`，BL-157）
+
+每个 Home 库只认一个版本，别的一律拒绝（`docs/releases/CHECKLIST.md` 第 3 节）。所以一个 PR 改了某个库的版本，在用的 Home 装新构建之前就要做一次维护。10-13 Pages 由 1 升到 2，没有人写维护步骤，直到 10-17 只读核对真实 Home 才发现。这道门禁把它变成规则；它只会变严，不用基线。
+
+| 项 | 说明 |
+| --- | --- |
+| 比什么 | 带 `--base` 时，读 head 与 merge-base 上检查清单第 3 节表的「版本」列，按「位置」一格对行。版本变了的行（升或降），要在 `specs/repository-anti-corruption/spec.md` §4.1 的「库版本维护清单」里有一行，位置相同、版本写 `旧 → 新`，不然失败，并说出要加的那一行。head 上新出现的行（Home 里新的库，第一次打开时按基线新建）和去掉的行不用登记。不带 `--base` 只检查两张表都读得出。读表不读代码：表和定义处的代码一致由 `scripts/verify-release-versions.mjs` 看住（CI 里跑） |
+| 条目的写法 | 只认 §4.1 里（从「### 4.1 」到下一个标题）以「**库版本维护清单**」开头那一行后面的表。表要有「位置」「版本」两列：位置是检查清单同一行的位置，原样加反引号；版本是两个数字中间夹 `→`。正文里写同样的字不算，§4.1 之外的同样一张表也不算 |
+| 读不出就失败 | 检查清单（head 与 merge-base 两边都要）或维护清单（head）找不到、读不出，包括没有标题、没有表、缺列、版本不是整数、清单里的行不合写法，都以退出码 2 结束，不会当作通过。只要 head 或 merge-base 上有检查清单，门禁就适用，所以在本仓库的 head 上删掉检查清单或 spec 也失败；两边都没有检查清单的仓库（别的门禁测试用的临时仓库和仓库布局拷贝，有的带着 spec 的包清单表）不适用 |
+| 看不到的 | 同一个 PR 里把某个库的「位置」改了名，看起来是一行去掉、一行新增，会通过。它和 merge-base 比，不和 Home 里装着的构建比，几个 PR 的改动会叠起来，那一半是检查清单第 4.3 节的第一项，发布前由人对照。它也不检查清单里写的维护有没有做 |
+
+验证：`node scripts/run-tests.mjs tests/health-gates-store-versions.test.ts`。在临时仓库里：版本升了、降了却没有那一行就失败；有对的那一行就通过；数字不对、库不对、只写在正文里、写在 §4.1 之外，都不算；检查清单第 3 节之后的表不算第 3 节；新库和去掉的库不用登记；没有标题、缺列、版本不是数字、文件被删、没有 §4.1、没有清单开头那一行、清单里的行写法不对，以及 merge-base 上的检查清单没有标题，都以退出码 2 结束。
 
 ## 错误模型（`scripts/gates/error-scan.mjs`、`error-owners.mjs`、`error-metrics.mjs`，W3-02-B）
 
@@ -93,7 +106,7 @@
 
 | 文件 | 内容 |
 | --- | --- |
-| `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`）声明的每个动作，一行一个 `capability_id@version`。`provider` 列是 Manifest 的 `plugin_id`；`registered_provider` 列是宿主登记这个动作用的提供方 id（从宿主的动作目录读出） |
+| `actions/actions.tsv` | 内置 Manifest（工作台的 `BUILTIN_PLUGIN_CATALOG`，由各插件的 `src/registration.ts` 生成）声明的每个动作，一行一个 `capability_id@version`。`provider` 列是 Manifest 的 `plugin_id`；`registered_provider` 列是宿主登记这个动作用的提供方 id（从宿主的动作目录读出） |
 | `actions/scenes.tsv` | 它们声明的消费场景（`action_scenes`），一行一个 `scene_id@version`，同样有 `provider` 与 `registered_provider` 两列 |
 | `actions/host-actions.tsv` | 所有内置插件在一个项目里启用时，宿主登记着、却没有任何内置 Manifest 声明的动作：`system.*` 提供方、每个 Runtime 插件的 SDK 服务、写在代码里而不在自己 Manifest 里的插件动作（Shelf 的 27 个）和由场景派生的开关动作（Feed、Inbox 各 3 个 `scenes.*`）。一行一个 `capability_id@version via 提供方`；提供方列是宿主登记用的 id |
 | `actions/host-scenes.tsv` | 宿主登记着、却没有任何内置 Manifest 声明的消费场景：现在只有首页的 `home.dock@1`（提供方 `system.home`，由 `apps/local-host/src/home-actions.ts` 里的首页提供方登记）。一行一个 `scene_id@version via 提供方`，列与 `scenes.tsv` 相同、没有 `registered_provider`（`provider` 列本身就是宿主登记用的 id）。绑定存下这个场景的 `scene_id`、`version` 和提供方 id，内核重新绑定时比对提供方（`actions.provider_changed`），规则的适用范围也按它认 |
@@ -177,6 +190,7 @@ W1-09。工具是 Biome（根 `biome.jsonc`，锁文件里一个精确版本的 
 | --- | --- | --- |
 | Rust 格式 | `rustfmt --check` | 所有被跟踪的 `.rs`。`apps/desktop` 之外的 `.rs` 文件直接失败（不在检查范围里的代码不许悄悄加进来） |
 | Rust 静态检查 | `cargo clippy --manifest-path apps/desktop/src-tauri/Cargo.toml --all-targets --locked -- -D warnings` | 要编译 crate，所以在 macOS 上跑。CI 用 `RUSTUP_TOOLCHAIN` 固定 Rust 版本（clippy 每个版本都会新增 lint，`-D warnings` 跟着“stable”走会让每次发布变红）；换版本是单独的改动，同一个 PR 里清掉新告警。本机用已装的版本，新版本可能多报 |
+| Rust 用例 | `cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml --locked` | 在 clippy 之后跑，crate 自己的用例真跑，不只编译（clippy `--all-targets` 只编译）；W2'-3（#704）起 S-14 的拒绝用例（`drop_wheel.rs` 的 `s14_…`）也在其中。统筹 10-18 定。动 AppKit 剪贴板的用例共用一把锁，按顺序跑 |
 | Swift 类型检查 | `swiftc -typecheck -parse-as-library -target <arch>-apple-macosx14.0 JellyMaterial.swift` | 原生素材提取器。每个被跟踪的 `.swift` 都要登记在脚本的 `SWIFT_UNITS`，否则失败 |
 | Swift 包构建 | `swift build --package-path apps/local-host/native/materials/whisper`（加 `--package`） | `jelly-whisper` 的 SwiftPM 包，`swift-tools-version: 6.2`（要 Xcode 26），冷编译约 7 分钟，要联网拉 `argmax-oss-swift`。CI 里先作为不挡合并的步骤跑（`continue-on-error`），所以现在挡合并的只有 `JellyMaterial.swift` 的类型检查，`jelly-whisper` 编译坏了不会让 CI 变红。收口记在待办 [BL-122](../../specs/BACKLOG.md)：确认有 Swift 6.2 的 runner（`macos-26` 或装 Xcode 26）后去掉 `continue-on-error` |
 | shell | `shellcheck --severity=warning` | 所有被跟踪的 `.sh`，和第一行是 sh/bash 的无后缀文件。告警和错误失败，风格提示不失败 |

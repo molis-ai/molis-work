@@ -37,7 +37,7 @@ const { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase,
 const databasePath = join(directory, "project.sqlite"), projectId = "continuity-qa", goalId = "mobile-handoff";
 const db = new LocalProjectDatabase(databasePath), app = new GoalProjectApplication(db);
 try {
-  app.initializeBoard({ project_id: projectId, title: "设备接续 · 隔离实操", actor_id: "desktop", idempotency_key: "init" });
+  app.initializeBoard({ project_id: projectId, actor_id: "desktop", idempotency_key: "init" });
   app.goalEvents.createIntent({ project_id: projectId, goal_id: goalId, title: "让工作在手机上继续", outcome: "查看桌面成果，记录下一步，再回桌面接续。", actor_id: "desktop", idempotency_key: "goal" });
   app.artifacts.commands.registerVersion({
     project_id: projectId, artifact_id: "handoff-guide", version: 2, actor_id: "desktop", artifact_type_id: "io.test.document", schema_version: 1,

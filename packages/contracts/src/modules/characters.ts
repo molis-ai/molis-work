@@ -1,6 +1,7 @@
 import { parseExactActionReferences, type ExactActionReference } from "../platform/actions.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
+export { characterErrors } from "./characters-errors.js";
 import type { ContractDescriptor } from "../platform/package.js";
 
 export const modulesCharactersContract = {

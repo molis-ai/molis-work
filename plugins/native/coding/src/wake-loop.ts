@@ -22,6 +22,8 @@ export interface CodingWakeDeps<Execution> {
   readonly busy: Set<string>;
   readonly stopped: AbortSignal;
   pause(ms: number): Promise<void>;
+  /** Runs `run` in the activation's own context: a loop never answers to the action of the request that set it off. */
+  detach(run: () => void): void;
   records(execution: Execution): CodingSessionRecord[];
   record(execution: Execution, sessionId: string): CodingSessionRecord;
   /** The activation's own execution ports, which a loop started from a request reads and starts with. */
@@ -103,7 +105,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
     const api = context.services!.capabilities!, execution = deps.activation(from);
     if (waking.has(runtimeId) || deps.stopped.aborted) return;
     waking.add(runtimeId);
-    void (async () => {
+    deps.detach(() => void (async () => {
       const held = new Set<string>();
       // Transient read failures back off while this activation is alive; a Host without a task graph ends the loop.
       for (let failures = 0; !deps.stopped.aborted;) {
@@ -123,7 +125,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
         }
         if (later) await deps.pause(2_000);
       }
-    })().catch(() => undefined).finally(() => waking.delete(runtimeId));
+    })().catch(() => undefined).finally(() => waking.delete(runtimeId)));
   };
   /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
   const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {

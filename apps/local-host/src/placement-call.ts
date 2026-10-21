@@ -3,8 +3,9 @@ import type { PlacementPorts } from "@molis-ai/molis-work-service-placement";
 
 /** Each invocation keeps its originating lifetime while opening the owner's authority over other partitions. */
 export function placementCallPorts(ports: PlacementPorts, origin: ActionExecutionContext, alive: () => boolean): PlacementPorts {
+  const assertAlive = () => { if (!alive()) throw new ActionError("actions.expired", "原放置服务已关闭"); };
   const assertCurrent = () => {
-    if (!alive()) throw new ActionError("actions.expired", "原放置服务已关闭");
+    assertAlive();
     origin.signal?.throwIfAborted();
     requireSynchronous(origin.assert_authority_current?.(), "最终授权检查必须同步完成");
   };
@@ -23,6 +24,20 @@ export function placementCallPorts(ports: PlacementPorts, origin: ActionExecutio
         validate_authority: async reference => { await origin.beforeEffect(); await caller.validate_authority?.(reference); },
         assert_authority_current: (reference, permissions) => {
           assertCurrent();
+          requireSynchronous(caller.assert_authority_current?.(reference, permissions), "最终授权检查必须同步完成");
+        },
+      } };
+    },
+    // The plugin has already moved the object. Putting it back does not ask the call that is being refused; the location edge still does.
+    // The service may close while the move-back waits (the partition opening, the mover's authority, the mover's own work), so
+    // whether it is still open is asked again at the final synchronous check: nothing is awaited after it before the mover commits.
+    revert: async projectId => {
+      assertAlive();
+      const { client, caller } = await ports.scope(projectId);
+      return { client, caller: { ...caller,
+        validate_authority: async reference => { await caller.validate_authority?.(reference); },
+        assert_authority_current: (reference, permissions) => {
+          assertAlive();
           requireSynchronous(caller.assert_authority_current?.(reference, permissions), "最终授权检查必须同步完成");
         },
       } };

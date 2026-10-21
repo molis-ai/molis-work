@@ -1,3 +1,4 @@
+import type { ActionResultPresentation } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadRound } from "./assistant-thread-types.js";
 import { randomUUID } from "node:crypto";
 import { assistantErrors } from "./assistant-errors.js";
@@ -6,7 +7,7 @@ import { applySqliteBaseline, type openHomeSqliteDatabase, type SqliteBaseline, 
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
 import { AssistantRelations } from "./assistant-relations.js";
 import { AssistantUsageLedger } from "./assistant-usage-ledger.js";
-import type { AssistantBackgroundJob, AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantCharacter, AssistantContextSnapshot, AssistantUnsettledChange, AssistantNotice, AssistantRule, AssistantWorkState, AssistantExecutor, AssistantMaterial, AssistantScope, AssistantSendResult, AssistantSurfaceRef, AssistantWork, AssistantUndoable } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 
 /** The Home SQLite handle, as the storage package opens it (the App boundary does not import `node:sqlite`). */
@@ -18,6 +19,10 @@ export const ASSISTANT_STORE_NAME = "assistant";
  * The Assistant's own facts: its works, the rounds the person started in them, and each Send's outcome. Conversation
  * content and run state stay in the Prologue session; business results stay with their owners. One current schema
  * (repository-anti-corruption §4.1), the relations the Assistant keeps in the context ledger included.
+ *
+ * `assistant_jobs` is no longer written: a job a work follows is a step on its graph (specs/prologue-adoption §6.0o).
+ * It stays in version 2 so every Home has the same schema, and a work's rows in it still go with the work. Dropping
+ * it is version 3 with a maintenance step on existing Homes, which is not done here.
  */
 export const ASSISTANT_STORE_BASELINE: SqliteBaseline = { version: 2, schema: `
 CREATE TABLE assistant_works (
@@ -67,21 +72,24 @@ CREATE TABLE assistant_requests (
 ${CONTEXT_LEDGER_SCHEMA}` };
 
 /** A work as stored: the public record plus the project reference its actions and sessions are bound to. */
-export interface StoredWork extends Omit<AssistantWork, "state"> {
+export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"> {
   actor_id: string;
   thread_round?: AssistantThreadRound;
   /** What the next Coding round is told of the work so far, once, after the Assistant handed it over. Never shown as the work. */
   handover_brief?: string;
   /** Present for project work: the project it was started in, never the page it is later viewed from. */
   project_ref?: LocalHostProjectReference;
-  /** On a delegated work: follow-ups its delegating work sent it. */
-  follow_ups?: number;
-  /** On a delegated work: its latest round whose result reached its delegating work (by checking, or at its next round). */
-  handed_back_run?: string;
-  /** On a delegating work: its round after which the person stopped it — what its sub-tasks hand back then does not move it on by itself. */
-  hand_back_held?: string;
+  /** The work's own task graph (its rounds and the parts it hands out stand on it), from its first round on. */
+  graph_id?: string;
+  /**
+   * On a delegated work: the step it was handed out as on its delegating work's graph, that work's title when it asked,
+   * what it was asked to deliver, and when the person took it back. Which work asked and its follow-ups are on the graph.
+   */
+  delegated_by?: { graph_id: string; node_id: string; title: string; acceptance: string; taken_back_at?: string };
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
+  /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
+  continuation_hold?: "paused" | "stopped";
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -90,18 +98,6 @@ export interface StoredUndo extends AssistantUndoable {
   reference: { capability_id: string; version: number; provider_id: string };
   input: Record<string, unknown>;
   /** Told to the next round once undone. */
-  told?: boolean;
-}
-
-/** A background job being followed: the public view plus how to read its state. */
-export interface StoredJob extends AssistantBackgroundJob {
-  key: string;
-  status: { capability_id: string; version: number; provider_id: string };
-  input: string;
-  path: string;
-  done: string[];
-  failed: string[];
-  checks: number;
   told?: boolean;
 }
 
@@ -126,8 +122,6 @@ export interface StoredRound {
   memory_receipt?: string;
 }
 
-/** What the person typed in these rounds, in order: a round the Host, the Assistant or a page wrote is not their words. */
-export const typedTexts = (rounds: readonly StoredRound[]): string[] => rounds.filter(round => !round.written_by).map(round => round.text);
 
 /** A card as stored: the public view's facts plus the exact reference and input it runs. */
 export interface StoredCard {
@@ -147,6 +141,7 @@ export interface StoredCard {
   missing: Array<{ field: string; question: string }>;
   status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
   outcome?: string;
+  presentation?: ActionResultPresentation;
   /** Set when the person clicked; the one execution this card may have. */
   request_id?: string;
   /** The object the card would change, as it was when suggested; a card whose object moved on is no longer offered. */
@@ -155,6 +150,8 @@ export interface StoredCard {
   from?: { surface: string; title?: string };
   source_object?: { kind: string; id: string; version?: number | string | null; title?: string };
   materials?: Array<{ title: string; text: string }>;
+  /** The step of the background job it started (specs/prologue-adoption §6.0o): it stays running until that job ends. */
+  job_step?: { graph_id: string; node_id: string };
   created_at: string;
   updated_at: string;
 }
@@ -187,7 +184,7 @@ export class AssistantStore {
   }
 
   create(input: { actor_id: string; title: string; scope: AssistantScope; scope_title?: string; origin: AssistantSurfaceRef | null; project_ref?: LocalHostProjectReference; executor?: AssistantExecutor;
-    delegated_by?: AssistantWork["delegated_by"] }): StoredWork {
+    delegated_by?: StoredWork["delegated_by"] }): StoredWork {
     const at = this.now().toISOString();
     const work: StoredWork = { work_id: `work-${randomUUID()}`, revision: 1, title: input.title, scope: structuredClone(input.scope), origin: input.origin ? structuredClone(input.origin) : null,
       ...(input.scope_title ? { scope_title: input.scope_title } : {}),
@@ -215,7 +212,7 @@ export class AssistantStore {
   }
 
   /** Optimistic: a caller holding an older revision gets a conflict instead of overwriting a newer change. */
-  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "follow_ups" | "delegated_by" | "budget_tokens" | "handed_back_run" | "hand_back_held" | "question_drafts" | "reply_target" | "thread_round">>, touch = true): StoredWork {
+  update(actorId: string, workId: string, expected: number | null, patch: Partial<Pick<StoredWork, "title" | "session_id" | "draft" | "archived" | "executor" | "handover_brief" | "character" | "graph_id" | "delegated_by" | "budget_tokens" | "question_drafts" | "reply_target" | "thread_round" | "continuation_hold">>, touch = true): StoredWork {
     const current = this.get(actorId, workId);
     if (expected !== null && current.revision !== expected) throw assistantErrors.conflict("这项工作已在别处更新，请刷新后再改");
     const next: StoredWork = { ...current, ...patch, revision: current.revision + 1, updated_at: touch ? this.now().toISOString() : current.updated_at };
@@ -302,6 +299,11 @@ export class AssistantStore {
     return changed ? stored : null;
   }
 
+  /** Whether a notice was raised under `dedupe`, whatever became of it since. */
+  noticeRaised(actorId: string, dedupe: string): boolean {
+    return this.db.prepare("SELECT 1 FROM assistant_notices WHERE actor_id=? AND dedupe=?").get(actorId, dedupe) !== undefined;
+  }
+
   openNotices(actorId: string): StoredNotice[] {
     return this.db.prepare("SELECT body, state FROM assistant_notices WHERE actor_id=? AND state='new' ORDER BY created_at DESC LIMIT 50").all(actorId)
       .map(row => ({ ...JSON.parse(String(row.body)) as StoredNotice, state: String(row.state) as StoredNotice["state"] }));
@@ -357,17 +359,13 @@ export class AssistantStore {
       ON CONFLICT(actor_id,key) DO UPDATE SET revision=assistant_settings.revision+1, value=excluded.value`).run(actorId, key, value);
   }
 
-  jobs(actorId: string, workId?: string): StoredJob[] {
-    const rows = workId ? this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? AND work_id=? ORDER BY rowid").all(actorId, workId)
-      : this.db.prepare("SELECT body, told FROM assistant_jobs WHERE actor_id=? ORDER BY rowid").all(actorId);
-    return rows.map(row => ({ ...JSON.parse(String(row.body)) as StoredJob, told: Number(row.told) === 1 }));
-  }
-
-  saveJob(actorId: string, job: StoredJob): void {
-    const { told: _told, ...body } = job;
-    this.db.prepare("INSERT INTO assistant_jobs(key,actor_id,work_id,body) VALUES (?,?,?,?) ON CONFLICT(key) DO UPDATE SET body=excluded.body")
-      .run(job.key, actorId, job.work_id, JSON.stringify(body));
-    this.#changed(job.work_id);
+  /**
+   * Whether any of the person's works changed, or a card of theirs was run or settled, since `at`: a job one of them
+   * started may still be followed only then (it is followed for a bounded time).
+   */
+  activeSince(actorId: string, at: string): boolean {
+    return Boolean(this.db.prepare("SELECT 1 FROM assistant_works WHERE actor_id=? AND updated_at>? LIMIT 1").get(actorId, at)
+      ?? this.db.prepare("SELECT 1 FROM assistant_cards c JOIN assistant_works w ON w.work_id=c.work_id WHERE w.actor_id=? AND json_extract(c.body,'$.updated_at')>? LIMIT 1").get(actorId, at));
   }
 
   undos(actorId: string, workId: string): StoredUndo[] {
@@ -390,10 +388,9 @@ export class AssistantStore {
     this.setSetting(actorId, "confirm_always", JSON.stringify([...keys]));
   }
 
-  /** What a round that has started was told: those undone changes, ended jobs and settled changes are not told again. */
-  markTold(actorId: string, told: { undos?: readonly string[]; jobs?: readonly string[]; unsettled?: readonly string[] }): void {
+  /** What a round that has started was told: those undone changes and settled changes are not told again. */
+  markTold(actorId: string, told: { undos?: readonly string[]; unsettled?: readonly string[] }): void {
     for (const id of told.undos ?? []) this.db.prepare("UPDATE assistant_undos SET body=json_set(body,'$.told',json('true')) WHERE actor_id=? AND undo_id=? AND json_extract(body,'$.state')='undone'").run(actorId, id);
-    for (const key of told.jobs ?? []) this.db.prepare("UPDATE assistant_jobs SET told=1 WHERE actor_id=? AND key=?").run(actorId, key);
     for (const id of told.unsettled ?? []) this.db.prepare("UPDATE assistant_unsettled SET told=1 WHERE actor_id=? AND change_id=?").run(actorId, id);
   }
 
@@ -417,9 +414,9 @@ export class AssistantStore {
     this.setSetting(actorId, "attention_rules", JSON.stringify(rules));
   }
 
-  /** The works a work delegated, oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
-  delegatedBy(actorId: string, workId: string, archived: boolean | "any" = false): StoredWork[] {
-    return this.list(actorId, { archived, limit: 500 }).filter(work => work.delegated_by?.work_id === workId).sort((a, b) => a.created_at.localeCompare(b.created_at));
+  /** The works a work delegated (each a step on its graph), oldest first; those put away only when asked for ("any"): they still count toward its budget, limit and stop. */
+  delegatedBy(actorId: string, parent: Pick<StoredWork, "graph_id">, archived: boolean | "any" = false): StoredWork[] {
+    return this.list(actorId, { archived, limit: 500 }).filter(work => parent.graph_id !== undefined && work.delegated_by?.graph_id === parent.graph_id).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 
   releaseRequest(actorId: string, requestId: string): void {

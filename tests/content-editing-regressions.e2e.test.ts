@@ -6,6 +6,7 @@ import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
+// W5-10-PGC-03 / W5-10-PGV-02: exercise the bundled commands and node views through the real editor and host.
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
 
 test("W2-18-PAGES-COMMENT-01: a plain comment popup follows its original range and refuses a replaced document", { timeout: 90_000 }, async t => {
@@ -123,7 +124,7 @@ for (const operation of ["create", "extract"] as const) test(`W2-18-PAGES-CREATE
   const store = openPagesStore(b.homeDirectory);
   const page = (() => { try { return store.create({ project_id: b.projectId!, title: "Source A", body: { type: "doc", content: [paragraph("Original words"), { type: "task_list", content: [{ type: "task_item", attrs: { checked: false }, content: [paragraph("Actual extracted task")] }] }] } }); } finally { store.close(); } })();
   await open(b, "pages", page.id); await b.waitFor("document.querySelector('[data-pages-editor] .ProseMirror')");
-  await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/pages" : `/api/plugins/pages/${page.id}/extract`);
+  await holdTimers(b); await holdReply(b, operation === "create" ? "/api/plugins/io.molis.work.pages/pages" : `/api/plugins/io.molis.work.pages/pages/${page.id}/extract`);
   if (operation === "create") await b.click("[data-pages-new]");
   else { await b.click("[data-pages-more]"); await b.click("[data-pages-extract]"); }
   await b.waitFor("typeof window.releaseContentReply === 'function'");

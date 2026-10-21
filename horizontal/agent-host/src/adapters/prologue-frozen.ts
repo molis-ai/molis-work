@@ -25,6 +25,8 @@ export function freezeRunStart(input: { request: AgentStartRequest; role: NonNul
     ...(callId ? { call_id: callId } : {}),
     model_id: model.model,
     ...(role.compaction ? { compaction: { prompt_id: role.compaction.prompt.prompt_id, version: role.compaction.prompt.version, above_tokens: role.compaction.above_tokens } } : {}),
+    ...(role.ending_review ? { ending_review: { prompt_id: role.ending_review.prompt.prompt_id, version: role.ending_review.prompt.version,
+      ...(role.ending_review.prompt.user_revision !== undefined ? { user_revision: role.ending_review.prompt.user_revision } : {}) } } : {}),
     prompts: role.prompts.map((prompt) => ({
       prompt_id: prompt.prompt_id,
       version: prompt.version,

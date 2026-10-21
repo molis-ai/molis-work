@@ -4,7 +4,7 @@
   "private": true,
   "description": "The single local composition root for Modules, services, plugins, and storage.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -94,6 +94,7 @@
     "@molis-ai/molis-work-service-runtime-host": "workspace:*",
     "@molis-ai/molis-work-service-scheduler": "workspace:*",
     "@molis-ai/molis-work-service-placement": "workspace:*",
+    "@molis-ai/molis-work-service-knowledge": "workspace:*",
     "@molis-ai/molis-work-service-search": "workspace:*",
     "@molis-ai/molis-work-service-memory": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
@@ -106,7 +107,8 @@
     "@molis-ai/molis-work-server": "workspace:*",
     "@molis-ai/molis-work-im-ui": "workspace:*",
     "fflate": "0.8.2",
-    "mammoth": "1.11.0"
+    "mammoth": "1.11.0",
+    "officeparser": "8.1.1"
   },
   "molis-work": {
     "path": "apps/local-host",

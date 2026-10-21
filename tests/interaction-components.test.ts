@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  CRAFT_FINISH_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
+  CRAFT_FINISH_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_QUESTION_STYLES, INTERACTION_REFERENCE_STYLES,
   INTERACTION_STEP_STYLES, INTERACTION_STYLES, INTERACTION_TRACE_STYLES, PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES,
   renderInteractionNextSteps, renderInteractionOperation, renderInteractionOptions, renderInteractionQuestion, renderPrimitiveCatalog,
   type InteractionField,
@@ -14,7 +14,7 @@ const fields: InteractionField[] = [
     { value: "together", label: "一起复盘", description: "先对齐", recommended: true, selected: true }, { value: "async", label: "异步审阅", description: "先读材料" }] } },
   { id: "minutes", label: "预计时长", error: "请输入 15–120 之间的整数分钟。", control: { kind: "number", value: "two", unit: "分钟", step: 5 } },
   { id: "when", label: "开始时间", optional: true, control: { kind: "datetime", date: "2026-10-16", time: "10:00", zone: "UTC−07:00", calendar: { months: [{ year: 2026, month: 9 }] } } },
-  { id: "materials", label: "关联材料", control: { kind: "reference", candidates: [{ id: "g", label: "Goal <a>", selected: true }, { id: "d", label: "文档" }] } },
+  { id: "materials", label: "关联材料", control: { kind: "reference", source: "goal", multiple: true, max: 2, placeholder: "搜索", picked: [{ value: "goal g", label: "Goal <a>" }], labels: { remove: "去掉" } } },
 ];
 
 test("AC-17: the questionnaire renders mixed fields with reasons, per-field errors, optional marks and stable hooks", () => {
@@ -28,14 +28,22 @@ test("AC-17: the questionnaire renders mixed fields with reasons, per-field erro
   assert.match(html, /<span class="mw-ix-tag">推荐<\/span>/);
   assert.match(html, /data-ix-field="minutes"[\s\S]*?value="two"[\s\S]*?<p class="mw-ix-error" id="q-minutes-error" data-ix-error>请输入/, "a wrong draft stays as typed beside its error");
   assert.match(html, /<p class="mw-ix-error" id="q-format-error" data-ix-error hidden><\/p>/, "every field keeps an error slot its control points at");
-  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-error"/, "a field without a hint points only at its error slot");
+  // AC-27-6: a number's unit is read with it, before its error slot; without a hint there is nothing else.
+  assert.match(html, /data-ix-value="minutes"[^>]*aria-describedby="q-minutes-unit q-minutes-error"[\s\S]*?<span class="mw-ix-unit" id="q-minutes-unit">分钟</, "a field without a hint points at its unit and its error slot");
   assert.doesNotMatch(html, /q-minutes-hint/, "nothing points at a missing id");
   assert.match(html, /aria-describedby="q-format-hint q-format-error"/);
   assert.match(html, /<span class="mw-ix-optional">选填<\/span>/);
   assert.match(html, /data-ix-part="date"[\s\S]*data-ix-part="time"/);
   assert.match(html, /data-slot="calendar"/, "dates use the design system's calendar");
   assert.doesNotMatch(html, /type="date"|type="datetime-local"/, "never the OS picker");
-  assert.match(html, /data-ix-reference="g" aria-pressed="true"/);
+  // AC-28-2: a reference field lists no candidates of its own: the picked ones, a search the client fills as the person types.
+  assert.match(html, /data-ix-references data-ix-ref-source="goal" data-ix-multiple data-ix-ref-max="2"/);
+  assert.match(html, /<li class="mw-ix-chip" data-ix-reference="goal g"><span>Goal &lt;a&gt;<\/span><button type="button" data-ix-unpick aria-label="去掉 Goal &lt;a&gt;">/);
+  assert.match(html, /<label id="q-materials-label" for="q-materials">关联材料<\/label>/, "the search box is the field's control, named by its label");
+  assert.match(html, /id="q-materials" type="text" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="q-materials-results"[^>]*aria-describedby="q-materials-status q-materials-error"/);
+  assert.match(html, /<ul class="mw-menu mw-ix-ref-results" role="listbox" id="q-materials-results" hidden><\/ul><template data-ix-ref-row><li class="mw-menu__item mw-ix-ref" role="option" tabindex="-1" aria-selected="false">/);
+  assert.match(html, /<p class="mw-ix-ref-status" id="q-materials-status" data-ix-ref-status aria-live="polite"><\/p>/);
+  assert.doesNotMatch(html, /data-ix-ref-option/, "nothing is offered before the person searches");
 });
 test("AC-17: an answered question shows its summary and keeps its form hidden; a banner says why it can no longer be answered", () => {
   const answered = renderInteractionQuestion({ id: "a", kicker: "已交回", title: "安排", fields, footer, answered: { rows: [["预计时长", "45 分钟"]] },
@@ -102,14 +110,14 @@ test("AC-17, AC-21: the component board shows the parts; a product sheet takes o
   assert.ok(board.includes(INTERACTION_STYLES), "the board inlines the interaction sheet");
   for (const sheet of [PRIMITIVE_STYLES, VISUAL_FOUNDATION_STYLES, CRAFT_FINISH_STYLES]) assert.ok(!sheet.includes(".mw-ix-card"), "not part of the shared page sheets");
   assert.doesNotMatch(INTERACTION_STYLES, /#[0-9a-fA-F]{3,8}\b|!important/, "tokens only, no overrides");
-  // Adopted by the Assistant (A1+H2): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
-  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
+  // Adopted by the Assistant (A1+H2, T1's number steppers, T2's reference search): the pages it lives on (the workbench and the project chooser) take what it draws, and no more.
+  const drawn = [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES, INTERACTION_STEP_STYLES];
   for (const sheet of [renderMolisWorkWorkbenchStylesheet(), renderMolisWorkArrivalStylesheet()]) {
     for (const segment of drawn) assert.ok(sheet.includes(segment), "a segment the Assistant draws is in its pages' sheet");
-    for (const segment of [INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
+    for (const segment of [INTERACTION_CALENDAR_STYLES, INTERACTION_TRACE_STYLES]) assert.ok(!sheet.includes(segment), "a segment it does not draw stays out");
   }
   assert.ok(!renderMolisWorkSettingsStylesheet().includes(".mw-ix-card"), "settings pages have no Assistant");
-  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
+  assert.equal(INTERACTION_STYLES, [INTERACTION_QUESTION_STYLES, INTERACTION_DATE_STYLES, INTERACTION_NUMBER_STYLES, INTERACTION_CALENDAR_STYLES, INTERACTION_REFERENCE_STYLES, INTERACTION_OPERATION_STYLES,
     INTERACTION_STEP_STYLES, INTERACTION_TRACE_STYLES].join(""), "the segments add up to the whole sheet");
 });
 test("AC-17: ids and scopes are escaped exactly once, so references match the elements they name", () => {
@@ -144,6 +152,16 @@ test("AC-17: an other answer is a free text slot; whether it is chosen is whethe
   const html = renderInteractionQuestion({ id: "o", kicker: "k", title: "t", footer: { note: "", actions: [] },
     fields: [{ id: "f", label: "方式", control: { kind: "choice", options: [{ value: "1", label: "一" }], other: { label: "其他", value: "自己写的" } } }] });
   assert.match(html, /<input[^>]*value="自己写的"[^>]*data-ix-other="f"/);
+});
+test("AC-10-9: only an optional single pick gets a button that empties it, in the caller's words; the sheet hides it while nothing is picked", () => {
+  const choice = (id: string, optional: boolean, multiple = false): InteractionField => ({ id, label: id, optional, control: { kind: "choice", multiple, options: [{ value: "a", label: "A" }, { value: "b", label: "B" }] } });
+  const html = renderInteractionQuestion({ id: "u", kicker: "k", title: "t", footer: { note: "", actions: [] }, clearLabel: "Clear choice",
+    fields: [choice("tone", true), choice("format", false), choice("topics", true, true)] });
+  assert.equal(html.match(/data-ix-clear/g)?.length, 1, "a required pick can only change, several picks toggle off one by one");
+  assert.match(html, /data-ix-field="tone"[\s\S]*?<button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-slot="button" data-ix-clear aria-describedby="u-tone-label"><span data-slot="button-label">Clear choice<\/span><\/button>[\s\S]*?id="u-tone-error"/,
+    "the button sits in its own field and is read with the field's name");
+  assert.match(renderInteractionQuestion({ id: "d", kicker: "k", title: "t", footer: { note: "", actions: [] }, fields: [choice("tone", true)] }), /data-ix-clear[^>]*><span data-slot="button-label">清除选择</, "the default words");
+  assert.ok(INTERACTION_QUESTION_STYLES.includes('.mw-ix-row:not(:has([aria-checked="true"])) [data-ix-clear] { display: none; }'), "nothing to clear, nothing shown");
 });
 
 // RING-07: explicit receipt meaning wins over the badge's visual tone.

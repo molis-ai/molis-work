@@ -19,7 +19,7 @@ export interface AlchemistAiPort {
     /** Preserve and compose with Host guards after prepare/credentials/queue, immediately before dispatch. */
     beforeModelDispatch?: () => Promise<void>;
   }): Promise<{ text: string; json: { ok: true; value: unknown } | { ok: false }; runtimeLabel: string; usage?: { inputTokens?: number; outputTokens?: number } }>;
-  search(input: { query: string; lens?: "market_space" | "build_cost"; signal?: AbortSignal }): Promise<readonly { url: string; title: string; excerpt: string }[]>;
+  search(input: { query: string; lens?: "market_space" | "build_cost"; signal?: AbortSignal; beforeDispatch?: () => Promise<void>; assertCurrent?: () => void }): Promise<readonly { url: string; title: string; excerpt: string }[]>;
 }
 
 /** Malformed output never becomes a successful business object. */

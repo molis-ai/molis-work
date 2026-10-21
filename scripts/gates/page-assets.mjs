@@ -1,7 +1,10 @@
 #!/usr/bin/env node
 // Page resource budget (specs/repository-anti-corruption §4.8/§4.13, slice W1-07, decision #17): the workbench's
-// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and may only fall.
-// The real per-asset targets are set after the superseded skins are deleted; until then nothing may grow.
+// stylesheets and scripts, the plugin client packs and the fonts are frozen at the size they have now and by default only fall.
+// The budget is a size control, not a hard ceiling (the user amended decision #17 on 2026-10-18): growth a feature needs and
+// that cannot be won back in the same asset is admitted once through APPROVED_CEILINGS below, after review, with the reason,
+// the bytes and what was tried written in the PR. More than 10 KB on one asset at once, or a new asset, is asked of the user
+// first (AGENTS.md).
 //
 // What is measured is what the host sends: every `/assets/...` path that apps/local-host/src/web-assets.ts serves
 // (`serveWorkbenchAsset`), requested from the built `createLocalWebAssets`, with the byte length of the body. The host
@@ -227,35 +230,49 @@ const headErrors = (measured, budget, base) => {
     if (allowed === undefined && base?.[asset] !== undefined) errors.push(`${asset} (${bytes} bytes) is still sent by the host but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base[asset]} bytes); deleting an entry does not exempt an asset the host sends, restore it`);
     else if (allowed === undefined) errors.push(`${asset} (${bytes} bytes) has no budget in ${BUDGET_FILE}; budgets only fall, so a new asset is refused: serve less, or fold it into an existing asset`);
     else if (bytes === undefined) errors.push(`${asset} has a budget but the host no longer serves it; remove the entry from ${BUDGET_FILE} (removing is always allowed)`);
-    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter, the budget cannot be raised`);
+    else if (bytes > allowed) errors.push(`${asset} grew: budget ${allowed} → built ${bytes} bytes (+${bytes - allowed}); make the page lighter; growth a feature needs is admitted once through APPROVED_CEILINGS after review (AGENTS.md), never by raising the budget file`);
     else if (bytes < allowed) errors.push(`${asset} is ${allowed - bytes} bytes under its budget (${allowed} → built ${bytes}); lower the budget with \`node scripts/gates/page-assets.mjs --update --base origin/main\` so the slack cannot be used again`);
   }
   return errors;
 };
-// One-time allowance the user approved on 2026-10-15 for W3-B1's landing code (context-program §21.8: Pages reports where
-// something in hand would land and previews it there), each for exactly one merge-base budget and used once: the next
-// baseline freezes again. Delete it in the next change to this gate (as #541 did for #522's).
+// specs/visual-ui-experience (2026-10-19, under the 10 KB review admits, AGENTS.md), the branch's three slices as one
+// admission from the exact #805 + #848 + #853 predecessor (#851 carries #854, #856 and #860; reviewed 2026-10-20):
+// - one press on the plugin switcher stops measuring the page inside the click (VUX-35, VUX-36), +591 B of workbench.js;
+//   tried first: comments out of the shipped strings, frame coalescing alone instead of a read/write split (+868 → +591);
+// - the shared overflow fade (VUX-27), one sensor and one mask for every strip that hides its scrollbar, in place of the
+//   assistant strip's own: +879 B of workbench.js, +460–488 B of each stylesheet; tried first: one gradient for both sides
+//   and directions, short stops, the strip's own sensor and three mask rules deleted (+1,616 → +488 per sheet);
+// - the shared copy feedback (VUX-19), the natural-height disclosure and the measured thumb's triggers (VUX-22), reserved-width
+//   live numbers (VUX-42–45): +1,521 B of workbench.js (replacing the assistant's two hand-written copy timers), +1,299–1,334 B
+//   of each stylesheet, +64 B of the Pages editor; tried first: `.mw-sr-only` reused, no token fallbacks, one selector per
+//   face; Coding's own copy code went (−185 B).
+// - the side pane hears when a command it sent was asked under an older context and asks again, instead of waiting out its
+//   10 s timeout (the per-frame context of the plugin-switch slice widened that window): +170 B of workbench.js, +275 B of
+//   the Pages editor; tried first: one send for the first ask and the second (+436 → +339 B with the editor's +64).
+// - after main moved on 2026-10-20 the Pages editor's start follows main's new size (706942 → 706933, the same +403 B), and
+//   the fold no longer animates its body's padding (its row clips instead): each stylesheet 108 B lighter.
+// The second-batch predecessor freezes workbench.js at 1,134,948 B; this slice needs +3,264 B, and the three
+// stylesheets need +1,631 / +1,627 / +1,627 B. The Pages editor needs +403 B; Coding shrinks by 185 B.
+// The workbench ceiling includes 103 B to publish explicit side openings only after the current frame reads context.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-pages-editor.js": [703633, 707045],
-  "/assets/molis-work-plugins/pages.js": [48441, 48727],
-  "/assets/molis-work-workbench.js": [1097484, 1099387],
-  // Receipts 1d's Coding input receipts (specs/ai-input-receipts §4.1, §4.2: send modes, the sending bubble, resending under
-  // the same key), under the user's 2026-10-15 rule that small, necessary growth passes once; the user approved this gate
-  // change in the receipts session on 2026-10-15. diff, files, git and text-stats serve the Coding bundle byte for byte, and
-  // Coding's styles go into both stylesheets. Same terms: exactly one merge-base budget each, used once.
-  "/assets/molis-work-plugins/coding.js": [432277, 434028],
-  "/assets/molis-work-plugins/diff.js": [432275, 434026],
-  "/assets/molis-work-plugins/files.js": [432276, 434027],
-  "/assets/molis-work-plugins/git.js": [432274, 434025],
-  "/assets/molis-work-plugins/text-stats.js": [432284, 434035],
-  "/assets/molis-work-settings.css": [1115127, 1115160],
-  "/assets/molis-work-workbench.css": [1701600, 1701633],
+  "/assets/molis-work-workbench.js": [1134920, 1138184],
+  "/assets/molis-work-workbench.css": [1603130, 1604761],
+  "/assets/molis-work-settings.css": [988929, 990556],
+  "/assets/molis-work-arrival.css": [698519, 700146],
+  "/assets/molis-work-pages-editor.js": [706933, 707336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
+// An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
+// first freeze; from the next PR on it only falls like every other.
+// User approved 2026-10-19 (specs/project-knowledge §2): the 项目资料 browser code is its own asset, loaded only where it is used (+1.5 KB from the 10-19 review fixes, +232 B for the import status of files it recognizes or transcribes).
+const APPROVED_NEW_ASSETS = {
+  "/assets/molis-work-knowledge.js": 26361,
+};
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {
   const errors = [];
   for (const [asset, allowed] of Object.entries(budget)) {
+    if (base[asset] === undefined && allowed <= (APPROVED_NEW_ASSETS[asset] ?? -1)) continue;
     if (base[asset] === undefined) errors.push(`${BUDGET_FILE} adds ${asset} (${allowed} bytes), which the merge-base did not budget; budgets only fall and no asset may be added`);
     else if (allowed > approvedCeiling(asset, base[asset])) errors.push(`${BUDGET_FILE} raises the budget of ${asset} ${base[asset]} → ${allowed}; budgets only fall`);
   }
@@ -269,7 +286,7 @@ const missErrors = (found) => found.map((asset) => `${asset} (${measured[asset]}
 // update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
 // reference is the first freeze.
 const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([asset, bytes]) => {
-  if (reference[asset] === undefined) return [`${asset} (${bytes} bytes) has no budget to lower`];
+  if (reference[asset] === undefined) return bytes <= (APPROVED_NEW_ASSETS[asset] ?? -1) ? [] : [`${asset} (${bytes} bytes) has no budget to lower`];
   return bytes > approvedCeiling(asset, reference[asset]) ? [`${asset} grew ${reference[asset]} → ${bytes}`] : [];
 });
 

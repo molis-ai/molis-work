@@ -9,12 +9,17 @@ export interface AgentCompactionDeclaration {
     above_tokens: number;
 }
 
+export interface AgentEndingReviewDeclaration {
+    prompt_id: string;
+}
+
 export interface AgentManifest {
     directory_input_port?: string;
     text_sources?: AgentTextSourceDeclaration[];
     roles: AgentRoleDeclaration[];
     prompts: AgentPromptDeclaration[];
     compaction?: AgentCompactionDeclaration;
+    ending_review?: AgentEndingReviewDeclaration;
     skills?: AgentSkillDeclaration[];
     mcp?: boolean;
     characters?: {
@@ -49,10 +54,16 @@ export interface AgentRoleDeclaration {
     workspace?: "required" | "none" | "business";
     prompts?: string[];
     host_tools?: string[];
+    skills?: AgentRoleSkillsDeclaration;
     subagent_workspaces?: "required";
 }
 
 export type AgentRoleExecution = "read-only" | "text-edit" | "workspace-write" | "operate";
+
+export interface AgentRoleSkillsDeclaration {
+    allowed: string[];
+    default?: string[];
+}
 
 export interface AgentSkillDeclaration {
     skill_id: string;
@@ -87,9 +98,9 @@ export interface AgentTextSourceDeclaration {
     schema_version: number;
 }
 
-export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const BUSINESS_HOST_TOOLS: readonly ["ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
-export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining"];
+export declare const METHOD_TOOLS: readonly ["find-capabilities", "read-capability", "change-capability", "suggest-action", "ask-user", "update-todo", "find-tools", "context-remaining", "board-wait", "acknowledge-inputs"];
 
 export declare function orderPromptsByLayer<T extends {
     layer?: AgentPromptLayer;

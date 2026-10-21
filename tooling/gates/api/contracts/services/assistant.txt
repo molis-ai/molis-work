@@ -40,7 +40,6 @@ export interface AssistantBackgroundJob {
     work_id: string;
     title: string;
     state: "running" | "completed" | "failed" | "unknown";
-    last_state?: string;
     started_at: string;
     ended_at?: string;
     card_id?: string;
@@ -74,6 +73,7 @@ export interface AssistantCard {
     }>;
     status: "ready" | "needs-input" | "running" | "done" | "failed" | "unknown" | "stale" | "dismissed";
     outcome?: string;
+    presentation?: ActionResultPresentation;
     from?: {
         surface: string;
         title?: string;
@@ -112,6 +112,7 @@ export interface AssistantContextSnapshot {
         truncated?: boolean;
     };
     unsaved?: boolean;
+    landing?: AssistantLanding;
     captured_at: string;
 }
 
@@ -137,6 +138,11 @@ export type AssistantControl = {
     kind: "resume";
 } | {
     kind: "stop";
+    keep_connections?: boolean;
+} | {
+    kind: "withdraw";
+    run_id: string;
+    input_id: string;
 };
 
 export interface AssistantDiagnostics {
@@ -182,6 +188,20 @@ export interface AssistantHandover {
     mode?: string;
 }
 
+export interface AssistantLanding {
+    plugin_id: string;
+    object: {
+        kind: string;
+        id: string;
+        title?: string;
+    };
+    position: "cursor" | "selection" | "end" | "object";
+    heading_path?: string[];
+    before?: string;
+    after?: string;
+    selected?: string;
+}
+
 export interface AssistantMaterial {
     material_id: string;
     kind: "selection" | "object" | "text" | "file" | "image" | "capability" | "method";
@@ -194,6 +214,11 @@ export interface AssistantMaterial {
     };
     reference?: {
         hit_id: string;
+    } | {
+        subject: {
+            kind: string;
+            id: string;
+        };
     };
     method?: {
         method_id: string;
@@ -248,6 +273,7 @@ export interface AssistantMemoryCandidate {
     state: "pending" | "accepted" | "discarded" | "expired";
     created_at: string;
     memory_id?: string;
+    held?: string;
 }
 
 export interface AssistantMemoryPrefs {
@@ -530,7 +556,7 @@ export type AssistantScope = {
     project_id: string;
 };
 
-export interface AssistantSendInput {
+export interface AssistantSendInput extends Pick<AgentInputSend, "about"> {
     work_id?: string;
     executor?: "assistant" | "coding";
     mode?: string;
@@ -541,6 +567,8 @@ export interface AssistantSendInput {
     context?: AssistantContextSnapshot;
     materials?: AssistantMaterial[];
     written_by?: "page";
+    target?: "answer" | "steer";
+    reask?: AgentQuestionReask;
     request_id: string;
 }
 
@@ -697,6 +725,7 @@ export interface AssistantWorkView {
         message: string;
         action?: string;
     };
+    queued_inputs?: AgentQueuedInput[];
 }
 
 export declare const servicesAssistantContract: {

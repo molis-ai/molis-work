@@ -4,7 +4,7 @@
   "private": true,
   "description": "First-party Session, Runtime, resume, and handoff product UI.",
   "type": "module",
-  "license": "MIT",
+  "license": "SEE LICENSE IN LICENSE",
   "engines": {
     "node": ">=24"
   },
@@ -13,6 +13,10 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
     },
     "./terminal": {
       "types": "./dist/terminal/index.d.ts",
@@ -47,6 +51,7 @@
       "goal-reorg-f2",
       "goal-reorg-wk3"
     ],
-    "ssot": "docs/SSOT-MATRIX.md"
+    "ssot": "docs/SSOT-MATRIX.md",
+    "registration": "./registration"
   }
 }

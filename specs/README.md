@@ -9,7 +9,7 @@
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
-- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（四十四片，按顺序合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
+- [visual-ui-experience](visual-ui-experience/spec.md)：视觉细节、个人助理信息与 UI 性能；45 项验收与 20 组设计机制。实现中（四十五片，按顺序合入 main），输入框的低频设置与引用（VUX-16 其余、VUX-17）、VUX-33 其余与本人验收未做。负责人：Claude（2026-10-19 起接手实现）。
 - [font-and-skin-system](font-and-skin-system/spec.md)：字体、皮肤与语言系统；需求已整理，尚未实现。
 - [assistant-service-connections](assistant-service-connections/spec.md)：助理统一服务接入；Codex 实施中，交互切片和连接侧首组回归已完成，37 项整体验收仍未完成；2026-10-18 补充内容层连接器占位符与未支持工具的接入路径（ASC-38–44，未验证）。
 - [subagent-interaction](subagent-interaction/spec.md)：个人助理与 Coding 的子代理固定入口、直接对话和父子动线；明确 Prologue/Molis Work 分工，需求已整理，尚未实现。

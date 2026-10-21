@@ -235,12 +235,9 @@ const headErrors = (measured, budget, base) => {
   }
   return errors;
 };
-// specs/visual-ui-experience slice 44 (VUX-40): Coding's step report dialog and change set reader speak English through
-// stable keys, which are longer than the short Chinese labels they replace (+251 B in coding.js). Small, necessary growth
-// passes once under the user's #17 rule. Delete it in the next change to this gate.
-const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/coding.js": [372545, 372796],
-};
+// One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
+// deleted in the next change to this gate (none is open now).
+const APPROVED_CEILINGS = {};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

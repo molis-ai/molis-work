@@ -163,7 +163,7 @@ test("时间线在等审查时只让要审批的操作显示“等你批准”�
     // What a turn really wrote (specs/prologue-adoption §4.4), and a write the runtime refused because it carried a key.
     // PA-24: the per-turn changes row shows the round's real writes, and each can be rewound once the round is idle.
     const changes = await page.evaluate<{ summary: string; files: string[]; open: string; rewinds: string[]; idle: number; kept: boolean; hint: string }>(`(()=>{
-      const rows=(${createCodingTurnChanges.toString()})(),block=document.createElement('section');document.body.append(block);
+      const rows=(${createCodingTurnChanges.toString()})(globalThis.L),block=document.createElement('section');document.body.append(block);
       const turn={turn:2,sequence:9,files:[{path:'src/a.ts',byte_length:120,digest:'d1',checkpoint_id:'cp-1'},{path:'docs/b.md',byte_length:40,digest:'d2',checkpoint_id:'cp-2'}]};
       const run={ref:{run_id:'w'},phase:'running',activity:[]};
       const live=rows.place(block,turn,run,false);block.append(live);

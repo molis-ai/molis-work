@@ -16,7 +16,7 @@ test("Jelly shows what the Assistant changed and opens an item or a note by id",
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=jelly` }, sessionId));
   await waitFor("document.querySelector('[data-plugin-id=jelly]')");
   if (await evaluate("document.body.dataset.desktopSurface") !== "jelly") await click('[data-plugin-strip] [data-plugin-id=jelly]');
-  await waitFor("document.body.dataset.desktopSurface === 'jelly' && document.querySelector('[data-jelly-period-title]').textContent.length > 0");
+  await waitFor("document.body.dataset.desktopSurface === 'jelly' && !!document.querySelector('[data-jelly-content] [data-jelly-day]')");
 
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;

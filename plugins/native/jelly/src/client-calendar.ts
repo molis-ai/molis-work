@@ -24,6 +24,7 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
     if(mode==='month'&&view==='calendar'){const start=addDays(first,-((dayDate(first).getDay()+6)%7));const tail=(7-((dayDate(last).getDay()+6)%7)-1)%7;return{start,end:addDays(last,tail)};}
     return{start:first,end:last};
   };
+  const periodTitle=()=>{const {start,end}=range();$('[data-jelly-period-title]').textContent=mode==='week'?dateLabel(start,true)+' — '+dateLabel(end,true):dayDate(anchor).toLocaleDateString(document.documentElement.lang||undefined,{year:'numeric',month:'long'});};
   const occurrenceKey=(item)=>item.series_id ? item.series_id+'@'+item.original_date : item.id;
   const findOccurrence=(key)=>occurrences.find((item)=>occurrenceKey(item)===key);
   const occurrenceHtml=(item)=>'<button type="button" aria-label="'+esc(item.title+' · '+dateLabel(item.start_date)+' '+clockLabel(item.start_time)+(item.completed_at?' · '+L('已完成'):''))+'" class="jelly-occurrence'+(item.completed_at?' is-done':'')+'" draggable="true" data-jelly-occurrence="'+esc(occurrenceKey(item))+'" title="'+esc(item.title+' · '+dateLabel(item.start_date)+(item.end_date!==item.start_date?' — '+dateLabel(item.end_date):''))+'">'+categoryDot(item.category_id)+(item.start_time!==null?'<time>'+clockLabel(item.start_time)+'</time>':'')+(item.pinned?glyph('pin'):'')+(item.priority!=='none'?'<span class="jelly-priority" data-priority="'+item.priority+'">'+item.priority+'</span>':'')+'<span class="jelly-item-title">'+esc(item.title)+'</span>'+(item.series_id?glyph('refresh'):'')+(item.completed_at?'<span data-mw-state="done" aria-hidden="true"></span>':'')+'</button>';
@@ -36,7 +37,7 @@ export const JELLY_CALENDAR_CLIENT_SCRIPT = String.raw`
   const renderCalendar=async()=>{
     const seq=++calendarSeq;const {start,end}=range();const result=await request('GET',API+'/calendar?start='+start+'&end='+end);
     if(seq!==calendarSeq||view!=='calendar')return;occurrences=result.occurrences||[];
-    $('[data-jelly-period-title]').textContent=mode==='week'?dateLabel(start,true)+' — '+dateLabel(end,true):dayDate(anchor).toLocaleDateString(document.documentElement.lang||undefined,{year:'numeric',month:'long'});
+    periodTitle();
     const items=visibleOccurrences();
     if(mode==='list'){keepListScroll(()=>{content.innerHTML=items.length?bulkBar()+agendaHtml(items,true):empty(query?'没有匹配的事项':'这段时间还没有安排','点“新建事项”记下任务，或切到月历选择一天。','新建事项');});return;}
     const days=[];for(let date=start;date<=end;date=addDays(date,1))days.push(date);

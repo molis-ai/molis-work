@@ -1,4 +1,5 @@
 import { WORKSPACE_SKIPPED_FOLDERS } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import type { DropMark } from "@molis-ai/molis-work-design-system";
 import { el, L, request } from "./common.js";
 
 const MAX_FILES = 200;
@@ -224,11 +225,12 @@ export function bindKnowledgeImport(root: HTMLElement): void {
   // Files dropped on the dialog's area, or on the side panel's list (which opens the dialog with them).
   const drop = $("[data-knowledge-import-drop]");
   const accept = (target: HTMLElement, opens: boolean) => {
-    target.addEventListener("dragover", event => { if (!event.dataTransfer?.types.includes("Files")) return; event.preventDefault(); drop.classList.add("is-over"); });
-    target.addEventListener("dragleave", () => drop.classList.remove("is-over"));
+    target.addEventListener("dragover", event => { if (event.dataTransfer?.types.includes("Files")) event.preventDefault(); });
+    const mark: DropMark = on => drop.classList.toggle("is-over", on);
+    window.molisDropZone?.(target, mark);
     target.addEventListener("drop", event => {
       if (!event.dataTransfer?.items.length || !event.dataTransfer.types.includes("Files")) return;
-      event.preventDefault(); drop.classList.remove("is-over");
+      event.preventDefault();
       if (opens && !dialog.open) open();
       void dropped(event.dataTransfer.items).then(take);
     });

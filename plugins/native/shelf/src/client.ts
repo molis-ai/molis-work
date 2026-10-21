@@ -1238,9 +1238,8 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     event.stopPropagation();
     event.dataTransfer.dropEffect = "copy";
-    tty.classList.add("is-drop");
   });
-  lifetime.listen(tty,"dragleave", () => tty.classList.remove("is-drop"));
+  window.molisDropZone?.(tty, (on) => tty.classList.toggle("is-drop", on), (types) => types.includes("application/x-molis-shelf") || types.includes("Files"));
   lifetime.listen(tty,"drop", async (event) => {
     const types = [...(event.dataTransfer?.types || [])];
     const internal = event.dataTransfer?.getData("application/x-molis-shelf") || "";
@@ -1249,7 +1248,6 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     // Dropping on the AI pane sends it to the terminal, with whatever is typed.
     event.preventDefault();
     event.stopPropagation();
-    tty.classList.remove("is-drop");
     const field = bench.querySelector("[data-shelf-tty-input]");
     const typed = field?.value?.trim() || "";
     let paths = [];
@@ -1462,11 +1460,12 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.dataTransfer.setData("application/x-molis-shelf", id || "1");
     event.dataTransfer.effectAllowed = "copy";
   });
+  // The page's drop-zone program says when a file drag is over Shelf's directory or page and when it has really left.
+  window.molisDropZone?.("[data-shelf], [data-plugin-section=shelf]", markDrop, (types) => !bench.hidden && types.includes("Files") && !types.includes("application/x-molis-shelf"));
   lifetime.listen(document,"dragenter", (event) => {
     if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
-    markDrop(true);
   });
   lifetime.listen(document,"dragover", (event) => {
     if (bench.hidden) return;
@@ -1474,17 +1473,10 @@ export const SHELF_CLIENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
   });
-  lifetime.listen(document,"dragleave", (event) => {
-    if (bench.hidden) return;
-    if (insideShelfDrop(event.relatedTarget)) return;
-    if (!insideShelfDrop(event.target)) return;
-    markDrop(false);
-  });
   lifetime.listen(document,"drop", async (event) => {
     if (bench.hidden) return;
     if (!isExternalFileDrag(event) || !insideShelfDrop(event.target)) return;
     event.preventDefault();
-    markDrop(false);
     const entries = [...(event.dataTransfer?.items || [])]
       .map((item) => (item.webkitGetAsEntry ? item.webkitGetAsEntry() : null))
       .filter(Boolean);

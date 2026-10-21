@@ -21,6 +21,8 @@ export const ROVING_FOCUS_CLIENT_SCRIPT = readFileSync(new URL("../dist/roving-f
 export const FLOATING_DETAILS_CLIENT_SCRIPT = readFileSync(new URL("../dist/floating-details-client.js", import.meta.url), "utf8").trim();
 /** `window.molisTip`, the one tooltip (`browser/tip.ts`, VUX-05). */
 export const TIP_CLIENT_SCRIPT = readFileSync(new URL("../dist/tip-client.js", import.meta.url), "utf8").trim();
+/** `window.molisDropZone`, one drop-zone child/drag-leave owner (`browser/drop-zone.ts`, VUX-18). */
+export const DROP_ZONE_CLIENT_SCRIPT = readFileSync(new URL("../dist/drop-zone-client.js", import.meta.url), "utf8").trim();
 /** The overflow fade's sensor (`browser/overflow-fade.ts`, VUX-27). */
 export const OVERFLOW_FADE_CLIENT_SCRIPT = readFileSync(new URL("../dist/overflow-fade-client.js", import.meta.url), "utf8").trim();
 /** `window.molisCopy`, the one copy feedback (`browser/copy-feedback.ts`, VUX-19). */

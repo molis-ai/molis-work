@@ -261,7 +261,7 @@ const APPROVED_CEILINGS = {
   // #880: media zoom about the point looked at; the workbench page, issues preview and three stylesheets grow once.
   // #884: Diff row geometry, side-by-side and copy as written; the Coding bundle and workbench stylesheet grow once.
   // #885: the split divider with a dead zone, pixel minimums, snap hysteresis and full cancel.
-  "/assets/molis-work-workbench.js": [1155532, 1159052],
+  "/assets/molis-work-workbench.js": [1159052, 1159486],
   "/assets/molis-work-workbench.css": [1606426, 1607357],
   "/assets/molis-work-plugins/coding.js": [369421, 371370],
 };

@@ -1839,7 +1839,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       const pane = paneById(paneId), last = pane ? pane.tabs.findIndex((item) => item.id === (members?.at(-1) || tab.dataset.tabId)) : -1;
       const box = source.getBoundingClientRect();
       // The first preview is the place the drag started from, so nothing moves until the pointer does.
-      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id };
+      dragTab = { paneId, tabId: tab.dataset.tabId, width: Math.round(box.width) || 172, members, hoverBeforeId: pane?.tabs[last + 1]?.id, homeBeforeId: pane?.tabs[last + 1]?.id };
       if (event.dataTransfer.effectAllowed !== "copy") event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("text/plain", tab.title);
       const ghost = document.createElement("nav");
       ghost.className = "tab-strip"; ghost.setAttribute("aria-hidden", "true");
@@ -1850,11 +1850,11 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       document.body.append(ghost);
       try { event.dataTransfer.setDragImage(ghost, Math.max(0, Math.min(event.clientX - box.left, dragTab.width)), Math.max(0, Math.min(event.clientY - box.top, box.height))); } catch {}
       requestAnimationFrame(() => ghost.remove());
-      root.classList.add("is-tab-dragging");
+      root.classList.add("is-tab-dragging"); window.addEventListener("pointermove", () => { if (dragTab) finishDrag(); }, { once: true, capture: true }); // a tab redrawn mid-drag takes its dragend with it; no pointer moves come during a drag
       document.body.classList.add("is-tab-dragging");
       document.body.style.setProperty("--tab-reorder-width", dragTab.width + "px");
     });
-    surface.addEventListener("dragend", finishDrag);
+    surface.addEventListener("dragend", finishDrag); surface.addEventListener("dragleave", (event) => { if (dragTab && !event.relatedTarget?.closest?.("[data-tab-panes], [data-titlebar-tabs]")) { root.querySelectorAll("[data-drop-preview]").forEach((node) => node.removeAttribute("data-drop-preview")); paintDropPreview({ paneId: dragTab.paneId, beforeId: dragTab.homeBeforeId }, false); } }); // off every tab surface a drop does nothing, so the preview is the tab back where it was
     surface.addEventListener("dragover", (event) => {
       if (!dragTab) return; event.preventDefault();
       const copy = isCopyDrop(event);

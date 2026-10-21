@@ -2,7 +2,7 @@ import type { FeedItemRecord as ModuleFeedItemRecord } from "@molis-ai/molis-wor
 
 import type { ListenerRunRecord } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-import type { FeedItemRecord, FeedSourceRunRecord, InboxEntryStatus } from "./projection.js";
+import type { FeedItemRecord, FeedSourceRunRecord } from "./projection.js";
 
 /** A Feed item as the plugin shows it: the module record without its signal fields, typed as a Feed item. */
 export function feedItemRecord(item: ModuleFeedItemRecord): FeedItemRecord {
@@ -54,8 +54,4 @@ export function sourceRunRecord(run: ListenerRunRecord): FeedSourceRunRecord {
     completed_at: run.completed_at,
     updated_at: run.updated_at,
   };
-}
-
-export function isActiveAttention(status: InboxEntryStatus): boolean {
-  return status === "open" || status === "in_progress";
 }

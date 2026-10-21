@@ -4,14 +4,12 @@ import { execFileSync } from "node:child_process";
 import { mkdir, mkdtemp, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import type { PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { reviewPlugins } from "./fixtures/review-plugins.js";
 
 // S-50 (PG-009, specs/coding-migration C5): a person-reviewed Host operation is started only by the installation that declared
 // and was granted `review:<kind>`, and is approved and run only while that same activation still holds it. The worktree entry
@@ -21,16 +19,14 @@ import { LocalProjectDatabase, MolisWorkLocalHost, PluginHostExecutor, composeAg
 const REVIEW = "review:git-worktree";
 const refused = { code: "agent.review_not_permitted" };
 const declared: PluginManifest["permissions"] = [{ permission: REVIEW, required: false, reason: "Creates a worktree a person reviews first" }];
+const pluginId = (name: string) => `io.molis.work.example.${name}`;
 
-/** A plugin that asks the Host for a new worktree, declaring the permissions given. */
-function worktreePlugin(name: string, permissions: PluginManifest["permissions"], started: Map<string, PluginStartContext>): PluginDefinition {
-  return {
-    manifest: { schema_version: 2, host_api_version: 2, plugin_id: `io.molis.work.example.${name}`, version: "1.0.0", name, kind: "app",
-      publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-      permissions, capabilities: { provides: [], consumes: [writerDirectoryCapabilities.prepare.capability_id] },
-      artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },
-    async start(context) { started.set(name, context); return { kind: "app" }; },
-  };
+/** A Manifest that asks the Host for a new worktree, declaring the permissions given. */
+function worktreeManifest(name: string, permissions: PluginManifest["permissions"]): PluginManifest {
+  return { schema_version: 2, host_api_version: 2, plugin_id: pluginId(name), version: "1.0.0", name, kind: "app",
+    publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions, capabilities: { provides: [], consumes: [writerDirectoryCapabilities.prepare.capability_id] },
+    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } };
 }
 
 /** A Host with the Agent service, one clean repository as the project's workspace, and plugins started the way the Host starts them. */
@@ -54,24 +50,16 @@ async function openHost(t: TestContext) {
     authorizeWriterDirectory: async (_project, canonicalPath) => { authorized.push(canonicalPath); },
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }) } });
-  const store = new LocalProjectDatabase(join(root, "plugins.sqlite"));
-  const service = new ActionService();
-  const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: { registry: service, client: service, project_id: "project" }, project_id: "project", actor_id: "web-user",
-    artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }),
-    ui: new UiHost(), capabilities: host.client(reference), privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }));
-  const started = new Map<string, PluginStartContext>(), installs: string[] = [];
+  const plugins = reviewPlugins(host, reference, join(root, "plugins.sqlite"));
   return {
-    runtime,
+    runtime: plugins.runtime,
     reviews: composition.agentHost.reviews,
     authorized,
-    async start(name: string, permissions: PluginManifest["permissions"], grants: string[]) {
-      const install = runtime.install({ definition: worktreePlugin(name, permissions, started), deployment: "local", grants }).install;
-      installs.push(install.install_id);
-      await runtime.start(install.install_id);
-      return install.install_id;
+    start(name: string, permissions: PluginManifest["permissions"], grants: string[]) {
+      return plugins.start(pluginId(name), permissions, grants, [writerDirectoryCapabilities.prepare.capability_id]);
     },
     prepare(name: string, operation_id: string) {
-      return started.get(name)!.services!.capabilities!.invoke(writerDirectoryCapabilities.prepare, { workspace_id: "main", operation_id });
+      return plugins.capabilities(pluginId(name)).invoke(writerDirectoryCapabilities.prepare, { workspace_id: "main", operation_id });
     },
     /** Runs `action` inside the `after`-th read of the project's workspace grants from now. */
     duringRead(after: number, action: () => Promise<unknown>) {
@@ -80,10 +68,9 @@ async function openHost(t: TestContext) {
     },
     worktrees: () => git("worktree", "list", "--porcelain").split("\n").filter(line => line.startsWith("worktree ")).length,
     async close() {
-      for (const install of installs) await runtime.stop(install).catch(() => {});
+      await plugins.close();
       await composition.dispose();
       await host.close();
-      store.close();
       await rm(root, { recursive: true, force: true });
     },
   };
@@ -91,13 +78,13 @@ async function openHost(t: TestContext) {
 
 test("S-50 PG-009 a review kind outside the platform's list is refused when the Manifest is read and when it is installed", () => {
   // W5-01-CODING-40: the kinds are the platform's; a plugin cannot name one of its own.
-  const started = new Map<string, PluginStartContext>();
-  const unknown = worktreePlugin("unknown-kind", [{ permission: "review:git-reset", required: false, reason: "Not a platform review" }], started);
-  assert.throws(() => parsePluginManifest(unknown.manifest), { code: "plugin.permission_invalid" });
-  assert.throws(() => parsePluginManifest(worktreePlugin("bare", [{ permission: "review:", required: false, reason: "No kind" }], started).manifest), { code: "plugin.permission_invalid" });
-  assert.throws(() => new PluginRuntime().install({ definition: unknown, deployment: "local", grants: ["review:git-reset"] }), { code: "plugin.manifest_invalid" });
+  const unknown = worktreeManifest("unknown-kind", [{ permission: "review:git-reset", required: false, reason: "Not a platform review" }]);
+  assert.throws(() => parsePluginManifest(unknown), { code: "plugin.permission_invalid" });
+  assert.throws(() => parsePluginManifest(worktreeManifest("bare", [{ permission: "review:", required: false, reason: "No kind" }])), { code: "plugin.permission_invalid" });
+  assert.throws(() => new PluginRuntime().install({ definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
+    { code: "plugin.manifest_invalid" });
   for (const kind of ["git-index", "git-operation", "git-worktree", "git-integration"]) {
-    parsePluginManifest(worktreePlugin(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }], started).manifest);
+    parsePluginManifest(worktreeManifest(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }]));
   }
 });
 
@@ -122,7 +109,7 @@ test("S-50 PG-009 an installation that did not declare, was not granted or stopp
     // The same path runs for an installation holding its kind once a person approves: the refusals above are the check, not the fixture.
     await host.runtime.start(holder);
     const prepared = await host.prepare("holder", "operation-held");
-    assert.equal(host.reviews.get(prepared.review_id)?.plugin_id, "io.molis.work.example.holder", "the review names the installation that asked");
+    assert.equal(host.reviews.get(prepared.review_id)?.plugin_id, pluginId("holder"), "the review names the installation that asked");
     assert.equal(host.worktrees(), 1, "nothing is created before a person approves");
     const receipt = await host.reviews.respond({ review_id: prepared.review_id, decision: "approve", actor_id: "web-user" });
     assert.equal(receipt.status, "approved");

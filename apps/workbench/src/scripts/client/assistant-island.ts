@@ -383,16 +383,16 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
      the design system's one copy feedback; a refusal also says how to copy by hand. */
   const copyFrom = (button, text) => window.molisCopy?.(button, text, { done: L("已复制"), failed: L("复制失败") }).then((copied) => { if (!copied) host.showToast?.(L("没能复制，请手动选中文字")); });
   const bindText = (root) => {
-    root.querySelectorAll(".assistant-code").forEach((figure) => {
-      const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
+    root.querySelectorAll(".assistant-code:not([data-bound])").forEach((figure) => {
+      figure.dataset.bound = ""; const copy = figure.querySelector(".assistant-code-copy"), more = figure.querySelector(".assistant-code-more");
       copy.addEventListener("click", () => copyFrom(copy, () => figure.dataset.code));
       more?.addEventListener("click", () => {
         figure.toggleAttribute("data-folded");
         more.textContent = figure.hasAttribute("data-folded") ? L("展开全部 {n} 行").replace("{n}", figure.dataset.lines) : L("收起");
       });
     });
-    root.querySelectorAll("[data-assistant-object]").forEach((button) => {
-      const object = view.objects[Number(button.dataset.assistantObject)];
+    root.querySelectorAll("[data-assistant-object]:not([data-bound])").forEach((button) => {
+      button.dataset.bound = ""; const object = view.objects[Number(button.dataset.assistantObject)];
       if (!object || !host.openItem) { button.replaceWith(document.createTextNode("「" + button.textContent + "」")); return; }
       button.prepend(glyph(objectGlyph(object)));
       button.addEventListener("click", () => showObject(object));
@@ -614,8 +614,8 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
         const reply = kind === "assistant" && JSON.stringify({ plugin_id: "assistant", object: { kind: ${JSON.stringify(ASSISTANT_REPLY_KIND)}, id: work.work_id + ":" + round.run_id + ":" + turn.turn_id, title: work.title } });
         if (reply && bubble.getAttribute("data-assistant-context") !== reply) bubble.setAttribute("data-assistant-context", reply);
         if (bubble.dataset.text !== turn.text) {
-          bubble.dataset.text = turn.text;
-          if (kind === "assistant") { bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
+          const had = bubble.dataset.text !== undefined; bubble.dataset.text = turn.text; // Only a reply still being written, seen arriving, shows its new words come in: never a reopen, a hidden page or the last update.
+          if (kind === "assistant") { if (window.molisStreamText) window.molisStreamText(bubble, turn.html, { reveal: had && work.state === "running" && !document.hidden }); else bubble.innerHTML = turn.html; bindText(bubble); } else bubble.textContent = turn.text;
         }
         put(bubble); receipts.line(thread, node, put, turn, round);
         if (kind === "assistant") {

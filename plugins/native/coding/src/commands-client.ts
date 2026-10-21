@@ -17,13 +17,13 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const menu=q('[data-coding-slash-menu]');let items=[],active=0;
   const close=()=>{menu.hidden=true;menu.replaceChildren();input.removeAttribute('aria-activedescendant');items=[];};
   const draw=()=>{
-    menu.replaceChildren();menu.hidden=false;menu.setAttribute('aria-label',mention?'工作区文件':'命令');
+    menu.replaceChildren();menu.hidden=false;menu.setAttribute('aria-label',mention?L('coding.palette.files'):L('coding.slash.label'));
     items.forEach((item,index)=>{const option=el('div','coding-slash-item'+(mention?' is-file':''));option.id='coding-slash-'+index;option.setAttribute('role','option');option.setAttribute('aria-selected',String(index===active));
-      if(mention&&typeof item==='object')option.append(el('span','coding-slash-label',item.name),el('span','coding-slash-hint',item.kind+' · 第 '+item.line+' 行'));
+      if(mention&&typeof item==='object')option.append(el('span','coding-slash-label',item.name),el('span','coding-slash-hint',L('coding.palette.symbol-line',{kind:item.kind,line:item.line})));
       else if(mention){const slash=item.lastIndexOf('/');option.append(el('span','coding-slash-label',item.slice(slash+1)),el('span','coding-slash-hint',slash>0?item.slice(0,slash):''));}
       else option.append(el('code','','/'+item.slug),el('span','coding-slash-label',item.label),el('span','coding-slash-hint',item.hint || ''));
       lifetime.listen(option,'mousedown',event=>{event.preventDefault();pick(index);});menu.append(option);});
-    if(mention && !items.length)menu.append(el('p','coding-slash-empty',mention.file!==undefined?(symbolsError || (symbols.has(symbolKey())?'这个文件里没有匹配的定义':'正在读取文件里的定义…')):(filesError || (files?'没有匹配的文件':'正在读取工作区文件…'))));
+    if(mention && !items.length)menu.append(el('p','coding-slash-empty',mention.file!==undefined?(symbolsError || (symbols.has(symbolKey())?L('coding.palette.no-symbols'):L('coding.palette.reading-symbols'))):(filesError || (files?L('coding.palette.no-files'):L('coding.palette.reading-files')))));
     input.setAttribute('aria-activedescendant',items.length?'coding-slash-'+active:'');menu.children[active]?.scrollIntoView({block:'nearest'});
   };
   // "@" at the start of a word names a workspace file; basename matches rank first, then the whole path.
@@ -33,8 +33,8 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const symbols=new Map();let symbolsError='';
   const symbolKey=()=>ports.workspace()+'\u0000'+(mention?.file ?? '');
   const loadSymbols=async(file)=>{const key=ports.workspace()+'\u0000'+file;if(symbols.has(key) || !ports.symbols || !ports.workspace())return;symbols.set(key,null);symbolsError='';
-    try{const value=await ports.symbols(ports.workspace(),file);symbols.set(key,value.symbols || []);if(value.unreadable)symbolsError='读不到这个文件';refresh();}catch(error){if(!lifetime.alive)return;symbols.delete(key);symbolsError=error.message;refresh();}};
-  const loadFiles=async()=>{const key=ports.workspace();if(!key){filesError='请先选择工作区';return;}if(filesFor===key && (files || !filesError))return;filesFor=key;files=null;filesError='';
+    try{const value=await ports.symbols(ports.workspace(),file);symbols.set(key,value.symbols || []);if(value.unreadable)symbolsError=L('coding.palette.unreadable');refresh();}catch(error){if(!lifetime.alive)return;symbols.delete(key);symbolsError=error.message;refresh();}};
+  const loadFiles=async()=>{const key=ports.workspace();if(!key){filesError=L('coding.palette.choose-workspace');return;}if(filesFor===key && (files || !filesError))return;filesFor=key;files=null;filesError='';
     try{const value=await ports.files(key);if(filesFor===key){files=value.files;refresh();}}catch(error){if(!lifetime.alive)return;if(filesFor===key){filesError=error.message;refresh();}}};
   const refresh=()=>{
     const before=input.value.slice(0,input.selectionStart ?? input.value.length),at=/(^|\\s)[@＠]([^\\s@＠]*)$/.exec(before);
@@ -75,11 +75,11 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
   const palette=q('[data-coding-palette]'),field=q('[data-coding-palette-input]'),list=q('[data-coding-palette-list]');let entries=[],selected=0,returnFocus=null;
   const drawPalette=()=>{
     const word=field.value;
-    const all=[...commands().filter(command=>command.enabled!==false).map(command=>({kind:'命令',label:command.label,detail:'/'+command.slash,keys:command.keys,run:command.run,words:[command.slash,...(command.keywords || [])]})),
-      ...sessions().filter(session=>session.session_id!==current()).map(session=>({kind:'会话',label:session.title,detail:session.state_label || '',run:()=>openSession(session.session_id,session.title),words:[]}))];
+    const all=[...commands().filter(command=>command.enabled!==false).map(command=>({kind:L('coding.slash.label'),label:command.label,detail:'/'+command.slash,keys:command.keys,run:command.run,words:[command.slash,...(command.keywords || [])]})),
+      ...sessions().filter(session=>session.session_id!==current()).map(session=>({kind:L('coding.palette.session'),label:session.title,detail:session.state_label || '',run:()=>openSession(session.session_id,session.title),words:[]}))];
     entries=all.filter(entry=>matches(word,entry.label,entry.detail,...entry.words)).slice(0,60);selected=Math.min(selected,Math.max(entries.length-1,0));
     list.replaceChildren();
-    if(!entries.length)list.append(el('li','coding-palette-empty','没有匹配的命令或会话'));
+    if(!entries.length)list.append(el('li','coding-palette-empty',L('coding.palette.none')));
     entries.forEach((entry,index)=>{const item=el('li','coding-palette-item');item.id='coding-palette-'+index;item.setAttribute('role','option');item.setAttribute('aria-selected',String(index===selected));
       item.append(el('span','coding-palette-kind',entry.kind),el('span','coding-palette-label',entry.label),el('span','coding-palette-detail',entry.detail));if(entry.keys)item.append(el('kbd','mw-kbd',keyLabel(entry.keys)));
       lifetime.listen(item,'mousedown',event=>{event.preventDefault();choose(index);});list.append(item);});
@@ -110,5 +110,5 @@ export const CODING_COMMANDS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
     if(byKeys){event.preventDefault();void run(byKeys);return;}
     if(event.key==='/' && !mod && !event.altKey && !editable(event.target) && !document.querySelector('dialog[open]')){event.preventDefault();input.focus();input.value='/';input.dispatchEvent(new Event('input',{bubbles:true}));}
   });
-  return {openPalette,closeMenu:close,keyLabel,shortcuts:()=>[['Mod+Shift+P','命令面板'],['Mod+Alt+↑ / ↓','上一个 / 下一个会话'],['/','在输入框打开命令'],['Mod+Enter','发送'],['Esc','停止这一轮']]};
+  return {openPalette,closeMenu:close,keyLabel,shortcuts:()=>[['Mod+Shift+P',L('coding.palette.label')],['Mod+Alt+↑ / ↓',L('coding.palette.key.sessions')],['/',L('coding.palette.key.slash')],['Mod+Enter',L('coding.palette.key.send')],['Esc',L('coding.palette.key.stop')]]};
 }`;

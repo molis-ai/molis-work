@@ -3,7 +3,7 @@ import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
-import { CODING_CLIENT_FACTORY_SCRIPT, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_CLIENT_FACTORY_SCRIPT, CODING_MESSAGES, codingRouteActions, runControl, type CodingModelChoice } from "@molis-ai/molis-work-plugin-coding";
 import { QUESTION_LIMITS, questionAnswer } from "@molis-ai/molis-work-plugin-sdk";
 
 const control = codingRouteActions["coding.control-run"]!;
@@ -113,7 +113,10 @@ test("a complete control passes the published schema and the handler does not fa
 test("the page still posts the provider and model, and the switch takes effect on the next model call", () => {
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /kind:'switch-model',run_id:run\.ref\.run_id,\.\.\.model/);
   assert.match(CODING_CLIENT_FACTORY_SCRIPT, /provider_id:model\.provider_id,model_id:model\.model_id/);
-  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /从下一次模型调用起生效/);
+  // The page says so through Coding's dictionary (VUX-40), in both languages.
+  assert.match(CODING_CLIENT_FACTORY_SCRIPT, /status\(L\('coding\.model\.switch-asked',\{model:model\.label\}\)\)/);
+  assert.match(CODING_MESSAGES["coding.model.switch-asked"].zh, /从下一次模型调用起生效/);
+  assert.match(CODING_MESSAGES["coding.model.switch-asked"].en, /from the next model call/);
 });
 
 test("AC-27-4 AC-28-5: the page answers with the card's fields; the route reads them into values the published schema checks", async () => {

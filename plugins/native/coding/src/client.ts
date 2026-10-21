@@ -65,7 +65,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   const ownTask = (text) => { const own = digestTask(text), at = own.indexOf(MENTIONS_MARKER); return at < 0 ? own : own.slice(0, at); };
   const codingGoalVersionLabel = ${codingGoalVersionLabel.toString()};
   const codingUsageSummary = ${codingUsageSummary.toString()};
-  const timeline = (${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(L)), turnChanges = (${createCodingTurnChanges.toString()})();
+  const timeline = (${createCodingTimeline.toString()})((${codingTimelineWords.toString()})(L)), turnChanges = (${createCodingTurnChanges.toString()})(L);
   lifetime.poll(()=>timeline.tick(turns),1000);
   // The conversation's scroll has the page's one owner (design system molisFollow, VUX-26): only the reader stops the follow,
   // only the reader's return or a word from here (back to latest, a fresh session, a restored place) starts it again.

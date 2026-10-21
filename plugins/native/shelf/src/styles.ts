@@ -170,7 +170,7 @@ export const SHELF_STYLES = `
     transition: background var(--da-t) var(--da-ease); color: var(--ink);
   }
   [data-shelf] .shelf-row:hover { background: var(--da-hover); }
-  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) { padding-right: 72px; }
+  [data-shelf] .shelf-row:is(:hover, :focus-within, .is-on):not(.is-child) { padding-right: 72px; }
   [data-shelf] .shelf-row.is-on {
     background: var(--da-select);
     color: var(--ink);
@@ -202,7 +202,7 @@ export const SHELF_STYLES = `
     transition: opacity var(--da-t) var(--da-ease);
   }
   [data-shelf] .shelf-row .shelf-status svg { width: 14px; height: 14px; }
-  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) :is(.shelf-when, .shelf-status, .shelf-now) {
+  [data-shelf] .shelf-row:is(:hover, :focus-within, .is-on):not(.is-child) :is(.shelf-when, .shelf-status, .shelf-now) {
     max-width: 0; margin: 0; opacity: 0; pointer-events: none;
   }
   [data-shelf] .shelf-row .shelf-ops {
@@ -212,7 +212,7 @@ export const SHELF_STYLES = `
     transition: opacity var(--da-t) var(--da-ease);
   }
   [data-shelf] .shelf-row.is-on .shelf-ops { background: var(--da-select); }
-  [data-shelf] .shelf-row:is(:hover, .is-on):not(.is-child) .shelf-ops { opacity: 1; pointer-events: auto; }
+  [data-shelf] .shelf-row:is(:hover, :focus-within, .is-on):not(.is-child) .shelf-ops { opacity: 1; pointer-events: auto; }
   [data-shelf] .shelf-row .shelf-op {
     box-sizing: border-box;
     width: 22px; height: 22px; border: 0; border-radius: 5px; background: transparent;

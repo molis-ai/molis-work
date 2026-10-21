@@ -716,9 +716,9 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       }
     } catch {}
   }
-  const persistHistory = () => {
-    if (embedded) return;
-    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries([...tabHistory].filter(([paneId]) => state.panes.some((pane) => pane.id === paneId))))); } catch {}
+  const persistHistory = () => { // A closed pane's way back goes with it (VUX-36): the map holds only the panes that are open.
+    for (const paneId of tabHistory.keys()) if (!state.panes.some((pane) => pane.id === paneId)) tabHistory.delete(paneId); if (embedded) return;
+    try { sessionStorage.setItem(HISTORY_KEY, JSON.stringify(Object.fromEntries(tabHistory))); } catch {}
   };
   const paneHistory = (paneId) => {
     let entry = tabHistory.get(paneId);

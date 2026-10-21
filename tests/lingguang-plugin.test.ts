@@ -9,6 +9,7 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { CHARACTERS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
   LINGGUANG_PROJECT_PLUGIN_ID,
@@ -106,6 +107,23 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
   assert.ok(lingguangManifest.ui.views?.some(view => view.slot === "stage" && view.view_id === "workbench"));
+});
+
+test("PRR-12 the Manifest fallback only renders stages no host path already rendered, and only for shown plugins", () => {
+  const view = {
+    ...emptyView(),
+    enabled_plugins: ["goals", "characters", "lingguang", "issues"],
+    plugin_stage_ids: [CHARACTERS_UI_CONTRIBUTION_ID],
+    plugin_stages: ['<section data-work-surface="characters" data-stage="host"></section>'],
+  } as MolisWorkWebView;
+  const html = renderMolisWorkWeb(view);
+  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's Characters stage is kept once");
+  assert.doesNotMatch(html, /data-character-api="undefined/, "the fallback did not render a second Characters stage with an empty model");
+  assert.match(html, /data-lingguang="workbench"/, "Lingguang still comes from its Manifest stage");
+  assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
+
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "characters", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  assert.doesNotMatch(renderMolisWorkWeb(hiddenIssues), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 
 test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {

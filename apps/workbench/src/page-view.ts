@@ -14,6 +14,8 @@ export interface MolisWorkWebView {
    */
   plugin_panels?: Readonly<Record<string, string>>;
   plugin_stages?: readonly string[];
+  /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
+  plugin_stage_ids?: readonly string[];
   /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
   plugin_rail?: readonly { surface: string; label: string }[];
   snapshot: BoardSnapshot;

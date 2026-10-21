@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import test from "node:test";
-import { PROBE, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
+import { PROBE, later, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, read, write } from "./fixtures/partition-probe.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
 // specs/plugin-project-partition §2.5: deleting a project removes its library of a Home plugin partitioned by project, whether or
@@ -11,11 +11,20 @@ import { deferred } from "./fixtures/home-runtime.js";
 const open = (home: string, projectId: string) => existsSync(`${partitionFile(home, projectId)}-wal`);
 const code = (error: unknown) => (error as { code?: string }).code;
 
-test("PART-10 deleting a project: the Plugin hears of it, its library closes and its purge begins in one turn; the directory goes once the purge settles; calls begun before it are refused and rebuild nothing; the same id begun again starts empty", async t => {
+test("PART-10 PG-038 deleting a project: the background work accepted in it stops, its library closes and its purge begins in one turn; the directory goes once the purge settles; calls begun before it are refused and rebuild nothing; the same id begun again starts empty", async t => {
   const f = partitionHome(t);
   await f.ready();
   await f.invoke(write, { text: "kept" }, "p2");
   await f.invoke(write, { text: "gone" }, "p1");
+
+  // A background job accepted in each project, both still waiting. The deletion of one project stops only the job accepted there,
+  // before anything of its data goes; the plugin is told nothing and runs no code of its own for it.
+  const jobsGo = deferred();
+  probe.later = jobsGo.promise;
+  await f.invoke(later, { id: "p1-job" }, "p1"); await f.invoke(later, { id: "p2-job" }, "p2");
+  while (probe.controls.length < 2) await new Promise(resolve => setImmediate(resolve));
+  const jobIn = (projectId: string) => probe.controls.find(control => control.project_id === projectId)!;
+  jobIn("p1").signal!.addEventListener("abort", () => probe.trace.push("stopped:p1"));
 
   // A write and a read begun before the deletion and still waiting; once let go, the write makes a call of its own.
   const writing = deferred(), writeGo = deferred(), reading = deferred(), readGo = deferred(), purged = deferred();
@@ -32,7 +41,8 @@ test("PART-10 deleting a project: the Plugin hears of it, its library closes and
   assert.equal(open(f.home, "p1"), true);
 
   const clearing = f.hooks.clear(PROBE, "p1");
-  assert.deepEqual(probe.trace, ["deleted:p1", "purge:p1"], "an await between them would let calls run against a library being removed");
+  assert.deepEqual(probe.trace, ["stopped:p1", "purge:p1"], "an await between them would let calls run against a library being removed");
+  assert.equal(jobIn("p2").signal!.aborted, false, "another project's job runs on");
   assert.equal(open(f.home, "p1"), false, "closed in the same turn, with a write waiting on it");
   await assert.rejects(f.invoke(read, {}, "p1"), { code: "actions.unavailable" }, "a call begun while the library is cleared waits for nothing");
   assert.deepEqual(await f.invoke(read, {}, "p2"), ["kept"], "another project's library is untouched");
@@ -49,8 +59,13 @@ test("PART-10 deleting a project: the Plugin hears of it, its library closes and
   assert.equal(nested, "actions.missing", "a call made inside one begun before the deletion is as old as that one");
   assert.equal(existsSync(partitionDirectory(f.home, "p1")), false, "none of them made the library again");
 
+  jobsGo.resolve();
+  await assert.rejects(probe.jobs[0]!.result, { code: "actions.cancelled" }, "the job accepted in the deleted project");
+  await probe.jobs[1]!.result;
+  assert.deepEqual(await f.invoke(read, {}, "p2"), ["kept", "later:p2-job"]);
+
   assert.equal(await f.invoke(write, { text: "rebuilt" }, "p1"), "stored", "the demo's rebuild keeps its id");
-  assert.deepEqual(await f.invoke(read, {}, "p1"), ["rebuilt"]);
+  assert.deepEqual(await f.invoke(read, {}, "p1"), ["rebuilt"], "the stopped job wrote nothing");
 });
 
 test("PART-10 an instance started while the purge runs, after a restart or with the plugin stopped when the deletion began, still finds the project being cleared", async t => {
@@ -98,6 +113,6 @@ test("PART-03 a partitioned library's owner with no purge of its own: the deleti
   await f.ready();
   await f.invoke(write, { text: "a" }, "p1");
   assert.equal(await f.hooks.clear(PROBE, "p1"), true);
-  assert.deepEqual(probe.trace, ["deleted:p1"]);
+  assert.deepEqual(probe.trace, []);
   assert.equal(existsSync(partitionDirectory(f.home, "p1")), false);
 });

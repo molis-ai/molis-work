@@ -138,7 +138,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = pluginInstallRecords(db);
     const executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id), database: identity.databaseFor, files: identity.filesFor,
-      modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, projectData: identity.projectDataFor, ownerFiles: identity.ownerFilesFor,
+      modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const runtime = new PluginRuntime(repository, executor, { redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},

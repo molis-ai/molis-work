@@ -5,7 +5,7 @@ export { createExecutionLifetime, type ExecutionLifetime, type ExecutionLifetime
 import { parsePluginManifest } from "./manifest.js";
 
 export { parsePluginManifest, comparePluginVersions } from "./manifest.js";
-export { inspectActionDeclarations } from "./action-declarations.js";
+export { inspectActionDeclarations, isHomeAggregateQuery } from "./action-declarations.js";
 export { inspectActionCrossReferences } from "./action-cross-references.js";
 /** Bounded line comparison. Its result and row types are in the contracts (modules/workspace-artifacts). */
 export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts, textDiffRow, alignSplitRows } from "./text-diff.js";

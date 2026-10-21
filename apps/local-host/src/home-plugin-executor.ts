@@ -15,13 +15,13 @@ import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { pluginImageGenerationFor } from "./plugin-image-generation-service.js";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { DIRECTORY_READ_PERMISSION, directoryForHome } from "./plugin-directory-service.js";
-import type { PluginProjectCleanup } from "./plugin-project-cleanup.js";
 import type { PluginOwnerFilesBinding } from "./plugin-owner-files-entries.js";
 import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
-  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase }>();
+  private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
+    background?: ReturnType<typeof pluginBackgroundFor> }>();
   /** Per installation, not per instance: a project deletion under way outlives a restart of the instance (`PartitionDeletions`). */
   private readonly partitionDeletions = new Map<string, PartitionDeletions>();
   constructor(private readonly options: {
@@ -31,7 +31,6 @@ export class HomePluginExecutor implements PluginExecutor {
     ownerFiles(definition: PluginDefinition): PluginOwnerFilesBinding | undefined;
     modelConfiguration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginModelConfigurationDeclaration | undefined;
     imageGeneration(definition: PluginDefinition): import("@molis-ai/molis-work-contracts/platform/plugin").PluginImageGenerationDeclaration | undefined;
-    projectData(definition: PluginDefinition): PluginProjectCleanup | undefined;
     providerFor(definition: PluginDefinition, installId: string): string;
     /** The Host's start list said this is the Home half of a dual-instance plugin (specs/dual-instance-plugins). */
     dualInstance(definition: PluginDefinition): boolean;
@@ -111,10 +110,7 @@ export class HomePluginExecutor implements PluginExecutor {
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
       const contribution = await definition.start(hosted);
-      if (contribution.kind === "app" && contribution.onProjectDeleted && !this.options.projectData(definition)) {
-        throw new ActionError("actions.forbidden", "项目清理回调缺少可信 Home 数据主人声明");
-      }
-      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose, partitions });
+      this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose, partitions, background });
       return { contribution };
     } catch (error) {
       try { dispose(); } catch (cleanup) { throw new AggregateError([error, cleanup], "Home 插件启动与服务释放失败"); }
@@ -136,6 +132,11 @@ export class HomePluginExecutor implements PluginExecutor {
    */
   clearProjectLibrary(installId: string, projectId: string): () => void {
     return this.sessions.get(installId)?.partitions?.clearProject(projectId) ?? beginPartitionClearing(this.deletionsOf(installId), projectId);
+  }
+
+  /** The executor's first part of deleting a project: the running instance's background executions accepted in the project stop. */
+  stopProjectBackground(installId: string, projectId: string): void {
+    this.sessions.get(installId)?.background?.stopProject(projectId);
   }
 
   private deletionsOf(installId: string): PartitionDeletions {

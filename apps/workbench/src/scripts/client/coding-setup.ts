@@ -33,7 +33,7 @@ export const CODING_WORKBENCH_SETUP_SCRIPT = `(host) => {
       openResult: () => openCompanionResult('files'),
       closeResult: closeCompanionResult,
     }) : null;
-    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient, interaction: host.interaction, receipts: host.receipts,
+    (${CODING_CLIENT_FACTORY_SCRIPT})({ mountPluginClient, translate: L, interaction: host.interaction, receipts: host.receipts,
       revealTask: () => { if(matchMedia("(max-width: 600px)").matches) immersiveNavigation?.hideDirectory(); closeCompanionResult(); },
       onDirectoryFace: face => { const handled=filesBrowser?.show(face) ?? false; gitBrowser?.show(face); return handled; },
       showReviews: reviewFactory({mountPluginClient,route,headers:()=>molisWorkControlHeaders()}),

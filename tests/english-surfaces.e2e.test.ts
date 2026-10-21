@@ -11,7 +11,8 @@ import { TEXT_WRAP_AUDIT, type TextWrapIssue } from "./fixtures/text-wrap-audit.
 // Diff and Text Stats pages with the shell around them used to stay Chinese in English. What a person wrote (Goal titles,
 // project names) is theirs and is not checked. The same places in Chinese still say it in Chinese, and the longer English
 // fits where the Chinese did. The Coding page's markup (its dialogs, composer, results and settings, which the Host draws
-// before Coding's script fills them) is checked the same way, hidden parts included.
+// before Coding's script fills them) is checked the same way, hidden parts included, and then the page as Coding's own script
+// fills it: with no session open and with a fresh one, its attach menu and results column showing.
 
 /** Visible text and labels with Chinese characters inside the elements `selector` finds. */
 const HAN_IN = (selector: string) => `(() => {
@@ -114,9 +115,9 @@ const HAN_IN_MARKUP = (url: string, selector: string) => `(async () => {
   return { found: scopes.length > 0, han: [...new Set(out)] };
 })()`;
 
-test("VUX-40: the Coding page's own markup and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
+test("VUX-40: the Coding page, its own script's words and Coding settings speak English in English", { timeout: 120_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
-  const { evaluate, navigate, command, sessionId, origin, projectId } = browser;
+  const { evaluate, waitFor, navigate, command, sessionId, origin, projectId } = browser;
   const coding = `${origin}/projects/${projectId}/?openPlugin=coding`, settings = `${origin}/settings/coding-settings?project=${projectId}`;
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   const zh = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(coding, "[data-coding-workbench]"));
@@ -128,4 +129,17 @@ test("VUX-40: the Coding page's own markup and Coding settings speak English in 
   const inSettings = await evaluate<{ found: boolean; han: string[] }>(HAN_IN_MARKUP(settings, "[data-coding-settings]"));
   assert.deepEqual(inSettings.han.filter((line) => !/^Current project: .+ ·$/.test(line)), [], "Coding settings in English");
   assert.equal(inSettings.han.length, 1, "the current project line is there, in English");
+  // Coding's own script fills the page in English too: the session list, the composer's controls and the results column.
+  await navigate(() => command("Page.navigate", { url: coding }, sessionId));
+  await waitFor("document.querySelector('[data-coding-workbench] [data-coding-model] option')", 30_000);
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "Coding with no session open, in English");
+  assert.ok((await evaluate<string>("document.querySelector('[data-coding-workbench] .coding-start').textContent")).includes("Write code with an Agent"));
+  // A fresh session: the welcome, the composer and its menus, the results column.
+  await evaluate("document.querySelector('.coding-start [data-coding-new]').click()");
+  await waitFor("document.querySelector('[data-coding-welcome]') && !document.querySelector('[data-coding-task]').disabled", 30_000);
+  await evaluate("document.querySelector('[data-coding-attach-toggle]').click(); document.querySelector('[data-coding-results-open]').click()");
+  assert.deepEqual(await evaluate(HAN_IN("[data-coding-workbench]")), [], "a fresh Coding session, its menus and results, in English");
+  // Words Coding's script writes itself, not the Host's markup.
+  assert.deepEqual(await evaluate("[document.querySelector('[data-coding-goal-label]').textContent, document.querySelector('[data-coding-send]').textContent]"), ["No goal for the next turn", "Send"]);
+  assert.deepEqual((await evaluate<TextWrapIssue[]>(TEXT_WRAP_AUDIT)).filter((issue) => issue.kind === "spill"), [], "Coding in English fits");
 });

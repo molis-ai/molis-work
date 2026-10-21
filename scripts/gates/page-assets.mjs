@@ -238,12 +238,10 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-31 (slice 55): what a surface paints first is what it ends with. A link into the side panel
-  // opens it before the first paint (workbench.js); Jelly names the period at once (jelly.js) and keeps one row for its
-  // categories (workbench.css).
-  "/assets/molis-work-workbench.js": [1172465, 1172509],
-  "/assets/molis-work-plugins/jelly.js": [91267, 91338],
-  "/assets/molis-work-workbench.css": [1617561, 1617596],
+  // specs/visual-ui-experience VUX-31 (slice 56): only the latest detail opening paints. A pick made while an earlier one is
+  // still loading, or a close before it answers, drops the earlier answer (a ticket per open/close in Todo and Cognia).
+  "/assets/molis-work-plugins/cognia.js": [23703, 23773],
+  "/assets/molis-work-plugins/todo.js": [62036, 62126],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

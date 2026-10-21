@@ -2456,6 +2456,7 @@ export interface PluginBackgroundClient {
     start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
         signal?: AbortSignal;
     }): Promise<PluginBackgroundExecution<T>>;
+    keep(job: string, work: (control: PluginJobControl) => Promise<void>): PluginKeptJob;
 }
 
 export interface PluginBackgroundExecution<T> {
@@ -2919,6 +2920,25 @@ export interface PluginIntegrationContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
 
+export interface PluginJobControl {
+    readonly job: string;
+    readonly signal: AbortSignal;
+    beforeEffect(): Promise<void>;
+    assert_authority_current(): void;
+    readonly project_id?: string;
+}
+
+export interface PluginJobDeclaration {
+    readonly job_id: string;
+    readonly reason: string;
+    readonly permissions: readonly string[];
+}
+
+export interface PluginKeptJob {
+    readonly done: Promise<void>;
+    cancel(): void;
+}
+
 export type PluginKind = "native" | "integration" | "app";
 
 export interface PluginLifecycleReceipt {
@@ -3006,6 +3026,9 @@ export interface PluginManifest {
     methods?: import("@molis-ai/molis-work-contracts/platform/plugin-agent").AgentSkillDeclaration[];
     upgrade_compatibility?: PluginUpgradeCompatibilityDeclaration;
     databases?: import("platform/plugin-database").PluginManifestDatabases;
+    background?: {
+        jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
+    };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }

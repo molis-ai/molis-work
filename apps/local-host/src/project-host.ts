@@ -193,7 +193,7 @@ export class MolisWorkLocalHost {
             throw error;
           }
         },
-        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference)),
+        close: (runtime, reference) => closeProjectRuntime(runtime, () => options.onRuntimeClose?.(reference), () => closeProjectSchedulers(this, runtime, reference), () => this.homePlugins?.stopProjectJobs(runtime.project_id)),
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
@@ -427,12 +427,14 @@ async function registerProviders(registry: ActionRegistryPort, providers: readon
 /**
  * Releases a project's owners (authoring and preview, installed plugins, the project's other plugins) and closes its
  * database. Every step runs even when an earlier one fails: the Host forgets the project afterwards, so a skipped step
- * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran.
+ * would leave its instances and the SQLite handle alive for good. The failures are reported once everything ran. The Home
+ * instances' jobs kept in the project stop with it (PG-038); the project's own instances stop with their whole activation.
  */
-async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>): Promise<void> {
+async function closeProjectRuntime(runtime: MolisWorkProjectRuntime, closed: () => void, stopSchedules: () => Promise<void>, stopHomeJobs: () => void): Promise<void> {
   const failures: unknown[] = [];
   const attempt = async (step: () => unknown) => { try { await step(); } catch (error) { failures.push(error); } };
   await attempt(stopSchedules);
+  await attempt(stopHomeJobs);
   for (const release of [releaseAgentStudio, releaseInstalledPlugins, releaseProjectPlugins]) await attempt(() => release(runtime.store, runtime.project_id));
   await attempt(() => runtime.store.close());
   await attempt(closed);

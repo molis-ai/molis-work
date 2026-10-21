@@ -101,7 +101,8 @@ export class HomePluginExecutor implements PluginExecutor {
       const directory = manifest.permissions.some(item => item.permission === DIRECTORY_READ_PERMISSION) ? directoryForHome(this.options.home) : undefined;
       const directoryService: PluginDirectoryService | undefined = directory
         ? { read: (request, signal) => { assertActive(); authorize(DIRECTORY_READ_PERMISSION); return directory.read(request, signal); } } : undefined;
-      background = pluginBackgroundFor(definition, authorized, assertActive);
+      // A Home instance's jobs have no project of their own: each takes the project of the call that kept it.
+      background = pluginBackgroundFor(definition, authorized, assertActive, { actor_id: this.options.actorId, record: activeRecord });
       const storage = manifest.permissions.some(item => item.permission === "storage:private")
         ? this.options.storage.forPlugin(authorized, manifest) : undefined;
       const hosted: PluginStartContext = Object.freeze({ ...authorized, actor_id: this.options.actorId, services: Object.freeze({
@@ -109,7 +110,7 @@ export class HomePluginExecutor implements PluginExecutor {
         actions: pluginHostActions(authorized, manifest, { client: this.options.client, actor_id: this.options.actorId, assertActive, pluginCaller: caller,
           providerId: this.options.providerFor(definition, context.install_id) }),
       }) });
-      const contribution = await definition.start(hosted);
+      const contribution = await (background ? background.starting(() => definition.start(hosted)) : definition.start(hosted));
       this.sessions.set(context.install_id, { context: hosted, revoke: () => { active = false; background?.close(); withdrawCaller?.(); }, dispose, partitions, background });
       return { contribution };
     } catch (error) {
@@ -137,6 +138,11 @@ export class HomePluginExecutor implements PluginExecutor {
   /** The executor's first part of deleting a project: the running instance's background executions accepted in the project stop. */
   stopProjectBackground(installId: string, projectId: string): void {
     this.sessions.get(installId)?.background?.stopProject(projectId);
+  }
+
+  /** A project closing: every running instance's jobs kept in that project stop (PG-038); its bounded executions go on. */
+  stopProjectJobs(projectId: string): void {
+    for (const session of this.sessions.values()) session.background?.stopProjectJobs(projectId);
   }
 
   private deletionsOf(installId: string): PartitionDeletions {

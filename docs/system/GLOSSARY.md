@@ -44,6 +44,7 @@
 | 处理说明（acknowledge） | AI 对一条补充、笔记、要求或本人的决定说「我读到了，我这样处理」；是 AI 的自称，不证明已经照做，Molis 没有核对。落点分两处：`acknowledge-inputs` 是运行时的系统工具，说明落在运行账里，说的是对话里的补充；`goals.events.acknowledge` 是 Goals 的动作，说明落在 Goal 时间线上，说的是 `gevt-` 记录（笔记、要求、本人的决定），只给 MCP 与助理、Agent 调用（`specs/ai-input-receipts/spec.md` §8.4、RCPT-376～383） | 处理说明（时间线上的类型名同；英文 How it will be handled） | 回执（读到状态才叫读到回执）、确认 |
 | 常开插件 | Manifest 声明 `always_on: true` 的内置插件：每个项目都开着，不进插件列表、市场、Dock 的选择和项目插件管理，不能从项目里移除；只有随宿主发布的插件能声明，别处来的安装带它在安装时就被拒（`docs/system/SECURITY-INVARIANTS.md` S-34；2026-10-18 改：改成按声明与授权，实现前代码仍如此）。现在只有 Shelf，是右栏的第一格。`openPlugin=shelf` 一类的链接说的是插件，按声明打开它的侧栏格（`docs/system/EXTENSION-POINTS.md` §3.7） | 无（界面上它就是右栏的一格） | 平台自带（指 Shelf 时）、常驻插件 |
 | 双实例插件 | 同一个 `plugin_id`、同一份 Manifest，既作 Home 实例由 Home 监督器装配，又作项目实例由项目启动名单在每个项目里装配；两半的 `install_id` 与提供方相同，动作、路由各归一半，记录各在自己的库里。只有宿主自己的启动名单能这样标：目录条目的 `runtime.dual_instance`（代码），夹具写在 Home 那一半的同名选项上；Manifest、安装记录和项目那一半都说不了（`docs/system/SECURITY-INVARIANTS.md` S-15，`specs/dual-instance-plugins/spec.md`）。Home 实例、项目实例分别指它的两半 | 无（用户看到的是一个插件） | 拆插件、两个插件（它不拆 id）；部分兑现、`partial`（那是 Runtime 对一次启动放宽的范围，`RedemptionScope`，不是这个标记） |
+| 随激活作业 | 插件这次激活保留、Manifest `background.jobs` 声明过的后台作业（`services.background.keep`）：属于安装，不属于登记它的调用，只有安装自己的授权；单次调用取消、撤权不停它，插件停止、项目关闭或删除、Home 关闭就停，不落盘、不重放（`docs/system/SECURITY-INVARIANTS.md` S-51，`docs/platform/PLUGIN-DEVELOPMENT.md`「随激活存活的后台作业」） | 无 | 后台作业（裸写，见 2.5）、activations 表（Coding 旧写法） |
 | 插件的名字 | `project_plugin_id`、`manifest.plugin_id`、`manifest.name`、界面显示名、目录与包名，五样各有用处 | 显示名中英文混用 | 见第 3 节 |
 | 翻译键 | 界面文字在词典里的稳定标识，标识概念和位置，不含措辞；措辞是词典的值 | 无（用户看不见） | 中文原文当键（现状，将被取代，见 2.7） |
 
@@ -191,6 +192,7 @@
 
 - **提供方**与**供应商**：提供方是动作的提供者（`ActionProvider`）；供应商是模型厂商。
 - **工具**必须加限定：MCP 工具（动作的呈现）、Agent 工具（内置 Agent 一轮里的工具，如 `ask-user`、`find-capabilities`）、执行工具（界面「AI 与执行工具」页里的外部 Runtime）。
+- **后台作业**必须加限定：已受理的后台执行（`services.background.start`，一次声明了 `background_job` 的命令受理后继续做完，随那次调用的授权，撤权就停，S-18）；随激活作业（`services.background.keep`，随插件这次激活存活，属于安装，S-51）。
 - **Function**：在代码里同时指判断规则（`modules/functions`）和工作流程的模板转换（衔接类型 `function`）；文档写判断规则或模板转换。
 
 ### 2.6 讨论（项目讨论）

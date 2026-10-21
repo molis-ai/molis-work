@@ -27,6 +27,15 @@ function characterPublication(content: CharacterContent) {
     title: content.title.trim() || content.character_id, media_type: "application/json" };
 }
 
+/**
+ * A publication is runnable while its draft is active and the revision it was made from exists. A publication made from a draft
+ * revision that does not exist is not one to run (the check a plugin running a Character relies on, PG-086).
+ */
+function assertRunnableDraft(draft: ReturnType<CharactersPluginPorts["drafts"]["get"]>, content: CharacterContent): void {
+  if (!draft || draft.state !== "active") throw new Error("该角色已停用或删除");
+  if (content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
+}
+
 export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefinition {
   return { manifest: charactersManifest, async start(context) {
     for (const permission of charactersManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
@@ -68,9 +77,7 @@ export function createCharactersPlugin(ports: CharactersPluginPorts): PluginDefi
       const record = publications().find(item => item.artifact_id === ref?.artifact_id && item.version === ref.version);
       if (!record || requireActive && (record.lifecycle_state !== "active" || record.availability !== "available")) throw new Error("请选择当前项目已发布的角色版本");
       const content = parseCharacterContent(record.payload), draft = ports.drafts.get(content.character_id);
-      if (requireActive && (!draft || draft.state !== "active")) throw new Error("该角色已停用或删除");
-      // A publication made from a draft revision that does not exist is not one to run (the check a plugin running a Character relies on, PG-086).
-      if (requireActive && draft && content.source.draft_revision > draft.revision) throw new Error("Character 发布来源不是已有草稿修订");
+      if (requireActive) assertRunnableDraft(draft, content);
       return { content, reference: { artifact_id: record.artifact_id, version: record.version } };
     };
     const a = charactersActions;

@@ -31,7 +31,7 @@ test("background startup shares its instance with later UI execution adapters an
   const caller = { actor_id: "owner", project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: ["artifact:read"] };
   try {
     const [first, concurrent] = await Promise.all([ensureProjectPlugins(ports), ensureProjectPlugins(ports)]);
-    assert.equal(first, concurrent); assert.equal(first.running, true, first.error); assert.ok(first.platform);
+    assert.equal(first, concurrent); assert.equal(first.platform?.supervisor.state("io.molis.work.coding")?.status, "running", first.error); assert.ok(first.platform);
     assert.equal(capabilityCalls, 0, "discovery must not read business capabilities");
     const invokeState = () => first.platform!.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.coding/state", actor_id: ports.actorId });
     // Before the Agent service is attached: the first capability call is the one that fails, with the capability-not-registered error.

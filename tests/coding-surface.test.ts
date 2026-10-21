@@ -10,7 +10,7 @@ import {
   DEMO_PROJECT_ID,
   LocalProjectDatabase,
   codingDirectoryPanel,
-  releaseCodingSurface,
+  releaseProjectPlugins,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
@@ -40,9 +40,6 @@ function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, stri
   };
 }
 
-/** The formal HTTP surface of the plugin the Host is running; loaded once, the way the Host loads it. */
-const loadSurface = () => import("../apps/local-host/dist/coding-surface.js");
-
 test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的库；Goal 标题经 Goals 的公开读动作读到", async () => {
   const directory = mkdtempSync(join(tmpdir(), "coding-surface-"));
   try {
@@ -70,9 +67,9 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
     assert.match(surface!.panel, /g1/);
 
     // 页面一打开就读 Coding 的路由；路由经 Goals 的公开读动作读标题并记下，之后目录画的就是标题。
-    const { handleCodingPluginHttp } = await loadSurface();
+    const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
     const server = createServer((request, response) => {
-      void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => { response.writeHead(500); response.end(String(error)); });
+      void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
     });
     try {
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -86,7 +83,7 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
     const after = await codingDirectoryPanel(host);
     assert.match(after!.panel, /让首次使用不再卡住/);
 
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -109,7 +106,7 @@ test("会话标题里的标记不会原样进页面", async () => {
     assert.equal(surface?.panel.includes("<img src=x"), false);
     assert.match(surface!.panel, /&lt;img src=x/);
 
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -123,7 +120,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
     const surface = await codingDirectoryPanel(ports(store));
     assert.notEqual(surface, null);
     assert.match(surface!.panel, /还没有编码会话/);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     store.close();
   } finally {
     rmSync(directory, { recursive: true, force: true });
@@ -131,7 +128,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
 });
 
 test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
-  const { handleCodingPluginHttp } = await loadSurface();
+  const { codingRouteHooks, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
   const store = project(directory), sessions = codingSessions(store);
@@ -147,7 +144,7 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
     },
   } };
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, codingRouteHooks).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -159,6 +156,6 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
     assert.deepEqual(await response.json(), report);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(directory, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(directory, { recursive: true, force: true });
   }
 });

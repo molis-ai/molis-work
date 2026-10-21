@@ -8,10 +8,9 @@ import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { openCharacters } from "@molis-ai/molis-work-module-characters";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID, CHARACTER_PUBLISHER_SIGNATURE } from "@molis-ai/molis-work-contracts/modules/characters";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -46,7 +45,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown, id = "app") => {
@@ -61,7 +60,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.equal(choices.body.characters.length, 2);assert.ok(choices.body.characters.every((item: any) => item.available));
     assert.equal((await request("", "PATCH", { character: { ...ref, instructions: "伪造正文" }, draft: "不要丢失任务" })).status, 200);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.character_title, "原角色");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);store.close();store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.character, ref);assert.equal((await request()).body.draft, "不要丢失任务");
     assert.equal((await start()).status, 200);assert.deepEqual(starts[0].budget, {max_turns:60});assert.deepEqual(starts[0].character, ref, "only an exact reference reaches Agent Host, not browser text or the newer version");
     for (const character of [{ ...ref, version: 99 }, { ...ref, artifact_id: "foreign-project" }]) assert.equal((await start({ character }, "new")).status, 400);
@@ -76,7 +75,7 @@ test("Coding saves exact Character versions, blocks unavailable selection before
     assert.equal((await request("", "PATCH", { character: { ...ref, version: 0 } })).status, 400);
     assert.deepEqual(starts[0].character, ref);
   } finally {
-    await new Promise<void>(resolve => server.close(() => resolve()));await releaseCodingSurface(store, DEMO_PROJECT_ID);
+    await new Promise<void>(resolve => server.close(() => resolve()));await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     personal.close();store.close();rmSync(home, { recursive: true, force: true });
   }
 });

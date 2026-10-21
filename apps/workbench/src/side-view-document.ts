@@ -1,6 +1,6 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
-import { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { COPY_FEEDBACK_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, renderIconSprite } from "@molis-ai/molis-work-design-system";
 import { renderWorkbenchDocument, WORKBENCH_UI_SLOTS } from "./document-shell.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { sideEntries } from "./plugin-catalog.js";
@@ -64,6 +64,7 @@ export function renderSideViewDocument(input: SideViewDocumentInput): string | n
     ${(surfaceClient?.assets ?? []).map(path => `<script src="${escape(path)}"></script>`).join("")}
     <script>${OVERFLOW_FADE_CLIENT_SCRIPT}
 ${COPY_FEEDBACK_CLIENT_SCRIPT}
+${SCROLL_FOLLOW_CLIENT_SCRIPT}
 </script>
     <script>${input.clientI18nScript}${UI_REQUEST_CLIENT_SCRIPT}${SIDE_LINKS_SCRIPT}${homeToolKeysScript()}
       const L = globalThis.L;

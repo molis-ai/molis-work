@@ -5,11 +5,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalHost, LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { HISTORY_DIGEST_MARKER, digestTask } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, type AgentDraftTextRequest, type AgentRunView, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import type { ActionCallContext, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
@@ -52,7 +51,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -99,7 +98,7 @@ test("整理前面的对话由模型写摘要：接着上次的摘要写，宿�
     assert.deepEqual(read.usage_total.digests, { calls: 2, tokens: { input: 10_000, output: 800 } });
     assert.deepEqual(read.usage_total.tokens, { input: 3 * 1000 + 10_000, output: 3 * 100 + 800 }, "the budget counts the summaries too");
     assert.equal(read.usage_total.rounds, 3, "a summary is not a round");
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });
 
 test("a round whose digest the model is still writing runs beside the project's queue, and a call withdrawn meanwhile starts nothing", { timeout: 30_000 }, async () => {
@@ -137,7 +136,7 @@ test("a round whose digest the model is still writing runs beside the project's 
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const send = async (task: string) => {
@@ -190,5 +189,5 @@ test("a round whose digest the model is still writing runs beside the project's 
     const carried = await standing;
     assert.equal(carried.status, 200, JSON.stringify(carried.body));
     assert.equal(carried.body.digest.source, "records"); assert.equal(starts.length, 2);
-  } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { gate.resolve(); await new Promise<void>(resolve => server.close(() => resolve())); await localHost.close(); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

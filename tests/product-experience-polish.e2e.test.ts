@@ -87,7 +87,8 @@ test('Product journeys: discover tools, create from empty states, save and recov
   assert.equal(await evaluate("document.querySelector('dialog[data-lingguang-dispatch]') === null"), true);
   await command('Browser.grantPermissions', { origin, permissions: ['clipboardReadWrite', 'clipboardSanitizedWrite'] });
   await click('[data-lingguang-dispatch-current]');
-  await waitFor("document.querySelector('[data-lingguang-note]').textContent.includes('已复制内容')");
+  // VUX-19: the icon button answers with a check in its own box once the clipboard took the text.
+  await waitFor("document.querySelector('[data-lingguang-dispatch-current]').dataset.copy === 'done' && document.querySelector('[data-lingguang-dispatch-current] [data-copy-face=done] use')?.getAttribute('href') === '#icon-check'");
   assert.match(await evaluate<string>('navigator.clipboard.readText()'), /失败后这一笔也要保留/);
   await open('market');
   await waitFor("!document.querySelector('[data-market-open=cognia]').hidden");

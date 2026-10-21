@@ -7,11 +7,10 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -63,7 +62,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown) => {
@@ -89,7 +88,7 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     // The saved choice is kept with the draft and survives a restart; the round reads each piece now, through knowledge.read.
     const chosen = [pick("page", "p1", "试用说明"), pick("artifact", REPORT, "执行报告"), pick("page", "long", "长文")];
     assert.equal((await request("", "PATCH", { materials: chosen, draft: "保留草稿" })).status, 200);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.deepEqual((await request()).body.materials, chosen);
     reads.length = 0;
     const started = await start();
@@ -109,5 +108,5 @@ test("PMAT-18 Coding's materials are knowledge pieces read through knowledge.rea
     assert.ok(!starts[1]!.text_materials?.some(item => item.text.includes("伪造正文") || item.title === "伪造名称"));
     assert.equal((await start([])).status, 200);
     assert.deepEqual(starts[2]!.text_materials, []);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

@@ -16,8 +16,6 @@ import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
  * nothing to add passes nothing.
  */
 export interface RuntimePluginRouteHooks {
-  /** Runs after a restart or a release-quarantine ran, before its answer is sent. */
-  restarted?(): void;
   /** Runs before the plugin's route is dispatched, with the router that will dispatch it. */
   beforeDispatch?(router: PluginRouteRouter): Promise<void>;
   /** Runs after the plugin answered, before the answer is sent; may reshape `result.body`. */
@@ -55,7 +53,6 @@ export async function dispatchRuntimePluginRoute(
   if (operation === "restart" || operation === "release-quarantine") {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
     const state = await platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });
-    hooks.restarted?.();
     sendLocalWebJson(response, state.status === "running" ? 200 : 409, { state });
     return true;
   }

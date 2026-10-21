@@ -5,11 +5,10 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { writerDirectoryCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
@@ -33,7 +32,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } },
   });
-  const server = createServer((request, response) => { void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (suffix = "", method = "GET", body?: unknown) => {
@@ -50,7 +49,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     }
     assert.equal(created, 0); assert.equal(starts.length, 0);
     assert.equal((await request("", "PATCH", { draft: "主任务草稿", configuration })).status, 200);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     const restored = (await request()).body; assert.deepEqual(restored.configuration, configuration); assert.equal(restored.draft, "主任务草稿");
     grants = roots.filter(root => root.workspace_id !== "writer-b");
     assert.equal((await start(assignments)).status, 400); assert.equal(created, 0);
@@ -73,7 +72,7 @@ test("parallel assignment routes retain drafts, freeze trusted roots and task bo
     assert.match(JSON.stringify(tooLong.body), /总任务与分工合计超过 100000 字符/u);
     assert.equal(starts.length, 1);
     assert.equal((await request("", "PATCH", { configuration: { ...configuration, writer_assignments: [{ workspace_id: "writer-a", task: "" }] } })).status, 200, "incomplete drafts are retained without starting");
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); store = new LocalProjectDatabase(dbPath);
     assert.equal((await request()).body.configuration.writer_assignments[0].task, ""); assert.equal(starts.length, 1);
-  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(root, { recursive: true, force: true }); }
 });

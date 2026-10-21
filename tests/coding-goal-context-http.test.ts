@@ -5,14 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 // Host and Coding surface come from the same modules, so one project platform serves both.
-import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoBoard, DEMO_PROJECT_ID, codingRouteHooks, handleProjectPluginHttp, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleCodingPluginHttp, releaseCodingSurface } from "../apps/local-host/dist/coding-surface.js";
+import { handleProjectPluginHttp, releaseProjectPlugins } from "../apps/local-host/dist/coding-surface.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 function codingHostFixture(root: string) {
@@ -81,7 +81,7 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
   const barrier = hold(), pending = request(path, "POST", input);
   try {
     await Promise.race([barrier.entered, pending.then(answer => { throw new Error(`Goal write did not reach its policy barrier: ${answer.status}`); })]);
-    await releaseCodingSurface(owner, DEMO_PROJECT_ID);
+    await releaseProjectPlugins(owner, DEMO_PROJECT_ID);
     barrier.release();
     const refused = await pending;
     // W5-01-AQD-07: the shared route checks the stopped instance before the Goal write resumes.
@@ -108,12 +108,12 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   await createGoal("original"); await createGoal("next"); await createGoal("oversized", DEMO_PROJECT_ID, "长".repeat(21_000));
   await host.withProject(ref, ({ coordinator }) => coordinator.initializeBoard({ project_id: "other", actor_id: "web-user", idempotency_key: "other" }));
   await createGoal("foreign", "other");
-  const server = createServer((request, response) => { void host.withProject(ref, async ({ store }) => handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
+  const server = createServer((request, response) => { void host.withProject(ref, async ({ store }) => handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), {
     actions: { registry: host.actionRegistry(ref), client: { ...host.actionClient(ref), ...host.syncActionClient(ref) }, project_id: ref.project_id },
     store, projectId: DEMO_PROJECT_ID, actorId: "web-user",
     capabilities: host.client(ref), homeDirectory: root,
     escapeHtml: value => String(value), translate: value => value,
-  })).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
+  }, codingRouteHooks)).catch(error => { response.writeHead(500); response.end(JSON.stringify({ error: String(error) })); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (path: string, method = "GET", body?: unknown) => {

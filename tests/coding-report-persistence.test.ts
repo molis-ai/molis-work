@@ -6,10 +6,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseCodingSurface } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, codingRouteHooks, handleProjectPluginHttp } from "@molis-ai/molis-work-app-local-host";
 import { CODING_REPORT_TYPE, CODING_CLIENT_FACTORY_SCRIPT, codingReportPreview } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, agentTextMaterialContent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { handleCodingPluginHttp } from "../apps/local-host/dist/coding-surface.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 // specs/ai-interaction-experience AC-09 (Coding's report): the report opens from its fixed versions, with or without a runtime.
@@ -54,7 +53,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     } },
   });
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });
@@ -101,7 +100,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
     run.turns[1]!.text = "不同的后续内容";
     assert.deepEqual((await request("app", "failed", "POST")).body, saved);
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close();
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close();
     store = new LocalProjectDatabase(dbPath);
     api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
     runtimeAvailable = false;
@@ -113,7 +112,7 @@ test("AC-09: formal report routes freeze real Artifact versions, distinguish mis
     assert.equal(api.query.listArtifactVersions(DEMO_PROJECT_ID, saved.reference.artifact_id).length, 1);
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -166,7 +165,7 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
       throw new Error(`Unexpected capability ${definition.capability_id} ${JSON.stringify(args)}`);
     } } });
   const server = createServer((request, response) => {
-    void handleCodingPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); });
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), codingRouteHooks).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -209,6 +208,6 @@ test("RCPT-341–343: the report's 补充要求 keeps the ledger's fact, the AI'
     assert.equal(ownLines(material).filter(line => line === "## 执行状态").length, 1, "RCPT-343 and do not add a heading of their own");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
-    await releaseCodingSurface(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(dir, { recursive: true, force: true });
   }
 });

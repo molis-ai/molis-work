@@ -28,6 +28,6 @@ export function createImagesPlugin(): PluginDefinition {
     catch (error) { current.close(); throw error; }
     finally { recovering = false; }
     return { kind: "app", views: [imagesUiContribution], actions: createImagesActionHandlers({ service: () => current }),
-      routes: imagesRoutes(context), onProjectDeleted: projectId => current.cancelProject(projectId) };
+      routes: imagesRoutes(context) };
   }, async stop() { service?.close(); service = undefined; } };
 }

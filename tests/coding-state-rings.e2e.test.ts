@@ -134,3 +134,59 @@ test("VUX-40: cooperation, subagents and the usage meter speak English in Englis
       "the only status line is the budget note, in English");
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });
+
+// specs/visual-ui-experience VUX-40: the parallel-writer dialogs (separate worktrees, a turn's split, bringing a subtask's work back with a
+// three-way merge) speak English on an English page. The split marker in the turn is the protocol the server writes, so it stays as it is.
+test("VUX-40: the writer directories and integration dialogs speak English in English", { timeout: 30_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-english-writers-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
+  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
+    primitives: { escape: escapeHtml, icon, text: pageText("en"), formatDate: value => value } });
+  const marker = "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n";
+  try {
+    const page = await browser.page();
+    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    const result = await page.evaluate<{ han: string[]; writers: string; turn: string; integration: string; errors: string[] }>(`(async () => {
+      document.documentElement.lang='en';document.body.innerHTML=${JSON.stringify(html)};
+      const root=document.querySelector('[data-coding-workbench]');root.hidden=false;
+      const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
+      const settle=()=>new Promise(resolve=>setTimeout(resolve,20));
+      const writers=(${embeddedFactory("writerDirectories")})({lifetime,q,host:{},current:()=>'s',workspace:()=>'w',workspaceLabel:()=>'/repo',status:message=>errors.push(message),
+        assignments:()=>[{workspace_id:'wa',task:'Write the parser'}],saveAssignments:async()=>{},select:async()=>{},
+        api:async()=>({directories:[{canonical_path:'/repo-a',branch:'part-a',base_commit:'abc123',workspace_id:'wa'},{canonical_path:'/repo-b',branch:'part-b',problem:'its branch moved'},
+          {canonical_path:'/repo-c',branch:null,base_commit:'def456'}]})});
+      q('[data-coding-writer-directories-open]').click();await settle();
+      q('[data-coding-writer-assignments-save]').click();await settle();
+      const turn=document.createElement('div');document.body.append(turn);
+      writers.renderTurn(turn,{frozen:{role_id:'writers',subagent_workspaces:[{workspace_id:'wa',directory:{canonical_path:'/repo-a'}}]}},
+        {kind:'user',text:'Split the work'+${JSON.stringify(marker)}+JSON.stringify([{workspace_id:'wa',directory:'/repo-a',task:'Write the parser',branch:'part-a',base_commit:'abc123'}])});
+      const writersText=q('[data-coding-writer-directories-dialog]').textContent.replace(/\\s+/g,' ');
+      q('[data-coding-writer-directories-dialog]').close();
+      const integrations=(${embeddedFactory("integrations")})({lifetime,q,host:{},status:message=>errors.push(message),
+        api:async()=>({workspace_id:'w',source_path:'/tmp/child',branch:'child',target_path:'/repo',files:[
+          {path:['a.ts'],revision:'1',selectable:true,target:'modified',diff_html:'<p>diff</p>'},
+          {path:['b.ts'],revision:'2',selectable:true,target:'added',before_text:null,after_text:''},
+          {path:['c.ts'],revision:'3',selectable:true,target:'modified',conflict:{clean:false,merged_text:'<<<<<<< main\\nx\\n=======\\ny\\n>>>>>>> child\\n'}}]})});
+      await integrations.open('s','r',{subagent_id:'c'});
+      [...q('[data-coding-integration-files]').querySelectorAll('button')].find(button=>/three ways/.test(button.textContent)).click();
+      const dialog=q('[data-coding-integration-dialog]');dialog.querySelectorAll('details').forEach(node=>{node.open=true;});
+      const nodes=[root,...root.querySelectorAll('*'),turn,...turn.querySelectorAll('*')].filter(node=>!node.closest('template'));
+      const han=nodes.flatMap(node=>[...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).concat([...node.attributes].map(attr=>attr.value)))
+        .filter(value=>/[\\u3400-\\u9fff]/.test(value));
+      return {han:[...new Set(han)],writers:writersText,turn:turn.textContent.replace(/\\s+/g,' '),integration:dialog.textContent.replace(/\\s+/g,' '),errors};
+    })()`);
+    assert.deepEqual(result.han, [], "no Chinese in what these dialogs draw");
+    assert.match(result.writers, /Main repository: \/repo/);
+    assert.match(result.writers, /Branch: part-a.*Started from: abc123.*Include in the parallel split/);
+    assert.match(result.writers, /Can no longer be used as a separate worktree: its branch moved\./);
+    assert.match(result.writers, /The directory exists but isn't authorized for this project/);
+    assert.match(result.writers, /Split saved, not sent yet\./);
+    assert.match(result.turn, /^Split the work.*This turn's split · separate directories: 1.*Branch: part-a · started from: abc123/);
+    assert.match(result.integration, /From: \/tmp\/child · child.*Back into: \/repo/);
+    assert.match(result.integration, /b\.ts · added.*The file doesn't exist yet.*\(empty file\)/);
+    assert.match(result.integration, /Conflict 1 · lines: main workspace 1, subtask 1.*Use the main workspace.*Keep both/);
+    assert.match(result.integration, /Unresolved conflicts: 1/);
+    assert.deepEqual(result.errors, []);
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});

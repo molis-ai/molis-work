@@ -34,7 +34,7 @@ test("Coding stops hidden polling and releases every client listener before the 
   await evaluate(`(() => {
     codingParent.append(codingRoot);
     const mount=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})();
-    window.remountCoding=()=>(${CODING_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,openItem:()=>{}});
+    window.remountCoding=()=>(${CODING_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,translate:globalThis.L,openItem:()=>{}});
     remountCoding();remountCoding();
   })()`);
   await waitFor(`codingRequests.length > ${detachedReads}`);

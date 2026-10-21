@@ -248,7 +248,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       const runs = flow.instance_count ? L('{count} 次', { count: flow.instance_count }) + (flow.active_count ? ' · ' + L('{count} 次进行中', { count: flow.active_count }) : '') : L('还没走过');
       const live = flow.active_count ? '<i class="wf-row__live" title="' + esc(L('{count} 次进行中', { count: flow.active_count })) + '"></i>' : '';
       return '<button type="button" class="wf-row directory-list-row' + (selected ? ' is-selected' : '') + '" data-wf-open="' + esc(flow.workflow_id) + '"' + (selected ? ' aria-current="page"' : '') + '>'
-        + '<span class="wf-row__title"><span>' + esc(flow.title) + '</span>' + live + '</span><span class="wf-row__chain">' + chainText(flow) + '</span><span class="wf-row__meta">' + esc(runs) + '</span></button>';
+        + '<span class="wf-row__title"><span>' + esc(flow.title) + '</span>' + live + '</span><span class="wf-row__chain" data-overflow-fade>' + chainText(flow) + '</span><span class="wf-row__meta">' + esc(runs) + '</span></button>';
     }).join('') + '</nav>';
   }
 

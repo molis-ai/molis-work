@@ -1,9 +1,10 @@
 import { rm } from "node:fs/promises";
-import { ActionError, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { HomePluginDatabaseDeclaration, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { homeSqlitePartitionDirectory } from "@molis-ai/molis-work-storage";
+import { hasPluginBackground } from "./plugin-background-service.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 
 /** Project owner identity comes from the trusted catalog, never from a plugin contribution. */
@@ -40,33 +41,42 @@ export function assertProjectCleanupEntries(entries: readonly PluginProjectClean
   }
 }
 
-/** What the deletion asks of the executor: close and refuse the installation's library of the project (`HomePluginExecutor.clearProjectLibrary`). */
+/**
+ * What the deletion asks of the executor (`HomePluginExecutor`): stop the installation's background executions accepted in the project,
+ * and close and refuse its library of the project.
+ */
 export interface PluginProjectLibraries {
+  stopProjectBackground(installId: string, projectId: string): void;
   clearProjectLibrary(installId: string, projectId: string): () => void;
 }
 
 /**
- * The wrapper lives until all activations stop; each delivery reads the currently published generation. In one turn, as the deletion
- * needs (W5-01-RPC-01): the Plugin's `onProjectDeleted`, then its library of the project closed and refused to every call already under
- * way, then its own `purge` begun. Once that has settled the project's library is removed, and only then may a call begun after the
- * deletion open it again (specs/plugin-project-partition §2.5).
+ * The wrapper lives until all activations stop; each delivery reads the currently installed record. In one turn, as the deletion needs
+ * (W5-01-RPC-01): the platform stops the background executions the installation accepted in the project (PG-038), then its library of
+ * the project is closed and refused to every call already under way, then its own `purge` begins. Once that has settled the project's
+ * library is removed, and only then may a call begun after the deletion open it again (specs/plugin-project-partition §2.5). A plugin
+ * with background work and no data of a project gets a step of its own that only stops that work; the confirmation dialog does not
+ * list it.
  */
 export function registerPluginProjectCleanup(home: string, runtime: PluginRuntime, entries: readonly PluginProjectCleanupEntry[],
   libraries: PluginProjectLibraries): () => void {
   const hooks = projectDeletedHooksFor(home);
   const dispose = entries.flatMap(entry => {
     const owner = entry.project_data;
-    if (!owner) return [];
     const pluginId = entry.definition.manifest.plugin_id, signature = entry.definition.manifest.publisher.signature;
+    const stopBackground = (projectId: string) => {
+      const record = runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === signature && item.state !== "uninstalled");
+      if (record) libraries.stopProjectBackground(record.install_id, projectId);
+      return record;
+    };
+    if (!owner) {
+      return hasPluginBackground(entry.definition) ? [hooks.register({ id: `plugin-background:${pluginId}`, label: null, clear(projectId) { stopBackground(projectId); } })] : [];
+    }
     const partitioned = entry.database?.partition === "project" ? entry.database.store_name : undefined;
     return [hooks.register({
       id: owner.owner_id, label: owner.declaration.label,
       clear(projectId) {
-        const record = runtime.list().find(item => item.plugin_id === pluginId && item.publisher_signature === signature && item.state !== "uninstalled");
-        const contribution = record && runtime.contribution(record.install_id);
-        if (contribution?.kind === "app" && contribution.onProjectDeleted) {
-          requireSynchronous(contribution.onProjectDeleted(projectId), "项目清理前必须同步停止后台工作");
-        }
+        const record = stopBackground(projectId);
         if (!partitioned) return owner.declaration.purge!(home, projectId);
         const release = record ? libraries.clearProjectLibrary(record.install_id, projectId) : undefined;
         let purged: void | Promise<void>;

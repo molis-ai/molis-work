@@ -642,12 +642,8 @@ dialog.coding-palette::backdrop { background:var(--scrim); }
 .coding-change-body:empty { display:none; }
 [data-coding-change-reader] .diff .diff-notices { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; }
 [data-coding-change-reader] .diff .diff-notices li { padding:4px 8px; border-radius:999px; background:var(--nav-hover); font-size:12px; line-height:1.6; }
-[data-coding-change-reader] .diff .diff-rows { margin:0; padding:4px 0; border-radius:10px; background:var(--paper); font-size:12px; line-height:20px; }
-[data-coding-change-reader] .diff .diff-rows li { grid-template-columns:5ch 5ch minmax(max-content,1fr); gap:0; padding:0; }
-[data-coding-change-reader] .diff .diff-rows li.diff-fold { display:block; }
-[data-coding-change-reader] .diff .diff-rows li[hidden] { display:none; }
-[data-coding-change-reader] .diff .diff-rows code { padding:0 16px 0 8px; }
-[data-coding-change-reader] .diff .diff-before,[data-coding-change-reader] .diff .diff-after { padding-right:8px; color:var(--faint); user-select:none; }
+[data-coding-change-reader] .diff .diff-rows { --diff-bg:var(--paper); margin:0; padding:4px 0; border-radius:10px; font-size:12px; line-height:20px; }
+[data-coding-change-reader] .diff .diff-before,[data-coding-change-reader] .diff .diff-after { color:var(--faint); }
 [data-coding-change-reader] .diff [data-kind=insert] .diff-sign { color:var(--green); }
 [data-coding-change-reader] .diff [data-kind=delete] .diff-sign { color:var(--red); }
 [data-coding-change-reader] [data-coding-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
@@ -793,9 +789,6 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 .coding-integration-diff { margin-top:8px; }
 .coding-integration-diff > summary { cursor:pointer; font-size:12px; color:var(--muted); }
 .coding-integration-diff .diff .diff-rows { margin:8px 0 0; max-height:360px; font-size:12px; line-height:20px; }
-.coding-integration-diff .diff .diff-rows li { grid-template-columns:5ch 5ch minmax(max-content,1fr); gap:0; }
-.coding-integration-diff .diff .diff-rows li[hidden] { display:none; }
-.coding-integration-diff .diff .diff-rows li.diff-fold { display:block; }
 .coding-merge { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin-top:8px; padding:12px; border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line)); border-radius:10px; background:color-mix(in srgb,var(--amber) 5%,var(--paper)); }
 .coding-merge > p { margin:0; font-size:12px; color:var(--muted); }
 .coding-merge-editor { box-sizing:border-box; width:100%; max-width:100%; min-height:12rem; font:12px/1.6 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); white-space:pre; overflow:auto; resize:vertical; }

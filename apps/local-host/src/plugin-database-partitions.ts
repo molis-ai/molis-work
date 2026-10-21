@@ -53,7 +53,7 @@ export interface PartitionedPluginDatabase {
   /**
    * The project is being deleted: its library is closed now, writes under way included, and every call already begun is refused
    * from now on, whether it reads or writes; until `release` nothing opens it again, so the files can be removed. Synchronous, so
-   * the deletion runs it in the same turn as the Plugin's `onProjectDeleted`. Calls begun after `release` open a new library.
+   * the deletion runs it in the same turn as stopping the project's background executions. Calls begun after `release` open a new library.
    */
   clearProject(projectId: string): () => void;
   /** The Plugin stops: every library is closed and the client refuses from now on. */

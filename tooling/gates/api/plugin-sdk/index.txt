@@ -347,6 +347,11 @@ export declare function instantIn(day: string, time: string, zone: string | unde
 
 export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
+export declare function isHomeAggregateQuery(definition: {
+    readonly operation: string;
+    readonly action: object;
+}): boolean;
+
 export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";

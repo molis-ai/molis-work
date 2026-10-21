@@ -413,12 +413,6 @@ export interface PluginRouteBinding {
  */
 export interface PluginAppContribution {
   kind: "app";
-  /**
-   * Trusted Home lifecycle: synchronously cancel this project's in-memory work; grants no persistence authority. 2026-10-18 改:
-   * removed; deleting a project cancels its work through `services.background` before the platform purges what the plugin declared
-   * (PG-106 in specs/repository-anti-corruption/privileges.md).
-   */
-  onProjectDeleted?(projectId: string): void;
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
   /** Renderers for the views the Manifest declares. */

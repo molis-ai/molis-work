@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { AssistantBackgroundJob, AssistantUndoable, AssistantUnsettledChange } from "@molis-ai/molis-work-contracts/services/assistant";
-import { openWork, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
+import { openWork, putInput, seedWork, sendBrowser } from "./fixtures/assistant-send-journey.js";
 
 // specs/visual-ui-experience VUX-08, VUX-22: the Assistant's side groups what a work made, changed and still runs elsewhere
 // into one disclosure each. A real work on a real Host; its change and job rows, which only an owner's undoable action or
@@ -125,4 +125,121 @@ test("VUX-08: 产出 keeps a fixed 成果库 version apart from the working obje
   assert.doesNotMatch(groups[0]![1], /周报草稿/);
   assert.match(groups[1]![1], /周报草稿/);
   assert.equal(await evaluate<string>(`${results}.querySelector('.assistant-block-badge').textContent`), "2", "the summary still counts everything made");
+});
+
+// VUX-08/09 「上下文显示待发送/本次实际使用/历史引用」: what the next Send carries, what the latest round used and what earlier
+// rounds used are three places, never one list. The two rounds' materials and the work's material objects are added to the
+// view the page reads, in the contract's shape; the pending one is put in as a page hands one over. The Host records an
+// object's relation before the round starts (the Send links it, then dispatches), and a second use keeps the first record,
+// so an object is placed by the rounds whose materials name it, not by its time.
+test("VUX-08 VUX-09: 上下文 keeps what waits to be sent, what this round used and what earlier rounds used apart", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const id = await seedWork(browser, "整理本周数据");
+  const early = "2026-10-19T08:00:00.000Z", late = "2026-10-19T09:00:00.000Z";
+  await evaluate(`(() => { const fetch0 = window.fetch; window.fetch = async (input, init) => {
+    const response = await fetch0(input, init), path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (!/\\/api\\/assistant\\/works\\/${id}$/.test(path) || (init && init.method && init.method !== "GET")) return response;
+    const view = await response.json(), round = view.rounds[0];
+    const page = (id, title) => ({ material_id: "m-" + id, kind: "object", title, explicit: true, object: { kind: "pages_document", id } });
+    view.rounds = [{ ...round, run_id: "r-early", started_at: ${JSON.stringify(early)}, materials: [{ material_id: "m-old", kind: "text", title: "旧会议纪要", explicit: true }, page("p-old", "上周周报"), page("p-both", "项目说明")] },
+      { ...round, run_id: "r-late", started_at: ${JSON.stringify(late)}, materials: [{ material_id: "m-new", kind: "file", title: "本周数据.csv", explicit: true }, page("p-new", "本周计划"), page("p-both", "项目说明")],
+        context: { ...(round.context || {}), source: { surface: "pages" }, captured_at: ${JSON.stringify(late)}, selection: { text: "第三季度  收入", truncated: false } } }];
+    view.objects = [...(view.objects || []).filter((o) => o.relation !== "material"),
+      { relation: "material", subject: { kind: "pages_document", id: "p-old" }, title: "上周周报", recorded_revision: "1", current_revision: "1", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-both" }, title: "项目说明", recorded_revision: "2", current_revision: "2", state: "current", recorded_at: "2026-10-19T07:59:59.000Z" },
+      { relation: "material", subject: { kind: "pages_document", id: "p-new" }, title: "本周计划", recorded_revision: "4", current_revision: "4", state: "current", recorded_at: "2026-10-19T08:59:59.000Z" }];
+    return new Response(JSON.stringify(view), { status: response.status, headers: response.headers });
+  }; })()`);
+  await openWork(browser, id);
+  const box = `document.querySelector('[data-assistant-block="materials"]')`;
+  await waitFor(`${box}?.hidden === false && ${box}.textContent.includes('本周计划')`, 15_000);
+  await putInput(browser, "接着整理", "补充说明");
+  await waitFor(`${box}.querySelector('.assistant-drop').textContent.includes('补充说明')`);
+  const read = await evaluate<{ title: string; pending: string; groups: Array<[string, string]>; badge: string }>(`(() => ({
+    title: ${box}.querySelector('.assistant-block-title').textContent,
+    pending: ${box}.querySelector('.assistant-drop').textContent,
+    groups: [...${box}.querySelectorAll('.assistant-group')].map((g) => [g.querySelector('.assistant-block-sub').textContent, g.querySelector('.assistant-tiles').textContent]),
+    badge: ${box}.querySelector('.assistant-block-badge').textContent }))()`);
+  assert.equal(read.title, "上下文");
+  assert.match(read.pending, /待发送/);
+  assert.doesNotMatch(read.pending, /本周数据|本周计划|旧会议纪要|上周周报/, "nothing already used is shown as waiting");
+  assert.deepEqual(read.groups.map(([label]) => label), ["本次使用", "历史引用"]);
+  assert.match(read.groups[0]![1], /本周计划/); assert.match(read.groups[0]![1], /本周数据\.csv/); assert.match(read.groups[0]![1], /选中的内容：第三季度 收入/, "what the round saw of the page is part of what it used");
+  assert.match(read.groups[0]![1], /项目说明/, "used in both rounds, it is under the latest");
+  assert.doesNotMatch(read.groups[0]![1], /上周周报|旧会议纪要/);
+  assert.doesNotMatch(read.groups[1]![1], /项目说明/, "each object once");
+  assert.match(read.groups[1]![1], /上周周报.*第 1 轮/, "an object an earlier round used says which round"); assert.match(read.groups[1]![1], /旧会议纪要.*第 1 轮|第 1 轮.*旧会议纪要/);
+  assert.equal(read.badge, "1 项待发送", "what waits is the summary while nothing changed");
+});
+
+// VUX-08/09 「工作环境显示项目/目录/仓库范围」「连接与工具显示连接、授权、可调用性」: on a real Host, a project work's 工作环境
+// names its project and 连接与工具 lists what the Assistant can call there by provider, both read from their owners.
+test("VUX-08 VUX-09: 工作环境 names the work's project and 连接与工具 what the Assistant can call there, read from their owners", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const id = await seedWork(browser, "看看能用什么");
+  await openWork(browser, id);
+  const env = `document.querySelector('[data-assistant-block="environment"]')`, tools = `document.querySelector('[data-assistant-block="tools"]')`;
+  await waitFor(`${env}?.hidden === false && ${tools}?.hidden === false`, 20_000);
+  const read = await evaluate<{ env: string; groups: string[]; callable: string; badge: string }>(`(() => ({ env: ${env}.textContent,
+    groups: [...${tools}.querySelectorAll('.assistant-group > .assistant-block-sub')].map((n) => n.textContent),
+    callable: [...${tools}.querySelectorAll('.assistant-group')].find((g) => g.querySelector('.assistant-block-sub').textContent === '可调用')?.textContent || '',
+    badge: ${tools}.querySelector('.assistant-block-badge')?.textContent || '' }))()`);
+  const project = await evaluate<string>(`fetch('/api/assistant/works/${id}').then((r) => r.json()).then((v) => v.work.scope_title || '')`);
+  assert.ok(project && read.env.includes(project), `the project is named (${project}): ${read.env}`);
+  assert.match(read.env, /项目范围/);
+  assert.ok(read.groups.includes("可调用"), read.groups.join(","));
+  assert.match(read.callable, /\d+ 项可用/);
+  assert.match(read.badge, /^\d+ 项可用$/);
+});
+
+// For a work Coding carries: its directory and repository, a conflict as the summary; a connection that needs signing in
+// stands out and is the 连接与工具 summary. The Host's answer is replaced by one in the contract's shape, as Coding,
+// the workspace and the connectors would give it.
+test("VUX-08 VUX-09: a Coding work shows its directory and repository, and what needs the person stands out in both groups", { timeout: 120_000 }, async t => {
+  const browser = await sendBrowser(t); if (!browser) return;
+  const { evaluate, waitFor } = browser;
+  const id = await seedWork(browser, "改发布脚本");
+  const answer = { environment: { scope: { kind: "project", project_id: "p", title: "发布计划" }, coding: { workspace: { name: "molis", path: "/work/molis" },
+      git: { repository: "molis-ai/molis-work", branch: "feature/env", ahead: 2, behind: 0, changed: 3, conflicted: 1 } } },
+    connections: [{ connection_id: "c1", title: "GitHub", account: "octo", state: "connected", tools: "callable" }, { connection_id: "c2", title: "Notion", account: null, state: "needs-authorization", tools: "none-discovered" }],
+    tools: { executor: "coding", callable: [], unavailable: [] }, read_at: at };
+  // The Host's answers in turn (the last one stays); "fail" is a read that fails.
+  await evaluate(`(() => { window.answers = [${JSON.stringify(answer)}]; window.asked = 0; const fetch0 = window.fetch; window.fetch = async (input, init) => {
+    const path = new URL(typeof input === "string" ? input : input.url, location.href).pathname;
+    if (!/\\/api\\/assistant\\/works\\/${id}\\/surroundings$/.test(path)) return fetch0(input, init);
+    window.asked++; const next = window.answers.length > 1 ? window.answers.shift() : window.answers[0];
+    return next === "fail" ? new Response(JSON.stringify({ code: "x", message: "暂时读不到" }), { status: 500, headers: { "Content-Type": "application/json" } })
+      : new Response(JSON.stringify(next), { status: 200, headers: { "Content-Type": "application/json" } });
+  }; })()`);
+  await openWork(browser, id);
+  const env = `document.querySelector('[data-assistant-block="environment"]')`, tools = `document.querySelector('[data-assistant-block="tools"]')`;
+  await waitFor(`${env}?.textContent.includes('molis-ai/molis-work') && ${tools}?.textContent.includes('Notion')`, 20_000);
+  const read = await evaluate<{ env: string; envBadge: [string, boolean]; tools: string; toolsBadge: [string, boolean]; blocked: string }>(`(() => {
+    const badge = (b) => { const n = b.querySelector('.assistant-block-badge'); return [n.textContent, n.classList.contains('is-attention')]; };
+    return { env: ${env}.textContent, envBadge: badge(${env}), tools: ${tools}.textContent, toolsBadge: badge(${tools}),
+      blocked: [...${tools}.querySelectorAll('.assistant-item-sub.is-blocked')].map((n) => n.textContent).join('|') }; })()`);
+  assert.match(read.env, /molis.*目录 · \/work\/molis/);
+  assert.match(read.env, /molis-ai\/molis-work · feature\/env/);
+  assert.match(read.env, /领先 2 · 3 处未提交 · 1 处冲突/);
+  assert.deepEqual(read.envBadge, ["1 处冲突", true], "a conflict is the summary and stands out");
+  assert.match(read.tools, /GitHub.*已连接 · octo · 工具可调用/);
+  assert.match(read.blocked, /需要登录授权/);
+  assert.deepEqual(read.toolsBadge, ["1 项要处理", true]);
+  assert.match(read.tools, /Coding Agent.*用它自己的工具与 MCP/);
+  assert.equal(await evaluate<boolean>(`(() => { const side = document.querySelector('[data-assistant-block="tools"]').parentElement; return side.scrollWidth <= side.clientWidth; })()`), true, "a long line in a card ellipsizes; it never widens the side column");
+
+  // The person signs in to Notion elsewhere and resolves the conflict; the work itself does not change. Coming back to the
+  // page after more than 15 s asks again (here the first try fails), and focus entering the side 3 s later tries again.
+  const after = { ...answer, environment: { ...answer.environment, coding: { ...answer.environment.coding, git: { ...answer.environment.coding.git, conflicted: 0 } } },
+    connections: answer.connections.map((one) => ({ ...one, state: "connected", tools: "callable" })) };
+  const before = await evaluate<number>(`window.asked`);
+  await evaluate(`(() => { window.answers = ["fail", ${JSON.stringify(after)}]; const now0 = Date.now; window.later = 20000; Date.now = () => now0() + window.later;
+    document.dispatchEvent(new Event("visibilitychange")); })()`);
+  await waitFor(`window.asked === ${before + 1}`, 10_000);
+  assert.match(await evaluate<string>(`${tools}.textContent`), /需要登录授权/, "a failed read keeps what was shown");
+  await evaluate(`(() => { window.later += 4000; document.querySelector('[data-assistant-block="tools"] .assistant-block-head').focus(); })()`);
+  await waitFor(`window.asked === ${before + 2} && !${tools}.textContent.includes('需要登录授权') && !${env}.textContent.includes('处冲突')`, 10_000);
+  assert.equal(await evaluate<string>(`${tools}.querySelector('.assistant-block-badge')?.classList.contains('is-attention') ? 'attention' : 'calm'`), "calm", "nothing left to handle no longer stands out");
 });

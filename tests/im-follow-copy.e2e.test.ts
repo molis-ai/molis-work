@@ -49,6 +49,20 @@ test("VUX-26 VUX-19: the discussion stream follows at the end, stays put for a r
   assert.equal(await post("第 32 条：跟随时到的"), 200);
   await waitFor(`${stream}.textContent.includes('第 32 条') && ${stream}.scrollHeight - ${stream}.scrollTop - ${stream}.clientHeight <= 1`, 20_000);
 
+  // Scrolled up a little, past the follower's 48 px but under IM's old 70 px "at the bottom", the reader has left the end: the
+  // next message does not pull them back, because IM asks the follower rather than measuring a distance of its own.
+  await command("Input.dispatchMouseEvent", { type: "mouseWheel", x: box.x, y: box.y, deltaX: 0, deltaY: -60 }, sessionId);
+  await waitFor(`${stream}.dataset.follow === 'detached'`);
+  await new Promise(resolve => setTimeout(resolve, 300));
+  const near = await evaluate<{ top: number; gap: number }>(`({ top: ${stream}.scrollTop, gap: ${stream}.scrollHeight - ${stream}.scrollTop - ${stream}.clientHeight })`);
+  assert.ok(near.gap > 48 && near.gap < 70, `the reader is ${near.gap} px from the end`);
+  assert.equal(await post("第 33 条：刚往上滚一点时到的"), 200);
+  await waitFor(`${stream}.textContent.includes('第 33 条')`, 20_000);
+  await waitFor(`${im}.querySelector('[data-action="latest-group"]').hidden === false`);
+  assert.equal(await evaluate<number>(`${stream}.scrollTop`), near.top, "a reader a few pixels from the end stays where they are");
+  await evaluate(`${im}.querySelector('[data-action="latest-group"]').click()`);
+  await waitFor(`${stream}.dataset.follow === 'following' && ${stream}.scrollHeight - ${stream}.scrollTop - ${stream}.clientHeight <= 1`, 10_000);
+
   // The IM page carries the shared copy feedback after its own button rules: on one of its primary buttons, the answer stacks
   // in the same box and is read out. (The invite link it serves is offered for shared rooms, not a project's.)
   // A real press, so the frame has focus as it does when a person copies.

@@ -12,7 +12,6 @@ import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentR
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { handleProjectPluginHttp, releaseProjectPlugins } from "../apps/local-host/dist/coding-surface.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 
 function codingHostFixture(root: string) {

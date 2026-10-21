@@ -238,9 +238,9 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-40 Chinese UI (slice 64): the Goals kanban on a narrow board starts below its toolbar,
-  // as the list does (+54 B).
-  "/assets/molis-work-workbench.css": [1620463, 1620517],
+  // specs/visual-ui-experience VUX-05 (slice 65): the tooltip goes on a scroll only when that scroll moves what it is about,
+  // not when another box follows its output (+61 B).
+  "/assets/molis-work-workbench.js": [1175680, 1175741],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

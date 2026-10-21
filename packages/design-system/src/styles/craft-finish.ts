@@ -1754,10 +1754,10 @@ const CRAFT_BASE_STYLES = `
   .mw-catalog .mw-craft-tab svg { width: 14px; height: 14px; }
   .mw-catalog .mw-craft-tip { position: static; opacity: 1; transform: none; margin-left: 12px; }
   /* Icon inventory and motion specimens. */
-  .mw-catalog .mw-icon-inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(168px, 1fr)); gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
+  .mw-catalog .mw-icon-inventory { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(168px, 100%), 1fr)); gap: 4px 16px; margin: 0; padding: 0; list-style: none; }
   .mw-catalog .mw-icon-inventory { width: min(880px, 100%); }
   .mw-catalog #icon-inventory .mw-catalog__specimens { grid-template-columns: minmax(0, 1fr); }
-  .mw-catalog #icon-inventory .mw-catalog__specimens > * { width: 100%; }
+  .mw-catalog #icon-inventory .mw-catalog__specimens > * { margin-inline: 0; }
   .mw-catalog .mw-icon-inventory > li { display: flex; align-items: center; gap: 8px; min-height: 36px; color: var(--ink-soft); font-size: 13px; }
   .mw-catalog .mw-icon-inventory > li > svg { flex: none; width: 16px; height: 16px; }
   .mw-catalog .mw-icon-inventory > li > span:last-child, .mw-catalog .mw-icon-inventory > li strong + code { display: grid; }

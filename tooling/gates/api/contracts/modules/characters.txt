@@ -121,6 +121,21 @@ export declare const characterErrors: import("platform/action-errors").ErrorCode
     readonly invalid: "invalid";
 }>;
 
+export declare const characterPluginActions: {
+    readonly list: ActionDefinition<Record<string, never>, {
+        drafts: unknown[];
+        publications: unknown[];
+    }>;
+    readonly runnable: ActionDefinition<{
+        reference: ArtifactReference;
+    }, {
+        available: true;
+    } | {
+        available: false;
+        reason: string;
+    }>;
+};
+
 export declare const modulesCharactersContract: {
     readonly contractId: "io.molis.work.module.characters.v1";
     readonly kind: "module";

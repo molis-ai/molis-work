@@ -17,7 +17,7 @@ type Handler = (request: PluginRouteRequest, api: PluginCapabilityClient, execut
  * work it sets off: a write is fenced by the `beforeWrite` the caller hands the store (`store.ts`), which the platform checks
  * again inside the transaction, not by wrapping every store call.
  */
-export function codingRouteEntry(context: PluginStartContext, execution: CodingExecution | undefined, actions: ActionHandlerBinding[],
+export function codingRouteEntry(context: PluginStartContext, execution: CodingExecution, actions: ActionHandlerBinding[],
   alive: () => boolean, failure: (error: unknown) => { status: number; body: unknown }) {
   const check = (control?: Control, ownerCheck?: () => Promise<void>, permissions: readonly string[] = []): CodingBeforeWrite => {
     const assert_current = () => {
@@ -30,8 +30,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
   };
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite) => {
     const api = context.services?.capabilities;
-    if (!execution || !api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
-    await execution.ready();
+    if (!api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
     if (request.method !== "GET") await beforeWrite();
     beforeWrite.assert_current();
     const controlled: PluginCapabilityClient = { availability: definition => api.availability(definition),

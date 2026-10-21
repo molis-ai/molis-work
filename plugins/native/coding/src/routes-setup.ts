@@ -4,7 +4,7 @@ import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.j
 import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
-import type { CodingExecutionPorts } from "./routes.js";
+import { codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
 import { libraryRuntime } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -19,19 +19,19 @@ type RouteMaker = (a: CodingActivation) => PluginRouteBinding | PluginRouteBindi
 const ROUTES: RouteMaker[] = [
   (a) => {
     const { context, route } = a;
-    return route("coding.actions", async (request, api, execution) => {
+    return route("coding.actions", async (request, api, execution, beforeWrite) => {
       const record = selected(a, request, execution), runtimes = await api!.invoke(agent.listRuntimes, []);
       const tools = runtimes.some(runtime => runtime.runtime_id === record.runtime_id && runtime.supports_action_tools)
         ? await api!.invoke(agent.listActions, [record.runtime_id, context.plugin_id]) : [];
       const characterRef = savedCharacter(context, record.session_id);
-      let character: ReturnType<NonNullable<CodingExecutionPorts["characters"]>["resolve"]> | undefined;
+      // The tools the session's Character allows: none when it sets no limit; Characters' own refusal (the version is off, gone) is shown beside each action.
+      let characterTools: Awaited<ReturnType<typeof execution.characters.actionTools>>;
       let character_error: string | undefined;
-      try { if (characterRef) character = execution.characters?.resolve(characterRef); }
-      catch (error) { character_error = error instanceof Error ? error.message : "原角色不可用"; }
-      if (characterRef && !character && !character_error) character_error = "原角色不可用";
+      try { if (characterRef) characterTools = await execution.characters.actionTools(characterRef, codingActionControl(beforeWrite)); }
+      catch (error) { beforeWrite.assert_current(); character_error = error instanceof Error ? error.message : "原角色不可用"; }
       return { actions: tools.map(view => ({ ...view, availability: character_error
         ? { available: false, code: "agent.character_unavailable", reason: character_error }
-        : character?.action_tools && !character.action_tools.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && ref.provider_id === view.provider.provider_id)
+        : characterTools && !characterTools.some(ref => ref.capability_id === view.capability_id && ref.version === view.version && ref.provider_id === view.provider.provider_id)
           ? { available: false, code: "agent.character_scope", reason: "当前 Character 未开放此能力" } : view.availability })), selected: savedActions(context, record.session_id) };
     });
   },
@@ -163,9 +163,9 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.characters", async (request, _api, execution) => {
+    return route("coding.characters", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      return { characters: execution.characters?.list() ?? [], selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
+      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
     });
   },
   // The files a person can name with @: read through the Host's read-only workspace file action, briefly remembered.

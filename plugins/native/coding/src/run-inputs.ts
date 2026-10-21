@@ -3,7 +3,7 @@ import { AGENT_REASONING_EFFORTS, type AgentReasoningEffort, type AgentRunContro
 import { AGENT_INPUT_KEY_PATTERN, AGENT_INPUT_SOURCES, AGENT_STEER_MODES, type AgentInputSend, type AgentInputSource, type AgentSteerMode } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 import { QUESTION_LIMITS, questionAnswer as cardAnswer } from "@molis-ai/molis-work-plugin-sdk";
 import { codingWriterAssignments } from "./writers.js";
-import type { CodingModelChoice } from "./routes.js";
+import type { CodingModelChoice } from "./models.js";
 
 const identity = {
   session_id: { type: "string", minLength: 1, maxLength: 200 },

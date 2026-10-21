@@ -98,19 +98,26 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
    * One loop per runtime: it waits for a continuation to be ready (no polling of what the waits wait on) and takes it up.
    * It belongs to the activation, not to the request that started it: it reads and starts with the activation's own
    * capabilities and execution (the same object for every request, route-entry.ts).
+   *
+   * A loop that `recovery` started (the activation found sessions tied to an Agent run) did not wait for the runtime to be ready: its
+   * first read starts the runtime. If that first read fails, before any has succeeded, the runtime is not there to be woken (not
+   * attached, or it cannot start), and the loop ends as it does for a Host without a task graph, instead of retrying every 5 to 30 s
+   * for nothing; the next `coding.state` read or round starts a loop again. A loop a request started keeps retrying.
    */
-  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string) => {
+  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => {
     const api = context.services!.capabilities!;
     if (waking.has(runtimeId) || deps.stopped.aborted) return;
     waking.add(runtimeId);
     deps.detach(() => void (async () => {
       const held = new Set<string>();
+      let served = false;
       // Transient read failures back off while this activation is alive; a Host without a task graph ends the loop.
       for (let failures = 0; !deps.stopped.aborted;) {
         let ready: CodingWaitView[];
-        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: deps.stopped })).flatMap(view => openWait(view) ?? []); failures = 0; }
+        try { ready = (await api.invoke(agent.awaitContinuations, [runtimeId, 25_000, [...held]], { signal: deps.stopped })).flatMap(view => openWait(view) ?? []); failures = 0; served = true; }
         catch (error) {
           if (error && typeof error === "object" && "code" in error && error.code === "agent.capability_unavailable") break;
+          if (recovery && !served) break;
           failures += 1; await deps.pause(Math.min(30_000, failures * 5_000)); continue;
         }
         if (deps.stopped.aborted) break;

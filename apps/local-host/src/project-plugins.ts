@@ -1,12 +1,12 @@
 import { openHostShelfStore } from "./shelf-actions.js";
 import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createCharactersPlugin } from "@molis-ai/molis-work-plugin-characters";
-import { charactersPluginPorts, codingCharacterPorts } from "./characters-host.js";
+import { charactersPluginPorts } from "./characters-host.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createCodingPlugin, type CodingExecutionPorts, type CodingPluginPorts } from "@molis-ai/molis-work-plugin-coding";
+import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_PLUGIN_ID, createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
 import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
@@ -34,13 +34,10 @@ export interface ProjectPluginPorts {
   store: LocalProjectDatabase;
   projectId: string;
   actorId: string;
-  /** Sessions attach to Goals by id; the title is resolved here, never copied. */
-  goalTitle(goalId: string): string | undefined;
   /** Directories bound to this project. Empty means none is bound yet. */
   workspaces?: readonly ProjectWorkspaceRef[];
   capabilities?: PluginCapabilityPort;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
-  execution?: Omit<CodingExecutionPorts, "goalTitle">;
   routePrefix?: string;
   homeDirectory?: string;
 }
@@ -111,7 +108,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     if (existing.ports.actorId !== ports.actorId || existing.ports.homeDirectory !== ports.homeDirectory
       || existing.ports.actions.project_id !== ports.actions.project_id) throw new Error("项目插件实例的 Home、用户或项目身份不一致");
     // Entry-point adapters can arrive after headless discovery; identity and storage stay bound.
-    for (const key of ["execution", "characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
+    for (const key of ["characterSpawn", "characterWorkspaces", "workspaces", "routePrefix", "observeGitOperations"] as const) {
       if (ports[key] !== undefined) Object.assign(existing.ports, { [key]: ports[key] });
     }
     const state = await existing.ready;
@@ -162,15 +159,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
           return { item, snapshot: await shelf.snapshot() };
         },
       } : undefined;
-    const codingPorts: CodingPluginPorts = { execution: {
-        ready: async () => {
-          if (!ports.execution) throw new Error("Agent 执行服务尚未接通");
-          await ports.execution.ready();
-        },
-        models: () => ports.execution?.models() ?? Promise.resolve([]),
-        goalTitle: ports.goalTitle,
-        characters: codingCharacterPorts(ports.homeDirectory, ports.actorId, ports.projectId, artifacts.query),
-      } };
     const filesPorts = { readable: () => currentWorkspaceId(ports) !== null,
       onWorkspaceChanged: () => { platform.invalidateView(FILES_PLUGIN_ID); } };
     const operationListeners = new Set<(event: GitOperationUpdate) => void>();
@@ -204,10 +192,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       },
       ...ports.homeDirectory ? homeLibraryPlugins() : [],
       {
-        definition: createCodingPlugin(codingPorts),
+        definition: createCodingPlugin(),
         bundled: true,
         releaseArtifact: nativePluginReleaseArtifact<typeof createCodingPlugin>(
-          "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory(codingPorts)),
+          "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory()),
       },
       {
         definition: createFilesPlugin(filesPorts),

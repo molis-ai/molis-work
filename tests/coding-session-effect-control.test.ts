@@ -94,7 +94,7 @@ test("W5-01-CODING-17 Coding builds its store from the service the platform lend
   // A Host that lends no project library: the plugin says so in words and does not start.
   const without = startContext({});
   await assert.rejects(definition.start(without), /services\.project_database/);
-  // With the real service (nothing but `goalTitle`, `ready` and `models` come from the Host): it starts, and the session a route
+  // With the real service (the Host lends Coding no port of its own since C2): it starts, and the session a route
   // makes is in the project library, which a second client of the same file reads back.
   const fixture = await codingSdkRuntime(t);
   const created = await fixture.call("/sessions", { title: "走平台的项目库" });
@@ -121,7 +121,7 @@ function routesOver(services: { capabilities?: PluginCapabilityClient }) {
   const hooks = { onWrite: () => {} };
   const watched: PluginDatabase = { ...database, transaction: (beforeEffect, write) => { hooks.onWrite(); return database.transaction(beforeEffect, write); } };
   const sessions = new CodingSessionStore(watched);
-  const routes = codingFixtureRoutes(startContext({ storage: privateStorage(), ...services }), sessions, { goalTitle: () => undefined, ready: async () => {}, models: async () => [] });
+  const routes = codingFixtureRoutes(startContext({ storage: privateStorage(), ...services }), sessions);
   return { database, sessions, hooks, call: (id: string, request: Partial<PluginRouteRequest>) => routes.find(route => route.route_id === id)!.handle({ query: {}, ...request } as PluginRouteRequest) };
 }
 

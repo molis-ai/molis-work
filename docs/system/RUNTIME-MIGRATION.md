@@ -205,6 +205,8 @@ Todo 打开 Home 级路径：它是第一个迁到 Home 级实例上的插件，
 
 现状：包 `plugins/native/characters` 有 13 个源文件、约 965 行（界面、14 条路由、动作、成果预览、导入）；Manifest `kind: "app"`，目录条目标 `personal: true`，有两个视图，设置里的 `settings`（`order: 35`，排在「助理」之后）和舞台页 `page`；数据和服务在 Module `modules/characters`；监督器条目在 `project-plugins.ts`；宿主里有 `characters-host.ts`（84 行，另含 Coding 用的 `codingCharacterPorts`）、`character-import-discovery.ts`、`character-import-plugins.ts`、`character-native-execution.ts`；`coding-surface.ts` 的 `charactersWorkbenchPanel` 拼它的舞台页；门禁的 `RUNTIME_ASSEMBLED` 有 `characters`。
 
+进度（CHR-0，`specs/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节）：第 1 点的处理器部分已做：动作处理器、发布核对、本机导入与预览已在 `modules/characters`（`createCharactersActionHandlers`），Host 的 `characters-host.ts` 用端口建出它们交给插件，`plugins/native/characters/src/plugin.ts` 只做动作绑定与旧路径路由。其余各点没动，装配仍是 Runtime 插件。
+
 这一片必须覆盖的点（设计在片内定，不在本计划里预先定死）：
 
 1. **代码放哪**：宿主还是 `modules/characters`。Module 已经拥有草稿、修订和启用状态；放进 `apps/local-host` 要遵守「apps 只装配与做 IO，不写业务规则」（`docs/system/DEVELOPMENT-REQUIREMENTS.md`）。

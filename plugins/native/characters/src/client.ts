@@ -10,14 +10,13 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   let records = [], publications = [], selected = null, revision = null, busy = false, confirmation = null;
   let importsView, actionsView;
   let drafts = {};
-  try {
-    const stored = JSON.parse(sessionStorage.getItem(key) || '{}');
-    if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
-      drafts = Object.fromEntries(Object.entries(stored).filter(([id, value]) => typeof id === 'string' && value && typeof value.title === 'string'
-        && typeof value.instructions === 'string' && Number.isSafeInteger(value.expected_revision) && value.expected_revision > 0
-        && (value.host_tools === null || Array.isArray(value.host_tools) && value.host_tools.every(tool => typeof tool === 'string'))));
-    }
-  } catch {}
+  // Session storage that cannot be read or holds something else is no stored drafts.
+  const stored = (() => { try { return JSON.parse(sessionStorage.getItem(key) || '{}'); } catch { return null; } })();
+  if (stored && typeof stored === 'object' && !Array.isArray(stored)) {
+    drafts = Object.fromEntries(Object.entries(stored).filter(([id, value]) => typeof id === 'string' && value && typeof value.title === 'string'
+      && typeof value.instructions === 'string' && Number.isSafeInteger(value.expected_revision) && value.expected_revision > 0
+      && (value.host_tools === null || Array.isArray(value.host_tools) && value.host_tools.every(tool => typeof tool === 'string'))));
+  }
   const persist = () => { try { sessionStorage.setItem(key, JSON.stringify(drafts)); } catch { q('notice').textContent = '浏览器无法保存临时草稿，请在离开前保存。'; } };
   const note = text => { q('notice').textContent = text; };
   const current = () => records.find(item => item.character_id === selected);
@@ -30,12 +29,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
     persist(); q('draft-note').textContent = '有未保存的修改，已暂存在此窗口；发布前会先保存。';
     q('tools-field').hidden = q('inherit').checked;
   };
-  const request = async (method, path, body) => {
-    const response = await fetch(api + path, { method, headers: molisWorkControlHeaders(), ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload.error || '角色请求失败');
-    return payload;
-  };
+  const request = (method, path, body) => molisWorkRequest(api + path, { method, body, fallback: '角色请求失败' });
   const firstLine = text => String(text || '').split('\\n').map(line => line.trim()).find(Boolean) || '';
   const tag = (text, tone) => { const node = document.createElement('span'); node.className = 'characters-tag' + (tone ? ' characters-tag--' + tone : ''); node.textContent = text; return node; };
   const chevron = () => { const mark = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); mark.setAttribute('class', 'characters-row-chevron'); mark.setAttribute('aria-hidden', 'true'); const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', '#icon-chevron-right'); mark.append(use); return mark; };
@@ -169,9 +163,7 @@ export const CHARACTERS_CLIENT_FACTORY_SCRIPT = `() => {
   const renderBuiltin = async () => {
     const box = q('builtin-list'), section = q('builtin');
     try {
-      const response = await fetch(section.dataset.characterBuiltinApi, { headers: molisWorkControlHeaders() });
-      const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || '读取失败');
+      const payload = await molisWorkRequest(section.dataset.characterBuiltinApi, { fallback: '读取失败' });
       const roles = [...payload.roles].sort((a, b) => (a.source.kind === 'system' ? 0 : 1) - (b.source.kind === 'system' ? 0 : 1));
       box.replaceChildren();
       if (!roles.length) { box.textContent = '没有登记的系统或插件角色。'; return; }

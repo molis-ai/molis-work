@@ -8,3 +8,7 @@ export const packageDescriptor = {
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { CharactersService } from "./service.js";
 export { CHARACTERS_HOME_STORE, CHARACTERS_STORE_BASELINE, openCharacters } from "./open.js";
+export { createCharactersActionHandlers } from "./action-handlers.js";
+export type { CharactersActionHandlers, CharactersActionPorts, CharactersActionRuntime, CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
+export type { CharactersAgentCatalog } from "./agent-actions.js";
+export type { CharacterLaunchControl, CharacterNativeRun, CharactersImportPorts } from "./imports.js";

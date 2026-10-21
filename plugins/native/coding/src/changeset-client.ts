@@ -19,7 +19,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
   showLayout();
   const key=()=> 'molis-coding-feedback:'+root.dataset.codingPrefix+':'+ports.current()+':'+runId;
   const remember=()=>{try{localStorage.setItem(key(),JSON.stringify(comments));}catch{message.textContent=L('coding.change.not-stored');}};
-  const close=()=>{ticket++;runId='';value=null;fixed=false;net=false;netIndices=null;reader.hidden=true;};
+  const close=()=>{ticket++;runId='';value=null;fixed=false;net=false;netIndices=null;reader.hidden=true;reader.parentElement.removeAttribute('data-coding-reading');};
   const lineLabel=(comment)=>L(comment.side==='before'?'coding.change.line-before':'coding.change.line-after',{line:comment.line});
   const renderComments=()=>{
     const list=q('[data-coding-feedback-list]');list.replaceChildren();
@@ -79,7 +79,7 @@ export const CODING_CHANGESET_CLIENT_FACTORY_SCRIPT = `(ports) => {
     const id=ports.current(),token=++ticket,scrollToStart=!runId || runId!==nextRun || index!==nextIndex || (mode!=='auto' && net!==(mode==='1'));if(scrollToStart){opened=new Set();anchor=null;}
     if(!runId)ports.closeReport();
     if(runId!==nextRun){comments=[];runId=nextRun;try{const saved=JSON.parse(localStorage.getItem(key()) || '[]');if(Array.isArray(saved))comments=saved;}catch{}}
-    index=nextIndex;fixed=requireFixed;value=null;reader.hidden=false;
+    index=nextIndex;fixed=requireFixed;value=null;reader.hidden=false;reader.parentElement.setAttribute('data-coding-reading','');
     q('[data-coding-change-save]').disabled=true;q('[data-coding-feedback-return]').disabled=true;q('[data-coding-change-patch]').disabled=true;
     message.textContent=save?L('coding.change.saving'):L('coding.change.reading');
     try{

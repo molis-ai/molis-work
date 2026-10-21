@@ -100,5 +100,29 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     }
     return true;
   };
-  return { pieceNode, paintInto, paintBlock, growCode, source };
+  // Diff rows put in their coloured pieces about half a slice a frame, in order, a longer row across frames (its rest stays
+  // text): a file reads at once and no frame builds all its nodes. A row past 40,000 characters (a minified line) stays text:
+  // each change to a line lays all of it out again, so colouring one of 120,000 characters took 0.65 s in one frame or about
+  // 2.5 s of 120–250 ms frames in parts, for colour nobody reads piece by piece (user 2026-10-21). `later` runs a step in a
+  // coming frame while the rows are still shown.
+  type DiffRow = { code: PaintElement; sign: PaintNode | null; text: string; pieces: Piece[] };
+  const paintRows = (rows: DiffRow[], later: (step: () => void) => void) => {
+    const shown = rows.filter((row) => row.text.length <= 40000);
+    let row = 0, at = 0, rest: PaintText | null = null;
+    const step = () => {
+      for (let budget = SLICE / 2; row < shown.length && budget > 0;) {
+        const { code, sign, text, pieces } = shown[row]!, signs = sign ? [sign] : [];
+        if (!rest && text.length <= budget) { code.replaceChildren(...signs, ...pieces.map(pieceNode)); budget -= text.length; row += 1; continue; }
+        if (!rest) { rest = document.createTextNode(text); code.replaceChildren(...signs, rest); }
+        const fresh: PaintNode[] = [];
+        let used = 0;
+        while (at < pieces.length && used < budget) { const piece = pieces[at++]!; used += piece[1].length; fresh.push(pieceNode(piece)); }
+        rest.before(...fresh); rest.data = rest.data.slice(used); budget -= used;
+        if (at === pieces.length) { rest.remove(); rest = null; at = 0; row += 1; }
+      }
+      if (row < shown.length) later(step);
+    };
+    step();
+  };
+  return { pieceNode, paintInto, paintBlock, growCode, paintRows, source };
 }

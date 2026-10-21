@@ -553,7 +553,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   // Code reads as code: fenced blocks and diff lines are coloured from text pieces, never from model-written markup.
   const codeLanguageOf = ${codeLanguage.toString()};
   const tokensOf = ${codeTokens.toString()};
-  const {pieceNode,paintInto,paintBlock,growCode,source:codeSource}=(${createCodingCodePaint.toString()})(tokensOf,${growCodeTokens.toString()},codeLanguageOf);
+  const {pieceNode,paintInto,paintBlock,growCode,paintRows,source:codeSource}=(${createCodingCodePaint.toString()})(tokensOf,${growCodeTokens.toString()},codeLanguageOf);
   // Diff lines keep their sign; the rest of each line is coloured by the file's language, in order, so a block comment
   // spanning lines stays a comment (see diffRowTokens). Side by side colours each side on its own, as the file it shows.
   const diffRowTokens = ${diffRowTokens.toString()};
@@ -561,12 +561,10 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     const codes=[...list.querySelectorAll(':scope > li > code'+side)].filter(code=>code.dataset.kind!=='blank');if(!codes.some(code=>!code.dataset.painted))return;
     const language=codeLanguageOf(list.closest('[data-code-path]').dataset.codePath || '');
     const rows=codes.map(code=>{const sign=code.querySelector('.diff-sign');return {code,sign,kind:code.dataset.kind||code.parentElement.dataset.kind||'',text:[...code.childNodes].filter(node=>node!==sign).map(node=>node.textContent).join('')};});
-    const painted=language && rows.every(row=>row.text.length<=40000) ? diffRowTokens(rows,language,tokensOf) : null;
-    rows.forEach((row,index)=>{
-      if(row.code.dataset.painted)return;row.code.dataset.painted='true';
-      if(!painted)return;
-      row.code.replaceChildren(...(row.sign?[row.sign]:[]),...painted[index].map(pieceNode));
-    });
+    // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
+    const painted=language ? diffRowTokens(rows,language,tokensOf) : null;
+    const fresh=rows.map((row,index)=>({...row,pieces:painted?.[index]})).filter(row=>!row.code.dataset.painted && (row.code.dataset.painted='true') && row.pieces);
+    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}));
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {
@@ -766,7 +764,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // Following is the reader's choice, made by scrolling; content that grows after a render must not revoke it. Read back, the
     // part at the top of the view keeps its place: this is the one owner of the shift (overflow-anchor is none here; a WebView may have no scroll anchoring).
     const pinNow = !reportRun && following(), held = pinNow || reportRun ? null : [...turns.querySelectorAll(':scope > [data-run] > *')].find(node=>node.getBoundingClientRect().bottom>turns.getBoundingClientRect().top), heldTop = held?.getBoundingClientRect().top;
-    if(all.length)q('[data-coding-welcome]')?.remove();
+    turns.toggleAttribute('data-coding-welcoming',!all.length);if(all.length)q('[data-coding-welcome]')?.remove();
     else if(!q('[data-coding-welcome]')) {turns.append(q('[data-coding-welcome-template]').content.cloneNode(true));const name=root.dataset.codingWorkspaceName;if(name)turns.querySelectorAll('[data-coding-welcome-workspace]').forEach(node=>{node.textContent=name;});}
     turns.querySelectorAll('[data-coding-prompt]').forEach(button=>{button.disabled=Boolean(input.value.trim());});
     for (const run of runs) {

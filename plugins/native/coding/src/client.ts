@@ -120,6 +120,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (!response.ok) throw Object.assign(new Error(result.error || L('coding.error.request')),{code:result.code,details:result.details});
     return result;
   },ports={lifetime,q,api,current:()=>current,status,refresh:()=>readCurrent()};
+  const ROLE_NAMES=Object.fromEntries(Object.entries({planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'}).map(([role,name])=>[role,L(name)]));
   const draft=(${CODING_DRAFT_CLIENT_FACTORY_SCRIPT})({...ports,input,key:draftKey,choices:{action_tools:actionSelections,character:characterSelections,character_skill_ids:characterSkills,
     configuration:configurations,materials:materialSelections,mcp_sources:mcpSourceSelections,mcp_tools:mcpSelections,methods:methodSelections,question_drafts:questionDrafts}});
   // The composer and what sets the next round (each a button by the box opening a dialog of that name) are shut while a
@@ -132,12 +133,12 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
   let lastData=null;
   let earlierRuns=[],earlierFingerprint='',olderViews=new Map(),olderPlanEntries=[],olderSubagents=[],windowRuns=[],allRuns=[],pageLoading=false;
   const resetWindow=()=>{earlierRuns=[];earlierFingerprint='';olderViews=new Map();olderPlanEntries=[];olderSubagents=[];windowRuns=[];allRuns=[];pageLoading=false;};
-  const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({...ports,timeline,
+  const subagentCards = (${CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT})({...ports,timeline,roleName:id=>ROLE_NAMES[id]||id||'Agent',
     showReviews:(container,refs,sid)=>showReviews(container,refs,sid),sessionId:()=>runtimeSessionId,
     parentLive:(run)=>!terminal(run.phase),prefill:(text)=>{const next=input.value.trim()?input.value+'\\n\\n'+text:text;input.value=next;input.dispatchEvent(new Event('input',{bubbles:true}));input.focus();},
     openInPanel:(childId)=>{root.dataset.codingResults='true';const row=q('[data-coding-subagents] details[data-child="'+CSS.escape(childId)+'"]');if(row){row.open=true;row.scrollIntoView({block:'center'});row.querySelector('textarea')?.focus({preventScroll:true});}}});
   const usageMeter = (${CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT})(ports), composerModels = (${CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT})({q,lifetime,status,switchModel:(run,model)=>api(sessionPath(current)+'/control','POST',{kind:'switch-model',run_id:run.ref.run_id,...model}).then(()=>readCurrent())});
-  const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({...ports,
+  const cooperationUi = (${CODING_COOPERATION_CLIENT_FACTORY_SCRIPT})({...ports,roleName:id=>ROLE_NAMES[id]||id||'Agent',
     openSession:(id,title)=>{host.openItem('coding',id,title || '');return select(id);},refreshSessions:()=>refreshState(),
     openArtifact:(reference,title)=>host.openItem('coding',reference.artifact_id,title || reference.artifact_id),
     rounds:()=>allRuns.map((run,index)=>({run_id:run.ref.run_id,number:index+1,phase:run.phase})),
@@ -145,7 +146,6 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // The Host attached a taken delivery to the session's materials; the page's selection follows, or the next send would drop it.
     materialsChanged:async()=>{const id=current;const data=await api('/sessions/'+encodeURIComponent(id)+'?window=1');if(id===current){materialSelections.set(id,data.materials || []);controls();}}});
   const inputReceipts = (${CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT})({api,refresh:()=>readCurrent(),q,receipts:host.receipts,landed:(sent,said)=>{if(current===sent.id&&input.value===sent.text){input.value='';window.molisFit?.(input);if(draft.local(sent.id)===sent.text)void draft.save(sent.id,'');}status(said);}});
-  const ROLE_NAMES=Object.fromEntries(Object.entries({planner:'规划者',reader:'阅读者',reviewer:'评审者',coordinator:'协作',writers:'并行写入',builder:'构建者',writer:'改写者','coding-reader':'代码调查','coding-reviewer':'独立评审','coding-builder':'独立实现'}).map(([role,name])=>[role,L(name)]));
   // The board shows every round of the session: the loaded window as it is, earlier rounds from one read of the whole
   // session's plans and subagents, fetched again only when the number of rounds changes.
   let boardAll={key:'',id:'',value:null};
@@ -199,7 +199,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     if(turns.contains(node))follow.release();node.scrollIntoView({block:'nearest'});node.tabIndex=-1;node.focus({preventScroll:true});
   }});
   const planProgress = (${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({...ports,openStep:(runId,stepId)=>stepReports.open(current,runId,stepId),from:node=>inputReceipts.from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:state=>host.receipts.step(state)});
-  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,openIntegration:integrations.open,usageSummary:usage=>codingUsageSummary(usage,L),prepareRework:async(id,runId,child,notes)=>{
+  const subagents = (${CODING_SUBAGENTS_CLIENT_FACTORY_SCRIPT})({...ports,roleName:id=>ROLE_NAMES[id]||id||'Agent',openIntegration:integrations.open,usageSummary:usage=>codingUsageSummary(usage,L),prepareRework:async(id,runId,child,notes)=>{
     if(current!==id)return;
     const instruction=L('coding.rework.instruction',{subagent:child.subagent_id,run:runId,path:child.workspace_path,task:child.task,notes});
     await draft.append(id,text=>text.trim()?text+'\\n\\n'+instruction:instruction,L('coding.rework.saved-not-added'));

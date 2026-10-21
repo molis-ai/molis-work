@@ -30,6 +30,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
   const toneColors={blue:'#5E6AD2',green:'#2D7A5A',amber:'#8A5C18',red:'#B03D45',purple:'#8B5CF6',teal:'#3D6F78',gray:'#737882'};
   const categoryTone = (category) => tones.find((tone)=>toneColors[tone].toLowerCase()===String(category?.color).toLowerCase())||'blue';
   const category = (id) => state?.categories.find((entry) => entry.id === id);
+  const catName = (entry) => entry.id === 'uncategorized' ? tx('jelly.category.uncategorized') : esc(entry.name); // fixed and not renameable: shown in the page's language (VUX-40)
   const categoryDot = (id) => {const color=category(id)?.color;return '<span class="jelly-color" '+(/^#[0-9a-f]{6}$/i.test(color||'')?'style="background:'+color+'"':'data-tone="'+categoryTone(category(id))+'"')+'></span>';};
   const list = $('[data-jelly="directory"]');
   const content = $('[data-jelly-content]');
@@ -111,7 +112,7 @@ export const JELLY_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
     finally{if(genericVersion===version)ok.disabled=false;}
   });
   const renderFilters = () => {
-    $('[data-jelly-category-filters]').innerHTML=btn('全部','data-jelly-filter="" aria-pressed="'+!filterCategory+'"')+state.categories.map((entry)=>'<button type="button" class="mw-btn mw-btn--ghost" data-jelly-filter="'+esc(entry.id)+'" aria-pressed="'+(entry.id===filterCategory)+'">'+categoryDot(entry.id)+esc(entry.name)+'</button>').join('');
+    $('[data-jelly-category-filters]').innerHTML=btn('全部','data-jelly-filter="" aria-pressed="'+!filterCategory+'"')+state.categories.map((entry)=>'<button type="button" class="mw-btn mw-btn--ghost" data-jelly-filter="'+esc(entry.id)+'" aria-pressed="'+(entry.id===filterCategory)+'">'+categoryDot(entry.id)+catName(entry)+'</button>').join('');
     const inCalendar=view==='calendar';
     $('[data-jelly-period]').hidden=!inCalendar&&view!=='progress';
     $('[data-jelly-calendar-modes]').hidden=!inCalendar;

@@ -1,5 +1,6 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "./index.js";
+import { TEXT_STATS_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -7,6 +8,7 @@ import { TEXT_STATS_PROJECT_PLUGIN_ID, textStatsManifest } from "./index.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID, catalog_order: 26,
+  messages: TEXT_STATS_MESSAGES,
   manifest: textStatsManifest,
   developer: true,
   workbench: { order: 24, contributions: [], clientFrom: "coding" },

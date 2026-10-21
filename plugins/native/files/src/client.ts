@@ -1,6 +1,6 @@
 /** Companion navigation is supplied by the Workbench composition, not imported from another plugin. */
 export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
-  const scope=host.root || document;
+  const scope=host.root || document,L=host.translate;
   const directory=scope.querySelector('[data-files-browser]'), result=scope.querySelector('[data-files-results]');
   if(!directory || !result)return null;
   const lifetime=host.mountPluginClient(directory);if(!lifetime)return null;
@@ -9,13 +9,13 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   const surface=directory.closest('[data-work-surface]');
   // What is open here, for the Assistant and for "open in plugin" from elsewhere (the side panel's file tab).
   const context=path=>{surface?.setAttribute('data-assistant-context',JSON.stringify({plugin_id:'io.molis.work.files',surface_title:'Files',
-    ...(path?{object:{kind:'workspace_file',id:workspace+':'+path.join('/'),title:path[path.length-1]||'文件'}}:{})}));};
+    ...(path?{object:{kind:'workspace_file',id:workspace+':'+path.join('/'),title:path[path.length-1]||L('files.reader.file')}}:{})}));};
   // Asked to open one file ("<workspace_id>:<a/b/c>", as the side panel lists it): in the folder being browsed only.
   let wanted=null;
   const openWanted=()=>{
     if(!wanted || !workspace)return;
     const [id,...rest]=wanted.split(':'),path=rest.join(':').split('/').filter(Boolean);wanted=null;
-    if(id!==workspace || !path.length){notice('这个文件不在当前浏览的目录里');return;}
+    if(id!==workspace || !path.length){notice(L('files.directory.outside'));return;}
     host.openResult();result.hidden=false;void openFile(path);
   };
   const notice=message=>{directory.querySelector('[data-files-status]').textContent=message;};
@@ -31,9 +31,9 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
     lifetime.assertCurrent(signal);return value;
   };
   const request=(path,method='GET',body)=>requestPlugin('files',path,method,body);
-  const controls=()=>{const length=text.selectionEnd-text.selectionStart;q('[data-files-selection-hint]').textContent=length && current ? '已选择 '+length+' 个字符' : '在正文中选择片段后可保存选区';q('[data-files-copy]').disabled=!current || captureBusy;q('[data-files-capture="before"]').disabled=!current || captureBusy;q('[data-files-capture="after"]').disabled=!current || captureBusy;q('[data-files-capture="selection"]').disabled=!current || captureBusy || text.selectionEnd<=text.selectionStart;};
-  const clear=()=>{current=null;selectedPath=null;reload.disabled=true;readTicket++;text.value='';text.hidden=true;q('[data-files-title]').textContent='选择一个文件';q('[data-files-notice]').textContent='从左侧文件目录选择要读取的文件。';controls();};
-  const errors={missing:'文件或目录已不存在，请刷新',denied:'此路径不可读取；请检查目录授权，符号链接不会被跟随',unsupported:'这不是可预览的 UTF-8 普通文本文件',binary:'这是二进制文件，无法作为文本预览',changed:'文件在读取时改变，请刷新后重试'};
+  const controls=()=>{const length=text.selectionEnd-text.selectionStart;q('[data-files-selection-hint]').textContent=length && current ? L('files.snapshot.selected',{count:length}) : L('files.snapshot.select-hint');q('[data-files-copy]').disabled=!current || captureBusy;q('[data-files-capture="before"]').disabled=!current || captureBusy;q('[data-files-capture="after"]').disabled=!current || captureBusy;q('[data-files-capture="selection"]').disabled=!current || captureBusy || text.selectionEnd<=text.selectionStart;};
+  const clear=()=>{current=null;selectedPath=null;reload.disabled=true;readTicket++;text.value='';text.hidden=true;q('[data-files-title]').textContent=L('files.reader.choose');q('[data-files-notice]').textContent=L('files.reader.pick');controls();};
+  const errors={missing:L('files.error.missing'),denied:L('files.error.denied'),unsupported:L('files.error.unsupported'),binary:L('files.error.binary'),changed:L('files.error.changed')};
   async function companions(ticket=generation){
     const [stats,diff]=await Promise.all([requestPlugin('text-stats','/state'),requestPlugin('diff','/state')]);
     if(!active(ticket))return;
@@ -41,23 +41,23 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   }
   async function openFile(path){
     const ticket=++readTicket, epoch=generation, id=workspace;
-    current=null;selectedPath=path;context(path);reload.disabled=true;result.setAttribute('aria-busy','true');controls();text.hidden=true;q('[data-files-title]').textContent=path.join('/');q('[data-files-notice]').textContent='正在读取…';
+    current=null;selectedPath=path;context(path);reload.disabled=true;result.setAttribute('aria-busy','true');controls();text.hidden=true;q('[data-files-title]').textContent=path.join('/');q('[data-files-notice]').textContent=L('files.reader.reading');
     try{
       const value=await request('/open','POST',{workspace_id:id,path});
       if(ticket!==readTicket || !active(epoch))return;
       if(value.result.outcome==='text'){
         current={workspace_id:id,path,fingerprint:value.result.fingerprint};text.value=value.result.text;text.hidden=false;text.scrollTop=0;text.scrollLeft=0;
-        q('[data-files-notice]').textContent=text.value.length?'本次读取的内容 · 只读；修改后可刷新':'这个文件是空的；仍可固定快照。';
-      }else q('[data-files-notice]').textContent=value.result.outcome==='too-large'?'文件超过预览上限（'+value.result.limit+' 字节）':errors[value.result.outcome] || '读取失败，请重试';
+        q('[data-files-notice]').textContent=text.value.length?L('files.reader.as-read'):L('files.reader.empty');
+      }else q('[data-files-notice]').textContent=value.result.outcome==='too-large'?L('files.reader.too-large',{limit:value.result.limit}):errors[value.result.outcome] || L('files.reader.failed');
       tree.querySelectorAll('[data-file-path]').forEach(button=>{const active=button.dataset.filePath===JSON.stringify(path);button.setAttribute('aria-current',String(active));button.classList.toggle('is-selected',active);});controls();
-    }catch(error){if(ticket===readTicket && active(epoch)){q('[data-files-notice]').textContent=error.message+'。可点击重读重试。';controls();}}
+    }catch(error){if(ticket===readTicket && active(epoch)){q('[data-files-notice]').textContent=L('files.reader.retry',{message:L(error.message)});controls();}}
     finally{if(ticket===readTicket && active(epoch)){result.setAttribute('aria-busy','false');reload.disabled=false;}}
   }
   async function list(path,container,ticket=generation){
     const id=workspace;
     const value=await request('/directory?workspace_id='+encodeURIComponent(id)+'&path='+encodeURIComponent(JSON.stringify(path)));
     if(!active(ticket))return;
-    if(value.result.outcome!=='directory')throw new Error(errors[value.result.outcome] || '无法读取这个目录');
+    if(value.result.outcome!=='directory')throw new Error(errors[value.result.outcome] || L('files.directory.unreadable'));
     const ul=document.createElement('ul');
     for(const entry of value.result.entries){
       const li=document.createElement('li'), button=document.createElement('button');button.type='button';button.className='mw-dir-row mw-dir-row--compact';button.textContent=entry.name;button.title=entry.path.join('/');button.dataset.filePath=JSON.stringify(entry.path);li.append(button);
@@ -65,17 +65,17 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
       const copy=document.createElement('span');copy.className='mw-dir-row__copy';const headline=document.createElement('span');headline.className='mw-dir-row__headline';const label=document.createElement('strong');label.textContent=entry.name;headline.append(label);copy.append(headline);button.replaceChildren(mark,copy);
       if(entry.kind==='directory'){
         button.setAttribute('aria-expanded','false');const children=document.createElement('div');children.hidden=true;li.append(children);
-        lifetime.listen(button,'click',async()=>{const expanded=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(expanded));children.hidden=!expanded;if(!expanded || children.querySelector('ul'))return;button.disabled=true;try{await list(entry.path,children,ticket);}catch(error){if(active(ticket))children.textContent=error.message;}finally{if(lifetime.alive)button.disabled=false;}});
+        lifetime.listen(button,'click',async()=>{const expanded=button.getAttribute('aria-expanded')!=='true';button.setAttribute('aria-expanded',String(expanded));children.hidden=!expanded;if(!expanded || children.querySelector('ul'))return;button.disabled=true;try{await list(entry.path,children,ticket);}catch(error){if(active(ticket))children.textContent=L(error.message);}finally{if(lifetime.alive)button.disabled=false;}});
       }else if(entry.kind==='file')lifetime.listen(button,'click',()=>{opener=button;host.openResult();result.hidden=false;result.classList.add('is-arriving');q('[data-files-close]').focus({preventScroll:true});void openFile(entry.path);});
-      else{button.disabled=true;button.title+=' · 非普通文件';}
+      else{button.disabled=true;button.title+=' · '+L('files.directory.not-regular');}
       ul.append(li);
     }
     container.replaceChildren(ul);
-    if(!value.result.entries.length){const empty=document.createElement('p');empty.textContent='这个目录是空的';container.append(empty);}
-    if(value.result.truncated){const hint=document.createElement('p');hint.textContent='目录较大，仅显示前 1000 个可访问条目';container.append(hint);}
+    if(!value.result.entries.length){const empty=document.createElement('p');empty.textContent=L('files.directory.empty');container.append(empty);}
+    if(value.result.truncated){const hint=document.createElement('p');hint.textContent=L('files.directory.truncated');container.append(hint);}
   }
   async function choose(id){
-    const ticket=++generation;workspace=id;clear();tree.replaceChildren();notice(id?'正在读取目录…':'请选择工作区');
+    const ticket=++generation;workspace=id;clear();tree.replaceChildren();notice(id?L('files.directory.reading'):L('files.directory.choose-workspace'));
     try{
       if(!id)return;
       if(!active(ticket))return;
@@ -87,16 +87,16 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
       if(wanted)openWanted();
       else if(state.position?.workspace_id===id)await openFile(state.position.path);
       if(!active(ticket))return;await companions(ticket);
-    }catch(error){if(active(ticket)){clear();tree.replaceChildren();notice(error.message);}}
+    }catch(error){if(active(ticket)){clear();tree.replaceChildren();notice(L(error.message));}}
 
   }
   async function load(){
     if(!lifetime.visible || refresh.disabled)return;const serial=++loadingTicket;refresh.disabled=true;refresh.toggleAttribute('data-loading',true);refresh.querySelector('.mw-spinner').hidden=false;tree.setAttribute('aria-busy','true');
-    notice('正在读取工作区…');
+    notice(L('files.directory.reading-workspace'));
     try{
       const state=await request('/state');if(serial!==loadingTicket)return;await choose(state.workspace?.workspace_id || '');
 
-    }catch(error){if(lifetime.visible && serial===loadingTicket){workspace="";clear();tree.replaceChildren();notice(error.message);}}
+    }catch(error){if(lifetime.visible && serial===loadingTicket){workspace="";clear();tree.replaceChildren();notice(L(error.message));}}
     finally{if(lifetime.alive && serial===loadingTicket)resetLoading();}
   }
   lifetime.listen(reload,'click',()=>{if(selectedPath)void openFile(selectedPath);});
@@ -104,7 +104,7 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
   lifetime.listen(refresh,'click',()=>void load());
   for(const name of ['select','keyup','mouseup'])lifetime.listen(text,name,controls);
   lifetime.listen(q('[data-files-close]'),'click',()=>{result.hidden=true;result.classList.remove('is-arriving');host.closeResult();if(opener?.isConnected)opener.focus({preventScroll:true});});
-  lifetime.listen(q('[data-files-copy]'),'click',async()=>{const epoch=generation,copied=await window.molisCopy?.(q('[data-files-copy]'),text.value,{done:'已复制',failed:'复制失败'});if(active(epoch))q('[data-files-capture-status]').textContent=copied?'文件正文已复制。':'复制失败，可在正文中手动选择并复制。';});
+  lifetime.listen(q('[data-files-copy]'),'click',async()=>{const epoch=generation,copied=await window.molisCopy?.(q('[data-files-copy]'),text.value,{done:L('files.reader.copied'),failed:L('files.reader.copy-failed')});if(active(epoch))q('[data-files-capture-status]').textContent=copied?L('files.reader.text-copied'):L('files.reader.copy-by-hand');});
   result.querySelectorAll('[data-files-capture]').forEach(button=>lifetime.listen(button,'click',async()=>{
     if(!current || captureBusy)return;
     const saved={...current},epoch=generation,ticket=readTicket,port=button.dataset.filesCapture;
@@ -112,14 +112,14 @@ export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{
       const value=await request('/capture','POST',{...saved,port,...range});
       if(!active(epoch) || ticket!==readTicket)return;
-      q('[data-files-capture-status]').textContent=(port==='before'?'对比前':port==='after'?'对比后':'选区')+'已固定 · v'+value.saved.artifact.version+' · '+saved.path.join('/');
+      q('[data-files-capture-status]').textContent=L(port==='before'?'files.snapshot.pinned-before':port==='after'?'files.snapshot.pinned-after':'files.snapshot.pinned-selection',{version:value.saved.artifact.version,path:saved.path.join('/')});
       await companions(epoch);
-    }catch(error){if(active(epoch) && ticket===readTicket)q('[data-files-capture-status]').textContent=error.message;}
+    }catch(error){if(active(epoch) && ticket===readTicket)q('[data-files-capture-status]').textContent=L(error.message);}
     finally{captureBusy=false;if(lifetime.alive){button.removeAttribute('data-loading');spinner.remove();controls();}}
   }));
   function resetLoading(){refresh.disabled=false;refresh.removeAttribute('data-loading');refresh.querySelector('.mw-spinner').hidden=true;tree.setAttribute('aria-busy','false');}
   lifetime.whenVisible(signal=>{
-    viewSignal=signal;initialRead=true;q('[data-files-copy]').textContent='复制全文';refresh.disabled=true;refresh.toggleAttribute('data-loading',true);refresh.querySelector('.mw-spinner').hidden=false;tree.setAttribute('aria-busy','true');notice('正在读取工作区…');
+    viewSignal=signal;initialRead=true;q('[data-files-copy]').textContent=L('files.reader.copy');refresh.disabled=true;refresh.toggleAttribute('data-loading',true);refresh.querySelector('.mw-spinner').hidden=false;tree.setAttribute('aria-busy','true');notice(L('files.directory.reading-workspace'));
     return ()=>{generation++;readTicket++;loadingTicket++;result.setAttribute('aria-busy','false');resetLoading();};
   });
   lifetime.watchRevision(signal=>host.request('files','/view-revision','GET',undefined,signal),async()=>{

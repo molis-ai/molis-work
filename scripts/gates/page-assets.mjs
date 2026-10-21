@@ -238,14 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // specs/visual-ui-experience VUX-40 (slice 49): Settings opened inside a project drew the connector page without its own
-  // sheet (3 cramped columns, labels running out of the cards); the workbench sheet now carries it, as the settings sheet did.
-  "/assets/molis-work-workbench.css": [1609507, 1617234],
-  // The same slice: a connector card's state wraps inside the card, and its body track no longer grows past the card.
-  "/assets/molis-work-settings.css": [992921, 993089],
-  // The same slice: the page's L fills values through the SDK's fillMessage, with the word that agrees with a count.
-  "/assets/molis-work-workbench.js": [1170057, 1170060],
-  "/assets/molis-work-plugins/coding.js": [375625, 375631],
+  // specs/visual-ui-experience VUX-16 (slice 50): Coding's composer bar keeps one row while a round runs (two groups, the
+  // settings shrinking first, a narrow composer's settings on their own row), so the box and send no longer move. Coding's
+  // styles ship in both sheets.
+  "/assets/molis-work-workbench.css": [1617234, 1617817],
+  "/assets/molis-work-settings.css": [993089, 993672],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

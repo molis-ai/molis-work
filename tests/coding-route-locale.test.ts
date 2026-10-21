@@ -41,6 +41,17 @@ test("VUX-40: a Coding route answers in the language of the page that called it"
     assert.equal((await budget({ cookie: "molis_work_locale=zh", "accept-language": "en" })).body.error, "预算须为 1000 到 100 亿之间的 token 数", "the cookie wins over Accept-Language");
     assert.equal((await budget({ cookie: "molis_work_locale=zh" }, { locale: "en" })).body.error, "预算须为 1000 到 100 亿之间的 token 数", "a language in the body is not the page's");
     assert.equal(english.body.code, (await budget({})).body.code, "the code is the same in every language");
+
+    // A field's name is worded in the same language as the sentence that names it, and so is every route's check.
+    const en = { cookie: "molis_work_locale=en" }, zh = { cookie: "molis_work_locale=zh" };
+    const rename = (language: Record<string, string>) => request(`${coding}/sessions/${id}`, "PATCH", { title: " " }, language);
+    assert.equal((await rename(en)).body.error, "Session name must be filled in, within 200 characters");
+    assert.equal((await rename(zh)).body.error, "会话名称不能为空，且不能超过 200 字符");
+    const delegation = (language: Record<string, string>) => request(`${coding}/sessions/${id}/delegations/missing`, "POST", { action: "accept" }, language);
+    const missing = await delegation(en);
+    assert.equal(missing.status, 400, JSON.stringify(missing.body));
+    assert.equal(missing.body.error, "Can't find this delegation");
+    assert.equal((await delegation(zh)).body.error, "找不到这个委派");
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(root, { recursive: true, force: true });

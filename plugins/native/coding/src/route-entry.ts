@@ -3,7 +3,7 @@ import type { PluginCapabilityClient, PluginRouteBinding, PluginRouteRequest, Pl
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import { codingRouteActions } from "./route-actions.js";
 import type { CodingExecution } from "./routes.js";
-import { codingErrorIn } from "./words.js";
+import { codingError, codingErrorIn } from "./words.js";
 
 export type CodingBeforeWrite = (() => Promise<void>) & { assert_current(): void; signal?: AbortSignal };
 type Control = Pick<ActionExecutionContext, "signal" | "beforeEffect" | "assert_authority_current">;
@@ -22,7 +22,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
   alive: () => boolean, failure: (error: unknown) => { status: number; body: unknown }) {
   const check = (control?: Control, ownerCheck?: () => Promise<void>, permissions: readonly string[] = []): CodingBeforeWrite => {
     const assert_current = () => {
-      if (!alive()) throw new ActionError("actions.expired", "原 Coding 实例已停止");
+      if (!alive()) throw codingError(message => new ActionError("actions.expired", message), "coding.server.instance-stopped");
       control?.signal?.throwIfAborted();
       for (const permission of permissions) context.requireGrant(permission);
       requireSynchronous(control?.assert_authority_current?.(), "最终授权检查必须同步完成");
@@ -31,7 +31,7 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
   };
   const execute = async (request: PluginRouteRequest, beforeWrite: CodingBeforeWrite, locale: ActionLocale | undefined) => {
     const api = context.services?.capabilities;
-    if (!api || !context.project_id) throw new ActionError("actions.unredeemed", "Coding 执行入口尚未装配");
+    if (!api || !context.project_id) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.entry-unassembled");
     if (request.method !== "GET") await beforeWrite();
     beforeWrite.assert_current();
     const controlled: PluginCapabilityClient = { availability: definition => api.availability(definition),
@@ -59,9 +59,9 @@ export function codingRouteEntry(context: PluginStartContext, execution: CodingE
     }
     return { route_id, async handle(request) {
       try {
-        if (!context.actor_id || request.actor_id !== context.actor_id) throw new ActionError("actions.forbidden", "调用者与当前插件入口不一致");
+        if (!context.actor_id || request.actor_id !== context.actor_id) throw codingError(message => new ActionError("actions.forbidden", message), "coding.server.caller-mismatch");
         if (action) {
-          if (!context.services?.actions) throw new ActionError("actions.unredeemed", "宿主未提供系统动作调用入口");
+          if (!context.services?.actions) throw codingError(message => new ActionError("actions.unredeemed", message), "coding.server.no-actions");
           return { status: 200, body: await context.services.actions.invoke(action.definition, action.toInput(request), request.execution) };
         }
         const beforeWrite = check(request.execution), { api, execution } = await execute(request, beforeWrite, request.execution?.locale);

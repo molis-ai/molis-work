@@ -48,7 +48,7 @@ export { SHOW_MORE_STYLES, type ShowMoreOptions } from "./show-more.js";
 export { STREAM_TEXT_STYLES, freshStart, type StreamTextOptions, type StreamTextResult } from "./stream-text.js";
 export { MEDIA_ZOOM_STYLES, mediaAxis, type MediaZoom, type MediaZoomOptions, type MediaZoomState } from "./media-zoom.js";
 export { FOLLOW_COOLDOWN_MS, FOLLOW_INPUT_WINDOW_MS, FOLLOW_NEAR_PX, FOLLOW_STYLES, followDistance, type FollowState, type ScrollFollower } from "./scroll-follow.js";
-export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "./copy-decay.js";
+export { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS, type CopyLabels } from "./copy-decay.js";
 export { DISCLOSURE_STYLES } from "./styles/disclosure.js";
 export { NUMBER_STYLES } from "./styles/numbers.js";
 export { COPY_FEEDBACK_STYLES } from "./styles/copy-feedback.js";

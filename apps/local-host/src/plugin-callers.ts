@@ -1,6 +1,7 @@
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError, actionReachesAudience, type ActionCallContext, type ActionMetadata } from "@molis-ai/molis-work-contracts/platform/actions";
+import { PLUGIN_REVIEW_PERMISSION_PREFIX, type PluginReviewKind } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { hostErrors } from "./host-errors.js";
 
 /**
@@ -45,6 +46,21 @@ export function requireIssuedPluginCaller(caller: HostPluginCaller, projectId: s
   if (!issued.has(caller)) throw hostErrors.plugin_caller_invalid("插件调用没有宿主发出的有效身份");
   if (caller.project_id !== projectId) throw hostErrors.plugin_caller_mismatch("插件调用不属于当前项目");
   caller.assertActive();
+}
+
+/**
+ * The installation starting a person-reviewed Host operation (PG-009): the plugin whose issued caller made this call. It holds
+ * the operation while its caller is still issued and active and holds `review:<kind>`, asked when the review is created, when a
+ * person approves and right before the operation runs. Revoking, disabling, stopping or upgrading the installation withdraws
+ * the caller, so an operation it asked for is refused from then on, never run. A call no plugin made cannot start one.
+ */
+export function reviewAuthority(caller: HostPluginCaller | undefined, kind: PluginReviewKind) {
+  if (!caller) throw hostErrors.plugin_caller_invalid("需要人审查的宿主操作只能由插件发起");
+  const permission = PLUGIN_REVIEW_PERMISSION_PREFIX + kind;
+  return { plugin_id: caller.plugin_id, install_id: caller.install_id, holds(): boolean {
+    if (!issued.get(caller)?.held.has(permission)) return false;
+    try { caller.assertActive(); return true; } catch { return false; }
+  } };
 }
 
 /**

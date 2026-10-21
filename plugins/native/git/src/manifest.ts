@@ -55,6 +55,9 @@ export const gitManifest: PluginManifest = {
     { permission: "artifact:write", required: true, reason: "发布工作区改动与操作回执" },
     { permission: "storage:private", required: true, reason: "保留固定差异选择、提交信息与冲突草稿" },
     { permission: "workspace:read", required: true, reason: "读取项目已关联工作目录的 Git 状态、摘要、差异与冲突文件" },
+    // Starting a review only: whether the stage or the Git operation happens is a person's to approve, every time (PG-009).
+    { permission: "review:git-index", required: true, reason: "发起暂存或取消暂存的审查，由用户批准后才改动索引" },
+    { permission: "review:git-operation", required: true, reason: "发起提交、分支、推送、合并、拉取与解决冲突的审查，由用户批准后才执行" },
   ],
   capabilities: {
     provides: [],

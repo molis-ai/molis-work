@@ -2755,6 +2755,30 @@ Coding 原来由宿主递进四样东西（`CodingExecutionPorts` 的 `ready`、
 
 说明：助理（`assistant-http.ts`）与 `agent-host-composition.ts` 仍用 `characters-host.ts` 的 `codingCharacterPorts`，那是 C2b，不在这一片；`characters-host.ts` 因此还从 Coding 包取 `CodingCharacterChoice`、`CodingCharacterPorts` 两个类型。
 
+### I. 需要人审查的宿主操作按 Manifest 声明的种类放行（2026-10-21，PG-009，C5）
+
+宿主原来按插件 id 字面量（`io.molis.work.git`、`io.molis.work.coding`）决定谁能发起 Git 暂存、Git 操作、独立工作树和子任务成果整合的审查。现在插件在 Manifest 里声明 `review:<kind>`，种类只有平台列出的四种（`git-index`、`git-operation`、`git-worktree`、`git-integration`，合同 `PLUGIN_REVIEW_KINDS`）。宿主从这次调用里它发出的插件调用者取插件与安装，看这个调用者此刻是否持有该权限（Manifest 声明且安装授权）来决定放不放行。Git 声明 `git-index`、`git-operation`，Coding 声明 `git-worktree`、`git-integration`，都写成必需权限：存量安装由 `bundledGrants` 在启动时补齐，不另写迁移。安全不变量 S-50。
+
+- 发起时、发布审查之前、人批准时、真正执行之前各问一次。不持有就以 `agent.review_not_permitted` 拒绝：发起被拒时不出审查；已在等的审查只能拒绝、不能批准；执行前不持有的不执行，原因记在宿主审查记录里。已在等的审查不主动撤回，人还能拒绝。
+- 权限按激活冻结：停止、停用、升级、撤权或应用重启之后，新的激活不是发起的那个，原来的审查同样只能拒绝，要做就重新发起。批准的是「这个安装此刻要做的事」，不跨激活延续。
+- 决定（2026-10-21，按防腐后果定）：审查记录记下发起它的 `plugin_id` 与 `install_id`，不推断。早先没有这两项的 Git 审查记录读不出（「Git 审查归属不可读，不能猜测执行结果」），不写兼容分支。计划原稿说把它们「当作过期」，那要一条读取兼容路径；现在没有装到开发机之外的版本，也没有真实 Home 要迁（`docs/system/CONTRACT-CHANGES.md`）。
+- 宿主整合入口（`apps/local-host/src/agent-host-composition.ts` 的 `integrationSource`，读与准备两个处理器都走它，批准时与执行前的复查也走它）不再认 Coding 的 id：先看会话属于本项目（不属于就拒绝）；再看有没有插件调用者（没有就以 `host.plugin_caller_invalid` 拒绝，整合只能由插件发起）；最后要会话主人记下的 `plugin_id` 与 `install_id` 同时等于这次调用者的，只比插件 id 会放过同一插件的另一份安装。身份只来自宿主发出的调用者，不读输入。会话还需核对时照旧拒绝。
+- 审查卡片的「修改意见」框不再只给 Coding：任何插件发起的轮次内提案（文件修改、命令、派出、MCP 调用）都有。拒绝时的意见走的是同一条与插件无关的路：页面 `agent-review.ts` 把 `note` 随拒绝 POST 到 `/api/agent/reviews/decide`，路由交给 `reviews.respond`，Prologue 审批桥的 `recordDecision` 在拒绝后用 `steer` 把意见交回这一轮；这条路上没有任何地方看插件 id，只看这一轮仍在运行。没有轮次的宿主操作（Git 暂存、Git 操作、独立工作树）本来没有可交回的对象，仍不给这个框。
+
+验收：
+
+1. **W5-01-CODING-40** Manifest 里写平台没有的审查种类（如 `review:git-reset`、`review:`），读 Manifest 得 `plugin.permission_invalid`，安装得 `plugin.manifest_invalid`；四种平台种类都能声明。
+2. **W5-01-CODING-41** 没有声明 `review:git-worktree` 的插件调工作树准备，得 `agent.review_not_permitted`：不出审查、不建目录。
+3. **W5-01-CODING-42** 声明了、安装没授权，同上。
+4. **W5-01-CODING-43** 发起时持有、宿主准备审查途中被停止，同上：不发布审查。
+5. **W5-01-CODING-44** 审查已在等，发起的安装停止（再启动也一样）或被撤权后，人批准得 `agent.review_not_permitted`；审查仍在等，人能拒绝；不建目录、不授权目录。
+6. **W5-01-CODING-45** 人没批准之前不执行：等待中的审查没有可用的批准（`agent.review_not_approved`），拒绝后也不执行；持有的安装经人批准，同一条路径真的建出工作树并授权目录。
+7. **W5-01-CODING-46** 整合入口按调用者认会话：会话主人是同一插件的另一份安装，读和准备都以「不属于发起整合的这份插件安装」拒绝；另一个持有 `review:git-integration` 并声明消费整合动作的插件，在 Coding 的会话上读和准备都被拒绝，且不出审查；没有插件发起的调用（`client.invoke`）得 `host.plugin_caller_invalid`；别的项目仍以「不属于」拒绝。Coding 自己的安装读、准备、拒绝、改动后失效的提案和批准整合照旧。测试两处，断言相同的三种拒绝：`tests/security-invariants-review-kinds.test.ts`（S-50，CI 里跑：用宿主里一个记在别人名下的会话，不需要仓库和子任务，因为三种拒绝都发生在读取任何一轮执行之前，并以主人自己的安装得到下一道检查（此轮执行不属于原会话）作对照）；`tests/writer-integration-host.test.ts`（端到端，只在本机跑：真实的 Coding 会话、子任务与 Git 工作树）。
+8. **W5-01-CODING-47** Git 的 Manifest 里 `review:` 权限恰好是 `review:git-index`、`review:git-operation`，Coding 的恰好是 `review:git-worktree`、`review:git-integration`，都是必需并带理由；合起来正好是平台列出的四种，且都能通过 Manifest 解析。测试：`tests/security-invariants-review-kinds.test.ts`。
+9. **W5-01-CODING-48** 审查卡片对任何插件的轮次内提案（文件修改、命令、派出、MCP 调用）给出「修改意见」框，已决定的不给；没有轮次的宿主操作不给。测试：`tests/agent-review-surface.test.ts`（不开浏览器，直接渲染工作台的审查面）。
+
+测试：`tests/security-invariants-review-kinds.test.ts`（真实的 Plugin Runtime、宿主与 Agent 服务）；队列一层见 `tests/git-operation-review.test.ts`；Git 暂存审查整条产品链见 `tests/coding-git-diff-product.test.ts`（Git 声明 `review:git-index` 之后转绿）。
+
 ## 5. 阶段（历史切片记录；当前产品完成度以 §0 为准）
 
 | 阶段 | 内容 | 状态 |

@@ -1157,7 +1157,7 @@
     "apps/desktop/launchers/cli/main.ts": 1,
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 485,
+  "explicitAnyTotal": 484,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -1274,7 +1274,6 @@
     "tests/ppt-mcp.test.ts": 2,
     "tests/production-action-mcp.test.ts": 1,
     "tests/project-home-start.e2e.test.ts": 2,
-    "tests/project-plugin-startup.test.ts": 1,
     "tests/project-workspaces-settings.e2e.test.ts": 2,
     "tests/prologue-approval-bridge.test.ts": 1,
     "tests/prologue-checkpoints.test.ts": 4,

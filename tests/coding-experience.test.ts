@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeTokens, codeLanguage, diffRowTokens, mentionedPaths, attachMentions, workspaceFileIndex, requestText, MENTIONS_MARKER, codingHistoryDigest, symbolsIn, symbolBlock } from "@molis-ai/molis-work-plugin-coding";
+import { mentionedPaths, attachMentions, workspaceFileIndex, requestText, MENTIONS_MARKER, codingHistoryDigest, symbolsIn, symbolBlock } from "@molis-ai/molis-work-plugin-coding";
+import { codeTokens, codeLanguage, diffRowTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
 const kinds = (text: string, language: string) => codeTokens(text, language).filter(([kind]) => kind).map(([kind, value]) => `${kind}:${value}`);
 

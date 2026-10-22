@@ -43,13 +43,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
 
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
-  const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + ' mw-btn--' + (o.size || 'md') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
+  // md is the default height, left to the button so it follows the person's density.
+  const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + (o.size && o.size !== 'md' ? ' mw-btn--' + o.size : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
   const linkBtn = o => '<a class="mw-btn mw-btn--' + (o.variant || 'ghost') + ' mw-btn--' + (o.size || 'md') + '" data-slot="button" href="' + esc(o.href) + '"' + (o.blank ? ' target="_blank" rel="noopener"' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span></a>';
   const choice = o => '<button type="button" class="mw-choice" data-slot="choice" aria-pressed="' + (o.selected ? 'true' : 'false') + '"' + attrs(o.attrs) + '><span class="mw-choice__label">' + (o.icon ? glyph(o.icon) : '') + esc(o.label) + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></button>';
   const status = (label, tone, icon, state) => '<span class="mw-status mw-status--' + tone + ' mw-status--plain" data-slot="status"' + (state ? ' data-mw-state="' + state + '"' : '') + '>' + (!state && icon ? glyph(icon) : '') + '<span>' + esc(label) + '</span></span>';
   const steps = (total, current) => '<ol class="mw-steps" data-slot="steps" aria-label="' + esc(L('引导进度')) + '">' + Array.from({length: total}, (_, i) => '<li' + (i === current ? ' aria-current="step"' : '') + (i < current ? ' class="is-done"' : '') + '><span></span></li>').join('') + '</ol>';
   const barStatus = o => '<div class="mw-bar-status" data-slot="bar-status" role="status" aria-live="polite"><span class="mw-bar-status__tile" aria-hidden="true">' + (o.spin ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : glyph(o.glyph || 'info')) + '</span><span class="mw-bar-status__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span></div>';
-  const dirRow = o => '<button type="button" class="mw-dir-row mw-dir-row--meta directory-list-row' + (o.selected ? ' is-selected' : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="directory-row" title="' + esc(o.title) + '"' + attrs(o.attrs) + '><span class="mw-dir-row__icon">' + glyph(o.icon) + '</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>' + esc(o.title) + '</strong><span class="mw-dir-row__count">' + esc(o.count) + '</span></span><small>' + esc(o.caption) + '</small></span></button>';
+  const dirRow = o => '<button type="button" class="mw-dir-row mw-dir-row--meta directory-list-row' + (o.selected ? ' is-selected' : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="directory-row" title="' + esc(o.title) + '"' + attrs(o.attrs) + '><span class="mw-dir-row__icon">' + glyph(o.icon) + '</span><span class="mw-dir-row__copy"><span class="mw-dir-row__headline"><strong>' + esc(o.title) + '</strong>' + (o.count === undefined ? '' : '<span class="mw-dir-row__count">' + esc(o.count) + '</span>') + '</span><small>' + esc(o.caption) + '</small></span>' + (o.end || '') + '</button>';
   const note = (text, icon, cls) => '<p class="ob-note' + (cls ? ' ' + cls : '') + '">' + glyph(icon || 'shield') + '<span>' + esc(text) + '</span></p>';
   const kindChip = name => { const dot = name.lastIndexOf('.'); const ext = (dot > 0 ? name.slice(dot + 1) : 'txt').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'txt'; return '<span class="mw-file-kind mw-file-kind--' + ext + '" data-slot="file-kind">' + ext.toUpperCase() + '</span>'; };
   const fileRow = o => '<li class="mw-file-row' + (o.cls ? ' ' + o.cls : '') + '" data-slot="file-row">' + (o.check ? '<label class="mw-file-row__label"><input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + attrs(o.check.attrs) + '>' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></label>' : '<span class="mw-file-row__label">' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></span>') + (o.size ? '<span class="mw-file-row__size" title="' + esc(o.size) + '">' + esc(o.size) + '</span>' : '') + (o.state || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-row__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : '') + '</li>';
@@ -61,7 +62,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const title = text => '<h1 id="ob-title" tabindex="-1">' + text + '</h1>';
   const question = (text, sub) => '<header class="ob-q">' + title(esc(text)) + (sub ? '<p>' + esc(sub) + '</p>' : '') + '</header>';
   const errorLine = text => '<p class="cx-error" role="alert">' + esc(failureText(text || '')) + '</p>';
-  const split = (view, left, right, cls) => '<div class="stage-split onboard" data-ob-view="' + view + '"><aside class="stage-side ob-left" data-scroll>' + left + '</aside><section class="stage-sheet ob-right' + (cls ? ' ' + cls : '') + '" data-scroll>' + right + '</section></div>';
+  // Every step of the journey is a Welcome step: the question on the left, what it makes on the right.
+  const split = (view, left, right, cls) => '<div class="stage-single"><div class="stage-sheet welcome onboard" data-ob-view="' + view + '"><section class="welcome-q ob-left" data-scroll>' + left + '</section><div class="welcome-scene"><section class="ob-right' + (cls ? ' ' + cls : '') + '" data-scroll>' + right + '</section></div></div></div>';
   const stageHead = (heading, meta) => '<header class="ob-stage-head"><h2>' + esc(heading) + '</h2><span>' + meta + '</span></header>';
 
   /* ───────── Where in the journey ───────── */
@@ -91,8 +93,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       html:'<div class="stage-single"><div class="stage-sheet welcome" data-view="welcome" data-step="language"><section class="welcome-q">' + title(L('语言')) + '<p>' + L('用你最熟悉的语言开始。之后可以在设置里随时更改。') + '</p><div class="welcome-options" role="group" aria-label="' + L('界面语言') + '">' + option('zh','简体中文') + option('en','English') + '</div></section><aside class="welcome-scene" aria-hidden="true"><div class="ob-greeting"><strong lang="' + current + '">' + (current === 'en' ? 'Hello.' : '你好。') + '</strong><span>Molis Work</span></div></aside></div></div>',
       bar:{start:exitButton() + stepsBar('语言'), center:'', end:primary('继续','intro-next')}};
   }
+  const miniRow = (g, w, s) => '<div class="ob-mini-row"><i>' + glyph(g) + '</i><span><b style="width:' + w + '%"></b><s style="width:' + s + '%"></s></span></div>';
   function miniWorkbench() {
-    const row = (g, w, s) => '<div class="ob-mini-row"><i>' + glyph(g) + '</i><span><b style="width:' + w + '%"></b><s style="width:' + s + '%"></s></span></div>';
+    const row = miniRow;
     return '<div class="ob-mini"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + row('target',62,40) + row('rss',48,58) + row('note',70,36) + '</div><div class="ob-mini-bar"><span class="ob-mini-dock"><i></i><i class="is-on"></i><i></i></span><span class="ob-mini-composer"><i></i><em></em></span><span class="ob-mini-avatar"></span></div></div>';
   }
   function appearance() {
@@ -108,17 +111,12 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:'文件夹资料', caption:'选择一个工作文件夹中的文本资料'},
     {id:'files', kinds:['files'], icon:'file', name:'单独选文件', caption:'PDF、Word、Markdown 和文本文件'},
     {id:'browser', kinds:['browser'], icon:'globe', name:'浏览器内容', caption:'粘贴网页正文与来源网址'},
-    {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
     {id:'chat', kinds:['chat'], icon:'message', name:'聊天记录', caption:'导入飞书、Slack 等导出的文本记录'},
+    {id:'gmail', kinds:['gmail'], icon:'mail', name:'Gmail', caption:''},
   ];
   const sourcesOf = row => row.kinds.map(kind => source(kind)).filter(Boolean);
   const countOf = s => s.references?.length || (s.kind === 'browser' ? (s.text?.trim() ? 1 : 0) : s.kind === 'gmail' ? (ready(s) ? 1 : 0) : (included(s).length || s.files?.length || 0));
-  function rowCount(row) {
-    const list = sourcesOf(row).filter(s => s.selected && ready(s));
-    if (list.length) return L('已添加 {n}', {n:list.reduce((sum, s) => sum + countOf(s), 0)});
-    if (row.id === 'folder') return L(sourceStatus(source(folderKind)));
-    return L(sourceStatus(sourcesOf(row)[0] || {kind:row.id}));
-  }
+  const rowCount = row => sourcesOf(row).filter(s => s.selected && ready(s)).reduce((sum, s) => sum + countOf(s), 0);
   function gmailCaption() {
     const s = source('gmail');
     if (!ready(s) && connected().length) return L('选择一个已连接的 Google 账号');
@@ -126,34 +124,46 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const c = connected().find(c => c.connection_id === s.connection_id);
     return (c ? c.account_label || c.display_name : L('工作邮箱')) + ' · ' + L('最近 {n} 天，最多 20 封；不含附件', {n:s.days || 30});
   }
-  const fileInput = (kind, accept, label, icon) => '<label class="mw-btn mw-btn--primary mw-btn--md" data-slot="button" for="cx-upload-' + kind + '">' + glyph(icon) + '<span data-slot="button-label">' + L(label) + '</span></label><input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple ' + (kind === 'directory' ? 'webkitdirectory directory' : 'accept="' + accept + '"') + ' data-upload="' + kind + '">';
+  // A row that only chooses files opens the system chooser itself: the inputs stay in the page, out of sight.
+  const picker = kind => '<input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple tabindex="-1" aria-hidden="true" ' + (kind === 'directory' ? 'webkitdirectory directory' : 'accept=".md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx"') + ' data-upload="' + kind + '">';
+  const pickerOf = id => id === 'files' || id === 'chat' ? id : id === 'folder' && !native ? 'directory' : '';
   const RANGES = [[7,'7 天'],[30,'30 天'],[90,'90 天'],[0,'全部']];
   function rowConfig(row) {
     if (row.id === 'folder') {
-      if (!native) { const s = source('directory'); return '<div class="ob-cfg-actions">' + fileInput('directory', '', ready(s) ? '重新选择文件夹' : '选择文件夹', 'folder') + '</div>' + note(L('最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info'); }
       const s = source(folderKind), granted = grants[folderKind];
       return '<div class="ob-cfg-block"><p class="ob-label">' + L('位置') + '</p><div class="mw-choice-group ob-picks" role="group" aria-label="' + L('位置') + '">' + directories.map(kind => choice({label:L(names[kind]), selected:folderKind === kind, attrs:{'data-pick':kind, title:granted && kind === folderKind ? granted.path || '' : ''}})).join('') + '</div></div>'
         + '<div class="ob-cfg-block"><p class="ob-label">' + L('时间范围') + '</p>' + toggles(L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range-pick':String(days)}}))) + '</div>'
-        + '<div class="ob-cfg-actions">' + btn({variant:'primary', size:'md', icon:'folder', label:L(granted?.state === 'ready' ? '重新选择目录' : '选择并授权'), attrs:{'data-authorize':folderKind}}) + (granted?.state === 'ready' ? btn({variant:'ghost', size:'md', label:L('取消连接'), attrs:{'data-forget':folderKind}}) : '') + '</div>'
+        + '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'folder', label:L(granted?.state === 'ready' ? '重新选择目录' : '选择并授权'), attrs:{'data-authorize':folderKind}}) + (granted?.state === 'ready' ? btn({variant:'ghost', size:'md', label:L('取消连接'), attrs:{'data-forget':folderKind}}) : '') + '</div>'
         + note(granted?.message || L('只访问系统选择器中确认的目录。可以重新选择实际位置。'), 'shield') + note(L('先列出文件名和大小，开始整理后才读正文。'), 'info');
     }
-    if (row.id === 'files') return '<div class="ob-cfg-actions">' + fileInput('files', '.md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx', ready(source('files')) ? '再选一些文件' : '选择文件', 'file') + '</div>' + note(L('最多 50 份、总大小 6 MB。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info');
     if (row.id === 'browser') { const s = source('browser'); return '<div class="ob-cfg-block"><label class="ob-label" for="cx-browser-text">' + L('网页正文') + '</label><textarea class="mw-textarea" id="cx-browser-text" rows="4" maxlength="100000" data-kind="browser" data-field="text" placeholder="' + esc(L('从网页复制需要整理的内容，粘贴到这里')) + '">' + esc(s.text || '') + '</textarea></div><div class="ob-cfg-block"><label class="ob-label" for="cx-url">' + L('原网页网址（可选）') + '</label><input type="url" class="mw-input" id="cx-url" data-kind="browser" data-field="url" placeholder="https://" value="' + esc(s.url || '') + '"></div>' + note(L('只使用粘贴的内容，不访问其他标签页或浏览记录。'), 'shield'); }
     if (row.id === 'gmail') {
       const s = source('gmail');
       const account = '<div class="ob-cfg-block"><label class="ob-label" for="cx-account">' + L('使用账号') + '</label><select class="mw-select" data-slot="select" id="cx-account" data-field="connection_id" data-kind="gmail"><option value="">' + L(connected().length ? '选择已有账号' : '连接一个 Google 账号') + '</option>' + connected().map(c => '<option value="' + esc(c.connection_id) + '" ' + (c.connection_id === s.connection_id ? 'selected' : '') + '>' + esc(c.account_label || c.display_name) + '</option>').join('') + '</select></div>';
       const days = '<div class="ob-cfg-block"><label class="ob-label" for="cx-days">' + L('读取时间') + '</label><select class="mw-select" data-slot="select" id="cx-days" data-field="days" data-kind="gmail"><option value="7" ' + (s.days === 7 ? 'selected' : '') + '>' + L('最近 7 天') + '</option><option value="30" ' + (s.days !== 7 ? 'selected' : '') + '>' + L('最近 30 天') + '</option></select></div>';
-      return account + days + note(L('只读取最多 20 封邮件正文，不读取附件，不发送邮件。'), 'shield') + (!config.gmail_configured ? note(L('Google 连接尚未由 Molis 配置好。可以先整理其他材料，账号接入准备好后再连接。'), 'alert', 'is-warn') : '<div class="ob-cfg-actions">' + btn({variant:'primary', size:'md', icon:'mail', label:L(connected().length ? '连接其他 Google 账号' : '连接 Google'), attrs:{'data-action':'connect'}}) + '</div>');
+      return account + days + note(L('只读取最多 20 封邮件正文，不读取附件，不发送邮件。'), 'shield') + (!config.gmail_configured ? note(L('Google 连接尚未由 Molis 配置好。可以先整理其他材料，账号接入准备好后再连接。'), 'alert', 'is-warn') : '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'mail', label:L(connected().length ? '连接其他 Google 账号' : '连接 Google'), attrs:{'data-action':'connect'}}) + '</div>');
     }
-    return '<div class="ob-cfg-actions">' + fileInput('chat', '.md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx', ready(source('chat')) ? '再选一个导出文件' : '选择聊天导出文件', 'message') + '</div>' + note(L('当前支持导出的文本；飞书 / Slack 会话正文的直接连接还未接入。'), 'info');
+    return '';
+  }
+  // What a row says on its right is what pressing it does, until something is in: then how much.
+  function rowWord(row) {
+    const n = rowCount(row);
+    if (n) return L('已添加 {n}', {n});
+    if (row.id === 'gmail' && !config.gmail_configured && !connected().length) return L('暂不可连接');
+    return row.id === 'folder' && native && grants[folderKind]?.state === 'unavailable' ? L('需要重新授权') : L('添加');
+  }
+  // What pressing the row does, drawn as the button it acts as (the row is the one control): 添加, or the green count once added.
+  function rowAct(row) {
+    const n = rowCount(row), quiet = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+    return '<span class="ob-source__act' + (n ? ' is-added' : quiet ? ' is-quiet' : ' mw-btn mw-btn--secondary mw-btn--sm') + '">' + (quiet ? '' : glyph(n ? 'check' : 'plus')) + '<span>' + esc(rowWord(row)) + '</span></span>';
   }
   function sourceList() {
     return '<div class="ob-sources" role="list" aria-label="' + L('选择材料来源') + '">' + sourceRows().map(row => {
-      const open = expanded === row.id, count = rowCount(row), has = sourcesOf(row).some(s => s.selected && ready(s));
       const unavailable = row.id === 'gmail' && !config.gmail_configured && !connected().length;
+      const open = expanded === row.id && !pickerOf(row.id), has = rowCount(row) > 0, own = !pickerOf(row.id) && !unavailable;
       const caption = row.id === 'gmail' ? gmailCaption() : row.caption;
-      return '<div class="ob-source' + (open ? ' is-open' : '') + (has ? ' has-items' : '') + '" role="listitem" data-src="' + row.id + '">' + dirRow({title:L(row.name), caption:L(caption), icon:row.icon, count, selected:open, cls:unavailable ? 'is-unavailable' : '', attrs:{'data-open':row.id, 'aria-expanded':String(open), 'aria-controls':'cfgp-' + row.id}}) + (open ? '<div class="ob-source__cfg" id="cfgp-' + row.id + '">' + rowConfig(row) + '</div>' : '') + '</div>';
-    }).join('') + '</div>';
+      return '<div class="ob-source' + (open ? ' is-open' : '') + (has ? ' has-items' : '') + '" role="listitem" data-src="' + row.id + '">' + dirRow({title:L(row.name), caption:L(caption), icon:row.icon, end:rowAct(row), selected:open, cls:unavailable ? 'is-unavailable' : '', attrs:{'data-open':row.id, disabled:unavailable, 'aria-expanded':own ? String(open) : null, 'aria-controls':own ? 'cfgp-' + row.id : null}}) + (open ? '<div class="ob-source__cfg" id="cfgp-' + row.id + '">' + rowConfig(row) + '</div>' : '') + '</div>';
+    }).join('') + '</div>' + (native ? '' : picker('directory')) + picker('files') + picker('chat');
   }
   const fileCount = s => included(s).length || s.files?.length || 0;
   function groupFor(s) {
@@ -163,13 +173,13 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if (kind === 'browser') { const bytes = new TextEncoder().encode(s.text || '').length; return fileGroup({...add, icon:'globe', title:L('网页正文'), caption:(s.url || L('粘贴的正文')), rows:[fileRow({name:L('网页正文 · {n} 字符', {n:(s.text || '').length.toLocaleString()}) + '.txt', size:size(bytes)})]}); }
     const files = (s.metadata?.files || (s.files || []).map(f => ({path:f.path, size:0}))), listed = included(s).length ? included(s) : files;
     const shown = listed.slice(0, 8), more = listed.length - shown.length;
-    const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? L('全部时间') : L('最近 {n} 天', {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? L('系统选择器选中的文件夹') : kind === 'chat' ? L('导出的文本记录') : L('系统选择器选中的文件');
+    const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? L('全部时间') : L('最近 {n} 天', {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? String(files[0]?.path || '').split('/')[0] : kind === 'chat' ? L('导出的文本记录') : '';
     return fileGroup({...add, icon:sourceIcons[kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[kind]) : L(names[kind]), caption, status:directory(s) ? status(L('已授权'), 'done', 'status-done') : '',
       rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : ''})), note:more > 0 ? L('另有 {n} 份文件，在下一步逐项确认。', {n:more}) : s.metadata?.skipped ? L('{n} 项因时间、类型或访问范围未列入。', {n:s.metadata.skipped}) : ''});
   }
   function materialsPane() {
     const groups = picked().filter(ready);
-    if (!groups.length) return empty({icon:'folder', title:L('从你正在做的事开始'), body:L('选一种来源，材料会按来源排在这里。添加时只记下文件名和大小。'), action:'<div class="ob-quick">' + btn({variant:'secondary', size:'md', icon:'folder', label:L('添加文件夹'), attrs:{'data-open':'folder'}}) + btn({variant:'secondary', size:'md', icon:'file', label:L('选择文件'), attrs:{'data-open':'files'}}) + btn({variant:'secondary', size:'md', icon:'globe', label:L('粘贴网页正文'), attrs:{'data-open':'browser'}}) + '</div>'});
+    if (!groups.length) return '<div class="ob-mini" aria-hidden="true"><div class="ob-mini-surface"><b class="ob-mini-title"></b>' + miniRow('folder',58,40) + miniRow('file',66,34) + miniRow('globe',44,52) + '</div></div><p class="ob-scene-note">' + L('选一种来源，材料会按来源排在这里。') + '</p>';
     const total = selectionTotal();
     return stageHead(L('这次带入'), L('{count} 份 · {groups} 组 · {size} · 正文尚未读取', {count:total.count, groups:groups.length, size:size(total.bytes)})) + groups.map(groupFor).join('');
   }
@@ -181,10 +191,9 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const left = question(L('带入已有的材料'), L('文件、网页和聊天记录会成为新项目的背景。')) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('已保留读入的资料。再次开始整理会替换当前摘要，请确认所选范围。') + '</span></p>' : '')
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + L('请在浏览器中完成 Google 授权，完成后会继续。') + '</span>' + btn({variant:'secondary', size:'sm', label:L('跳过 Gmail，继续'), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
-      + errorLine(error) + sourceList() + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield');
+      + errorLine(error) + sourceList() + '<div class="ob-notes">' + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield') + note(L('最多 200 份、总大小 50 MB，单个文件 20 MB 以内。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'来源', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
-      bar:{start:exitButton() + stepsBar('来源'), center:any.length ? barStatus({glyph:'note', title:L('已添加 {n} 份材料', {n:total.count}), caption:L('{groups} 组 · {size} · 正文尚未读取', {groups:any.length, size:size(total.bytes)})}) : barStatus({glyph:'folder', title:L('还没有材料'), caption:L('添加至少一份材料，或空白开始')}),
-        end:secondary('空白开始','blank') + primary(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
+      bar:{start:exitButton() + stepsBar('来源'), center:'', end:secondary('跳过','blank') + primary(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
 
   /* ───────── Scope: the person's last word on what is read ───────── */
@@ -198,7 +207,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     }
     return {count,bytes};
   }
-  const LIMIT = {count: 50, bytes: 6000000};
+  const LIMIT = {count: 200, bytes: 50000000};
   const modelLine = () => config.model ? '<div class="ob-model"><span data-mw-state="connected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('文字模型') + ' · ' + esc(config.model) + '</strong><small>' + L('已连接 · 选中的正文会发给它整理') + '</small></span>' + linkBtn({variant:'ghost', size:'sm', label:L('更换'), href:route('/settings/models'), blank:true}) + '</div>'
     : '<div class="ob-model is-off"><span data-mw-state="disconnected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('尚未连接文字模型') + '</strong><small>' + L('原文先暂存在本机，连接后再生成摘要') + '</small></span>' + linkBtn({variant:'secondary', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + '</div>';
   function missingBlock(s) {
@@ -222,11 +231,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), over = total.count > LIMIT.count || total.bytes > LIMIT.bytes;
     const meter = (label, value, max, text) => '<div class="ob-meter"><p><span>' + L(label) + '</span><span>' + text + '</span></p>' + progressBar(value, max, L(label)) + '</div>';
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
-      + '<div class="ob-meters' + (over ? ' is-over' : '') + '">' + meter('份数', total.count, LIMIT.count, '<b>' + total.count + '</b> / ' + LIMIT.count) + meter('大小', total.bytes, LIMIT.bytes, '<b>' + (total.bytes / 1e6).toFixed(1) + '</b> / 6 MB')
-      + (over ? '<p class="ob-error">' + glyph('alert') + '<span>' + L('超过 50 份或 6 MB，请取消部分文件。') + '</span></p>' : '') + '</div>'
+      + '<div class="ob-meters' + (over ? ' is-over' : '') + '">' + meter('份数', total.count, LIMIT.count, '<b>' + total.count + '</b> / ' + LIMIT.count) + meter('大小', total.bytes, LIMIT.bytes, '<b>' + (total.bytes / 1e6).toFixed(1) + '</b> / 50 MB')
+      + (over ? '<p class="ob-error">' + glyph('alert') + '<span>' + L('超过 200 份或 50 MB，请取消部分文件。') + '</span></p>' : '') + '</div>'
       + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
       + (picked().some(s => s.kind === 'gmail') ? note(L('最多 20 封邮件，也计入本轮上限。'), 'mail') : '')
-      + collapsible(L('读取规则'), '<p>' + L('本轮最多 50 份、6 MB，邮件也计入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
+      + collapsible(L('读取规则'), '<p>' + L('本轮最多 200 份、50 MB，单个文件 20 MB 以内，邮件也计入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
     const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + picked().map(scopeGroup).join('');
     const canStart = !(busy || missing || over || (!total.count && !picked().some(s => s.kind === 'gmail')));
     return {kind:'onboard', view:'preview', step:'确认', left, right,
@@ -431,10 +440,10 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   function refreshSelection() {
     refreshRight();
     app.querySelectorAll('.ob-source').forEach(node => {
-      const row = sourceRows().find(r => r.id === node.dataset.src), count = node.querySelector('.mw-dir-row__count');
-      if (!row || !count) return;
-      count.textContent = rowCount(row);
-      node.classList.toggle('has-items', sourcesOf(row).some(s => s.selected && ready(s)));
+      const row = sourceRows().find(r => r.id === node.dataset.src), act = node.querySelector('.ob-source__act');
+      if (!row || !act) return;
+      act.outerHTML = rowAct(row);
+      node.classList.toggle('has-items', rowCount(row) > 0);
     });
   }
   function save() {
@@ -579,7 +588,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         const chosen=[...el.files].filter(f=>!/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(f.webkitRelativePath||f.name)&&/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(f.name));
         if(chosen.length>200)throw new Error(L('最多预览 200 份文件，请选择更小的文件夹。'));
         if(!chosen.length)throw new Error(L('没有找到支持的文件。'));
-        const s=source(el.dataset.upload);invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
+        const s=source(el.dataset.upload);if(s.kind!=='directory'&&uploads.has(s.kind)){const had=uploads.get(s.kind);chosen.unshift(...had.filter(f=>!chosen.some(c=>c.name===f.name&&c.size===f.size)));}invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
       }
       if(changed)await save();
     }catch(e){error=keepFailure(e);}finally{busy=false;if(changed||error)render(el.id);}
@@ -591,7 +600,8 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const b=e.target.closest('button');if(!b||b.disabled)return;
     if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
-    if(b.dataset.open){expanded=expanded===b.dataset.open&&!b.closest('.ob-quick')?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
+    if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
+    if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
     if(b.dataset.pick){folderKind=b.dataset.pick;render();return;}
     if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}

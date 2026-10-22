@@ -41,7 +41,7 @@ for (const width of [1440, 390]) test(`Cognia ${width}px: directory preview, imp
   assert.equal(read().materials.length, 2); assert.ok(read().drafts[0]!.saved_id);
   // Another importer updates the current source while the saved knowledge still references v1.
   const changed = openCogniaStore(homeDirectory);
-  try { changed.commit(changed.preview({ kind: "markdown", name: "same vault", locator: changed.sources().find(item => item.id === source.source_id)!.locator, files: [{ path: source.path, data: Buffer.from("# 原始资料\nUPDATED_EVIDENCE").toString("base64") }] }).id); } finally { changed.close(); }
+  try { changed.commit(changed.preview({ kind: "markdown", name: "same vault", source_id: source.source_id, locator: changed.sources().find(item => item.id === source.source_id)!.locator, files: [{ path: source.path, data: Buffer.from("# 原始资料\nUPDATED_EVIDENCE").toString("base64") }] }).id); } finally { changed.close(); }
   assert.equal(read().materials.length, 2); assert.equal(read().materials.find(item => item.id === source.id)!.revision, 2);
   await click('[data-cognia-reading] [data-cognia-action=reference]'); await waitFor("document.querySelector('[data-cognia-heading]').textContent === '原始资料'");
   assert.equal(await evaluate("document.querySelector('[data-cognia-download]').href.endsWith('revision=1')"), true);

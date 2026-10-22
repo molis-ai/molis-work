@@ -1,3 +1,12 @@
+// Left out, each with why it is not one row of peers or one line of words.
+export const ORDER_SKIP = [
+  ".dock-pins > :first-child",          // 项目首页 stands apart from the pinned plugins: the wider gap is the divider between them
+  ".bar-composer [type=submit]",        // the bar's send is its one large target, a step above the bar's other buttons
+  ".mw-catalog__sizes",                 // the board's size specimen shows sm, md and lg side by side
+  ".mw-icon-inventory",                 // the board's icon list: an icon beside its name and code, centred on both lines
+  ".mw-catalog__specimens .mw-empty",   // the board's empty block on its own: centring and the header's create are the stage's
+].join(", ");
+
 /**
  * A page-side audit of visual order (DESIGN「Order」, VUX-46 to VUX-49): whether a state mark or an icon stands as tall as
  * the words beside it and sits on their line, whether the words use the type scale, and whether buttons that sit together
@@ -65,12 +74,19 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     const row = mark.parentElement;
     if (!row || mark.closest(EXEMPT.replace(', svg', ''))) continue;
     // The words the mark stands beside: the first text in its row that is not inside the mark.
-    let text = null, after = false;
+    // A field's words are its own (typed or placeholder): a search icon belongs to the field, not to a key cap after it.
+    let text = null, field = null, after = false;
     for (const node of row.childNodes) {
       if (node === mark || (node.nodeType === 1 && node.contains(mark))) { after = true; continue; }
       if (!after || (node.nodeType === 1 && (node.matches('.mw-sr-only') || !shown(node)))) continue;
+      if (node.nodeType === 1 && node.matches('input, textarea, select')) { field = node; break; }
       text = node.nodeType === 3 ? (node.textContent.trim() ? node : null) : firstText(node);
       if (text) break;
+    }
+    if (field) {
+      const size = parseFloat(getComputedStyle(field).fontSize);
+      if (!mark.matches('.mw-state-ring, [data-mw-state], .mw-status-dot, .mw-dot') && (box.height < size - 1 || box.height > size + 4.5)) findings.push({ kind: 'mark-height', a: label(mark), b: label(field), mark: round(box.height), font: size });
+      continue;
     }
     if (!text) continue;
     const range = document.createRange(); range.selectNodeContents(text);

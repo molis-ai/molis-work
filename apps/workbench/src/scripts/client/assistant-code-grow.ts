@@ -1,6 +1,6 @@
 /**
  * Code blocks in the Assistant's streamed replies (specs/visual-ui-experience §code-diff, VUX-33). A reply is drawn again
- * whole on the Host as it streams; `assistantCodeColours(grow, tokens)` (given Coding's `growCodeTokens` and `codeTokens`)
+ * whole on the Host as it streams; `assistantCodeColours(grow, tokens)` (given the SDK's `growCodeTokens` and `codeTokens`, `/highlight`)
  * colours a code block that a recent drawing differs from only in its last line or below (the block being written) from
  * that line on, which gives the same pieces as colouring it whole. In the page, `createAssistantCodeGrow` gives
  * `molisStreamText`'s `grow` for the code figure and its fold button.

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import test from "node:test";
+import { artifactSubjectId, type ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { saveFirstModel } from "./fixtures/first-model-browser.js";
 import { startModelStandIn } from "./fixtures/model-stand-in.js";
@@ -106,6 +107,23 @@ test("no model → settings → template → a failing check saves nothing → a
   assert.equal(standIn.requests[1]!.offeredKey, goodKey);
   assert.equal(standIn.requests[1]!.model, "deepseek-flash");
   await writeFile(new URL("4-back-on-the-page.png", shot), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
+
+  // Project changes schedule knowledge.organize on this same Home model. Wait for its real card before the rename so the
+  // foreground count cannot pass merely because the background timer has not fired yet (specs/project-knowledge §5).
+  const prefix = `/projects/${projectId}`;
+  const imported = await browser.web.post<ArtifactReference>(prefix + "/api/artifacts/import", {
+    source: "file", filename: "model-setup-background.md", content: "# 模型设置资料\n\n这是隔离项目中供后台整理的合成资料。",
+  });
+  type States = { states: Array<{ kind: string; id: string; state: string }>; listing: boolean };
+  const subjectId = artifactSubjectId(imported);
+  let listed = await browser.web.get<States>(prefix + "/api/knowledge/states");
+  const card = () => listed.states.find(row => row.kind === "artifact" && row.id === subjectId);
+  for (const until = Date.now() + 30_000; Date.now() < until && (listed.listing || !card() || listed.states.some(row => row.state === "pending"));) {
+    await new Promise(resolve => setTimeout(resolve, 100));
+    listed = await browser.web.get<States>(prefix + "/api/knowledge/states");
+  }
+  assert.equal(card()?.state, "ready", "the Home's real organizer received a valid card from the configured provider");
+  assert.equal(standIn.requests.length, 2, "background organization does not consume a connection check");
 
   // 6. A later visit to the same settings is the ordinary page: the provider is listed, and saving a rename does not call the provider.
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?desktop=1&settings=models` }, sessionId));

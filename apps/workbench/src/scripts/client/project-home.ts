@@ -41,8 +41,8 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const labels = {
     todayEmpty: L("今天还没有事件走进来"),
     empty: L("这一天没有事件"),
-    todaySum: L("今天接到 {n} 件事"),
-    daySum: L("这一天有 {n} 件事"),
+    todaySum: (n) => L("今天接到 {n} 件事", { n }),
+    daySum: (n) => L("这一天有 {n} 件事", { n }),
     attentionLead: L("有事项需要处理。"),
     emptyLead: L("插件提供的新事项和待处理事项会出现在这里。"),
   };
@@ -107,7 +107,7 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
   const renderDates = () => {
     writeHTML($("[data-home-dates]"), days.map((day) => {
       const list = homeFlow.eventsOnDay(events, day.id);
-      const count = list.length ? " · " + L("{n} 件事").replace("{n}", String(list.length)) : "";
+      const count = list.length ? " · " + L("{n} 件事", { n: list.length }) : "";
       return '<button class="home-day" type="button" data-home-day="' + day.id + '" aria-label="' + esc(day.week + " " + day.n + (day.today ? " · " + L("今天") : "") + count) + '">' +
         '<span class="home-day__w">' + esc(shortWeek(day.id)) + '</span><b class="home-day__n">' + day.n + '</b>' +
         (day.today ? '<em class="home-day__today">' + L("今天") + '</em>' : '<span class="home-day__dots">' + dotsHTML(list) + '</span>') + '</button>';

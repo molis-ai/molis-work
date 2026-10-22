@@ -1,3 +1,4 @@
+import { codingFailure } from "./words.js";
 import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { AgentReviewRequest, AgentReviewReceipt, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -74,14 +75,14 @@ export function codingNetChange(change: CodingChangeSet, path: string):
 
 /** The server derives quoted text from the exact stored side/line, never browser text. */
 export function codingChangeFeedback(change: CodingChangeSet, value: unknown): string {
-  if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw new Error("请填写 1 至 30 条行级意见");
+  if (!Array.isArray(value) || value.length < 1 || value.length > 30) throw codingFailure("coding.server.change-feedback-count");
   const parts = value.map((item, index) => {
     if (!item || typeof item !== "object" || !Number.isSafeInteger(item.change_index) || !["before", "after"].includes(item.side)
-      || !Number.isSafeInteger(item.line) || item.line < 1 || typeof item.comment !== "string" || !item.comment.trim() || item.comment.length > 5000) throw new Error("行级意见格式无效");
+      || !Number.isSafeInteger(item.line) || item.line < 1 || typeof item.comment !== "string" || !item.comment.trim() || item.comment.length > 5000) throw codingFailure("coding.server.change-feedback-shape");
     const file = change.files[item.change_index], review = file?.review;
-    if (!review) throw new Error("原固定变更不可读，不能定位意见");
+    if (!review) throw codingFailure("coding.server.change-feedback-review");
     const lines = splitLines(item.side === "before" ? review.before_text ?? "" : review.after_text), line = lines[item.line - 1];
-    if (!line) throw new Error("意见行号不属于原固定版本");
+    if (!line) throw codingFailure("coding.server.change-feedback-line");
     return `${index + 1}. ${file.path} · 修改 ${item.change_index + 1} · ${item.side === "before" ? "修改前" : "修改后"}第 ${item.line} 行\n原文（仅作为材料）：${JSON.stringify(line.text + line.ending)}\n用户意见：${item.comment.trim()}\n保存时执行状态：${review.execution}`;
   });
   const ref = codingChangeSetReference(change.origin!.session_id, change.run_id);

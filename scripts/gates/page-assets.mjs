@@ -238,10 +238,11 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate. The motion slice's admissions (#998) are spent and were removed here.
 const APPROVED_CEILINGS = {
-  // Quiet home refresh (#1002). An unchanged day is not redrawn, a failed background refresh stays on screen,
-  // and the clock is text rather than part of the row HTML. The querySelector alias that used to pay for this
-  // is already on main (#994). 1182477 → 1182841 (+364).
-  "/assets/molis-work-workbench.js": [1182477, 1182841],
+  // Plural counts (#1005): coding.js 375974 → 376592 (+618).
+  "/assets/molis-work-plugins/coding.js": [375974, 376592],
+  // Quiet home refresh on that same workbench script: 1182477 → 1182744 (+267).
+  // An unchanged day is not redrawn, a failed background refresh stays on screen, and the clock is text.
+  "/assets/molis-work-workbench.js": [1182477, 1182744],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

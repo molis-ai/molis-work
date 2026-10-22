@@ -39,7 +39,8 @@ export const codingFailure = (key: string, values?: Values): Error => codingErro
 export function codingErrorIn(error: unknown, locale: ActionLocale | undefined): unknown {
   if (!(error instanceof Error)) return codingErrorIn(codingFailure("coding.server.failed"), locale);
   if (!locale || locale === "zh") return error;
-  const known = worded.get(error);
+  const known = worded.get(error) ?? ((error as Error & { codingKey?: string; codingValues?: Values }).codingKey
+    ? { key: (error as Error & { codingKey: string }).codingKey, values: (error as Error & { codingValues?: Values }).codingValues ?? {} } : null);
   if (known) error.message = codingText(locale)(known.key, known.values);
   return error;
 }

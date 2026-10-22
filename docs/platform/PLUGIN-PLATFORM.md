@@ -77,7 +77,7 @@ Plugin 只能在 Manifest 上限和用户实际 grant 的交集内调用；Secre
 
 ## 7. 当前实现边界
 
-v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf、Characters 的正式宿主装配中运行（名单见 `tests/builtin-plugin-assembly-gate.test.ts`），
+v2 已在 Coding、Files、Diff、Git、Text Stats、Shelf 的正式宿主装配中运行（名单见 `tests/builtin-plugin-assembly-gate.test.ts`），
 复用 `createPluginPlatform` 的生命周期、Artifact、连线、事件及能力合同；真实 SQLite 重启路径有工程验证。
 其他仍标为 `native` 的插件继续由构建期组合装配，该名单冻结、只许减少；新的内置插件只走 Plugin Runtime，不能据 Coding 的接通宣称所有内置插件已迁移。
 每个插件的具体产品完成度以自身需求书和正式运行证据为准。

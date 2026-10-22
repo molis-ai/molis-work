@@ -20,9 +20,8 @@ export interface CharactersActionPorts {
 }
 
 /**
- * What only a running plugin can give: the project it runs in, its 成果库 client and the built-in Agent's catalog. They come from the
- * Runtime's services (the Host cannot build them), so the plugin hands them to the handlers when it starts. `agent` is read at each
- * call: it is absent while the capability directory is not connected.
+ * What the Host's provider gives for one call: the project, a 成果库 client that writes for that call's caller, and the built-in
+ * Agent's catalog. `agent` is read at each call: it is absent while the capability directory is not connected.
  */
 export interface CharactersActionRuntime {
   readonly projectId: string;
@@ -31,6 +30,7 @@ export interface CharactersActionRuntime {
 }
 
 export interface CharacterUpdateInput { id: string; expected_revision: number; title?: string; instructions?: string; host_tools?: string[] | null; action_tools?: unknown[] | null }
+/** A published Character run by a native Agent in one of the project's folders; the request id keeps a retried launch single. */
 export type CharacterLaunchInput = { reference: ArtifactReference; workspace_id: string; task: string; request_id: string };
 type Validate = (refs?: CharacterDraft["action_tools"]) => Promise<void>;
 
@@ -97,7 +97,7 @@ function publicationHandlers(ports: CharactersActionPorts, scope: CharacterPubli
 function importHandlers(drafts: CharactersQuery, imports: () => CharactersImportPorts) {
   return {
     runs: (input: { id: string }) => {
-      if (!drafts.get(input.id)) throw new Error("角色不存在");
+      if (!drafts.get(input.id)) throw characterErrors.not_found("角色不存在");
       return imports().runs(input.id).then(runs => ({ runs }));
     },
     discover: (input: Record<string, unknown>) => ({ candidates: imports().discover(input).map(candidate => ({ ...candidate, snapshot: characterSnapshotPreview(candidate.snapshot) })) }),
@@ -111,9 +111,9 @@ function importHandlers(drafts: CharactersQuery, imports: () => CharactersImport
 }
 
 /**
- * Every Characters action as a plain function: the owner's logic, with the ports it needs and none of the plugin binding. The plugin
- * binds each one to its registered action (owner check, grants and the final authority check stay with the Runtime); the second argument
- * of a command that writes is that binding's `beforeWrite`, and a launch is given the binding's launch control.
+ * Every Characters action as a plain function: the owner's logic, with the ports it needs and none of the binding. The Host's provider
+ * binds each one to its registered action (action-bindings.ts: owner check and the final authority check); the second argument of a
+ * command that writes is that binding's `beforeWrite`, and a launch is given the binding's launch control.
  */
 export function createCharactersActionHandlers(ports: CharactersActionPorts, runtime: CharactersActionRuntime) {
   const scope: CharacterPublicationScope = { actorId: ports.actorId, projectId: runtime.projectId, references: ports.references,

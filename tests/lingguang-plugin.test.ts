@@ -9,9 +9,9 @@ import {
   railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { CHARACTERS_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-characters";
 import {
   LINGGUANG_CLIENT_FACTORY_SCRIPT,
+  LINGGUANG_UI_CONTRIBUTION_ID,
   LINGGUANG_PROJECT_PLUGIN_ID,
   lingguangActions,
   lingguangManifest,
@@ -110,19 +110,21 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
 });
 
 test("PRR-12 the Manifest fallback only renders stages no host path already rendered, and only for shown plugins", () => {
+  // A stage the host lists as already rendered (here Lingguang's own, standing in for the host's Coding panels) is kept once.
   const view = {
     ...emptyView(),
-    enabled_plugins: ["goals", "characters", "lingguang", "issues"],
-    plugin_stage_ids: [CHARACTERS_UI_CONTRIBUTION_ID],
-    plugin_stages: ['<section data-work-surface="characters" data-stage="host"></section>'],
+    enabled_plugins: ["goals", "lingguang", "issues"],
+    plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
+    plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
   const html = renderMolisWorkWeb(view);
-  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's Characters stage is kept once");
-  assert.doesNotMatch(html, /data-character-api="undefined/, "the fallback did not render a second Characters stage with an empty model");
-  assert.match(html, /data-lingguang="workbench"/, "Lingguang still comes from its Manifest stage");
+  assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
+  assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
+  assert.match(renderMolisWorkWeb({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView), /data-lingguang="directory"/,
+    "without the host's stage, Lingguang comes from its Manifest stage");
 
-  const hiddenIssues = { ...view, enabled_plugins: ["goals", "characters", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
+  const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
   assert.doesNotMatch(renderMolisWorkWeb(hiddenIssues), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 

@@ -36,8 +36,8 @@ export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly readWebView: () => Promise<MolisWorkWebView>;
 }
 
-/** The services every project plugin surface is given: the unified action client, the Home, the native-Agent workspaces and terminal, and Git operation updates. */
-export type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn" | "observeGitOperations">;
+/** The services every project plugin surface is given: the unified action client, the Home, and Git operation updates. */
+export type ProjectPluginServices = Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "observeGitOperations">;
 
 export function projectRequestContext(context: WebRequestContext, options: ResolvedWebBoardOptions): ProjectRequestContext {
   const { localHost, composition, serverOptions } = context;
@@ -61,12 +61,10 @@ export function homeRouteProjectPlugins({ composition, serverOptions }: WebReque
 /** `/projects/<id>` for a project page; empty for the board a fixture serves at the root. */
 export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.project ? `/projects/${encodeURIComponent(options.project.project_id)}` : "";
 
-export function projectPluginServices({ localHost, hostReference, options, agentHost, ptyHost, composition, serverOptions }: ProjectRequestContext): ProjectPluginServices {
+export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
     actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeGitOperations: listener => observeGitOperations(agentHost.reviews, options.projectId, listener),
-    characterSpawn: request => ptyHost.spawn(request),
-    characterWorkspaces: () => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => options.project ? catalog.listWorkspaceDirectory(options.project.project_id) : []),
     homeDirectory: serverOptions.homeDirectory,
     capabilities: localHost.client(hostReference),
   };

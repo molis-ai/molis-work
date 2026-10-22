@@ -589,7 +589,7 @@ test("on this repository the typed capability rule finds the alias and the regis
   assert.ok(agent["without-action"] >= 0 && agent["type-refs"] > 0);
 });
 
-test("the report flags hybrid plugins (Characters with its decision) and prints the new numbers", () => {
+test("the report flags hybrid plugins and prints the new numbers", () => {
   git("checkout", "-q", "-f", "main");
   git("clean", "-fdq");
   const base = JSON.parse(gate("--report", "--json", "--base", "main").out);
@@ -610,16 +610,16 @@ test("the report flags hybrid plugins (Characters with its decision) and prints 
   assert.deepEqual(base.head.contractsPurity, { "packages/contracts/src/platform/lifetime.ts#effects": 1, "packages/contracts/src/platform/validator.ts#long-fn:inspectThing": 22 });
   assert.deepEqual(base.head.moduleRepositoryExports, { "modules/alpha#export:AlphaRepository": 1, "modules/alpha#member:AlphaService.repository": 1 }, "a private parameter property is not public");
 
-  // Characters is the second hybrid and carries the decision that it stops being a Runtime plugin.
-  put("plugins/native/characters/package.json", manifest("@fx/plugin-characters"));
-  put("plugins/native/characters/src/index.ts", "export const characters = 1;\n");
-  put("apps/local-host/src/project-plugins.ts", read("apps/local-host/src/project-plugins.ts") + 'export const more = [["@fx/plugin-characters", "createCharactersPlugin"]];\n');
-  put("apps/local-host/src/characters-host.ts", "export const host = 1;\n");
-  put("apps/local-host/src/character-import.ts", "export const imported = 1;\n");
+  // A second Runtime plugin with two Host files of its own is a second hybrid.
+  put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
+  put("plugins/native/three/src/index.ts", "export const three = 1;\n");
+  put("apps/local-host/src/project-plugins.ts", read("apps/local-host/src/project-plugins.ts") + 'export const more = [["@fx/plugin-three", "createThreePlugin"]];\n');
+  put("apps/local-host/src/three-host.ts", "export const host = 1;\n");
+  put("apps/local-host/src/three-import.ts", "export const imported = 1;\n");
   put("apps/local-host/src/two-surface.ts", "export const surface = 1;\n");
   git("add", "-A"); // the working tree is what git tracks
   const text = gate("--report").out;
-  assert.match(text, /Hybrid plugins: .*: 3 in 2 entries\n.*count.*\n\s+2\s+characters#host-files\n\s+1\s+two#host-files\n\s+flagged as hybrid: characters, two\n\s+characters: decision 26/);
+  assert.match(text, /Hybrid plugins: .*: 3 in 2 entries\n.*count.*\n\s+2\s+three#host-files\n\s+1\s+two#host-files\n\s+flagged as hybrid: three, two\n/);
   assert.match(text, /Contracts purity .*: 2 in 2 entries/);
   assert.match(text, /Host entry `export \*` declarations: 3 in 1 entries/);
   assert.match(text, /Files outside a built-in plugin's package that name its package: \d+ in 4 entries/);

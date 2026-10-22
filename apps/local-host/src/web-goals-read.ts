@@ -3,7 +3,7 @@ import { hostLog } from "./host-log.js";
 import { installedPluginStages } from "./plugin-builder/agent-surface.js";
 import { configuredModelChoices } from "./configured-models.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { availableProjectPluginIds, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
+import { availableProjectPluginIds, renderCharacters, renderWorkbenchGoalsReadRoute, renderWorkbenchGoalsPageRequest, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import { goalsActions, resolveGoalsReadRoute } from "@molis-ai/molis-work-plugin-goals";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
@@ -31,11 +31,15 @@ import { ensureProjectPlugins } from "./project-plugins.js";
 const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
-/** Opening the project page starts the project's plugin platform; the stages read what it runs. */
+/**
+ * Opening the project page starts the project's plugin platform; the stages read what it runs. The 角色 page is the Host's
+ * own (CHR-1): the settings cover shows it inside the project, and its client mounts when it is first shown.
+ */
 async function projectPluginStages(ports: CodingSurfacePorts, enabled: readonly string[]): Promise<{ html: string[]; ids: string[] }> {
   await ensureProjectPlugins(ports);
   const builtin = await builtinStagePanels(ports, enabled);
-  return { html: [...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
+  const characters = renderCharacters({ route_prefix: ports.routePrefix ?? "", primitives: { escape: value => escapeHtml(String(value)) } });
+  return { html: [characters, ...builtin.html, await builderWorkbenchPanel(ports)], ids: builtin.ids };
 }
 export function createLocalGoalsReadHttp(ports: {
   withCatalog: LocalWebCatalogRunner;
@@ -116,7 +120,7 @@ export function createLocalGoalsReadHttp(ports: {
   async function page(request: IncomingMessage, response: ServerResponse, url: URL, options: WebViewOptions,
     homeDirectory: string | undefined, readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, workActions: BoundActionClient, controlToken: string, goalActions: BoundActionClient, artifactActions: BoundActionClient,
     coordinator?: GoalProjectApplication, store?: LocalProjectDatabase,
-    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "characterWorkspaces" | "characterSpawn">,
+    pluginServices?: Pick<CodingSurfacePorts, "capabilities" | "actions" | "homeDirectory">,
   ): Promise<boolean> {
     const renderedGoalsPage = await renderWorkbenchGoalsPageRequest(
       request.method, url.pathname, readWebView,

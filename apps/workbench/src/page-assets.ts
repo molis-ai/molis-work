@@ -14,7 +14,7 @@ import { MEMORY_SETTINGS_STYLES } from "./styles/settings-memory.js";
 import { KNOWLEDGE_PICKER_STYLES, KNOWLEDGE_SETTINGS_STYLES } from "./styles/settings-knowledge.js";
 import { CODING_STYLES } from "@molis-ai/molis-work-plugin-coding";
 import { FILES_STYLES } from "@molis-ai/molis-work-plugin-files";
-import { CHARACTERS_STYLES } from "@molis-ai/molis-work-plugin-characters";
+import { CHARACTERS_STYLES } from "./characters/styles.js";
 import { GOALS_DOCUMENT_STYLES, TRASH_GOAL_STYLES, PLANNING_SETTINGS_STYLES, PLANNING_ADOPTION_CLIENT_SCRIPT, PLANNING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-goals";
 import { PROJECT_OPERATIONS_STYLES, PROJECT_OPERATIONS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-work";
 import {

@@ -79,6 +79,7 @@ export function isHostGlobalSettingsSection(section: string): boolean {
   return section === "appearance"
     || section === "models"
     || section === "assistant"
+    || section === "characters"
     || section === "prompts"
     || (CAPABILITY_SETTINGS_SECTIONS as readonly string[]).includes(section)
     || section === "runtimes"

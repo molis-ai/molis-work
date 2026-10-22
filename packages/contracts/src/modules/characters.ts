@@ -1,4 +1,4 @@
-import { parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
+import { defineArtifactPreviewAction, parseExactActionReferences, type ActionDefinition, type ActionSchema, type ExactActionReference } from "../platform/actions.js";
 import type { ArtifactReference } from "./artifacts.js";
 import { parseCharacterImportSnapshot, type CharacterImportSnapshot } from "./character-import.js";
 export * from "./character-import.js";
@@ -13,6 +13,19 @@ export const modulesCharactersContract = {
 export const CHARACTER_ARTIFACT_TYPE = "character.definition.v1";
 export const CHARACTER_PLUGIN_ID = "io.molis.work.characters";
 export const CHARACTER_PUBLISHER_SIGNATURE = "official-characters-binding";
+
+/** How a published Character reads in the 成果库; Characters answers it, the 成果库 and the Host's producer table name it. */
+export const characterArtifactPreviewAction = defineArtifactPreviewAction("characters.artifacts.preview", "角色", ["artifact:read"]);
+
+/**
+ * What Characters writes to the 成果库, declared the way a Manifest's `artifacts.produces` would be: Characters is part of the
+ * Host, not a plugin, so it has no Manifest, and the Host's table of producers that are not plugins carries this instead.
+ */
+export const CHARACTER_ARTIFACT_PRODUCER = {
+  plugin_id: CHARACTER_PLUGIN_ID, name: "Characters", binding_signature: CHARACTER_PUBLISHER_SIGNATURE,
+  produces: [{ artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1, title: "角色",
+    preview: { capability_id: characterArtifactPreviewAction.capability_id, version: characterArtifactPreviewAction.version } }],
+} as const;
 
 export type CharacterState = "active" | "disabled" | "tombstoned";
 

@@ -20,8 +20,9 @@ test("HTTP import previews lazily, rejects forged input and preserves old publis
   const candidate=scan.body.candidates[0],s=candidate.snapshot.skills[0];assert.equal(s.files[0].content,undefined);assert.ok(s.files.every((f:any)=>typeof f.bytes==='number'));
   const selection={rule_paths:candidate.snapshot.rules.map((r:any)=>r.path),skill_ids:[s.id]};
   const preview=await request("/imports/file",{candidate_id:candidate.candidate_id,skill_id:s.id,path:"guide.txt"});assert.equal(preview.body.content,"OLD_ATTACHMENT");
-  assert.equal((await request("/imports/file",{candidate_id:candidate.candidate_id,skill_id:s.id,path:"../AGENTS.md"})).status,400);
-  assert.equal((await request("/imports",{candidate_id:"forged",snapshot:candidate.snapshot,selection})).status,400);
+  // RAC-71: the Host's door answers the action's own refusal: a path outside the scanned skill and a forged candidate are 400 characters.invalid.
+  const outside=await request("/imports/file",{candidate_id:candidate.candidate_id,skill_id:s.id,path:"../AGENTS.md"});assert.deepEqual([outside.status,outside.body.code],[400,"characters.invalid"]);
+  const forged=await request("/imports",{candidate_id:"forged",snapshot:candidate.snapshot,selection});assert.deepEqual([forged.status,forged.body.code],[400,"characters.invalid"]);
   const imported=await request("/imports",{candidate_id:candidate.candidate_id,selection});assert.equal(imported.status,200);const id=imported.body.draft.character_id;
   const repeated=await request("/imports",{candidate_id:candidate.candidate_id,selection});assert.equal(repeated.body.replayed,true);assert.equal(repeated.body.draft.character_id,id);
   const original=await request(`/drafts/${id}/publish`,{expected_revision:1});assert.equal(original.status,200);

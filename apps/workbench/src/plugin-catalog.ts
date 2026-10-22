@@ -5,6 +5,7 @@ import type { AgentManifest, AgentPromptText, AgentSkillDefinition } from "@moli
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 /**
@@ -387,14 +388,33 @@ export function artifactReferrerActions(): readonly ArtifactContinuer[] {
     .map(action => ({ plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name, action })));
 }
 
-/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests. */
+/**
+ * A 成果 producer that is part of the Host, not a plugin (Characters): what it writes, declared as a Manifest's `artifacts.produces`
+ * would be, its actions, and the workbench surface its work objects open on. Wherever the built-in Manifests' declarations are
+ * read, these are read with them.
+ */
+export interface HostArtifactProducer {
+  readonly plugin_id: string;
+  readonly name: string;
+  readonly surface: string;
+  readonly produces: PluginManifest["artifacts"]["produces"];
+  readonly actions: readonly ActionDefinition[];
+}
+
+export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
+  { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
+];
+
+/** Each declared 成果 type: display name, preview and pin actions and owner, from the built-in Manifests and the Host's own producers. */
 export function artifactTypeDeclarations(): ReadonlyMap<string, ArtifactTypeDeclaration> {
   const declarations = new Map<string, ArtifactTypeDeclaration>();
-  for (const entry of BUILTIN_PLUGIN_CATALOG) for (const type of entry.manifest.artifacts.produces) {
+  const producers = [...BUILTIN_PLUGIN_CATALOG.map(entry => ({ plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, surface: entry.project_plugin_id,
+    produces: entry.manifest.artifacts.produces, actions: entry.manifest.actions ?? [] })), ...HOST_ARTIFACT_PRODUCERS];
+  for (const producer of producers) for (const type of producer.produces) {
     if (!type.title) continue;
-    const action = (declared?: { capability_id: string; version: number }) => declared ? entry.manifest.actions?.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
-    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: entry.manifest.plugin_id, plugin_title: entry.manifest.name,
-      surface: entry.project_plugin_id, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
+    const action = (declared?: { capability_id: string; version: number }) => declared ? producer.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) ?? null : null;
+    declarations.set(type.artifact_type_id, { title: type.title, plugin_id: producer.plugin_id, plugin_title: producer.name,
+      surface: producer.surface, preview: action(type.preview), pin: action(type.pin), compare: action(type.compare) });
   }
   return declarations;
 }

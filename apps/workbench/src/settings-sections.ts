@@ -29,6 +29,7 @@ const HOST_SECTIONS: readonly HostSection[] = [
   { id: "memory", label: "记忆", icon: "bookmark", group: "个人", order: 15 },
   { id: "models", label: "模型设置", icon: "key", group: "AI", order: 20 },
   { id: "assistant", label: "助理", icon: "message", group: "AI", order: 30 },
+  { id: "characters", label: "角色", icon: "user", group: "AI", order: 35 },
   { id: "prompts", label: "提示词", icon: "text", group: "AI", order: 40 },
   { id: "runtimes", label: "AI 与执行工具", icon: "terminal", group: "工具与接入", order: 50 },
   { id: "library", label: "能力库", icon: "book", group: "工具与接入", order: 60 },

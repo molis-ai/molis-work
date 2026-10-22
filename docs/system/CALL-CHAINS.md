@@ -115,7 +115,7 @@
 | 种类 | 谁装配 | 项目里「添加或移除」怎样生效 |
 | --- | --- | --- |
 | 构建期内置插件（Goals、Pages、Todo、Feed 等，名单冻结在 `tests/builtin-plugin-assembly-gate.test.ts`） | 项目运行环境打开时由 Host 注册动作提供方（`apps/local-host/src/project-host.ts`） | 只改项目目录库里的成员关系；动作仍在注册表里，但每次调用的宿主层可用性检查返回 `actions.plugin_disabled` |
-| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf、Characters；Characters 已定改成宿主的一节设置，见下方缺口） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
+| Runtime 内置插件（Coding、Files、Diff、Git、Text Stats、Shelf 等） | `apps/local-host/src/project-plugins.ts` 的监督器条目；对该项目第一次发现或调用动作时（`prepareProjectPlugins`）一起启动；Host 自己调 Goals 的 `actionClient(reference, false)` 不触发这一步，不会因此启动它们 | 成员关系同上；Runtime 管自己的状态机 |
 | 创作台生成的插件 | `apps/local-host/src/installed-plugin-host.ts`（`lifecycle`），在隔离沙箱进程里运行；已安装的在同一时机恢复 | 创作台的安装、启用、停用、卸载、升级、回滚 |
 
 下表是 Runtime 管理的插件（后两种）的链路；第一种只有第 1、7 行里「成员关系」的那一半。
@@ -145,7 +145,7 @@
 - 没有一个可移除的探针插件把 undo、到期提醒、`background_job`、情境片段、`methods`、放置走完「安装 → 发现 → 调用 → 停用 → 撤权 → 卸载 → 升级」；这些合同的生产方都是构建期插件（W4-01，台账见 [PLUGIN-PLATFORM §9](../platform/PLUGIN-PLATFORM.md)）。
 - Manifest 的 `methods` 通过校验，但只有构建期内置插件会被登记：`builtinRegistrations`（`apps/local-host/src/agent-definitions/builtin-agents.ts`）遍历 `BUILTIN_PLUGIN_CATALOG`，现有的声明方是 Pages 与 Todo；Runtime 插件和已安装插件的宿主都不登记它，声明了也不生效。已定（决定 18）：和内置插件一样注册，启动时登记，停用、卸载、升级时收回（W4-02）。
 - 已定（决定 9）：个人插件装在一个 Home 级的 Runtime 实例里，按项目启用照旧，数据文件留在 `{home}/<id>/<id>.db`、由平台库服务打开；Goals、Artifacts、Sessions 和插件创作台列为批准的构建期例外，其余构建期插件逐族迁到 Runtime（W5-01）。（2026-10-18 改：四个例外取消，Goals 按标准迁，插件创作台并进平台能力，成果库与 Sessions 归平台事实、Sessions 清理；见防腐 spec §1。）Issue 已复用唯一 Home Runtime；安装/发行物/KV 在 v2 Home 库，其他个人插件仍按迁移次序逐个接入。Home/project 重复身份被实际启动名单拒绝，业务库不搬入 Runtime；新工程证据按 spec §10.2 记录。
-- 已定（决定 26）：Characters 不再是 Runtime 插件，代码并进宿主或一个 Module（2026-10-18 定为 `modules/characters`），界面仍是「设置」里的一节；它的安装记录与 `project-plugins.ts` 里的监督器条目一起删（第 4 波的一片）。今天它仍是上表第二种。
+- 已做（决定 26，CHR-1，2026-10-22）：Characters 不再是插件，没有 Manifest、`registration` 和监督器条目。动作声明、处理器与归属绑定在 `modules/characters`，宿主为每个项目注册它的动作提供方（`apps/local-host/src/characters-host.ts`），页面的地址由宿主的 `apps/local-host/src/characters-http.ts` 接，界面是「设置 › 角色」这一节（`apps/workbench/src/settings-sections.ts` 的 `HOST_SECTIONS`），不再是上表的任何一种。项目库里可能还留着旧的安装记录 `io.molis.work.characters`：监督器只启动自己的条目，不会碰它；清掉它是维护项，见 `docs/releases/CHECKLIST.md`。
 
 ## 6. 链 5：后台——调度与监听 → Feed → Inbox → 提醒与通知
 

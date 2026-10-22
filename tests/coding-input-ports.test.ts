@@ -10,7 +10,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { CODING_PLUGIN_ID, CODING_UI_CONTRIBUTION_ID, codingManifest, type CodingUiHostModel } from "@molis-ai/molis-work-plugin-coding";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, PluginHostExecutor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
-import { charactersActions } from "@molis-ai/molis-work-plugin-characters";
+import { charactersActions } from "@molis-ai/molis-work-module-characters";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";

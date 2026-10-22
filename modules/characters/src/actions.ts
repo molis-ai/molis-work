@@ -1,7 +1,7 @@
 import { defineActionUsagesAction, defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
-import { charactersArtifactPreview } from "./artifact-preview.js";
+import { characterArtifactPreviewAction, characterPluginActions, type CharacterDraft, type CharacterState } from "@molis-ai/molis-work-contracts/modules/characters";
+import type { CharacterLaunchInput, CharacterUpdateInput } from "./action-handlers.js";
 
 const text = { type: "string" };
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -19,14 +19,10 @@ function define<I, O>(name: string, title: string, description: string, operatio
     scope: "project", audiences, permissions, subject_kinds: ["character"], input_schema: input, output_schema: output } };
 }
 
-export interface CharacterUpdateInput { id: string; expected_revision: number; title?: string; instructions?: string; host_tools?: string[] | null; action_tools?: unknown[] | null }
-/** Owner-bound: drafts and publications belong to the person who wrote them; the Runtime instance redeems each action. */
-/** A published Character run by a native Agent in one of the project's folders; the request id keeps a retried launch single. */
-export type CharacterLaunchInput = { reference: ArtifactReference; workspace_id: string; task: string; request_id: string };
-
+/** Owner-bound: drafts and publications belong to the person who wrote them; the Host's provider redeems each action (action-bindings.ts). */
 export const charactersActions = {
-  /** A published character as the 成果库 and side panel show it (artifact-positioning A4). */
-  artifactPreview: charactersArtifactPreview,
+  /** A published character as the 成果库 and side panel show it (artifact-positioning A4): Markdown of its instructions and tools. */
+  artifactPreview: characterArtifactPreviewAction,
   /** Defined in the contracts, where Coding (which consumes it) finds it too. */
   list: characterPluginActions.list,
   actions: define<Record<string, never>, { actions: unknown[] }>("actions.catalog", "角色可选能力", "读取可交给内置 Agent 的授权能力目录，用于角色的能力范围",
@@ -64,3 +60,5 @@ export const charactersActions = {
   subject: defineSubjectContextAction("characters.subject.read", "character", "角色", []),
 };
 export const CHARACTERS_ACTIONS: readonly ActionDefinition[] = Object.values(charactersActions);
+/** What the person must hold to reach every Characters action (the Host adds them to the local owner's permissions). */
+export const CHARACTER_ACTION_PERMISSIONS: readonly string[] = [...new Set(CHARACTERS_ACTIONS.flatMap(definition => definition.action.permissions))];

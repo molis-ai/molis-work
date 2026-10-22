@@ -2,6 +2,7 @@ import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/pl
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginEventDeliveryContext, PluginEventRecord } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -174,6 +175,32 @@ test("Files 订阅的事件 id 和发布方导出的是同一个", () => {
   const subscribed = (filesManifest.events?.subscribes ?? []).map((entry) => entry.event_type_id);
   assert.equal(subscribed.includes(GIT_FILE_CHANGED_EVENT), true);
   assert.equal(subscribed.includes(CODING_FILE_CHANGED_EVENT), true);
+});
+
+test("PG061-FILES-01 a Coding or Git event makes Files' own pages read again; a delivery no longer current moves nothing, and nothing else calls it", async () => {
+  // C6: the Host's `onWorkspaceChanged` port is gone; Files moves its own revision through `services.ui.invalidate()` (PG-061).
+  let invalidated = 0;
+  const context: PluginStartContext = { install_id: "files-invalidate", plugin_id: filesManifest.plugin_id, version: filesManifest.version,
+    deployment: "local", grants: filesManifest.permissions.map(item => item.permission), project_id: "project", actor_id: "web-user",
+    requireGrant: () => {}, services: { ui: { register: () => {}, unregister: () => {}, invalidate: () => { invalidated++; } } } };
+  const plugin = createFilesPlugin({ readable: () => true }), contribution = await plugin.start(context);
+  const record: PluginEventRecord = { event_id: "event-1", project_id: "project", sequence: 1, event_type_id: GIT_FILE_CHANGED_EVENT, type_version: 1,
+    source_plugin_id: "io.molis.work.git", source_install_id: "git", payload: {}, correlation_id: null, occurred_at: new Date(0).toISOString() };
+  const delivery = (beforeEffect: () => void): PluginEventDeliveryContext => ({ project_id: "project", plugin_id: filesManifest.plugin_id,
+    install_id: context.install_id, installation_generation: "1", actor_id: `plugin:${filesManifest.plugin_id}`, signal: new AbortController().signal, beforeEffect });
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 0, "starting and idling move nothing: Files keeps no timer or watcher that calls it (BL-411)");
+
+  await contribution.onEvent!(record, delivery(() => {}));
+  assert.equal(invalidated, 1, "the delivery makes Files' own pages read again");
+
+  const refusal = new Error("the subscriber's installation is no longer current");
+  await assert.rejects(async () => contribution.onEvent!(record, delivery(() => { throw refusal; })), error => error === refusal);
+  assert.equal(invalidated, 1, "a delivery that is no longer current is refused before it moves anything");
+
+  await plugin.stop!(context);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(invalidated, 1, "after stop nothing is left to call it");
 });
 
 

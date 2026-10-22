@@ -12,8 +12,10 @@ interface PaintElement extends PaintNode {
   childNodes: ArrayLike<PaintNode>;
   lastChild: (PaintNode & { data?: string; appendData?: (text: string) => void }) | null;
   attributes: Iterable<{ name: string; value: string }>;
+  style: { setProperty(name: string, value: string): void };
   isConnected: boolean;
   clientWidth: number;
+  scrollWidth: number;
   getBoundingClientRect(): { width: number; height: number };
   parentElement: PaintElement | null;
   matches(selector: string): boolean;
@@ -134,20 +136,21 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     // Let the plain rows lay out once. Their remembered natural size keeps the scroll range while the browser skips
     // offscreen rows; full text and tokens stay in the DOM. Minified plain rows keep their full measured width.
     for (const row of rows) if (row.text.length > 40000 && row.code.parentElement) row.code.parentElement.dataset.diffMeasure = "";
-    const probe = shown.find((row) => !row.code.parentElement?.hasAttribute("hidden"))?.code.parentElement;
+    const probe = rows.find((row) => row.text.length && !row.code.parentElement?.hasAttribute("hidden"))?.code.parentElement;
     if (probe) probe.dataset.diffMeasure = "";
     const number = probe?.querySelector(".diff-before"), content = probe?.querySelector("code"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width, content?.getBoundingClientRect().width].join(":");
+    const remember = () => { list.style.setProperty("--diff-width", list.scrollWidth + "px"); list.dataset.diffSized = ""; };
     let measured = size();
     const refresh = (force = false) => {
       if (!list.isConnected) { stop(); return; }
       if (!force && measured === size()) return;
       measured = size(); delete list.dataset.diffSized;
-      later(() => later(() => { if (list.isConnected) list.dataset.diffSized = ""; }));
+      later(() => later(() => { if (list.isConnected) remember(); }));
     };
     const changed = () => refresh(true), resize = new ResizeObserver(() => refresh()), folds = new MutationObserver(changed);
     const stop = own(() => { resize.disconnect(); folds.disconnect(); document.fonts.removeEventListener("loadingdone", changed); });
     resize.observe(list); if (probe) resize.observe(probe); if (number) resize.observe(number); if (content) resize.observe(content); folds.observe(list, { childList: true }); document.fonts.addEventListener("loadingdone", changed);
-    later(() => { if (list.isConnected) { list.dataset.diffSized = ""; step(); } });
+    later(() => { if (list.isConnected) { remember(); step(); measured = size(); } });
   };
   return { pieceNode, paintInto, paintBlock, growCode, paintRows, source };
 }

@@ -564,7 +564,7 @@ export const CODING_CLIENT_FACTORY_SCRIPT = `(host) => {
     // A line past 40,000 characters stays text and the rest are coloured, a slice a frame (paintRows); splitting is cheap.
     const painted=language ? diffRowTokens(rows,language,tokensOf) : null;
     const fresh=rows.map((row,index)=>({...row,pieces:painted?.[index]})).filter(row=>!row.code.dataset.painted && (row.code.dataset.painted='true') && row.pieces);
-    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}),list,lifetime.own);
+    paintRows(fresh,(step)=>lifetime.frame(()=>{if(list.isConnected)step();}),list,(release)=>host.mountPluginClient(list).own(release));
   }));
   let paintFrame=0;lifetime.observe(new MutationObserver(()=>{if(paintFrame)return;paintFrame=lifetime.frame(()=>{paintFrame=0;paintDiffs(root);});}),root,{childList:true,subtree:true});
   const enrichCode = (node) => node.querySelectorAll('pre:not([data-enriched])').forEach(pre => {

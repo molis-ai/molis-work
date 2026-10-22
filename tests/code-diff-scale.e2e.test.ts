@@ -15,7 +15,7 @@ import { expensiveHasSelectors } from "./fixtures/style-invalidation.js";
 
 const escape = (value: unknown) => String(value).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 const primitives = { escape, text: pageText("zh"), icon: (name: string) => `<svg aria-hidden="true"><use href="#icon-${name}"></use></svg>` };
-const LINE = (index: number) => index % 7 === 0 ? `/** step ${index}: a note */` : `  const value${index} = compute(${index}, "text-${index}"); // ${index}`;
+const LINE = (index: number) => index === 0 ? "" : index % 7 === 0 ? `/** step ${index}: a note */` : `  const value${index} = compute(${index}, "text-${index}"); // ${index}`;
 const lines = Array.from({ length: 2_000 }, (_, index) => LINE(index));
 let minified = ""; while (minified.length < 120_000) minified += 'function a1(b,c){return b+c*"x"/2}var q={k:1,"s":[1,2,3]};';
 let wide = "const wide = ["; while (wide.length < 30_000) wide += `compute(${wide.length}, "w"), `;
@@ -31,7 +31,10 @@ const WHOLE = `(list) => { const codes = [...list.querySelectorAll(':scope > li 
     return holder.innerHTML; }); }`;
 
 test("VUX-33: a large change reads whole at once and is coloured a slice a frame to the whole colouring; a minified line stays text, not the file", { timeout: 180_000 }, async t => {
-  const opened = await openCoding(t); if (!opened) return;
+  const opened = await openCoding(t, `window.diffFontListeners = new Set();
+    const addFontListener = document.fonts.addEventListener.bind(document.fonts), removeFontListener = document.fonts.removeEventListener.bind(document.fonts);
+    document.fonts.addEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.add(listener); addFontListener(type, listener, options); };
+    document.fonts.removeEventListener = (type, listener, options) => { if (type === 'loadingdone') diffFontListeners.delete(listener); removeFontListener(type, listener, options); };`); if (!opened) return;
   const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
   const session = await start("看一份很大的改动");
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
@@ -42,6 +45,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     reference: { artifact_id: "artifact-large", version: 1 }, saved_at: "2026-10-21T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch: unifiedPatch(view.rows, { path: "large.ts" }) };
   await evaluate(`fakes.push({method:'GET',path:'layout=',body:${JSON.stringify(body)}})`);
   await evaluate("localStorage.setItem('molis-coding-diff-layout', 'unified')");
+  const initialFontListeners = await evaluate<number>("diffFontListeners.size");
   const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
   // DFP-01, DFP-02: build the independent whole-colouring reference before sampling: constructing it is test work, not a reader frame.
   await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.diffRowTokens = ${diffRowTokens.toString()};`);
@@ -113,6 +117,16 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   const fullCodeFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
   assert.deepEqual(withCodeFont, fullCodeFont, "a code-only font change refreshes the remembered content widths");
   await evaluate("document.querySelector('#diff-test-font').remove()");
+  // DFP-04: replacing a previously hidden list releases its font listener even without a resize notification.
+  for (let replacement = 0; replacement < 2; replacement++) {
+    await evaluate(`window.previousDiffList = ${list}; ${reader}.querySelector('[data-coding-change-close]').click()`);
+    await settle();
+    await openItem(`coding-changeset:${encodeURIComponent(session)}:run-large`);
+    await waitFor(`${list} !== previousDiffList && ${list}?.hasAttribute('data-diff-sized')`, 15_000);
+    assert.equal(await evaluate("previousDiffList.isConnected"), false);
+    assert.equal(await evaluate("diffFontListeners.size"), initialFontListeners + 1, "only the current diff keeps a font listener after reopen");
+  }
+  await evaluate("delete window.previousDiffList");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_insert: Math.round(turn * 10) / 10 }, null, 2));
 });

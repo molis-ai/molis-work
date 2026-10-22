@@ -239,9 +239,10 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
   // Large diff frame layout (#1010, review 4347078317): remember natural row sizes and invalidate them on
-  // container/font/fold changes. Final measurement includes the reviewed code-width observation fix.
-  "/assets/molis-work-plugins/coding.js": [376592, 377930],
-  "/assets/molis-work-workbench.css": [1616975, 1617211],
+  // container/font/fold changes. Final measurement includes code-width observation, per-list cleanup and
+  // reusing the natural column width in block layout to avoid a full grid pass on each inserted token.
+  "/assets/molis-work-plugins/coding.js": [376592, 378072],
+  "/assets/molis-work-workbench.css": [1616975, 1617336],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

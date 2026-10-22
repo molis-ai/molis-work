@@ -1,9 +1,12 @@
-import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DIFF_CHANGESET_TYPE, CODING_CHANGESET_TYPE, parseCodingChangeSet, type TextDiff } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { compareSnapshots, compareChangeSet, compareRunChangeSet, emptyDiff, type DiffView } from "./comparison.js";
-import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
+import { compareTexts, fillMessage } from "@molis-ai/molis-work-plugin-sdk";
+import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
 import { diffErrors } from "./errors.js";
+import { DIFF_MESSAGES } from "./messages.js";
+import { renderDiff } from "./ui.js";
 
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
 const text = { type: "string" }, version = { type: "integer", minimum: 1 }, count = { type: "integer", minimum: 0 }, boolean = { type: "boolean" };
@@ -18,10 +21,12 @@ const view = object({ phase: { enum: ["waiting", "unavailable", "ready"] }, mode
   ["phase", "mode", "group", "message", "coarse", "identical", "empty", "created", "removed", "mismatch", "partial", "rows", "files"]);
 const base = { kind: "query" as const, scope: "project" as const, audiences: ["user", "agent", "workflow", "mcp"] as const, subject_kinds: ["text", "artifact"] };
 interface DiffStateInput { reference?: { artifact_id: string; version: number }; change_index?: number }
+/** `html` is the comparison drawn for a page, in the page's language; a model or a workflow reads `view` alone. */
+interface DiffState { view: DiffView; html?: string }
 export const diffActions = {
   state: { capability_id: "diff.state", version: 1, operation: "query", action: { ...base,
     title: "读取固定差异", description: "读取明确指定的固定成果或当前已选输入组，保留原版本、来源和失效状态，不读取当前磁盘", permissions: ["artifact:read"],
-    input_schema: object({ reference, change_index: count }, []), output_schema: object({ view }) } } as ActionDefinition<DiffStateInput, { view: DiffView }>,
+    input_schema: object({ reference, change_index: count }, []), output_schema: object({ view, html: text }, ["view"]) } } as ActionDefinition<DiffStateInput, DiffState>,
   compare: { capability_id: "diff.compare", version: 1, operation: "query", action: { ...base,
     title: "比较两段文本", description: "比较提供的两段文本，保留原行尾；超出计算预算时返回完整删除与新增，不改文件或保存成果", permissions: [],
     input_schema: object({ before: { type: "string", maxLength: 2_000_000 }, after: { type: "string", maxLength: 2_000_000 } }),
@@ -34,8 +39,14 @@ export const diffActions = {
 };
 export const DIFF_ACTIONS = Object.values(diffActions);
 export function diffActionHandlers(context: PluginStartContext): ActionHandlerBinding[] {
-  return [{ ...diffActions.state, handle: (_caller, input) => ({ view: readState(context, input as DiffStateInput) }) },
+  return [{ ...diffActions.state, handle: (caller, input) => stateFor(caller, readState(context, input as DiffStateInput)) },
     { ...diffActions.compare, handle: (_caller, input) => { const value = input as { before: string; after: string }; return compareTexts(value.before, value.after); } }];
+}
+function stateFor(caller: ActionCallContext, view: DiffView): DiffState {
+  if (caller.audience !== "user") return { view };
+  const words: Record<string, { zh: string; en: string }> = DIFF_MESSAGES, locale = caller.locale ?? "zh";
+  return { view, html: renderDiff({ view, primitives: { escape: escapeHtml, text: (key, values) => fillMessage(words[key]?.[locale] ?? key, values),
+    icon: name => icon(name as Parameters<typeof icon>[0]) } }) };
 }
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {
   if (input.reference) {

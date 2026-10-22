@@ -41,7 +41,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
   source_plugin_id: "io.molis.work.coding", content_version: 1 }, undefined, 0);
   const file = { path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, review: { decision: "approved", execution: "applied" } };
-  const body = { html: renderDiff({ view: { ...view, mode: "unified" }, route_prefix: "", primitives, line_feedback: true, fold_context: 3, sides: false }), change: { files: [file] },
+  const body = { html: renderDiff({ view: { ...view, mode: "unified" }, primitives, line_feedback: true, fold_context: 3, sides: false }), change: { files: [file] },
     reference: { artifact_id: "artifact-large", version: 1 }, saved_at: "2026-10-21T00:00:00.000Z", view_mode: "write", net_groups: [], output: null, patch: unifiedPatch(view.rows, { path: "large.ts" }) };
   await evaluate(`fakes.push({method:'GET',path:'layout=',body:${JSON.stringify(body)}})`);
   await evaluate("localStorage.setItem('molis-coding-diff-layout', 'unified')");

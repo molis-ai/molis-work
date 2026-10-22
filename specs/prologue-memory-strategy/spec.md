@@ -46,6 +46,23 @@ Prologue 侧只改 `memory/`、`runtime/`（槽表）、`kernel/`（错误码）
 - 不为旧实现保留第二套写入路径或第二套召回循环。
 - 不把记忆变成 App 产品数据库；业务事实仍向所有者读取。
 
+### 2.3 参考与取舍
+
+下表把公开做法和本 spec 的决定对上。**这不是竞品评测**：本环境未能逐页抓取全文，链接与行为以公开页面为准，实施前应再核对版本。
+
+| 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
+| --- | --- | --- | --- | --- |
+| [Claude Code memory](https://code.claude.com/docs/en/memory) | 官方文档 | `CLAUDE.md` 层级、导入、项目/用户范围 | 采纳层级与显式可审；拒绝默认自动写 | 作用域、项目记忆、显式入口 |
+| [Cline Memory Bank](https://docs.cline.bot/best-practices/memory-bank) | 官方文档 | 结构化 Markdown 文件、手动更新 | 采纳结构化与项目级；拒绝只靠手动、无生命周期 | `kind`/`data`、维护策略 |
+| [Anthropic memory tool](https://platform.claude.com/docs/zh-CN/agents-and-tools/tool-use/memory-tool) | 官方文档 | 客户端 `/memories`、工具面读写 | 采纳显式工具面与用户控制；拒绝模型自批 | 单写口、候选、批准 |
+| [Mem0](https://mem0.mintlify.app/core-concepts/how-it-works) | 官方文档 | 抽取 + ADD/UPDATE/DELETE/NOOP | 采纳写管线、去重、覆盖；拒绝默认全自动 | 写入管线、`key`、`supersede` |
+| [LangMem](https://www.langchain.com/blog/langmem-sdk-launch) | 厂商博客 | semantic / episodic / procedural、前后台 | 采纳 profile/episode 分层；暂不做 procedural prompt 优化 | `kind`、`assisted`、维护 |
+| [Zep / Graphiti](https://help.getzep.com/v2/concepts) | 官方文档 | 时序知识图谱、事实有效期 | 采纳 `supersede`/valid time；暂不引图数据库 | `supersedes`、冲突 |
+| [Letta / MemGPT](https://docs.letta.com/configuration/memory/index.md) · [Sleep-time](https://www.letta.com/blog/sleep-time-compute) | 官方文档/博客 | core / archival / recall、后台巩固 | 采纳工作集与后台巩固；拒绝默认后台模型调用 | 热缓存、维护、`assisted` |
+| [MemoryOS](https://aclanthology.org/2025.emnlp-main.1318/) | 论文 | 短/中/长期记忆 | 采纳生命周期分层；不照搬固定三层 | 维护、TTL/衰减 |
+| [Memobase](https://docs.memobase.io/practices/tips) | 官方文档 | 结构化用户画像 | 采纳 profile-first；不只做画像 | 召回模式、`data` |
+| [A-MEM](https://neurips.cc/virtual/2025/loc/san-diego/poster/119020) · [Cognee](https://pypi.org/project/cognee/0.1.37/) | 论文/文档 | 笔记链接、图记忆 | 只留作 P2 参考；现不引图 | 后续候选 |
+
 ## 3. 已定决策
 
 | 编号 | 决定 | 理由 |
@@ -303,6 +320,7 @@ interface RecallQuery {
 - `situation` 只收窄：`appliesWhen` 不匹配的不召回；不能用它放宽作用域或权限。
 - `receiptId` 由 App 生成；`memory-recalled` 事件原样带回。
 - 事件带 `method`（`pinned | keyword | vector | hybrid | custom`）、`segmentation`（沿用 `given | cjk-bigram`）、`injected`、`omitted`（带 `limit/budget/conflict/expired/paused/disabled/not-applicable/duplicate` 原因）、`unavailable`（带 `deleted/paused/disabled/expired/superseded` 原因）；只带 id/version/score/reason，不带正文。
+- 召回预算与 Context pack 预算叠加：`toContextItems` 只做单次召回裁剪，Context 仍可能因窗口省略；两处都要在回执/trace 里说清，不静默二次截断。
 
 **`memory-recaller` 槽**：
 
@@ -576,6 +594,16 @@ P0 不包含：自动晋升默认打开、`run-summary` 默认开启、向量/�
 1. `assisted` 的默认允许类别是否只限 `preference` 与 `convention`，`fact` 一律进候选。
 2. Molis 旁表 `revisions` 在迁移验证后保留只读一个版本，还是同一 PR 删除。
 3. SDK `MemoryPackage` v2 是否直接作为 Molis 导出包，还是继续包一层 `molis.memory` 信封。
+
+### 复查记录（2026-10-21）
+
+按当前 `docs/product/requirements/modules/memory/`、Molis `horizontal/memory` 与 `prologue-memory` 适配器逐条对照，补了三处：
+
+- **召回预算与 Context 打包预算的边界**：本 spec 只裁单次召回；Context 仍可能省略。两处都可见，不把一次裁剪说成删除。
+- **D7 不在最初六个问题里**：`memoryInbox` 冻结、提炼候选统一进持久候选箱，需要单独确认；本 spec 先按推荐写，未当成已拍板。
+- **`MemoryPackage` v2 与 `molis.memory` 信封**：仍待定；不因为导出带 `meta` 就假设 Molis 产品包格式已经换掉。
+
+没有改需求分册的完成门；这份仍是“策略/方案”，实现前要按短合同冻结范围。
 
 ## 11. 参考
 

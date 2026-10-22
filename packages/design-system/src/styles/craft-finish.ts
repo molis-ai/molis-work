@@ -1243,7 +1243,7 @@ const CRAFT_BASE_STYLES = `
   .prompt-group-title { margin: 0 0 8px; font-size: 15px; }
   .prompt-roles-label { margin: 0 0 4px; font-size: 12px; color: var(--muted); }
   .prompt-roles { list-style: none; margin: 0 0 12px; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
-  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 7px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
+  .prompt-role { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; box-shadow: 0 0 0 1px var(--line); font: inherit; font-size: 12px; text-align: left; cursor: pointer; }
   .prompt-role:hover { background: var(--hover); }
   .prompt-role[aria-pressed="true"] { box-shadow: 0 0 0 1.5px var(--accent); }
   .prompt-role-focus { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 16px; padding: 12px 12px; border-radius: 8px; background: var(--hover); font-size: 13px; }
@@ -1262,7 +1262,7 @@ const CRAFT_BASE_STYLES = `
   .prompt-row-copy { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
   .prompt-row-copy > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
   .prompt-row-meta { display: flex; flex-wrap: wrap; gap: 4px; justify-content: flex-end; }
-  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 5px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
+  .prompt-tag, .prompt-state { font-size: 11px; padding: 1px 8px; border-radius: 6px; box-shadow: 0 0 0 1px var(--line); color: var(--muted); white-space: nowrap; }
   .prompt-state--user { color: var(--ink); background: var(--nav-active); }
   .prompt-state--updated { color: var(--warning, #b7791f); }
   .prompt-editor { margin-top: 12px; display: flex; flex-direction: column; gap: 8px; }

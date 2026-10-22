@@ -60,6 +60,15 @@ test("VUX-46 to VUX-50: marks, words and button rows are in order on the common 
         const opened = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
         for (const finding of opened.findings) found.push(`${mode.name} ${id} ${what}: ${JSON.stringify(finding)}`);
       }
+      if (id !== "settings") continue;
+      // Settings: every section, each read once it has loaded.
+      const sections = await evaluate("[...document.querySelectorAll('[data-settings-section]')].map((row) => row.dataset.settingsSection)") as string[];
+      for (const section of sections.slice(1)) {
+        await evaluate(`document.querySelector('[data-settings-section=${JSON.stringify(section)}]').click()`);
+        await pause(1500);
+        const read = await evaluate(orderAudit(SKIP)) as { findings: Array<Record<string, unknown>> };
+        for (const finding of read.findings) found.push(`${mode.name} settings ${section}: ${JSON.stringify(finding)}`);
+      }
     }
   }
   assert.deepEqual(found, [], "a mark, an icon, a font size, a control's role or a row of buttons is out of order");

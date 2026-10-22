@@ -48,7 +48,7 @@ export const PROJECT_SETTINGS_PAGE_STYLES = `
   :is(.project-preferences-page, .settings-stage) :is(input:not([type=checkbox]):not([type=radio]), select, textarea) { max-width: 100%; min-height: 36px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--paper); color: var(--ink); font: inherit; font-size: 13px; box-shadow: var(--lift-1); }
   :is(.project-preferences-page, .settings-stage) select { padding-right: 32px; }
   :is(.project-preferences-page, .settings-stage) textarea { width: 100%; resize: vertical; line-height: 1.65; }
-  :is(.project-preferences-page, .settings-stage) button { font-size: 12px; font-weight: 400; }
+  :is(.project-preferences-page, .settings-stage) button:not(.mw-btn) { font-size: 12px; font-weight: 400; }
   :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary) { transition: background-color var(--dur-hover, 130ms) var(--ease-quint), border-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint); }
   :is(.project-preferences-page, .settings-stage) :is(button, a, input, select, textarea, summary):focus-visible { outline: var(--focus-stroke); outline-offset: var(--focus-stroke-inset); }
   .settings-data-disclosure, .settings-advanced { border-bottom: 1px solid var(--line); }

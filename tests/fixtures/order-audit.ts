@@ -10,7 +10,7 @@
  * - off-scale: words in a computed font size outside the type scale (code, inputs and the editor's own canvas excepted).
  * - row-height / row-centre: buttons in one row (siblings in a flex or grid row) of different heights or centres.
  * - row-gap: buttons in one row whose gaps differ, or a gap that is not 4 or 8px (2px also between icon buttons, and in a
- *   toolbar, which packs its tools).
+ *   toolbar, which packs its tools). A button taller than 56px is a card, laid out by its grid, and is not counted.
  *
  * - control-role: a button's words not in their role (DESIGN「Typography · Roles」), so an action reads as an action wherever
  *   it stands: an action 13px / 500; a view choice (a pressed toggle, a filter or menu trigger) 12 or 13px / 500; a tool in
@@ -109,7 +109,8 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     if (row.matches('.tab-item, [role=tablist], .mw-segmented, .mw-split, [data-segmented]')) continue;
     // Peers: buttons with words beside buttons with words, icon buttons beside icon buttons.
     const worded = (b) => Boolean((b.innerText || '').trim()) && !b.matches('.mw-btn--icon-only');
-    const all = [...row.children].filter((c) => c.matches('button, a.mw-btn, [role=button]') && shown(c));
+    // A button taller than a control row is a card in a grid of cards: the grid's gaps are the cards', not a row of peers.
+    const all = [...row.children].filter((c) => c.matches('button, a.mw-btn, [role=button]') && shown(c) && c.getBoundingClientRect().height <= 56);
     const buttons = all.filter((b) => worded(b) === worded(all[0]));
     if (buttons.length < 2) continue;
     const boxes = buttons.map((b) => b.getBoundingClientRect()).sort((a, b) => a.left - b.left);

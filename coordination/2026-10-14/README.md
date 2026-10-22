@@ -2494,3 +2494,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - 不取 S 号：PG035-01、02 的拒绝写进 S-15 模型服务那一段，提交说明写「写测试时发现缺这条拒绝，已补」。
   - 从输入读 `pluginId` 的几个 agent 能力：外面能走到就是安全缺陷，这一片先补拒绝；只有宿主内部能走到就记进 BL-364。
 - **10-22 main 红又多 4 个文件，都来自视觉线**：#922 带进 3 个，翻译键没回落到中文（⑤ 已在 #922 评论）；#929 带进 `coding-state-rings`，用例没传 roleName（⑤ 已在 #929 评论）。修复归视觉线，不接受放宽断言。main 修好之前，PR 失败的文件只要都在已知名单内，⑤ 就按头提交手动排队。
+- **10-22 合入 main**：#987（C8-2）`be959727d`、#989（PG-061）`4591a1484`、#993（G0；⑤ 评审时顺手删了 `diffStagePanel` 和 `workspace-files.ts` 的目录、文本读取）`3a4ffe46d`。issue-naming 已被 #990 修好。
+- **10-22 ③ 的下一步**：
+  - 先做 C6 后半（Files 端口换成 `ui.invalidate`）。
+  - 再做 G2a：Git 的 `onWorkingTreeChanged` 换成 `ui.invalidate`，并照 U1 (a) 删掉 `git.accept-run-changes`。这两片都改 `project-plugins.ts`，一次只开一片。
+  - G2b（审查结算改发平台事件）要等 X-6。
+  - G1、PG-038 的 Coding 后半可以开子会话并行。
+  - G3 等 PG-035，G4 等 #936，C7、C8-3、C9 等视觉线的 #940、#950～952。
+- **10-22 ② 的下一步**：
+  - PG-035 交出去以后，先修 agent-host 的撞包缺陷（共享笔记 `agent-host-pack-suggest-1022.md`）：同一个 Home 里先「执行」后换别的方式开一轮，第二轮就报 `SCENARIO_PACK_INVALID`，原因是 `suggest` 没算进包 id。这个缺陷从 #571 起就有，用户能碰到，所以排在 X-6 前面。
+  - 接着是 X-6，设计稿里先补上它的定义；然后是 BL-411。
+- **10-22 视觉线新红的 5 个浏览器用例**（⑤ 已在来源 PR 下评论，尚未修）：`coding-state-rings`（#929）、`coding-taskboard`（#928）、`has-anchors` 和 `code-diff-scale`（#954）、`assistant-process-info`（#966）。Product subset 还红 #922 带来的 3 个。

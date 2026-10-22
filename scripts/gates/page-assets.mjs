@@ -238,14 +238,14 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate (none is open now).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-plugins/cognia.js": [24042, 24112],
-  "/assets/molis-work-plugins/todo.js": [62036, 62126],
-  "/assets/molis-work-plugins/jelly.js": [91267, 91338],
-  "/assets/molis-work-workbench.css": [1610654, 1610689],
-  "/assets/molis-work-workbench.js": [1176789, 1176833],
-  "/assets/molis-work-arrival.css": [702945, 704315],
-  "/assets/molis-work-settings.css": [992921, 994287],
-  "/assets/molis-work-plugins/coding.js": [370756, 372329],};
+  "/assets/molis-work-arrival.css": [704238, 705742],
+  "/assets/molis-work-plugins/alchemist.js": [52269, 52395],
+  "/assets/molis-work-plugins/coding.js": [370223, 375697],
+  "/assets/molis-work-plugins/pages.js": [48325, 48547],
+  "/assets/molis-work-plugins/workflows.js": [82555, 82671],
+  "/assets/molis-work-settings.css": [994266, 996572],
+  "/assets/molis-work-workbench.css": [1610689, 1621877],
+  "/assets/molis-work-workbench.js": [1176833, 1182456],};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

@@ -127,13 +127,7 @@ export const gitManifest: PluginManifest = {
       {
         command_id: "git.open-change",
         title: "查看这处改动",
-        input_kinds: ["current", "object"],
-        opens_view_id: "changes",
-      },
-      {
-        command_id: "git.accept-run-changes",
-        title: "把这一轮的改动放进工作区",
-        input_kinds: ["agent-session", "artifacts"],
+        input_kinds: ["object"],
         opens_view_id: "changes",
       },
     ],

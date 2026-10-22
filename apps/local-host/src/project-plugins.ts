@@ -9,7 +9,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { GIT_PLUGIN_ID, createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
+import { createGitPlugin, type GitOperationUpdate } from "@molis-ai/molis-work-plugin-git";
 import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
 import { FORM_DATABASE, createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import { DATASET_DATABASE, createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
@@ -174,7 +174,6 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       observeOperationSettled(listener: (event: GitOperationUpdate) => void) {
         operationListeners.add(listener); return () => { operationListeners.delete(listener); };
       },
-      onWorkingTreeChanged: () => { platform.invalidateView(GIT_PLUGIN_ID); },
     };
     const entries: PluginPlatformEntry[] = [
       {

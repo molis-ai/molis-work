@@ -5,7 +5,6 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 
-import type { AcceptanceView } from "./acceptance.js";
 import type { GitListItem, GitView } from "./projection.js";
 
 export const GIT_UI_CONTRIBUTION_ID = "io.molis.work.native.git.ui.v1";
@@ -83,8 +82,6 @@ export interface GitUiPrimitives {
 export interface GitUiModel {
   readonly route_prefix: string;
   readonly view: GitView;
-  /** Present only while a Run's change set is bound and waiting on a decision. */
-  readonly acceptance: AcceptanceView | null;
   readonly commit_message: string;
   readonly primitives: GitUiPrimitives;
 }
@@ -131,7 +128,7 @@ export function renderGitChanges(model: GitUiModel): string {
     ? `<p class="git-truncated">${escape(p.text("git.group.truncated"))}</p>`
     : "";
   return `<section class="git" data-phase="ready" data-route="${escape(model.route_prefix)}">`
-    + `${header}${renderAcceptance(model)}${body}${truncated}${renderCommit(model)}</section>`;
+    + `${header}${body}${truncated}${renderCommit(model)}</section>`;
 }
 
 function renderList(title: string, items: readonly GitListItem[], model: GitUiModel): string {
@@ -145,27 +142,6 @@ function renderList(title: string, items: readonly GitListItem[], model: GitUiMo
         + `<button type="button" data-action="git.open-change" data-path="${escape(label)}">`
         + `${escape(item.label)}</button></li>`;
     }).join("")}</ul></section>`;
-}
-
-/**
- * The Run's proposal.
- *
- * When it cannot be taken, the button is absent and the reason is shown — not a
- * disabled button with a tooltip. The reasons here (the file changed since, a
- * conflict is open, it already landed) are things the user must act on, and a
- * greyed-out control invites clicking rather than reading.
- */
-function renderAcceptance(model: GitUiModel): string {
-  const acceptance = model.acceptance;
-  if (acceptance === null) return "";
-  const { escape } = model.primitives;
-  if (!acceptance.offerable) {
-    return `<section class="git-acceptance" data-blocked="${escape(acceptance.blocked?.kind ?? "unknown")}">`
-      + `<p>${escape(model.primitives.text(acceptance.message))}</p></section>`;
-  }
-  const p = model.primitives;
-  return `<section class="git-acceptance" data-offerable="true"><p>${escape(p.text(acceptance.message))}</p>`
-    + `<button type="button" data-action="git.accept-run-changes">${escape(p.text("git.accept.apply"))}</button></section>`;
 }
 
 function renderCommit(model: GitUiModel): string {

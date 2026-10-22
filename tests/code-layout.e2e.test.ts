@@ -3,7 +3,8 @@ import test from "node:test";
 import { createCodingCodePaint } from "@molis-ai/molis-work-plugin-coding";
 import { codeTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { codeColouringProjection } from "./fixtures/code-colouring.js";
+import { codeColouringProjection, codeGeometry } from "./fixtures/code-colouring.js";
+import { coding, openCoding } from "./fixtures/coding-browser.js";
 
 // VUX-33: layout boundaries may split a token, but not the text, selection, geometry or unchanged leading nodes.
 const SOURCE = "\tconst stable = 1;\r\n\r\n/* " + ("一段保留空白的说明 😀 ".repeat(4) + "\n").repeat(180)
@@ -16,37 +17,30 @@ const BOOT = `window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toStrin
     if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, 'ts')));
     return JSON.stringify(colourParts(code)) === expected.get(text); };`;
 
+type Geometry = { text: string; projection: Array<[string | null, string]>; selection: boolean; range: string; size: number[]; line: number[]; tab: number[][] };
+const assertGeometry = (facts: Geometry, source: string) => {
+  assert.equal(facts.text, source);
+  assert.deepEqual(facts.projection, codeTokens(source, "ts"), "every character keeps the whole tokenizer's kind across layout boundaries");
+  assert.equal(facts.range, source, "Range retains tabs, CRLF, blank lines and the trailing newline exactly");
+  assert.equal(facts.selection, true, "native selection has the same newline semantics as the flat reference");
+  assert.deepEqual([facts.size[0], facts.size[2]], [facts.size[1], facts.size[3]], "scroll extents do not gain or lose lines or horizontal content");
+  assert.ok(Math.abs(facts.line[0]! - facts.line[1]!) < 1, "a character after several boundaries or in a long physical line stays on the same visual row");
+  if (facts.tab.length) assert.deepEqual(facts.tab[0], facts.tab[1], "a tab retains its original position and stop width");
+};
+
 test("VUX-33: layout blocks preserve complete text, cross-line token kinds, native selection and geometry", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin } = browser;
   await navigate(() => command("Page.navigate", { url: `${origin}/__ui/catalog#foundation` }, sessionId));
   await waitFor("document.readyState === 'complete'");
   await evaluate(BOOT);
-  for (const source of [SOURCE, 'const tail = "' + "x".repeat(9_000) + '";', SOURCE + 'const tail = "' + "y".repeat(9_000) + '";']) {
+  for (const [source, parentFont] of [[SOURCE, "monospace"], ['const tail = "' + "x".repeat(9_000) + '";', "monospace"],
+    [SOURCE + 'const tail = "' + "y".repeat(9_000) + '";', "monospace"], [SOURCE, "serif"]] as const) {
+    await evaluate(`pre.style.fontFamily = ${JSON.stringify(parentFont)}`);
     assert.equal(await evaluate<boolean>(`window.text = ${JSON.stringify(source)}; paint.paintInto(code, text, 'ts'); code.textContent === text`), true);
     await waitFor("matches(text)", 30_000);
-    const facts = await evaluate<{ text: string; projection: Array<[string | null, string]>; selection: boolean; range: string; size: number[]; line: number[] }>(`(() => {
-      const reference = document.createElement('pre'); reference.style.cssText = pre.style.cssText;
-      const flat = reference.appendChild(document.createElement('code'));
-      for (const [kind, value] of tokensOf(text, 'ts')) { const node = kind ? document.createElement('span') : document.createTextNode(value);
-        if (kind) { node.className = 'tok-' + kind; node.textContent = value; } flat.append(node); }
-      pre.after(reference);
-      const select = root => { const range = document.createRange(); range.selectNodeContents(root); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); return [selection.toString(), range.toString()]; };
-      const selected = select(code), expected = select(flat);
-      const line = (root, box) => { const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let at = 0, node;
-        const offset = text.length - 2; while ((node = walk.nextNode())) { if (at + node.length > offset) break; at += node.length; }
-        const range = document.createRange(); range.setStart(node, offset - at); range.setEnd(node, offset - at + 1);
-        return range.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop; };
-      const result = { text: code.textContent, projection: colourParts(code), selection: selected[0] === expected[0], range: selected[1],
-        size: [pre.scrollHeight, reference.scrollHeight, pre.scrollWidth, reference.scrollWidth], line: [line(code, pre), line(flat, reference)] };
-      reference.remove(); return result;
-    })()`);
-    assert.equal(facts.text, source);
-    assert.deepEqual(facts.projection, codeTokens(source, "ts"), "every character keeps the whole tokenizer's kind across layout boundaries");
-    assert.equal(facts.range, source, "Range retains tabs, CRLF, blank lines and the trailing newline exactly");
-    assert.equal(facts.selection, true, "native selection has the same newline semantics as the flat reference");
-    assert.deepEqual([facts.size[0], facts.size[2]], [facts.size[1], facts.size[3]], "scroll extents do not gain or lose lines or horizontal content");
-    assert.ok(Math.abs(facts.line[0]! - facts.line[1]!) < 1, "a character after several boundaries or in a long physical line stays on the same visual row");
+    const facts = await evaluate<Geometry>(codeGeometry);
+    assertGeometry(facts, source);
   }
 });
 
@@ -110,4 +104,30 @@ test("VUX-33: a long physical line remains readable while its colouring advances
   const inputs = await evaluate<number[]>("inputs.slice()");
   assert.ok(inputs.length > 1 && inputs.at(-1) === source.length && inputs.every((length, index) => length - (inputs[index - 1] ?? 0) <= 16_000));
   assert.equal(await evaluate<string>("code.textContent"), source);
+});
+
+test("VUX-33: Coding retains its pre and code line boxes, including text coloured before attachment", { timeout: 120_000 }, async t => {
+  const browser = await openCoding(t); if (!browser) return;
+  const { evaluate, waitFor, start } = browser;
+  await start("保留代码的行盒和字体");
+  await evaluate(BOOT);
+  await evaluate(`window.turn = document.querySelector('${coding} [data-coding-turns]').appendChild(document.createElement('article'));
+    turn.className = 'coding-turn';`);
+  for (const [source, detached] of [[SOURCE, false], ["\tconst first = 1;\n\nconst last = 2;\n", true]] as const) {
+    await evaluate(`pre.remove(); window.pre = document.createElement('pre'); pre.style.maxHeight = '280px';
+      window.code = pre.appendChild(document.createElement('code')); turn.append(pre);`);
+    assert.deepEqual(await evaluate("[getComputedStyle(pre).fontSize, getComputedStyle(pre).lineHeight, getComputedStyle(code).fontSize, getComputedStyle(code).lineHeight]"),
+      ["13px", "20.8px", "12px", "19.2px"], "the production container and inline code have distinct line boxes");
+    await evaluate(`{ window.text = ${JSON.stringify(source)};
+      if (${detached}) pre.remove(); paint.paintInto(code, text, 'ts');
+      window.firstToken = code.querySelector('.tok-keyword'); if (${detached}) turn.append(pre);
+      const range = document.createRange(); range.selectNodeContents(firstToken);
+      getSelection().removeAllRanges(); getSelection().addRange(range); window.selected = getSelection().toString();
+    }`);
+    await waitFor("matches(text)", 30_000);
+    await evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))");
+    assert.equal(await evaluate("code.querySelector('.tok-keyword') === firstToken"), true, "resolving fonts keeps the first coloured node");
+    assert.equal(await evaluate("getSelection().toString() === selected"), true, "resolving fonts preserves native selection");
+    assertGeometry(await evaluate<Geometry>(codeGeometry), source);
+  }
 });

@@ -31,6 +31,7 @@ declare const MutationObserver: new (changed: () => void) => PaintObserver;
 declare const document: { createTextNode(text: string): PaintText; createElement(tag: string): PaintElement;
   fonts: { addEventListener(event: string, changed: () => void): void; removeEventListener(event: string, changed: () => void): void } };
 declare function requestAnimationFrame(step: () => void): number;
+declare function getComputedStyle(node: PaintElement): { font: string; display: string };
 type Tokens = (text: string, language: string, from?: number) => Piece[];
 
 /**
@@ -48,8 +49,8 @@ type Tokens = (text: string, language: string, from?: number) => Piece[];
  */
 export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring | null, text: string, language: string, tokens: Tokens) => CodeColouring,
   languageOf: (hint: string) => string) {
-  type Region = { start: number; end: number; node: PaintElement; pieces: Piece[]; nodes: PaintNode[] };
-  type Job = { text: string; language: string; at: number; regions: Region[]; state: CodeColouring | null };
+  type Region = { start: number; end: number; node: PaintElement; content: PaintElement; pieces: Piece[]; nodes: PaintNode[] };
+  type Job = { text: string; language: string; at: number; regions: Region[]; state: CodeColouring | null; framed?: boolean };
   const colouring = new WeakMap<PaintElement, Job>(), source = new WeakMap<PaintElement, string>();
   const pieceNode = ([kind, value]: Piece): PaintNode => {
     if (!kind) return document.createTextNode(value);
@@ -72,14 +73,22 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     if (same === region.pieces.length && same === pieces.length) return;
     for (const node of region.nodes.slice(same)) node.remove();
     const fresh = pieces.slice(same).map(pieceNode);
-    for (let at = 0; at < fresh.length; at += 4096) region.node.append(...fresh.slice(at, at + 4096));
+    for (let at = 0; at < fresh.length; at += 4096) region.content.append(...fresh.slice(at, at + 4096));
     region.pieces = pieces; region.nodes = [...region.nodes.slice(0, same), ...fresh];
+  };
+  // An inline code line also contains its parent's font strut. Keep both fonts: Coding's pre is 13px, its code 12px.
+  const frame = (target: PaintElement, job: Job) => {
+    if (!target.isConnected) return;
+    const style = getComputedStyle(target), outer = style.display === "inline" && target.parentElement ? getComputedStyle(target.parentElement).font : style.font;
+    for (const region of job.regions) { region.node.style.setProperty("font", outer); region.content.style.setProperty("font", style.font); }
+    job.framed = true;
   };
   const readAtOnce = (target: PaintElement, job: Job) => {
     let index = 0;
     for (let start = 0; start < job.text.length; index += 1) {
       const end = throughLine(job.text, start); let region = job.regions[index];
-      if (!region) { const node = document.createElement("span"); node.style.setProperty("display", "block"); region = { start, end, node, pieces: [], nodes: [] }; job.regions.push(region); target.append(node); }
+      if (!region) { const node = document.createElement("span"), content = document.createElement("span"); node.style.setProperty("display", "block"); node.append(content);
+        region = { start, end, node, content, pieces: [], nodes: [] }; job.regions.push(region); target.append(node); }
       region.start = start; region.end = end;
       if (end > job.at) {
         const to = Math.max(start, Math.min(job.at, end)), pieces = job.state && to > start ? piecesIn(job.state, start, to) : [];
@@ -89,6 +98,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
       start = end;
     }
     for (const region of job.regions.splice(index)) region.node.remove();
+    frame(target, job);
   };
   const paintInto = (target: PaintElement, text: string, language: string): boolean => {
     if (!language || text.length > CAP) { colouring.delete(target); slicing.delete(target); return false; }
@@ -96,8 +106,8 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     if (running && running.language === language && text.startsWith(running.text.slice(0, running.at))) { running.text = text; readAtOnce(target, running); return true; }
     const before = colouring.get(target);
     const last = before?.language === language && target.childNodes.length === before.regions.length && before.regions.every(region => region.node.parentNode === target
-      && region.node.childNodes.length === region.nodes.length && region.nodes.every(node => node.parentNode === region.node)) ? before : null;
-    if (last && last.text === text && last.at === text.length) return true;
+      && region.node.childNodes.length === 1 && region.content.parentNode === region.node && region.content.childNodes.length === region.nodes.length && region.nodes.every(node => node.parentNode === region.content)) ? before : null;
+    if (last && last.text === text && last.at === text.length) { frame(target, last); return true; }
     let same = 0; const coloured = last?.state?.text ?? "";
     while (same < Math.min(coloured.length, text.length) && coloured.charCodeAt(same) === text.charCodeAt(same)) same += 1;
     const at = same === coloured.length ? same : same === 0 ? 0 : Math.max(0, text.lastIndexOf("\n", same - 1));
@@ -107,6 +117,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     const step = (first = false) => {
       if (slicing.get(target) !== job) return;
       if (!first && !target.isConnected) { slicing.delete(target); return; }
+      if (!job.framed) frame(target, job);
       job.at = Math.min(job.at + SLICE, job.regions.find(region => region.end > job.at)?.end ?? job.text.length);
       const next = grow(job.state, job.text.slice(0, job.at), language, tokens), changed = next.starts[next.from] ?? job.at;
       for (const region of job.regions) if (region.end > changed && region.start < job.at) {
@@ -115,7 +126,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
         draw(region, pieces);
       }
       job.state = next;
-      if (job.at < job.text.length) requestAnimationFrame(() => step()); else slicing.delete(target);
+      if (job.at < job.text.length || !job.framed) requestAnimationFrame(() => step()); else slicing.delete(target);
     };
     step(true); return true;
   };

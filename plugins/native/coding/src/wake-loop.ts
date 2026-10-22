@@ -26,6 +26,18 @@ interface CodingWakeDeps<Execution> {
   startRound(record: CodingSessionRecord, body: Record<string, unknown>, actorId: string, api: Capabilities, execution: Execution, beforeWrite: CodingBeforeWrite): Promise<unknown>;
 }
 
+/**
+ * The round was refused before it started: the job is stopping, the call was cancelled, or the authority to start it is gone
+ * (withdrawn, the plugin turned off). A refused call writes no record (AGENTS): no note is kept and the continuation stays where
+ * it is, for an activation that may start it.
+ */
+function refused(error: unknown, signal: AbortSignal): boolean {
+  if (signal.aborted || (error as { name?: unknown } | undefined)?.name === "AbortError") return true;
+  const { code, kind } = (error ?? {}) as { code?: unknown; kind?: unknown };
+  const sort = typeof kind === "string" ? kind : typeof code === "string" ? platformErrorKind(code) : undefined;
+  return sort === "forbidden" || sort === "cancelled" || sort === "unavailable";
+}
+
 export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const { context } = deps;
   const storage = () => context.services?.storage;
@@ -52,17 +64,6 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
   const wakeBody = (record: CodingSessionRecord, view: CodingWaitView, person = false) => {
     const saved = storage()?.get(`last-start:${record.session_id}`);
     return wakeBodyOf(view, saved ? JSON.parse(saved) as Record<string, unknown> : {}, person, queuedOf(view.wait.wait_id));
-  };
-  /**
-   * The round was refused before it started: the job is stopping, the call was cancelled, or the authority to start it is gone
-   * (withdrawn, the plugin turned off). A refused call writes no record (AGENTS): no note is kept and the continuation stays where
-   * it is, for an activation that may start it.
-   */
-  const refused = (error: unknown, signal: AbortSignal) => {
-    if (signal.aborted || (error as { name?: unknown } | undefined)?.name === "AbortError") return true;
-    const { code, kind } = (error ?? {}) as { code?: unknown; kind?: unknown };
-    const sort = typeof kind === "string" ? kind : typeof code === "string" ? platformErrorKind(code) : undefined;
-    return sort === "forbidden" || sort === "cancelled" || sort === "unavailable";
   };
   /**
    * A wait that is over: start the next round (it takes the continuation up), or leave it for the person with a note. The round
@@ -123,9 +124,39 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
       if (later) await pause(2_000);
     }
   };
-  // The loops belong to the activation, not to the request that asked for one: they run in its `wake` job (PG-038), kept when the
-  // activation starts, with the installation's own authority, and they read and start with the activation's own capabilities. A
-  // request only says which runtime to look at; one runtime has one loop at a time.
+  const jobs = wakeJob(context, loop);
+  /** Ask for `runtimeId`'s loop; nothing when one runs. */
+  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => jobs.wake(execution, runtimeId, recovery);
+  /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
+  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {
+    for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
+    const queued = queuedOf(view.wait.wait_id);
+    if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
+    // An open wait is cancelled; one over whose step is held for the person gives the step back.
+    if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
+      await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
+        beforeWrite && codingActionControl(beforeWrite));
+    storage()?.delete(`queued:${view.wait.wait_id}`);
+  };
+  /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */
+  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, actorId: string, beforeWrite: CodingBeforeWrite) => {
+    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "continue-now", wait_id: view.wait.wait_id, note: "用户选择现在开始" },
+      codingActionControl(beforeWrite));
+    const started = await deps.startRound(record, wakeBody(record, view, true), actorId, api, execution, beforeWrite);
+    storage()?.delete(`queued:${view.wait.wait_id}`);
+    return started;
+  };
+  /** Keep the round the person queued, by the wait that will start it. */
+  const keepQueued = (waitId: string, body: Record<string, unknown>, workId: string) => storage()!.set(`queued:${waitId}`, JSON.stringify({ body, work_id: workId }));
+  return { openWaits, openWaitOf, waitView, wakeLoop, keep: jobs.keep, cancel, goOn, keepQueued };
+}
+
+/**
+ * The loops belong to the activation, not to the request that asked for one: they run in its `wake` job (PG-038), kept when the
+ * activation starts, with the installation's own authority, and they read and start with the activation's own capabilities. A
+ * request only says which runtime to look at; one runtime has one loop at a time.
+ */
+function wakeJob<Execution>(context: PluginStartContext, loop: (control: PluginJobControl, execution: Execution, runtimeId: string, recovery: boolean) => Promise<void>) {
   const wanted = new Map<string, { execution: Execution; recovery: boolean }>();
   let job: PluginKeptJob | undefined, nudge: (() => void) | undefined;
   const supervise = async (control: PluginJobControl) => {
@@ -148,39 +179,17 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
    * Keeps the activation's `wake` job when none runs. The platform keeps one only from `start()`, a command or a job: from a read
    * (`coding.state`) it is refused, and the read only wakes the job that runs.
    */
-  const keepJob = () => {
+  const keep = () => {
     if (job || !context.services?.background) return;
     try {
       const kept = job = context.services.background.keep("wake", supervise);
       void kept.done.catch(() => undefined).finally(() => { if (job === kept) job = undefined; });
     } catch { /* Not kept from here; the next command or round keeps it. */ }
   };
-  /** Ask for `runtimeId`'s loop; nothing when one runs. */
-  const wakeLoop = (_api: Capabilities, execution: Execution, runtimeId: string, recovery = false) => {
+  const wake = (execution: Execution, runtimeId: string, recovery: boolean) => {
     if (!wanted.has(runtimeId)) wanted.set(runtimeId, { execution, recovery });
-    keepJob();
+    keep();
     nudge?.();
   };
-  /** The person gives the wait up: a request it waited on is withdrawn, a queued round's project work item goes. */
-  const cancel = async (api: Capabilities, record: CodingSessionRecord, view: CodingWaitView, beforeWrite?: CodingBeforeWrite) => {
-    for (const one of view.wait.conditions) if (one.kind === "envelope") await api.invoke(agent.cancelMessage, [record.runtime_id, one.ref]).catch(() => undefined);
-    const queued = queuedOf(view.wait.wait_id);
-    if (view.wait.by === "app" && queued) await api.invoke(agent.releaseProjectRound, [record.runtime_id, queued.work_id, "用户取消了等待"]).catch(() => undefined);
-    // An open wait is cancelled; one over whose step is held for the person gives the step back.
-    if (view.wait.state === "waiting" || ["blocked", "needs-reconciliation"].includes(view.continuation?.state ?? ""))
-      await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "cancel-wait", wait_id: view.wait.wait_id, note: "用户取消了等待" },
-        beforeWrite && codingActionControl(beforeWrite));
-    storage()?.delete(`queued:${view.wait.wait_id}`);
-  };
-  /** The person goes on before the wait is over: the continuation is ready at once, and the round started now takes it up. */
-  const goOn = async (api: Capabilities, execution: Execution, record: CodingSessionRecord, view: CodingWaitView, actorId: string, beforeWrite: CodingBeforeWrite) => {
-    if (view.wait.state === "waiting") await hostActions().invoke(collaboration.control, { runtime_id: record.runtime_id, kind: "continue-now", wait_id: view.wait.wait_id, note: "用户选择现在开始" },
-      codingActionControl(beforeWrite));
-    const started = await deps.startRound(record, wakeBody(record, view, true), actorId, api, execution, beforeWrite);
-    storage()?.delete(`queued:${view.wait.wait_id}`);
-    return started;
-  };
-  /** Keep the round the person queued, by the wait that will start it. */
-  const keepQueued = (waitId: string, body: Record<string, unknown>, workId: string) => storage()!.set(`queued:${waitId}`, JSON.stringify({ body, work_id: workId }));
-  return { openWaits, openWaitOf, waitView, wakeLoop, keep: keepJob, cancel, goOn, keepQueued };
+  return { keep, wake };
 }

@@ -12,7 +12,7 @@ import { renderToast } from "@molis-ai/molis-work-design-system";
 const root = new URL("..", import.meta.url);
 // The one place a toast's colour, corner and motion are written. The IM page is its own small product page with its own
 // palette and no shared stylesheet; it is the one recorded exception.
-const OWNERS = new Set(["packages/design-system/src/styles/primitives.ts", "packages/im-ui/src/styles.ts"]);
+const OWNERS = new Set(["packages/design-system/src/styles/toast.ts", "packages/im-ui/src/styles.ts"]);
 const TOAST_RULE = /([^{}]*toast[^{}]*)\{([^{}]*)\}/gi;
 const LOOK = /(?:^|;|\s)(background(?:-color)?|border-radius|color|box-shadow)\s*:/;
 

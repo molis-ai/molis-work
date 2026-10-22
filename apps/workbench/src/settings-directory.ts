@@ -40,10 +40,11 @@ export function renderPluginRailAccountFooter(primitives: SettingsDirectoryPrimi
  * offered as a control until there is an account page), then capabilities and settings, both opening in the workbench. */
 export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives): string {
   const { L, icon } = primitives;
+  // TODO: Read a local display name when personal profile settings are available.
   return `<div class="navigator-personal" data-personal-menu>
     <div class="personal-account" data-account-link>
       <span class="personal-account-avatar" aria-hidden="true">${icon("user")}</span>
-      <span class="personal-account-copy"><strong>${L("一骏")}</strong><small>${L("本地空间")}</small></span>
+      <span class="personal-account-copy"><strong>${L("未设置")}</strong><small>${L("本地空间")}</small></span>
     </div>
     <a class="immersive-plugin-link account-global-item" href="__SYSTEM_CAPABILITIES__" data-capabilities-open aria-label="${L("打开能力服务")}" title="${L("能力")}">${icon("sparkles")}<span>${L("能力")}</span></a>
     <button class="immersive-plugin-link account-global-item personal-settings" type="button" data-plugin-id="settings" data-directory-open="settings" aria-label="${L("打开全局设置")}" title="${L("设置")}">${icon("settings")}<span>${L("设置")}</span></button>

@@ -763,7 +763,7 @@ test("Web and Desktop share one project workbench; Desktop only adds native chro
     assert.match(settingsDirectory, /mw-dir-row--compact/);
     assert.match(settingsDirectory, /mw-dir-row__icon/);
     assert.doesNotMatch(settingsDirectory, /data-theme-option/);
-    assert.match(desktop, />一骏<\/strong><small>本地空间<\/small>/);
+    assert.match(desktop, />未设置<\/strong><small>本地空间<\/small>/);
     assert.match(desktop, /class="container-tabs" data-container-tabs/);
     assert.match(desktop, /data-titlebar-chrome/);
     assert.match(desktop, /data-titlebar-tabs/);

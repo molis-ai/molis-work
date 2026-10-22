@@ -190,13 +190,6 @@ export { runV1Cli } from "./cli-project.js";
 export type { V1CliOptions } from "./cli-project.js";
 export { runLocalCli } from "./cli-host.js";
 export type { LocalCliOptions } from "./cli-host.js";
-export {
-  DIRECTORY_ENTRY_LIMIT,
-  TEXT_FILE_MAX_BYTES,
-  listWorkspaceDirectory,
-  readWorkspaceTextFile,
-  type WorkspaceReadPorts,
-} from "./workspace-files.js";
 export { ModelProviderStore, createModelProviderTables, type ModelProviderSqlite, type ModelProviderStoreOptions, type ModelSecretPort } from "./model-provider-store.js";
 export { MINIMAX_ANTHROPIC_BASE_URL, MODEL_PROVIDER_TEMPLATES, modelProviderTemplate } from "./model-provider-templates.js";
 export {
@@ -213,9 +206,6 @@ export {
   codingDirectoryPanel,
   codingNextSteps,
   codingRouteHooks,
-  diffStagePanel,
-  filesDirectoryPanel,
-  gitDirectoryPanel,
   type CodingSurfacePorts,
 } from "./coding-surface.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";

@@ -7,6 +7,8 @@ export const DIFF_STYLES = `
 .diff .diff-source { display:block; color:var(--muted); overflow-wrap:anywhere; }
 .diff .diff-rows { --diff-num:calc(var(--diff-digits,3) * 1ch + 16px); --diff-bg:var(--surface-soft); display:grid; grid-template-columns:minmax(max-content,1fr); align-content:start; padding:8px 0; list-style:none; overflow:auto; border:1px solid var(--line); border-radius:var(--radius-panel,12px); background:var(--diff-bg); font:12px/1.75 ui-monospace,SFMono-Regular,Menlo,monospace; font-variant-numeric:tabular-nums; tab-size:var(--code-tab,4); }
 .diff .diff-rows li { --diff-tint:transparent; display:grid; grid-template-columns:var(--diff-num) var(--diff-num) minmax(max-content,1fr); background:var(--diff-tint); }
+.diff .diff-rows:not(.diff-split) > li { contain-intrinsic-size:auto none auto 1lh; }
+.diff .diff-rows[data-diff-sized] > li:not([data-diff-measure]) { content-visibility:auto; }
 .diff .diff-rows code { padding:0 16px 0 8px; font:inherit; white-space:pre; }
 .diff .diff-rows [data-kind=insert] { --diff-tint:color-mix(in srgb,var(--green) 9%,transparent); }
 .diff .diff-rows [data-kind=delete] { --diff-tint:color-mix(in srgb,var(--red) 9%,transparent); }

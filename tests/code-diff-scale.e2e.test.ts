@@ -32,7 +32,7 @@ const WHOLE = `(list) => { const codes = [...list.querySelectorAll(':scope > li 
 
 test("VUX-33: a large change reads whole at once and is coloured a slice a frame to the whole colouring; a minified line stays text, not the file", { timeout: 180_000 }, async t => {
   const opened = await openCoding(t); if (!opened) return;
-  const { evaluate, waitFor, start, openItem } = opened;
+  const { evaluate, waitFor, start, openItem, command, sessionId } = opened;
   const session = await start("看一份很大的改动");
   const view = compareRunChangeSet({ content: { scope: "run-frozen", run_id: "run-large", applied: true, files: [{ path: "large.ts", kind: "modified", added_lines: 202, removed_lines: 200, diff: "",
     review: { review_id: "review-large", before_text: BEFORE, after_text: AFTER, decision: "approved", execution: "applied" } }] },
@@ -43,18 +43,21 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   await evaluate(`fakes.push({method:'GET',path:'layout=',body:${JSON.stringify(body)}})`);
   await evaluate("localStorage.setItem('molis-coding-diff-layout', 'unified')");
   const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, list = `${reader}.querySelector('.diff-rows')`;
+  // DFP-01, DFP-02: build the independent whole-colouring reference before sampling: constructing it is test work, not a reader frame.
+  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.diffRowTokens = ${diffRowTokens.toString()};`);
+  const expected = await evaluate<number>(`(() => { const copy = document.createElement('div'); copy.innerHTML = ${JSON.stringify(body.html)};
+    window.want = (${WHOLE})(copy.querySelector('.diff-rows')); return want.length; })()`);
   // Each frame, before the page's own work: how much of the long line reads, and how much of the change is coloured.
-  await evaluate(`window.samples = []; const tick = () => { const list = ${list};
-    if (list) { const long = [...list.querySelectorAll(':scope > li > code')].find((code) => code.textContent.length > 100000);
+  await evaluate(`window.samples = []; let longCode; const tick = () => { const list = ${list};
+    if (list) { const long = longCode ||= [...list.querySelectorAll(':scope > li > code')].find((code) => code.textContent.length > 100000);
       samples.push([performance.now(), long ? long.textContent.length : 0, list.getElementsByClassName('tok-keyword').length]); }
     if (samples.length < 3000) requestAnimationFrame(tick); }; requestAnimationFrame(tick);`);
   await openItem(`coding-changeset:${encodeURIComponent(session)}:run-large`);
   await waitFor(`!${reader}.hidden && !!${list}`, 30_000);
-  await evaluate(`window.__name = (fn) => fn; window.tokensOf = ${codeTokens.toString()}; window.diffRowTokens = ${diffRowTokens.toString()};`);
-  // Compared against a copy taken before colouring could change the rows' text.
-  const expected = await evaluate<number>(`(() => { const copy = ${list}.cloneNode(true); copy.querySelectorAll('code').forEach((code) => { const sign = code.querySelector('.diff-sign'); code.replaceChildren(...(sign ? [sign] : []), code.textContent.slice(sign ? sign.textContent.length : 0)); });
-    window.want = (${WHOLE})(copy); return want.length; })()`);
-  await waitFor(`(() => { const codes = [...${list}.querySelectorAll(':scope > li > code')].filter((code) => code.dataset.kind !== 'blank'); return codes.length === want.length && codes.every((code, index) => code.innerHTML === want[index]); })()`, 60_000);
+  // Rows are coloured in order. Wait on the final row, then compare every row once instead of serializing the whole reader each frame.
+  await waitFor(`${list}.querySelector(':scope > li:last-child > code')?.innerHTML === want.at(-1)`, 60_000);
+  assert.deepEqual(await evaluate<string[]>(`[...${list}.querySelectorAll(':scope > li > code')].filter(code => code.dataset.kind !== 'blank').map(code => code.innerHTML)`),
+    await evaluate<string[]>("want"), "every coloured row matches the whole-colouring reference");
   assert.ok(expected > 2_000, `${expected} rows`);
   const lines = await evaluate<Array<{ length: number; spans: number }>>(`[...${list}.querySelectorAll(':scope > li > code')].filter((code) => code.textContent.length > 20000)
     .map((code) => ({ length: code.textContent.length, spans: code.querySelectorAll('[class^="tok-"]').length }))`);
@@ -82,6 +85,22 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const ms = performance.now() - start; pre.remove(); return ms; })()`);
   assert.ok(turn < 50, `one node put in a long turn: ${turn.toFixed(1)} ms`);
   assert.deepEqual(await expensiveHasSelectors(evaluate), [], "no :has() rule on the Coding page ends in a bare tag or a broad part (VUX-36)");
+  // DFP-03: the skipped rows retain their natural geometry after viewport and font changes; compare against full layout.
+  const geometry = `(() => { const rows = ${list}; return { width: rows.scrollWidth, height: rows.scrollHeight }; })()`;
+  const settle = () => evaluate("new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => requestAnimationFrame(resolve))))");
+  for (const width of [1024, 390, 1360]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await settle();
+    const actual = await evaluate(geometry);
+    const full = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
+    assert.deepEqual(actual, full, `${width}px: remembered rows have the same scroll range as full layout`);
+  }
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .diff-rows { font-family: Courier New, monospace !important; font-size:14px !important; line-height:24px !important; }'; document.head.append(font); }`);
+  await settle();
+  const withFont = await evaluate(geometry);
+  const fullFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
+  assert.deepEqual(withFont, fullFont, "a different font and line height have the same scroll range as full layout");
+  await evaluate("document.querySelector('#diff-test-font').remove()");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_insert: Math.round(turn * 10) / 10 }, null, 2));
 });

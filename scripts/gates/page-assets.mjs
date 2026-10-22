@@ -236,14 +236,12 @@ const headErrors = (measured, budget, base) => {
   return errors;
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
-// deleted in the next change to this gate (none is open now).
+// deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1182247, 1182380],
-  "/assets/molis-work-plugins/coding.js": [375974, 376592],
-  "/assets/molis-work-arrival.css": [702221, 703659],
-  "/assets/molis-work-plugins/plugin-builder.js": [115438, 115521],
-  "/assets/molis-work-settings.css": [993796, 995228],
-  "/assets/molis-work-workbench.css": [1616704, 1616975],
+  // Quiet home refresh (#1002), measured on main after the plural-count follow-up (#1005).
+  // An unchanged day is not redrawn, a failed background refresh stays on screen, and the clock is text.
+  // 1182380 → 1182744 (+364).
+  "/assets/molis-work-workbench.js": [1182380, 1182744],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

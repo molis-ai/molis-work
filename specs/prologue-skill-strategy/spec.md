@@ -33,7 +33,7 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 
 | 来源 | 类型 | 它做了什么 | 采纳 / 拒绝 | 影响 |
 | --- | --- | --- | --- | --- |
-| [Anthropic Skills 规范](https://mintlify.wiki/anthropics/skills/spec/overview) | 官方规范 | 元数据、正文、资源分层 | 采纳渐进披露与选择元数据；拒绝无权限岛 | 元数据、资源、目录 |
+| [Anthropic Skills 规范](https://mintlify.wiki/anthropics/skills/spec/overview) | 规范镜像 | 元数据、正文、资源分层 | 采纳渐进披露与选择元数据；拒绝无权限岛 | 元数据、资源、目录 |
 | [Claude Code commands](https://code.claude.com/docs/en/commands) | 官方文档 | 斜杠命令、人点名、模型可调用 | 采纳人/模型双入口；不把命令当第二条写入 | 唤起、`find-skills` |
 | [OpenAI skills 实践](https://developers.openai.com/blog/skills-agents-sdk) | 厂商博客 | 方法与工具绑定、评测 | 采纳工具绑定与评测；不照搬 prompt 片段 | 工具可见性、评测 |
 | [Cursor 插件规范](https://raw.githubusercontent.com/EveryInc/compound-engineering-plugin/5d523f00b7fc03fab00126589729def2b12b8ad5/docs/specs/cursor.md) | 第三方规范 | rules 与 skills 分层 | 采纳 always-on / on-demand 分层；不照搬目录 | 选择档、目录 |

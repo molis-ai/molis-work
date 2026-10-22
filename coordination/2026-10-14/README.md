@@ -2634,3 +2634,20 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - BL-410 判为用例竞态，已改用例。它是浏览器用例，要等下一批 CI 全量证明。
   - ⑩ 先审 #1029，再清红名单。红名单补上 `document-plugins-error-model`（main 上本来就红）。
   - 子会话空出来了，由 ③ 派下一片。① 建议等 #1024 合入后接 C7 的插件一半。
+- **10-23 C7 插件一半（PG-062）裁定（① 定）**：计划在 ③ 的共享笔记 `c7-plugin-half-plan.md`。S1、S2 不需要裁定，PG-038 子会话已在做。
+  - **S3 选 A**：在 SDK 新开子路径 `/diff-view`，属共享核心，进批。条件：
+    - 只搬通用的视图。输入是通用的变更集形状，不带 Coding 的「轮次」概念；`codingNetChange` 留在 Coding。
+    - 零第三方依赖。escape、文字、图标由调用方注入。
+    - 和现有的 `text-diff.ts` 合成一套。Diff 包和 SDK 里只有一份 `renderDiff`（PG062-10）。
+    - 跑 `api:update`，PR 写清对插件作者的影响。
+  - **S4 选 B，不选 A**：平台给所有插件一个渲染服务（暂名 `services.interaction`），出问题卡、建议卡、下一步行的 html，由宿主照旧用现有函数渲染。
+    - 不选 A：design-system 是 `private: true`，挪进去只有内置插件画得出，违反 10-18「插件待遇一样」。
+    - 也不进 SDK：这几张卡依赖 design-system 的图标和工作台词典，进 SDK 就违反「SDK 只依赖 contracts」。
+    - 做法：语言从调用上下文取；没有副作用，不要新权限；沙箱插件经 broker 也能取；输入复用已有的问卷和操作卡类型。
+    - 必须有转义测试：插件给的字符串里带 HTML 或 script，输出里都被转义。先并进 SECURITY-INVARIANTS 里现成的行，没有才开新 S 行（开 PR 时核号）。
+    - 分两个 PR：S4a 是平台服务，共享核心进批，② 审合同；S4b 是 Coding 改用它，并删掉宿主的 `decorateCodingResult`、`decorateRuntimeResult`、`codingNextSteps` 和 `afterDispatch`。验收编号 PG062-11 到 13 不变。
+  - **#1018**（yijunw0212 的草稿）：它加的 `decorateCompanionState` 扩大了 PG-062 要拆的特权，S1 合入后也用不上。⑤ 在 PR 上评论，请作者删掉这一段，其余照常评审。S1 不等 #1018。
+  - **§4 其余副本**：
+    - 成果库预览改用 SDK `/rich-text`，开一条 BL（③ 的段，从 381 起），挂在 Artifacts 平台化名下。
+    - Pages 编辑器高亮改用 SDK `/highlight`，要先做设计决定，也开一条 BL。
+    - 其余几项不开。

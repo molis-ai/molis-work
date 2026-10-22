@@ -146,6 +146,28 @@ test("VUX-39 the board's Assistant section drives the shipped island through sev
     await waitFor(`${frame}.contentWindow.innerWidth === ${width} && ${frame}.contentDocument.querySelector('[data-assistant-panel]').dataset.layout === '${layout}'`, 15_000);
     assert.equal(await inFrame<boolean>("return d.scrollingElement.scrollWidth <= d.scrollingElement.clientWidth;"), true, `nothing runs out sideways at ${width}px`);
   }
+
+  // The summary's top line in the side pane beside the conversation: each work's state and what can be done to it now
+  // (stop, stop the task and take over, resume) each stay on one line and never overlap; when they do not fit, the controls go under.
+  await choose("width", "1280", "board-plan");
+  await choose("lang", "zh", "board-plan");
+  const tops: Record<string, { state: string; heights: number[]; overlap: boolean }> = {};
+  for (const tab of await inFrame<string[]>("return [...d.querySelectorAll('[data-assistant-tab][data-tab], .assistant-tab[data-tab]')].map((n) => n.dataset.tab);")) {
+    await inFrame(`d.querySelector('[data-tab="${tab}"] .assistant-tab-main').click();`);
+    await waitFor(`${frame}.contentDocument.querySelector('[data-tab="${tab}"]').hasAttribute('data-current')`, 10_000);
+    const top = await inFrame<{ state: string; heights: number[]; overlap: boolean } | null>(`const top = d.querySelector('[data-assistant-panel] .assistant-summary-top');
+      if (!top || !top.getClientRects().length) return null;
+      const parts = [top.querySelector('.assistant-state'), ...top.querySelectorAll('.assistant-control:not([hidden])')].filter((n) => n && n.getClientRects().length);
+      const boxes = parts.map((n) => n.getBoundingClientRect());
+      return { state: top.querySelector('.assistant-state')?.textContent ?? '', heights: boxes.map((r) => Math.round(r.height)),
+        overlap: boxes.some((a, i) => boxes.some((b, j) => j > i && a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5)) };`);
+    if (top) tops[tab] = top;
+  }
+  assert.equal(Object.keys(tops).length, 6, "every work's summary has its top line");
+  for (const [tab, top] of Object.entries(tops)) {
+    assert.equal(top.heights.every((height) => height <= 24), true, `${tab} (${top.state}): the state and each control stay on one line (before, 等你回答 broke onto two, 38px)`);
+    assert.equal(top.overlap, false, `${tab}: nothing on the top line overlaps`);
+  }
 });
 
 // The frame is one specimen on a long page. When it loads beside what the person is reading, the island opening its work

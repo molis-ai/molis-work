@@ -59,10 +59,17 @@ test('an idle closed account menu does not poll, but focus, opening and a pendin
   assert.equal(await evaluate('window.accountPollProbe.calls.length'), completed, 'completion stops the login poll again');
 });
 
-test('Auth entry works by keyboard inside the new project menu at desktop and phone widths', { timeout: 90_000 }, async t => {
+test('PCSYNC-KBD-01: account entry and Escape work by keyboard at desktop, tablet and phone widths', { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
-  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor, click } = browser;
+  const { command, sessionId, navigate, origin, projectId, evaluate, waitFor } = browser;
+  const press = async (key: 'Enter' | ' ' | 'Tab' | 'Escape') => {
+    const code = key === ' ' ? 'Space' : key;
+    const windowsVirtualKeyCode = { Enter: 13, ' ': 32, Tab: 9, Escape: 27 }[key];
+    const text = key === 'Enter' ? '\r' : key === ' ' ? ' ' : undefined;
+    await command('Input.dispatchKeyEvent', { type: 'keyDown', key, code, windowsVirtualKeyCode, text, unmodifiedText: text }, sessionId);
+    await command('Input.dispatchKeyEvent', { type: 'keyUp', key, code, windowsVirtualKeyCode }, sessionId);
+  };
   // Only mock identity presentation. The HTTP suite tests the real PKCE/session flow.
   await command('Page.addScriptToEvaluateOnNewDocument', { source: `{
     const originalFetch = window.fetch.bind(window);
@@ -70,22 +77,40 @@ test('Auth entry works by keyboard inside the new project menu at desktop and ph
       ? Promise.resolve(Response.json({configured:true,identity:null,syncEnabled:false}))
       : originalFetch(input, init);
   }` }, sessionId);
-  for (const width of [1440, 390]) {
+  for (const width of [1440, 1024, 390]) for (const theme of ['light', 'dark']) {
     await command('Emulation.setDeviceMetricsOverride', { width, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+    await command('Emulation.setEmulatedMedia', { features: [{ name: 'prefers-color-scheme', value: theme }] }, sessionId);
     await navigate(() => command('Page.navigate', { url: origin + '/projects/' + projectId + '/' }, sessionId));
     await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-project-menu]')");
-    await click('[data-project-menu] > summary');
+    await evaluate("document.querySelector('[data-project-menu] > summary').focus()");
+    await press('Enter');
+    // Opening <details> has a content-visibility transition. A box alone does not mean its children can take focus yet.
+    await waitFor("document.querySelector('[data-account-link]').checkVisibility({visibilityProperty:true})");
     assert.equal(await evaluate("document.querySelector('[data-personal-menu] [data-account-link]').tagName"), 'BUTTON');
-    await evaluate("document.querySelector('[data-personal-menu] [data-account-link]').focus()");
-    await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' }, sessionId);
-    await command('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 }, sessionId);
+    for (let step = 0; step < 8 && !await evaluate("document.activeElement?.matches('[data-account-link]')"); step++) await press('Tab');
+    assert.equal(await evaluate("document.activeElement?.matches('[data-account-link]')"), true, 'Tab must reach the actual account trigger');
+    await press(theme === 'light' ? 'Enter' : ' ');
     await waitFor("!document.querySelector('#mw-account-menu').hidden && document.activeElement?.dataset.personalAction === 'login'");
     assert.equal(await evaluate("(() => { const r=document.querySelector('#mw-account-menu').getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight; })()"), true);
     assert.equal(await evaluate("document.querySelector('[data-personal-action=switch]').hidden && document.querySelector('[data-personal-action=logout]').hidden"), true);
-    await command('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 }, sessionId);
+    assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-expanded')"), 'true');
+    const shot = await command('Page.captureScreenshot', { format: 'png' }, sessionId) as { data: string };
+    mkdirSync('.impeccable/qa/review', { recursive: true });
+    writeFileSync(`.impeccable/qa/review/account-keyboard-${width}-${theme}.png`, Buffer.from(shot.data, 'base64'));
+    await press('Escape');
     await waitFor("document.querySelector('#mw-account-menu').hidden");
+    assert.equal(await evaluate("document.activeElement === document.querySelector('[data-project-menu] > summary')"), true, 'Escape must restore focus to the visible project trigger, not its hidden account row');
+    assert.equal(await evaluate("document.querySelector('[data-account-link]').getAttribute('aria-expanded')"), 'false');
     assert.equal(await evaluate("!!document.querySelector('[data-personal-menu] [data-capabilities-open]') && !!document.querySelector('[data-personal-menu] [data-directory-open=settings]')"), true);
   }
+  // Outside the project menu, Escape still returns to the account button itself.
+  await navigate(() => command('Page.navigate', { url: origin + '/' }, sessionId));
+  await waitFor("document.querySelector('#mw-account-menu') && document.querySelector('[data-account-link]').checkVisibility()");
+  await evaluate("document.querySelector('[data-account-link]').focus()");
+  await press('Enter');
+  await waitFor("document.activeElement?.dataset.personalAction === 'login'");
+  await press('Escape');
+  assert.equal(await evaluate("document.querySelector('#mw-account-menu').hidden && document.activeElement === document.querySelector('[data-account-link]')"), true);
 });
 
 test('signed-in account menu offers explicit local/personal choices without auto-moving assets', {timeout:90_000}, async t => {
@@ -102,6 +127,8 @@ test('signed-in account menu offers explicit local/personal choices without auto
   await click('[data-project-menu] > summary');
   await click('[data-personal-menu] [data-account-link]');
   await waitFor("!document.querySelector('#mw-account-menu').hidden");
+  // PCSYNC-KBD-01: an authenticated identity starts at the first visible space choice, not the hidden login button.
+  assert.equal(await evaluate("document.activeElement?.dataset.personalAction"), 'local');
   assert.equal(await evaluate("document.querySelector('[data-personal-action=local]').getAttribute('aria-pressed')"),'true');
   assert.equal(await evaluate("document.querySelector('[data-personal-action=space]').getAttribute('aria-pressed')"),'false');
   assert.equal(await evaluate("document.querySelector('[data-personal-action=login]').hidden"),true);

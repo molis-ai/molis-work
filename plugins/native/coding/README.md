@@ -71,7 +71,7 @@ Directory candidates and browsing preferences come from the [current-project set
 - 公开入口：`@molis-ai/molis-work-plugin-coding`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（变更集的逐行比较 `compareTexts` 与 `splitLines`）。会话库是平台借的 `context.services.project_database`（合同 `platform/plugin-database`），Manifest 的 `databases.project`（`src/database.ts`）声明表；宿主不再递原始库句柄。执行入口的四个输入也不再由宿主注入（切片 C2 起 `CodingExecutionPorts` 已删）：模型表与可用性是 `services.model`（权限 `model:read`），Goal 标题是 Goals 的公开读动作 `goals.list`，Character 的列表与可运行判断是 `characters.list@1`、`characters.runnable@1`，「宿主就绪」不再有等待（见下「不变量」）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 前台 HTTP/动作调用把原信号、beforeEffect 与同步 checker 传到实际 Host/SDK 写点；报告、变更、计划与启动的最后一次等待后再核。已经接受的 Run、follow 和 wake 使用 activation 的独立生命线。
+  - 前台 HTTP/动作调用把原信号、beforeEffect 与同步 checker 传到实际 Host/SDK 写点；报告、变更、计划与启动的最后一次等待后再核。已经接受的 Run 由激活的后台作业 `follow` 跟到底，等待结束后的下一轮由作业 `wake` 接起（`services.background.keep`，Manifest `background.jobs` 声明；PG-038）：只有安装自己的授权，写之前过作业的检查，平台在激活停止、撤权、项目或 Home 关闭时停它们，作业里的计时器带作业的 `signal`。
   - 后台命令读取失败保留最后事实并标未知；activation ready 后恢复持久等待消费者，服务临时故障退避重试，Runtime 不支持 waits 时明确拒绝并停止该消费者，stop 释放。委派保留已经提交或未知的原目标、原信，只能核对同一封信继续送达；失权不得返回受保护正文。
   - 收下交付先检查 30 项材料容量，已有同版本引用不重复添加；合法插步的当前 SDK 图和用户评价一起固定进报告，后续变化不改固定版本。
   - 模型与 Agent 只经 Host 注入的 Prologue 能力，不直接依赖 SDK。
@@ -95,7 +95,7 @@ Directory candidates and browsing preferences come from the [current-project set
 
 Coding 客户端及子面板共享 Host 注入的 UI 挂载生命周期；隐藏时停止会话/目录/审查轮询和时间显示，返回后刷新，卸载取消本机请求并释放监听、观察器和定时器。草稿仍按原业务规则保存；界面关闭不会停止服务端运行。
 
-后台 Run follower 使用当前 activation 的独立权限和取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
+后台 Run follower 是激活的 `follow` 作业，用安装自己的授权和作业的取消信号；停止/待核对状态产生 v1 `run-updated` 刷新提示，携带开始时确认的工作区和原 Run 引用。它不宣称文件已修改，也不将通知失败改为 Run 失败。
 
 `coding.runs.control` 的现行合同是 version 7：包含中途 `switch-model`、补充要求的 `key` 与 `mode`（version 3），文字、数字、日期、日期时间题的回答 `value`（version 4，T1），对象引用题的回答（`value` 是选中的对象，version 5，T2；标题由宿主按对象主人现在的写法换掉），撤回补充与补充的 `about`（version 6，回执 3b-2a），以及补充的 `source`（version 7，BL-144：`host` 是宿主转交页面代写的话，这一轮记成说明，不记成本人的话）；页面交回问卷卡的字段原样（`values`），由路由用插件开发包的 `questionAnswer` 读成回答再交给动作。固定旧版本的引用明确拒绝，不保留别名或读取旧形状；页面仍走原 HTTP 路径并动态取得现行动作，LOCAL 仅本人可用，MCP 不暴露此控制。验证见 `tests/coding-actions.test.ts` 的 W2-18-CODING-CONTROL-VERSION-01。
 

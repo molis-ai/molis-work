@@ -122,6 +122,12 @@ export const codingManifest: PluginManifest = {
   },
   agent: codingAgentManifest,
   databases: { project: CODING_PROJECT_DATABASE },
+  // What runs on after the call that set it off (PG-038): an accepted round is followed until it settles, and a step's wait, once
+  // over, starts the session's next round. Both stop with the activation (start-round.ts, wake-loop.ts).
+  background: { jobs: [
+    { job_id: "follow", reason: "跟住已经开始的这一轮，直到它结束，把会话记下的状态改对", permissions: [] },
+    { job_id: "wake", reason: "会话等的事有了结果，接着开这个会话的下一轮", permissions: ["artifact:read", "storage:private"] },
+  ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
   actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [

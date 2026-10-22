@@ -1,6 +1,5 @@
-import { AsyncResource } from "node:async_hooks";
 import type { ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginKeptJob, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentRunView, AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { delegationViewOf } from "./delegation-view.js";
 import type { CodingSessionState } from "./projection.js";
@@ -15,68 +14,42 @@ export type Capabilities = NonNullable<NonNullable<PluginStartContext["services"
 
 /**
  * One started Coding activation: what its routes share. The routes of each resource (routes-*.ts) take it; nothing
- * else keeps per-activation state. A newer activation of the same install and project stops the older one's loops.
+ * else keeps per-activation state. What runs on after a request (a round's follower, the loop taking up fired waits) is a
+ * job the platform keeps for this activation (PG-038), and stops with it.
  */
 export interface CodingActivation {
   readonly context: PluginStartContext;
   /** What this activation runs with: the session store it opened and the platform services and public actions Coding reads models, Goal titles and Characters through. */
   readonly execution: CodingExecution;
   readonly projectId: string;
-  /** Aborted when the plugin stops or a newer activation starts. */
-  readonly stopped: AbortController;
   /** Sessions with a send (or a delivery being taken) under way. */
   readonly busy: Set<string>;
   readonly summaries: ReturnType<typeof summaryCache>;
   readonly fileIndexes: Map<string, { at: number; value: Promise<{ files: string[]; truncated: boolean }> }>;
-  /** The follower of each session's latest round, by session. */
-  readonly following: Map<string, symbol>;
+  /** The follower of each session's latest round, by session (start-round.ts). */
+  readonly following: Map<string, PluginKeptJob>;
   /** The directory read under way, and the one queued behind it (coding.state). */
   readonly state: { read: Promise<unknown> | null; next: Promise<unknown> | null };
   readonly route: ReturnType<typeof codingRouteEntry>;
   readonly waits: ReturnType<typeof codingWakeLoop<CodingExecution>>;
-  /** Runs `run` in the context this activation was started in, outside the action of whichever request set it off. */
-  detach(run: () => void): void;
-  /** Resolves after `ms`, or as soon as the activation stops; never keeps the process alive on its own. */
-  pause(ms: number): Promise<void>;
-}
-
-/** What each started Coding activation runs in the background (the loop taking up fired waits), to stop with it. */
-const activations = new Map<string, AbortController>();
-const activationKey = (context: PluginStartContext) => `${context.install_id}:${context.project_id ?? ""}`;
-/** The plugin stops: its background loops end. */
-export function stopCodingSurface(context: PluginStartContext): void {
-  activations.get(activationKey(context))?.abort();
-  activations.delete(activationKey(context));
 }
 
 /** `failure` turns a route's error into its answer (routes.ts). */
 export function startCodingActivation(context: PluginStartContext, execution: CodingExecution, actions: ActionHandlerBinding[],
   failure: (error: unknown) => { status: number; body: unknown }): CodingActivation {
   const projectId = context.project_id ?? "";
-  activations.get(activationKey(context))?.abort();
-  const stopped = new AbortController();
-  activations.set(activationKey(context), stopped);
-  const pause = (ms: number) => new Promise<void>(resolve => {
-    if (stopped.signal.aborted) { resolve(); return; }
-    const timer = setTimeout(() => { stopped.signal.removeEventListener("abort", done); resolve(); }, ms);
-    // A loop waiting to look again does not keep the process alive on its own.
-    (timer as { unref?: () => void }).unref?.();
-    const done = () => { clearTimeout(timer); resolve(); };
-    stopped.signal.addEventListener("abort", done, { once: true });
-  });
   const busy = new Set<string>();
-  // A loop a request sets off (a send, a directory read) belongs to this activation, not to that request: it runs in the
-  // context `start` created the activation in, so what it writes after the request has returned answers to no action that
-  // has ended (S-18).
-  const detach = AsyncResource.bind((run: () => void) => run());
   // A session's step that waits, and the loop that takes up its continuation once the wait is over (wake-loop.ts). The
   // loop belongs to this activation: it reads and starts with the activation's own capabilities and execution (the store is
   // the activation's too, so a loop a request set off never reads through that request's execution).
-  const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, stopped: stopped.signal, pause, detach, records: from => from.sessions.list(projectId),
+  const waits = codingWakeLoop<CodingExecution>({ context, projectId, busy, records: from => from.sessions.list(projectId),
     record: (from, id) => from.sessions.get(projectId, id),
     startRound: (record, body, actor, api, from, beforeWrite) => startRound(activation, record, body, actor, api, from, beforeWrite) });
-  const activation: CodingActivation = { context, execution, projectId, stopped, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
-    state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, () => !stopped.signal.aborted, failure), waits, detach, pause };
+  const activation: CodingActivation = { context, execution, projectId, busy, summaries: summaryCache(), fileIndexes: new Map(), following: new Map(),
+    state: { read: null, next: null }, route: codingRouteEntry(context, execution, actions, failure), waits };
+  // The loops' job is kept while the activation starts, the one place outside a command it may be kept from: a later
+  // `coding.state` read only wakes it. Idle, it asks the Agent runtime nothing.
+  waits.keep();
   // Recovery after a restart: only a project with sessions tied to an Agent run starts the Agent runtime here. Starting the
   // plugin (or discovering its actions) must not initialize the runtime's storage when there is nothing to wake. Coding does not
   // wait for the runtime to be ready first: the Agent capability handlers initialize it themselves (agent-host-composition.ts),

@@ -17,7 +17,6 @@ import { writersRoutes } from "./routes-writers.js";
 import type { CodingSessionStore } from "./store.js";
 import { codingZh } from "./words.js";
 
-export { stopCodingSurface } from "./route-activation.js";
 export { planContinuesAfterTalk } from "./routes-timeline.js";
 export { codingSessionTitleFrom, DEFAULT_SESSION_TITLE } from "./session-title.js";
 

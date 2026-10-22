@@ -1,4 +1,4 @@
-import { redactFeedContextSecrets } from "@molis-ai/molis-work-plugin-feed";
+import { redactSecrets } from "@molis-ai/molis-work-plugin-sdk";
 
 export function desktopAdvancePrompt(input: {
   goal_id: string;
@@ -11,7 +11,7 @@ export function desktopAdvancePrompt(input: {
   const title = input.title.trim() || input.goal_id;
   const sourceContext = input.source_context?.trim();
   const boundedSourceContext = sourceContext
-    ? redactFeedContextSecrets(sourceContext)
+    ? redactSecrets(sourceContext)
       .replaceAll("<UNTRUSTED_FEED_ITEM_DATA>", "[external data marker]")
       .replaceAll("</UNTRUSTED_FEED_ITEM_DATA>", "[external data marker]")
     : undefined;

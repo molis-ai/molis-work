@@ -34,12 +34,10 @@ export { feedSourceActions, createFeedSourceHandlers, FEED_SOURCE_ACTIONS, type 
 
 export * from "./routes.js";
 export * from "./ui.js";
-export * from "./context.js";
 export { readLinkedFeedContext } from "./linked-context.js";
 
 export * from "./projection.js";
 
-export { renderFeedRichText, feedPlainText } from "./rich-content.js";
 
 export { FeedApplication } from "./application.js";
 export type { FeedApplicationPorts } from "./application-ports.js";

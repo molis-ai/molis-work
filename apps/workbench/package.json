@@ -56,7 +56,9 @@
     "@molis-ai/molis-work-plugin-cognia": "workspace:*",
     "@molis-ai/molis-work-im-ui": "workspace:*",
     "@molis-ai/molis-work-plugin-issues": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
+    "marked": "^18.0.11",
+    "sanitize-html": "^2.17.7"
   },
   "molis-work": {
     "path": "apps/workbench",

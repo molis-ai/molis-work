@@ -15,7 +15,7 @@ import { SESSION_PAGE, SESSION_WINDOW } from "./session-window.js";
 import { CODING_USAGE_METER_CLIENT_FACTORY_SCRIPT } from "./usage-meter-client.js";
 import { CODING_COMPOSER_MODEL_CLIENT_FACTORY_SCRIPT } from "./composer-model-client.js";
 import { CODING_COOPERATION_CLIENT_FACTORY_SCRIPT } from "./cooperation-client.js";
-import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "./highlight.js";
+import { codeLanguage, codeTokens, diffRowTokens, growCodeTokens } from "@molis-ai/molis-work-plugin-sdk/highlight";
 import { CODING_COMMANDS_CLIENT_FACTORY_SCRIPT } from "./commands-client.js";
 import { CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT } from "./plan-progress-client.js";
 import { CODING_SUBAGENT_CARDS_CLIENT_FACTORY_SCRIPT } from "./subagent-cards-client.js";

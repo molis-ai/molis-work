@@ -1,4 +1,4 @@
-import type { CodeColouring, CodeTokenKind } from "./highlight.js";
+import type { CodeColouring, CodeTokenKind } from "@molis-ai/molis-work-plugin-sdk/highlight";
 
 /** Runs in the browser only; the plugin build has no DOM library, so nodes are typed by the fields this script touches. */
 type Piece = [CodeTokenKind | null, string];

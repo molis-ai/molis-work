@@ -1,8 +1,9 @@
 /**
- * Feed content is external data and can contain copied credentials. Redact
- * common secret shapes before a native Plugin passes that content to a Runtime.
+ * External text (a feed item, a pasted page, a tool's output) can contain copied credentials. Redact common secret shapes
+ * (private keys, auth and cookie headers, token / secret / password values, known token prefixes, JWTs) before a plugin
+ * passes that text to a model or shows it back.
  */
-export function redactFeedContextSecrets(value: string): string {
+export function redactSecrets(value: string): string {
   return value
     .replace(
       /-----BEGIN(?: [A-Z0-9]+)? PRIVATE KEY-----[\s\S]*?-----END(?: [A-Z0-9]+)? PRIVATE KEY-----/gi,

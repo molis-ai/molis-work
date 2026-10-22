@@ -31,4 +31,4 @@ Directory candidates and browsing preferences come from the [current-project set
 - 改动后必跑：`node scripts/run-tests.mjs tests/git-plugin.test.ts tests/git-operations.test.ts tests/git-operation-review.test.ts tests/git-worktrees.test.ts tests/git-writer-integration.test.ts tests/git-product-http.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/horizontal/agent-host.md](../../../docs/horizontal/agent-host.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-Host 从 Prologue 已核对的真实操作回执通知 Git 插件；当前 activation 发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。失败/未知不冒充成功，读取历史不产生新执行事件，停用注销。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。
+Git 在 Manifest 订阅宿主事件 `host.review.settled@1`：Git 发起、人批准的操作（`review:git-index`、`review:git-operation`）执行完、结果定下后，宿主只发给 Git 这个安装（S-54）；Git 在 `onEvent` 里发布 v1 `operation-updated` 并刷新自身视图，Files 消费同一通知。Coding 发起的工作树与整合审查只发给 Coding，不经 Git。失败/未知不冒充成功，读取历史和恢复出来的审查不产生事件；宿主事件不落库、不重投，停着的安装就收不到。客户端可见时跟随 Host revision 重新读取状态，固定差异保持原版本。

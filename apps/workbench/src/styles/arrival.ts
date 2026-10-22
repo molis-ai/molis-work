@@ -158,7 +158,7 @@ export const ARRIVAL_STYLES = String.raw`
   .ob-mini-composer em { flex: 1; height: 4px; border-radius: 2px; background: var(--line); }
   .ob-mini-avatar { width: 16px; height: 16px; border-radius: 50%; background: var(--accent); }
 
-  /* ───────── New project: each step is a Welcome step — the question on the left, what it makes on a card on the right ───────── */
+  /* ───────── New project: every step is a Welcome step ───────── */
   .welcome.onboard { grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
   .ob-left { align-self: stretch; min-height: 0; overflow: auto; display: flex; flex-direction: column; justify-content: safe center; gap: 16px; padding-block: 48px; }
   .ob-left > .ob-q + * { margin-top: 8px; }
@@ -268,7 +268,7 @@ export const ARRIVAL_STYLES = String.raw`
   @media (max-width: 980px) {
     .welcome { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto; align-content: center; }
     .welcome-scene { display: none; }
-    /* A step's card stays: it goes under the question and the sheet scrolls as one page. */
+    /* The step's card goes under the question; the sheet scrolls as one. */
     .welcome.onboard { display: block; overflow: auto; }
     .welcome.onboard .ob-left { overflow: visible; padding-block: 32px 20px; }
     .onboard .welcome-scene { display: block; justify-items: stretch; padding: 0 clamp(32px, 7vw, 120px) 32px; }

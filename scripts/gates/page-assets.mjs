@@ -250,8 +250,8 @@ const APPROVED_CEILINGS = {
   "/assets/molis-work-arrival.css": [704608, 704663],
   "/assets/molis-work-workbench.css": [1612945, 1613000],
   // Roving focus: child-list parents only affect their own group; added subtrees and attribute changes still visit descendant groups.
-  // The explicit mutation-kind branch costs 39 bytes; no unrelated code or comments were removed to disguise the cost.
-  "/assets/molis-work-workbench.js": [1182907, 1182946],
+  // The mutation-kind branch adds 39 bytes; the independent kanban fix saves 1, for 38 bytes in this integrated build.
+  "/assets/molis-work-workbench.js": [1182907, 1182945],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

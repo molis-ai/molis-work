@@ -101,6 +101,18 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   const fullFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
   assert.deepEqual(withFont, fullFont, "a different font and line height have the same scroll range as full layout");
   await evaluate("document.querySelector('#diff-test-font').remove()");
+  await settle();
+  const metrics = `(() => { const row = ${list}.querySelector('li[data-diff-measure]'); return [row.getBoundingClientRect().height, row.querySelector('.diff-before').getBoundingClientRect().width]; })()`;
+  const beforeCodeFont = await evaluate(metrics);
+  // An already available font can change code widths without changing the row height or the line-number font.
+  assert.equal(await evaluate("document.fonts.check('12px Arial')"), true);
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .diff-rows code { font-family:Arial !important; }'; document.head.append(font); }`);
+  await settle();
+  assert.deepEqual(await evaluate(metrics), beforeCodeFont, "the code-only font change leaves row height and number width unchanged");
+  const withCodeFont = await evaluate(geometry);
+  const fullCodeFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
+  assert.deepEqual(withCodeFont, fullCodeFont, "a code-only font change refreshes the remembered content widths");
+  await evaluate("document.querySelector('#diff-test-font').remove()");
   const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
   await writeFile(new URL("diff-line-scale.json", evidence), JSON.stringify({ rows: expected, plain_line: minified.length, coloured_line: wide.length, frames: painting.length, longest: Math.round(longest), median: Math.round(median), gaps: gaps.map(Math.round), insert: Math.round(insert * 10) / 10, turn_insert: Math.round(turn * 10) / 10 }, null, 2));
 });

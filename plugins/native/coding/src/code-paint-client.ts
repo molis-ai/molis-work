@@ -132,11 +132,11 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     };
     if (list.matches(".diff-split") || shown.reduce((size, row) => size + row.text.length, 0) <= SLICE / 4) { step(); return; }
     // Let the plain rows lay out once. Their remembered natural size keeps the scroll range while the browser skips
-    // offscreen rows; full text and tokens stay in the DOM. Long rows keep rendering so scrolling to them is cheap.
-    for (const row of rows) if (row.text.length > SLICE && row.code.parentElement) row.code.parentElement.dataset.diffMeasure = "";
+    // offscreen rows; full text and tokens stay in the DOM. Minified plain rows keep their full measured width.
+    for (const row of rows) if (row.text.length > 40000 && row.code.parentElement) row.code.parentElement.dataset.diffMeasure = "";
     const probe = shown.find((row) => !row.code.parentElement?.hasAttribute("hidden"))?.code.parentElement;
     if (probe) probe.dataset.diffMeasure = "";
-    const number = probe?.querySelector(".diff-before"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width].join(":");
+    const number = probe?.querySelector(".diff-before"), content = probe?.querySelector("code"), size = () => [list.clientWidth, probe?.getBoundingClientRect().height, number?.getBoundingClientRect().width, content?.getBoundingClientRect().width].join(":");
     let measured = size();
     const refresh = (force = false) => {
       if (!list.isConnected) { stop(); return; }
@@ -146,7 +146,7 @@ export function createCodingCodePaint(tokens: Tokens, grow: (last: CodeColouring
     };
     const changed = () => refresh(true), resize = new ResizeObserver(() => refresh()), folds = new MutationObserver(changed);
     const stop = own(() => { resize.disconnect(); folds.disconnect(); document.fonts.removeEventListener("loadingdone", changed); });
-    resize.observe(list); if (probe) resize.observe(probe); if (number) resize.observe(number); folds.observe(list, { childList: true }); document.fonts.addEventListener("loadingdone", changed);
+    resize.observe(list); if (probe) resize.observe(probe); if (number) resize.observe(number); if (content) resize.observe(content); folds.observe(list, { childList: true }); document.fonts.addEventListener("loadingdone", changed);
     later(() => { if (list.isConnected) { list.dataset.diffSized = ""; step(); } });
   };
   return { pieceNode, paintInto, paintBlock, growCode, paintRows, source };

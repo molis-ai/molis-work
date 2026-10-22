@@ -63,6 +63,9 @@ test("personal Home uses the bottom navigation while Goals retains its current p
   // PTG-01/PTG-07: the current plugin tab replaces the removed location chip.
   await browser.waitFor("document.body.dataset.desktopSurface === 'goal' && document.querySelector('[data-titlebar-tabs] [data-plugin-group=goals] .tab-item[aria-current][data-tab-kind=plugin]')", 15_000);
   assert.equal(await browser.evaluate(`document.querySelector(${JSON.stringify(duplicatePrimaryEntry)})`), null);
+  await browser.waitFor("document.querySelector('[data-create-dialog]')?.open === true");
+  await browser.click('[data-create-dialog] [data-close-create]');
+  await browser.waitFor("document.querySelector('[data-create-dialog]')?.open === false");
   await browser.click('[data-plugin-strip] [data-plugin-id="home"]');
   await browser.waitFor("document.body.dataset.desktopSurface === 'home' && !document.querySelector('[data-titlebar-tabs] [data-plugin=home]')", 15_000);
   await browser.click('[data-titlebar-tabs] .tab-item[data-plugin="goals"][data-tab-kind="plugin"] .tab-item-trigger');

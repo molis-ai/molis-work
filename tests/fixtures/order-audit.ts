@@ -65,12 +65,19 @@ export const orderAudit = (skip: string) => String.raw`(() => {
     const row = mark.parentElement;
     if (!row || mark.closest(EXEMPT.replace(', svg', ''))) continue;
     // The words the mark stands beside: the first text in its row that is not inside the mark.
-    let text = null, after = false;
+    // A field's words are its own (typed or placeholder): a search icon belongs to the field, not to a key cap after it.
+    let text = null, field = null, after = false;
     for (const node of row.childNodes) {
       if (node === mark || (node.nodeType === 1 && node.contains(mark))) { after = true; continue; }
       if (!after || (node.nodeType === 1 && (node.matches('.mw-sr-only') || !shown(node)))) continue;
+      if (node.nodeType === 1 && node.matches('input, textarea, select')) { field = node; break; }
       text = node.nodeType === 3 ? (node.textContent.trim() ? node : null) : firstText(node);
       if (text) break;
+    }
+    if (field) {
+      const size = parseFloat(getComputedStyle(field).fontSize);
+      if (!mark.matches('.mw-state-ring, [data-mw-state], .mw-status-dot, .mw-dot') && (box.height < size - 1 || box.height > size + 4.5)) findings.push({ kind: 'mark-height', a: label(mark), b: label(field), mark: round(box.height), font: size });
+      continue;
     }
     if (!text) continue;
     const range = document.createRange(); range.selectNodeContents(text);

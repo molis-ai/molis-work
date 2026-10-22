@@ -118,7 +118,8 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * `<plugin>…ActionProvider` registered in project-host.ts, or Host files named after the plugin. A hybrid is neither the
  * Runtime shape (declarations only) nor the frozen build-time shape, and the name list above cannot see it. Frozen on
  * 2026-10-08; a plugin leaves this list when its Host code is gone, and none joins.
- *  - shelf: shelf-native-plugin-http.ts, shelf-actions.ts, shelf-ai.ts, and shelfActionProvider / shelfProjectActionProvider
+ *  - shelf: shelf-native-plugin-http.ts, shelf-actions.ts and shelfProjectActionProvider (its Home half and model calls are the
+ *    plugin's Home instance since S2)
  *  - coding, git: the workspace surface adapters in the Host (coding-*.ts, git-*.ts), the part R-03 asks to move behind
  *    declarations
  * RAC-70: Characters left with CHR-1: it is no plugin any more; its handlers are in modules/characters and its page is a section of

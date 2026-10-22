@@ -5,6 +5,7 @@ import type { HomePluginDatabaseDeclaration, HomeStoreDeclaration } from "./plug
 import type { PluginFilesDeclaration } from "./plugin-files.js";
 import type { PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 import type { PluginModelConfigurationDeclaration } from "./plugin-model-configuration.js";
+import type { PluginOwnerFilesDeclaration, PluginOwnerFilesWriter } from "./plugin-owner-files.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
 
@@ -81,6 +82,10 @@ export interface PluginRegistration {
     readonly create: () => PluginDefinition;
     readonly database?: HomePluginDatabaseDeclaration;
     readonly files?: PluginFilesDeclaration;
+    /** The owner-file store this instance reads and writes through `services.ownerFiles`; its Home store must name this plugin. */
+    readonly owner_files?: PluginOwnerFilesDeclaration;
+    /** Lays down first-run files once the instance starts, before any action can read them. */
+    readonly initialize_owner_files?: (writer: PluginOwnerFilesWriter) => void;
     readonly model_configuration?: PluginModelConfigurationDeclaration;
     readonly image_generation?: PluginImageGenerationDeclaration;
     readonly package_name: string;

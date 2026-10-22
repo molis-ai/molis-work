@@ -17,9 +17,9 @@ const record = (required: readonly string[]) => ({ type: "object", required });
 const item = record(["item_id", "group", "kind", "name", "mime", "size_bytes", "hidden", "status", "created_at"]);
 const job = record(["job_id", "recipe", "status", "item_ids", "created_at"]);
 const itemId = object({ item_id: id });
-const read = ["shelf:read"], write = ["shelf:write"];
-// The personal store belongs to the Home, not to a project Runtime installation: the Host registers these from the plugin
-// package, as it does Jelly and Cognia. The Manifest's `actions` stays reserved for what the Runtime instance redeems.
+// A write reads the shelf it changes; the files service asks each action for the permission of what it does.
+const read = ["shelf:read"], write = ["shelf:read", "shelf:write"];
+// The personal store belongs to the Home: Shelf's Home instance offers these, each project's instance the project ones.
 /** Clipboard history, device settings and the local folder path stay with the person at this computer. */
 const LOCAL: readonly ActionAudience[] = ["user"];
 const SHARED: readonly ActionAudience[] = ["user", "workflow", "agent", "mcp"];
@@ -67,8 +67,8 @@ export const shelfActions = {
   useAsMaterial: define<{ item_id: string }, { item: ShelfItemRecord }>("items.use-material", "结果转为材料", "把处理结果复制为新的材料，供下一次处理", "command", itemId, object({ item }), write, SHARED),
   edit: define<{ item_id: string; text: string }, { item: ShelfItemRecord }>("items.edit", "修改 Shelf 文字", "用新的正文覆盖置物架里一份文字材料的副本，原件不受影响，旧正文不保留；只有可编辑的文字材料能改，正文最多 512 KB", "command",
     object({ item_id: id, text: { type: "string", maxLength: 2_000_000 } }), object({ item }), write, SHARED),
-  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke"]),
-  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", write),
+  generate: jobDefinition("jobs.generate", "用 AI 处理 Shelf 材料", "通过配置的模型和共享 Prologue 生成结果，可能产生模型费用；不执行终端命令", AI_RECIPES, "metered", [...write, "model:invoke", "materials:read"]),
+  extract: jobDefinition("jobs.extract", "在本机提取 Shelf 文字", "在本机提取 PDF 或图片文字，不调用模型或联网", ["extract_text"], "none", [...write, "materials:read"]),
   cancelJob: define<{ job_id: string }, { job: ShelfJobRecord }>("jobs.cancel", "取消 Shelf 任务", "中止一个运行中的处理任务并把它标为已取消；已经结束的任务原样返回，不报错", "command", object({ job_id: id }), object({ job }), write, SHARED),
   settings: define<Record<string, never>, ShelfDeviceSettings>("settings.read", "读取 Shelf 设置", "读取本机快捷键、动作排序与运行时设置", "query", object({}), { type: "object" }, read, LOCAL),
   saveSettings: define<Record<string, unknown>, ShelfDeviceSettings>("settings.write", "保存 Shelf 设置", "修改本机快捷键、动作排序与运行时设置", "command", { type: "object" }, { type: "object" }, write, LOCAL),
@@ -77,7 +77,8 @@ export const shelfActions = {
     object({ text: { type: "string", maxLength: 2_000_000 }, concealed: { type: "boolean" }, types: { type: "array", maxItems: 50, items: { type: "string", maxLength: 200 } } }, ["text"]),
     object({ clip: { anyOf: [record(["clip_id", "kind", "title", "body"]), { type: "null" }] } }), write, LOCAL),
   deleteClip: define<{ clip_id: string }, { deleted: true }>("clipboard.delete", "删除剪贴板记录", "删除一条剪贴板历史", "command", object({ clip_id: id }), object({ deleted: { const: true } }), write, LOCAL),
-  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }), write, LOCAL),
+  clipToMaterial: define<{ clip_id: string }, { item: ShelfItemRecord }>("clipboard.material", "剪贴板放进 Shelf", "把一条剪贴板历史放进置物架", "command", object({ clip_id: id }), object({ item }),
+    [...write, "materials:fetch", "materials:fetch_local"], LOCAL),
   searchEntries: shelfSearchEntriesAction,
   subject: shelfSubjectAction,
   files: shelfFileEntriesAction,

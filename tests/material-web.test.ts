@@ -9,7 +9,12 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { shelfActions, SHELF_ACTION_PERMISSIONS } from '@molis-ai/molis-work-plugin-shelf';
 import { readMaterialWebsite } from '../apps/local-host/src/material-web.js';
-import { openHostShelfStore, shelfActionProvider } from '../apps/local-host/src/shelf-actions.js';
+import { extractMaterial } from '../apps/local-host/src/material-extraction.js';
+import { openHostShelfStore } from '../apps/local-host/src/shelf-actions.js';
+import { shelfStoreProvider } from './shelf-direct-actions.js';
+
+/** The Host's own page reader and extractor behind Shelf, as the Home instance's materials service runs them. */
+const hostShelf = (home: string) => shelfStoreProvider(() => openHostShelfStore(home, { disabled: true }, { readWebsite: readMaterialWebsite, extract: extractMaterial }));
 
 async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), 'material-web-'));
@@ -43,7 +48,7 @@ async function fixture(t: test.TestContext) {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
   const address = server.address(); assert.ok(address && typeof address !== 'string');
   const origin = `http://127.0.0.1:${address.port}`;
-  const service = new ActionService(), dispose = service.registerProvider(shelfActionProvider(home));
+  const service = new ActionService(), dispose = service.registerProvider(hostShelf(home));
   let authorized = true;
   const caller = { actor_id: 'person', audience: 'user' as const, project_id: null, permissions: SHELF_ACTION_PERMISSIONS,
     validate_authority: () => { if (!authorized) throw new ActionError('actions.revoked', 'revoked'); } };
@@ -110,7 +115,7 @@ for (const entry of ['admit', 'clipboard'] as const) for (const stop of ['cancel
   assert.deepEqual((await f.store().snapshot()).materials, original);
   assert.deepEqual(await readdir(join(f.home, 'shelf', 'files')), files);
   // A new authorized provider/call can still save a real page after any of these interruptions.
-  const recovered = new ActionService(), dispose = recovered.registerProvider(shelfActionProvider(f.home));
+  const recovered = new ActionService(), dispose = recovered.registerProvider(hostShelf(f.home));
   try {
     const result = await recovered.invoke({ ...f.caller, validate_authority: undefined }, shelfActions.admit, { text: f.origin + '/page' }) as { item: { item_id: string } };
     assert.match(f.store().readFile(result.item.item_id).bytes.toString(), /中文 🙂/);

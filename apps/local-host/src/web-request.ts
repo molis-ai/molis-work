@@ -32,7 +32,8 @@ import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleScheduleNativePluginHttp } from "./schedule-native-plugin-http.js";
 import { SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { handlePersonalNativePluginHttp } from "./personal-native-plugin-http.js";
-import { SHELF_ACTION_PERMISSIONS, SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { SHELF_PROJECT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfPageActions } from "./shelf-actions.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
@@ -185,9 +186,6 @@ function projectWebView({ coordinator, options, webViewCache, store, homeActions
 /** The person in this project, under one plugin's permissions. */
 const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) =>
   bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: [...permissions] }));
-/** The person outside any project (a Home plugin), with the surface's transport. */
-const asHomePerson = (localHost: MolisWorkLocalHost, permissions: readonly string[], transport: object) =>
-  bindActionClient(localHost.homeActionClient(), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...permissions], ...transport }));
 
 /** Sessions, the Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const sessionsAndPlanningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
@@ -216,7 +214,7 @@ const nativePluginRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
           return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
         } } },
       shelf: {
-        actions: asHomePerson(localHost, SHELF_ACTION_PERMISSIONS, {}),
+        actions: shelfPageActions(bindLocalWebActions(localHost, undefined, []), serverOptions.homeDirectory!),
         project: { title: options.project?.display_name ?? options.projectId,
           actions: bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: SHELF_PROJECT_ACTION_PERMISSIONS })) },
       },

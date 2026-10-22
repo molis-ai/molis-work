@@ -44,6 +44,20 @@ export interface ShelfRuntimeProbe {
   readonly skipHelp?: boolean;
 }
 
+/**
+ * Agent discovery follows the real PATH. An isolated trial or a test pins it,
+ * the same way `--home` pins the shelf itself.
+ */
+export function shelfRuntimeProbe(): ShelfRuntimeProbe {
+  const search = process.env.MOLIS_WORK_SHELF_AGENT_PATH;
+  const preferred = process.env.MOLIS_WORK_SHELF_AGENT;
+  if (preferred === "off") return { disabled: true };
+  return {
+    ...(search === undefined ? {} : { pathEnvironment: search }),
+    ...(preferred ? { preferred } : {}),
+  };
+}
+
 const HELP_CACHE = new Map<string, string>();
 const SANDBOX_CACHE = new Map<string, boolean>();
 

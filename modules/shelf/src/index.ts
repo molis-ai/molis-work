@@ -54,6 +54,7 @@ export {
   missingJobReason,
   readCliHelp,
   shelfRuntimeCandidates,
+  shelfRuntimeProbe,
   shelfSearchDirectories,
   supportsWorkspaceSandbox,
 } from "./runtimes.js";
@@ -70,6 +71,7 @@ export {
   isHttpUrl,
   isEditableShelfItem,
   openShelfStore,
+  seedShelfFirstRun,
 } from "./store.js";
 export {
   CARBON_CMD_KEY,

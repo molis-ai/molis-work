@@ -3,10 +3,11 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, 
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
+import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openShelfStore } from "@molis-ai/molis-work-module-shelf";
-import { SHELF_OWNER_FILES } from "@molis-ai/molis-work-plugin-shelf";
-import { openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
+import { SHELF_ACTION_PERMISSIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, shelfActions } from "@molis-ai/molis-work-plugin-shelf";
+import { MolisWorkLocalHost, openHostShelfFiles, openHostShelfStore } from "@molis-ai/molis-work-app-local-host";
 import { shelfTestAi, shelfTestReceipt } from "./shelf-test-ai.js";
 
 /** PG-026 (specs/repository-anti-corruption/privileges.md): Shelf keeps its files through the owner-files client, over the entries it declares. */
@@ -129,19 +130,41 @@ test("PG-026-S1-7 a real job writes its events through the client, and the catal
   });
 });
 
-test("PG-026-S1-8 a missing catalog reads as an empty shelf, and the first write creates it with the sample copy beside it", async () => {
+test("PG-026-S1-8 a missing catalog reads as an empty shelf, and the first write creates it", async () => {
   await withHome(async (home, root) => {
     const store = openHostShelfStore(home, { disabled: true });
     assert.doesNotThrow(() => store.settings(), "a missing catalog still gives the default settings");
-    assert.equal(existsSync(join(root, "catalog.json")), false, "reading creates no catalog");
     const first = await store.snapshot();
-    assert.deepEqual([first.results, first.clipboard, first.running_jobs], [[], [], []]);
-    assert.deepEqual(first.materials.map(item => item.name), ["试用示例.pdf"], "the first look seeds the sample, as before");
-    const catalog = JSON.parse(readFileSync(join(root, "catalog.json"), "utf8")) as { items: Array<{ relative_path: string }> };
-    assert.equal(catalog.items.length, 1);
-    assert.equal(existsSync(join(root, catalog.items[0]!.relative_path)), true, "the sample copy was written under files/ through the client");
+    assert.deepEqual([first.materials, first.results, first.clipboard, first.running_jobs], [[], [], [], []]);
+    assert.equal(existsSync(join(root, "catalog.json")), false, "reading creates no catalog, and lays no sample down");
     await store.addClipboard("first clip");
     assert.equal((await store.snapshot()).clipboard.length, 1);
+    assert.equal(existsSync(join(root, "catalog.json")), true);
+  });
+});
+
+test("PG-026-S2-1 the Home instance lays the sample down once: one the person deleted stays gone after a new grant and a restart", async () => {
+  await withHome(async (home, root) => {
+    const as = (host: MolisWorkLocalHost) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "owner", project_id: null, audience: "user", permissions: SHELF_ACTION_PERMISSIONS }));
+    const names = async (host: MolisWorkLocalHost) => (await as(host).invoke(shelfActions.snapshot, {})).materials.map(item => item.name);
+    let host = new MolisWorkLocalHost({ homeDirectory: home });
+    try {
+      const first = await as(host).invoke(shelfActions.snapshot, {});
+      assert.deepEqual(first.materials.map(item => item.name), ["试用示例.pdf"], "the first start writes the sample before any action reads");
+      const catalog = JSON.parse(readFileSync(join(root, "catalog.json"), "utf8")) as { items: Array<{ relative_path: string }> };
+      assert.equal(existsSync(join(root, catalog.items[0]!.relative_path)), true, "the sample copy was written under files/ by the start-up writer");
+      await as(host).invoke(shelfActions.delete, { item_id: first.materials[0]!.item_id });
+      const platform = await host.homePlugins!.ready(), install = host.homePlugins!.installation(SHELF_PLUGIN_ID)!;
+      await platform.runtime.stop(install.install_id);
+      platform.runtime.grant(install.install_id, []);
+      platform.runtime.grant(install.install_id, install.grants);
+      await platform.runtime.start(install.install_id);
+      assert.deepEqual(await names(host), [], "a new grant starts the instance again without the sample");
+      await host.close();
+      host = new MolisWorkLocalHost({ homeDirectory: home });
+      assert.deepEqual(await names(host), [], "a restarted Host does not bring it back either");
+      assert.equal((JSON.parse(readFileSync(join(root, "catalog.json"), "utf8")) as { seeded_sample: boolean }).seeded_sample, true);
+    } finally { await host.close(); }
   });
 });
 

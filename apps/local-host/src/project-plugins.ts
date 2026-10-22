@@ -1,6 +1,6 @@
 import { openHostShelfStore } from "./shelf-actions.js";
-import { shelfRuntimeProbe } from "./shelf-native-plugin-http.js";
 import { createShelfPlugin, type ShelfResultPorts } from "@molis-ai/molis-work-plugin-shelf";
+import { shelfRuntimeProbe } from "@molis-ai/molis-work-module-shelf";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { UiHost } from "@molis-ai/molis-work-ui-host";

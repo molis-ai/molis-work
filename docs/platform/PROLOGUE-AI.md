@@ -261,7 +261,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
   | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
-  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `apps/local-host/src/shelf-ai.ts` |
+  | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |
   | Agent 轮次的每次模型调用 | 默认 180 秒；预算里的 `max_duration_ms` 优先 | `horizontal/agent-host/src/adapters/prologue-run.ts`（`MODEL_CALL_TIMEOUT_MS`） |

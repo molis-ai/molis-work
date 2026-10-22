@@ -30,6 +30,7 @@ export const imagesManifest: PluginManifest = {
     ...IMAGES_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "图片动作" })),
     { permission: "storage:private", required: true, reason: "保存生图配置、项目生成记录和本机图片" },
     { permission: "shelf:write", required: false, reason: "将选中的图片保存到 Shelf" },
+    ...["shelf:read", "materials:read", "materials:fetch", "materials:fetch_local"].map(permission => ({ permission, required: false, reason: "放进 Shelf" })),
   ],
   capabilities: { provides: [], consumes: ["shelf.items.admit"] },
   artifacts: { produces: [], consumes: [] },

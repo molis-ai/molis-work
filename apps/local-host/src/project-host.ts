@@ -19,7 +19,7 @@ import { createWebCatalogAccess } from "./web-catalog-access.js";
 import { goalsActionProvider } from "./goals-actions.js";
 import { AlchemistHostService, type AlchemistHostOptions } from "./alchemist-service-host.js";
 import { providerTablesOwner, scheduleActionProvider, scheduleReminderActionProvider } from "./schedule-actions.js";
-import { shelfActionProvider, shelfProjectActionProvider } from "./shelf-actions.js";
+import { shelfProjectActionProvider } from "./shelf-actions.js";
 import { charactersActionProvider } from "./characters-host.js";
 import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
@@ -215,7 +215,6 @@ export class MolisWorkLocalHost {
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
-    if (options.homeDirectory) this.host.actionRegistry().registerProvider(shelfActionProvider(options.homeDirectory));
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.status().projects.find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.status().projects.find(project => project.project_id === caller.project_id)!) : this.homeActionClient()));
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.

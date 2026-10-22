@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { PluginAppContribution, PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginAppContribution, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createShelfHomePlugin, createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import { MemoryPluginRuntimeRepository, PluginRuntime, viewContributionId, type RedemptionScope } from "@molis-ai/molis-work-plugin-runtime";
 import { dualPlugin } from "./fixtures/dual-plugin.js";
 
@@ -16,7 +17,18 @@ import { dualPlugin } from "./fixtures/dual-plugin.js";
  * Every dual-instance plugin the Host ships, with its two halves. A catalog registration marked `runtime.dual_instance` that is not
  * here fails the first test, so a newly marked plugin is covered from the PR that marks it (Shelf from its S2).
  */
-const SHIPPED: ReadonlyArray<{ readonly plugin_id: string; home(): PluginDefinition; project(): PluginDefinition }> = [];
+const SHIPPED: ReadonlyArray<{ readonly plugin_id: string; home(): PluginDefinition; project(): PluginDefinition }> = [
+  { plugin_id: "io.molis.work.shelf", home: () => withServices(createShelfHomePlugin(), {
+    ownerFiles: { stat: () => null, read: () => null, list: () => [], write: () => Promise.reject(new Error("not used by the check")) },
+    model: { choices: () => [], availability: () => ({ available: false, code: "actions.connection_required", reason: "not used by the check" }), complete: () => Promise.reject(new Error("not used by the check")) },
+    materials: {},
+  }), project: () => createShelfPlugin() },
+];
+
+/** A half that starts only beside the Host's services gets stand-ins: the check reads what the half offers and never calls it. */
+function withServices(definition: PluginDefinition, services: PluginHostServices): PluginDefinition {
+  return { ...definition, start: context => definition.start({ ...context, services: { ...context.services, ...services } }) };
+}
 
 const PROJECT = "coverage-project";
 type Shares = Record<"home" | "project", PluginAppContribution>;

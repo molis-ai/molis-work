@@ -2571,3 +2571,14 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - S2 先按 (a)：admit 加三项 materials 权限，Images 声明为可选。
     - S3 在 admit@2 里拆出 `shelf.items.capture`，带 fetch 和 fetch_local；Images 收回这两项。
     - 理由：最小权限，只放图片的插件不该向人要网页抓取权限；拆分搭 D3 那次升级，不多升一次版本。
+- **10-22 #1023（G2b）**：⑩ 审完、可合，⑤ 在跑相关用例，跑完入队。
+- **10-22 C7 开 PR #1024**（② 交 ⑤，进批）。① 的裁定：
+  - marked、sanitize-html 做成 SDK 的可选 peer（同意）。SDK README 写明 /rich-text 要自装这两个包，peerDependenciesMeta 标 optional，各方版本和 peer 的范围对得上。
+  - 和 #1018 的 lockfile 冲突，由 ⑤ 在合并顺序里处理。
+- **10-22 main 上的红灯** `tests/desktop-tui.test.ts:702`：#994 改了源码，测试没跟上。派 ⑩ 修，按预期变化改断言，不放宽。如果快而且稳，就加进 CI 子集。
+- **10-22 ② 的三张卡等用户来点**：C8-3 `task_3f6b811d`、S0-2b-3 `task_8d9f1662`（扩 S-48）、Goals S9 平台设计 `task_96c0cd34`。
+  - S0-2b-3 先合，Shelf S2 再 rebase；S2 在 `home-plugins.ts` 上尽量少动。
+- **10-22 补充裁定**：
+  - T1 的解冻由 ③ 在 S5 的 PR 里写进 `privileges.md:104`，② 不等它合入就照裁定动手。
+  - PG-027 的状态在 S9 设计稿里核实。
+  - Artifacts 不并进 Goals S9 设计稿：S9 稿只写 Goals 要的服务接口，Artifacts 整体迁到平台单独一份稿，排在补位队列第一。

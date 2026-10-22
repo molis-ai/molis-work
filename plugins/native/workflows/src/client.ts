@@ -240,7 +240,7 @@ export const WORKFLOWS_CLIENT_FACTORY_SCRIPT = String.raw`(host) => {
       listEl.innerHTML = '<div class="mw-empty wf-empty"><span class="mw-empty__mark">' + ico('workflow') + '</span><strong>' + tx('还没有工作流程') + '</strong>'
         + '<p>' + tx('把已有插件按顺序串起来，定好上一步的结果怎样交给下一步。每走一次都会留下这一次自己的内容。') + '</p>'
         + '<p class="wf-example"><b>Feed</b><i>' + tx('手动') + '</i><b>Inbox</b><i>AI</i><b>Pages</b></p>'
-        + '<div class="mw-empty__actions"><button class="mw-btn mw-btn--ghost" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('用这个例子新建') + '</span></button></div></div>';
+        + '<button class="mw-btn mw-btn--secondary" type="button" data-wf-action="example">' + ico('sparkles') + '<span>' + tx('用这个例子新建') + '</span></button></div>';
       return;
     }
     listEl.innerHTML = '<nav class="mw-dir__list wf-rows" aria-label="' + tx('工作流程') + '">' + ui.workflows.map((flow) => {

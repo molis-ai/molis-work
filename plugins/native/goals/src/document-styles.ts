@@ -9,11 +9,7 @@ export const GOALS_DOCUMENT_STYLES = `
   body[data-desktop-shell="true"] .goal-title-row h1,
   .goal-title-row h1 { line-height: 1.2; letter-spacing: -.035em; }
   .goal-title-outcome { max-width: 68ch; margin-top: 12px; line-height: 1.65; }
-  .goal-more > summary { border: 0; border-radius: 7px; background: transparent; }
-  @media (min-width: 761px) {
-    html[data-density="compact"] body[data-board-view] .goal-status { min-height: 20px; padding-inline: 8px; border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line)); border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper)); }
-    html[data-density="compact"] body[data-desktop-shell="true"][data-board-view] .tree-node .goal-status { min-height: 20px; padding-inline: 8px; border: 1px solid color-mix(in srgb, var(--goal-status-tone) 28%, var(--line)); border-radius: 5px; background: color-mix(in srgb, var(--goal-status-tone) 7%, var(--paper)); font-size: 11px; }
-  }
+  .goal-more > summary { border: 0; border-radius: 8px; background: transparent; }
   @media (max-width: 760px) {
     body[data-desktop-shell="true"] .goal-title-row h1,
     .goal-title-row h1 { max-width: none; font-size: 24px; }

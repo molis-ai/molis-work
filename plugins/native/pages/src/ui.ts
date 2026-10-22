@@ -84,8 +84,8 @@ export function renderPagesWorkbench(model: PagesUiModel): string {
         <p>${p.text("先建一篇，在纸面上写。刷新之后还在。")}</p>
         <p data-placement-target></p>
         <div class="mw-empty__actions">
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
-          <button class="mw-btn mw-btn--ghost" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-templates>${icon("library")}<span>${p.text("从模板新建")}</span></button>
+          <button class="mw-btn mw-btn--secondary" type="button" data-pages-import>${icon("upload")}<span>${p.text("导入已有文档")}</span></button>
         </div>
       </div>
       <p class="pages-placement-line" data-placement-target></p>

@@ -2,6 +2,10 @@
 
 状态：进行中。隔离验证不代表已上线或允许维护真实 Home。
 
+2026-10-22 第四阶段增量合并：本次抓取 main 为 `83ecb61b69fa08249425f34782f07cf4e1f58a03`，仅新增主页无感刷新提交（#1002）。本地合并提交 `58aada4f1` 保留上一轮 personal 账号、同步及 SDK 行为；唯一 Git 冲突为页面资源快照，按实际构建用正式工具重新生成，没有手工估算或放宽阈值。最终 26 项资源共 6,667,224 字节，通过该 main 的预算检查；相对上一轮 personal，工作台脚本增加 200 字节。
+
+第四阶段验证：整体构建、包边界和敏感信息检查通过；工作台 README 必跑组及主页相关浏览器/单元测试共 22/22 文件、152/152 项通过，包含 QHR-01 后台刷新节点保持、QHR-02 跨午夜日期立即更新和真实插件事项操作。严格质量门禁仍为之前记录的 4 项失败，无新增；本轮未重跑账号菜单键盘失败用例，不能据此解除第三阶段的已知缺口。遵照用户先交付本地合并的选择，未跑长时间全量、未推送、未重启服务、未改真实 Home。日志：`/private/tmp/molis-refresh-build.log`、`/private/tmp/molis-refresh-tests.log`、`/private/tmp/molis-refresh-health.log`、`/private/tmp/molis-refresh-assets.log`、`/private/tmp/molis-refresh-boundary.log`、`/private/tmp/molis-refresh-secrets.log`。
+
 2026-10-22 第三阶段增量合并：本次抓取的 main 固定为 `72965940b53dc436c569450441f0795032fc4bfc`，比第二阶段新增 5 个提交。合并提交 `4beb4a0af` 解决 8 个冲突文件；保留 personal 的可用账号入口、同步 SDK 导出与 Cognia `etag`，接入 main 的内部导出清理及 `canonicalJsonValue`。主线新增的禁用登录占位断言改为检查 personal 的可用入口与已绑定账号菜单，账号刷新保留英文未登录/空间文案。没有改动作版本、放宽校验或维护真实 Home。
 
 第三阶段验证：最终整体构建通过；API 生成器确认快照无需再改，动作合同快照 25/25；包边界 73 包、2,655 源文件无错误，敏感信息检查通过。页面资源由正式工具从最终构建生成，26 项共 6,667,024 字节，通过此次 main 的预算检查。质量门禁仍是第二阶段的 4 项失败（Coding 客户端 1581→1584 行，Coding/Feed/Schedule 各多一个包外引用文件）；刷新被拒，保留本次 main 原始质量基线，不手合数字、不放宽门禁。

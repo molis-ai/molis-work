@@ -98,6 +98,7 @@ export type FrameDown =
   | { type: "select"; detail: unknown } | { type: "collapse" } | { type: "dispose" };
 
 declare global {
+  var molisPlacement: { paintBar(slot: HTMLElement): Promise<void>; paintTargets(root: HTMLElement): void } | undefined;
   var molisFrameReviews: HostReviewFactory;
   var molisFrameFillMessage: Translate;
   var molisWorkRequest: UiRequest;

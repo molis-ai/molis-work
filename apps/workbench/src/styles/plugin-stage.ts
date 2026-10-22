@@ -221,7 +221,7 @@ export const PLUGIN_STAGE_STYLES = `
   .plugin-stage-more > summary { list-style: none; cursor: pointer; gap: 4px; }
   .plugin-stage-more > summary::-webkit-details-marker { display: none; }
   .plugin-stage-more[open] > summary { background: var(--nav-hover); }
-  .plugin-stage-more-actions { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; width: max-content; min-width: 160px; max-height: min(300px, 60dvh); overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+  .plugin-stage-more-actions { position: absolute; top: calc(100% + 6px); right: 0; z-index: 40; display: grid; min-width: 160px; max-height: min(300px, 60dvh); overflow: auto; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
   .plugin-stage-more-actions > .mw-btn { width: 100%; justify-content: flex-start; margin: 0; min-height: 34px; }
   [data-lingguang-save-status] { color: var(--muted); font-size: 12px; }
   [data-lingguang-save-status][data-failed=true] { color: var(--red); }

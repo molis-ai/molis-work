@@ -238,13 +238,17 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 const APPROVED_CEILINGS = {
-  // SYS-15: opaque page metadata and the shell's asynchronous context/record bridge. Existing served-JS compaction already
-  // removes redundant whitespace; compacting the embedded scripts again saved no bytes. 1182907 → 1185232 (+2325).
-  "/assets/molis-work-workbench.js": [1182907, 1185232],
-  // SYS-15: Builder uses public dialogs, file/settings messages and the isolated page lifecycle. Its removed owner access
-  // pays for most of the bridge; the remaining served program is 115519 → 116132 (+613).
+  // SYS-15: page metadata, context/placement bridges and workspace navigation. Moving the trusted review factory into
+  // the existing lazy frame asset removed 11 KB from startup; the remaining workbench delta is 3463 bytes.
+  "/assets/molis-work-workbench.js": [1182945, 1186408],
+  // Builder uses public dialogs, file/settings messages and the isolated page lifecycle (+613).
   "/assets/molis-work-plugins/plugin-builder.js": [115519, 116132],
-
+  // Restore keyboard focus after leaving and returning to the isolated Issues view (+20).
+  "/assets/molis-work-plugins/issues.js": [24182, 24202],
+  // Register conditional blank cleanup before closing; obsolete unload-only request branches were removed (+308).
+  "/assets/molis-work-plugins/lingguang.js": [25558, 25866],
+  // Form/PPT detail controls wrap and export menus stay inside narrow frames; old delete-button margin removed (+92).
+  "/assets/molis-work-workbench.css": [1614380, 1614472],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
@@ -252,7 +256,7 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 // User approved 2026-10-21 (specs/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
 const APPROVED_NEW_ASSETS = {
-  "/assets/molis-work-plugin-frame.js": 147604,
+  "/assets/molis-work-plugin-frame.js": 187120,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

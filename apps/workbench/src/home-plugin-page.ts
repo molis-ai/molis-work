@@ -7,6 +7,7 @@ import { renderWorkbenchDocument } from "./document-shell.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { HOME_MODEL_SETTINGS_CLIENT_SCRIPT } from "./scripts/home-model-settings.js";
 import { homeToolKeysScript } from "./home-plugin-navigation.js";
+import { PLACEMENT_FACTORY_SCRIPT } from "./scripts/client/placement.js";
 import type { WorkbenchRendererPorts } from "./renderer.js";
 
 /**
@@ -54,6 +55,7 @@ export function renderHomePluginPage(entry: PluginRegistration, html: string | n
       </div>
     </dialog>
     <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}</script><script src="/assets/molis-work-plugin-frame.js"></script><script>
+    ${`if(window===top) globalThis.molisPlacement = (${PLACEMENT_FACTORY_SCRIPT})({translate:L,route:path=>${JSON.stringify(route)}+path,headers:()=>molisWorkControlHeaders(),projectTitle:${JSON.stringify(project?.display_name ?? "")},openItem:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id)),openPluginRecord:(plugin,id)=>location.assign(${JSON.stringify(route)}+'/?openPlugin='+encodeURIComponent(plugin)+'&openItem='+encodeURIComponent(id))});`}
     const root = document.querySelector('[data-deferred-surface]');
     if(root) void molisPluginFrames.mount(root,{side:${side},translate:globalThis.L,mountPluginClient:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})(),route:path=>${JSON.stringify(route)}+path,projectId:()=>${JSON.stringify(project?.project_id ?? "")},projectTitle:()=>${JSON.stringify(project?.display_name ?? "")}${side ? `,page:(${SIDE_PAGE_SCRIPT}),status:status=>parent.postMessage({type:'molis:side-status',status},location.origin)` : ""}},{id:${JSON.stringify(id)},plugin_id:${JSON.stringify(entry.manifest.plugin_id)},bundle:${JSON.stringify(client?.bundle ?? id)},assets:${JSON.stringify(client?.assets ?? [])},searchRow:${JSON.stringify(client?.searchRow)}}).catch(error=>{const note=document.querySelector('[data-home-status]');molisWorkRequest.show(note,error);note.hidden=false;});
     document.querySelector('[data-home-lifecycle]')?.addEventListener('click',async(event)=>{

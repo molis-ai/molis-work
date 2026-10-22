@@ -40,6 +40,7 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, reloadPage, homeDirectory } = browser;
   const views = Object.fromEntries(await Promise.all(["form", "dataset", "lingguang", "pages"].map(async id => [id, await pluginFrameBrowser(t, browser, id)])));
   const shelf = await pluginFrameBrowser(t, browser, "shelf", '[data-side-body="plugin:shelf/side"] iframe');
+  const shelfStandalone = await pluginFrameBrowser(t, browser, "shelf");
   const viewFor = (selector: string) => views[selector.match(/data-(form|dataset|lingguang|pages)-/)?.[1] ?? ""] ?? browser;
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const other = await catalog.createProject({ display_name: "市场活动", actor_id: "placement-test" });
@@ -182,6 +183,10 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
     await go(`/projects/${project}/?openPlugin=shelf&openItem=${encodeURIComponent(item.item_id)}`);
     await shelfShows(item.item_id);
     await shelf.waitFor("document.querySelector('[data-placement-slot] .placement-bar-where')?.textContent === '个人空间'");
+    await shelf.click("[data-placement-slot] .placement-bar");
+    await waitFor("document.querySelector('.placement-panel')?.textContent.includes('个人空间')");
+    await evaluate("document.dispatchEvent(new KeyboardEvent('keydown',{key:'Escape',bubbles:true}))");
+    await waitFor("!document.querySelector('.placement-panel')");
     await shelf.waitFor(`Boolean([...(document.querySelectorAll('[data-shelf-use-in-project]') || [])].find(node => node.getClientRects().length))`, 15_000);
     await shelf.click("[data-shelf-use-in-project]");
     await waitFor("document.querySelector('dialog.placement-dialog')?.open", 12_000);
@@ -195,6 +200,12 @@ test("placement per plugin: Goal materials, Form to Dataset, Lingguang conversio
   const used = await describe(shelfItem);
   assert.equal(used.location?.title, "个人空间", "using it in projects does not move or copy it");
   assert.equal(used.associations.filter(link => link.type === "used_in").length, 2);
+  // SYS-15-U14: the same personal object and trusted location panel also work without a surrounding workbench.
+  await go("/plugins/shelf?side=side");
+  await shelfStandalone.click(`[data-shelf-list=materials] [data-shelf-item="${item.item_id}"]`);
+  await shelfStandalone.waitFor("document.querySelector('[data-placement-slot] .placement-bar-where')?.textContent === '个人空间'");
+  await shelfStandalone.click("[data-placement-slot] .placement-bar");
+  await waitFor("document.querySelector('.placement-panel')?.textContent.includes('个人空间')");
   // From the project, “打开” lands on that very item in the Shelf (a link load, not a list to search through).
   await projectHome(projectId!);
   await press(`[data-placement-related] [data-placement-open="${item.item_id}"]`);

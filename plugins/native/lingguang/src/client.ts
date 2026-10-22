@@ -11,13 +11,12 @@
  * Leaving also means the surface going away. When the workbench hides this page (another plugin, Home, Settings) the open blank
  * spark is saved, the editor closed and the spark taken back the same way, so what comes back is the list. When the page itself
  * is going away (reload, window closed) there is no time to read the Host's copy: the copy this page last saw decides (its
- * updated_at is the one the discard names, so the Host refuses if the spark changed after that), and the call is sent with
- * keepalive. Once it is decided to throw the spark away the editor is closed too: the workbench keeps the open
+ * updated_at is the one the discard names, so the Host refuses if the spark changed after that). The page registers its
+ * own conditional cleanup while alive; the Host folds the editor and runs it before revoking the page. The workbench keeps the open
  * record of a plugin's page to reopen after a reload and forgets it when the page reports it is back at its list (data-expanded
  * false), and a record it still held would be asked for by id 1.5 s after the reload and answered 「这条灵光已丢掉或不存在」. A spark
  * that stays (words on the screen or in the saved copy) keeps its editor and its record. A tab or window that is only hidden is
- * not leaving. The scope's cleanups run in the same order when the page goes away; `alive` tells the two apart, so the call is
- * made once.
+ * not leaving. Input and pending saves cancel the closing registration.
  *
  * The workbench's own ways back to the list (its Back button, ⌘[, the mouse back button, the plugin's name on the tab strip) say
  * "no item" with a select-item event and then fold the page without asking it to close the editor (leaveOnFold): once the fold is
@@ -95,12 +94,11 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     ? molisWorkControlHeaders()
     : { "content-type": "application/json" };
   const api = "/api/plugins/io.molis.work.lingguang/sparks";
-  const request = async (method, path, body, keepalive) => {
+  const request = async (method, path, body) => {
     const response = await fetch(host.route(path), {
       method,
       headers: headers(),
       body: body === undefined || method === "GET" ? undefined : JSON.stringify(body),
-      keepalive,
     });
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload.error || L("灵光请求失败"));
@@ -196,28 +194,25 @@ export const LINGGUANG_CLIENT_FACTORY_SCRIPT = `(host) => {
     if (preview) preview.textContent = previewOf(record);
   };
   const fresh = new Map();
-  const dropBlank = async (id, unloading) => {
+  const dropBlank = async (id) => {
     const given = fresh.get(id);
     if (given === undefined) return;
     fresh.delete(id);
     try {
-      const { spark } = unloading ? { spark: records.find((item) => item.id === id) } : await request("GET", api + "/" + encodeURIComponent(id));
+      const { spark } = await request("GET", api + "/" + encodeURIComponent(id));
       if ((spark.body || "").trim() || (spark.title.trim() && spark.title !== given)) return;
-      if (unloading) closeWorkspace();
-      await request("POST", api + "/discard", { ids: [id], expected_updated_at: { [id]: spark.updated_at } }, unloading);
+      await request("POST", api + "/discard", { ids: [id], expected_updated_at: { [id]: spark.updated_at } });
       records = records.filter((item) => item.id !== id);
       renderList();
     } catch { /* stays as it was */ }
   };
-  const leaveBlank = async (unloading) => {
+  const leaveBlank = async () => {
     const id = selected?.id;
     if (!id || !fresh.has(id) || bodyInput.value.trim() || (titleInput.value.trim() && titleInput.value !== fresh.get(id))) return;
-    if (!unloading) {
-      await save();
-      if (selected?.id !== id) return;
-      closeWorkspace();
-    }
-    await dropBlank(id, unloading);
+    await save();
+    if (selected?.id !== id) return;
+    closeWorkspace();
+    await dropBlank(id);
   };
   const leaveOnFold = () => queueMicrotask(() => { if (workbench.getAttribute("data-expanded") === "false") void leaveBlank().catch(() => {}); });
   const fillEditor = (record) => {

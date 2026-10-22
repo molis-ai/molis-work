@@ -12,7 +12,7 @@ export function childPlacement(port: MessagePort, scope: FrameScope): void {
     const values = [...slots].map(([id, element]) => {
       if (!element.isConnected) { slots.delete(id); return null; }
       const rect = element.getBoundingClientRect();
-      return { id, target: element.hasAttribute("data-placement-target"), home: element.dataset.placementScope === "home",
+      return { id, target: element.hasAttribute("data-placement-target"), home: element.dataset.placementScope === "home" || element.dataset.placementTarget === "home",
         saved: element.dataset.placementSaved !== "off", box: element.checkVisibility() ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : null };
     }).filter(value => value !== null);
     const next = JSON.stringify(values);
@@ -38,12 +38,20 @@ export function childPlacement(port: MessagePort, scope: FrameScope): void {
 export function pagePlacement(port: MessagePort, scope: FrameScope, root: HTMLElement, frame: HTMLIFrameElement) {
   const slots = new Map<number, { node: HTMLElement; html: string }>();
   const publish = () => {
+    // A trusted side document shares the workbench's painter; only the opaque child lacks access to it.
+    if (!globalThis.molisPlacement) {
+      const painter = (window.top as typeof globalThis | null)?.molisPlacement;
+      for (const entry of slots.values()) {
+        if (entry.node.hasAttribute("data-placement-slot")) void painter?.paintBar(entry.node);
+        else if (!entry.node.childElementCount) painter?.paintTargets(root);
+      }
+    }
     for (const [id, entry] of slots) if (entry.node.innerHTML !== entry.html) {
       entry.html = entry.node.innerHTML;
       port.postMessage({ type: "placement-label", id, html: entry.html } satisfies FrameDown);
     }
   };
-  scope.observe(new MutationObserver(publish), root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "data-kind"] });
+  scope.observe(new MutationObserver(publish), root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ["aria-label", "data-kind", "data-assistant-context"] });
   scope.own(() => { for (const entry of slots.values()) entry.node.remove(); slots.clear(); });
   return (message: Extract<FrameUp, { type: "placement-slots" | "placement-open" }>) => {
     if (message.type === "placement-open") {
@@ -58,6 +66,7 @@ export function pagePlacement(port: MessagePort, scope: FrameScope, root: HTMLEl
       let entry = slots.get(value.id);
       if (!entry) {
         const node = document.createElement("span"); node.toggleAttribute(value.target ? "data-placement-target" : "data-placement-slot", true);
+        if (value.target && value.home) node.dataset.placementTarget = "home";
         if (value.home) node.dataset.placementScope = "home";
         if (!value.saved) node.dataset.placementSaved = "off";
         node.setAttribute("aria-hidden", "true"); node.style.cssText = "position:absolute;opacity:0;pointer-events:none";

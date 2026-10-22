@@ -181,7 +181,7 @@
       "lines": 343,
       "methods": 19
     },
-    "file plugins/native/coding/src/client.ts": 1581,
+    "file plugins/native/coding/src/client.ts": 1580,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -213,8 +213,8 @@
       "lines": 654,
       "methods": 40
     },
-    "file plugins/native/shelf/src/client.ts": 1659,
-    "file plugins/native/todo/src/client.ts": 1240,
+    "file plugins/native/shelf/src/client.ts": 1642,
+    "file plugins/native/todo/src/client.ts": 1233,
     "class plugins/native/todo/src/store.ts#TodoStore": {
       "lines": 378,
       "methods": 28
@@ -225,7 +225,7 @@
     "function plugins/native/work/src/terminal/panels.ts#createTerminalPanels": 365,
     "function plugins/native/work/src/ui/render.ts#renderWorkSessionSurface": 342,
     "function plugins/native/workflows/src/actions.ts#createWorkflowsActionHandlers": 233,
-    "file plugins/native/workflows/src/client.ts": 1355,
+    "file plugins/native/workflows/src/client.ts": 1329,
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013,
     "function plugins/official-integrations/gmail/src/oauth-pending.ts#createGmailPendingSessions": 178,
     "function plugins/official-integrations/gmail/src/oauth-token-lifecycle.ts#createGmailTokenLifecycle": 168,
@@ -462,7 +462,7 @@
     "packages/plugin-runtime/src/index.ts": 2,
     "plugins/native/goals/src/planning-presentation.ts": 1
   },
-  "emptyCatchesInScriptsTotal": 120,
+  "emptyCatchesInScriptsTotal": 118,
   "emptyCatchesInScripts": {
     "apps/desktop/src/capsule-shell.ts": 3,
     "apps/desktop/src/shell.ts": 1,
@@ -496,7 +496,7 @@
     "plugins/native/alchemist/src/client.ts": 1,
     "plugins/native/alchemist/src/work-reuse/client.ts": 2,
     "plugins/native/coding/src/changeset-client.ts": 1,
-    "plugins/native/coding/src/client.ts": 10,
+    "plugins/native/coding/src/client.ts": 9,
     "plugins/native/coding/src/plans-client.ts": 4,
     "plugins/native/coding/src/steps-client.ts": 3,
     "plugins/native/coding/src/subagents-client.ts": 3,
@@ -508,7 +508,7 @@
     "plugins/native/images/src/client.ts": 2,
     "plugins/native/jelly/src/client-content.ts": 2,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3,
-    "plugins/native/shelf/src/client.ts": 7,
+    "plugins/native/shelf/src/client.ts": 6,
     "plugins/native/shelf/src/reading-client.ts": 1,
     "plugins/native/shelf/src/settings-client.ts": 1,
     "plugins/native/todo/src/client.ts": 1,
@@ -620,7 +620,7 @@
     "plugins/native/todo/src/client.ts": 1,
     "plugins/native/work/src/ui/browser.ts": 1
   },
-  "rawFetchInScriptsTotal": 59,
+  "rawFetchInScriptsTotal": 58,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
     "plugins/native/artifacts/src/goal-input-client.ts": 2,
@@ -630,7 +630,7 @@
     "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/coding/src/settings-client.ts": 1,
     "plugins/native/coding/src/mcp-settings-client.ts": 3,
-    "plugins/native/coding/src/client.ts": 2,
+    "plugins/native/coding/src/client.ts": 1,
     "plugins/native/dataset/src/client.ts": 1,
     "plugins/native/images/src/client.ts": 1,
     "plugins/native/issues/src/client.ts": 1,

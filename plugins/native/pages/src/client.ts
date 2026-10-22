@@ -74,10 +74,10 @@ export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
     return path + (path.includes("?") ? "&" : "?") + "project_id=" + encodeURIComponent(id);
   };
   const pageUrl = (id, tail) => api + "/" + encodeURIComponent(id) + (tail || "");
-  const request = async (method, path, body, more) => {
+  const request = async (method, path, body) => {
     const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
     const response = await fetch(route(withProject(path)), {
-      method, headers: headers(), ...more,
+      method, headers: headers(),
       body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
     });
     const payload = await response.json().catch(() => ({}));

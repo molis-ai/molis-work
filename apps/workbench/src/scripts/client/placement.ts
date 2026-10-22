@@ -249,11 +249,17 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     closePanel();
     // Measured now: the bar may be repainted (and this node replaced) while the description loads.
     const rect = anchor.getBoundingClientRect();
+    let left = rect.left, bottom = rect.bottom, owner = anchor.ownerDocument.defaultView;
+    while (owner && owner !== window) {
+      const frame = owner.frameElement; if (!frame) break;
+      const box = frame.getBoundingClientRect(); left += box.left; bottom += box.top;
+      owner = frame.ownerDocument.defaultView;
+    }
     const view = await describe(object, true);
     panel = node("section", undefined, "placement-panel mw-menu");
     panel.setAttribute("role", "dialog"); panel.setAttribute("aria-label", L("放在哪里"));
-    panel.style.left = Math.max(8, Math.min(rect.left, innerWidth - 400)) + "px";
-    panel.style.top = Math.min(rect.bottom + 8, innerHeight - 120) + "px";
+    panel.style.left = Math.max(8, Math.min(left, innerWidth - 400)) + "px";
+    panel.style.top = Math.min(bottom + 8, innerHeight - 120) + "px";
     panel.append(node("h2", view.title, "placement-panel-title"));
     if (view.state !== "ok") panel.append(node("p", view.reason || L("暂时读不到"), "placement-panel-warning"));
     const facts = node("dl", undefined, "placement-panel-facts");
@@ -625,5 +631,5 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
   window.addEventListener("molis:assistant-effect", () => { invalidate(); repaint(); });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) { invalidate(); repaint(); } });
   repaint();
-  return { describe, openObject, repaint, card };
+  return { describe, openObject, repaint, card, paintBar, paintTargets };
 }`;

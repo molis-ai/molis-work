@@ -36,20 +36,20 @@ export const PAGES_BLANK_CLIENT_SCRIPT = String.raw`
     const draft = draftOf();
     return (!draft.title.trim() || draft.title === made.title) && blank(draft.body) ? { id: sel.id, version: made.version } : null;
   };
-  const dropBlank = async (left, unloading) => {
+  const dropBlank = async (left) => {
     if (!left) return;
     fresh.delete(left.id);
     try {
-      await request("POST", pageUrl(left.id, "/discard"), { expected_version: left.version }, unloading && { keepalive: true });
+      await request("POST", pageUrl(left.id, "/discard"), { expected_version: left.version });
       records = records.filter((item) => item.id !== left.id);
       renderList();
     } catch { /* stays as it was */ }
   };
-  const leaveBlank = (unloading) => {
+  const leaveBlank = () => {
     const left = blankLeaving();
     if (!left) return;
     closeEditor();
-    void dropBlank(left, unloading);
+    void dropBlank(left);
   };
   const leaveOnFold = () => queueMicrotask(() => { if (bench.getAttribute("data-expanded") === "false") leaveBlank(); });
   const lifetime = host.mountPluginClient?.(bench);
